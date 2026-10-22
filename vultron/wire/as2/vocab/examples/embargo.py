@@ -21,6 +21,7 @@ from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    em_undo_embargo_invite_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
     withdraw_from_embargo_activity,
@@ -32,6 +33,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Reject,
     as_Remove,
+    as_Undo,
 )
 from vultron.wire.as2.vocab.examples._base import (
     EXAMPLE_TIMESTAMP,
@@ -112,6 +114,26 @@ def relay_embargo_proposal() -> as_Invite:
         published=EXAMPLE_TIMESTAMP,
         rsvp_deadline=EXAMPLE_TIMESTAMP + timedelta(days=7),
         summary="The vendor proposes to embargo case 1 for 90 days.",
+    )
+
+
+def undo_embargo_invite() -> as_Undo:
+    """The CASE_MANAGER's withdrawal of an Invite it relayed (EMB-16-001).
+
+    Once the case is public, an exploit is public or attacks are observed
+    while the proposal is open, the CASE_MANAGER abandons it: it rejects the
+    proposal it received, then withdraws each Invite it relayed for it.  An
+    actor undoes only an activity it performed (ADR-0152).  It is addressed
+    to nobody: each participant learns of it from the ledger entry
+    (EP-09-009).
+    """
+    invite = relay_embargo_proposal()
+    return em_undo_embargo_invite_activity(
+        invite,
+        id_=f"{invite.id_}/undo",
+        actor=case_actor().id_,
+        context=invite.context,
+        published=EXAMPLE_TIMESTAMP,
     )
 
 

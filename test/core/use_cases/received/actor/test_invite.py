@@ -1232,12 +1232,13 @@ class TestInviteActorUseCases:
             e.semantic_type == "accept_invite_actor_to_case" for e in entries
         )
 
+    @pytest.mark.spec("CM-17-004")
+    @pytest.mark.spec("CM-17-012")
     def test_accept_invite_backfills_canonical_ledger_from_genesis(
         self, make_payload
     ):
-        from vultron.core.models.replication_state import (
-            VultronReplicationState,
-        )
+        """An inert invitee's first Accept joins it and backfills it."""
+        from vultron.core.models.case_participant import CaseParticipant
 
         lj = _seed_late_joiner_case()
         dl, case, invitee_id = lj["dl"], lj["case"], lj["invitee_id"]
@@ -1263,12 +1264,12 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Entry 2 (accept_invite): committed before invitee is registered —
-        #   fan-out does NOT include the invitee.  It is the invitee's own
-        #   Accept message, which is the entry for its consent and `joined`.
+        # Entry 2 (accept_invite): committed while the invitee is inert, so
+        #   its fan-out does NOT include the invitee.  It is the invitee's
+        #   own Accept message, the entry for its consent and `joined`.
         # Backfill: runs BEFORE any further commit (CM-17-004 step 3 precedes
-        #   any further fan-out to the invitee), so its target is the receipt
-        #   entry (2) and it sends entries 0, 1, 2 in log order.
+        #   any further fan-out to the invitee) and sends the ledger as it
+        #   stands, entries 0, 1, 2, in log order.
         # Then the vendor's VF status (3), the CASE_MANAGER's own
         #   add_participant_status_to_participant entry, committed after the
         #   backfill so the invitee receives it in chain order, not ahead of
@@ -1285,17 +1286,11 @@ class TestInviteActorUseCases:
         assert announced_entries[0].entry_hash == first.entry_hash
         assert announced_entries[1].entry_hash == second.entry_hash
 
-        state_id = VultronReplicationState(
-            case_id=case.id_, peer_id=invitee_id
-        ).id_
-        state = cast(Any, dl.read(state_id))
-        assert state is not None
-        # The backfill target is the ledger tail when the backfill ran: the
-        # accept_invite receipt (2).  The full-case Invite (3) is committed
-        # afterwards and reaches the invitee by fan-out, not by backfill.
-        assert state.join_backfill_target_index == 2
-        assert state.join_backfill_last_sent_index == 2
-        assert state.join_backfill_complete is True
+        record = dl.read(case.actor_participant_index[invitee_id])
+        assert isinstance(record, CaseParticipant)
+        assert record.joined is True
+        # The backfill keeps no replication state (CM-17-012, #5074).
+        assert dl.list_objects("ReplicationState") == []
 
     @pytest.mark.spec("SYNC-09-002")
     @pytest.mark.spec("CLP-07-013")
@@ -1451,144 +1446,41 @@ class TestInviteActorUseCases:
         )
         assert ordered.count("trigger.announce_vulnerability_case") == 1
 
-    def test_a_backfill_that_fails_part_way_keeps_no_backfill_state(
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_backfill_that_fails_part_way_keeps_nothing_of_the_join(
         self, make_payload
     ):
         """A join backfill commits with its Accept or not at all (CLP-07-015).
 
-        The joined invitee is seated with no backfill on record, so the
-        commit fan-out reaches it first.  The backfill then fails after its
-        first entry: the act keeps no replication state, so no store ever
-        holds a part-way backfill for a redelivery to resume.
+        The inert invitee's backfill fails after its second entry: the act's
+        own entry is rolled back with it and the record stays inert, so a
+        redelivery of the Accept joins it again from the start.
         """
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-        from vultron.core.models.replication_state import (
-            VultronReplicationState,
-        )
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Organization,
-            as_Service,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
+        from vultron.core.models.case_participant import CaseParticipant
 
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            # The canonical ledger belongs to the case actor, so the backfill
-            # runs in the case actor's store.
-            actor_id="https://example.org/actors/case-actor-lj2",
-        )
-        invitee_id = "https://example.org/users/late-joiner-retry"
-        case_actor_id = "https://example.org/actors/case-actor-lj2"
-        invitee = as_Organization(id_=invitee_id)
-        case_actor = as_Service(id_=case_actor_id, context="unused")
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/caseLJ2",
-            name="TEST-LATE-JOIN-RESUME",
-            attributed_to=case_actor_id,
-        )
-        object.__setattr__(case_actor, "context", case.id_)
-        invite = rm_invite_to_case_activity(
-            invitee,
-            to=[invitee.id_],
-            target=case.id_,
-            actor=case_actor_id,
-            id_=f"{case.id_}/invitations/1",
-        )
-        dl.create(invitee)
-        dl.create(case_actor)
-        dl.create(case)
-        from vultron.enums.roles import CVDRole
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-
-        case_manager_participant = as_CaseParticipant(
-            id_=f"{case.id_}/participants/case-actor-p",
-            attributed_to=case_actor_id,
-            context=case.id_,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        dl.create(case_manager_participant)
-        case.case_participants.append(case_manager_participant.id_)
-        case.actor_participant_index[case_actor_id] = (
-            case_manager_participant.id_
-        )
-        dl.save(case)
-        dl.create(invite)
-
-        first = _seed_ledger_entry(
-            dl,
-            case_id=case.id_,
-            object_id=f"{case.id_}/events/0",
-            semantic_type="submit_report",
-            actor_id=case_actor_id,
-            payload_snapshot={"index": 0},
-        )
-        second = _seed_ledger_entry(
-            dl,
-            case_id=case.id_,
-            object_id=f"{case.id_}/events/1",
-            semantic_type="add_participant_status",
-            actor_id=case_actor_id,
-            payload_snapshot={"index": 1},
-        )
-
-        participant_case = cast(Any, dl.read(case.id_))
-        participant_case.actor_participant_index[invitee_id] = (
-            f"{case.id_}/participants/late-joiner-retry"
-        )
-        participant = cast(
-            Any,
-            dl.read(participant_case.actor_participant_index[invitee_id]),
-        )
-        if participant is None:
-            from vultron.core.models.case_participant import CaseParticipant
-
-            participant = CaseParticipant(
-                id_=participant_case.actor_participant_index[invitee_id],
-                attributed_to=invitee_id,
-                context=case.id_,
-            )
-            dl.create(participant)
-        participant_case.case_participants.append(participant.id_)
-        dl.save(participant_case)
-
-        trigger_activity = with_ledger_records(MagicMock(), dl)
-        trigger_activity.announce_vulnerability_case.return_value = (
-            f"{case.id_}/announce/1"
-        )
-        # The full-case Invite is part of the same act, so it must be built
-        # for the act to keep its backfill (CLP-07-015).
-        trigger_activity.invite_actor_to_full_case.side_effect = (
-            TriggerActivityAdapter(dl).invite_actor_to_full_case
-        )
+        lj = _seed_late_joiner_case()
+        dl, case, invitee_id = lj["dl"], lj["case"], lj["invitee_id"]
+        first, second = lj["first"], lj["second"]
         sync_port = MagicMock()
-        # Calls: the Accept entry's fan-out (2), then the backfill (0, 1).
+        # The backfill sends 0, 1, then the Accept's own entry (2).
         sync_port.send_announce_log_entry.side_effect = [
             None,
             None,
             RuntimeError("delivery refused"),
         ]
 
-        accept = _accept_invite(invite, actor=invitee_id)
-        event = make_payload(accept)
+        accept = _accept_invite(lj["invite"], actor=invitee_id)
         with pytest.raises(VultronBTInternalError):
             AcceptInviteActorToCaseReceivedUseCase(
                 dl,
-                event,
+                make_payload(accept),
                 sync_port=sync_port,
-                trigger_activity=trigger_activity,
+                trigger_activity=lj["trigger_activity"],
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
         assert sync_port.send_announce_log_entry.call_count == 3
-        state_id = VultronReplicationState(
-            case_id=case.id_, peer_id=invitee_id
-        ).id_
-        assert dl.read(state_id) is None
         ledger = [
             e.entry_hash
             for e in dl.list_objects("CaseLedgerEntry")
@@ -1597,257 +1489,34 @@ class TestInviteActorUseCases:
         assert ledger == [first.entry_hash, second.entry_hash], (
             "the Accept's own entry is rolled back with the backfill"
         )
+        record = dl.read(case.actor_participant_index[invitee_id])
+        assert isinstance(record, CaseParticipant)
+        assert record.joined is False
 
-    def test_accept_invite_backfills_a_participant_seated_without_a_marker(
-        self, make_payload
-    ):
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.models.case_participant import CaseParticipant
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Organization,
-            as_Service,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            as_VulnerabilityCase,
-        )
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            # The canonical ledger belongs to the case actor, so the backfill
-            # runs in the case actor's store.
-            actor_id="https://example.org/actors/case-actor-lj3",
-        )
-        invitee_id = "https://example.org/users/late-joiner-nomarker"
-        case_actor_id = "https://example.org/actors/case-actor-lj3"
-        invitee = as_Organization(id_=invitee_id)
-        case_actor = as_Service(id_=case_actor_id, context="unused")
-        case = as_VulnerabilityCase(
-            id_="https://example.org/cases/caseLJ3",
-            name="TEST-LATE-JOIN-NO-MARKER",
-            attributed_to=case_actor_id,
-        )
-        object.__setattr__(case_actor, "context", case.id_)
-        participant = CaseParticipant(
-            id_=f"{case.id_}/participants/late-joiner-nomarker",
-            attributed_to=invitee_id,
-            context=case.id_,
-        )
-        from vultron.enums.roles import CVDRole
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            as_CaseParticipant,
-        )
-
-        case_manager_participant = as_CaseParticipant(
-            id_=f"{case.id_}/participants/case-actor-p",
-            attributed_to=case_actor_id,
-            context=case.id_,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        object.__setattr__(
-            case,
-            "case_participants",
-            [
-                participant.id_,
-                case_manager_participant.id_,
-            ],
-        )
-        object.__setattr__(
-            case,
-            "actor_participant_index",
-            {
-                invitee_id: participant.id_,
-                case_actor_id: case_manager_participant.id_,
-            },
-        )
-        invite = rm_invite_to_case_activity(
-            invitee,
-            to=[invitee.id_],
-            target=case.id_,
-            actor=case_actor_id,
-            id_=f"{case.id_}/invitations/1",
-        )
-        dl.create(invitee)
-        dl.create(case_actor)
-        dl.create(participant)
-        dl.create(case_manager_participant)
-        dl.create(case)
-        dl.create(invite)
-
-        _seed_ledger_entry(
-            dl,
-            case_id=case.id_,
-            object_id=f"{case.id_}/events/0",
-            semantic_type="submit_report",
-            actor_id=case_actor_id,
-            payload_snapshot={"index": 0},
-        )
-        _seed_ledger_entry(
-            dl,
-            case_id=case.id_,
-            object_id=f"{case.id_}/events/1",
-            semantic_type="add_participant_status",
-            actor_id=case_actor_id,
-            payload_snapshot={"index": 1},
-        )
-
-        trigger_activity = with_ledger_records(MagicMock(), dl)
-        trigger_activity.announce_vulnerability_case.return_value = (
-            f"{case.id_}/announce/1"
-        )
-        sync_port = MagicMock()
-
-        accept = _accept_invite(invite, actor=invitee_id)
-        event = make_payload(accept)
-        AcceptInviteActorToCaseReceivedUseCase(
-            dl,
-            event,
-            sync_port=sync_port,
-            trigger_activity=trigger_activity,
-            wire_render_port=As2WireRenderAdapter(),
-        ).execute()
-
-        announced_entries = [
-            kwargs["entry"]
-            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
-        ]
-        # Commit-first ordering: CommitCaseLedgerEntryNode fans out the new
-        # accept_invite entry (2) first (invitee already registered), then
-        # backfill sends entries 0 and 1 that the invitee missed.
-        assert [entry.log_index for entry in announced_entries] == [2, 0, 1]
-
-    @pytest.mark.spec("CM-10-005")
-    @pytest.mark.spec("CLP-07-015")
-    def test_a_seated_non_signatory_joins_under_an_active_embargo(
-        self, make_payload
-    ):
-        """The Accept's own fan-out pauses the seated invitee (CM-10-005).
-
-        The invitee is joined but has not accepted the active embargo, so
-        the Accept entry's fan-out withholds it and records a pause in its
-        replication state.  The Accept then signs it to the embargo, so the
-        backfill later in the same act finds that state and an active
-        invitee.  On main the backfill raised on that state (#5032), and
-        before that the signature was not kept (#5056).
-        """
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.models.case_participant import CaseParticipant
-        from vultron.core.models.embargo_consent import EmbargoConsent
-        from vultron.core.models.embargo_event import EmbargoEvent
-        from vultron.core.models.replication_state import (
-            VultronReplicationState,
-        )
-        from vultron.core.states.participant_embargo_consent import (
-            EmbargoConsentState,
-        )
-        from vultron.enums.roles import CVDRole
-        from vultron.wire.as2.vocab.base.objects.actors import (
-            as_Organization,
-            as_Service,
-        )
-
-        case_actor_id = "https://example.org/actors/case-actor-lj4"
-        invitee_id = "https://example.org/users/seated-non-signatory"
-        case_id = "https://example.org/cases/caseLJ4"
-        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
-        invitee = as_Organization(id_=invitee_id)
-        dl.create(invitee)
-        dl.create(as_Service(id_=case_actor_id, context=case_id))
-        embargo = EmbargoEvent(
-            id_=f"{case_id}/embargoes/1",
-            context=case_id,
-            end_time=days_from_now_utc(45),
-        )
-        dl.create(embargo)
-        case = VulnerabilityCase(id_=case_id, attributed_to=case_actor_id)
-        activate(case, embargo)
-        for actor_id, consent, roles in (
-            (
-                case_actor_id,
-                EmbargoConsentState.AGREED,
-                [CVDRole.CASE_MANAGER],
-            ),
-            (invitee_id, EmbargoConsentState.INVITED, []),
-        ):
-            participant = CaseParticipant(
-                id_=f"{case_id}/participants/{actor_id.rsplit('/', 1)[-1]}",
-                attributed_to=actor_id,
-                context=case_id,
-                case_roles=roles,
-                embargo_consents=[
-                    EmbargoConsent(embargo_id=embargo.id_, state=consent)
-                ],
-            )
-            dl.create(participant)
-            case.add_participant(participant)
-        dl.create(case)
-        invite = rm_invite_to_case_activity(
-            invitee,
-            to=[invitee_id],
-            target=case_id,
-            actor=case_actor_id,
-            id_=f"{case_id}/invitations/1",
-        )
-        dl.create(invite)
-        for index in range(2):
-            _seed_ledger_entry(
-                dl,
-                case_id=case_id,
-                object_id=f"{case_id}/events/{index}",
-                semantic_type="submit_report",
-                actor_id=case_actor_id,
-                payload_snapshot={"index": index},
-            )
-
-        trigger_activity = with_ledger_records(MagicMock(), dl)
-        trigger_activity.announce_vulnerability_case.return_value = (
-            f"{case_id}/announce/1"
-        )
-        trigger_activity.invite_actor_to_full_case.side_effect = (
-            TriggerActivityAdapter(dl).invite_actor_to_full_case
-        )
-        sync_port = MagicMock()
-
+        # A redelivery of the same Accept joins from the start.
+        sync_port.reset_mock(side_effect=True)
         result = AcceptInviteActorToCaseReceivedUseCase(
             dl,
-            make_payload(_accept_invite(invite, actor=invitee_id)),
+            make_payload(accept),
             sync_port=sync_port,
-            trigger_activity=trigger_activity,
+            trigger_activity=lj["trigger_activity"],
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
         assert result.disposition is HandlerDisposition.APPLIED, result
-        # The Accept's signature is kept on the seated record, so the invitee
-        # is active before the case announce and the backfill (CM-10-004).
-        record = dl.read(f"{case_id}/participants/seated-non-signatory")
-        assert isinstance(record, CaseParticipant)
-        assert [row.state for row in record.embargo_consents] == [
-            EmbargoConsentState.AGREED
-        ]
-        # The Accept's own entry (2) was withheld at its fan-out; the join
-        # backfill sends the prefix (0, 1), and the next commit's fan-out
-        # admits the invitee from the pause before sending its entry (3),
-        # so the invitee gets every entry once, in log order (CM-10-006).
         sent = [
-            kwargs["entry"].log_index
-            for _, kwargs in sync_port.send_announce_log_entry.call_args_list
-            if invitee_id in kwargs["to"]
+            call.kwargs["entry"].log_index
+            for call in sync_port.send_announce_log_entry.call_args_list
         ]
-        assert sent == [0, 1, 2, 3]
-        state = dl.read(
-            VultronReplicationState(case_id=case_id, peer_id=invitee_id).id_
-        )
-        assert isinstance(state, VultronReplicationState)
-        assert state.embargo_paused_from_index is None
-        assert state.join_backfill_target_index == 1
-        assert state.join_backfill_complete is True
+        assert sent[:3] == [0, 1, 2]
+        record = dl.read(case.actor_participant_index[invitee_id])
+        assert isinstance(record, CaseParticipant)
+        assert record.joined is True
 
     def test_accept_invite_backfill_runs_when_the_announce_cannot_be_sent(
         self, make_payload
     ):
         from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
-        from vultron.core.models.replication_state import (
-            VultronReplicationState,
-        )
         from vultron.wire.as2.vocab.base.objects.actors import (
             as_Organization,
             as_Service,
@@ -1947,10 +1616,10 @@ class TestInviteActorUseCases:
             kwargs["entry"]
             for _, kwargs in sync_port.send_announce_log_entry.call_args_list
         ]
-        # Backfill sends entries 0 and 1; CommitCaseLedgerEntryNode fans out
-        # the new accept_invite entry (2) to all participants via sync_port,
-        # then the vendor's VF status (3) and the full-case Invite (4)
-        # follow.  This holds even when the Announce could not be sent.
+        # The Accept's own entry (2) fans out while the invitee is inert, so
+        # it skips the invitee; the backfill then sends 0, 1 and 2, and the
+        # vendor's VF status (3) and the full-case Invite (4) follow by
+        # fan-out.  This holds even when the Announce could not be sent.
         assert [entry.log_index for entry in announced_entries] == [
             0,
             1,
@@ -1959,12 +1628,220 @@ class TestInviteActorUseCases:
             4,
         ]
 
-        state_id = VultronReplicationState(
-            case_id=case.id_, peer_id=invitee_id
-        ).id_
-        state = cast(Any, dl.read(state_id))
-        assert state is not None
-        assert state.join_backfill_complete is True
+
+def _assert_a_duplicate_answer(
+    result,
+    dl,
+    *,
+    case_id: str,
+    record_before,
+    ledger_before,
+    sync_port,
+    trigger,
+) -> None:
+    """The CM-17-012 duplicate answer: SKIPPED, and nothing written or sent."""
+    from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+    assert result.disposition is HandlerDisposition.SKIPPED, result
+    ledger = [
+        e.entry_hash
+        for e in dl.list_objects("CaseLedgerEntry")
+        if isinstance(e, CaseLedgerEntry) and e.case_id == case_id
+    ]
+    assert ledger == ledger_before, "a duplicate commits no ledger entry"
+    stored = dl.read(record_before.id_)
+    assert stored is not None
+    assert stored.model_dump() == record_before.model_dump(), (
+        "a duplicate changes no participant record or consent row"
+    )
+    assert dl.outbox_list() == []
+    sync_port.send_announce_log_entry.assert_not_called()
+    trigger.announce_vulnerability_case.assert_not_called()
+    trigger.invite_actor_to_full_case.assert_not_called()
+
+
+@pytest.mark.spec("CM-17-012")
+@pytest.mark.spec("CLP-13-001")
+class TestJoinedOrRemovedStubAcceptIsADuplicate:
+    """A stub-Invite Accept from a joined or removed participant (CM-17-012).
+
+    The duplicate test reads the participant record alone, never the
+    replication state the CASE_MANAGER holds for the participant.
+    """
+
+    def _accept_over(
+        self, make_payload, *, removed: bool, joined: bool = True
+    ):
+        """Run the Accept over the late-joiner case's invitee record."""
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+        from vultron.core.models.case_participant import CaseParticipant
+
+        lj = _seed_late_joiner_case()
+        dl, case, invitee_id = lj["dl"], lj["case"], lj["invitee_id"]
+        record = dl.read(case.actor_participant_index[invitee_id])
+        assert isinstance(record, CaseParticipant)
+        # Seated at case initialization, or it already accepted: joined.
+        record.joined = joined
+        if removed:
+            record.record_removal(f"{case.id_}/removals/1")
+        dl.save(record)
+        ledger_before = [
+            e.entry_hash
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry)
+        ]
+        sync_port = MagicMock()
+        trigger = lj["trigger_activity"]
+
+        result = AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            make_payload(_accept_invite(lj["invite"], actor=invitee_id)),
+            sync_port=sync_port,
+            trigger_activity=trigger,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        _assert_a_duplicate_answer(
+            result,
+            dl,
+            case_id=case.id_,
+            record_before=record,
+            ledger_before=ledger_before,
+            sync_port=sync_port,
+            trigger=trigger,
+        )
+
+    def test_a_joined_participant_with_no_replication_state(
+        self, make_payload
+    ):
+        """A participant seated without a replication state: a duplicate.
+
+        Before #5074 the missing state read as "no join backfill yet", and
+        the Accept ran a first join backfill.
+        """
+        self._accept_over(make_payload, removed=False)
+
+    def test_a_removed_participant(self, make_payload):
+        """A removed participant is sent nothing until reinstated (CM-31-013)."""
+        self._accept_over(make_payload, removed=True)
+
+    def test_a_participant_removed_before_it_joined(self, make_payload):
+        """Removal alone makes the Accept a duplicate, joined or not.
+
+        Before #5074 an inert record that was removed could still join
+        through its Accept; CM-17-012 names a removed record a duplicate.
+        """
+        self._accept_over(make_payload, removed=True, joined=False)
+
+    @pytest.mark.spec("CM-10-005")
+    def test_a_joined_participant_with_an_embargo_pause_state(
+        self, make_payload
+    ):
+        """A joined non-signatory paused by the embargo gate: a duplicate.
+
+        The fan-out wrote a pause into its replication state (CM-10-005).
+        That state says nothing about a join, and the Accept leaves the
+        invitee's ``INVITED`` row as it is: a joined participant consents to
+        an embargo only through that embargo's own Invite.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.models.embargo_consent import EmbargoConsent
+        from vultron.core.models.embargo_event import EmbargoEvent
+        from vultron.core.models.replication_state import (
+            VultronReplicationState,
+        )
+        from vultron.core.states.participant_embargo_consent import (
+            EmbargoConsentState,
+        )
+        from vultron.enums.roles import CVDRole
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Organization,
+            as_Service,
+        )
+
+        case_actor_id = "https://example.org/actors/case-actor-lj4"
+        invitee_id = "https://example.org/users/seated-non-signatory"
+        case_id = "https://example.org/cases/caseLJ4"
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_actor_id)
+        invitee = as_Organization(id_=invitee_id)
+        dl.create(invitee)
+        dl.create(as_Service(id_=case_actor_id, context=case_id))
+        embargo = EmbargoEvent(
+            id_=f"{case_id}/embargoes/1",
+            context=case_id,
+            end_time=days_from_now_utc(45),
+        )
+        dl.create(embargo)
+        case = VulnerabilityCase(id_=case_id, attributed_to=case_actor_id)
+        activate(case, embargo)
+        for actor_id, consent, roles in (
+            (
+                case_actor_id,
+                EmbargoConsentState.AGREED,
+                [CVDRole.CASE_MANAGER],
+            ),
+            (invitee_id, EmbargoConsentState.INVITED, []),
+        ):
+            participant = CaseParticipant(
+                id_=f"{case_id}/participants/{actor_id.rsplit('/', 1)[-1]}",
+                attributed_to=actor_id,
+                context=case_id,
+                case_roles=roles,
+                embargo_consents=[
+                    EmbargoConsent(embargo_id=embargo.id_, state=consent)
+                ],
+            )
+            dl.create(participant)
+            case.add_participant(participant)
+        dl.create(case)
+        invite = rm_invite_to_case_activity(
+            invitee,
+            to=[invitee_id],
+            target=case_id,
+            actor=case_actor_id,
+            id_=f"{case_id}/invitations/1",
+        )
+        dl.create(invite)
+        ledger_before = [
+            _seed_ledger_entry(
+                dl,
+                case_id=case_id,
+                object_id=f"{case_id}/events/{index}",
+                semantic_type="submit_report",
+                actor_id=case_actor_id,
+                payload_snapshot={"index": index},
+            ).entry_hash
+            for index in range(2)
+        ]
+        pause = VultronReplicationState(
+            case_id=case_id, peer_id=invitee_id, embargo_paused_from_index=1
+        )
+        dl.save(pause)
+        record = dl.read(f"{case_id}/participants/seated-non-signatory")
+        assert isinstance(record, CaseParticipant)
+        assert record.joined is True
+
+        trigger = with_ledger_records(MagicMock(), dl)
+        sync_port = MagicMock()
+        result = AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            make_payload(_accept_invite(invite, actor=invitee_id)),
+            sync_port=sync_port,
+            trigger_activity=trigger,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        _assert_a_duplicate_answer(
+            result,
+            dl,
+            case_id=case_id,
+            record_before=record,
+            ledger_before=ledger_before,
+            sync_port=sync_port,
+            trigger=trigger,
+        )
+        assert dl.read(pause.id_) == pause
 
 
 class TestAcceptInviteRolesAC4:

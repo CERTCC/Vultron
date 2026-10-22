@@ -53,9 +53,8 @@ def create_commit_log_entry_tree(
     *check_freshness* ``False`` drops
     :class:`~vultron.core.behaviors.sync.nodes.conditions.CheckLedgerFreshnessNode`,
     which fails on a gapped local prefix by design (SYNC-10-001/002).  Only
-    the case-closure commits pass it — ``case_fully_closed`` and the RM
-    closure step entries before it — because a gapped prefix must not block
-    case closure (CM-23-002).
+    the case-closure commits pass it — the RM closure step entries — because a
+    gapped prefix must not block case closure (CM-23-002).
     """
     freshness: list[py_trees.behaviour.Behaviour] = (
         [

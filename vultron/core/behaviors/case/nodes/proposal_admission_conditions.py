@@ -124,7 +124,8 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
     A ``Create(as_CaseProposal)`` names a report, not a case, so the factory's
     post-close guard (``CaseOpenToExternalWritesNode``) cannot see which case
     it would touch.  This node answers that question for the proposal tree.
-    When the case is fully closed (its ledger holds ``case_fully_closed``), the
+    When the case is fully closed (its ledger holds the CASE_MANAGER's own
+    ``RM.CLOSED`` status entry), the
     proposal is declined with ``Reject(as_CaseProposal)`` and nothing is
     written for the case (CP-05-006, CP-05-008, CM-23-013).
 
@@ -182,7 +183,10 @@ class CheckProposalCaseFullyClosedNode(DataLayerAction):
             admission_record_is_prior=True,
             accepted_for_proposer_only=False,
         ):
-            if case_is_fully_closed(datalayer, case_id):
+            # Regime 2 (ADR-0087): a case this store does not hold records
+            # no closure here.
+            case = self._resolve_case_replica(case_id)
+            if case is not None and case_is_fully_closed(datalayer, case):
                 self.closed_case_id = case_id
                 self.feedback_message = (
                     f"proposal '{self._proposal_id}' resolves to case"

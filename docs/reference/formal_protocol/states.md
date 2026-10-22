@@ -9,7 +9,7 @@ description: >
 
 # States
 
-{% include-markdown "../../includes/normative.md" %}
+{% include-markdown "../../includes/specification_governs.md" %}
 
 This page defines $S_i$, the states of each participant process, and $o_i$, its start state: the first two elements of the protocol quadruple introduced in [Protocol Definition](protocol_definition.md).
 

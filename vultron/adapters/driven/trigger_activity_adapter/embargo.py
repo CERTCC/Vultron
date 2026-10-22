@@ -25,16 +25,13 @@ from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.embargo_register import TerminationReason
-from vultron.errors import (
-    VultronActivityConstructionError,
-)
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     announce_embargo_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
-    ignore_late_embargo_accept_activity,
+    em_undo_embargo_invite_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
     withdraw_from_embargo_activity,
@@ -43,7 +40,6 @@ from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
 from ._base import (
     _create_and_seal,
-    _seal_record,
     _to_wire,
 )
 
@@ -62,6 +58,11 @@ def _attribution(attributed_to: str | None) -> dict[str, str]:
 def _reject_id(actor: str, proposal_id: str) -> str:
     """The id of *actor*'s ``Reject`` of the Invite *proposal_id*."""
     return derived_activity_id("embargo-reject", actor, proposal_id)
+
+
+def _undo_id(actor: str, invite_id: str) -> str:
+    """The id of *actor*'s ``Undo`` of the Invite *invite_id* it sent."""
+    return derived_activity_id("embargo-invite-undo", actor, invite_id)
 
 
 class _EmbargoMixin:
@@ -145,8 +146,9 @@ class _EmbargoMixin:
         The id is derived from the rejecting actor and the Invite, so an
         actor's rejection of one Invite is one activity (ID-04-004) and
         :meth:`requeue_embargo_refusal` can tell it was sent.  The Invite is
-        read as :meth:`accept_embargo` reads it; the CASE_MANAGER abandoning
-        its own proposal holds that Invite as the one it sent.
+        read as :meth:`accept_embargo` reads it.  The CASE_MANAGER abandoning
+        a proposal it received rejects it here; one it sent itself it
+        withdraws with :meth:`undo_embargo_invite` (ADR-0152).
         """
         proposal = cast(
             Any,
@@ -163,35 +165,31 @@ class _EmbargoMixin:
         )
         return _create_and_seal(self._dl, activity, "reject_embargo")
 
-    def ignore_late_embargo_accept(
+    def undo_embargo_invite(
         self,
+        invite_id: str,
         case_id: str,
         actor: str,
-        late_accept: dict[str, Any],
+        to: list[str] | None = None,
     ) -> tuple[str, str]:
-        """Build and seal the CASE_MANAGER's ``Ignore`` of a late embargo ``Accept``.
+        """Create and persist an ``Undo(Invite)`` of an embargo Invite *actor* sent.
 
-        The EMB-17-004 no-op acknowledgement.  *late_accept* is carried
-        inline; *actor* (the CASE_MANAGER) is the ``Ignore``'s
-        only author, and the ``Ignore`` is threaded to the Accept by
-        ``inReplyTo``.  The id is derived from the CASE_MANAGER and the
-        Accept, so a redelivered Accept hands back the body its first
-        delivery sealed (ID-04-004, VM-08-003).  Not addressed to anyone: the
-        ledger fan-out delivers it.
+        The Invite is read as this actor holds it, the one it sent
+        (:func:`read_held_as_received`), and embedded verbatim (DL-06-004).
+        The id is derived from *actor* and the Invite (ID-04-004).
         """
-        accept_id = late_accept.get("id")
-        if not isinstance(accept_id, str) or not accept_id:
-            raise VultronActivityConstructionError(
-                "ignore_late_embargo_accept: the late Accept has no id"
-            )
-        activity = ignore_late_embargo_accept_activity(
-            late_accept,
-            actor=actor,
-            context=case_id,
-            in_reply_to=accept_id,
-            id_=derived_activity_id("late-accept-ignore", actor, accept_id),
+        invite = cast(
+            Any,
+            read_held_as_received(self._dl, invite_id, "Invite(EmbargoEvent)"),
         )
-        return _seal_record(self._dl, activity)
+        activity = em_undo_embargo_invite_activity(
+            invite=invite,
+            context=case_id,
+            actor=actor,
+            to=to,
+            id_=_undo_id(actor, invite_id),
+        )
+        return _create_and_seal(self._dl, activity, "undo_embargo_invite")
 
     def activate_embargo(
         self,

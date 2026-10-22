@@ -115,7 +115,7 @@ def store_embedded_participants(
     rejected as invalid by the RM state machine.  Participants whose stored
     RM state is already at or beyond the snapshot's are therefore left alone.
 
-    A copy judged current by the ledger tail it names (SYNC-16-006) is not
+    A copy judged current by the ledger position it names (SYNC-16-006) is not
     such a view: it is the CASE_MANAGER's case at a position this replica has
     not passed, so with *authoritative* every participant it carries replaces
     the stored one, a diverged one included (PCR-02-004, ADR-0142).
@@ -124,7 +124,7 @@ def store_embedded_participants(
         case_obj: The bootstrapped or announced case domain object.
         dl: DataLayer to persist participants into.
         case_id: ID of the case (for log context).
-        authoritative: The copy was judged current by its ledger tail, so
+        authoritative: The copy was judged current by its ledger position, so
             its participants replace the stored ones unconditionally.
     """
     participants = getattr(case_obj, "case_participants", []) or []

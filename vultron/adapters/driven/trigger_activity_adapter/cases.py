@@ -20,10 +20,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
-from vultron.core.sync_helpers import ledger_tail_position
 from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.errors import (
     VultronActivityConstructionError,
@@ -42,7 +40,6 @@ from vultron.wire.as2.factories import (
     rm_close_case_activity,
     rm_defer_case_activity,
     rm_engage_case_activity,
-    update_case_activity,
 )
 from vultron.wire.as2.factories.case import (
     announce_vulnerability_case_activity,
@@ -57,7 +54,6 @@ from ._base import (
     _case_for_wire,
     _create_and_seal,
     _seal,
-    _seal_record,
     _to_wire,
     _to_wire_object,
 )
@@ -155,28 +151,6 @@ class _CasesMixin:
             kwargs["in_reply_to"] = in_reply_to
         activity = reject_close_case_activity(leave=leave, **kwargs)
         return _create_and_seal(self._dl, activity, "reject_close_case")
-
-    def record_case_fully_closed(
-        self,
-        case_id: str,
-        actor: str,
-    ) -> tuple[str, str]:
-        """Build and seal the CASE_MANAGER's ``Update(VulnerabilityCase)`` closing the case.
-
-        The ``case_fully_closed`` entry's activity (CM-23-002 step 3): the
-        closed case is carried in full, its references inline
-        (:func:`_case_for_wire`), and the CASE_MANAGER (*actor*) is its only
-        author.  The id is derived from the CASE_MANAGER and the case, so a
-        re-run seals nothing new and hands back the body already sealed
-        (ID-04-004, VM-08-003).  Not addressed to anyone: the ledger fan-out
-        delivers it.
-        """
-        activity = update_case_activity(
-            case=_case_for_wire(self._dl, case_id),
-            actor=actor,
-            id_=derived_activity_id("case-fully-closed", actor, case_id),
-        )
-        return _seal_record(self._dl, activity)
 
     def add_object_to_case_semantics(
         self, object_id: str, case_id: str
@@ -286,14 +260,6 @@ class _CasesMixin:
         and embedded as a full ``as_VulnerabilityReport`` object so that
         receiving handlers (``SeedAnnouncedCaseNode``) can store the objects
         by iterating the embedded collection.
-
-        Per SYNC-16-005 the copy carries this store's ledger tail for the
-        case, so a replica can tell a current copy from a stale one
-        (SYNC-16-006).
-
-        Raises:
-            VultronValidationError: The case's ledger is empty and it has no
-                genesis hash, so the copy cannot name its position.
         """
         case = _case_for_wire(self._dl, case_id)
         embedded_reports: list[Any] = []
@@ -311,9 +277,6 @@ class _CasesMixin:
                 _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
             )
         object.__setattr__(case, "vulnerability_reports", embedded_reports)
-        # The copy names the ledger position it reflects, read from this
-        # store's ledger now and never stored on the case (SYNC-16-005).
-        case = case.with_ledger_tail(ledger_tail_position(case_id, self._dl))
         activity = announce_vulnerability_case_activity(
             case=case,
             actor=actor,

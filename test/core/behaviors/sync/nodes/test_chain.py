@@ -25,6 +25,7 @@ from vultron.core.behaviors.sync.nodes import (
 )
 from vultron.core.models import case_ledger as case_ledger_module
 from vultron.core.models._helpers import now_utc
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
@@ -260,15 +261,20 @@ class TestPersistLogEntryNodeLogging:
     """Verify INFO and DEBUG log emission from PersistLogEntryNode."""
 
     @pytest.fixture()
-    def entry(self):
+    def entry(self, owner_store):
+        # A ledger entry belongs to a stored case, whose position its commit
+        # moves (SYNC-16-005); the commit runs in the owner's store.
+        owner_store.save(
+            VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+        )
         return _make_entry(log_index=0, prev_hash=_ZERO_HASH)
 
     def test_info_log_emitted_on_persist(
-        self, bridge, entry, caplog: pytest.LogCaptureFixture
+        self, owner_bridge, entry, caplog: pytest.LogCaptureFixture
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.INFO, logger=node_logger):
-            result = bridge.execute_with_setup(
+            result = owner_bridge.execute_with_setup(
                 tree=PersistLogEntryNode(name="PersistLogEntry"),
                 actor_id=OWNER_ACTOR_ID,
                 log_entry=entry,
@@ -277,11 +283,11 @@ class TestPersistLogEntryNodeLogging:
         assert any(r.levelno == logging.INFO for r in caplog.records)
 
     def test_info_log_contains_semantic_type(
-        self, bridge, entry, caplog: pytest.LogCaptureFixture
+        self, owner_bridge, entry, caplog: pytest.LogCaptureFixture
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.INFO, logger=node_logger):
-            bridge.execute_with_setup(
+            owner_bridge.execute_with_setup(
                 tree=PersistLogEntryNode(name="PersistLogEntry"),
                 actor_id=OWNER_ACTOR_ID,
                 log_entry=entry,
@@ -292,11 +298,11 @@ class TestPersistLogEntryNodeLogging:
         )
 
     def test_info_log_contains_log_index(
-        self, bridge, entry, caplog: pytest.LogCaptureFixture
+        self, owner_bridge, entry, caplog: pytest.LogCaptureFixture
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.INFO, logger=node_logger):
-            bridge.execute_with_setup(
+            owner_bridge.execute_with_setup(
                 tree=PersistLogEntryNode(name="PersistLogEntry"),
                 actor_id=OWNER_ACTOR_ID,
                 log_entry=entry,
@@ -307,11 +313,11 @@ class TestPersistLogEntryNodeLogging:
         )
 
     def test_info_log_contains_actor_id(
-        self, bridge, entry, caplog: pytest.LogCaptureFixture
+        self, owner_bridge, entry, caplog: pytest.LogCaptureFixture
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.INFO, logger=node_logger):
-            bridge.execute_with_setup(
+            owner_bridge.execute_with_setup(
                 tree=PersistLogEntryNode(name="PersistLogEntry"),
                 actor_id=OWNER_ACTOR_ID,
                 log_entry=entry,
@@ -322,11 +328,11 @@ class TestPersistLogEntryNodeLogging:
         )
 
     def test_debug_log_contains_entry_hash_prefix(
-        self, bridge, entry, caplog: pytest.LogCaptureFixture
+        self, owner_bridge, entry, caplog: pytest.LogCaptureFixture
     ):
         node_logger = "vultron.core.behaviors.sync.nodes.chain"
         with caplog.at_level(logging.DEBUG, logger=node_logger):
-            bridge.execute_with_setup(
+            owner_bridge.execute_with_setup(
                 tree=PersistLogEntryNode(name="PersistLogEntry"),
                 actor_id=OWNER_ACTOR_ID,
                 log_entry=entry,

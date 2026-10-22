@@ -584,8 +584,8 @@ class _AnnounceVulnerabilityCaseActivity(as_Announce):
     copy is the message, not a reference to the case the receiver already
     holds.  Collapsed to an id, the receiver's rebuild of the activity read
     back its own stored case instead of the copy, so a replica holding the
-    case could never be updated by one, and the copy's ledger tail was lost
-    (SYNC-16-005, SYNC-16-006).
+    case could never be updated by one, and the copy's ledger position was
+    lost (SYNC-16-005, SYNC-16-006).
     """
 
     object_: as_VulnerabilityCase = Field(

@@ -37,14 +37,15 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
 
     Per MV-10-003 and PCR-02-003, the invitee creates the case if it does not
     already exist.  Per PCR-02-004, a copy of a case the replica already
-    holds is an authoritative update, judged by the ledger tail the copy
-    names (SYNC-16-005, SYNC-16-006): a copy the replica's chain is already
-    past is ``SKIPPED``; one naming a different entry at an index the
-    replica holds is ``REFUSED`` and logged at ERROR; any other copy
-    replaces the case.  The case is unchanged in both of the first two.
-    After a replacement whose tail is ahead of the chain the replica asks
-    for the missing entries and stores each one the copy reflects as a
-    no-op (SYNC-16-007).
+    holds is an authoritative update, judged by the ledger position the copy
+    names (SYNC-16-005, SYNC-16-006): a copy the replica is already past is
+    ``SKIPPED``; one naming a different entry at an index the replica holds
+    is ``REFUSED`` and logged at ERROR; any other copy replaces the case,
+    position included.  The case is unchanged in both of the first two.  A
+    repeat of the same Announce is judged the same way (MV-10-004).  After a
+    replacement whose position is ahead of the chain the replica asks for
+    the missing entries and stores each one the copy reflects as a no-op
+    (SYNC-16-007).
 
     Only the case's CASE_MANAGER sends it, and every receiver, a participant
     replica, takes it from the CASE_MANAGER alone (PCR-03-001): the one its

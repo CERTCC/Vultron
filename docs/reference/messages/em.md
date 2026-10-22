@@ -46,13 +46,26 @@ A revision that ends later sends no such notice, because those participants neve
 {% include-markdown "./_occasions/sections/embargo-proposal-rejection.md" %}
 
 - **Triggering transition:** Proposed → None (P → N), or Proposed → Proposed (P → P) while another proposal is open (EMB-18-005).
-- **Who decides:** a `Reject` of the Invite is always the sender's own refusal of those terms, the Case Owner's included.
+- **Who decides:** a participant's `Reject` of the Invite is its own refusal of those terms, the Case Owner's included.
   It changes no embargo on the case (see [The Case Owner's Decision](#the-case-owners-decision)).
+- **The Case Manager's `Reject`:** when the case becomes public, an exploit is public or attacks are observed while a proposal is open, the Case Manager rejects each proposal it received.
+  That `Reject` cancels the proposal (EMB-16-001).
+  A replica tells it from a participant's `Reject` by its `actor`.
+  The Case Manager never sends a `Reject` of an Invite as its own consent: a Case Manager with a stake in the embargo records its answer as its own update of its consent row.
 - **Refusal on a public case:** a receiver answers an `EP` with `ER` when the case is public, an exploit is public, or attacks are observed.
   The `ER` names the Invite by id, so it is sent even when the Invite named its terms only by URI.
   A receiver sends one `ER` per Invite: a re-delivered Invite is skipped.
 - **Malformed Invite:** an `EP` that names no `to` recipient or several is not answered with `ER`.
   It is received but not understood, so the receiver sends `Create(ProcessingFault)` to the sender.
+
+{% include-markdown "./_occasions/sections/withdraw-embargo-invite.md" %}
+
+- **Triggering transition:** Proposed → None (P → N) with the last open proposal, when the `Undo` withdraws the Case Manager's own proposal; otherwise none.
+- **Order:** for each abandoned proposal, the cancel comes first: the Case Manager's `Reject` of a proposal it received, or its `Undo` of one it made itself.
+  An `Undo` of each invitation it relayed for the proposal follows, and changes nothing more.
+  All of them are committed together, or none is.
+- **Who sends it:** only the Case Manager, which undoes only invitations it sent.
+  No use case handles it on receipt.
 
 {% include-markdown "./_occasions/sections/embargo-proposal-acceptance.md" %}
 
@@ -167,7 +180,8 @@ Some deliveries get no notice:
 - A repeat of an answer already recorded, under a new id or the same one, is skipped and gets no notice (CM-13-005).
 - An `Invite` or `Accept` that arrives once the case is public, an exploit is public, or attacks are observed is answered with `ER` instead (EMB-01-002, EMB-02-002).
   The Case Manager's `ER` to an `Accept` reaches the participant, which closes its pending `Accept`.
-- A late `Accept` is answered by the Case Manager's own late-acceptance entry or re-invitation (EMB-17).
+- A late `Accept` of the embargo in force is recorded as an on-time `Accept` is, and a late `Accept` of replaced terms is answered with a relayed invitation to the current ones (EMB-17).
+  A late `Accept` of an embargo the case no longer has changes nothing, so the Case Manager records and sends nothing for it (EMB-17-004).
 - A failure inside the Case Manager is not a refusal, and is never answered with a notice.
 
 ## Formal messages with no dedicated wire activity

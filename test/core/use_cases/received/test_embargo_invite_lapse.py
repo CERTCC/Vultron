@@ -46,7 +46,6 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.expiry_tree import (
-    create_commit_and_honour_late_accept_tree,
     create_commit_and_record_expiry_tree,
 )
 from vultron.core.behaviors.sync import commit_tree
@@ -57,9 +56,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
-)
-from vultron.core.models.rsvp_deadline import (
-    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
 )
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
@@ -120,6 +116,15 @@ def _answers_in_outbox(dl: SqliteDataLayer, actor_id: str) -> list[str]:
             assert getattr(activity, "to", None) == [_COORD]
             answers.append(str(type_))
     return answers
+
+
+def _case_entries(dl: SqliteDataLayer, case_id: str) -> list[str]:
+    """The ids of *case_id*'s ledger entries in *dl*, sorted."""
+    return sorted(
+        obj.id_
+        for obj in dl.list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+    )
 
 
 def _relayed_deadline_to(dl: SqliteDataLayer, invitee_id: str) -> datetime:
@@ -1885,98 +1890,6 @@ class TestAssessAndRecordInviteExpiry:
         assert committed_semantic_types(dl, case_id) == before
 
 
-class TestHonourLateAcceptCommit:
-    """The honour tree commits the AGREED row's Update, then writes it."""
-
-    @staticmethod
-    def _honour(dl: SqliteDataLayer, case_id: str, embargo_id: str):
-        return _run_as_manager(
-            dl,
-            create_commit_and_honour_late_accept_tree(
-                case_id=case_id,
-                accepting_actor_id=_INVITEE,
-                invite_id=f"{case_id}/invites/i1",
-                embargo_id=embargo_id,
-            ),
-        )
-
-    @pytest.mark.spec("EMB-17-001", "ADR-0118", "CLP-07-013")
-    @pytest.mark.parametrize(
-        "held", [EmbargoConsentState.TIMED_OUT, EmbargoConsentState.DECLINED]
-    )
-    def test_the_participant_becomes_a_signatory(self, held):
-        """TIMED_OUT or DECLINED → AGREED in one step (CM-18-003)."""
-        dl = _make_dl()
-        case_id = f"https://example.org/cases/honour-{held.value.lower()}"
-        embargo_id = f"{case_id}/embargos/e1"
-        _make_active_embargo_case(
-            dl,
-            case_id,
-            embargo_id,
-            invitee_consent=held,
-            invitee_deadline=_PAST,
-        )
-
-        assert self._honour(dl, case_id, embargo_id).status is (
-            py_trees.common.Status.SUCCESS
-        )
-
-        assert committed_semantic_types(dl, case_id)[-1] == (
-            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
-        )
-        assert consent_row_updates(
-            dl, case_id, EmbargoConsentState.AGREED, _INVITEE
-        )
-        assert _invitee_consent(dl, case_id, embargo_id) is (
-            EmbargoConsentState.AGREED
-        )
-
-    @pytest.mark.spec("EMB-17-001", "ADR-0118")
-    def test_a_signatory_commits_nothing(self):
-        """A participant already AGREED: no entry, no change."""
-        dl = _make_dl()
-        case_id = "https://example.org/cases/honour-signatory"
-        embargo_id = f"{case_id}/embargos/e1"
-        _make_active_embargo_case(
-            dl,
-            case_id,
-            embargo_id,
-            invitee_consent=EmbargoConsentState.AGREED,
-        )
-        before = committed_semantic_types(dl, case_id)
-
-        assert self._honour(dl, case_id, embargo_id).status is (
-            py_trees.common.Status.SUCCESS
-        )
-
-        assert committed_semantic_types(dl, case_id) == before
-        assert _invitee_consent(dl, case_id, embargo_id) is (
-            EmbargoConsentState.AGREED
-        )
-
-    @pytest.mark.spec("EMB-17-001")
-    def test_an_actor_with_no_record_fails_and_commits_nothing(self):
-        dl = _make_dl()
-        case_id = "https://example.org/cases/honour-stranger"
-        embargo_id = f"{case_id}/embargos/e1"
-        _make_active_embargo_case(dl, case_id, embargo_id)
-        before = committed_semantic_types(dl, case_id)
-
-        result = _run_as_manager(
-            dl,
-            create_commit_and_honour_late_accept_tree(
-                case_id=case_id,
-                accepting_actor_id="https://example.org/actors/stranger",
-                invite_id=f"{case_id}/invites/i1",
-                embargo_id=embargo_id,
-            ),
-        )
-
-        assert result.status is py_trees.common.Status.FAILURE
-        assert not result.internal_error
-        assert committed_semantic_types(dl, case_id) == before
-
-
 class TestLateAcceptHandling:
     """EMB-17: late-Accept compatibility routing."""
 
@@ -2200,7 +2113,7 @@ class TestLateAcceptHandling:
             return original(self, embargo_id, trigger, *args, **kwargs)
 
         monkeypatch.setattr(_CoreParticipant, "apply_pec_transition", _spy)
-        # The honour decides its row by the consent table, then copies it
+        # The expiry decides its row by the consent table, then copies it
         # through the one apply function (ADR-0124).
         original_move = expiry_commit.consent_row_move
 
@@ -2246,7 +2159,12 @@ class TestLateAcceptHandling:
         assert (
             participant.consent_for(embargo_id) == EmbargoConsentState.AGREED
         )
-        assert [t for t in applied if t in triggers] == triggers
+        # The honoured Accept is recorded as an on-time Accept is: its row is
+        # checked before the commit and applied after it (EMB-17-002), so
+        # the trigger shows up more than once, but nothing else moves first.
+        assert list(dict.fromkeys(t for t in applied if t in triggers)) == (
+            triggers
+        )
         if start is EmbargoConsentState.TIMED_OUT:
             assert PEC_Trigger.INVITE not in applied
 
@@ -2369,11 +2287,12 @@ class TestLateAcceptHandling:
 
     @pytest.mark.spec("EMB-17-004")
     def test_late_accept_noop_when_em_exited(self, make_payload):
-        """Late Accept after EM EXITED → ack no-op, actor stays in case (AC-4 #2213).
+        """Late Accept after EM EXITED → a no-op, actor stays in case (AC-4 #2213).
 
         Termination writes no consent (ADR-0122) and, with no embargo in
         force, nobody is a signatory; once EM is EXITED a late Accept records
-        no acceptance, so the invitee never becomes a signatory.
+        no acceptance, so the invitee never becomes a signatory.  The Accept
+        changes nothing, so no entry is committed for it (EMB-17-004).
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea3"
@@ -2400,13 +2319,15 @@ class TestLateAcceptHandling:
         dl.create(proposal)
 
         event = _make_accept_event(proposal, case, _INVITEE, make_payload)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        entries_before = _case_entries(dl, case_id)
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition is HandlerDisposition.SKIPPED
 
         # Actor must still be a case participant (not removed)
         fresh_case = dl.read(case_id)
@@ -2425,38 +2346,32 @@ class TestLateAcceptHandling:
         )
         assert not participant.is_signatory(fresh_case.active_embargo_id)
 
-        # The acknowledgement is the CASE_MANAGER's own Ignore of the Accept
-        # (CLP-07-013), and a redelivered Accept is acknowledged once: the
-        # Ignore's id is derived from the Accept (ID-04-004).
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        # Nothing is ledgered for the no-op, and a redelivered Accept gets
+        # the same result (EMB-17-004, ADR-0152).
+        assert _case_entries(dl, case_id) == entries_before
+        again = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
-        (noop,) = [
-            e
-            for e in dl.list_objects("CaseLedgerEntry")
-            if isinstance(e, CaseLedgerEntry)
-            and e.semantic_type == INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
-        ]
-        assert noop.payload_snapshot["type"] == "Ignore"
-        assert noop.payload_snapshot["actor"] == _COORD
-        assert noop.payload_snapshot["object"]["actor"] == _INVITEE
+        assert again.disposition is HandlerDisposition.SKIPPED
+        assert _case_entries(dl, case_id) == entries_before
 
     @pytest.mark.spec("EMB-17-004")
     @pytest.mark.spec("CM-28-004")
     def test_late_accept_with_no_embargo_leaves_the_invitee_row_frozen(
         self, make_payload
     ):
-        """Late Accept with EM NONE → an ack no-op, and the frozen row is kept.
+        """Late Accept with EM NONE → a no-op, and the frozen row is kept.
 
         The invitee was invited to a proposal the owner then rejected, so EM
         is ``NONE`` and nothing is in force: the late Accept has nothing to
         sign.  The rejected entry is final, so its rows accept no trigger
         (ADR-0122): the invitation is not timed out and no expiry entry is
-        committed; the no-op acknowledgement is (EMB-17-004, EMB-17-010).
+        committed, and nothing is committed for the Accept either
+        (EMB-17-004).
         """
         dl = _make_dl(actor_id=_COORD)
         case_id = "https://example.org/cases/ea-none"
@@ -2488,13 +2403,15 @@ class TestLateAcceptHandling:
         dl.create(proposal)
 
         event = _make_accept_event(proposal, case, _INVITEE, make_payload)
-        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+        entries_before = _case_entries(dl, case_id)
+        result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
             wire_render_port=As2WireRenderAdapter(),
             trigger_activity=TriggerActivityAdapter(dl),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
+        assert result.disposition is HandlerDisposition.SKIPPED
 
         fresh_case = dl.read(case_id)
         assert isinstance(fresh_case, CoreCase)
@@ -2503,18 +2420,13 @@ class TestLateAcceptHandling:
         assert (
             participant.consent_for(embargo_id) == EmbargoConsentState.INVITED
         )
-        semantic_types = [
-            obj.semantic_type
-            for obj in dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
-        ]
+        assert _case_entries(dl, case_id) == entries_before
         assert (
             consent_row_updates(
                 dl, case_id, EmbargoConsentState.TIMED_OUT, _INVITEE
             )
             == []
         )
-        assert semantic_types.count(INVITE_EXPIRED_NOOP_SEMANTIC_TYPE) == 1
 
     def test_late_accept_honored_when_em_revise_with_matching_embargo(
         self, make_payload

@@ -248,7 +248,8 @@ already-declined answer, closed-case decline, admission decision, accept flow.
   only the fast path; on another proposer's case the node scans for the proposer's
   own.
 - **Fully closed case** (CP-05-006, CP-05-008): a proposal that resolves to a case
-  whose ledger holds `case_fully_closed` gets `Reject(CaseProposal)`, and nothing is
+  whose ledger holds the CASE_MANAGER's own `RM.CLOSED` status entry gets
+  `Reject(CaseProposal)`, and nothing is
   written for the case (CM-23-013). The factory's post-close guard cannot see it,
   because the proposal names a report, not a case. `CheckProposalCaseFullyClosedNode`
   and `LoadExistingCaseNode` both resolve the case with `proposal_case_ids`

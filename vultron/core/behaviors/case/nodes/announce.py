@@ -19,7 +19,7 @@ Provides :func:`announced_case_id`, which names the case an Announce carries,
 and the action node that seeds, or replaces, the local case with the
 announced ``VulnerabilityCase``, stores embedded participants, and links any
 matching report-case associations.  The guard that judges a copy of a held
-case by its ledger tail, and the node that asks for the entries it is ahead
+case by its ledger position, and the node that asks for the entries it is ahead
 by, are in :mod:`.case_copy`.  The sender check is not here: the received
 tree's factory composes it from the use case's declared rule (HP-01-008).
 
@@ -36,18 +36,15 @@ from typing import Any
 from py_trees.common import Status
 
 from vultron.core.behaviors.case.nodes.case_copy import (
-    required_tail,
+    required_position,
 )
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_copy_position import CaseCopyPosition
 from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
-from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.services.carried_embargo import store_carried_embargo
-from vultron.core.services.case_copy import judge_case_copy
 from vultron.core.services.case_replica_seeding import (
     link_report_case_links,
     normalize_participant_refs,
@@ -115,12 +112,14 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     participants and linked report-case associations (MV-10-003,
     PCR-02-003).  For a case this replica already holds, the copy is an
     authoritative update (PCR-02-004): the guard before this node has
-    judged it current by its ledger tail (SYNC-16-006), so the node
-    replaces the stored case with it and refreshes participants, reports
-    and links.  The case is saved without the tail, which describes the copy
-    and is never a value of the case file (SYNC-16-005).  When the tail is
-    ahead of the replica's chain, it is recorded with the replacement
-    (:class:`CaseCopyPosition`, SYNC-16-007), in one transaction.
+    judged it current by its ledger position (SYNC-16-006), so the node
+    replaces the stored case with it, position included, and refreshes
+    participants, reports and links, in one transaction.  A case stored at a
+    position ahead of the replica's chain stores the entries up to it as
+    no-ops (SYNC-16-007).  A re-delivery of the same Announce
+    (MV-10-004) takes the same judgement: at the case's own position it is
+    current and replaces the case with itself; once the chain is past it,
+    it is stale and skipped.
 
     On both paths the ``EmbargoEvent`` the case names is held *before* the
     case is saved, and a case naming one this store cannot read is refused
@@ -162,7 +161,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         existing = self.datalayer.read(self.case_id)
         if existing is not None:
             # Replace path: the replica holds the case, and the guard judged
-            # the copy current by its ledger tail (PCR-02-004, SYNC-16-006).
+            # the copy current by its ledger position (PCR-02-004, SYNC-16-006).
             # Refresh participants and reports, then save the copy with
             # string participant refs so the row never carries inline
             # sub-objects (#2233 write-path).
@@ -173,9 +172,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
                 self.case_id,
                 self._request.actor_id,
             )
-            self._replace(
-                required_tail(self.case_obj, self.case_id, self.name)
-            )
+            self._replace()
             return Status.SUCCESS
 
         try:
@@ -214,14 +211,13 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             return Status.FAILURE
 
-    def _replace(self, tail: LedgerPosition) -> None:
+    def _replace(self) -> None:
         """Replace the held case with the copy, as one transaction.
 
-        The participants, reports, case and, when the copy is ahead of the
-        chain, its tail (:class:`CaseCopyPosition`, SYNC-16-007) commit
-        together or not at all, so a failure part-way leaves no replica half
-        replaced (ADR-0146).  A store failure raises, and the handler reports
-        it as an internal error.
+        The participants, reports and the case at the copy's ledger position
+        (SYNC-16-005) commit together or not at all, so a failure part-way
+        leaves no replica half replaced (ADR-0146).  A store failure raises,
+        and the handler reports it as an internal error.
 
         The embargo the copy carries is stored before, outside the
         transaction, on both paths (:meth:`update`): it is an immutable
@@ -230,9 +226,8 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         replacement.
         """
         assert self.datalayer is not None
-        chain_index = judge_case_copy(
-            self.case_id, tail, self.datalayer
-        ).chain_index
+        # The guard admitted the copy, so it names a position (SYNC-16-006).
+        required_position(self.case_obj, self.case_id, self.name)
         with self.datalayer.transaction():
             _store_embedded_reports(self.case_obj, self.datalayer)
             store_embedded_participants(
@@ -252,12 +247,4 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
                     }
                 )
             )
-            if tail.log_index > chain_index:
-                self.datalayer.save(
-                    CaseCopyPosition(
-                        case_id=self.case_id,
-                        log_index=tail.log_index,
-                        entry_hash=tail.entry_hash,
-                    )
-                )
             link_report_case_links(self.datalayer, self.case_obj)

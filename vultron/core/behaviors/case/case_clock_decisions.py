@@ -15,8 +15,9 @@
 
 """The clock decisions every case tree takes, whatever its entry point.
 
-Most clock decisions belong to one tree: an ownership Offer expires only
-when an Offer or an answer to one arrives.  A decision about the case
+Most clock decisions belong to one tree: an embargo invitation expires
+only when an answer to it or another embargo activity arrives.  A decision
+about the case
 itself is different: an overdue embargo is a fact about the case, so the
 CASE_MANAGER takes it the next time it handles the case at all (EMB-13-003).
 :func:`case_clock_decisions` lists those decisions.  The received-tree

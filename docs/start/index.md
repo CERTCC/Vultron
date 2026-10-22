@@ -10,7 +10,7 @@ contents: routing
 
 # Where to start
 
-This site has a reading path for each of four situations: an ordered list of the pages that matter to a reader in that situation, from first orientation to the detail.
+This site has a reading path for each of four situations: the pages that matter to a reader in that situation, in stages from first orientation to the detail.
 
 {% include-markdown "../includes/start_here_cards.md" %}
 

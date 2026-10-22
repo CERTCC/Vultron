@@ -8,7 +8,7 @@ description: >
 
 # Negotiating Embargoes
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 A new embargo can only be negotiated while there is still something for it to protect.
 That window, the embargo "habitable zone", is open until the vulnerability, an exploit for it, or attacks using it become public knowledge.

@@ -18,33 +18,33 @@ Each ``Is*EventNode`` matches the ``semantic_type`` of one kind of entry on
 the blackboard ``activity.log_entry``.  Usually that is one semantic type; the
 note-attachment node matches the two entries that attach a note.  They are
 used as preconditions in the ``AnnounceLogEntryReceivedBT`` Selector branches
-(BTND-08-001/002).
+(BTND-08-001/002).  The embargo negotiation's matchers live in
+``embargo_event_conditions`` and the shared bases in
+``_event_condition_base``; both are re-exported here.
 """
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
-
-from py_trees.common import Status
-from py_trees.ports import NoDataAvailable, PortInformation
-
-from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
-from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
-from vultron.core.models.case import VulnerabilityCase
+from vultron.core.behaviors.sync.nodes._event_condition_base import (
+    _ActivityEventNode,
+    _SemanticTypeSetNode,
+    _SingleSemanticTypeNode,
+)
+from vultron.core.behaviors.sync.nodes.embargo_event_conditions import (
+    IsAcceptEmbargoInviteEventNode,
+    IsEmbargoAbandonmentEventNode,
+    IsEmbargoInviteRelayEventNode,
+    IsEmbargoProposalEventNode,
+    IsRejectEmbargoInviteEventNode,
+    IsUndoEmbargoInviteEventNode,
+    is_relayed_embargo_invite,
+    sent_by_case_manager,
+)
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_semantic_types import (
     CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
 )
-from vultron.core.models.rsvp_deadline import (
-    EMBARGO_REINVITE_SEMANTIC_TYPE,
-    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-)
-from vultron.core.models.wire_keys import wire_key
-from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.predicates.addressing import snapshot_actor_id
-from vultron.errors import VultronWiringError
 
 _REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
 _ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
@@ -53,77 +53,6 @@ _REJECT_INVITE_ACTOR_TO_CASE_EVENT = "reject_invite_actor_to_case"
 _ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
 _REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
 _ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
-# The revision relay's semantic types (EP-09-007, ADR-0113).  The proposal and
-# each relayed Invite share one semantic type and are told apart by authorship:
-# see :func:`is_relayed_embargo_invite`.
-_ATTRIBUTED_TO = wire_key("attributed_to")
-_EMBARGO_INVITE_EVENT = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
-_ACCEPT_EMBARGO_INVITE_EVENT = (
-    MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
-)
-_REJECT_EMBARGO_INVITE_EVENT = (
-    MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
-)
-#: Ledger ``semantic_type`` of the CASE_MANAGER's abandonment of an open embargo
-#: proposal once P/X/A is set (EMB-16-001).  The snapshot is the ER the wire
-#: carries, ``Reject(Invite(EmbargoEvent))`` (MSM-02-006), but it is the
-#: manager's decision rather than its consent answer, so it has a semantic type
-#: of its own: replayed as a reject, a manager that is not the case owner
-#: would decide nothing (#4131).
-EMBARGO_ABANDONMENT_SEMANTIC_TYPE = (
-    f"{MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value}_abandoned"
-)
-
-
-class _ActivityEventNode(DataLayerConditionWithPorts):
-    """Common base for Is*EventNode classes that read activity from a port."""
-
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerConditionWithPorts.INPUT_PORTS,
-        "activity": PortInformation(data_type=object, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        try:
-            self.activity = self.get_input("activity")
-        except (NoDataAvailable, NotImplementedError):
-            self.activity = None
-
-
-class _SemanticTypeSetNode(_ActivityEventNode):
-    """Base for an ``Is*EventNode`` that matches a set of ``semantic_type`` values.
-
-    A subclass sets :attr:`matched_semantic_types`; the node returns SUCCESS iff
-    the entry's ``semantic_type`` is a member (BTND-08-001, SYNC-12-001).
-    """
-
-    matched_semantic_types: ClassVar[frozenset[str]]
-
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.semantic_type in self.matched_semantic_types:
-            return Status.SUCCESS
-        return Status.FAILURE
-
-
-class _SingleSemanticTypeNode(_SemanticTypeSetNode):
-    """Base for an ``Is*EventNode`` that matches exactly one ``semantic_type``.
-
-    A subclass sets :attr:`matched_semantic_type`; the node returns SUCCESS iff
-    the entry's ``semantic_type`` equals it (BTND-08-001, SYNC-12-001).
-    """
-
-    matched_semantic_type: ClassVar[str]
-
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        if "matched_semantic_type" in cls.__dict__:
-            cls.matched_semantic_types = frozenset({cls.matched_semantic_type})
 
 
 class IsRemoveEmbargoEventNode(_SingleSemanticTypeNode):
@@ -307,111 +236,6 @@ class IsOwnershipTransferEventNode(_SingleSemanticTypeNode):
     matched_semantic_type = UPDATE_CASE_OWNER_SEMANTIC_TYPE
 
 
-def is_relayed_embargo_invite(
-    snapshot: dict[str, Any],
-    case: VulnerabilityCase | None,
-    dl: CasePersistence,
-) -> bool:
-    """True when an ``invite_to_embargo_on_case`` snapshot is a relayed Invite.
-
-    The CASE_MANAGER commits the proposal it received and then each Invite it
-    relays under the same semantic type (EP-09-002).  A relay is the manager's own
-    emission on the proposer's behalf: ``actor`` is the CASE_MANAGER and
-    ``attributedTo`` names somebody else (CM-24).  Anything else is the
-    proposal — including a proposal whose sender put a third party in
-    ``attributedTo``, which only the CASE_MANAGER may do (PCR-08-010).
-
-    With no case replica the role holder cannot be resolved; the entry is then
-    classified on authorship alone, and the apply nodes skip it leniently
-    (Regime 2, ADR-0087), so the classification has no effect.
-    """
-    actor_id = snapshot_actor_id(snapshot.get("actor"))
-    attributed_to = snapshot_actor_id(snapshot.get(_ATTRIBUTED_TO))
-    if not actor_id or not attributed_to or attributed_to == actor_id:
-        return False
-    if case is None:
-        return True
-    return resolve_case_manager_id(case, dl) == actor_id
-
-
-class _EmbargoInviteEventNode(_ActivityEventNode):
-    """Shared match for the two ``invite_to_embargo_on_case`` entry shapes."""
-
-    _match_relay: bool
-
-    def update(self) -> Status:
-        entry = _require_log_entry(self.activity, self.name)
-        if entry.semantic_type != _EMBARGO_INVITE_EVENT:
-            return Status.FAILURE
-        if self.datalayer is None:
-            # Telling a proposal from a relayed Invite needs the store; a
-            # FAILURE here would read as "not this slot" in both Inverters and
-            # leave the entry unreplayed with nothing said (a wiring fault).
-            raise VultronWiringError(
-                f"{self.name}: no DataLayer to classify the"
-                f" '{_EMBARGO_INVITE_EVENT}' entry on case"
-                f" '{entry.case_id}'"
-            )
-        case = self._resolve_case_replica(entry.case_id)
-        relayed = is_relayed_embargo_invite(
-            entry.payload_snapshot, case, self.datalayer
-        )
-        return (
-            Status.SUCCESS if relayed is self._match_relay else Status.FAILURE
-        )
-
-
-class IsEmbargoProposalEventNode(_EmbargoInviteEventNode):
-    """Precondition: this entry is the embargo proposal the CASE_MANAGER received.
-
-    Matches an ``invite_to_embargo_on_case`` entry that is *not* a relayed
-    Invite (:func:`is_relayed_embargo_invite`).  Used in the
-    ``EmbargoProposalEffects`` slot of ``AnnounceLogEntryReceivedBT``.
-
-    Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
-    """
-
-    _match_relay = False
-
-
-class IsEmbargoInviteRelayEventNode(_EmbargoInviteEventNode):
-    """Precondition: this entry is an Invite the CASE_MANAGER relayed.
-
-    Matches an ``invite_to_embargo_on_case`` entry whose ``actor`` is the
-    CASE_MANAGER and whose ``attributedTo`` is the proposer
-    (:func:`is_relayed_embargo_invite`).  Used in the
-    ``EmbargoInviteRelayEffects`` slot of ``AnnounceLogEntryReceivedBT``.
-
-    Per EP-09-002, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
-    """
-
-    _match_relay = True
-
-
-class IsAcceptEmbargoInviteEventNode(_SingleSemanticTypeNode):
-    """Precondition: this entry is an ``accept_invite_to_embargo_on_case`` event.
-
-    Used in the ``EmbargoAcceptanceEffects`` slot of
-    ``AnnounceLogEntryReceivedBT``.
-
-    Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
-    """
-
-    matched_semantic_type = _ACCEPT_EMBARGO_INVITE_EVENT
-
-
-class IsRejectEmbargoInviteEventNode(_SingleSemanticTypeNode):
-    """Precondition: this entry is a ``reject_invite_to_embargo_on_case`` event.
-
-    Used in the ``EmbargoRejectionEffects`` slot of
-    ``AnnounceLogEntryReceivedBT``.
-
-    Per EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
-    """
-
-    matched_semantic_type = _REJECT_EMBARGO_INVITE_EVENT
-
-
 class IsWithdrawFromEmbargoEventNode(_SingleSemanticTypeNode):
     """Precondition: this entry is a ``withdraw_from_embargo_on_case`` event.
 
@@ -427,40 +251,26 @@ class IsWithdrawFromEmbargoEventNode(_SingleSemanticTypeNode):
     )
 
 
-class IsEmbargoAbandonmentEventNode(_SingleSemanticTypeNode):
-    """Precondition: this entry is the CASE_MANAGER's abandonment of a proposal.
-
-    Matches :data:`EMBARGO_ABANDONMENT_SEMANTIC_TYPE`.  Used in the
-    ``EmbargoAbandonmentEffects`` slot of ``AnnounceLogEntryReceivedBT``.
-
-    Per EMB-16-001, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
-    """
-
-    matched_semantic_type = EMBARGO_ABANDONMENT_SEMANTIC_TYPE
-
-
-class IsEmbargoReinviteEventNode(_SingleSemanticTypeNode):
-    """Precondition: this entry is the CASE_MANAGER's re-invite of a stale accepter.
-
-    Matches :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_SEMANTIC_TYPE`.
-    Used in the ``EmbargoReinviteEffects`` slot of ``AnnounceLogEntryReceivedBT``.
-
-    Per EMB-17-003, CM-28-013, EP-09-007, RSH-08-004, BTND-08-001, SYNC-12-001.
-    """
-
-    matched_semantic_type = EMBARGO_REINVITE_SEMANTIC_TYPE
-
-
-class IsInviteExpiryNoopEventNode(_SingleSemanticTypeNode):
-    """Precondition: this entry is the CASE_MANAGER's no-op expiry acknowledgement.
-
-    Matches :data:`~vultron.core.models.rsvp_deadline.INVITE_EXPIRED_NOOP_SEMANTIC_TYPE`.
-    Committed when a late ``Accept`` arrives with no current embargo (EM EXITED
-    or NONE); the CASE_MANAGER acknowledges it without changing any PEC state
-    (EMB-17-004, ADR-0118).  Used in the ``InviteExpiryNoopEffects`` slot of
-    ``AnnounceLogEntryReceivedBT``.
-
-    Per EMB-17-004, CM-28-009, ADR-0118, BTND-08-001, SYNC-12-001.
-    """
-
-    matched_semantic_type = INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
+__all__ = [
+    "IsAcceptEmbargoInviteEventNode",
+    "IsAddNoteEventNode",
+    "IsCreateCaseParticipantEventNode",
+    "IsEmbargoAbandonmentEventNode",
+    "IsEmbargoInviteRelayEventNode",
+    "IsEmbargoProposalEventNode",
+    "IsInviteAcceptEventNode",
+    "IsInviteRejectEventNode",
+    "IsOwnershipTransferEventNode",
+    "IsParticipantStatusEventNode",
+    "IsRejectEmbargoInviteEventNode",
+    "IsRemoveEmbargoEventNode",
+    "IsRemoveNoteEventNode",
+    "IsSubmitReportEventNode",
+    "IsUndoEmbargoInviteEventNode",
+    "IsWithdrawFromEmbargoEventNode",
+    "_ActivityEventNode",
+    "_SemanticTypeSetNode",
+    "_SingleSemanticTypeNode",
+    "is_relayed_embargo_invite",
+    "sent_by_case_manager",
+]

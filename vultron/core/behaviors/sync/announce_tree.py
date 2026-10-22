@@ -16,11 +16,9 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
     ApplyEmbargoProposalRejectionFromLedgerNode,
-    ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
     ApplyEmbargoTeardownNode,
     ApplyEmbargoWithdrawalFromLedgerNode,
-    ApplyInviteExpiryNoopFromLedgerNode,
     IsActivateEmbargoEventNode,
     IsRejectEmbargoProposalEventNode,
 )
@@ -53,9 +51,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
-    IsEmbargoReinviteEventNode,
     IsInviteAcceptEventNode,
-    IsInviteExpiryNoopEventNode,
     IsInviteRejectEventNode,
     IsOwnershipTransferEventNode,
     IsParticipantStatusEventNode,
@@ -65,6 +61,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
     IsSubmitReportEventNode,
+    IsUndoEmbargoInviteEventNode,
     IsUpdateCaseParticipantEventNode,
     IsWithdrawFromEmbargoEventNode,
     LogDeliveryConfirmationNode,
@@ -119,14 +116,13 @@ def _event_effect_slot(
 def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
     """The embargo negotiation's replay slots (EP-09-007, RSH-08-004, ADR-0113).
 
-    The proposal the CASE_MANAGER received, each Invite it relayed, each
-    ``Accept``/``Reject`` of an Invite — each sender's own consent — each
-    invite expiry the CASE_MANAGER evaluated (CM-28-014, ADR-0118), each
-    honour decision for a late Accept whose embargo is still active
-    (EMB-17-001, ADR-0118), each no-op acknowledgement of a late Accept with
-    no active embargo (EMB-17-004, ADR-0118), the manager's abandonment
-    of an open proposal once P/X/A is set (EMB-16-001), and a signatory's
-    withdrawal from the embargo in force (MSM-07-010).
+    The proposal the CASE_MANAGER received, each Invite it relayed (a
+    re-invite among them, EMB-17-003), each participant's ``Accept`` or
+    ``Reject`` of an Invite — the sender's own consent, an honoured late
+    ``Accept`` included (EMB-17-002) — a signatory's withdrawal from the
+    embargo in force (MSM-07-010), the manager's abandonment of an open
+    proposal once P/X/A is set, its ``Reject`` and ``Undo`` entries
+    (EMB-16-001, ADR-0152), and the manager's own consent-row entries.
     """
     return [
         _event_effect_slot(
@@ -138,11 +134,6 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
             "EmbargoInviteRelay",
             IsEmbargoInviteRelayEventNode,
             ApplyEmbargoInviteFromLedgerNode,
-        ),
-        _event_effect_slot(
-            "EmbargoReinvite",
-            IsEmbargoReinviteEventNode,
-            ApplyEmbargoReinviteFromLedgerNode,
         ),
         _event_effect_slot(
             "EmbargoAcceptance",
@@ -159,14 +150,19 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
             IsWithdrawFromEmbargoEventNode,
             ApplyEmbargoWithdrawalFromLedgerNode,
         ),
-        _event_effect_slot(
-            "InviteExpiryNoop",
-            IsInviteExpiryNoopEventNode,
-            ApplyInviteExpiryNoopFromLedgerNode,
-        ),
+        # The CASE_MANAGER's abandonment of an open proposal (EMB-16-001,
+        # ADR-0152): its Reject of the proposal it received, told from a
+        # participant's Reject by the payload's actor, then its Undo of each
+        # Invite it sent for the proposal.  Each is the proposal's CANCEL
+        # step; the first moves the register and the rest find it in place.
         _event_effect_slot(
             "EmbargoAbandonment",
             IsEmbargoAbandonmentEventNode,
+            ApplyEmbargoAbandonmentFromLedgerNode,
+        ),
+        _event_effect_slot(
+            "EmbargoInviteWithdrawal",
+            IsUndoEmbargoInviteEventNode,
             ApplyEmbargoAbandonmentFromLedgerNode,
         ),
         # The CASE_MANAGER's own consent-row entries, each one row copied

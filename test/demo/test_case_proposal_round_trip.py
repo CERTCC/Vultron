@@ -86,7 +86,6 @@ from test.demo.conftest import (
     create_isolated_actor_app,
     submit_report_through_reporter,
 )
-from test.support.case_copy import copy_from
 from test.support.received import received_event, received_of_type
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
@@ -495,12 +494,8 @@ class TestCaseProposalRoundTrip:
         assert isinstance(replica, VulnerabilityCase)
 
         def _announce_from(sender: str):
-            # The copy names the reporter's own tail, as a current copy
-            # from the CASE_MANAGER would (SYNC-16-005).
             activity = announce_vulnerability_case_activity(
-                copy_from(replica, reporter_iso.dl),
-                actor=sender,
-                to=[reporter_actor_id],
+                replica, actor=sender, to=[reporter_actor_id]
             )
             event = cast(
                 AnnounceVulnerabilityCaseReceivedEvent,

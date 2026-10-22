@@ -12,43 +12,28 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Case copies that name a ledger tail, as a CASE_MANAGER sends them.
+"""Case copies that name a replica's own ledger position.
 
-A full-case announcement carries the sender's ledger tail (SYNC-16-005), and
-a replica that already holds the case judges the copy by it (SYNC-16-006).
-These helpers give a test case the tail its sender would have filled in.
+A case's wire form names the ledger position it is a projection of
+(SYNC-16-005), and a replica that already holds the case judges the copy by
+it (SYNC-16-006).  A test that builds a fresh copy gets the empty-ledger
+position; these helpers give it the position the replica already holds, as a
+current copy from the CASE_MANAGER would name.
 """
 
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.ledger_position import (
-    EMPTY_LEDGER_LOG_INDEX,
-    LedgerPosition,
-)
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.sync_helpers import ledger_tail_position
-
-#: Stands in for a genesis hash on a test case with no owner to derive one.
-PLACEHOLDER_GENESIS_HASH = "0" * 64
-
-
-def copy_at_genesis(case: VulnerabilityCase) -> VulnerabilityCase:
-    """*case* as a copy taken before its ledger has any entry."""
-    return case.with_ledger_tail(
-        LedgerPosition(
-            log_index=EMPTY_LEDGER_LOG_INDEX,
-            entry_hash=case.genesis_hash or PLACEHOLDER_GENESIS_HASH,
-        )
-    )
 
 
 def copy_from(
     case: VulnerabilityCase, dl: CasePersistence
 ) -> VulnerabilityCase:
-    """*case* as a copy naming the tail of *dl*'s ledger for it.
+    """*case* as a copy at the ledger position *dl*'s case is at.
 
-    A store that does not hold the case yet gets a copy taken before any
-    entry, the copy a first seed takes (PCR-02-003).
+    A store that does not hold the case yet gets *case* unchanged, the copy
+    a first seed takes (PCR-02-003).
     """
-    if dl.read_case(case.id_) is None:
-        return copy_at_genesis(case)
-    return case.with_ledger_tail(ledger_tail_position(case.id_, dl))
+    held = dl.read_case(case.id_)
+    if held is None or held.ledger_position is None:
+        return case
+    return case.model_copy(update={"ledger_position": held.ledger_position})

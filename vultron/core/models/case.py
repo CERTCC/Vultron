@@ -20,19 +20,13 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from datetime import datetime
-from types import MappingProxyType
-from typing import Any, ClassVar, Literal, cast
+from typing import Any, ClassVar, Literal
 
-from pydantic import (
-    BaseModel,
-    Field,
-    ValidationInfo,
-    computed_field,
-    model_validator,
-)
+from pydantic import Field, ValidationInfo, computed_field, model_validator
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
+    STORED_CONTEXT_KEY,
     _as_id,
     _new_urn,
     most_recent_status,
@@ -42,7 +36,11 @@ from vultron.core.models._helpers import (
 from vultron.core.models.actor_recommendation_record import (
     ActorRecommendationRecord,
 )
-from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.base import (
+    VULTRON_PROPERTY_EXTRA,
+    CoreObject,
+    NonEmptyString,
+)
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -56,7 +54,10 @@ from vultron.core.models.embargo_register import (
     replaces_violations,
 )
 from vultron.core.models.embargo_termination import EmbargoTermination
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
@@ -82,6 +83,52 @@ def _present_key(data: dict[str, Any], field_name: str) -> str:
     """
     as2 = wire_key(field_name)
     return as2 if as2 in data else field_name
+
+
+def _owner(data: dict[str, Any]) -> Any:
+    """Return the case owner *data* carries under either spelling, or ``None``."""
+    return data.get("attributed_to") or data.get(wire_key("attributed_to"))
+
+
+def _start_ledger_position(
+    data: dict[str, Any], info: ValidationInfo
+) -> dict[str, Any]:
+    """Start an owned case that names no ledger position at its empty ledger.
+
+    Only a case this process builds starts there: index -1 with its genesis
+    hash, the position of a ledger with no entries (CLP-08-004).  A stored row
+    or a received case that omits the field is refused instead.  A stored one
+    was written before cases carried their position, and no conversion is made,
+    so the store must be reset (#4087).  A received one is a sender that left
+    out what SYNC-16-005 requires, and a receiver infers nothing for it
+    (ADR-0103).  An explicit value, ``None`` included, is left to
+    :meth:`VulnerabilityCase._ledger_position_iff_owner`.
+    """
+    key = _present_key(data, "ledger_position")
+    if key in data or not _owner(data):
+        return data
+    context = info.context if isinstance(info.context, dict) else {}
+    case_id = data.get("id") or data.get("id_") or "<unknown>"
+    if STORED_CONTEXT_KEY in context:
+        raise VultronValidationError(
+            f"VulnerabilityCase '{case_id}' was stored without a"
+            " ledger_position, the shape before #5091 made each case store"
+            " the ledger position it is a projection of (SYNC-16-005); no"
+            " conversion is made, so a store written before the change must"
+            " be reset"
+        )
+    if INBOUND_CONTEXT_KEY in context:
+        raise VultronValidationError(
+            f"VulnerabilityCase '{case_id}' carries no ledgerPosition; a"
+            " case's wire form names the ledger position it is a projection"
+            " of (SYNC-16-005)"
+        )
+    data = dict(data)
+    data[key] = LedgerPosition(
+        log_index=EMPTY_LEDGER_LOG_INDEX,
+        entry_hash=data[_present_key(data, "genesis_hash")],
+    )
+    return data
 
 
 def _genesis_published(data: dict[str, Any], inbound: bool) -> datetime | None:
@@ -154,13 +201,6 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             "recommender_id", "#4448", ActorRecommendationRecord
         ),
     }
-    # SYNC-16-005: a copy of the case names the ledger position it reflects,
-    # the sender's tail when it read the case.  The sender fills it in from
-    # its ledger each time it sends a copy; it is never a value of the case
-    # file, so the case's own record never stores it (ADR-0142).
-    carried_properties: ClassVar[Mapping[str, type[BaseModel]]] = (
-        MappingProxyType({"ledger_tail": LedgerPosition})
-    )
     # Every reference slot below carries ``NonEmptyString`` for its IRI form:
     # a blank reference names nothing, so it is refused at construction rather
     # than stored and dereferenced later (CS-08-001, ARCH-10-001).
@@ -205,6 +245,15 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             "were introduced. The model_validator enforces non-empty when "
             "attributed_to is present at construction time."
         ),
+    )
+    # The ledger position this case file is a projection of (ADR-0124,
+    # ADR-0142): the entry last applied to it, or index -1 with the genesis
+    # hash before any.  ``None`` exactly when the case has no owner, and so no
+    # genesis hash and no ledger (CLP-08-002/003).  It moves only through
+    # ``store_ledger_entry``, as each entry is committed or stored, and
+    # travels with the case on the wire (SYNC-16-005).
+    ledger_position: LedgerPosition | None = Field(
+        default=None, json_schema_extra=VULTRON_PROPERTY_EXTRA
     )
     # ADR-0017: ID-only cross-refs to avoid graph-cycle issues
     parent_cases: list[NonEmptyString] = Field(default_factory=list)
@@ -251,9 +300,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             isinstance(info.context, dict)
             and INBOUND_CONTEXT_KEY in info.context
         )
-        attributed_to = data.get("attributed_to") or data.get(
-            wire_key("attributed_to")
-        )
+        attributed_to = _owner(data)
         hash_key = _present_key(data, "genesis_hash")
         genesis_hash = data.get(hash_key, "")
         if not genesis_hash and attributed_to:
@@ -275,7 +322,9 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
                 "be computed — 'published' timestamp is required "
                 "(CLP-08-003)."
             )
-        return data
+        # The genesis hash is the empty ledger's position, so the position
+        # starts here, once the hash is known (SYNC-16-005).
+        return _start_ledger_position(data, info)
 
     @model_validator(mode="before")
     @classmethod
@@ -328,6 +377,42 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             for cs in self.case_statuses
         ]
         object.__setattr__(self, "case_statuses", statuses)
+        return self
+
+    @model_validator(mode="after")
+    def _ledger_position_iff_owner(self) -> VulnerabilityCase:
+        """Refuse a position on an ownerless case, or an owned case without one.
+
+        A case has a ledger exactly when it has an owner: the owner anchors its
+        genesis hash (CLP-08-002/003), and so its position (SYNC-16-005).  An
+        empty ledger's position must name that genesis hash (CLP-08-004).
+        Checks only; the position an omitted field starts at is set before
+        validation (:func:`_start_ledger_position`, ARCH-21-004).
+        """
+        position = self.ledger_position
+        if self.attributed_to is None:
+            if position is not None:
+                raise ValueError(
+                    f"VulnerabilityCase '{self.id_}' has a ledger_position but"
+                    " no owner; a case without an owner has no ledger"
+                    " (CLP-08-002)"
+                )
+            return self
+        if position is None:
+            raise ValueError(
+                f"VulnerabilityCase '{self.id_}' has an owner but no"
+                " ledger_position; an owned case names the ledger position it"
+                " is a projection of (SYNC-16-005)"
+            )
+        if (
+            position.log_index == EMPTY_LEDGER_LOG_INDEX
+            and position.entry_hash != self.genesis_hash
+        ):
+            raise ValueError(
+                f"VulnerabilityCase '{self.id_}' ledger_position names index"
+                f" {EMPTY_LEDGER_LOG_INDEX} with a hash other than its"
+                " genesis_hash (CLP-08-004)"
+            )
         return self
 
     @model_validator(mode="after")
@@ -627,19 +712,6 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             object.__setattr__(self, "case_statuses", statuses)
 
     @property
-    def ledger_tail(self) -> LedgerPosition | None:
-        """The ledger position this copy reflects, or ``None`` (SYNC-16-005).
-
-        Only a copy a sender filled in carries one; a case read from its own
-        record never does.
-        """
-        return cast(LedgerPosition | None, self.carried("ledger_tail"))
-
-    def with_ledger_tail(self, tail: LedgerPosition) -> VulnerabilityCase:
-        """A copy of this case that names *tail* as the position it reflects."""
-        return self.with_carried("ledger_tail", tail)
-
-    @property
     def register_embargo_ids(self) -> list[str]:
         """The embargo id of every register entry, in register order."""
         return [entry.embargo_id for entry in self.embargo_register]
@@ -781,8 +853,8 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         whatever its embargo consent: a removed signatory stays bound but
         receives no content (CM-31-008, ADR-0116).  RM ``CLOSED`` is deliberately
         not part of this check: a closed participant is still owed the
-        ledger entries that record its own closure, and nothing after them,
-        ``case_fully_closed`` included (CM-23-004), so each recipient
+        ledger entries that record its own closure, and nothing after them
+        (CM-23-004), so each recipient
         selection applies the ``CLOSED`` filter itself
         (:mod:`vultron.core.participants.recipients`).  The sender checks
         apply it too: a closed participant may act on nothing further

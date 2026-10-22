@@ -12,7 +12,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""BT nodes that judge a case copy by its ledger tail and ask for the rest.
+"""BT nodes that judge a case copy by its ledger position and ask for the rest.
 
 The guard that decides whether a copy of a case this replica already holds
 may replace it (SYNC-16-006), and the node that asks the CASE_MANAGER for the
@@ -56,20 +56,21 @@ class CaseCopyNotStaleNode(
     """Guard: a copy of a case this replica holds may replace it (SYNC-16-006).
 
     A replica that does not hold the case yet seeds it from any copy
-    (PCR-02-003): ``SUCCESS``.  One that holds it compares the ledger tail
-    the copy names (SYNC-16-005) with its own position
+    (PCR-02-003): ``SUCCESS``.  One that holds it compares the ledger
+    position the copy names (SYNC-16-005) with its own
     (:func:`~vultron.core.services.case_copy.judge_case_copy`):
 
-    - the replica is already past the tail: ``FAILURE`` with ``is_stale``
+    - the replica is already past the position: ``FAILURE`` with ``is_stale``
       set, logged at INFO; the handler reports ``SKIPPED`` and the case is
       unchanged;
-    - it holds a different entry at the tail's index: ``FAILURE`` with
+    - it holds a different entry at the position's index: ``FAILURE`` with
       ``is_conflict`` set, logged at ERROR; the handler reports ``REFUSED``
       and the case is unchanged;
     - otherwise ``SUCCESS``: the copy replaces the case.
 
-    A copy that names no tail cannot be told from a stale one, so a replica
-    holding the case refuses it (``FAILURE``, WARNING).  A copy this actor
+    A copy that names no position, an ownerless one (CLP-08-002), cannot be
+    told from a stale one, so a replica holding the case refuses it
+    (``FAILURE``, WARNING).  A copy this actor
     sent itself, as the CASE_MANAGER receiving its own broadcast, is skipped
     like a stale one: its case is the copy's source (``is_stale``, INFO).
 
@@ -132,11 +133,12 @@ class CaseCopyNotStaleNode(
             )
             return Status.FAILURE
 
-        tail = getattr(self.case_obj, "ledger_tail", None)
-        if tail is None:
+        position = getattr(self.case_obj, "ledger_position", None)
+        if not isinstance(position, LedgerPosition):
             self.feedback_message = (
-                f"the copy of case '{self.case_id}' names no ledger tail, so"
-                " this replica cannot tell it from a stale one (SYNC-16-005)"
+                f"the copy of case '{self.case_id}' names no ledger position,"
+                " so this replica cannot tell it from a stale one"
+                " (SYNC-16-005)"
             )
             self.logger.warning(
                 "%s: refusing Announce '%s' from '%s': %s",
@@ -147,7 +149,7 @@ class CaseCopyNotStaleNode(
             )
             return Status.FAILURE
 
-        judgement = judge_case_copy(self.case_id, tail, self.datalayer)
+        judgement = judge_case_copy(self.case_id, position, self.datalayer)
         if judgement.verdict is CaseCopyVerdict.CONFLICT:
             self.is_conflict = True
             self.feedback_message = judgement.reason
@@ -182,9 +184,9 @@ class CaseCopyNotStaleNode(
 class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
     """Ask for the entries a replacing copy is ahead of this chain by.
 
-    Runs after :class:`SeedAnnouncedCaseNode`, which recorded the copy's
-    tail with the replacement (SYNC-16-007).  When the copy replaced a case
-    this replica held (``/case_copy_replaces``) and its tail is ahead of the
+    Runs after :class:`SeedAnnouncedCaseNode`, which stored the case at the
+    copy's position (SYNC-16-007).  When the copy replaced a case this
+    replica held (``/case_copy_replaces``) and its position is ahead of the
     replica's chain, the node sends the sender ``Reject(CaseLedgerEntry)``
     carrying the replica's own tail, which the CASE_MANAGER answers by
     replaying from it (SYNC-03-002).
@@ -193,7 +195,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
     chain stores none has no entry to name, so it sends the ``Reject`` that
     names no entry, with an empty last-accepted hash and the case as its
     target: the CASE_MANAGER answers it by replaying from genesis, and each
-    entry up to the copy's tail is stored as a no-op (SYNC-16-007).
+    entry up to the copy's position is stored as a no-op (SYNC-16-007).
 
     Raises:
         VultronWiringError: A ``Reject`` is due and no ``sync_port`` was
@@ -243,15 +245,15 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None and self.actor_id is not None
-        tail = required_tail(self.case_obj, self.case_id, self.name)
-        judgement = judge_case_copy(self.case_id, tail, self.datalayer)
-        if tail.log_index <= judgement.chain_index:
+        position = required_position(self.case_obj, self.case_id, self.name)
+        judgement = judge_case_copy(self.case_id, position, self.datalayer)
+        if position.log_index <= judgement.chain_index:
             return Status.SUCCESS
-        self._send_reject(judgement, tail)
+        self._send_reject(judgement, position)
         return Status.SUCCESS
 
     def _send_reject(
-        self, judgement: CaseCopyJudgement, tail: LedgerPosition
+        self, judgement: CaseCopyJudgement, position: LedgerPosition
     ) -> None:
         if self._sync_port is None:
             raise VultronWiringError(
@@ -267,7 +269,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
             " (SYNC-16-007)",
             self.name,
             self.case_id,
-            tail.log_index,
+            position.log_index,
             judgement.chain_index,
             self._request.actor_id,
         )
@@ -275,7 +277,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
             # No entry to name: ask for a replay from genesis (SYNC-16-007).
             self._sync_port.send_genesis_replay_reject(
                 case_id=self.case_id,
-                copy_tail_hash=tail.entry_hash,
+                copy_tail_hash=position.entry_hash,
                 actor_id=self.actor_id,
                 to=to,
             )
@@ -288,27 +290,27 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
         )
 
 
-def required_tail(
+def required_position(
     case_obj: Any, case_id: str, node_name: str
 ) -> LedgerPosition:
-    """The tail of a copy the guard admitted to replace a held case.
+    """The ledger position of a copy the guard admitted to replace a held case.
 
     Raises:
         VultronValidationError: The copy names none; the guard refuses such a
             copy, so reaching here is a composition fault.
     """
-    tail = getattr(case_obj, "ledger_tail", None)
-    if not isinstance(tail, LedgerPosition):
+    position = getattr(case_obj, "ledger_position", None)
+    if not isinstance(position, LedgerPosition):
         raise VultronValidationError(
             f"{node_name}: the copy replacing case '{case_id}' names no"
-            " ledger tail; the guard admits none (SYNC-16-006)"
+            " ledger position; the guard admits none (SYNC-16-006)"
         )
-    return tail
+    return position
 
 
 __all__ = [
     "CASE_COPY_REPLACES_KEY",
     "CaseCopyNotStaleNode",
     "RequestCaseCopyBackfillNode",
-    "required_tail",
+    "required_position",
 ]

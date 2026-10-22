@@ -13,11 +13,12 @@
 
 """A position in one case's ledger: the index and hash of a tail entry.
 
-The full-case Invite carries the CASE_MANAGER's ledger position as a floor,
-and each reply to it carries the replier's own position (CM-11-010,
-CM-11-011, ADR-0121).  A case copy names the position it reflects
-(SYNC-16-005, ADR-0142).  The position names the last entry a copy of the ledger
-holds, so it is a pair: the entry's ``log_index`` and its ``entry_hash``.
+Each case stores the position its case file is a projection of
+(SYNC-16-005, ADR-0142).  The full-case Invite carries the CASE_MANAGER's
+ledger position as a floor, and each reply to it carries the replier's own
+position (CM-11-010, CM-11-011, ADR-0121).  The position names the last entry
+a copy of the ledger holds, so it is a pair: the entry's ``log_index`` and its
+``entry_hash``.
 
 An **empty ledger** has no last entry.  Its position is ``log_index == -1``
 with ``entry_hash`` equal to the case's ``genesis_hash``, the same value
@@ -38,11 +39,11 @@ EMPTY_LEDGER_LOG_INDEX = -1
 class LedgerPosition(ValidatedAssignmentMixin, BaseModel):
     """The tail of a case ledger: ``log_index`` and ``entry_hash`` of its last entry.
 
-    On the wire it is the ``ledgerTail`` object, with ``logIndex`` and
-    ``entryHash`` members.  It is a value, not a stored record: the full-case
-    Invite and its replies carry one in ``content``, and a case copy in
-    ``Announce(VulnerabilityCase)`` carries one as its ``ledgerTail``
-    (SYNC-16-005), which the case's own record never stores.
+    On the wire it is an object with ``logIndex`` and ``entryHash`` members.
+    It is a value, not a record of its own: every owned case stores one as
+    ``VulnerabilityCase.ledger_position``, the entry its case file reflects
+    (SYNC-16-005), and the full-case Invite carries one as its ``content``
+    (VAM-04-011).
     """
 
     model_config = ConfigDict(

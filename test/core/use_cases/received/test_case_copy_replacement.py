@@ -34,9 +34,9 @@ from vultron.adapters.outbox_sealed_body import (
     read_sealed_body_dict,
 )
 from vultron.core.models._helpers import _as_id
-from vultron.core.models.case_copy_position import CaseCopyPosition
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.cs import CS_pxa
 from vultron.wire.as2.factories import genesis_replay_reject_activity
@@ -129,11 +129,10 @@ def test_a_short_replica_is_replaced_then_backfilled_to_the_tail(
     assert net.case(BYSTANDER).current_status.id_ == (
         net.case(MANAGER).current_status.id_
     )
-    position = net.stores[BYSTANDER].read(
-        CaseCopyPosition.build_id(net.case_id)
+    manager_at = LedgerPosition(
+        log_index=_tail(net, MANAGER)[0], entry_hash=_tail(net, MANAGER)[1]
     )
-    assert isinstance(position, CaseCopyPosition)
-    assert (position.log_index, position.entry_hash) == _tail(net, MANAGER)
+    assert net.case(BYSTANDER).ledger_position == manager_at
     rejects = [
         read_sealed_body_dict(net.stores[BYSTANDER], a.id_)
         for a in net.queued(BYSTANDER, to=MANAGER, type_="Reject")
@@ -146,6 +145,8 @@ def test_a_short_replica_is_replaced_then_backfilled_to_the_tail(
         _deliver_entries(net, BYSTANDER)
 
     assert _tail(net, BYSTANDER) == _tail(net, MANAGER)
+    # The replayed entries the copy reflects never moved the case back.
+    assert net.case(BYSTANDER).ledger_position == manager_at
     assert _statuses(net, BYSTANDER) == _statuses(net, MANAGER)
     assert [_as_id(s) for s in net.case(BYSTANDER).case_statuses] == [
         _as_id(s) for s in net.case(MANAGER).case_statuses

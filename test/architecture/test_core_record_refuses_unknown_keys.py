@@ -67,11 +67,6 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "reason": "unreachable",
         "total_attempts": 3,
     },
-    "CaseCopyPosition": {
-        "case_id": f"{_URI}/case",
-        "log_index": 2,
-        "entry_hash": "2" * 64,
-    },
     "DeferredInboxActivity": {"activity_id": _URI, "received_body": "{}"},
     "HeldLedgerAnnounce": {
         "case_id": f"{_URI}/case",

@@ -46,6 +46,7 @@ from vultron.core.behaviors.embargo.embargo_clock_decisions import (
 from vultron.core.behaviors.embargo.expiry_tree import (
     invite_expiry_decision,
     late_accept_diversions,
+    on_time_or_honoured_accept,
 )
 from vultron.core.behaviors.embargo.nodes import (
     IsAnswerableEmbargoNode,
@@ -60,7 +61,6 @@ from vultron.core.behaviors.embargo.nodes.answer_record import (
 from vultron.core.behaviors.embargo.nodes.answer_repeat import (
     case_manager_admits_embargo_answer_guard,
 )
-from vultron.core.behaviors.embargo.nodes.expiry import InviteNotExpiredNode
 from vultron.core.behaviors.embargo.refusal_tree import pxa_accept_refusal
 from vultron.core.behaviors.sender_entitlement import (
     SenderRule,
@@ -111,9 +111,10 @@ def accept_invite_to_embargo_tree(
         ├─ ValidateCaseExistsNode
         ├─ EmbargoAnswerNotRecorded (gated)     # repeat → SKIPPED (CM-13-005)
         ├─ PxaAcceptRefusal (DiversionStage)    # P/X/A → ER (EMB-02-002)
-        ├─ HonourLateAccept / ReinviteLateAccepter / AcknowledgeLateAccept
+        ├─ ReinviteLateAccepter / LateAcceptBindsNothing
         │                                       # late Accept arms (EMB-17)
-        ├─ InviteNotExpiredNode                 # a late Accept is no answer
+        ├─ OnTimeOrHonouredAccept               # a late Accept of the
+        │                                       # embargo in force is honoured
         ├─ IsAnswerableEmbargoNode              # open or active (CM-18-003)
         ├─ EmbargoAnswerApplies (gated)         # the row can be written
         └─ AcceptInviteToEmbargoBTAct (ActTransaction)  # one act (ADR-0151)
@@ -127,8 +128,11 @@ def accept_invite_to_embargo_tree(
     Once P/X/A is set the receiver answers with ER instead of recording the
     Accept (:func:`~vultron.core.behaviors.embargo.refusal_tree.pxa_accept_refusal`).
     A late Accept is routed by its compatibility with the case's embargo
-    (:func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`,
-    EMB-17-001) and is never recorded as an answer.  An Accept of an
+    (EMB-17-001): one of the embargo in force is honoured by being recorded
+    as an on-time Accept is, its entry carrying the row it states
+    (EMB-17-002, ADR-0152), and any other is answered by a diversion
+    (:func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`)
+    and never recorded.  An Accept of an
     embargo that is neither active nor an open proposal is refused before
     the commit with the reason (CM-18-003).  Every refusal a guard makes
     here is answered with the refusal notice (CLP-02-005); a diverted
@@ -149,7 +153,7 @@ def accept_invite_to_embargo_tree(
             ``NEEDS_APPLY_KEY`` at the CASE_MANAGER, read by the late-Accept
             arms; a fresh dict when omitted.
         actor_config: The CASE_MANAGER's configuration: the re-invite's RSVP
-            window and the stub re-issue after an honoured late Accept.
+            window.
 
     Returns:
         Root node of the ``AcceptInviteToEmbargoBT`` Sequence.
@@ -196,16 +200,17 @@ def accept_invite_to_embargo_tree(
                 case_id=case_id,
                 embargo_id=embargo_id,
                 accepting_actor_id=accepting_actor_id,
-                invite_id=invite_id,
                 answers=accept_id,
                 result_out=expiry_out,
                 actor_config=actor_config,
             ),
-            # Backstop: a late Accept is never recorded as an answer.
-            InviteNotExpiredNode(
-                result_out=expiry_out,
-                invitee_id=accepting_actor_id,
+            # Backstop: a late Accept is recorded only when it is honoured
+            # (EMB-17-002), as an on-time Accept is.
+            on_time_or_honoured_accept(
                 case_id=case_id,
+                embargo_id=embargo_id,
+                accepting_actor_id=accepting_actor_id,
+                result_out=expiry_out,
             ),
             # An Accept of terms the case decided, replaced or never knew
             # records nothing (CM-18-003, MSM-07-003).

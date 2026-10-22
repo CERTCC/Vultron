@@ -23,7 +23,6 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.support.case_copy import copy_at_genesis
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -503,6 +502,13 @@ def case():
     return as_VulnerabilityCase(id_=CASE_ID2, name="Seed Announce Test")
 
 
+def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
+    """*case* with an owner, so it names a ledger position (SYNC-16-005)."""
+    return as_VulnerabilityCase(
+        id_=case.id_, name=case.name, attributed_to=ACTOR_ID
+    )
+
+
 def _announce_event_for(
     case: as_VulnerabilityCase,
 ) -> AnnounceVulnerabilityCaseReceivedEvent:
@@ -547,10 +553,11 @@ class TestSeedAnnouncedCaseNode:
         self, bridge, dl, case, announce_event
     ) -> None:
         """PCR-02-004: a copy the guard admitted replaces the held case."""
-        dl.create(case.model_copy(update={"name": "held case"}))
+        copy = _owned(case)
+        dl.create(copy.model_copy(update={"name": "held case"}))
         tree = SeedAnnouncedCaseNode(
             case_id=CASE_ID2,
-            case_obj=copy_at_genesis(case),
+            case_obj=copy,
             request=announce_event,
         )
         result = bridge.execute_with_setup(
@@ -567,14 +574,15 @@ class TestSeedAnnouncedCaseNode:
         """Replacing a held case is a state change, so INFO (SL-04-007).
 
         The guard ahead of the node has judged the copy current by its
-        ledger tail (SYNC-16-006); the node replaces the case (PCR-02-004).
+        ledger position (SYNC-16-006); the node replaces the case (PCR-02-004).
         """
         import logging
 
-        dl.create(case)
+        copy = _owned(case)
+        dl.create(copy)
         tree = SeedAnnouncedCaseNode(
             case_id=CASE_ID2,
-            case_obj=copy_at_genesis(case),
+            case_obj=copy,
             request=announce_event,
         )
 

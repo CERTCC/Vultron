@@ -74,6 +74,14 @@ everything after the last hash a participant reports.
   stored entry with `HashChainLedgerRecord.to_ledger_entry()` and check one with
   `ledger_entry_hash_intact()`, never a hand-built `CaseLedgerEntry`: hashed
   fields such as `received_at` then default to a fresh clock (#3744).
+- **One hash predicate, wherever an entry is checked.** The receiver's check, the
+  CASE_MANAGER's check of its own copy on a hash-mismatch fault, and any send-side
+  check all call `ledger_entry_hash_intact()`. A second copy of the hashing logic
+  can disagree with the first and blame the wrong side (SYNC-03-008, #5095).
+- **A hash refusal is reported, not recovered.** The replica sends
+  `LedgerEntryRefused/HashMismatch`; the CASE_MANAGER logs it at ERROR and checks its
+  own copy, and does nothing else. Replay and re-seed resend the same content, so
+  neither can repair it; the replay cooldown bounds the loop (SYNC-03-007/008).
 
 ## Canonical Serialization
 
@@ -274,26 +282,35 @@ same entry forever (ADR-0142).
 - **Never ledger it.** A fault about applying an entry is replication signalling,
   like the gap Reject; the replica that sent it could not apply its entry
   (SYNC-16-002).
-- **A case copy is judged by its ledger tail.** The sender fills in the copy's
-  `ledgerTail` from its ledger each time it sends `Announce(VulnerabilityCase)`; it
-  is a carried property, never stored, so it cannot disagree with the ledger. A
-  copy behind the replica's position is stale and must not replace the case,
-  because an old copy can arrive late (SYNC-16-006). The position is the chain's
-  tail, or the last replacing copy's tail (`CaseCopyPosition`) while the chain is
-  short of it, so two copies arriving out of order cannot move the case back.
+- **A case stores the ledger position it is a projection of.** Only
+  `store_ledger_entry()` moves it, in the transaction that stores the entry, on
+  every commit and replica store. A node that saves or snapshots a case it read
+  before committing passes it through `at_stored_position()` first, or the save
+  puts the position back and the snapshot names a stale one (SYNC-16-005).
+- **A position never moves back.** Storing an entry at or before the case's
+  position leaves the position where it is: a replica seeded ahead of its chain
+  stores the replayed entries as no-ops, and moving back would make the next
+  copy look ahead again (SYNC-16-007).
+- **A case copy is judged by the position it names.** Chain already past it:
+  stale, `SKIPPED`, because an old copy can arrive late. A different entry at its
+  index: `REFUSED` at ERROR. Otherwise the copy replaces the case, position
+  included (SYNC-16-006). The repeat-Announce path (MV-10-004) takes the same
+  judgement, never a whole replace (`services/case_copy.py`).
 - **A copy carries each record as the store holds it now.** `_case_for_wire`
   re-reads a participant or report the case holds inline, because a current
   copy replaces the replica's records unconditionally; a stale inline snapshot
   regressed a replica's RM (#4797). The CASE_MANAGER skips a copy of its own,
   as it receives its broadcast as a participant: its case is the source.
-- **Replace and record in one transaction.** `SeedAnnouncedCaseNode` writes the
-  participants, the case and the copy's tail together (ADR-0146); a split write
-  could leave a replaced case whose reflected entries are applied again.
+- **Replace in one transaction.** `SeedAnnouncedCaseNode` writes the
+  participants, reports and the case at the copy's position together (ADR-0146);
+  a split write could leave a replaced case whose reflected entries are applied
+  again.
 - **An entry the copy reflects is gated once, before every apply node.**
-  `EntryReflectedByCaseCopyNode` stores it without effects, so no apply node needs
-  its own "copy is past" test; `case_file_is_past()` stays for the embargo
-  register's own replays. That includes the held refused entry, which the seed
-  drains before any replay arrives (SYNC-16-007).
+  `EntryReflectedByCaseCopyNode` stores an entry at or before
+  `case.ledger_position` without effects, so no apply node needs its own "copy is
+  past" test; `case_file_is_past()` stays for the embargo register's own replays.
+  That includes the held refused entry, which the seed drains before any replay
+  arrives, and the backfill after a join seed (SYNC-16-007).
 - **An empty chain still asks.** A replica with no stored entry sends the `Reject`
   that names none: empty last-accepted hash, case as `target`. The parser admits an
   objectless `Reject` only in that form (`ledger_reject_envelope.py`), and the

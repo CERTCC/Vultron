@@ -8,7 +8,7 @@ description: >
 
 # CVD Case State Model
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 This page defines the states of the Coordinated Vulnerability Disclosure (CVD) Case State (CS) model.
 It is for developers implementing the model and for researchers reasoning with it.

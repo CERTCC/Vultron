@@ -68,16 +68,8 @@ from vultron.core.models.participant_semantic_types import (
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
     UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
-from vultron.core.models.protocol_pair import (
-    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
-)
-from vultron.core.models.rsvp_deadline import (
-    EMBARGO_REINVITE_SEMANTIC_TYPE,
-    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-)
 
 _EMBARGO = {"type": "EmbargoEvent", "id": "urn:uuid:embargo"}
-_ABANDONED = f"{MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value}_abandoned"
 
 #: Replayed semantic types and an entry snapshot that identifies each.  Only the
 #: proposal-versus-relay split of ``invite_to_embargo_on_case`` depends on the
@@ -104,9 +96,7 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.REMOVE_CASE_PARTICIPANT_FROM_CASE.value,
         MS.REMOVE_NOTE_FROM_CASE.value,
         MS.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
-        EMBARGO_REINVITE_SEMANTIC_TYPE,
-        INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-        _ABANDONED,
+        MS.UNDO_INVITE_TO_EMBARGO_ON_CASE.value,
     )
 } | {
     MS.INVITE_TO_EMBARGO_ON_CASE.value: {
@@ -147,13 +137,6 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         "an ask the CASE_MANAGER emits to a joined participant; it writes no"
         " case state, and the reply that judges the case carries the RM move"
         " (CM-11-010, CM-11-011)"
-    ),
-    "case_fully_closed": (
-        "the CASE_MANAGER's Update(VulnerabilityCase) marking the write"
-        " boundary; it carries the case a replica at that ledger position"
-        " already holds, and the transitions it follows arrive as the"
-        " add_participant_status_to_participant entries before it"
-        " (CM-23-002, CM-23-005, CM-23-016)"
     ),
     MS.CLOSE_CASE.value: (
         "records the received Leave; the RM transitions it caused arrive as"
@@ -213,12 +196,6 @@ NO_REPLICA_EFFECT: dict[str, str] = {
         " it and changes no owner or role; the open state is read from the ledger"
         " itself, not from replica state (CM-21-014, CM-21-015)"
     ),
-    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE: (
-        "the CASE_MANAGER's expiry record closes the ownership-transfer Offer"
-        " and changes no owner or role; the open state is read from the ledger"
-        " itself, so a replica learns the expiry from the entry and never"
-        " computes one (CM-21-014, CM-21-017)"
-    ),
     MS.OFFER_CASE_PARTICIPANT_ROLE.value: (
         "the CASE_MANAGER records the role-delegation offer as an assertion"
         " (ADR-0039, CLP-07-001), but an offer is a proposal, not the grant;"
@@ -247,8 +224,7 @@ def test_the_derivation_finds_both_commit_paths():
     assert MS.CREATE_CASE.value not in received
     assert {
         "create_case",
-        "case_fully_closed",
-        OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
+        UPDATE_CASE_OWNER_SEMANTIC_TYPE,
     } <= explicit_semantic_types()
     # A replay slot's own constant is compared, never committed, so defining
     # it must not make its type look committed: Remove(Note) is committed

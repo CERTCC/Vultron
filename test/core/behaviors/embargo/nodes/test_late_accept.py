@@ -57,8 +57,8 @@ _OTHER = "https://example.org/embargo/other"
         (EM.ACTIVE, _OTHER, LateAcceptRoute.REINVITE),
         (EM.REVISE, _OTHER, LateAcceptRoute.REINVITE),
         (EM.PROPOSED, None, LateAcceptRoute.REINVITE),
-        (EM.EXITED, None, LateAcceptRoute.ACKNOWLEDGE),
-        (EM.NONE, None, LateAcceptRoute.ACKNOWLEDGE),
+        (EM.EXITED, None, LateAcceptRoute.UNBOUND),
+        (EM.NONE, None, LateAcceptRoute.UNBOUND),
     ],
 )
 def test_each_case_state_has_one_route(em_state, active, route) -> None:

@@ -22,7 +22,7 @@ from typing import Any, get_args
 
 from pydantic import BaseModel, ValidationError
 
-from vultron.core.models._helpers import strip_annotated
+from vultron.core.models._helpers import STORED_CONTEXT_KEY, strip_annotated
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
@@ -42,6 +42,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 )
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+
+STORED_ROW_CONTEXT: dict[str, bool] = {STORED_CONTEXT_KEY: True}
+"""Validation context for reading a stored row back (``STORED_CONTEXT_KEY``)."""
 
 
 def _is_generic_object_ref(annotation: Any) -> bool:
@@ -352,7 +355,7 @@ def _retype_inline_ref(obj: "BaseModel", field_name: str, raw: object) -> Any:
     if isinstance(getattr(obj, field_name, None), specific_cls):
         return None
     try:
-        return specific_cls.model_validate(raw)
+        return specific_cls.model_validate(raw, context=STORED_ROW_CONTEXT)
     except ValidationError:
         return None
 
@@ -394,21 +397,6 @@ def _retype_inline_object_refs(
         return obj.model_copy(update=updates)
     except (ValidationError, TypeError):
         return obj
-
-
-def _own_record_data(obj: PersistableModel) -> dict[str, Any]:
-    """*obj*'s persistence dump, less any value it only carries.
-
-    A carried value describes a copy, never the object, so the object's own
-    record does not store it (``CoreObject.carried_properties``,
-    SYNC-16-005): a case saved from a received copy stores no ledger tail.
-    A copy kept inline in another record, such as the received ``Announce``,
-    keeps it.
-    """
-    data = obj.model_dump(mode="json", serialize_as_any=True)
-    for name in getattr(type(obj), "carried_properties", {}):
-        data.pop(name, None)
-    return data
 
 
 class Record(StorableRecord):
@@ -460,7 +448,9 @@ class Record(StorableRecord):
             # _rekey_wire_identity renames id_/type_ to id/type at every nesting
             # level so stored rows carry wire-facing keys (ARCH-23-005).
             data_=_rekey_wire_identity(
-                _dehydrate_data(_own_record_data(obj), obj)
+                _dehydrate_data(
+                    obj.model_dump(mode="json", serialize_as_any=True), obj
+                )
             ),
         )
         return record
@@ -479,7 +469,9 @@ class Record(StorableRecord):
             raise ValueError(  # noqa: B904  # ruff-baseline #3353
                 f"Type '{self.type_}' not found in vocabulary for Record conversion"
             )
-        obj = cls.model_validate(self.data_)
+        # A stored row: a validator that defaults an omitted field refuses
+        # the omission instead (STORED_CONTEXT_KEY).
+        obj = cls.model_validate(self.data_, context=STORED_ROW_CONTEXT)
         return _retype_inline_object_refs(obj, self.data_)
 
 

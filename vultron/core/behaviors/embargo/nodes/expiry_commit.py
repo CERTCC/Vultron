@@ -13,27 +13,23 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's expiry and honour decisions: commit, then apply.
+"""The CASE_MANAGER's expiry decision: commit, then apply.
 
-Two decisions the CASE_MANAGER takes about one invitee's consent row, from
-the clock or from its policy (CLP-07-013, ADR-0124).  Each is the occasion
-for one CASE_MANAGER act, a factory-built ``Update(EmbargoConsent)``
-carrying the changed row in full; no other entry records the decision, and
-nothing is attributed to the invitee, who sent nothing (ADR-0140):
+A decision the CASE_MANAGER takes about one invitee's consent row from the
+clock (CLP-07-013, ADR-0124): an RSVP deadline passed with no answer
+(CM-28-009), recorded as the change it makes, a factory-built
+``Update(EmbargoConsent)`` carrying the ``TIMED_OUT`` row in full; no other
+entry records the decision, and nothing is attributed to the invitee, who
+sent nothing (ADR-0140, ADR-0152).  An honoured late ``Accept`` is no such
+decision: it is recorded as an on-time ``Accept`` is (EMB-17-002).
 
-- :class:`CommitAndApplyInviteExpiryNode` -- an RSVP deadline passed with no
-  answer (CM-28-009): the ``Update`` carries the ``TIMED_OUT`` row.
-- :class:`CommitAndApplyHonourLateAcceptNode` -- a late ``Accept`` honoured on
-  the embargo in force (EMB-17-002): the ``Update`` carries the ``AGREED``
-  row.
-
-Each decides the row first, trial-applies it, commits the ``Update`` from its
+The node decides the row first, trial-applies it, commits the ``Update`` from its
 sealed blob, and only then writes the row through the one apply function.  A
 commit the ledger refuses leaves the row as it was, and the node fails (it
 does not raise); an internal error, including a missing consent row, raises
 (CLP-10-025, ADR-0095).  A replica copies the row from the ``Update`` entry
 through the consent slot, as it copies every other consent-row change
-(CM-23-016).  The trees place both nodes behind the CASE_MANAGER role gate
+(CM-23-016).  The trees place the node behind the CASE_MANAGER role gate
 (CM-28-016, BT-17-001).
 """
 
@@ -174,22 +170,6 @@ class CommitAndApplyInviteExpiryNode(_CommitConsentRowDecisionNode):
     _TRIGGER = PEC_Trigger.TIME_OUT
 
 
-class CommitAndApplyHonourLateAcceptNode(_CommitConsentRowDecisionNode):
-    """Commit the honoured late Accept's ``AGREED`` row, then apply it.
-
-    The CASE_MANAGER's policy decision to honour a late ``Accept``
-    (EMB-17-002, ADR-0118): its ``Update(EmbargoConsent)`` carrying the
-    participant's ``AGREED`` row, and only then ``TIMED_OUT → AGREED`` or
-    ``DECLINED → AGREED`` is written.  An already ``AGREED`` row commits
-    nothing; an actor with no participant record fails.
-    """
-
-    _CAUSE = "late-accept-honoured"
-    _TRIGGER = PEC_Trigger.AGREE
-    _REQUIRES_PARTICIPANT = True
-
-
 __all__ = [
-    "CommitAndApplyHonourLateAcceptNode",
     "CommitAndApplyInviteExpiryNode",
 ]

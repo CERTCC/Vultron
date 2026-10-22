@@ -111,7 +111,7 @@ a peer → Layer 2; an entry that is present but malformed → Layer 3.
 | 14 | `test_invariant_14_no_gaps_in_log_indices` | active | 2 — Received |
 | 15 | `test_invariant_15_cs_state_transitions_observed` | active | 1 — Sent |
 | 16 | `test_invariant_16_causal_edges_in_ledger_order` | active | 3 — Committed |
-| 18 | `test_invariant_18_no_participant_act_after_case_fully_closed` | active | 3 — Committed |
+| 18 | `test_invariant_18_no_participant_act_after_case_closure` | active | 3 — Committed |
 | — | `test_invariant_clp13_no_rejected_invite_entries` | active | 3 — Committed |
 | — | `test_invariant_clp07_unique_payload_snapshot_ids` | active | 3 — Committed |
 | — | `test_invariant_clp14_timestamp_invariants` | active | 3 — Committed |
@@ -148,7 +148,8 @@ the promotion steps.
   without judging the case: start at Layer 2 for the missing Invite or reply.
 - **Invariant 18** runs `case_closure_violations` from
   `vultron/demo/helpers/milestones.py` over the `case-actor` log (CM-23-013). A
-  failure names a participant act committed after `case_fully_closed`. Check the
+  failure names a participant act committed after the CASE_MANAGER's own
+  `RM.CLOSED` status entry (`closure_boundary_indices`). Check the
   post-close guard `CaseOpenToExternalWritesNode` and the scenario's
   `close_case_owner_last` order.
 - **Invariant 7 and the `per_actor_replica_*` checks** fail when the

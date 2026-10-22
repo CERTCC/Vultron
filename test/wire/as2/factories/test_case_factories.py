@@ -58,7 +58,6 @@ from vultron.wire.as2.factories import (
     rm_reject_invite_to_case_activity,
     undo_case_ownership_transfer_activity,
     update_case_activity,
-    withdraw_expired_case_ownership_offer_activity,
 )
 from vultron.wire.as2.factories.case import (
     _stub_embargo,
@@ -471,29 +470,6 @@ def test_reject_ownership_transfer_plain_offer_raises(sample_report):
     plain_offer = as_Offer(actor=_ACTOR_URI, object_=sample_report)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         reject_case_ownership_transfer_activity(offer=plain_offer)
-    assert exc_info.value.__cause__ is not None
-
-
-# ---------------------------------------------------------------------------
-# withdraw_expired_case_ownership_offer_activity
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.spec("CM-21-017")
-def test_expired_offer_withdrawal_is_an_undo_of_the_offer(sample_offer):
-    """The CASE_MANAGER's expiry is a real Undo carrying the Offer inline."""
-    result = withdraw_expired_case_ownership_offer_activity(
-        offer=sample_offer, actor=_ACTOR_URI
-    )
-    assert isinstance(result, as_Undo)
-    assert result.object_ == sample_offer
-
-
-@pytest.mark.spec("AF-04-001")
-def test_expired_offer_withdrawal_plain_offer_raises(sample_report):
-    plain_offer = as_Offer(actor=_ACTOR_URI, object_=sample_report)
-    with pytest.raises(VultronActivityConstructionError) as exc_info:
-        withdraw_expired_case_ownership_offer_activity(offer=plain_offer)
     assert exc_info.value.__cause__ is not None
 
 

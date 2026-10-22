@@ -253,8 +253,8 @@ one race fix had to touch most modules (DEMOMA-23-005).
 ## Close a Case Through `close_case_owner_last`, Owner Last
 
 The Case Owner's `Leave(VulnerabilityCase)` closes the case for everyone
-(CM-23-002), and the CASE_MANAGER records nothing a participant sends after
-`case_fully_closed` (CM-23-013). So the owner leaves last (CM-23-015).
+(CM-23-002), and the CASE_MANAGER records nothing a participant sends after its
+own `RM.CLOSED` status entry (CM-23-013). So the owner leaves last (CM-23-015).
 
 Every closure phase calls `close_case_owner_last` (`helpers/closure.py`). The
 other participants leave first; the owner's `Leave` waits until the

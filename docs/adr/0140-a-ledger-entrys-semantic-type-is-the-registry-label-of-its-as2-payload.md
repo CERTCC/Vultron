@@ -2,8 +2,8 @@
 status: proposed
 date: 2026-10-15
 created: 2026-10-15
-updated: 2026-10-21
-revision: 2
+updated: 2026-10-22
+revision: 4
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0083, ADR-0104, ADR-0128, ADR-0137; specs/semantic-extraction.yaml SE;
@@ -62,8 +62,8 @@ Chosen option: "The payload is valid AS2, and `eventType` is stored but must equ
    When the clock or the CASE_MANAGER's policy decides something (an invitation's deadline passes, a late answer is honoured, an offer's deadline passes), that decision is the occasion for an act the CASE_MANAGER performs.
    The act is an activity the CASE_MANAGER builds with a factory, commits from its sealed blob and delivers like any of its acts; it is never a ledger entry shaped to look like an activity, and never an activity attributed to a participant that sent nothing.
    - An expired embargo invitation is the CASE_MANAGER's `Update(EmbargoConsent)` carrying the invitee's `TIMED_OUT` row.
-   - An honoured late `Accept` of an embargo invitation is the CASE_MANAGER's `Update(EmbargoConsent)` carrying the accepter's `AGREED` row; the late `Accept` itself is not committed.
-   - An expired ownership-transfer `Offer` is the CASE_MANAGER's `Undo(Offer)`, carrying the `Offer` inline with the `endTime` it passed. The CASE_MANAGER made that `Offer` ([ADR-0148](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md)), so it is the one that withdraws it; the Case Owner's own withdrawal is an `Undo` of its proposal, a different shape. The entry keeps its own semantic type, `offer_case_ownership_transfer_expired`.
+   - An honoured late `Accept` of an embargo invitation is ruled by [ADR-0152](0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md): the received `Accept` itself is committed, as `accept_invite_to_embargo_on_case`, carrying the row it states as an on-time `Accept` does, and no `Update(EmbargoConsent)` follows it.
+   - An expired ownership-transfer `Offer` is ruled by [ADR-0152](0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md): its expiry is an observation, so nothing is ledgered for it, and a late `Accept` is refused from the `Offer`'s own `endTime`.
    No separate act entry precedes the `Update(EmbargoConsent)`: the row's state already tells an expiry from a refusal, and a second entry would record an act nobody sent.
    The synthetic `Expire` type is retired.
 5. **Recognizing a semantic type does not imply a handler for it.**

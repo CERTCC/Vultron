@@ -9,7 +9,7 @@ page_type: reference
 
 # Protocol Definition
 
-{% include-markdown "../../includes/normative.md" %}
+{% include-markdown "../../includes/specification_governs.md" %}
 
 This page defines the Multi-Party Coordinated Vulnerability Disclosure (MPCVD) protocol formally, as a communication protocol among independent processes.
 It gives the protocol quadruple, the global state of a protocol, and the number of processes in a case.

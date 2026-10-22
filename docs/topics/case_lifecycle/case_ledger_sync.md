@@ -374,10 +374,10 @@ Nothing in it is committed, so it never stands in for an applied entry ([SYNC-14
 An entry it does not hold comes back the same way an evicted one does — the next entry that does not match the replica's tail produces a `Reject`, and the CASE_MANAGER replays from the position that reject names.
 
 A replica that already holds the case also receives fresh copies of it, as `Announce(VulnerabilityCase)`.
-Each copy names the ledger position it reflects, its **ledger tail**, so the replica can tell a current copy from a stale one ([SYNC-16-005](../../reference/specs/protocol.md#sync-16-005)).
+Each copy names the **ledger position** it reflects, the last entry its case file is a projection of, so the replica can tell a current copy from a stale one ([SYNC-16-005](../../reference/specs/protocol.md#sync-16-005)).
 A copy the replica's chain is already past changes nothing, and a copy that names a different entry at a position the replica holds is refused as a conflict ([SYNC-16-006](../../reference/specs/protocol.md#sync-16-006)).
 Any other copy replaces the replica's case.
-When that copy is ahead of the replica's chain, the replica asks for the missing entries with a `Reject`, and stores each entry the copy already reflects without applying it again ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
+When that copy is ahead of the replica's chain, the replica asks for the missing entries with a `Reject`, and stores each entry the copy already reflects without applying it again or moving its position back ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
 
 ---
 

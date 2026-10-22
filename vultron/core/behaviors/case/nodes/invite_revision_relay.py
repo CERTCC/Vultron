@@ -39,6 +39,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
 )
+from vultron.core.behaviors.embargo.proposer import embargo_proposer_id
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -46,9 +47,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.wire_keys import wire_key
 from vultron.core.participants.recipients import invitation_recipients
-from vultron.core.predicates.addressing import snapshot_actor_id
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
@@ -165,33 +164,14 @@ class RelayOpenProposalsToJoinerNode(RelayEmbargoInviteToEachNode):
 
         A relayed or creation-time Invite names the proposer in
         ``attributedTo``; a proposal the proposer sent itself names it as
-        ``actor``.
+        ``actor`` (:func:`~vultron.core.behaviors.embargo.proposer.embargo_proposer_id`).
         """
-        proposal_id = case.pending_embargo_proposal_index.get(embargo_id)
-        entry = next(
-            (
-                e
-                for e in entries
-                if proposal_id is not None and e.log_object_id == proposal_id
-            ),
-            None,
-        )
-        if entry is None:
+        proposer = embargo_proposer_id(entries, embargo_id)
+        if not proposer:
             raise RuntimeError(
                 f"{self.name}: open proposal '{embargo_id}' on case"
                 f" '{self._case_id}' has no committed proposal entry, so its"
                 " proposer is unknown"
-            )
-        snapshot = entry.payload_snapshot
-        # The snapshot keeps the proposer's own spelling; the relay names
-        # it as the case stores it (OID-01-006).
-        proposer = snapshot_actor_id(
-            snapshot.get(wire_key("attributed_to"))
-        ) or snapshot_actor_id(snapshot.get(wire_key("actor")))
-        if not proposer:
-            raise RuntimeError(
-                f"{self.name}: proposal entry '{proposal_id}' names no"
-                " proposer"
             )
         return proposer
 

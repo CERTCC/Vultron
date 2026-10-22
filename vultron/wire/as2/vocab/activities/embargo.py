@@ -26,11 +26,11 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
     as_Create,
-    as_Ignore,
     as_Invite,
     as_Leave,
     as_Reject,
     as_Remove,
+    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.objects.embargo_consent import (
@@ -92,21 +92,22 @@ class _EmRejectEmbargoActivity(as_Reject):
     context: as_VulnerabilityCaseRef = None
 
 
-class _IgnoreLateEmbargoAcceptActivity(as_Ignore):
-    """The CASE_MANAGER acknowledges a late embargo Accept as a no-op (EMB-17-004).
+class _EmUndoEmbargoInviteActivity(as_Undo):
+    """The CASE_MANAGER withdraws an embargo Invite it sent (EMB-16-001).
 
-    ``Ignore(Accept(Invite(EmbargoEvent)))``: the Invite had already expired
-    and the case holds no embargo the Accept could still bind (EM ``EXITED``
-    or ``NONE``), so the CASE_MANAGER records that it received the answer and
-    changes nothing.  It is the CASE_MANAGER's own act, from the clock: the
-    accepter's ``Accept`` is carried inline and the ``Ignore``
-    is attributed to the CASE_MANAGER alone.
+    ``Undo(Invite(EmbargoEvent)[context=VulnerabilityCase])``: an actor
+    undoes only an activity it performed, so withdrawing an invitation one
+    sent is an ``Undo`` and declining one received is a ``Reject``
+    (ADR-0152).  The CASE_MANAGER sends it when it abandons an open
+    proposal once P/X/A is set: one for each Invite it relayed, and, when it
+    made the proposal itself, one for that proposal too.
 
-    object_: the late _EmAcceptEmbargoActivity (inline)
-    context: the VulnerabilityCase the Invite was for
+    object_: the _EmProposeEmbargoActivity being withdrawn (inline typed
+        object required — bare string IDs are rejected at construction time)
+    context: the VulnerabilityCase the embargo was proposed for
     """
 
-    object_: _EmAcceptEmbargoActivity = Field(
+    object_: _EmProposeEmbargoActivity = Field(
         default=..., validation_alias="object", serialization_alias="object"
     )
     context: as_VulnerabilityCaseRef = None

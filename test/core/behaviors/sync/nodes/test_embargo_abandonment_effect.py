@@ -13,10 +13,13 @@
 
 """``ApplyEmbargoAbandonmentFromLedgerNode`` on a participant's replica.
 
-The CASE_MANAGER commits one ER per abandoned proposal (EMB-16-001, #4131).
-The replica drops each proposal it still holds open and reaches EM ``NONE``
-with the last (EP-09-007, RSH-08-004).  Runs in the participant's own store
-(``datalayer``, ADR-0073).
+The CASE_MANAGER abandons each open proposal with its ``Reject`` of the
+proposal it received, or its ``Undo`` of one it sent itself, then an ``Undo``
+of each Invite it relayed for it (EMB-16-001, ADR-0152).  The replica drops
+each proposal it still holds open and reaches EM ``NONE`` with the last
+(EP-09-007, RSH-08-004); a ``Reject`` is the abandonment only when the
+CASE_MANAGER sent it.  Runs in the participant's own store (``datalayer``,
+ADR-0073).
 """
 
 from datetime import timedelta
@@ -38,14 +41,19 @@ from vultron.core.behaviors.embargo.nodes import (
     ApplyEmbargoAbandonmentFromLedgerNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
-    EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
+    IsEmbargoAbandonmentEventNode,
+    IsRejectEmbargoInviteEventNode,
+    IsUndoEmbargoInviteEventNode,
 )
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.states.em import EM
 from vultron.enums.roles import CVDRole
 
+_REJECT = MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
+_UNDO = MessageSemantics.UNDO_INVITE_TO_EMBARGO_ON_CASE.value
 FIRST_ID = f"{CASE_ID}/embargo_events/p1"
 SECOND_ID = f"{CASE_ID}/embargo_events/p2"
 
@@ -73,11 +81,13 @@ def proposed_case(datalayer) -> VulnerabilityCase:
     return case
 
 
-def _abandonment(embargo: Any) -> dict[str, Any]:
-    """The manager's ``Reject(Invite(EmbargoEvent))``, as committed."""
+def _abandonment(
+    embargo: Any, *, verb: str = "Reject", actor: str = MANAGER_ACTOR_ID
+) -> dict[str, Any]:
+    """The manager's ``Reject`` or ``Undo`` of an embargo Invite, as committed."""
     return {
-        "type": "Reject",
-        "actor": MANAGER_ACTOR_ID,
+        "type": verb,
+        "actor": actor,
         "context": CASE_ID,
         "object": {
             "type": "Invite",
@@ -88,11 +98,14 @@ def _abandonment(embargo: Any) -> dict[str, Any]:
     }
 
 
-def _replay(bridge, embargo: Any):
+def _replay(bridge, embargo: Any, *, verb: str = "Reject"):
     return _run(
         bridge,
         ApplyEmbargoAbandonmentFromLedgerNode(name="Abandonment"),
-        _entry(EMBARGO_ABANDONMENT_SEMANTIC_TYPE, _abandonment(embargo)),
+        _entry(
+            _REJECT if verb == "Reject" else _UNDO,
+            _abandonment(embargo, verb=verb),
+        ),
     )
 
 
@@ -146,8 +159,94 @@ def test_an_entry_naming_no_embargo_fails(bridge, datalayer, proposed_case):
     result = _run(
         bridge,
         ApplyEmbargoAbandonmentFromLedgerNode(name="Abandonment"),
-        _entry(EMBARGO_ABANDONMENT_SEMANTIC_TYPE, snapshot),
+        _entry(_REJECT, snapshot),
     )
 
     assert result.status == Status.FAILURE
     assert _case(datalayer).proposed_embargo_ids == [FIRST_ID, SECOND_ID]
+
+
+@pytest.mark.spec("EMB-16-001")
+def test_an_undo_after_the_reject_changes_nothing_more(
+    bridge, datalayer, proposed_case
+):
+    """The Reject cancels; each Undo of a relayed Invite finds it in place,
+    so the CANCEL is applied once (ADR-0152)."""
+    assert _replay(bridge, _embargo_snapshot(FIRST_ID)).status == (
+        Status.SUCCESS
+    )
+    before = _case(datalayer).model_dump(mode="json")
+
+    for _ in range(2):
+        result = _replay(bridge, _embargo_snapshot(FIRST_ID), verb="Undo")
+        assert result.status == Status.SUCCESS
+
+    assert _case(datalayer).model_dump(mode="json") == before
+    assert _case(datalayer).proposed_embargo_ids == [SECOND_ID]
+
+
+@pytest.mark.spec("EMB-16-001")
+def test_the_undo_of_the_managers_own_proposal_cancels_it(
+    bridge, datalayer, proposed_case
+):
+    """When the CASE_MANAGER made the proposal itself, its Undo of that
+    proposal is the cancel (ADR-0152)."""
+    result = _replay(bridge, _embargo_snapshot(FIRST_ID), verb="Undo")
+
+    assert result.status == Status.SUCCESS
+    assert _case(datalayer).proposed_embargo_ids == [SECOND_ID]
+
+
+def _matches(bridge, node, semantic_type: str, actor: str) -> Status:
+    snapshot = _abandonment(_embargo_snapshot(FIRST_ID), actor=actor)
+    if semantic_type == _UNDO:
+        snapshot["type"] = "Undo"
+    status: Status = _run(bridge, node, _entry(semantic_type, snapshot)).status
+    return status
+
+
+@pytest.mark.spec("EMB-16-001")
+@pytest.mark.spec("SE-03-004")
+@pytest.mark.parametrize(
+    ("actor", "abandonment", "participant_reject"),
+    [
+        (MANAGER_ACTOR_ID, Status.SUCCESS, Status.FAILURE),
+        (OWNER_ACTOR_ID, Status.FAILURE, Status.SUCCESS),
+    ],
+    ids=["case-manager", "participant"],
+)
+def test_a_reject_is_the_abandonment_only_from_the_case_manager(
+    bridge, datalayer, proposed_case, actor, abandonment, participant_reject
+):
+    """One semantic type, told apart after routing by the payload's
+    ``actor`` (ADR-0152): the CASE_MANAGER's Reject goes to the abandonment
+    slot, which cancels, and a participant's to the rejection slot, which
+    records DECLINED."""
+    assert (
+        _matches(
+            bridge,
+            IsEmbargoAbandonmentEventNode(name="IsAbandonment"),
+            _REJECT,
+            actor,
+        )
+        is abandonment
+    )
+    assert (
+        _matches(
+            bridge,
+            IsRejectEmbargoInviteEventNode(name="IsRejection"),
+            _REJECT,
+            actor,
+        )
+        is participant_reject
+    )
+
+
+def test_the_undo_slot_matches_only_an_undo(bridge, datalayer, proposed_case):
+    node = IsUndoEmbargoInviteEventNode
+    assert _matches(bridge, node(name="a"), _UNDO, MANAGER_ACTOR_ID) is (
+        Status.SUCCESS
+    )
+    assert _matches(bridge, node(name="b"), _REJECT, MANAGER_ACTOR_ID) is (
+        Status.FAILURE
+    )

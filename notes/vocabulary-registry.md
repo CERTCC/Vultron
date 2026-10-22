@@ -12,6 +12,7 @@ description: >
 related_specs:
   - specs/vocabulary-model.yaml (VM-01 through VM-03, VM-06, VM-10)
   - specs/em-behavior.yaml (EMB-13-005)
+  - specs/sync-ledger-replication.yaml (SYNC-16-005)
   - specs/architecture.yaml (ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-12-010,
     ARCH-14-001, ARCH-20-002, ARCH-23-002, ARCH-25-003)
   - specs/docs-build-workflow.yaml (DOCBW-03-005)
@@ -25,6 +26,7 @@ related_notes:
   - notes/demo-scenario-registry.md
 relevant_packages:
   - vultron/wire/as2/vocab
+  - vultron/metadata/wire_context
   - vultron/adapters/driven/wire_render
   - vultron/adapters/driven/trigger_activity_adapter
 ---
@@ -81,12 +83,17 @@ own. When adding or renaming a wire type:
   `test_non_as2_wire_types_are_annotated_vultron` checks against the AS2 term set
   from the *defining module*, never from `_vocab_ns` itself, which would blind
   the guard to the mistake it looks for.
-- Keep the enumeration filter to classes defined under `vultron.wire.as2.vocab`:
-  a class declared inside a test joins the subclass graph, and without the filter
-  a test probe could inject a term into the normative document.
+- Keep the enumeration filter to classes defined under `vultron.wire.as2.vocab`,
+  plus the core classes `WIRE_TYPE_MAP` registers from `vultron.core.models`
+  (`CORE_MODELS_PACKAGE`): a class declared inside a test joins the subclass
+  graph, and without the filter a test probe could inject a term into the
+  normative document.
 - Give a Vultron-namespace wire *property* its term by marking the field with
-  `json_schema_extra=VULTRON_PROPERTY_EXTRA`; the generator keys it by the
-  field's wire name (`vultron_property_terms`). List it under "Declared
+  `json_schema_extra=VULTRON_PROPERTY_EXTRA` (from `vultron.core.models.base`,
+  re-exported by the wire base); the generator keys it by the field's wire name
+  (`vultron_property_terms`). It walks core classes too, because a paired type's
+  wire class is its core class (ARCH-25-003): a case's `ledgerPosition` is
+  marked on `VulnerabilityCase` (SYNC-16-005). List it under "Declared
   properties" in `docs/ns/index.md`, which
   `test_namespace_index_page_lists_exactly_the_generated_terms` checks. An
   unmarked Vultron property has no term, so a receiver cannot resolve it

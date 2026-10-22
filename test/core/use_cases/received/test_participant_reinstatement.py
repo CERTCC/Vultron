@@ -57,6 +57,7 @@ from test.core.use_cases.received.test_participant_removal_planned import (
     _seed,
 )
 from test.support.embargo_register import terminate
+from test.support.ledger import with_genesis
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -97,7 +98,6 @@ from vultron.core.models.participant_semantic_types import (
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
-from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -190,8 +190,7 @@ def _replica(case: _RemovalCase, actor_id: str) -> SqliteDataLayer:
     _seed(replica)
     seeded = replica.read(CASE_ID)
     assert isinstance(seeded, as_VulnerabilityCase)
-    seeded.genesis_hash = case.read_case().genesis_hash
-    replica.save(seeded)
+    replica.save(with_genesis(seeded, case.read_case().genesis_hash))
     return replica
 
 
@@ -598,9 +597,12 @@ def test_reinstated_non_signatory_gets_the_embargo_invite_and_no_content(
     ]
     assert len(invites) == 1
     assert len(_entry_ids_announced_to(case, OTHER)) == announced
-    assert EMBARGO_REINVITE_SEMANTIC_TYPE in {
-        e.semantic_type for e in case.ledger()
-    }
+    # The reinstatement's Invite is a relay, committed as one (ADR-0152).
+    assert any(
+        e.semantic_type == "invite_to_embargo_on_case"
+        and e.log_object_id == invites[0].id_
+        for e in case.ledger()
+    )
     assert case.activities_to("Add", OTHER), "the notice still reaches it"
 
 
@@ -855,9 +857,11 @@ def test_reinstatement_into_a_case_with_no_active_embargo_sends_no_invite(
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert _participant_id(OTHER) in case.active_ids()
     assert _embargo_invites_to(case, OTHER) == []
-    assert EMBARGO_REINVITE_SEMANTIC_TYPE not in {
-        e.semantic_type for e in case.ledger()
-    }
+    assert not any(
+        e.semantic_type == "invite_to_embargo_on_case"
+        and e.payload_snapshot.get("to") == [OTHER]
+        for e in case.ledger()
+    )
 
 
 @pytest.mark.spec("CM-31-013")

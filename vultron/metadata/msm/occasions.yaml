@@ -248,10 +248,10 @@ groups:
     sent_by: the case owner
     semantics: propose_case_ownership_transfer
     status: none
-    description: Asks the Case Manager to offer the case to another actor, for example from
+    description: 'Asks the Case Manager to offer the case to another actor, for example from
       a Reporter to a Coordinator. The inner Offer names the case, the new owner as its target
-      and, optionally, an `endTime` after which the Case Manager refuses an answer and records
-      the offer as expired. The Case Manager makes the offer itself.
+      and, optionally, an `endTime` after which the Case Manager refuses an answer: the offer
+      is then closed, with nothing recorded or sent. The Case Manager makes the offer itself.'
     seen_in: []
     example: propose_case_ownership_transfer
   - anchor: offer-case-ownership-transfer
@@ -622,6 +622,9 @@ groups:
     status: collapse
     description: Records the sender's own refusal of the proposed terms. The proposal is rejected
       for the case only when the Case Owner sends its decision.
+    notes: The Case Manager sends the same activity when it abandons an open proposal once
+      the case is public, an exploit is public or attacks are observed. Its Reject cancels
+      the proposal, and each Invite it relayed for the proposal is then withdrawn.
     seen_in:
     - path: howto/activitypub/activities/establish_embargo.md
       title: How to Establish an Embargo
@@ -642,6 +645,22 @@ groups:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: reject_embargo_revision
+  - anchor: withdraw-embargo-invite
+    heading: Withdraw an embargo invitation
+    when: the Case Manager abandons an open embargo proposal once the case is public, an exploit
+      is public or attacks are observed
+    send: Undo(Invite(Event)[context=VulnerabilityCase])
+    send_to: a participant
+    sent_by: not handled
+    semantics: undo_invite_to_embargo_on_case
+    status: none
+    description: Withdraws an Invite the Case Manager sent for the abandoned proposal. The
+      Case Manager first rejects the proposal it received, which cancels it, then withdraws
+      each Invite it relayed for it. When the Case Manager made the proposal itself, withdrawing
+      that proposal is the cancel.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: undo_embargo_invite
   - anchor: activate-embargo
     heading: Activate embargo
     when: the Case Owner decides to activate a proposed embargo

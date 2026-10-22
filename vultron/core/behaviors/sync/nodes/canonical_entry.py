@@ -73,9 +73,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Reject", "Offer"),
     # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-003, CLP-02-013).
     # The Case Owner's withdrawal of its ownership-transfer proposal
-    # (CM-21-015, ADR-0148), and the CASE_MANAGER's own withdrawal of the
-    # Offer it made once it passed its end_time unanswered (CM-21-017), which
-    # is why it is also case-authored below.
+    # (CM-21-015, ADR-0148).  Owner-authored, so not in
+    # ``_CASE_AUTHORED_SIGNATURES``: an Offer that passes its end_time is
+    # closed by that time alone, with no entry (CM-21-017, ADR-0152).
     ("Undo", "Offer"),
     # No ``("Create", "Note")``: a received Create(Note) is not a protocol
     # message, so ``Add(Note)`` is a note's one entry (VAM-01-011).
@@ -102,6 +102,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Invite", "VulnerabilityCaseStub"),
     ("Accept", "Invite"),
     ("Reject", "Invite"),
+    # The CASE_MANAGER's withdrawal of an embargo Invite it sent, when it
+    # abandons an open proposal (EMB-16-001, ADR-0152).
+    ("Undo", "Invite"),
     # RI: the full-case Invite's tentative refusal (VAM-04-013).  A stub
     # Invite has no TentativeReject (CM-11-007).
     ("TentativeReject", "Invite"),
@@ -120,13 +123,8 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     # The Case Owner's removal request, committed as received (CM-31-005,
     # ADR-0116).  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
     ("Remove", "CaseParticipant"),
-    # CASE_MANAGER-authored no-op acknowledgement of a late Accept when the
-    # embargo is no longer active: it ignores the Accept, carried inline as
-    # received (EMB-17-004, CLP-07-013).
-    ("Ignore", "Accept"),
-    # CASE_MANAGER-authored closure of the case on the owner's Leave, carrying
-    # the closed case (case_fully_closed, CM-23-002 step 3, CLP-07-013), and
-    # its record of a new owner after an ownership transfer (update_case_owner).
+    # CASE_MANAGER-authored record of a new owner after an ownership
+    # transfer (update_case_owner, CM-21-002, CLP-07-013).
     ("Update", "VulnerabilityCase"),
     # CASE_MANAGER-authored change to a participant record, carrying the
     # record (update_case_participant, CM-21-002, CLP-07-013).
@@ -147,6 +145,8 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Add", "EmbargoEvent"),
         ("Remove", "EmbargoEvent"),
         ("Invite", "EmbargoEvent"),
+        # its withdrawal of an embargo Invite it sent (EMB-16-001, ADR-0152)
+        ("Undo", "Invite"),
         ("Offer", "CaseParticipant"),
         ("Invite", "VulnerabilityCase"),
         ("Invite", "VulnerabilityCaseStub"),
@@ -156,13 +156,8 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Reject", "Offer"),
         ("Add", "CaseParticipant"),
         ("Create", "CaseParticipant"),
-        # CASE_MANAGER-authored withdrawal of an ownership-transfer Offer
-        # that passed its end_time unanswered (CM-21-017)
-        ("Undo", "Offer"),
-        # CASE_MANAGER-authored no-op acknowledgement (EMB-17-004, ADR-0118)
-        ("Ignore", "Accept"),
-        # CASE_MANAGER-authored case closure (CM-23-002 step 3) and new
-        # owner after an ownership transfer (CM-21-002)
+        # CASE_MANAGER-authored new owner after an ownership transfer
+        # (CM-21-002)
         ("Update", "VulnerabilityCase"),
         # CASE_MANAGER-authored participant-record change (CLP-07-013)
         ("Update", "CaseParticipant"),

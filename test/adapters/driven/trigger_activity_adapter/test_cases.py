@@ -523,7 +523,7 @@ def _make_owned_case(dl) -> as_VulnerabilityCase:
 
 class TestAnnounceVulnerabilityCase:
     def test_returns_activity_id(self, adapter, dl):
-        case = _make_owned_case(dl)
+        case = _make_case(dl)
 
         activity_id = adapter.announce_vulnerability_case(
             case_id=case.id_,
@@ -535,7 +535,7 @@ class TestAnnounceVulnerabilityCase:
         assert activity_id
 
     def test_persists_announce_activity(self, adapter, dl):
-        case = _make_owned_case(dl)
+        case = _make_case(dl)
 
         activity_id = adapter.announce_vulnerability_case(
             case_id=case.id_,
@@ -550,7 +550,7 @@ class TestAnnounceVulnerabilityCase:
     def test_an_empty_ledger_copy_names_the_genesis_position(
         self, adapter, dl
     ):
-        """No entry yet: the tail is index -1 and the case's genesis hash."""
+        """No entry yet: the copy is at index -1 and the case's genesis hash."""
         from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 
         case = _make_owned_case(dl)
@@ -561,62 +561,10 @@ class TestAnnounceVulnerabilityCase:
 
         body = read_sealed_body_dict(dl, activity_id)
         assert body is not None
-        assert body["object"]["ledgerTail"] == {
+        assert body["object"]["ledgerPosition"] == {
             "logIndex": -1,
             "entryHash": case.genesis_hash,
         }
-
-    @pytest.mark.spec("SYNC-16-005")
-    def test_the_copy_names_the_last_committed_entry_and_stores_none(
-        self, adapter, dl
-    ):
-        """The tail is read from the ledger at send time, never stored."""
-        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-        from vultron.core.models.case_ledger import CaseLedger
-
-        case = _make_owned_case(dl)
-        ledger = CaseLedger(case_id=case.id_, genesis_hash=case.genesis_hash)
-        for index in range(2):
-            ledger.append(
-                object_id=f"{case.id_}/notes/{index}",
-                semantic_type="add_note_to_case",
-                payload_snapshot={"type": "Add", "index": index},
-            )
-        for entry in ledger.entries:
-            dl.create(entry.to_ledger_entry())
-        last = ledger.entries[-1]
-
-        activity_id = adapter.announce_vulnerability_case(
-            case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
-        )
-
-        body = read_sealed_body_dict(dl, activity_id)
-        assert body is not None
-        assert body["object"]["ledgerTail"] == {
-            "logIndex": last.log_index,
-            "entryHash": last.entry_hash,
-        }
-        stored = dl.read(case.id_)
-        assert isinstance(stored, as_VulnerabilityCase)
-        assert stored.ledger_tail is None
-
-    @pytest.mark.spec("SYNC-16-005")
-    def test_a_case_with_no_genesis_hash_is_not_sent(self, adapter, dl):
-        """An empty ledger with no genesis hash names no position, so the
-        copy is refused before anything is stored or queued."""
-        case = _make_case(dl)
-        assert not case.genesis_hash
-
-        with pytest.raises(VultronValidationError):
-            adapter.announce_vulnerability_case(
-                case_id=case.id_,
-                actor=_ACTOR,
-                context_id=case.id_,
-                to=[_PEER],
-            )
-
-        assert dl.outbox_list() == []
-        assert list(dl.list_objects("Announce")) == []
 
 
 class TestCaseOnTheWireCarriesItsParticipants:
@@ -859,7 +807,7 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
     would reach a recipient that cannot resolve it."""
 
     def _case_naming(self, dl, report_ids):
-        case = as_VulnerabilityCase(name="CVE-2025-020", attributed_to=_ACTOR)
+        case = as_VulnerabilityCase(name="CVE-2025-020")
         case.vulnerability_reports.extend(report_ids)
         dl.create(case)
         return case

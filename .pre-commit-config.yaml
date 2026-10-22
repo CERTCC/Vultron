@@ -95,6 +95,16 @@ repos:
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/page_.*|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
+      - id: docs-normative-banner
+        name: Normative banner on exactly the normative set
+        entry: uv run python -m vultron.metadata.docs.normative_banner
+        language: system
+        # Every docs page and fragment, any of which can gain or lose the
+        # banner (DF-12-006), plus the check, which declares the normative
+        # set, and the include-directive and failure readers it uses.
+        files: ^(docs/.*\.md|vultron/metadata/docs/(normative_banner|page_frontmatter)\.py|vultron/metadata/(base|file_loading)\.py)$
+        pass_filenames: false
+
       - id: docs-level-order
         name: Docs pages depend on no page above their own level
         entry: uv run docs-level-order
@@ -117,6 +127,16 @@ repos:
         # caught. test_committed_site_artifacts_are_in_sync is the CI backstop,
         # and the only one for a deletion, which no staged-file pattern matches.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
+        pass_filenames: false
+
+      - id: docs-threads
+        name: Reading-path threads list only existing reader-facing pages
+        entry: uv run docs-threads
+        language: system
+        # A thread lives in its start page's frontmatter, and any docs page
+        # can be renamed, deleted or moved into the working record (DF-11-016).
+        # test_the_committed_threads_pass is the CI backstop.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
       - id: adr-index-sync

@@ -9,7 +9,7 @@ description: >
 
 # Early Termination
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Embargoes sometimes terminate prior to the agreed date and time. This is
 an unavoidable, if inconvenient, fact arising from three main causes:

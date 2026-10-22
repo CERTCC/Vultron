@@ -139,8 +139,8 @@ class SyncActivityAdapter:
     ) -> None:
         """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
 
-        The activity id is derived from the case, the tail of the copy that
-        replaced it and the recipients, so a repeat for the same copy builds
+        The activity id is derived from the case, the ledger position of the
+        copy that replaced it and the recipients, so a repeat for the same copy builds
         no new activity and reuses the id (ID-04-004), while a request after
         a later copy is its own; a sealed one no longer pending is queued
         once more (ID-04-005).

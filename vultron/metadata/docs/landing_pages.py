@@ -49,6 +49,8 @@ from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import frontmatter
+
 from vultron.metadata.base import mkdocs_config
 from vultron.metadata.docs.page_frontmatter import (
     classify_docs_tree,
@@ -175,12 +177,22 @@ def _body_h1(body: str) -> str | None:
     return None
 
 
+def page_title(post: frontmatter.Post, rel: str) -> str:
+    """The title mkdocs shows for the page at *rel*, whitespace-folded.
+
+    Frontmatter ``title:``, else the body's first H1, else the file stem.
+    """
+    title = post.metadata.get("title")
+    if not isinstance(title, str) or not title.strip():
+        title = _body_h1(post.content) or Path(rel).stem
+    return " ".join(title.split())
+
+
 def _page_facts(docs_dir: Path, rel: str, root: Path) -> _PageFacts:
     """Read a page's title and the ``description``, ``level`` and ``contents``
     it declares.
 
-    The title follows mkdocs: frontmatter ``title:``, else the body's first
-    H1, else the file stem.
+    The title follows mkdocs (:func:`page_title`).
 
     A level off the ladder is treated as undeclared: ``docs-frontmatter``
     already reports it against the page, and failing here too would name one
@@ -207,9 +219,6 @@ def _page_facts(docs_dir: Path, rel: str, root: Path) -> _PageFacts:
         )
     post = load_frontmatter(path, root=root)
     metadata = post.metadata
-    title = metadata.get("title")
-    if not isinstance(title, str) or not title.strip():
-        title = _body_h1(post.content) or Path(rel).stem
     raw = metadata.get("description")
     description: str | None = None
     if raw is not None:
@@ -222,7 +231,7 @@ def _page_facts(docs_dir: Path, rel: str, root: Path) -> _PageFacts:
     level = metadata.get("level")
     contents = metadata.get(CONTENTS_KEY)
     return _PageFacts(
-        title=" ".join(title.split()),
+        title=page_title(post, rel),
         description=description,
         level=level if type(level) is int and level in LEVELS else None,
         contents=contents if isinstance(contents, str) else None,

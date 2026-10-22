@@ -28,7 +28,6 @@ forcing a scheduling inversion and confirming both entries are stored.
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -43,7 +42,6 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
-    compute_genesis_hash,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.wire.as2.factories import announce_log_entry_activity
@@ -89,14 +87,10 @@ def dl():
 @pytest.fixture
 def seeded_dl(dl):
     """DataLayer seeded with a case, genesis hash, and two chained entries."""
-    created_at = datetime.now(UTC)
-    genesis_hash = compute_genesis_hash(
-        case_id=_CASE_ID,
-        created_at=created_at,
-        owner_actor_id=_OWNER_ID,
+    case = as_VulnerabilityCase(
+        id_=_CASE_ID, name="lock-test-case", attributed_to=_OWNER_ID
     )
-    case = as_VulnerabilityCase(id_=_CASE_ID, name="lock-test-case")
-    object.__setattr__(case, "genesis_hash", genesis_hash)
+    genesis_hash = case.genesis_hash
 
     case_actor_participant = as_CaseParticipant(
         attributed_to=_CASE_ACTOR_ID, context=_CASE_ID

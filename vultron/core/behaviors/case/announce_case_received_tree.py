@@ -85,10 +85,10 @@ def create_announce_vulnerability_case_received_tree(
         └── ReplayHeldSuccessorNode           # effect (SYNC-14-009)
 
     A replica that already holds the case replaces it only with a copy whose
-    ledger tail is current against its chain; a stale copy is skipped and a
-    conflicting one refused, with the case unchanged (SYNC-16-006).  A copy
-    ahead of the chain is backfilled: the replica records its tail and asks
-    for the missing entries (SYNC-16-007).
+    ledger position is current against its own; a stale copy is skipped and
+    a conflicting one refused, with the case unchanged (SYNC-16-006).  A copy
+    ahead of the chain is backfilled: the case takes the copy's position and
+    the replica asks for the missing entries (SYNC-16-007).
 
     An Announce that carries no ``VulnerabilityCase`` with an id is refused
     by the same tree's guard instead

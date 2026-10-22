@@ -16,7 +16,6 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.case_copy import copy_at_genesis
 from test.support.inbox_replay import (
     RecordingInboxReplay,
     deliver_replayed,
@@ -73,6 +72,13 @@ def dl():
 @pytest.fixture()
 def case():
     return as_VulnerabilityCase(id_=_CASE_ID, name="DR-10 Announce Case")
+
+
+def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
+    """*case* with an owner, so it names a ledger position (SYNC-16-005)."""
+    return as_VulnerabilityCase.model_validate(
+        {**case.model_dump(exclude_none=True), "attributed_to": _OWNER_ID}
+    )
 
 
 @pytest.fixture()
@@ -206,13 +212,13 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
         Anchored on the invite record instead, so both deliveries are genuinely
         admitted, and asserting the payload's own name so an unapplied announce
-        cannot pass.  The copy names its ledger tail (SYNC-16-005), so the
+        cannot pass.  The copy names its ledger position (SYNC-16-005), so the
         redelivery is judged current and applied again, not refused.
         """
         _anchor_expected_authority(dl)
         event = make_payload(
             announce_vulnerability_case_activity(
-                copy_at_genesis(case),
+                _owned(case),
                 actor=_CASE_ACTOR_ID,
                 to=[_RECEIVER_ID],
                 context=_CASE_ID,
@@ -716,12 +722,14 @@ class TestAnnounceStoresEmbeddedParticipants:
         must still be persisted on that path.
         """
         case, _, _ = case_with_participants
+        # A copy of a held case names its ledger position, so it has an
+        # owner (SYNC-16-005).
+        case = _owned(case)
         # Pre-seed the case so the use-case hits the existing-case branch.
         dl.create(case)
-        # A copy of a held case names its ledger tail (SYNC-16-005).
         announce = make_payload(
             announce_vulnerability_case_activity(
-                copy_at_genesis(case),
+                case,
                 actor=_CASE_ACTOR_ID,
                 to=[_RECEIVER_ID],
                 context=_CASE_ID,

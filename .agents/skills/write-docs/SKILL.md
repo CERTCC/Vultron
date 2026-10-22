@@ -147,8 +147,9 @@ from the source:
    authoritative source, multiple render points — silent drift is structurally
    impossible (DF-10-002). Three mechanics:
    - **Placement** — a `_<slug>.md` file alongside the pages that include it.
-     `docs/includes/` is reserved for whole-tree banners (`normative.md`) and its
-     files carry no `_` prefix.
+     `docs/includes/` is reserved for the shared banners (`normative.md`,
+     `specification_governs.md`, `not_normative.md`; which page takes which is
+     in `docs/reference/conventions.md`) and its files carry no `_` prefix.
    - **Path** — relative to the *including* file, never rooted at `docs/`. There
      is no `base_path` configured, so `{% include-markdown "./_slug.md" %}` and
      `{% include-markdown "../../includes/normative.md" %}` are the shapes that
@@ -231,6 +232,11 @@ confirm it.** The recipe:
    fails; a `routing` index must link every member of its section. Each
    index's decision is its own `contents:` value, and
    `test/metadata/docs/test_site_sync.py` pins the generated set.
+   A page that belongs on a reading path goes into the `thread:` frontmatter
+   of its start page under `docs/start/`, with a blurb written for that thread;
+   the start page's listing is generated from it (`docs-site --write`,
+   DF-11-014). Only a reader-facing page can be a member (`docs-threads`,
+   DF-11-016); any other link goes in the stage's `framing:`.
 2. **Group** — the page's `stakeholder_type` picks the group within the section:
    the group whose other pages address the same reader, or the routing page
    (`docs/start/*.md`, `docs/research/index.md`) that carries that type's path.
@@ -260,10 +266,13 @@ In this order:
 
 1. `lint-docs` on the pages written — fixes mechanical findings, reports the rest.
    Resolve every reported finding before proceeding.
-2. `uv run docs-frontmatter` and `uv run docs-level-order`, the frontmatter and
-   level-order gates the pre-commit hooks run. Both are site-wide, so a new
-   `introduces:` term can also flag an existing lower-level page that uses it
-   unlinked. Link that use; if the finding is on a page this change does not
+2. `uv run docs-frontmatter`, `uv run docs-level-order` and
+   `uv run docs-normative-banner`, the frontmatter, level-order and banner
+   gates the pre-commit hooks run. All three are site-wide. The banner gate
+   fails a normative-set page that does not include `normative.md` itself, and
+   any other page or fragment that includes it (DF-12-006). The level-order
+   gate can flag an existing lower-level page that uses a new `introduces:`
+   term unlinked. Link that use; if the finding is on a page this change does not
    touch and linking it would collide with another task's ownership of that
    page, stop and ask rather than baselining it.
 3. `format-markdown` — markdownlint-cli2 via `./mdlint.sh`.

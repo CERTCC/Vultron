@@ -316,7 +316,7 @@ def test_a_forced_commit_failure_leaves_no_write_behind(arm, monkeypatch):
 
 
 @pytest.mark.spec("CLP-07-013")
-@pytest.mark.parametrize("arm", list(_ARMS))
+@pytest.mark.parametrize("arm", [a for a in _ARMS if a != "reject"])
 def test_the_act_entry_comes_first(arm):
     """The act's entry is committed before every entry it causes."""
     setup, act = _ARMS[arm]
@@ -373,23 +373,40 @@ def test_a_row_commit_that_fails_leaves_no_write_behind():
 
 
 @pytest.mark.spec("CLP-07-013")
-@pytest.mark.parametrize("arm", ["accept", "reject"])
-def test_the_managers_own_answer_is_its_rows_entry(arm):
+def test_the_managers_own_accept_is_its_rows_entry():
     """An answer's entry carries the row it states; no second entry follows
     (ADR-0122)."""
-    setup, act = _ARMS[arm]
-    net, revision_id = setup(f"own-answer-{arm}")
+    setup, act = _ARMS["accept"]
+    net, revision_id = setup("own-answer-accept")
 
     entries = _new_entries(net, lambda: act(net))
 
-    assert entries == [
-        "accept_invite_to_embargo_on_case"
-        if arm == "accept"
-        else "reject_invite_to_embargo_on_case"
-    ]
-    assert _row(net, MANAGER, MANAGER, revision_id) is (
-        _S.AGREED if arm == "accept" else _S.DECLINED
-    )
+    assert entries == ["accept_invite_to_embargo_on_case"]
+    assert _row(net, MANAGER, MANAGER, revision_id) is _S.AGREED
+
+
+@pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.spec("CM-23-016")
+def test_the_managers_own_reject_is_its_update_of_the_row():
+    """The CASE_MANAGER declines as its own ``Update(EmbargoConsent)``.
+
+    A CASE_MANAGER with an embargo stake (EP-09-002) commits no
+    ``Reject(Invite(EmbargoEvent))``: that shape from the CASE_MANAGER is its
+    abandonment of the proposal (EMB-16-001, ADR-0152).  Its own consent is
+    its row's entry, and the replica copies the ``DECLINED`` row from it and
+    keeps the proposal open.
+    """
+    setup, act = _ARMS["reject"]
+    net, revision_id = setup("own-answer-reject")
+
+    entries = _new_entries(net, lambda: act(net))
+
+    assert entries == [UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE]
+    assert _row(net, MANAGER, MANAGER, revision_id) is _S.DECLINED
+    _assert_replica_copies(net, BYSTANDER)
+    assert _row(net, BYSTANDER, MANAGER, revision_id) is _S.DECLINED
+    assert revision_id in net.case(BYSTANDER).proposed_embargo_ids
 
 
 @pytest.mark.spec("CLP-07-013")

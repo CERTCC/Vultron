@@ -24,7 +24,6 @@ Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any
 
 from pydantic import ValidationError
 
@@ -36,15 +35,12 @@ from vultron.core.models.rsvp_deadline import (
     resolve_rsvp_deadline,
 )
 from vultron.core.states.embargo_register import TerminationReason
-from vultron.wire.as2.errors import VultronParseError
 from vultron.wire.as2.factories._context import (
     case_target_ref,
-    with_case_context,
 )
 from vultron.wire.as2.factories._held import as_answered
 from vultron.wire.as2.factories._inline import require_inline
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
-from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
     _AnnounceEmbargoActivity,
@@ -52,7 +48,7 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
-    _IgnoreLateEmbargoAcceptActivity,
+    _EmUndoEmbargoInviteActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
     _UpdateEmbargoConsentActivity,
@@ -62,11 +58,11 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
     as_Create,
-    as_Ignore,
     as_Invite,
     as_Leave,
     as_Reject,
     as_Remove,
+    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.objects.embargo_consent import (
@@ -273,48 +269,45 @@ def em_reject_embargo_activity(
         ) from exc
 
 
-def ignore_late_embargo_accept_activity(
-    late_accept: dict[str, Any],
+def em_undo_embargo_invite_activity(
+    invite: as_Invite,
+    context: as_VulnerabilityCaseRef | None = None,
     **kwargs,
-) -> as_Ignore:
-    """Build the CASE_MANAGER's ``Ignore(Accept(Invite(EmbargoEvent)))`` (EMB-17-004).
+) -> as_Undo:
+    """Build an Undo(_EmProposeEmbargoActivity): withdraw an Invite one sent.
 
-    The no-op acknowledgement of a late embargo ``Accept``: the Invite had
-    expired and no embargo remains for the Accept to bind, so the
-    CASE_MANAGER records the answer and changes nothing.  *late_accept* is
-    the received ``Accept``'s body, as the receiver archived it, carried
-    inline as it arrived (:func:`as_answered`);
-    the ``Ignore`` is the CASE_MANAGER's own act (pass it as ``actor``).
-    ``context`` defaults to the case the Accept names.
+    The CASE_MANAGER's withdrawal of an embargo Invite it sent, when it
+    abandons an open proposal (EMB-16-001, ADR-0152).  An actor undoes only
+    an activity it performed; declining an Invite one received is
+    :func:`em_reject_embargo_activity`.  The ``invite`` is embedded verbatim
+    (:func:`as_answered`), as the Invite the sender holds; a plain
+    ``as_Invite`` will fail validation.
 
     Args:
-        late_accept: The received ``Accept(Invite(EmbargoEvent))``, with its
-            Invite inline.
+        invite: The ``_EmProposeEmbargoActivity`` being withdrawn.
+        context: The ``VulnerabilityCase`` (or its URI) the embargo was
+            proposed for.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``id_``, ``in_reply_to``, ``context``).
+            (e.g. ``actor``, ``to``, ``id_``).
 
     Returns:
-        An ``as_Ignore`` whose ``object_`` is the late Accept.
+        An ``as_Undo`` whose ``object_`` is the Invite.
 
     Raises:
-        VultronActivityConstructionError: If *late_accept* is not an embargo
-            Accept or Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails.
     """
     try:
-        # Parsed as the inbox parses a body, then embedded as it arrived
-        # (DL-06-004, ADR-0149).
-        accept = as_answered(
-            _EmAcceptEmbargoActivity, parse_activity(late_accept)
+        return _EmUndoEmbargoInviteActivity(
+            object_=as_answered(_EmProposeEmbargoActivity, invite),
+            context=context,
+            **kwargs,
         )
-        return _IgnoreLateEmbargoAcceptActivity(
-            object_=accept, **with_case_context(kwargs, accept.context)
-        )
-    except (ValidationError, VultronParseError) as exc:
+    except ValidationError as exc:
         logger.warning(
-            "ignore_late_embargo_accept_activity: invalid arguments: %s", exc
+            "em_undo_embargo_invite_activity: invalid arguments: %s", exc
         )
         raise VultronActivityConstructionError(
-            "ignore_late_embargo_accept_activity: invalid arguments"
+            "em_undo_embargo_invite_activity: invalid arguments"
         ) from exc
 
 

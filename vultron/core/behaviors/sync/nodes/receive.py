@@ -32,7 +32,12 @@ from vultron.core.behaviors.sync.nodes._helpers import hold_received_announce
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case_ledger import ledger_entry_hash_intact
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.errors import VultronError, VultronWiringError
+from vultron.core.sync_helpers import store_ledger_entry
+from vultron.errors import (
+    VultronError,
+    VultronNotFoundError,
+    VultronWiringError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +85,17 @@ class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         entry = _require_log_entry(self.activity, self.name)
-        self.datalayer.save(entry)
+        try:
+            store_ledger_entry(entry, self.datalayer)
+        except VultronNotFoundError as exc:
+            # The replica's case anchors its chain (CLP-08-005); without it
+            # the entry is not stored and the position has nothing to move.
+            self.feedback_message = (
+                f"cannot store received log entry '{entry.id_}' for case"
+                f" '{entry.case_id}': {exc}"
+            )
+            self.logger.exception("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         self.logger.info(
             "%s: stored received log entry '%s' for case '%s'",
             self.name,

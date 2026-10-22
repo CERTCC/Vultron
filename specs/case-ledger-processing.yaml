@@ -241,23 +241,33 @@ groups:
       such an activity is ledgered, if it is a case event, where the CASE_MANAGER
       sends it
       (CLP-09-003); a `Create(ProcessingFault)` NACK (ADR-0080), which reports on
-      message handling rather than changing the case; and a message no pattern
-      matches or whose object cannot be resolved. The list is closed: a new kind
-      of activity that carries no entry MUST be added here first.
+      message handling rather than changing the case; a late `Accept` of an
+      embargo invitation that arrives when the case has no embargo for it to bind
+      (EMB-17-004), which changes nothing at any receiver (ADR-0152); and a
+      message no pattern matches or whose object cannot be resolved. The list is
+      closed: a new kind of activity that carries no entry MUST be added here
+      first.
     rationale: >-
       Whether something is ledgered was decided handler by handler, so a handler
       that "changed nothing" committed nothing and nobody noticed. A closed list
       turns each exception into a recorded decision and gives the CLP-09-003
       coverage test a fixed set of grounds for exemption. A handler that runs
-      only at a participant has no commit to reach.
+      only at a participant has no commit to reach. An activity that changes
+      nothing at any receiver is an observation, not an act, and ledgering it
+      would record a fact every holder of the ledger can already derive
+      (ADR-0152).
     verification: >-
       The CLP-09-003 coverage test, marked `CLP-02-013`, exempts a routed use case
-      only on one of these grounds or by naming an open issue.
+      only on one of these grounds or by naming an open issue. The no-op late
+      `Accept` is a path within a committing use case, so EMB-17-004's tests
+      assert it commits nothing.
     relationships:
     - rel_type: refines
       spec_id: CLP-02-001
     - rel_type: refines
       spec_id: CLP-09-003
+    adr:
+    - ADR-0152
     stories:
     - story_2022_045
   - id: CLP-02-014
@@ -639,8 +649,15 @@ groups:
       follow as its own CASE_MANAGER-authored entry, in the order the CASE_MANAGER writes
       them, whose `payloadSnapshot` is a `Create` of a record the CASE_MANAGER brings into
       existence or an `Update` of a changed record, carrying the object in full
-      (CLP-07-006). Decisions the CASE_MANAGER takes from local policy or the clock are
-      committed as its own entries before they change the case file.
+      (CLP-07-006). A decision the CASE_MANAGER takes from local policy or the clock
+      that
+      changes the case file is committed as the change it makes, its own entry, before
+      the
+      change is made; a decision that changes nothing, such as the observation that a
+      deadline has passed or that a closure is complete, is not committed (ADR-0152).
+      Moving the case's `ledger_position` to an entry as it is committed (SYNC-16-005)
+      is part of applying that entry, not a change to the case file of its own, and
+      takes no entry.
     rationale: >-
       Two replicas at the same ledger position must hold the same case file, and a
       replica infers nothing: if a change is not in the ledger, it did not happen
@@ -667,6 +684,7 @@ groups:
       spec_id: CLP-07-002
     adr:
     - ADR-0124
+    - ADR-0152
     stories:
     - story_2022_045
   - id: CLP-07-014
@@ -1853,7 +1871,7 @@ groups:
     statement: >-
       A receive-side tree in which the CASE_MANAGER must record a decision it
       takes from its own clock or local policy before it judges the received
-      activity, such as an expiry (CLP-07-013, CM-21-017, CM-28-009), MUST pass
+      activity, such as an invitation expiry (CLP-07-013, CM-28-009), MUST pass
       that decision to `create_receive_activity_tree` as a clock decision. The
       factory MUST run the clock decisions after the door guards and before the
       precondition guards (CLP-10-010), and only at the case's CASE_MANAGER
@@ -1880,7 +1898,10 @@ groups:
       with nothing to record (no deadline has passed) MUST succeed so the tree
       continues. A clock decision whose commit the ledger refuses MUST log the
       refusal at WARNING and MUST NOT end the tree: the precondition guards
-      still refuse what the unrecorded decision forbids (CM-21-016, CM-21-014).
+      still refuse what the unrecorded decision forbids (EMB-17-001). A decision
+      that changes nothing in the case file, such as an ownership-transfer
+      Offer's expiry, records nothing and is not a clock decision (CM-21-017,
+      ADR-0152).
       An internal error in a clock decision MUST end the tree as an internal
       error (ADR-0095), never be absorbed as a refusal.
     rationale: >-

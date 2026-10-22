@@ -52,9 +52,9 @@ class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
 
     **Why the CASE_MANAGER's own closure needs it too.**  ``close_case`` names
     the *departing* actor, and the Case Actor never sends itself a ``Leave``.
-    ``case_fully_closed`` is attributed to the *owner* who left.  Without its
-    own entries the CASE_MANAGER is permanently ``RM.ACCEPTED`` on every
-    replica (ISSUE-2505).
+    Without its own entries the CASE_MANAGER is permanently ``RM.ACCEPTED``
+    on every replica (ISSUE-2505), and its entry reaching ``RM.CLOSED`` is
+    the owner-close write boundary (CM-23-013, ADR-0085).
 
     **Attribution.**  The CASE_MANAGER authors each entry: the snapshot's
     ``actor`` is the receiving CASE_MANAGER and its ``published`` is the
@@ -73,10 +73,10 @@ class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
 
     Committed synchronously here rather than emitted as a self-addressed
     ``Add(ParticipantStatus)`` through the CLP-10-001 loopback, because
-    CM-23-002 requires these entries to **precede** ``case_fully_closed``, the
-    owner-close write boundary after which no external act is recorded
-    (CM-23-013).  Loopback delivery is an outbox background task, so it could
-    not honour that ordering.
+    CM-23-002 orders these entries: the leaver's precede the CASE_MANAGER's,
+    whose ``RM.CLOSED`` entry is the owner-close write boundary after which
+    no external act is recorded (CM-23-013).  Loopback delivery is an outbox
+    background task, so it could not honour that ordering.
 
     Idempotent by construction: ``CreateLogEntryNode`` skips an entry that
     already exists for the same object (the status id), and the node no-ops
@@ -93,8 +93,8 @@ class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
     :class:`~vultron.errors.VultronBTInternalError`.  The Leave is then not
     applied, and a redelivered Leave walks the closure afresh.
 
-    The commits skip ``CheckLedgerFreshnessNode``, as the ``case_fully_closed``
-    commit does: a gapped local prefix fails that check by design
+    The commits skip ``CheckLedgerFreshnessNode``: a gapped local prefix
+    fails that check by design
     (SYNC-10-001/002), and it must not block case closure (CM-23-002).
 
     Per CM-23-001, CM-23-002 steps 1-2, CM-23-003, CM-23-005, CLP-07-013;
@@ -102,7 +102,7 @@ class CommitRMClosureEntriesNode(CommitParticipantStatusEntriesNode):
     """
 
     #: A gapped local prefix must not block case closure (CM-23-002,
-    #: SYNC-10-001/002), as for ``case_fully_closed``.
+    #: SYNC-10-001/002).
     check_freshness = False
 
     def __init__(

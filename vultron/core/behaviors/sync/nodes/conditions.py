@@ -80,10 +80,11 @@ class CheckLedgerEntryAlreadyStoredNode(DataLayerConditionWithPorts):
 
 
 class EntryReflectedByCaseCopyNode(DataLayerConditionWithPorts):
-    """Gate: the copy that replaced the case already reflects this entry.
+    """Gate: the case copy this replica holds already reflects this entry.
 
-    ``SUCCESS`` for an entry at or before the tail of the case copy that last
-    replaced this replica's case (SYNC-16-007,
+    ``SUCCESS`` for an entry at or before the case's stored ledger position,
+    which a copy that seeded or replaced the case put ahead of the chain
+    (SYNC-16-007,
     :func:`~vultron.core.services.case_copy.entry_reflected_by_case_copy`):
     its effects are already in the case file, so the tree stores it without
     applying them again, an idempotent no-op rather than a refusal.  The

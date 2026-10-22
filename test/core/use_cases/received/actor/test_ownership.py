@@ -49,9 +49,6 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.actor import (
     ProposeCaseOwnershipTransferReceivedEvent,
 )
-from vultron.core.models.protocol_pair import (
-    OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE,
-)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.ownership_offer import ownership_offer_id
 from vultron.core.use_cases.received.actor.ownership import (
@@ -324,7 +321,9 @@ class TestOwnershipTransferUseCases:
             make_payload, case_id
         )
         case = _read_case(dl, case_id)
-        case_before = case.model_dump()
+        # The case file: the Offer's own entry moves the case's ledger
+        # position, which is part of applying it, not a change (CLP-07-013).
+        case_before = case.model_dump(exclude={"ledger_position"})
         proposal_id = "https://example.org/activities/proposal_inner"
         proposal = propose_case_ownership_transfer_activity(
             case,
@@ -359,7 +358,10 @@ class TestOwnershipTransferUseCases:
         assert kwargs["actor"] == _CASE_ACTOR_ID
         assert kwargs["attributed_to"] == _VENDOR_ID
         assert kwargs["to"] == [_COORDINATOR_ID]
-        assert _read_case(dl, case_id).model_dump() == case_before
+        assert (
+            _read_case(dl, case_id).model_dump(exclude={"ledger_position"})
+            == case_before
+        )
 
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.parametrize(
@@ -1242,8 +1244,10 @@ def test_accept_after_the_offer_deadline_is_refused(make_payload):
 
 
 @pytest.mark.spec("CM-21-017")
-def test_new_offer_after_an_expired_one_ledgers_the_expiry(make_payload):
-    """The CASE_MANAGER finds the expiry lazily and records it before admitting."""
+@pytest.mark.spec("CM-21-014")
+def test_new_offer_after_an_expired_one_ledgers_no_expiry(make_payload):
+    """An Offer past its end_time is closed, so a new one is admitted, and
+    nothing records the expiry (ADR-0152)."""
     dl, deliver, _ = _ownership_offer_harness(
         make_payload, "https://example.org/cases/case_ot_expired"
     )
@@ -1267,9 +1271,10 @@ def test_new_offer_after_an_expired_one_ledgers_the_expiry(make_payload):
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
     ]
-    assert any("expir" in semantic_type for semantic_type in semantic_types), (
-        semantic_types
-    )
+    assert not any(
+        "expir" in semantic_type for semantic_type in semantic_types
+    ), semantic_types
+    assert semantic_types.count("offer_case_ownership_transfer") == 2
 
 
 # ---------------------------------------------------------------------------
@@ -1595,7 +1600,7 @@ class TestProposalIsAdmittedOnlyFromTheCaseOwner:
 
     At the CASE_MANAGER only the Case Owner may propose to offer the case.
     Any other sender is refused before anything is written: no ledger entry,
-    no Offer, no lazy expiry of an earlier Offer, and the owner unchanged.
+    no Offer, and the owner unchanged.
     """
 
     def _assert_refused_and_nothing_written(
@@ -1683,10 +1688,11 @@ class TestProposalIsAdmittedOnlyFromTheCaseOwner:
     @pytest.mark.spec("CM-21-019")
     @pytest.mark.spec("CM-21-017")
     @pytest.mark.spec("HP-01-006")
-    def test_a_refused_offer_does_not_ledger_an_overdue_expiry(
+    def test_a_refused_offer_after_an_overdue_one_writes_nothing(
         self, make_payload
     ):
-        """Only an entitled sender prompts the CASE_MANAGER to write."""
+        """An Offer that has expired makes no room for a sender with no
+        standing: it is refused before the CASE_MANAGER writes."""
         case_id = "https://example.org/cases/case_ot_offer_stranger_expiry"
         dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
         deadline = _deadline_shortly()
@@ -2712,6 +2718,7 @@ class TestStandingIsCheckedBeforeTheOfferState:
         send, _party, no_standing = _REPLIES[reply]
         case_id = f"https://example.org/cases/case_ot_stranger_late_{reply}"
         dl, offer = _expired_offer(make_payload, case_id)
+        entries_before = _semantic_types(dl)
 
         result = send(dl, make_payload, offer, sender=_STRANGER_ID)
 
@@ -2719,11 +2726,9 @@ class TestStandingIsCheckedBeforeTheOfferState:
         assert result.reason is not None
         assert no_standing in result.reason
         assert "too late" not in result.reason
-        # A sender with no standing never makes the CASE_MANAGER ledger the
-        # expiry (HP-01-006).
-        assert OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRED_SEMANTIC_TYPE not in (
-            _semantic_types(dl)
-        )
+        # A sender with no standing never makes the CASE_MANAGER write
+        # (HP-01-006).
+        assert _semantic_types(dl) == entries_before
         assert _owner(dl, case_id) == _VENDOR_ID
 
     @pytest.mark.spec("CM-21-014")

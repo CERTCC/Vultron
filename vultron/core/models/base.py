@@ -18,21 +18,17 @@
 import inspect
 import types as _types
 import typing as _typing
-from collections.abc import Mapping
 from datetime import datetime, timedelta
 from functools import cache
-from types import MappingProxyType
-from typing import Any, ClassVar, Self
+from typing import Any
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    PrivateAttr,
     SerializationInfo,
     SerializerFunctionWrapHandler,
     TypeAdapter,
-    ValidationError,
     ValidationInfo,
     field_serializer,
     field_validator,
@@ -40,6 +36,7 @@ from pydantic import (
     model_validator,
 )
 from pydantic.alias_generators import to_camel
+from pydantic.config import JsonDict
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from vultron.core.models._helpers import (
@@ -63,6 +60,17 @@ from vultron.primitives import NonEmptyString, UriString  # noqa: F401
 #: core MUST NOT import wire (ARCH-01-001 — the one boundary rule ADR-0099 leaves
 #: fully in force).  Wire imports it from here, which ARCH-25-006 permits.
 VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
+
+#: Key of the ``json_schema_extra`` marker that declares a wire field a
+#: Vultron-namespace property, such as a termination ``Remove``'s
+#: ``terminationCause`` (EMB-13-005) or a case's ``ledgerPosition``
+#: (SYNC-16-005).  The context generator maps each marked field's wire name to
+#: ``vultron:<name>``, so a receiver can resolve it.  In core for the reason
+#: :data:`VULTRON_CONTEXT_URI` is: core classes carry it (ADR-0099).
+VULTRON_PROPERTY_KEY = "vultron_property"
+
+#: The marker itself: pass it as a field's ``json_schema_extra``.
+VULTRON_PROPERTY_EXTRA: JsonDict = {VULTRON_PROPERTY_KEY: True}
 
 
 class ValidatedAssignmentMixin(BaseModel):
@@ -185,25 +193,6 @@ def with_record_id(data: dict[str, Any], record_id: str) -> dict[str, Any]:
         out.pop("id_", None)
         out["id"] = record_id
     return out
-
-
-def _validate_carried(
-    name: str, model: type[BaseModel], value: Any
-) -> BaseModel:
-    """*value* as carried value *name*'s *model*.
-
-    Raises:
-        ValueError: *value* does not validate; the message names the carried
-            value, so the refusal points at it rather than at its model.
-    """
-    if isinstance(value, model):
-        return value
-    try:
-        return model.model_validate(value)
-    except ValidationError as exc:
-        raise ValueError(
-            f"carried value {name!r} is not valid: {exc}"
-        ) from exc
 
 
 class CoreObject(CoreRecord):
@@ -379,107 +368,6 @@ class CoreObject(CoreRecord):
                 violations=violations,
             )
         return obj
-
-    #: The values this class carries on a copy but never stores (SYNC-16-005).
-    #:
-    #: Each name maps to the model its value validates as.  A carried value is
-    #: not a field: it describes the copy, not the object, so it is filled in
-    #: by whoever sends the copy and is never a value of the object's own
-    #: record.  It arrives under its field-name or camelCase spelling, is held
-    #: beside the object's fields (:meth:`carried`), is dumped with them on
-    #: both paths, and is left out of the object's own stored record
-    #: (``Record.from_obj``).  Inside another record it survives, as the copy
-    #: a received ``Announce`` carried.  The parse edge declares its spellings
-    #: (MV-11-001) and the JSON-LD context its term (VM-10-001).
-    #:
-    #: A carried value is part of the object's value: two copies that differ
-    #: only in it are not equal, and ``model_copy`` keeps it.  A dump's
-    #: ``include`` and ``exclude`` select it by its name, as a field.  A null
-    #: value is no value, and ``model_construct`` skips validation, so it
-    #: takes none: attach one with :meth:`with_carried`.
-    carried_properties: ClassVar[Mapping[str, type[BaseModel]]] = (
-        MappingProxyType({})
-    )
-
-    _carried: dict[str, BaseModel] = PrivateAttr(default_factory=dict)
-
-    @model_validator(mode="wrap")
-    @classmethod
-    def _take_carried_properties(
-        cls, data: Any, handler: ModelWrapValidatorHandler["CoreObject"]
-    ) -> "CoreObject":
-        """Hold each supplied carried value beside the fields it is not.
-
-        Pops every spelling of each :attr:`carried_properties` name, so
-        ``extra="forbid"`` never sees one, validates it as its model, and
-        attaches it to the validated object.  A value supplied under both
-        spellings must agree, or the object is refused.
-        """
-        carried = cls.carried_properties
-        if not carried or not isinstance(data, dict):
-            return handler(data)
-        remaining = dict(data)
-        values: dict[str, BaseModel] = {}
-        for name, model in carried.items():
-            supplied = [
-                remaining.pop(spelling)
-                for spelling in dict.fromkeys((to_camel(name), name))
-                if spelling in remaining
-            ]
-            # An explicit null is a supplied spelling: it says "none", so it
-            # disagrees with a value under the other spelling.
-            parsed = [
-                None if item is None else _validate_carried(name, model, item)
-                for item in supplied
-            ]
-            if len(parsed) > 1 and parsed[0] != parsed[1]:
-                raise ValueError(
-                    f"carried value {name!r} supplied under two spellings"
-                    f" that disagree: {parsed[0]!r} and {parsed[1]!r}"
-                )
-            if parsed and parsed[0] is not None:
-                values[name] = parsed[0]
-        obj = handler(remaining)
-        if values:
-            obj._carried = {**obj._carried, **values}
-        return obj
-
-    def carried(self, name: str) -> BaseModel | None:
-        """The carried value *name* this copy holds, or ``None``."""
-        private = self.__pydantic_private__ or {}
-        carried: dict[str, BaseModel] = private.get("_carried", {})
-        return carried.get(name)
-
-    def with_carried(self, name: str, value: BaseModel) -> Self:
-        """A copy of this object carrying *value* as *name*.
-
-        Raises:
-            ValueError: *name* is not one of :attr:`carried_properties`, or
-                *value* is not its model.
-        """
-        model = type(self).carried_properties.get(name)
-        if model is None or not isinstance(value, model):
-            raise ValueError(
-                f"{type(self).__name__} carries no {name!r} of type"
-                f" {type(value).__name__}"
-            )
-        copy = self.model_copy()
-        copy._carried = {**self._carried, name: value}
-        return copy
-
-    def _carried_dump(self, info: SerializationInfo) -> dict[str, Any]:
-        """Each carried value, keyed as the dump being made spells it."""
-        private = self.__pydantic_private__ or {}
-        mode = "json" if info.mode_is_json() else "python"
-        include, exclude = info.include, info.exclude
-        return {
-            (to_camel(name) if info.by_alias else name): value.model_dump(
-                mode=mode, by_alias=bool(info.by_alias)
-            )
-            for name, value in private.get("_carried", {}).items()
-            if (include is None or name in include)
-            and (exclude is None or name not in exclude)
-        }
 
     @classmethod
     def _computed_field_wire_key(cls, name: str) -> str:
@@ -670,12 +558,10 @@ class CoreObject(CoreRecord):
             # facts it is derived from.
             for name in type(self).model_computed_fields:
                 data.pop(name, None)
-            data.update(self._carried_dump(info))
             return data
         for name in self._as2_unpublished_fields():
             data.pop(name, None)
             data.pop(type(self)._computed_field_wire_key(name), None)
-        data.update(self._carried_dump(info))
         data["@context"] = self.context_ or VULTRON_CONTEXT_URI
         return data
 

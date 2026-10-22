@@ -61,8 +61,14 @@ def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
     return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
 
 
-def _make_case_actor_dl() -> SqliteDataLayer:
-    """DataLayer as seen by the CaseActor: case, CASE_MANAGER and a vendor."""
+def _make_case_actor_dl(
+    case_manager_owns: bool = False,
+) -> SqliteDataLayer:
+    """DataLayer as seen by the CaseActor: case, CASE_MANAGER and a vendor.
+
+    With *case_manager_owns* the CASE_MANAGER also holds CASE_OWNER, the
+    combined role a case-creating actor can hold.
+    """
     dl = _make_dl()
 
     ca_svc = VultronService(id_=CASE_ACTOR_ID, context=CASE_ID)
@@ -77,7 +83,11 @@ def _make_case_actor_dl() -> SqliteDataLayer:
     cm_participant = as_CaseParticipant(
         attributed_to=CASE_ACTOR_ID,
         context=CASE_ID,
-        case_roles=[CVDRole.CASE_MANAGER],
+        case_roles=(
+            [CVDRole.CASE_MANAGER, CVDRole.CASE_OWNER]
+            if case_manager_owns
+            else [CVDRole.CASE_MANAGER]
+        ),
     )
     dl.create(cm_participant)
     case.case_participants.append(cm_participant.id_)
@@ -200,8 +210,12 @@ class TestCloseCaseLedgerRouting:
         _validate_canonical_entry check raises:
         "payloadSnapshot.actor must not be the CaseActor for non-case-authored
         entries (signature=('Leave', 'VulnerabilityCase'))"
+
+        The CASE_MANAGER here also holds CASE_OWNER: a CASE_MANAGER that is
+        not the Case Owner cannot leave, because its RM.CLOSED is the
+        owner-close boundary (CM-23-010).
         """
-        dl = _make_case_actor_dl()
+        dl = _make_case_actor_dl(case_manager_owns=True)
         CloseCaseReceivedUseCase(
             dl=dl,
             request=_make_close_case_event(

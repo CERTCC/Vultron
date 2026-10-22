@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from vultron.core.models._helpers import parse_published
+from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
@@ -12,7 +13,7 @@ from vultron.core.models.ledger_position import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import snapshot_actor_id
-from vultron.errors import VultronValidationError
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +187,71 @@ def ledger_tail_position(case_id: str, dl: CasePersistence) -> LedgerPosition:
     """
     tail_hash, tail_index = reconstruct_tail_hash(case_id, dl)
     return LedgerPosition(log_index=tail_index, entry_hash=tail_hash)
+
+
+def store_ledger_entry(
+    entry: CaseLedgerEntry, dl: CasePersistence
+) -> VulnerabilityCase:
+    """Store *entry* and move its case's ``ledger_position`` to it, as one write.
+
+    The one place a case's position moves (SYNC-16-005): the CASE_MANAGER's
+    commit (``PersistLogEntryNode``) and a replica's store
+    (``PersistReceivedLogEntryNode``) both call it.  The case file is the
+    projection of its ledger up to its position (ADR-0124), so storing an
+    entry and naming it as the case's position commit together or not at all
+    (ADR-0146).  Moving the position is part of applying the entry, not a
+    change to the case file of its own, so it takes no entry (CLP-07-013).
+
+    The entry's own snapshot was built before this runs, so a snapshot that
+    carries the case names the position before the entry, and no entry's hash
+    depends on itself.
+
+    The position never moves back.  A replica whose case a copy seeded or
+    replaced ahead of its chain stores the entries at or before the copy's
+    position as idempotent no-ops (SYNC-16-007): the entry is stored and the
+    case stays at the copy's position, which already reflects it.
+
+    Returns:
+        The case as stored, at its new position.
+
+    Raises:
+        VultronNotFoundError: *dl* holds no case for the entry; a ledger entry
+            belongs to a stored case, whose genesis hash anchors it.
+    """
+    with dl.transaction():
+        case = dl.read_case(entry.case_id)
+        if case is None:
+            raise VultronNotFoundError("VulnerabilityCase", entry.case_id)
+        dl.save(entry)
+        held = case.ledger_position
+        if held is not None and entry.log_index <= held.log_index:
+            return case
+        case.ledger_position = LedgerPosition(
+            log_index=entry.log_index, entry_hash=entry.entry_hash
+        )
+        dl.save(case)
+    return case
+
+
+def at_stored_position(
+    case: VulnerabilityCase, dl: CasePersistence
+) -> VulnerabilityCase:
+    """*case* at the ledger position *dl*'s stored copy of it names.
+
+    Only :func:`store_ledger_entry` moves a case's position.  A node that
+    reads the case, commits entries and then saves or snapshots the copy it
+    read holds the position from before those commits; this brings the copy
+    up to the stored position, so the save does not put the position back and
+    a snapshot names the position before its own entry (SYNC-16-005).
+    Returns *case* itself when the positions already agree or *dl* holds no
+    copy yet.
+    """
+    stored = dl.read_case(case.id_)
+    if stored is None or stored.ledger_position == case.ledger_position:
+        return case
+    # A copy, not an assignment: the caller's object stays as it read it,
+    # and the stored position is already a validated one for this case.
+    return case.model_copy(update={"ledger_position": stored.ledger_position})
 
 
 def ledger_position_refusal(

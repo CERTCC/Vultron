@@ -10,12 +10,12 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Structure of the owner-Leave ``case_fully_closed`` commit (#4113, #3743).
+"""Structure of the owner-Leave arm of the close-case tree (ADR-0152).
 
-``CommitCaseFullyClosedBT`` builds the CASE_MANAGER's own
-``Update(VulnerabilityCase)`` and commits its sealed blob, so it carries its
-own port guard: without a sync port it must refuse before the activity is
-built or the entry persisted, not after.
+The owner arm settles every pending embargo Invite, records the Case
+Owner's closure, then records the CASE_MANAGER's own closure last: its
+``RM.CLOSED`` status entry is the write boundary (CM-23-002, CM-23-013,
+CM-23-014).  No node commits a separate closure marker.
 """
 
 from __future__ import annotations
@@ -23,13 +23,9 @@ from __future__ import annotations
 import py_trees
 import pytest
 
-from vultron.core.behaviors.case.nodes.leave import (
-    CommitCaseFullyClosedNode,
-)
 from vultron.core.behaviors.case.receive_close_case_tree import (
     create_close_case_received_tree,
 )
-from vultron.core.behaviors.sync.nodes import RequireSyncPortNode
 from vultron.core.use_cases.received.case.lifecycle import (
     CloseCaseReceivedUseCase,
 )
@@ -48,8 +44,8 @@ def _find(
     raise AssertionError(f"no node named {name!r} in the tree")
 
 
-def test_case_fully_closed_commit_guards_the_sync_port_before_persisting():
-    tree = create_close_case_received_tree(
+def _owner_tree() -> py_trees.behaviour.Behaviour:
+    return create_close_case_received_tree(
         case_id=CASE_ID,
         activity_id="https://example.org/activities/leave-1",
         sender_actor_id=OWNER_ID,
@@ -57,13 +53,28 @@ def test_case_fully_closed_commit_guards_the_sync_port_before_persisting():
         sender_rule=CloseCaseReceivedUseCase.sender_entitlement,
     )
 
-    commit = _find(tree, "CommitCaseFullyClosedBT")
-    children = list(commit.children)
 
-    assert isinstance(children[0], RequireSyncPortNode)
-    assert [type(child) for child in children[1:]] == [
-        CommitCaseFullyClosedNode
+@pytest.mark.spec("CM-23-002")
+@pytest.mark.spec("CM-23-014")
+def test_the_owner_arm_closes_the_case_manager_last():
+    owner_arm = _find(_owner_tree(), "OwnerLeaveSeq")
+
+    # Settling first keeps every closure entry, the boundary included,
+    # after the expiries, even when the Case Owner is the CASE_MANAGER.
+    assert [child.name for child in owner_arm.children] == [
+        "ExpirePendingInvitesOnClose",
+        "AdvanceOwnerToRMClosed",
+        "CommitOwnerRMClosureEntries",
+        "AdvanceCaseActorToRMClosed",
+        "CommitCaseActorRMClosureEntries",
     ]
+
+
+@pytest.mark.spec("CM-23-002")
+def test_no_node_commits_a_closure_marker():
+    names = {node.name for node in _owner_tree().iterate()}
+
+    assert not {n for n in names if "FullyClosed" in n}
 
 
 @pytest.mark.spec("HP-01-008")

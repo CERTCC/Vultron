@@ -83,15 +83,7 @@ def _received_entries():
 @pytest.mark.parametrize(
     "semantics,use_case_class",
     list(_received_entries()),
-    ids=[
-        e.semantics.name
-        for e in SEMANTIC_REGISTRY
-        if e.semantics.name
-        not in {
-            MessageSemantics.UNKNOWN.name,
-            MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT.name,
-        }
-    ],
+    ids=[semantics.name for semantics, _ in _received_entries()],
 )
 def test_use_case_has_sender_entitlement_declared(semantics, use_case_class):
     """Every received use case must declare ``sender_entitlement``."""

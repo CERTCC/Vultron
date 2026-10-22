@@ -13,26 +13,27 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Judge a received case copy by the ledger tail it names (SYNC-16-006).
+"""Judge a received case copy by the ledger position it names (SYNC-16-006).
 
-A full-case announcement names the ledger position the copy reflects
-(SYNC-16-005).  A replica that already holds the case compares that tail with
-its own position before it replaces anything:
+Each case stores the ledger position its case file is a projection of, and
+the position travels with the case on its wire form (SYNC-16-005).  A replica
+that already holds the case compares the copy's position with its own before
+it replaces anything:
 
-- it holds a different entry at the tail's index: the chains conflict, and no
-  copy repairs that;
-- it is already past the tail: the copy is stale, and replacing with it would
-  drop the effects of the entries it holds past it;
-- otherwise the copy is current, and replaces the case.
+- it holds a different entry at the position's index: the chains conflict,
+  and no copy repairs that;
+- it is already past the position: the copy is stale, and replacing with it
+  would drop the effects of the entries it holds past it;
+- otherwise the copy is current, and replaces the case, position included.
 
-The replica's position is its stored chain, or the tail of the copy that last
-replaced its case when the chain has not caught up with it yet: that copy
-already reflects the entries up to its tail (SYNC-16-007), so a copy behind it
-is stale too.
+The replica's own position is the later of its stored chain's tail and its
+case's ``ledger_position``.  After a replacement the case can be ahead of the
+chain: the copy already reflects the entries up to its position
+(SYNC-16-007), so a copy behind it is stale too.
 
-After a replacement whose tail is ahead of the chain, every entry the replica
-stores at or before that tail is already reflected in the case, and is stored
-as a no-op (:func:`entry_reflected_by_case_copy`).
+Every entry the replica stores at or before its case's position is already
+reflected in the case, and is stored as a no-op
+(:func:`entry_reflected_by_case_copy`).
 """
 
 from __future__ import annotations
@@ -48,7 +49,6 @@ from pydantic import ValidationError
 from vultron.core.models._helpers import _as_id, project_wire_snapshot_to_core
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_copy_position import CaseCopyPosition
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_event import EmbargoEvent
@@ -98,24 +98,14 @@ def _stored_entries(
     }
 
 
-def case_copy_position(
-    case_id: str, dl: CasePersistence
-) -> LedgerPosition | None:
-    """The tail of the copy that last replaced *case_id*, or ``None``."""
-    record = dl.read(CaseCopyPosition.build_id(case_id))
-    if isinstance(record, CaseCopyPosition):
-        return record.position
-    return None
-
-
 def judge_case_copy(
-    case_id: str, tail: LedgerPosition, dl: CasePersistence
+    case_id: str, position: LedgerPosition, dl: CasePersistence
 ) -> CaseCopyJudgement:
-    """Judge a copy of *case_id* that names *tail*, against *dl*'s chain.
+    """Judge a copy of *case_id* at *position*, against *dl*'s own position.
 
-    A conflict is checked first: a replica already past the tail that holds a
-    different entry at its index disagrees with the copy's chain, not only
-    with its age, and that is the fault to report (SYNC-16-006).
+    A conflict is checked first: a replica already past the position that
+    holds a different entry at its index disagrees with the copy's chain, not
+    only with its age, and that is the fault to report (SYNC-16-006).
 
     Reads only *dl*.
     """
@@ -124,65 +114,70 @@ def judge_case_copy(
     chain_index = (
         chain_tail.log_index if chain_tail else EMPTY_LEDGER_LOG_INDEX
     )
-    replaced_at = case_copy_position(case_id, dl)
-    position = max(
+    case = dl.read_case(case_id)
+    held_at = case.ledger_position if case is not None else None
+    own_index = max(
         chain_index,
-        replaced_at.log_index if replaced_at else EMPTY_LEDGER_LOG_INDEX,
+        held_at.log_index if held_at else EMPTY_LEDGER_LOG_INDEX,
     )
 
     held_hash: str | None = None
-    if tail.log_index == EMPTY_LEDGER_LOG_INDEX:
-        case = dl.read_case(case_id)
+    if position.log_index == EMPTY_LEDGER_LOG_INDEX:
         held_hash = case.genesis_hash if case and case.genesis_hash else None
-    elif tail.log_index in entries:
-        held_hash = entries[tail.log_index].entry_hash
-    elif replaced_at is not None and replaced_at.log_index == tail.log_index:
-        held_hash = replaced_at.entry_hash
+    elif position.log_index in entries:
+        held_hash = entries[position.log_index].entry_hash
+    elif held_at is not None and held_at.log_index == position.log_index:
+        held_hash = held_at.entry_hash
 
     def judged(verdict: CaseCopyVerdict, reason: str) -> CaseCopyJudgement:
         return CaseCopyJudgement(
             verdict=verdict, chain_tail=chain_tail, reason=reason
         )
 
-    if held_hash is not None and held_hash != tail.entry_hash:
+    if held_hash is not None and held_hash != position.entry_hash:
         return judged(
             CaseCopyVerdict.CONFLICT,
-            f"the copy names entry {tail.log_index} as {tail.entry_hash:.16}…"
+            f"the copy names entry {position.log_index} as"
+            f" {position.entry_hash:.16}…"
             f" but this replica holds {held_hash:.16}… there: the chains"
             " conflict (SYNC-16-006)",
         )
-    if position > tail.log_index:
+    if own_index > position.log_index:
         return judged(
             CaseCopyVerdict.STALE,
-            f"the copy reflects entry {tail.log_index} and this replica is"
-            f" already at {position}: the copy is stale (SYNC-16-006)",
+            f"the copy reflects entry {position.log_index} and this replica"
+            f" is already at {own_index}: the copy is stale (SYNC-16-006)",
         )
     return judged(
         CaseCopyVerdict.CURRENT,
-        f"the copy reflects entry {tail.log_index} and this replica is at"
-        f" {position} (SYNC-16-006)",
+        f"the copy reflects entry {position.log_index} and this replica is"
+        f" at {own_index} (SYNC-16-006)",
     )
 
 
 def entry_reflected_by_case_copy(
     entry: CaseLedgerEntry, dl: CasePersistence
 ) -> bool:
-    """Whether the copy that replaced *entry*'s case already reflects it.
+    """Whether *entry*'s case, as *dl* stores it, already reflects *entry*.
 
-    True for an entry at or before the tail of the copy that last replaced
-    the case (SYNC-16-007): its effects are already in the case file, so it
-    is stored without applying them again.  The entry at the tail's index is
-    reflected only when it is the entry the copy named; any other entry there
-    is not, and is applied, or refused, as any entry is.
+    True for an entry at or before the case's ``ledger_position``
+    (SYNC-16-007): a replica whose case was seeded or replaced by a copy
+    ahead of its chain already holds the entry's effects in its case file,
+    so the entry is stored without applying them again.  The entry at the
+    position's index is reflected only when it is the entry the position
+    names; any other entry there is not, and is applied, or refused, as any
+    entry is.  A replica in step with its chain stores each new entry past
+    its position, so this is ``False`` for it.
     """
-    replaced_at = case_copy_position(entry.case_id, dl)
-    if replaced_at is None:
+    case = dl.read_case(entry.case_id)
+    position = case.ledger_position if case is not None else None
+    if position is None:
         return False
-    if entry.log_index < replaced_at.log_index:
+    if entry.log_index < position.log_index:
         return True
     return (
-        entry.log_index == replaced_at.log_index
-        and entry.entry_hash == replaced_at.entry_hash
+        entry.log_index == position.log_index
+        and entry.entry_hash == position.entry_hash
     )
 
 
@@ -271,7 +266,6 @@ def records_a_reflected_entry_adds(
 __all__ = [
     "CaseCopyJudgement",
     "CaseCopyVerdict",
-    "case_copy_position",
     "entry_reflected_by_case_copy",
     "judge_case_copy",
     "records_a_reflected_entry_adds",

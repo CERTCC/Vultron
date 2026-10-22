@@ -265,21 +265,25 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 | Entry (`semantic_type`) | Slot | Replica effect |
 |---|---|---|
 | proposal (`invite_to_embargo_on_case`, not a relay) | `EmbargoProposal` | stores B, copies the `PROPOSE` step (→ `PROPOSED`/`REVISE`), index recorded; the rows follow |
-| relayed Invite (same type, `actor` the CASE_MANAGER, `attributedTo` someone else) | `EmbargoInviteRelay` | stores B, proposer's index; the invitee's `INVITED` row and RSVP deadline follow (CM-28-013) |
+| relayed Invite, re-invites included (same type, `actor` the CASE_MANAGER, `attributedTo` the proposer) | `EmbargoInviteRelay` | stores B, proposer's index; the invitee's `INVITED` row and RSVP deadline follow (CM-28-013) |
 | `accept_invite_to_embargo_on_case` | `EmbargoAcceptance` | stores B; copies the `AGREED` row the Accept states, the owner's included; no register change (ADR-0122) |
-| `reject_invite_to_embargo_on_case` | `EmbargoRejection` | stores B; copies the `DECLINED` row the Reject states; no register change |
+| `reject_invite_to_embargo_on_case` from a participant | `EmbargoRejection` | stores B; copies the `DECLINED` row the Reject states; no register change |
+| `reject_invite_to_embargo_on_case` from the CASE_MANAGER | `EmbargoAbandonment` | copies the `CANCEL` step of the proposal it rejects (EMB-16-001, ADR-0152) |
+| `undo_invite_to_embargo_on_case` (the CASE_MANAGER's `Undo` of an Invite it sent) | `EmbargoInviteWithdrawal` | copies the `CANCEL` step of the proposal; in place after the abandonment's first entry (EMB-16-001) |
 | `withdraw_from_embargo_on_case` (`Leave(EmbargoEvent)`) | `EmbargoWithdrawal` | stores the embargo if absent; writes no row: each row it declines follows as its own `update_embargo_consent` (MSM-07-010) |
-| `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed, an invitation expiry (`TIMED_OUT`, CM-28-014) and an honoured late Accept (`AGREED`, EMB-17-009) included; a no-op when the seed is past it, else refuses it and holds its Announce |
+| `create_embargo_consent` / `update_embargo_consent` | `EmbargoConsent` | copies the row the CASE_MANAGER changed, an invitation expiry (`TIMED_OUT`, CM-28-014) and the CASE_MANAGER's own consent change (MSM-07-004) included; a no-op when the seed is past it, else refuses it and holds its Announce |
 | `activate_embargo_on_case` (owner's `Accept(EmbargoEvent, target=Case)`) | `EmbargoActivation` | copies the `ACTIVATE` step (B `ACTIVE`, A `SUPERSEDED`) and the owner's `AGREED` row; each `CARRY_OVER` row follows as its own `update_embargo_consent` |
 | `reject_embargo_proposal_on_case` (owner's `Reject(EmbargoEvent, target=Case)`) | `EmbargoProposalRejection` | copies the `REJECT` step: B `REJECTED`, EM back to A (or `NONE`) once no proposal is open; no consent. After disclosure the CASE_MANAGER's teardown entry follows in the same act and terminates A (EMB-04-002, MSM-07-009); the replica copies both and decides nothing |
-| `invite_to_embargo_on_case_expired_noop` | `InviteExpiryNoop` | no PEC change (EMB-17-004) |
-| `invite_to_embargo_on_case_reinvite` (no `attributedTo`) | `EmbargoReinvite` | stores B; the invitee's `INVITED` row and deadline follow; no EM change (EMB-17-003) |
 | `remove_embargo_event_from_case` | `EmbargoTeardown` | copies the `TERMINATE` step for the embargo the entry names, with the `CANCEL` of every open proposal (EP-08-004); writes no row (MSM-07-006); an entry naming an embargo not in force here changes nothing |
 
 - A proposal and a relay share one semantic type; `is_relayed_embargo_invite()` reads a
   relay only when `actor` is the case's CASE_MANAGER and `attributedTo` names someone
-  else, so a third party in `attributedTo` from a participant is still a proposal
-  (PCR-08-010).
+  else, or names the CASE_MANAGER and the register already holds the embargo decided,
+  as for a re-invite (EMB-17-003, ADR-0152). A third party in `attributedTo` from a
+  participant is still a proposal (PCR-08-010).
+- The CASE_MANAGER never commits a `Reject(Invite(EmbargoEvent))` as its own consent:
+  that shape from it is the abandonment, so its own consent change is its
+  `Update(EmbargoConsent)` of the row (MSM-07-004).
 - Each apply node stores the snapshot's `EmbargoEvent` as it applies the entry,
   so `active_embargo` never names an unreadable record
   (EMB-18-003). A replica without the case skips; one with the case that cannot

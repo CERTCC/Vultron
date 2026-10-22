@@ -339,14 +339,15 @@ def test_leaver_receives_the_entries_recording_its_own_closure(
 def test_closed_participant_receives_nothing_about_anyone_else(
     dl: SqliteDataLayer,
 ) -> None:
-    """Later entries, another actor's closure and case_fully_closed skip it."""
+    """Later entries, another actor's closure and the CASE_MANAGER's own
+    closure, the write boundary, skip it (CM-23-004)."""
     case = _embargoed_case(dl)
     signatory = dl.read(case.actor_participant_index[_SIGNATORY])
     assert isinstance(signatory, CaseParticipant)
     for entry in (
         _close_case_entry(7, _SIGNATORY),
         _status_entry(8, _closed_status_id(signatory)),
-        _entry(9, "case_fully_closed", object_id=f"{_CASE_ID}/leave-9"),
+        _status_entry(9, f"{_CASE_ID}/statuses/case-manager-closed"),
         _entry(10, "add_note_to_case", object_id=f"{_CASE_ID}/notes/n1"),
     ):
         assert ledger_entry_recipients(
@@ -419,7 +420,7 @@ def test_closed_participant_ledger_cutoff_is_its_last_own_closure_entry(
         _entry(0, "create_case", object_id=_CASE_ID),
         _close_case_entry(1, _CLOSED),
         _status_entry(2, _closed_status_id(closed)),
-        _entry(3, "case_fully_closed", object_id=f"{_CASE_ID}/leave-3"),
+        _status_entry(3, f"{_CASE_ID}/statuses/case-manager-closed"),
     ]
     assert closed_participant_ledger_cutoff(case, dl, _CLOSED, entries) == 2
     assert (

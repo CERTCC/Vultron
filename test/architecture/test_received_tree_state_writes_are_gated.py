@@ -121,7 +121,7 @@ _SEED = (
 _CASE_COPY = (
     "seeds a replica from the CASE_MANAGER's own case copy, or replaces its"
     " case with one: the sender guard admits only the CASE_MANAGER and the"
-    " copy is judged by its ledger tail first (PCR-02-003, PCR-02-004,"
+    " copy is judged by its ledger position first (PCR-02-003, PCR-02-004,"
     " SYNC-16-006)"
 )
 _MINT = (
@@ -178,14 +178,12 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyEmbargoInviteFromLedgerNode",
             "ApplyEmbargoProposalFromLedgerNode",
             "ApplyEmbargoProposalRejectionFromLedgerNode",
-            "ApplyEmbargoReinviteFromLedgerNode",
             "ApplyEmbargoRejectionFromLedgerNode",
             "ApplyEmbargoTeardownNode",
             "ApplyEmbargoWithdrawalFromLedgerNode",
             "ApplyCreateCaseParticipantFromLedgerNode",
             "ApplyInviteAcceptFromLedgerNode",
             "ApplyInviteRejectFromLedgerNode",
-            "ApplyInviteExpiryNoopFromLedgerNode",
             "ApplyNoteFromLedgerNode",
             "ApplyOfferReportFromLedgerNode",
             "ApplyOwnershipTransferFromLedgerNode",
@@ -283,10 +281,6 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         " writes nothing"
     ),
     (f"{_B}.case.nodes.intake", "IntakeReceivedActivityNode"): _ARCHIVE,
-    (
-        f"{_B}.case.nodes.invite_ledger_backfill",
-        "BackfillCanonicalLedgerToInviteeNode",
-    ): _LEDGER,
     (
         f"{_B}.case.nodes.invite_received",
         "RecordInviteTrustAnchorNode",

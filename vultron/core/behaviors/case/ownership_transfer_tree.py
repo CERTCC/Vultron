@@ -40,12 +40,11 @@ Provides:
   its proposal, ledgered like the Reject so it closes the Offer made from
   it (CM-21-015).
 
-The proposal and the three replies carry the CASE_MANAGER's lazy expiry of
-the case's open Offer (CM-21-017) as a clock decision
-(:class:`~vultron.core.behaviors.case.nodes.ownership_offer_expiry.ExpireOverdueOwnershipOfferNode`):
-the factory runs it after the door guards and before the open-Offer guards,
-at the CASE_MANAGER only, so an expired Offer is ledgered closed before the
-activity is judged against it (CLP-10-025, ADR-0135).
+The proposal and the three replies judge the case's Offer against its own
+``end_time`` and the CASE_MANAGER's clock, at the CASE_MANAGER only: an
+Offer past its deadline is closed, with no entry recording the expiry, so a
+late reply is refused and a new proposal is admitted (CM-21-014, CM-21-016,
+CM-21-017, ADR-0152).
 """
 
 import logging
@@ -57,12 +56,8 @@ import py_trees
 from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
 )
-from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
-    ExpireOverdueOwnershipOfferNode,
-    ExpiryPrompt,
-    OfferParty,
-)
 from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
+    OfferParty,
     case_manager_admits_ownership_proposal_guard,
     case_manager_ownership_offer_open_guard,
 )
@@ -86,7 +81,6 @@ class _ReplyStages(NamedTuple):
     """What every reply to an Offer passes the received-tree factory."""
 
     sender_context: SenderCheckContext
-    clock_decisions: list[py_trees.behaviour.Behaviour]
     precondition_guards: list[py_trees.behaviour.Behaviour]
 
 
@@ -98,30 +92,21 @@ def _reply_stages(
     party: OfferParty,
     now: datetime | None,
 ) -> _ReplyStages:
-    """The sender context, clock decision and guards of a reply to an Offer.
+    """The sender context and guards of a reply to an Offer.
 
     The sender check reads the Offer the CASE_MANAGER recorded, so a sender
     that is not its party is refused first; at a replica the sender must be
     the CASE_MANAGER, and a case this store does not hold refuses
-    (PCR-03-001).  The CASE_MANAGER then ledgers the expiry of the case's
-    open Offer if its deadline passed, a clock decision the reply prompts
-    only when it names the open Offer and comes from *party* (CM-21-017,
-    HP-01-006, CLP-10-025).  The open-Offer check runs last, at the
-    CASE_MANAGER only (CM-21-014, CM-21-016, HP-01-003), so a reply to an
-    Offer that just expired is refused as closed.
+    (PCR-03-001).  The open-Offer check runs next, at the CASE_MANAGER only
+    (CM-21-014, CM-21-016, HP-01-003): a reply to an Offer past its
+    ``end_time`` is refused from that time alone, and nothing records the
+    expiry (CM-21-017, ADR-0152).
     """
     context = SenderCheckContext(
         sender_id=sender_id,
         case_id=case_id,
         request=OwnershipOfferRequest(offer_id=offer_id, reply_id=reply_id),
         case_manager_required=True,
-    )
-    expiry = ExpireOverdueOwnershipOfferNode(
-        case_id=case_id,
-        now=now,
-        prompt=ExpiryPrompt(
-            sender_id=sender_id, offer_id=offer_id, party=party
-        ),
     )
     guards = [
         case_manager_ownership_offer_open_guard(
@@ -133,7 +118,7 @@ def _reply_stages(
             now=now,
         )
     ]
-    return _ReplyStages(context, [expiry], guards)
+    return _ReplyStages(context, guards)
 
 
 def create_accept_ownership_transfer_tree(
@@ -164,10 +149,9 @@ def create_accept_ownership_transfer_tree(
             which the open-Offer guard then requires to be open; at a
             replica it must be the CASE_MANAGER.
         answer_id: The Accept's own id, so a redelivery is recognised.
-        now: The instant the Offer's ``end_time`` is compared against, by
-            the expiry clock decision and the open-Offer guard alike; an
-            Accept at or after it is refused (CM-21-016).  ``None`` reads the
-            clock when each node runs.
+        now: The instant the Offer's ``end_time`` is compared against by
+            the open-Offer guard; an Accept at or after it is refused
+            (CM-21-016).  ``None`` reads the clock when the guard runs.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (HP-01-008).
 
@@ -189,7 +173,6 @@ def create_accept_ownership_transfer_tree(
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=stages.sender_context,
-        clock_decisions=stages.clock_decisions,
         precondition_guards=stages.precondition_guards,
         # A receiver that does not hold the case is simply not its
         # CASE_MANAGER (ADR-0087 Regime 3), for both the guarded commit and
@@ -265,7 +248,6 @@ def create_reject_ownership_transfer_tree(
         # closed Offer refuses either answer and a redelivery is recognised.
         sender_rule=sender_rule,
         sender_context=stages.sender_context,
-        clock_decisions=stages.clock_decisions,
         precondition_guards=stages.precondition_guards,
         # As for the Accept: a receiver not holding the case is not its
         # CASE_MANAGER (ADR-0087 Regime 3).
@@ -329,7 +311,6 @@ def create_undo_ownership_transfer_tree(
         case_id=case_id,
         sender_rule=sender_rule,
         sender_context=stages.sender_context,
-        clock_decisions=stages.clock_decisions,
         precondition_guards=stages.precondition_guards,
         # As for the Reject: no effect follows the commit, and a receiver
         # not holding the case is not its CASE_MANAGER (ADR-0087 Regime 3).
@@ -377,7 +358,6 @@ def create_propose_ownership_transfer_tree(
     The CASE_MANAGER executes the owner's proposal (ADR-0148)::
 
         Intake → doors → sender guard (the Case Owner, CM-21-019)
-            → expiry clock decision (CM-21-017)
             → CaseManagerGate[NoOpenOwnershipOffer, OwnershipProposalAdmissible]
             → GuardedCommit (the proposal)
             → CaseManagerGate[MakeOwnershipTransferOfferNode]
@@ -402,11 +382,11 @@ def create_propose_ownership_transfer_tree(
         answer_deadline: The inner Offer's ``end_time`` in UTC, if it
             carries one (CM-21-016); the Offer the CASE_MANAGER makes
             carries it.
-        now: The instant the case's open Offer's ``end_time`` is compared
-            against by the expiry clock decision: a new proposal is one of
-            the moments the CASE_MANAGER checks it, so an expired Offer is
-            closed before this proposal is judged against it (CM-21-017,
-            CM-21-014, CLP-10-025).  ``None`` reads the clock when it runs.
+        now: The instant the case's earlier Offer's ``end_time`` is
+            compared against by the open-Offer guard: an Offer past its
+            deadline is closed, so it does not block this proposal
+            (CM-21-014, CM-21-017).  ``None`` reads the clock when the guard
+            runs.
         sender_rule: The use case's declared sender rule; the factory
             composes the sender guard from it (CM-21-019, HP-01-008).
         sender_id: The proposal's sender, which the guard checks
@@ -429,6 +409,7 @@ def create_propose_ownership_transfer_tree(
             proposed_case_id=proposed_case_id,
             transferee_id=transferee_id,
             proposer_id=sender_id,
+            now=now,
         )
     ]
     # The guards refuse a proposal naming no transferee before this runs,
@@ -449,9 +430,6 @@ def create_propose_ownership_transfer_tree(
     tree = create_receive_activity_tree(
         name="ProposeOwnershipTransferBT",
         case_id=case_id,
-        clock_decisions=[
-            ExpireOverdueOwnershipOfferNode(case_id=case_id, now=now)
-        ],
         sender_rule=sender_rule,
         sender_context=proposal_sender_context(
             sender_id, case_id, proposal_id

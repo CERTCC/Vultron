@@ -37,8 +37,9 @@ from vultron.adapters.driven.trigger_activity_adapter import (
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.late_accept import (
-    CommitLateAcceptAcknowledgementNode,
+    LateAcceptChangesNothingNode,
 )
+from vultron.core.behaviors.embargo.proposer import embargo_proposer_id
 from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -47,10 +48,6 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     ThreatSignal,
-)
-from vultron.core.models.rsvp_deadline import (
-    EMBARGO_REINVITE_SEMANTIC_TYPE,
-    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -124,6 +121,23 @@ def _entries(
         for obj in net.stores[actor].list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
         and str(obj.semantic_type) == semantic_type
+    ]
+
+
+_INVITE = "invite_to_embargo_on_case"
+_ACCEPT = "accept_invite_to_embargo_on_case"
+
+
+def _invites_of(
+    net: _Network, actor: str, invitee: str, embargo_id: str
+) -> list[CaseLedgerEntry]:
+    """Every ``invite_to_embargo_on_case`` entry to *invitee* of *embargo_id*."""
+    return [
+        entry
+        for entry in _entries(net, actor, _INVITE)
+        if entry.payload_snapshot.get("to") == [invitee]
+        and isinstance(entry.payload_snapshot.get("object"), dict)
+        and entry.payload_snapshot["object"].get("id") == embargo_id
     ]
 
 
@@ -396,14 +410,16 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("CLP-10-006")
 @pytest.mark.spec("TB-06-007")
-@pytest.mark.spec("EMB-17-011")
+@pytest.mark.spec("EP-09-002")
 def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     """A late Accept of a stale embargo is re-invited; a replica learns it.
 
-    The manager commits the fresh Invite as its own ledger entry before it
-    queues it, so the ledger holds the entry before the outbox does
-    (CLP-10-006).  The replica, replaying it, moves the invitee's row for the embargo in force to ``INVITED``
-    with the Invite's new deadline and leaves EM alone (CM-28-013, EP-09-007).
+    The re-invite is a relay (ADR-0152): the manager commits the fresh
+    Invite as ``invite_to_embargo_on_case``, ``attributedTo`` the embargo's
+    proposer, which for this case's creation-time embargo is the manager
+    itself.  The replica, replaying it through the relay slot, moves the
+    invitee's row for the embargo in force to ``INVITED`` with the Invite's
+    new deadline and leaves EM alone (CM-28-013, EP-09-007).
     """
     net = _Network("https://example.org/cases/answer-reinvite")
     revision_id = _propose(net, "reinvite", 90)
@@ -441,6 +457,8 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     proposals_before = list(before.proposed_embargo_ids)
     active_before = before.active_embargo_id
     assert em_before == EM.REVISE
+    assert active_before is not None
+    assert _invites_of(net, MANAGER, BYSTANDER, active_before) == []
 
     net.receive(MANAGER, body)
     # A late-Accept arm answers the delivery itself (CLP-10-026).
@@ -464,22 +482,22 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     manager_deadline = manager_record.rsvp_deadline_for(active_before)
     assert manager_deadline is not None
     assert manager_deadline > datetime.now(tz=UTC)
-    assert (
-        _semantic_types(net, MANAGER).count(EMBARGO_REINVITE_SEMANTIC_TYPE)
-        == 1
-    )
-    (entry,) = _entries(net, MANAGER, EMBARGO_REINVITE_SEMANTIC_TYPE)
+    (entry,) = _invites_of(net, MANAGER, BYSTANDER, active_before)
     snapshot = entry.payload_snapshot
     assert snapshot["actor"] == MANAGER
-    assert snapshot.get("attributedTo") is None
+    # The case's embargo in force is the manager's own terms, so the manager
+    # names itself as their proposer (ADR-0152).
+    entries = sorted(
+        _entries(net, MANAGER, _INVITE), key=lambda e: e.log_index
+    )
+    assert embargo_proposer_id(entries, active_before) in (None, MANAGER)
+    assert snapshot["attributedTo"] == MANAGER
     assert snapshot["to"] == [BYSTANDER]
     # The entry is the body the outbox delivers, with the deadline as endTime.
     assert invite_rsvp_deadline(snapshot) == manager_deadline
 
     # The replica's own store (TB-06-007): same consent and deadline, no EM move.
-    assert (
-        _semantic_types(net, OWNER).count(EMBARGO_REINVITE_SEMANTIC_TYPE) == 1
-    )
+    assert len(_invites_of(net, OWNER, BYSTANDER, active_before)) == 1
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
     assert replayed.consent_for(revision_id) == EmbargoConsentState.TIMED_OUT
     assert replayed.consent_for(active_before) == EmbargoConsentState.INVITED
@@ -505,30 +523,32 @@ def test_a_late_accept_of_a_stale_embargo_reinvites_nobody_from_a_replica():
     assert body is not None
     _deliver_all(net, OWNER)
     queued_before = len(net.queued(OWNER, to=BYSTANDER, type_="Invite"))
+    invites_before = _semantic_types(net, OWNER).count(_INVITE)
 
     net.receive(OWNER, body)
 
-    assert (
-        _semantic_types(net, OWNER).count(EMBARGO_REINVITE_SEMANTIC_TYPE) == 0
-    )
+    assert _semantic_types(net, OWNER).count(_INVITE) == invites_before
     assert (
         len(net.queued(OWNER, to=BYSTANDER, type_="Invite")) == queued_before
     )
 
 
 @pytest.mark.spec("EMB-17-001")
+@pytest.mark.spec("EMB-17-002")
 @pytest.mark.spec("EMB-17-009")
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("TB-06-007")
-def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
+def test_an_honoured_late_accept_is_committed_and_replayed_by_a_replica():
     """Late Accept honours into an AGREED row when the embargo is still active.
 
     When the invitee's RSVP deadline has passed and the embargo is still
-    active and matching, the CASE_MANAGER commits two
-    ``Update(EmbargoConsent)`` entries, the ``TIMED_OUT`` row (CM-28-009) and
-    then the ``AGREED`` row (EMB-17-001, EMB-17-009), with no separate expiry
-    or honour entry.  The replica copies the rows from the ledger
-    broadcast without re-evaluating the deadline (RSH-08-004, ADR-0124).
+    active and matching, the CASE_MANAGER commits the ``TIMED_OUT`` row
+    (CM-28-009) and then the received Accept itself, carrying the ``AGREED``
+    row it states, as an on-time Accept is (EMB-17-002, EMB-17-009).  No
+    ``Update(EmbargoConsent)`` of the ``AGREED`` row follows: one state
+    change, one entry (CLP-07-002, ADR-0152).  The replica copies the row
+    from the Accept's entry without re-evaluating the deadline (RSH-08-004,
+    ADR-0124).
 
     OWNER activates the revision first so that ``active_embargo_id == embargo_id`` when
     BYSTANDER's late Accept arrives — that is the condition that routes to the
@@ -591,6 +611,29 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
     assert replayed.consent_for(revision_id) == EmbargoConsentState.AGREED
     assert replayed.is_signatory(revision_id)
 
+    # The Accept itself is the entry, verbatim, and nothing records the row
+    # a second time.
+    (accept_entry,) = [
+        e
+        for e in _entries(net, MANAGER, _ACCEPT)
+        if e.log_object_id == str(body["id"])
+    ]
+    assert accept_entry.payload_snapshot == body
+    assert (
+        consent_row_updates(
+            net.stores[MANAGER],
+            net.case_id,
+            EmbargoConsentState.AGREED,
+            BYSTANDER,
+        )
+        == []
+    )
+    # The same row an on-time Accept leaves (AC-4).
+    manager_record = cast(
+        CaseParticipant, net.stores[MANAGER].read(bystander_pid)
+    )
+    assert replayed.embargo_consents == manager_record.embargo_consents
+
 
 def _late_accept_on_an_exited_embargo(
     net: _Network,
@@ -600,7 +643,7 @@ def _late_accept_on_an_exited_embargo(
     Returns the Accept's sealed body, its id, BYSTANDER's participant id and
     the answered revision's id.  The Accept reaches the CASE_MANAGER after
     its Invite expired and once no embargo can bind it, so it takes the
-    acknowledgement arm (EMB-17-004).
+    no-op arm (EMB-17-004).
     """
     revision_id = _propose(net, "noop", 90)
     bystander_pid = net.case(MANAGER).actor_participant_index[BYSTANDER]
@@ -613,11 +656,9 @@ def _late_accept_on_an_exited_embargo(
     body = read_sealed_body_dict(net.stores[BYSTANDER], accept.id_)
     assert body is not None
 
-    # Terminate the embargo on MANAGER's store (EM EXITED) so the noop branch fires (EMB-17-004).
-    # Only MANAGER's store needs EXITED: the fan-out uses MANAGER's embargo
-    # state (embargo_in_force=False → all participants are recipients), and
-    # the expiry/noop replay nodes on OWNER's store have no EM dependency.
-    # BYSTANDER's store keeps the original state — it is the sender, not the judge.
+    # Terminate the embargo on MANAGER's store (EM EXITED) so the no-op arm
+    # is taken (EMB-17-004).  Only MANAGER's store needs EXITED: it is the
+    # judge.  BYSTANDER's store keeps the original state — it is the sender.
     # The termination is written outside the ledger, so no rebuild reaches it.
     net.bypass_ledger()
     dl_mgr = net.stores[MANAGER]
@@ -627,12 +668,8 @@ def _late_accept_on_an_exited_embargo(
     dl_mgr.save(case_mgr)
 
     # Seed BYSTANDER as INVITED with a passed deadline on MANAGER's store so
-    # the expiry tree fires (NEEDS_APPLY=True → expiry entry committed).
-    # OWNER's store holds INVITED with no deadline: the relay-entry Announces
-    # replayed by _deliver_all sequence BYSTANDER correctly
-    # (INVITED → TIMED_OUT via expiry; noop entry makes no further change).
-    # Pre-seeding TIMED_OUT would cause the relay-invite replay to revert it to
-    # INVITED (INVITE is legal from TIMED_OUT), creating an ordering hazard.
+    # the Invite reads as expired.  Its register entry is final, so no expiry
+    # is committed for it (ADR-0122), and the late Accept takes the no-op arm.
     for actor_id in (MANAGER, OWNER):
         dl = net.stores[actor_id]
         participant = cast(CaseParticipant, dl.read(bystander_pid))
@@ -654,155 +691,83 @@ def _late_accept_on_an_exited_embargo(
     return body, accept.id_, bystander_pid, revision_id
 
 
+def _no_trace(net: _Network) -> tuple[list[str], list[str]]:
+    """The CASE_MANAGER's ledger and outbox, to show a delivery added neither."""
+    dl = net.stores[MANAGER]
+    return _semantic_types(net, MANAGER), list(dl.outbox_list())
+
+
 @pytest.mark.spec("EMB-17-004")
-@pytest.mark.spec("EMB-17-010")
-@pytest.mark.spec("RSH-08-004")
-@pytest.mark.spec("TB-06-007")
-def test_the_managers_noop_decision_is_committed_and_replayed_by_a_replica():
-    """Late Accept on exited embargo: no-op entry replayed, the consent row is frozen.
+@pytest.mark.spec("CLP-02-013")
+def test_a_late_accept_with_no_embargo_to_bind_records_and_sends_nothing():
+    """Late Accept on an exited embargo: no entry, no message, no row moved.
 
     When a late Accept arrives with EM EXITED on the CASE_MANAGER's store,
-    every register entry is final, so the invitation's row accepts no
-    trigger (ADR-0122): no expiry entry is committed, and
-    ``INVITE_EXPIRED_NOOP_SEMANTIC_TYPE`` is, with no consent transition
-    (EMB-17-004, EMB-17-010).  After delivery the replica store's ledger has
-    replayed past the no-op entry (asserting on the entry's presence so a
-    silently skipped slot fails), and the participant's row for the embargo
-    is still ``INVITED`` (RSH-08-004).
+    every register entry is final, so the invitation's row accepts no trigger
+    (ADR-0122).  The Accept changes nothing anywhere, so the CASE_MANAGER
+    commits no entry, queues nothing and leaves the row ``INVITED``
+    (EMB-17-004, ADR-0152); the handler reports the no-op ``SKIPPED``.
     """
     net = _Network("https://example.org/cases/answer-noop-late-accept")
-    body, accept_id, bystander_pid, revision_id = (
+    body, _accept_id, bystander_pid, revision_id = (
         _late_accept_on_an_exited_embargo(net)
     )
     dl_mgr = net.stores[MANAGER]
+    before = _no_trace(net)
 
-    net.receive(MANAGER, body)
-    # A late-Accept arm answers the delivery itself (CLP-10-026).
+    verdict = net.receive(MANAGER, body)
+
+    assert verdict.disposition is HandlerDisposition.SKIPPED, verdict.reason
+    assert "EMB-17-004" in (verdict.reason or "")
+    assert _no_trace(net) == before
+    # A late-Accept arm answers the delivery itself (CLP-10-026): no
+    # refusal notice either.
     assert_no_refusal_notice(
-        net.stores[MANAGER], manager=MANAGER, refused_id=str(body["id"])
+        dl_mgr, manager=MANAGER, refused_id=str(body["id"])
     )
-    _deliver_all(net, OWNER)
-
-    # The replica's consent row is unchanged: the frozen row timed out
-    # nowhere, and the no-op entry made no change.
-    replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
-    assert replayed.consent_for(revision_id) == EmbargoConsentState.INVITED
+    participant = cast(CaseParticipant, dl_mgr.read(bystander_pid))
+    assert participant.consent_for(revision_id) == EmbargoConsentState.INVITED
     assert (
         consent_row_updates(dl_mgr, net.case_id, EmbargoConsentState.TIMED_OUT)
         == []
     )
-    # The replica's ledger contains the no-op entry, proving the replay slot
-    # fired rather than silently skipping it (SYNC-12-001, RSH-08-004).
-    noop_entries = [
-        obj
-        for obj in net.stores[OWNER].list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry)
-        and str(obj.semantic_type) == INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
-    ]
-    assert len(noop_entries) == 1
-
-    # The entry is the CASE_MANAGER's own factory-built Ignore of the late
-    # Accept, carried inline, recorded from its sealed blob (CLP-07-013,
-    # VM-08-003) -- not a snapshot attributed to the accepter (#3743).
-    (committed,) = [
-        obj
-        for obj in dl_mgr.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry)
-        and str(obj.semantic_type) == INVITE_EXPIRED_NOOP_SEMANTIC_TYPE
-    ]
-    snapshot = committed.payload_snapshot
-    assert snapshot["type"] == "Ignore"
-    assert snapshot["actor"] == MANAGER
-    assert snapshot["object"]["type"] == "Accept"
-    assert snapshot["object"]["id"] == accept_id
-    assert snapshot["object"]["actor"] == BYSTANDER
-    assert snapshot == read_sealed_body_dict(dl_mgr, committed.log_object_id)
-    assert noop_entries[0].payload_snapshot == snapshot
 
 
 @pytest.mark.spec("EMB-17-004")
 @pytest.mark.spec("IE-10-001")
 @pytest.mark.spec("VM-08-002")
-def test_a_resent_late_accept_without_evidence_keeps_its_acknowledgement():
-    """A resend of the archived late Accept is routed with no received body.
+@pytest.mark.parametrize("evidence", ["archived body", "no received body"])
+def test_a_redelivered_late_accept_gets_the_same_result(evidence: str):
+    """A redelivery of the late Accept also records and sends nothing.
 
-    The acknowledgement already recorded for that Accept stands: nothing new
-    is committed, and the resend is not an internal error.
+    The inbox routes a resend either as the body intake archived or with no
+    received body at all (IE-10-001, VM-08-002).  Nothing is built from the
+    Accept, so either way the arm answers it the same: ``SKIPPED``, with no
+    entry and no message.
     """
-    net = _Network("https://example.org/cases/answer-noop-late-accept-resend")
+    net = _Network(
+        "https://example.org/cases/answer-noop-late-accept-"
+        + evidence.replace(" ", "-")
+    )
     body, _accept_id, _bystander_pid, _revision_id = (
         _late_accept_on_an_exited_embargo(net)
     )
-    net.receive(MANAGER, body)
-    resend = received_event(
-        parse_activity(body),
-        receiving_actor_id=MANAGER,
-        received_evidence=None,
-    )
+    first = net.receive(MANAGER, body)
+    before = _no_trace(net)
 
-    net.receive_event(MANAGER, resend)
+    if evidence == "archived body":
+        again = net.receive(MANAGER, body)
+    else:
+        resend = received_event(
+            parse_activity(body),
+            receiving_actor_id=MANAGER,
+            received_evidence=None,
+        )
+        again = net.receive_event(MANAGER, resend)
 
-    assert (
-        _semantic_types(net, MANAGER).count(INVITE_EXPIRED_NOOP_SEMANTIC_TYPE)
-        == 1
-    )
-
-
-@pytest.mark.spec("EMB-17-004")
-@pytest.mark.spec("IE-10-001")
-@pytest.mark.spec("ID-04-004")
-def test_a_resent_late_accept_with_the_archived_body_commits_nothing_new():
-    """A resend routed as the archived copy carries the first body.
-
-    The inbox routes the body intake archived, as its evidence (IE-10-001,
-    VM-08-002), so the acknowledgement arm has a body to carry; the
-    acknowledgement already recorded still stands and no second one is
-    committed.
-    """
-    net = _Network("https://example.org/cases/answer-late-accept-archived")
-    body, _accept_id, _bystander_pid, _revision_id = (
-        _late_accept_on_an_exited_embargo(net)
-    )
-    net.receive(MANAGER, body)
-    entries = len(_semantic_types(net, MANAGER))
-
-    net.receive(MANAGER, body)
-
-    assert (
-        _semantic_types(net, MANAGER).count(INVITE_EXPIRED_NOOP_SEMANTIC_TYPE)
-        == 1
-    )
-    assert len(_semantic_types(net, MANAGER)) == entries
-
-
-@pytest.mark.spec("CLP-10-026")
-@pytest.mark.spec("VM-08-002")
-@pytest.mark.spec("IE-10-001")
-def test_a_late_accept_with_no_body_and_no_acknowledgement_is_refused():
-    """With no received body and nothing recorded, the arm cannot answer.
-
-    The acknowledgement carries the Accept inline, so a resend routed without
-    its body is answered only by an acknowledgement already recorded.  With
-    none, the arm's condition does not hold (CLP-10-026): the delivery falls
-    to the late-Accept guard and is refused, a sender-caused verdict, not an
-    internal error, and nothing is committed.
-    """
-    net = _Network("https://example.org/cases/answer-late-accept-no-body")
-    body, _accept_id, _bystander_pid, _revision_id = (
-        _late_accept_on_an_exited_embargo(net)
-    )
-    resend = received_event(
-        parse_activity(body),
-        receiving_actor_id=MANAGER,
-        received_evidence=None,
-    )
-
-    verdict = net.receive_event(MANAGER, resend)
-
-    assert verdict.disposition is HandlerDisposition.REFUSED, verdict.reason
-    assert INVITE_EXPIRED_NOOP_SEMANTIC_TYPE not in _semantic_types(
-        net, MANAGER
-    )
+    assert first.disposition is HandlerDisposition.SKIPPED, first.reason
+    assert again.disposition is HandlerDisposition.SKIPPED, again.reason
+    assert _no_trace(net) == before
 
 
 @pytest.mark.spec("CLP-10-026")
@@ -819,17 +784,17 @@ def test_a_late_accept_answer_that_does_not_complete_raises(monkeypatch):
         _late_accept_on_an_exited_embargo(net)
     )
     monkeypatch.setattr(
-        CommitLateAcceptAcknowledgementNode,
+        LateAcceptChangesNothingNode,
         "update",
         lambda self: Status.FAILURE,
     )
 
-    with pytest.raises(VultronBTInternalError, match="AcknowledgeLateAccept"):
+    before = _no_trace(net)
+
+    with pytest.raises(VultronBTInternalError, match="LateAcceptBindsNothing"):
         net.receive(MANAGER, body)
 
-    assert INVITE_EXPIRED_NOOP_SEMANTIC_TYPE not in _semantic_types(
-        net, MANAGER
-    )
+    assert _no_trace(net) == before
     participant = cast(
         CaseParticipant, net.stores[MANAGER].read(bystander_pid)
     )

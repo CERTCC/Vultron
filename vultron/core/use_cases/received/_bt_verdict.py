@@ -364,7 +364,7 @@ def stale_case_copy_verdict(
 
     :class:`~vultron.core.behaviors.case.nodes.announce.CaseCopyNotStaleNode`
     fails with ``is_stale`` set when the replica already holds entries past
-    the copy's ledger tail, so the case is left unchanged.  That is the
+    the copy's ledger position, so the case is left unchanged.  That is the
     benign no-op of a late copy, not a refusal (SYNC-16-006, HP-01-003).
     """
     guard = find_node(tree, CaseCopyNotStaleNode)

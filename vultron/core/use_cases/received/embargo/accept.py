@@ -24,6 +24,7 @@ from vultron.core.behaviors.embargo.announce_teardown_tree import (
 from vultron.core.behaviors.embargo.expiry_tree import (
     LATE_ACCEPT_DIVERSIONS,
 )
+from vultron.core.behaviors.embargo.nodes.late_accept import LateAcceptRoute
 from vultron.core.behaviors.embargo.refusal_tree import PXA_ACCEPT_REFUSAL
 from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
@@ -152,7 +153,13 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             tree, result, case_id=case_id, invite_id=invite_id
         )
         if verdict.disposition is not HandlerDisposition.APPLIED:
-            logger.warning(
+            # A correct no-op is not a warning (SL-01-001).
+            log = (
+                logger.info
+                if verdict.disposition is HandlerDisposition.SKIPPED
+                else logger.warning
+            )
+            log(
                 "%s (embargo '%s', case '%s')",
                 verdict.reason,
                 embargo_id,
@@ -185,12 +192,19 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
         ) is not None:
             return refusal
-        for name in LATE_ACCEPT_DIVERSIONS.values():
+        for route, name in LATE_ACCEPT_DIVERSIONS.items():
             if (stage := taken_diversion(tree, name)) is None:
                 continue
             if not stage.effects_succeeded:
                 raise VultronBTInternalError(
                     f"{name}: {failure_reason(stage.effects, result)}"
+                )
+            if route is LateAcceptRoute.UNBOUND:
+                # Nothing to bind, so nothing changed (EMB-17-004).
+                return HandlerResult.skipped(
+                    f"late Accept of Invite '{invite_id}' on case"
+                    f" '{case_id}': the case holds no embargo for it to bind"
+                    " (EMB-17-004)"
                 )
             # The late Accept was answered, not recorded (EMB-17-001).
             return HandlerResult.applied()

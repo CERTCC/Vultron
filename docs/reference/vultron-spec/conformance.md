@@ -9,6 +9,8 @@ page_type: reference
 
 # Conformance
 
+{% include-markdown "../../includes/normative.md" %}
+
 {% include-markdown "./_full-page-tip.md" %}
 
 This page holds section 12 of the [Vultron Protocol Specification](index.md): what an implementation claims when it claims conformance, and how that claim is tested.

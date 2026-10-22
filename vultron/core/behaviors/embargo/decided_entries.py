@@ -321,6 +321,7 @@ def commit_and_apply_decision(
     actor_id: str,
     cause_id: str,
     act_commit: Callable[[], Any] | None = None,
+    on_row_commit: Callable[[dict[str, Any]], None] | None = None,
 ) -> EmbargoCaseFile:
     """Commit the act's entry, then each consent-row entry; apply by copying.
 
@@ -330,7 +331,8 @@ def commit_and_apply_decision(
     its own (the CASE_MANAGER's policy consent is its row's entry alone).
     *cause_id* names the act each consent-row ``Update`` follows; its id is
     derived from it and the row (ID-04-004).  *actor_id* is the executing
-    CASE_MANAGER, who authors every consent-row entry.
+    CASE_MANAGER, who authors every consent-row entry.  *on_row_commit*,
+    when given, is called with each consent-row entry's committed snapshot.
 
     Raises:
         VultronEntryRefusedError: the case changed since the decision, and
@@ -351,6 +353,7 @@ def commit_and_apply_decision(
             case_id=decision.case_id,
             change=row,
             cause_id=cause_id,
+            on_commit=on_row_commit,
         )
         for row in decision.rows
     )

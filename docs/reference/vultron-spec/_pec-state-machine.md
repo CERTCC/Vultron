@@ -85,6 +85,11 @@ Each is a read of the participant's rows and the case's register, and neither is
 
 With no `ACTIVE` entry nobody is a signatory and nobody has lapsed.
 After an embargo is terminated no entry is `ACTIVE`, so the termination writes no row: every participant's position follows from the register alone (CM-18-016, MSM-07-006).
+Abandoning an open proposal once the case is public, an exploit is public or attacks are observed writes no row either (EMB-16-001).
+The CASE_MANAGER cancels the proposal with its `Reject` of the proposal it received, or its `Undo` of one it made itself, and then withdraws each invitation it relayed for the proposal with an `Undo`.
+Each row for the canceled proposal is frozen as it stood.
+The CASE_MANAGER's `Reject` is its abandonment, not its consent (MSM-07-004).
+A CASE_MANAGER that has a stake in an embargo therefore records its own answer as its own update of the row, never as a `Reject`.
 
 A participant lapses when the case owner activates a revision that ends later than the embargo the participant agreed to, and the participant has not agreed to the revision.
 It did agree, and the embargo in force has since become something it did not agree to.
@@ -175,9 +180,9 @@ This is why the minimum window above is relative rather than absolute: a 12-hour
 The CASE_MANAGER MUST NOT refuse a late accept on deadline grounds (EMB-17-001).
 Three cases apply:
 
-- If the terms it accepts are the case's current embargo, the CASE_MANAGER records the consent: a `TIMED_OUT` or `DECLINED` row moves to `AGREED` directly (EMB-17-002).
-- If the terms are stale, the CASE_MANAGER sends a fresh invitation carrying the current terms (EMB-17-003).
-- If no embargo remains, the CASE_MANAGER records the accept as a no-op and leaves the rows unchanged; the participant keeps its place in the case either way (EMB-17-004, EMB-17-008).
+- If the terms it accepts are the case's current embargo, the CASE_MANAGER records the accept exactly as an on-time accept: its entry is the accept itself, and a `TIMED_OUT` or `DECLINED` row moves to `AGREED` directly (EMB-17-002).
+- If the terms are stale, the CASE_MANAGER relays a fresh invitation carrying the current terms, on behalf of their proposer (EMB-17-003).
+- If no embargo remains, the accept changes nothing: the CASE_MANAGER records no entry, sends no reply and leaves the rows unchanged; the participant keeps its place in the case either way (EMB-17-004, EMB-17-008).
 
 **A time-out and a refusal reach different states.**
 Silence records `TIMED_OUT`; an explicit refusal records `DECLINED`.

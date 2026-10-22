@@ -20,6 +20,7 @@ AC-2: Guard nodes inherit SilentIdempotencyGuardMixin.
 AC-3: CLP-13-001 and CLP-13-002 satisfied.
 """
 
+import py_trees
 import pytest
 from py_trees.common import Status
 
@@ -68,16 +69,25 @@ class TestSilentIdempotencyGuardMixinMembership:
 def _seed_case_with_participant(
     bt_scenario: BTTestScenario,
     *,
-    backfill_complete: bool = True,
+    joined: bool = True,
+    removed: bool = False,
+    paused: bool = False,
 ) -> VulnerabilityCase:
-    """Seed a case that already has the invitee as a participant."""
+    """Seed a case whose roster already holds the invitee's record.
+
+    ``paused`` also stores an embargo-pause replication state for it, which
+    the guard must not read (CM-17-012).
+    """
     from vultron.core.models.replication_state import VultronReplicationState
 
     participant = CaseParticipant(
         id_=f"{_CASE_ID}/participants/invitee",
         attributed_to=_INVITEE_ID,
         context=_CASE_ID,
+        joined=joined,
     )
+    if removed:
+        participant.record_removal(f"{_CASE_ID}/removals/1")
     case = VulnerabilityCase(
         id_=_CASE_ID,
         name="Test Case",
@@ -85,17 +95,14 @@ def _seed_case_with_participant(
     case.add_participant(participant)
     bt_scenario.dl.create(participant)
     bt_scenario.dl.create(case)
-
-    if backfill_complete:
-        state = VultronReplicationState(
-            case_id=_CASE_ID,
-            peer_id=_INVITEE_ID,
-            join_backfill_target_index=0,
-            join_backfill_last_sent_index=0,
-            join_backfill_complete=True,
+    if paused:
+        bt_scenario.dl.save(
+            VultronReplicationState(
+                case_id=_CASE_ID,
+                peer_id=_INVITEE_ID,
+                embargo_paused_from_index=0,
+            )
         )
-        bt_scenario.dl.save(state)
-
     return case
 
 
@@ -106,96 +113,105 @@ def _seed_fresh_case(bt_scenario: BTTestScenario) -> VulnerabilityCase:
     return case
 
 
+def _run_guard(bt_scenario: BTTestScenario) -> Status:
+    node = CheckInviteeNotAlreadyParticipantNode(
+        case_id=_CASE_ID, invitee_id=_INVITEE_ID
+    )
+    return bt_scenario.run(node, actor_id=_ACTOR_ID).status
+
+
 @pytest.mark.spec("CM-17-005")
+@pytest.mark.spec("CM-17-012")
 class TestCheckInviteeNotAlreadyParticipantNode:
-    """CLP-13-001: guard FAILURE must not call create_commit_log_entry_tree."""
+    """The duplicate test reads the participant record alone (CM-17-012)."""
 
-    def test_returns_failure_when_backfill_complete_duplicate(
-        self, bt_scenario: BTTestScenario
+    @pytest.mark.parametrize(
+        "seed",
+        [
+            {"joined": True},
+            {"joined": True, "paused": True},
+            {"joined": True, "removed": True},
+            {"joined": False, "removed": True},
+        ],
+        ids=[
+            "joined-no-replication-state",
+            "joined-embargo-paused",
+            "removed",
+            "removed-before-joining",
+        ],
+    )
+    def test_a_joined_or_removed_invitee_is_a_duplicate(
+        self, bt_scenario: BTTestScenario, seed: dict[str, bool]
     ) -> None:
-        """True duplicate (backfill complete) → FAILURE."""
-        _seed_case_with_participant(bt_scenario, backfill_complete=True)
-        node = CheckInviteeNotAlreadyParticipantNode(
-            case_id=_CASE_ID, invitee_id=_INVITEE_ID
-        )
-        result = bt_scenario.run(node, actor_id=_ACTOR_ID)
-        assert result.status == Status.FAILURE
+        """FAILURE with no ledger entry (CLP-13-001), whatever its state."""
+        _seed_case_with_participant(bt_scenario, **seed)
 
-    def test_no_ledger_entry_written_on_true_duplicate(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        """AC-1: no CaseLedgerEntry is written to the datalayer when a duplicate fires."""
-        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-
-        _seed_case_with_participant(bt_scenario, backfill_complete=True)
-        node = CheckInviteeNotAlreadyParticipantNode(
-            case_id=_CASE_ID, invitee_id=_INVITEE_ID
-        )
-        bt_scenario.run(node, actor_id=_ACTOR_ID)
-        entries = [
-            obj
-            for obj in bt_scenario.dl.list_objects("CaseLedgerEntry")
-            if isinstance(obj, CaseLedgerEntry) and obj.case_id == _CASE_ID
-        ]
-        assert entries == [], (
-            f"Guard wrote {len(entries)} ledger entry/entries — CLP-13-001 violated"
+        assert _run_guard(bt_scenario) == Status.FAILURE
+        assert bt_scenario.dl.list_objects("CaseLedgerEntry") == [], (
+            "the guard wrote a ledger entry — CLP-13-001 violated"
         )
 
-    def test_returns_success_for_a_seated_participant_with_no_backfill(
+    def test_an_inert_invitee_proceeds(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        """Seated, no replication state marker → SUCCESS, tree continues."""
-        _seed_case_with_participant(bt_scenario, backfill_complete=False)
-        node = CheckInviteeNotAlreadyParticipantNode(
-            case_id=_CASE_ID, invitee_id=_INVITEE_ID
-        )
-        result = bt_scenario.run(node, actor_id=_ACTOR_ID)
-        assert result.status == Status.SUCCESS
+        """An inert record's first Accept joins it (CM-17-004, CM-11-006)."""
+        _seed_case_with_participant(bt_scenario, joined=False)
+        assert _run_guard(bt_scenario) == Status.SUCCESS
 
-    def test_returns_success_when_not_participant(
+    def test_an_invitee_with_no_record_proceeds_to_the_refusal(
         self, bt_scenario: BTTestScenario
     ) -> None:
+        """No record is not a duplicate: CM-11-021 refuses it next."""
         _seed_fresh_case(bt_scenario)
-        node = CheckInviteeNotAlreadyParticipantNode(
-            case_id=_CASE_ID, invitee_id=_INVITEE_ID
-        )
-        result = bt_scenario.run(node, actor_id=_ACTOR_ID)
-        assert result.status == Status.SUCCESS
+        assert _run_guard(bt_scenario) == Status.SUCCESS
 
-    def test_sets_invitee_already_participant_true_on_true_duplicate(
-        self, bt_scenario: BTTestScenario
+    @pytest.mark.spec("BT-17-003")
+    @pytest.mark.parametrize(
+        ("joined", "expected_status"),
+        [(False, Status.SUCCESS), (True, Status.FAILURE)],
+        ids=["inert-writes-the-case", "duplicate-clears-it"],
+    )
+    def test_invitee_case_is_the_case_or_cleared(
+        self,
+        bt_scenario: BTTestScenario,
+        joined: bool,
+        expected_status: Status,
     ) -> None:
-        """Guard writes invitee_already_participant=True before returning FAILURE."""
-        import py_trees
+        """SUCCESS hands the consent nodes the case; a duplicate clears it."""
+        case = _seed_case_with_participant(bt_scenario, joined=joined)
+        captured: list[object] = []
 
-        _seed_case_with_participant(bt_scenario, backfill_complete=True)
-        node = CheckInviteeNotAlreadyParticipantNode(
+        class _Probe(py_trees.behaviour.Behaviour):
+            def update(self) -> Status:
+                captured.append(
+                    py_trees.blackboard.Blackboard.storage.get("/invitee_case")
+                )
+                return Status.SUCCESS
+
+        guard = CheckInviteeNotAlreadyParticipantNode(
             case_id=_CASE_ID, invitee_id=_INVITEE_ID
         )
-        bt_scenario.run(node, actor_id=_ACTOR_ID)
-        bb = py_trees.blackboard.Client(name="test-reader")
-        bb.register_key(
-            key="invitee_already_participant",
-            access=py_trees.common.Access.READ,
+        tree = py_trees.composites.Selector(
+            name="GuardOrProbe",
+            memory=False,
+            children=[
+                py_trees.composites.Sequence(
+                    name="GuardThenProbe",
+                    memory=False,
+                    children=[guard, _Probe(name="AfterSuccess")],
+                ),
+                _Probe(name="AfterFailure"),
+            ],
         )
-        assert bb.get("invitee_already_participant") is True
 
-    def test_sets_invitee_already_participant_false_on_fresh(
-        self, bt_scenario: BTTestScenario
-    ) -> None:
-        import py_trees
+        # A stale case from an earlier run must not survive a duplicate.
+        bt_scenario.run(tree, actor_id=_ACTOR_ID, invitee_case="stale")
 
-        _seed_fresh_case(bt_scenario)
-        node = CheckInviteeNotAlreadyParticipantNode(
-            case_id=_CASE_ID, invitee_id=_INVITEE_ID
-        )
-        bt_scenario.run(node, actor_id=_ACTOR_ID)
-        bb = py_trees.blackboard.Client(name="test-reader-fresh")
-        bb.register_key(
-            key="invitee_already_participant",
-            access=py_trees.common.Access.READ,
-        )
-        assert bb.get("invitee_already_participant") is False
+        assert guard.status == expected_status
+        if expected_status == Status.SUCCESS:
+            assert captured == [case]
+        else:
+            assert captured == [None]
 
     def test_returns_failure_when_case_not_found(
         self, bt_scenario: BTTestScenario

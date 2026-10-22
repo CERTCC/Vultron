@@ -455,7 +455,8 @@ groups:
       Recipients MAY ignore messages received on Closed cases, whatever the
       message class: RM ($R*$), EM, CS and general-inquiry ($GI$) messages
       alike. For the CASE_MANAGER, owner close is a hard kill switch rather than
-      a permission: once `case_fully_closed` is committed it MUST NOT record any
+      a permission: once its own RM.CLOSED status entry is committed it MUST NOT record
+      any
       later inbound message for the case (CM-23-013).
     rationale: >-
       The 2022 rule was read as scoped to $R*$ messages, so a note ($GI$) sent after
@@ -474,7 +475,9 @@ groups:
   - id: VP-04-001
     priority: MUST
     kind: protocol
-    statement: Every accepted embargo MUST have a non-null end_time; embargoes without a specified endpoint MUST NOT be accepted.
+    statement: >-
+      Every accepted embargo MUST specify an end time (`endTime`); an embargo without
+      one MUST NOT be accepted.
     verification: >-
       Inspection of `vultron/core/models/embargo_event.py` confirms that
       `end_time` is a required `datetime` field with no `None` default, and a
@@ -1704,7 +1707,7 @@ groups:
   specs:
   - id: VP-15-001
     priority: SHOULD
-    kind: protocol
+    kind: architecture
     statement: >-
       Vultron Protocol messages SHOULD use well-defined format specifications (e.g., JSON
       Schema, protobuf, XSD)
@@ -1712,7 +1715,7 @@ groups:
     - story_2022_106
   - id: VP-15-002
     priority: SHOULD
-    kind: protocol
+    kind: architecture
     statement: >-
       Vultron Protocol implementations SHOULD use common API patterns (e.g., REST, WebSockets)
       for inter-participant communication
@@ -1726,7 +1729,7 @@ groups:
     - story_2022_106
   - id: VP-15-003
     priority: SHOULD
-    kind: protocol
+    kind: architecture
     statement: >-
       Vultron Protocol implementations SHOULD use transport-layer encryption to protect sensitive
       data in transit
@@ -1747,7 +1750,7 @@ groups:
     - story_2022_091
   - id: VP-15-005
     priority: MAY
-    kind: protocol
+    kind: architecture
     statement: >-
       Vultron Protocol implementations MAY use encryption to protect sensitive data at rest
     scope:

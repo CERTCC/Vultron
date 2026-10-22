@@ -44,14 +44,7 @@ from test.architecture._announce_slots import (
     REPLICA,
     matching_slots,
 )
-from vultron.core.behaviors.sync.nodes.event_conditions import (
-    EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
-)
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.rsvp_deadline import (
-    EMBARGO_REINVITE_SEMANTIC_TYPE,
-    INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-)
 
 EMBARGO = {
     "type": "EmbargoEvent",
@@ -93,11 +86,24 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
             "object": EMBARGO,
         },
     ),
-    "the manager's re-invite of a stale accepter": (
-        EMBARGO_REINVITE_SEMANTIC_TYPE,
+    # A re-invite is a relay (ADR-0152): attributed to the embargo's
+    # proposer, the manager itself for terms it made without a proposal.
+    "the manager's re-invite to terms a participant proposed": (
+        _INVITE,
         {
             "type": "Invite",
             "actor": MANAGER,
+            "attributedTo": PROPOSER,
+            "to": [REPLICA],
+            "object": EMBARGO,
+        },
+    ),
+    "the manager's re-invite to terms it made itself": (
+        _INVITE,
+        {
+            "type": "Invite",
+            "actor": MANAGER,
+            "attributedTo": MANAGER,
             "to": [REPLICA],
             "object": EMBARGO,
         },
@@ -114,9 +120,15 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
         {"type": "Leave", "actor": REPLICA, "object": EMBARGO},
     ),
-    "the manager's abandonment of an Invite": (
-        EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
+    # The manager's abandonment (EMB-16-001, ADR-0152): its Reject shares the
+    # participant's semantic type and is told apart by ``actor``.
+    "the manager's Reject of a proposal it received": (
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value,
         {"type": "Reject", "actor": MANAGER, "object": {"object": EMBARGO}},
+    ),
+    "the manager's Undo of an Invite it sent": (
+        MessageSemantics.UNDO_INVITE_TO_EMBARGO_ON_CASE.value,
+        {"type": "Undo", "actor": MANAGER, "object": {"object": EMBARGO}},
     ),
     "teardown": (
         MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value,
@@ -130,19 +142,16 @@ REPLAYED: dict[str, tuple[str, dict[str, Any]]] = {
         MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value,
         {"type": "Reject", "actor": PROPOSER, "object": EMBARGO},
     ),
-    "noop late accept": (
-        INVITE_EXPIRED_NOOP_SEMANTIC_TYPE,
-        {
-            "type": "Ignore",
-            "actor": MANAGER,
-            "object": {
-                "type": "Accept",
-                "actor": REPLICA,
-                "object": {"type": "Invite", "object": EMBARGO},
-            },
-        },
-    ),
 }
+
+#: Shapes replayed against a replica whose register holds the embargo in
+#: force: a re-invite names terms the case already has (EMB-17-003).
+IN_FORCE: frozenset[str] = frozenset(
+    {
+        "the manager's re-invite to terms a participant proposed",
+        "the manager's re-invite to terms it made itself",
+    }
+)
 
 #: Embargo semantic types outside the revision relay, and who owns them.
 OUTSIDE_THE_RELAY: dict[str, str] = {
@@ -170,12 +179,38 @@ def test_every_embargo_semantic_is_classified():
 @pytest.mark.parametrize("shape", sorted(REPLAYED))
 def test_each_relay_entry_has_exactly_one_replay_slot(shape):
     semantic_type, snapshot = REPLAYED[shape]
-    matched = matching_slots(semantic_type, snapshot)
+    matched = matching_slots(
+        semantic_type,
+        snapshot,
+        active_embargo=EMBARGO["id"] if shape in IN_FORCE else None,
+    )
     assert len(matched) == 1, f"{shape}: {matched}"
 
 
-@pytest.mark.spec("RSH-08-004")
-@pytest.mark.parametrize("semantic_type", sorted(OUTSIDE_THE_RELAY))
-def test_entries_outside_the_relay_have_no_slot_yet(semantic_type):
-    """A slot here means the type is replayed: move it to ``REPLAYED``."""
-    assert matching_slots(semantic_type, {"actor": MANAGER}) == []
+@pytest.mark.spec("EMB-17-003")
+@pytest.mark.parametrize("shape", sorted(IN_FORCE))
+def test_a_reinvite_is_applied_by_the_relay_slot(shape):
+    """It proposes nothing, so it never reaches the proposal slot."""
+    semantic_type, snapshot = REPLAYED[shape]
+    assert matching_slots(
+        semantic_type, snapshot, active_embargo=EMBARGO["id"]
+    ) == ["IsEmbargoInviteRelayEvent"]
+
+
+@pytest.mark.spec("EMB-16-001")
+@pytest.mark.spec("SE-03-004")
+@pytest.mark.parametrize(
+    ("shape", "slot"),
+    [
+        (
+            "the manager's Reject of a proposal it received",
+            "IsEmbargoAbandonmentEvent",
+        ),
+        ("Reject of an Invite", "IsEmbargoRejectionEvent"),
+    ],
+)
+def test_the_managers_reject_and_a_participants_take_different_slots(
+    shape, slot
+):
+    """One semantic type, told apart after routing by ``actor`` (ADR-0152)."""
+    assert matching_slots(*REPLAYED[shape]) == [slot]

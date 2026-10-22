@@ -77,37 +77,19 @@ an Offer can also close without an answer (#4490):
     ledgered Offer carries it; `RecordedOwnershipOffer.end_time` reads it back in
     UTC. The owner sets it on the proposal's inner Offer, and the Offer the
     CASE_MANAGER makes carries it to the transferee (CM-21-016).
-  - **Two readers, one deadline.** `OwnershipOfferOpenNode` refuses a
-    reply at or after `end_time` even when no expiry entry exists, so a lost
-    expiry commit never admits a late answer; the expiry step runs first and
-    normally makes the guard refuse it as closed instead. Both compare against
-    the same `now`, read once per delivery from `now_utc()`.
-- **Expiry (CM-21-017) — implemented.** The CASE_MANAGER finds an expired Offer
-  lazily, when it next processes an Accept, Reject or Undo of the Offer or a new
-  proposal for the case, and withdraws it before acting
-  (`ExpireOverdueOwnershipOfferNode`, a clock decision). The act is the
-  CASE_MANAGER's own factory-built `Undo(Offer)` of the Offer it made,
-  carrying the Offer inline with the `endTime` it passed and stamped with its
-  clock, committed from its sealed blob as a distinct
-  `offer_case_ownership_transfer_expired` entry (ADR-0140). The owner's own
-  withdrawal is an `Undo` of its proposal instead (CM-21-015). Its
-  `semantic_type` is in `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so it
-  closes the Offer. It is `NO_REPLICA_EFFECT`: replicas learn expiry from the
-  entry and never compute it, as for embargo Invite expiry (CM-28-014).
-  - **Why a clock decision.** The expiry is the CASE_MANAGER's own decision
-    from its clock, committed as its own entry before the activity is judged
-    (CLP-07-013), and ledgered even when that activity is then admitted (a new
-    proposal, CM-21-014). So each of the four received trees passes it as a
-    clock decision, which the factory runs after the door guards and before
-    the open-Offer guards (CLP-10-025, ADR-0135; [bt-integration](bt-integration.md)
-    § "The Received-Side Stages"); after `case_fully_closed`
-    the post-close door guard ends the tree first (CM-23-013).
-  - **Only the party prompts it.** An Accept, Reject or Undo prompts the expiry
-    only when it names the open Offer and its sender is that Offer's transferee
-    (Accept, Reject) or offerer (Undo) — `ExpiryPrompt` / `OfferParty` — so a
-    sender with no standing never makes the CASE_MANAGER write (HP-01-006), as
-    the embargo Invite expiry checks the invitee first. A new Offer prompts it
-    with no prompt, because its handler refuses a sender that is not the Case
-    Owner before the expiry runs (CM-21-019).
+  - **One reader, the Offer's own deadline.** `OwnershipOfferOpenNode` refuses a
+    reply at or after the ledgered Offer's `end_time`, and `open_ownership_offer`
+    treats an Offer past it as closed, so a new proposal is admitted
+    (`RecordedOwnershipOffer.is_open_at`). Both run behind the CASE_MANAGER
+    gate and compare against one `now` per delivery, read from `now_utc()`.
+- **Expiry (CM-21-017) — implemented.** The expiry is an observation, not an
+  act: nothing is ledgered or sent for it, because every holder of the ledger
+  can read the deadline from the Offer and no replica changes when it passes
+  (ADR-0152). The CASE_MANAGER reads it lazily, when it next processes an
+  Accept, Reject or Undo of the Offer or a new proposal for the case; it is no
+  clock decision (CLP-10-025). A late reply from a sender with no standing is
+  refused by the sender guard first, before the Offer's state is read
+  (HP-01-006, CM-21-019); after the case is fully closed the post-close door
+  guard ends the tree first (CM-23-013).
   - **Ask kind.** `OFFER_CASE_OWNERSHIP_TRANSFER_EXPIRY` is `AskExpiry.VOID`
     (ASK-03-002): a late reply authorizes nothing.

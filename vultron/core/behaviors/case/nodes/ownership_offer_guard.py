@@ -17,6 +17,8 @@
 
 Provides:
 
+- :class:`OfferParty` — which party to an Offer sent the reply a guard
+  checks.
 - :class:`OwnershipProposalAdmissibleNode` — precondition guard that refuses
   a proposal whose inner Offer names another case or no actor the
   CASE_MANAGER can address (ADR-0148).
@@ -33,13 +35,11 @@ Provides:
 """
 
 from datetime import datetime
+from enum import Enum
 
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.ownership_offer_expiry import (
-    OfferParty,
-)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
@@ -54,6 +54,16 @@ from vultron.core.participants.ownership_offer import (
 )
 from vultron.core.predicates.addressing import same_actor_id
 from vultron.errors import VultronBTInternalError, VultronNotFoundError
+
+
+class OfferParty(Enum):
+    """The party to an ownership-transfer Offer whose reply is checked."""
+
+    TRANSFEREE = "transferee"
+    """Answers the Offer: Accept or Reject (CM-21-011)."""
+
+    OFFERER = "offerer"
+    """Withdraws the Offer: Undo (CM-21-015)."""
 
 
 class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
@@ -139,10 +149,10 @@ class NoOpenOwnershipOfferNode(
     accept the same case (CM-21-014, CM-21-001).  "Open" is read from the
     case ledger through
     :func:`~vultron.core.participants.ownership_offer.open_ownership_offer`
-    (CLP-11-001): an Offer stays open until the ledger holds an answer,
-    withdrawal or expiry recorded after it.  Once it is closed, a new
-    proposal is admitted for any transferee, including the one that
-    declined.
+    (CLP-11-001): an Offer stays open until the ledger holds an answer or a
+    withdrawal recorded after it, or *now* reaches the ``end_time`` the
+    ledgered Offer carries (CM-21-017).  Once it is closed, a new proposal
+    is admitted for any transferee, including the one that declined.
 
     A **redelivery** of a proposal the CASE_MANAGER already made its Offer
     from is not a new proposal and not a refusal (HP-01-003), but it must
@@ -165,12 +175,25 @@ class NoOpenOwnershipOfferNode(
         case_id: str,
         proposal_id: str,
         proposer_id: str,
+        now: datetime | None = None,
         name: str | None = None,
     ) -> None:
+        """Create the guard.
+
+        Args:
+            case_id: The case the proposal names.
+            proposal_id: The proposal's own id, so a redelivery is
+                recognised.
+            proposer_id: The proposal's sender.
+            now: The instant an earlier Offer's ``end_time`` is compared
+                against; ``None`` reads the clock when the guard runs.
+            name: Optional node name.
+        """
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.proposal_id = proposal_id
         self.proposer_id = proposer_id
+        self._now = now
         self.is_redelivery = False
         """``True`` when the last run found the Offer made from this
         proposal already ledgered: a benign no-op, not a refusal."""
@@ -193,7 +216,9 @@ class NoOpenOwnershipOfferNode(
             )
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        earlier = open_ownership_offer(self.datalayer, self.case_id)
+        earlier = open_ownership_offer(
+            self.datalayer, self.case_id, self._now or now_utc()
+        )
         if earlier is None:
             return Status.SUCCESS
         self.feedback_message = (
@@ -212,6 +237,7 @@ def case_manager_admits_ownership_proposal_guard(
     proposed_case_id: str | None,
     transferee_id: str | None,
     proposer_id: str,
+    now: datetime | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Precondition guards: at the CASE_MANAGER, the proposal is admissible.
 
@@ -231,6 +257,7 @@ def case_manager_admits_ownership_proposal_guard(
                 case_id=case_id,
                 proposal_id=proposal_id,
                 proposer_id=proposer_id,
+                now=now,
             ),
             OwnershipProposalAdmissibleNode(
                 case_id=case_id,
@@ -274,18 +301,15 @@ class OwnershipOfferOpenNode(
       would hand it back with no ledger entry.  The guard sets
       :attr:`is_redelivery` and fails, so nothing downstream runs, and the
       handler reports the run as ``SKIPPED``.
-    - A reply to an Offer an answer, withdrawal or expiry already closed is
-      refused (CM-21-014).
+    - A reply to an Offer an answer or withdrawal already closed is refused
+      (CM-21-014).
     - A reply after the Offer's ``end_time`` is refused (CM-21-016).
 
-    The deadline is read here as well as by the CASE_MANAGER's expiry, the
-    clock decision that runs first in the same tree and ledgers it
-    (:class:`~vultron.core.behaviors.case.nodes.ownership_offer_expiry.ExpireOverdueOwnershipOfferNode`,
-    CLP-10-025): a reply after ``end_time`` is refused even when that record could not be
-    committed, so the deadline binds whatever the ledger holds.  A replica
-    never reads it: it learns an expiry only from the entry (CM-21-017), so
-    the guard runs behind the CASE_MANAGER gate
-    (:func:`case_manager_ownership_offer_open_guard`).
+    The deadline is the ``end_time`` the ledgered Offer carries, and nothing
+    records its passing (CM-21-017, ADR-0152): the CASE_MANAGER compares it
+    with its own clock here, so the guard runs behind the CASE_MANAGER gate
+    (:func:`case_manager_ownership_offer_open_guard`).  A replica changes
+    nothing on an expiry, so it never evaluates one.
 
     Spec: CM-21-011, CM-21-013, CM-21-014, CM-21-015, CM-21-016, HP-01-003.
     """
@@ -312,9 +336,8 @@ class OwnershipOfferOpenNode(
                 check has already established its standing.
             party: The party whose reply it is; it picks the requirements a
                 refusal cites.
-            now: The instant the deadline is compared against: the one the
-                CASE_MANAGER's expiry step used.  ``None`` reads the clock
-                when the guard runs.
+            now: The instant the deadline is compared against.  ``None``
+                reads the clock when the guard runs.
             name: Optional node name.
         """
         super().__init__(name=name or self.__class__.__name__)
@@ -393,8 +416,6 @@ class OwnershipOfferOpenNode(
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
         if offer.is_answered_other_than(self._reply_id):
-            if offer.closed_by_expiry:
-                return self._refuse_late(offer)
             return self._refuse(
                 f"Ownership-transfer Offer '{offer.offer_id}' for case"
                 f" '{self._case_id}' was already closed by"
@@ -418,7 +439,7 @@ def case_manager_ownership_offer_open_guard(
 
     A replica skips it as ``SUCCESS``: it takes the change from the
     CASE_MANAGER alone, which the sender check establishes (PCR-03-001),
-    and learns an Offer's closing only from the ledger (CM-21-017).  A
+    and changes nothing when an Offer expires (CM-21-017).  A
     receiver that does not hold the case is not its CASE_MANAGER (ADR-0087
     Regime 3).
     """

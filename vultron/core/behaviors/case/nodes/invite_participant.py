@@ -16,9 +16,10 @@
 
 """Invitee idempotency and record-exists guard nodes.
 
-Guards a duplicate ``Accept(Invite(actor, case))`` and refuses an Accept whose
-invitee has no participant record (CM-11-021): the record is created when the
-stub Invite is sent (CM-11-006), never on the Accept.  The activation step
+Guards a duplicate ``Accept(Invite(actor, case))`` from a joined or removed
+participant (CM-17-012), and refuses an Accept whose invitee has no
+participant record (CM-11-021): the record is created when the stub Invite is
+sent (CM-11-006), never on the Accept.  The activation step
 lives in ``invite_participant_persist.py``. Composed by
 ``create_accept_invite_actor_to_case_tree`` (BTND-07-003).
 """
@@ -32,9 +33,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.idempotency import SilentIdempotencyGuardMixin
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.replication_state import VultronReplicationState
 
 logger = logging.getLogger(__name__)
 
@@ -42,39 +41,27 @@ logger = logging.getLogger(__name__)
 class CheckInviteeNotAlreadyParticipantNode(
     SilentIdempotencyGuardMixin, DataLayerConditionWithPorts
 ):
-    """Idempotency guard: FAILURE when invitee is already a fully-joined participant.
+    """Idempotency guard: FAILURE when the invitee is already joined or removed.
 
-    Returns SUCCESS (allow proceeding) when the invitee is NOT yet
-    registered in ``case.actor_participant_index``, or when the invitee IS
-    registered and joined but has no join backfill on record, or when the
-    invitee IS in the index as an *inert* record (``joined=False``,
-    CM-11-006) that has not yet accepted the stub Invite.
+    The answer reads the invitee's participant record alone (CM-17-012),
+    never any replication state the CASE_MANAGER holds for it: the embargo
+    pause, the ledger-sync acknowledgement and the replay guard write that
+    state too.
 
-    Returns FAILURE (abort tree) with no ledger write when the invitee is
-    already a participant AND its join backfill is on record — a true
-    idempotent no-op (CLP-13-001, CLP-13-002).  The backfill commits with the
-    Accept in one act (CLP-07-015), so a recorded backfill is never part-way.
+    - **Joined or removed record** → ``_idempotent_failure`` (FAILURE, INFO
+      log, no ledger write; CLP-13-001, CLP-13-002).  A participant is joined
+      when the case initialization sequence seated it or it already accepted
+      its stub Invite (CM-10-004), so its Accept changes nothing.  A
+      *removed* participant (CM-31-001) is sent no full-case Invite and no
+      backfill until it is reinstated (CM-31-013).
+    - **Inert record** (``joined=False``, CM-11-006) → SUCCESS: its first
+      Accept joins it and runs the backfill (CM-17-004).
+    - **No record** → SUCCESS: ``InviteeHasParticipantRecordNode`` refuses
+      it next, before any write, since an Accept never creates a participant
+      (CM-11-021).
 
-    Four paths:
-
-    1. **No record**: invitee not yet in index → SUCCESS
-       (``invitee_already_participant=False``, ``invitee_joined=False``).
-       ``InviteeHasParticipantRecordNode`` refuses it next, before any write:
-       an Accept never creates a participant (CM-11-021).
-    2. **Inert record** (ADR-0114, CM-11-006): invitee in index but
-       ``joined=False``, no backfill marker yet → SUCCESS with
-       ``invitee_already_participant=True``, ``invitee_joined=False``.
-       Downstream nodes activate the existing record, and the backfill uses
-       the *fresh* path (fan-out doesn't reach an inert invitee).
-    3. **Seated, no backfill yet**: invitee in index, ``joined=True`` (seated
-       without a join, for example at case creation), no replication marker
-       → SUCCESS with ``invitee_already_participant=True``,
-       ``invitee_joined=True``: it gets its first join-time backfill.
-    4. **Backfill on record (true duplicate)**: invitee in index, a
-       replication marker recorded → ``_idempotent_failure`` (FAILURE, INFO
-       log, no ledger write — CLP-13-001).  A *removed* participant
-       (CM-31-001) takes this path whatever its backfill state: it is sent no
-       full-case Invite and no backfill until it is reinstated (CM-31-013).
+    Writes the case to ``invitee_case`` on SUCCESS for the consent nodes, and
+    ``None`` on the duplicate path (BT-17-003).
     """
 
     def __init__(
@@ -86,31 +73,11 @@ class CheckInviteeNotAlreadyParticipantNode(
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "invitee_case": PortInformation(data_type=object, required=True),
-        "invitee_already_participant": PortInformation(
-            data_type=object, required=True
-        ),
-        "invitee_joined": PortInformation(data_type=object, required=True),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {
-            "invitee_case": "/invitee_case",
-            "invitee_already_participant": "/invitee_already_participant",
-            "invitee_joined": "/invitee_joined",
-        }
-
-    def _read_participant(self, case: object) -> CaseParticipant | None:
-        """Return the invitee's stored participant record, or None if absent."""
-        assert self.datalayer is not None
-        index = getattr(case, "actor_participant_index", {}) or {}
-        participant_id = index.get(self.invitee_id)
-        if not participant_id:
-            return None
-        p = self.datalayer.read(participant_id)
-        if not isinstance(p, CaseParticipant):
-            return None
-        return p
+        return {"invitee_case": "/invitee_case"}
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -121,98 +88,26 @@ class CheckInviteeNotAlreadyParticipantNode(
         if failure is not None:
             return failure  # Regime 1: case must exist (ADR-0087)
 
-        existing_ids = [_as_id(p) for p in case.case_participants]
-        in_index = (
-            self.invitee_id in case.actor_participant_index
-            or self.invitee_id in existing_ids
+        participant_id = case.actor_participant_index.get(self.invitee_id)
+        record = (
+            self.datalayer.read(participant_id) if participant_id else None
         )
-        if not in_index:
-            # Fresh: not in index at all
-            self._set_output("invitee_already_participant", False)
-            self._set_output("invitee_joined", False)
-            self._set_output("invitee_case", case)
-            return Status.SUCCESS
-
-        # In index — check whether the participant has joined
-        record = self._read_participant(case)
-        joined = record.joined if record is not None else None
-
-        if joined is False:
-            # Inert record from invite-send time (ADR-0114, CM-11-006).
-            # Not a true duplicate; treat as fresh-Accept path so the commit
-            # fan-out (which skips inert participants) is handled correctly.
-            self.logger.info(
-                "%s: actor '%s' has an inert record in case '%s' (joined=False)"
-                " — treating as fresh Accept",
-                self.name,
-                self.invitee_id,
-                self.case_id,
-            )
-            self._set_output("invitee_already_participant", True)
-            self._set_output("invitee_joined", False)
-            self._set_output("invitee_case", case)
-            return Status.SUCCESS
-
-        if record is not None and record.removed:
-            # A removed participant joined long ago and is sent no Invite,
-            # case seed or backfill until the Case Owner reinstates it
-            # (CM-31-013): a replayed Accept moves nothing (CLP-13-001).
-            self._set_output("invitee_already_participant", True)
-            self._set_output("invitee_joined", True)
+        if isinstance(record, CaseParticipant) and (
+            record.joined or record.removed
+        ):
+            self._set_output("invitee_case", None)  # BT-17-003
             return self._idempotent_failure(
                 self.logger,
-                "%s: actor '%s' was removed from case '%s'"
-                " — skipping (CM-31-013, CLP-13-001)",
+                "%s: actor '%s' is already %s in case '%s'"
+                " — skipping its stub-Invite Accept (CM-17-012, CLP-13-001)",
                 self.name,
                 self.invitee_id,
+                "removed" if record.removed else "joined",
                 self.case_id,
             )
 
-        # joined=True: a recorded replication state means the join's
-        # backfill ran.  It commits with the Accept in one act (CLP-07-015),
-        # so a recorded state is never part-way: a redelivery is a true
-        # duplicate — silent FAILURE, no ledger write (CLP-13-001).
-        state = self._read_replication_state(case.id_)
-        if state is not None:
-            self._set_output("invitee_already_participant", True)
-            self._set_output("invitee_joined", True)
-            return self._idempotent_failure(
-                self.logger,
-                "%s: actor '%s' already participant in case '%s'"
-                " — skipping (idempotent, CLP-13-001)",
-                self.name,
-                self.invitee_id,
-                self.case_id,
-            )
-
-        # A joined participant with no replication marker was seated without
-        # a join (for example at case creation) and now answers a stub
-        # Invite: it gets its first join-time backfill.
-        self.logger.info(
-            "%s: actor '%s' already participant in case '%s' with no "
-            "replication marker; running join-time backfill",
-            self.name,
-            self.invitee_id,
-            self.case_id,
-        )
-        self._set_output("invitee_already_participant", True)
-        self._set_output("invitee_joined", True)
         self._set_output("invitee_case", case)
         return Status.SUCCESS
-
-    def _read_replication_state(
-        self, case_id: str
-    ) -> VultronReplicationState | None:
-        if self.datalayer is None:
-            return None
-        state_id = VultronReplicationState(
-            case_id=case_id,
-            peer_id=self.invitee_id,
-        ).id_
-        state = self.datalayer.read(state_id)
-        if isinstance(state, VultronReplicationState):
-            return state
-        return None
 
 
 class InviteeHasParticipantRecordNode(DataLayerConditionWithPorts):

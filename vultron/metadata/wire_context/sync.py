@@ -47,7 +47,7 @@ import pkgutil
 import sys
 from pathlib import Path
 
-from pydantic.alias_generators import to_camel
+from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
 import vultron.wire.as2.vocab as vocab_pkg
@@ -192,27 +192,42 @@ def vultron_property_terms() -> dict[str, str]:
     """Map each Vultron-namespace wire property to its ``vultron:`` IRI.
 
     A property is a field a wire class marks with
-    :data:`~vultron.wire.as2.vocab.base.base.VULTRON_PROPERTY_KEY` in its
+    :data:`~vultron.core.models.base.VULTRON_PROPERTY_KEY` in its
     ``json_schema_extra``, such as a termination ``Remove``'s
-    ``terminationCause`` (EMB-13-005).  The term is the field's wire name:
-    its serialization alias, else its alias, else its name.  A value a core
-    class carries but never stores (``CoreObject.carried_properties``, such as
-    a case copy's ``ledgerTail``, SYNC-16-005) is a property too, under its
-    camelCase name.  A property is one term however many classes declare it.
+    ``terminationCause`` (EMB-13-005) or a case's ``ledgerPosition``
+    (SYNC-16-005).  The classes walked are the wire vocabulary's and the core
+    classes ``WIRE_TYPE_MAP`` registers (:func:`_wire_object_classes`).  The
+    term is the field's wire name: its serialization alias, else its alias,
+    else its name.  A property is one term however many classes declare it.
     """
     terms: set[str] = set()
-    for cls in _all_object_subclasses():
-        assert issubclass(cls, as_Object)  # narrowed for the type checkers
+    for cls in _wire_object_classes():
         for name, info in cls.model_fields.items():
             extra = info.json_schema_extra
             if isinstance(extra, dict) and extra.get(VULTRON_PROPERTY_KEY):
                 terms.add(_wire_name(name, info))
-    for core_cls in WIRE_TYPE_MAP.values():
-        if not core_cls.__module__.startswith(CORE_MODELS_PACKAGE):
-            continue
-        for name in getattr(core_cls, "carried_properties", {}):
-            terms.add(to_camel(name))
     return {term: f"vultron:{term}" for term in sorted(terms)}
+
+
+def _wire_object_classes() -> list[type[BaseModel]]:
+    """Every class whose fields travel on the wire.
+
+    The wire vocabulary's ``as_Object`` subclasses, and the core classes
+    ``WIRE_TYPE_MAP`` registers: under ARCH-25-003 (ADR-0099) a paired type's
+    wire class *is* its core class, so a case's ``ledgerPosition`` is declared
+    on ``VulnerabilityCase`` itself, which the ``as_Object`` walk never sees
+    (the same gap :func:`vultron_context_terms` closes for types).
+    """
+    classes: list[type[BaseModel]] = []
+    for cls in _all_object_subclasses():
+        assert issubclass(cls, as_Object)  # narrowed for the type checkers
+        classes.append(cls)
+    classes.extend(
+        cls
+        for cls in WIRE_TYPE_MAP.values()
+        if cls.__module__.startswith(CORE_MODELS_PACKAGE)
+    )
+    return classes
 
 
 def build_context_document() -> dict[str, object]:

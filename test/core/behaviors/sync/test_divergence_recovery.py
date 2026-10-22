@@ -13,8 +13,8 @@
 
 """Divergence recovery: a diverged replica reports, the CASE_MANAGER re-seeds.
 
-The tests of the replica's side of a repair, the ledger tail a case copy
-names and how a replica that holds the case judges the copy by it
+The tests of the replica's side of a repair, the ledger position a case
+copy names and how a replica that holds the case judges the copy by it
 (SYNC-16-005 through SYNC-16-007), are behaviour tests.  The others are a
 strict ``xfail`` for unbuilt behaviour (ADR-0142), except one that pins a
 SYNC-16 property that already holds.  Each implementation issue removes the
@@ -27,7 +27,6 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 import pytest
-from pydantic import ValidationError
 
 from test.support.inbox_replay import ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
@@ -47,9 +46,9 @@ from vultron.core.behaviors.inbox import (
     InboxOutcomeStatus,
     process_payload,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models import fault_classes
-from vultron.core.models.case_copy_position import CaseCopyPosition
-from vultron.core.models.case_ledger import CaseLedger
+from vultron.core.models.case_ledger import CaseLedger, HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -63,6 +62,7 @@ from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -76,6 +76,7 @@ from vultron.core.services.case_replica_seeding import (
     store_embedded_participants,
 )
 from vultron.core.states.rm import RM
+from vultron.core.sync_helpers import store_ledger_entry
 from vultron.core.use_cases.received.actor.announce import (
     AnnounceVulnerabilityCaseReceivedUseCase,
 )
@@ -84,7 +85,6 @@ from vultron.core.use_cases.received.fault import (
 )
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronBTInternalError
-from vultron.metadata.wire_context.sync import build_context_document
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
@@ -92,9 +92,6 @@ from vultron.wire.as2.factories import (
     genesis_replay_reject_activity,
 )
 from vultron.wire.as2.parser import parse_activity
-from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Announce,
-)
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -238,8 +235,17 @@ def _store_chain(dl: SqliteDataLayer, length: int) -> list[CaseLedgerEntry]:
         dl, [{"type": "Add", "index": index} for index in range(length)]
     )
     for entry in entries:
-        dl.create(entry)
+        store_ledger_entry(entry, dl)
     return entries
+
+
+def _at(case: as_VulnerabilityCase, position: LedgerPosition) -> Any:
+    """*case* as a copy at *position*, as its sender's store holds it."""
+    return case.model_copy(update={"ledger_position": position})
+
+
+def _position(dl: SqliteDataLayer) -> LedgerPosition | None:
+    return cast(as_VulnerabilityCase, dl.read(_CASE_ID)).ledger_position
 
 
 def _announce(
@@ -267,35 +273,88 @@ def _case_name(dl: SqliteDataLayer) -> str | None:
 
 
 @pytest.mark.spec("SYNC-16-005")
-def test_a_case_copy_carries_its_ledger_tail_on_the_wire() -> None:
-    """The tail travels as ``ledgerTail`` and parses back onto the copy.
-
-    It is not a field of the case: the case's own record never stores it,
-    and the Vultron JSON-LD context declares the property (VM-10-001).
-    """
-    tail = LedgerPosition(log_index=4, entry_hash="ab" * 32)
-    copy = _owned_case("current copy").with_ledger_tail(tail)
+def test_a_case_copy_names_the_position_of_the_last_commit() -> None:
+    """A case read after a commit carries that commit's index and hash."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+    case = _stored_owned_case(dl, "current copy")
+    entry = _commit(dl, case, 0, case.genesis_hash)
+    stored = dl.read_case(_CASE_ID)
+    assert stored is not None
     activity = announce_vulnerability_case_activity(
-        copy, actor=_CASE_ACTOR_ID, context=_CASE_ID
+        stored, actor=_CASE_ACTOR_ID, context=_CASE_ID
     )
 
     sent = activity.model_dump(by_alias=True, exclude_none=True, mode="json")
-    parsed = parse_activity(sent)
 
-    assert "ledger_tail" not in as_VulnerabilityCase.model_fields
-    assert sent["object"]["ledgerTail"] == {
-        "logIndex": 4,
-        "entryHash": "ab" * 32,
+    assert sent["object"]["ledgerPosition"] == {
+        "logIndex": entry.log_index,
+        "entryHash": entry.entry_hash,
     }
-    assert cast(as_Announce, parsed).object_ is not None
-    assert (
-        cast(as_VulnerabilityCase, cast(as_Announce, parsed).object_)
-    ).ledger_tail == tail
-    terms = cast(list[dict[str, str]], build_context_document()["@context"])
-    assert terms[1]["ledgerTail"] == "vultron:ledgerTail"
+
+
+@pytest.mark.spec("SYNC-16-006")
+@pytest.mark.spec("SYNC-16-007")
+def test_a_copy_behind_the_replica_chain_is_skipped() -> None:
+    """A stale copy leaves the replica's case unchanged and reports SKIPPED.
+
+    The copy is the case at its empty ledger; the replica has stored entry 0,
+    which moved its case past the copy (SYNC-16-005).
+    """
+    dl = _replica_store()
+    case = _stored_owned_case(dl, "replica at entry 0")
+    stale = case.model_copy(update={"name": "stale copy"})
+    _commit(dl, case, 0, case.genesis_hash)
+    activity = announce_vulnerability_case_activity(
+        stale, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
+    )
+
+    result = AnnounceVulnerabilityCaseReceivedUseCase(
+        dl,
+        cast(AnnounceVulnerabilityCaseReceivedEvent, received_event(activity)),
+    ).execute()
+
+    assert result.disposition == HandlerDisposition.SKIPPED
+    assert cast(Any, dl.read(_CASE_ID)).name == "replica at entry 0"
+
+
+def _stored_owned_case(dl: SqliteDataLayer, name: str) -> as_VulnerabilityCase:
+    """An owned case stored in *dl*, at its empty ledger (SYNC-16-005)."""
+    case = as_VulnerabilityCase(
+        id_=_CASE_ID, name=name, attributed_to=_CASE_ACTOR_ID
+    )
+    dl.create(case)
+    return case
+
+
+def _commit(
+    dl: SqliteDataLayer, case: as_VulnerabilityCase, index: int, prev: str
+) -> CaseLedgerEntry:
+    """Store one entry for *case* in *dl*, moving its position to it."""
+    entry = _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=case.id_,
+            log_index=index,
+            object_id=f"{case.id_}/activities/{index}",
+            semantic_type="test_event",
+            payload_snapshot={"log_index": index},
+            prev_log_hash=prev,
+        )
+    )
+    store_ledger_entry(entry, dl)
+    return entry
+
+
+def _replica_store() -> SqliteDataLayer:
+    """The replica's store, expecting the case from the CASE_MANAGER."""
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_REPLICA_ID)
-    dl.create(copy)
-    assert cast(as_VulnerabilityCase, dl.read(_CASE_ID)).ledger_tail is None
+    dl.save(
+        VultronPendingCaseInbox(
+            case_id=_CASE_ID,
+            case_actor_id=_CASE_ACTOR_ID,
+            invite_anchored=True,
+        )
+    )
+    return dl
 
 
 @pytest.mark.spec("SYNC-16-006")
@@ -306,8 +365,9 @@ def test_a_copy_the_chain_is_past_is_skipped() -> None:
     entries = _store_chain(dl, 3)
 
     result = _announce(
-        _owned_case("old copy").with_ledger_tail(
-            LedgerPosition(log_index=1, entry_hash=entries[1].entry_hash)
+        _at(
+            _owned_case("old copy"),
+            LedgerPosition(log_index=1, entry_hash=entries[1].entry_hash),
         ),
         dl,
     )
@@ -320,14 +380,15 @@ def test_a_copy_the_chain_is_past_is_skipped() -> None:
 def test_a_copy_that_conflicts_with_the_chain_is_refused_at_error(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A different entry at the tail's index: ``REFUSED``, ERROR, unchanged."""
+    """A different entry at the position's index: ``REFUSED``, ERROR, unchanged."""
     dl = _replica_holding("replica case")
     _store_chain(dl, 3)
 
     with caplog.at_level(logging.ERROR):
         result = _announce(
-            _owned_case("conflicting copy").with_ledger_tail(
-                LedgerPosition(log_index=2, entry_hash="cd" * 32)
+            _at(
+                _owned_case("conflicting copy"),
+                LedgerPosition(log_index=2, entry_hash="cd" * 32),
             ),
             dl,
         )
@@ -342,11 +403,14 @@ def test_a_copy_that_conflicts_with_the_chain_is_refused_at_error(
 
 
 @pytest.mark.spec("SYNC-16-006")
-def test_a_copy_of_a_held_case_with_no_tail_is_refused() -> None:
-    """Without a tail the replica cannot tell the copy from a stale one."""
+def test_an_ownerless_copy_of_a_held_case_is_refused() -> None:
+    """A copy with no owner names no ledger position (CLP-08-002), so the
+    replica cannot tell it from a stale one."""
     dl = _replica_holding("replica case")
 
-    result = _announce(_owned_case("untailed copy"), dl)
+    result = _announce(
+        as_VulnerabilityCase(id_=_CASE_ID, name="ownerless copy"), dl
+    )
 
     assert result.disposition is HandlerDisposition.REFUSED
     assert _case_name(dl) == "replica case"
@@ -361,37 +425,40 @@ def test_a_copy_at_the_replicas_tail_replaces_its_case() -> None:
     entries = _store_chain(dl, 2)
 
     result = _announce(
-        _owned_case("current copy").with_ledger_tail(
-            LedgerPosition(log_index=1, entry_hash=entries[1].entry_hash)
+        _at(
+            _owned_case("current copy"),
+            LedgerPosition(log_index=1, entry_hash=entries[1].entry_hash),
         ),
         dl,
     )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert _case_name(dl) == "current copy"
-    assert dl.read(CaseCopyPosition.build_id(_CASE_ID)) is None
+    assert _position(dl) == LedgerPosition(
+        log_index=1, entry_hash=entries[1].entry_hash
+    )
     assert dl.outbox_list() == []
 
 
 @pytest.mark.spec("SYNC-16-007")
 def test_a_copy_ahead_of_the_chain_asks_for_the_rest() -> None:
-    """The replica records the copy's tail and sends ``Reject(CaseLedgerEntry)``
-    naming its own tail, so the CASE_MANAGER replays from there."""
+    """The replica's case takes the copy's position, and it sends
+    ``Reject(CaseLedgerEntry)`` naming its chain's tail, so the CASE_MANAGER
+    replays from there."""
     dl = _replica_holding("short replica")
     entries = _store_chain(dl, 2)
 
     result = _announce(
-        _owned_case("copy ahead").with_ledger_tail(
-            LedgerPosition(log_index=5, entry_hash="ef" * 32)
+        _at(
+            _owned_case("copy ahead"),
+            LedgerPosition(log_index=5, entry_hash="ef" * 32),
         ),
         dl,
     )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert _case_name(dl) == "copy ahead"
-    position = dl.read(CaseCopyPosition.build_id(_CASE_ID))
-    assert isinstance(position, CaseCopyPosition)
-    assert (position.log_index, position.entry_hash) == (5, "ef" * 32)
+    assert _position(dl) == LedgerPosition(log_index=5, entry_hash="ef" * 32)
     (reject_id,) = dl.outbox_list()
     reject = read_sealed_body_dict(dl, reject_id)
     assert reject is not None
@@ -408,8 +475,9 @@ def test_a_backfill_without_a_sync_port_is_a_wiring_fault() -> None:
 
     with pytest.raises(VultronBTInternalError, match="sync_port"):
         _announce(
-            _owned_case("copy ahead").with_ledger_tail(
-                LedgerPosition(log_index=5, entry_hash="ef" * 32)
+            _at(
+                _owned_case("copy ahead"),
+                LedgerPosition(log_index=5, entry_hash="ef" * 32),
             ),
             dl,
             with_sync_port=False,
@@ -424,17 +492,16 @@ def test_a_replica_with_no_entry_asks_for_a_replay_from_genesis() -> None:
     dl = _replica_holding("empty replica")
 
     result = _announce(
-        _owned_case("copy ahead").with_ledger_tail(
-            LedgerPosition(log_index=3, entry_hash="ef" * 32)
+        _at(
+            _owned_case("copy ahead"),
+            LedgerPosition(log_index=3, entry_hash="ef" * 32),
         ),
         dl,
     )
 
     assert result.disposition is HandlerDisposition.APPLIED, result.reason
     assert _case_name(dl) == "copy ahead"
-    assert isinstance(
-        dl.read(CaseCopyPosition.build_id(_CASE_ID)), CaseCopyPosition
-    )
+    assert _position(dl) == LedgerPosition(log_index=3, entry_hash="ef" * 32)
     (reject_id,) = dl.outbox_list()
     body = read_sealed_body_dict(dl, reject_id)
     assert body is not None
@@ -468,16 +535,82 @@ def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
         parse_activity({**body, "type": "TentativeReject"})
 
 
+@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.spec("SYNC-16-007")
+def test_storing_an_entry_behind_the_case_position_leaves_it() -> None:
+    """A case a copy put ahead of its chain stays at the copy's position
+    while the entries it reflects are stored; the next one moves it on."""
+    dl = _replica_holding("replaced replica")
+    entries = _chain(dl, [{"type": "Add", "index": i} for i in range(4)])
+    ahead = LedgerPosition(log_index=2, entry_hash=entries[2].entry_hash)
+    dl.save(_at(cast(as_VulnerabilityCase, dl.read(_CASE_ID)), ahead))
+
+    for entry in entries[:3]:
+        store_ledger_entry(entry, dl)
+        assert _position(dl) == ahead
+    store_ledger_entry(entries[3], dl)
+
+    assert _position(dl) == LedgerPosition(
+        log_index=3, entry_hash=entries[3].entry_hash
+    )
+
+
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.spec("PCR-02-003")
+def test_a_first_seed_ahead_of_the_chain_stores_the_backfill_as_no_ops(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A joining replica seeded by a copy at entry 2 stores entries 0 to 2,
+    as the replay brings them, without their effects; its case stays the
+    copy, at the copy's position (ADR-0124)."""
+    dl = _replica_store()
+    dl.create(
+        CaseParticipant(
+            id_=_MANAGER_PARTICIPANT_ID,
+            attributed_to=_CASE_ACTOR_ID,
+            context=_CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+    )
+    entries = _chain(
+        _replica_holding("source", actor_id=_CASE_ACTOR_ID),
+        [{"type": "Add", "index": i} for i in range(3)],
+    )
+    at = LedgerPosition(log_index=2, entry_hash=entries[2].entry_hash)
+
+    seeded = _announce(_at(_owned_case("seeded copy"), at), dl)
+
+    assert seeded.disposition is HandlerDisposition.APPLIED, seeded.reason
+    assert dl.outbox_list() == []
+    with caplog.at_level(logging.INFO):
+        for entry in entries:
+            result = run_use_case(
+                dl,
+                ledger_announce_event(
+                    entry, actor=_CASE_ACTOR_ID, to=_REPLICA_ID
+                ),
+            )
+            assert result.disposition is HandlerDisposition.APPLIED, (
+                result.reason
+            )
+            assert _position(dl) == at
+    no_ops = [r for r in caplog.records if "as a no-op" in r.getMessage()]
+    assert len(no_ops) == len(entries)
+    assert _case_name(dl) == "seeded copy"
+    assert all(dl.read(entry.id_) is not None for entry in entries)
+
+
 @pytest.mark.spec("SYNC-16-006")
 def test_a_copy_behind_the_last_replacement_is_stale() -> None:
-    """Until the chain catches up, the copy that replaced the case is the
-    replica's position, so an older copy cannot move the case back."""
+    """Until the chain catches up, the case is at the position of the copy
+    that replaced it, so an older copy cannot move the case back."""
     dl = _replica_holding("short replica")
     _store_chain(dl, 1)
     assert (
         _announce(
-            _owned_case("newer copy").with_ledger_tail(
-                LedgerPosition(log_index=6, entry_hash="ef" * 32)
+            _at(
+                _owned_case("newer copy"),
+                LedgerPosition(log_index=6, entry_hash="ef" * 32),
             ),
             dl,
         ).disposition
@@ -485,8 +618,9 @@ def test_a_copy_behind_the_last_replacement_is_stale() -> None:
     )
 
     result = _announce(
-        _owned_case("older copy").with_ledger_tail(
-            LedgerPosition(log_index=4, entry_hash="12" * 32)
+        _at(
+            _owned_case("older copy"),
+            LedgerPosition(log_index=4, entry_hash="12" * 32),
         ),
         dl,
     )
@@ -507,7 +641,7 @@ def test_the_inbox_routes_the_copy_not_the_held_case() -> None:
     dl = _replica_holding("replica case")
     entries = _store_chain(dl, 2)
 
-    def deliver(copy: as_VulnerabilityCase) -> InboxOutcome:
+    def deliver(copy: Any) -> InboxOutcome:
         activity = announce_vulnerability_case_activity(
             copy, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
         )
@@ -524,15 +658,17 @@ def test_the_inbox_routes_the_copy_not_the_held_case() -> None:
         )
 
     stale = deliver(
-        _owned_case("stale copy").with_ledger_tail(
-            LedgerPosition(log_index=0, entry_hash=entries[0].entry_hash)
+        _at(
+            _owned_case("stale copy"),
+            LedgerPosition(log_index=0, entry_hash=entries[0].entry_hash),
         )
     )
     assert _case_name(dl) == "replica case", stale
 
     current = deliver(
-        _owned_case("current copy").with_ledger_tail(
-            LedgerPosition(log_index=1, entry_hash=entries[1].entry_hash)
+        _at(
+            _owned_case("current copy"),
+            LedgerPosition(log_index=1, entry_hash=entries[1].entry_hash),
         )
     )
     assert current.status is InboxOutcomeStatus.PROCESSED, current
@@ -541,17 +677,23 @@ def test_the_inbox_routes_the_copy_not_the_held_case() -> None:
 
 @pytest.mark.spec("SYNC-16-006")
 def test_a_genesis_copy_naming_another_genesis_hash_is_refused() -> None:
-    """At index -1 the hash compared is the case's genesis hash."""
+    """At index -1 the hash compared is the case's genesis hash: a copy whose
+    own genesis differs, from another ``published`` time, conflicts."""
     dl = _replica_holding("replica case")
-
-    result = _announce(
-        _owned_case("foreign copy").with_ledger_tail(
-            LedgerPosition(log_index=-1, entry_hash="cd" * 32)
-        ),
-        dl,
+    foreign = as_VulnerabilityCase(
+        id_=_CASE_ID,
+        name="foreign copy",
+        attributed_to=_CASE_ACTOR_ID,
+        published=datetime(2026, 10, 2, tzinfo=UTC),
+        case_participants=[_MANAGER_PARTICIPANT_ID],
+        actor_participant_index={_CASE_ACTOR_ID: _MANAGER_PARTICIPANT_ID},
     )
+    assert foreign.genesis_hash != _owned_case("x").genesis_hash
+
+    result = _announce(foreign, dl)
 
     assert result.disposition is HandlerDisposition.REFUSED
+    assert "conflict" in (result.reason or "")
     assert _case_name(dl) == "replica case"
 
 
@@ -562,8 +704,9 @@ def test_a_genesis_copy_the_chain_is_past_is_skipped() -> None:
     genesis = cast(as_VulnerabilityCase, dl.read(_CASE_ID)).genesis_hash
 
     result = _announce(
-        _owned_case("genesis copy").with_ledger_tail(
-            LedgerPosition(log_index=-1, entry_hash=genesis)
+        _at(
+            _owned_case("genesis copy"),
+            LedgerPosition(log_index=-1, entry_hash=genesis),
         ),
         dl,
     )
@@ -574,21 +717,23 @@ def test_a_genesis_copy_the_chain_is_past_is_skipped() -> None:
 
 @pytest.mark.spec("SYNC-16-006")
 def test_a_copy_conflicting_with_the_last_replacement_is_refused() -> None:
-    """While the chain is short of the last replacing copy, that copy's tail
-    is the entry held at its index, so a copy naming another hash there
-    conflicts."""
+    """While the chain is short of the last replacing copy, the case's
+    position names the entry held at its index, so a copy naming another
+    hash there conflicts."""
     dl = _replica_holding("short replica")
     _store_chain(dl, 1)
     _announce(
-        _owned_case("first copy").with_ledger_tail(
-            LedgerPosition(log_index=4, entry_hash="ef" * 32)
+        _at(
+            _owned_case("first copy"),
+            LedgerPosition(log_index=4, entry_hash="ef" * 32),
         ),
         dl,
     )
 
     result = _announce(
-        _owned_case("rival copy").with_ledger_tail(
-            LedgerPosition(log_index=4, entry_hash="12" * 32)
+        _at(
+            _owned_case("rival copy"),
+            LedgerPosition(log_index=4, entry_hash="12" * 32),
         ),
         dl,
     )
@@ -598,13 +743,14 @@ def test_a_copy_conflicting_with_the_last_replacement_is_refused() -> None:
 
 
 @pytest.mark.spec("SYNC-16-007")
-def test_only_the_entry_the_copy_named_at_its_tail_is_reflected() -> None:
+def test_only_the_entry_the_case_position_names_is_reflected() -> None:
     dl = _replica_holding("short replica")
     entries = _chain(dl, [{"type": "Add", "index": i} for i in range(3)])
-    dl.create(entries[0])
+    store_ledger_entry(entries[0], dl)
     dl.save(
-        CaseCopyPosition(
-            case_id=_CASE_ID, log_index=2, entry_hash=entries[2].entry_hash
+        _at(
+            cast(as_VulnerabilityCase, dl.read(_CASE_ID)),
+            LedgerPosition(log_index=2, entry_hash=entries[2].entry_hash),
         )
     )
     other = entries[2].model_copy(update={"entry_hash": "34" * 32})
@@ -640,12 +786,13 @@ def test_a_reflected_entry_stores_the_record_the_copy_names(
             {"type": "Add", "index": 2},
         ],
     )
-    dl.create(entries[0])
+    store_ledger_entry(entries[0], dl)
     copy = _owned_case("copy ahead").model_copy(update={"notes": [note_id]})
     assert (
         _announce(
-            copy.with_ledger_tail(
-                LedgerPosition(log_index=2, entry_hash=entries[2].entry_hash)
+            _at(
+                copy,
+                LedgerPosition(log_index=2, entry_hash=entries[2].entry_hash),
             ),
             dl,
         ).disposition
@@ -669,33 +816,6 @@ def test_a_reflected_entry_stores_the_record_the_copy_names(
     assert cast(as_VulnerabilityCase, dl.read(_CASE_ID)).notes == [note_id]
 
 
-@pytest.mark.spec("SYNC-16-005")
-def test_a_carried_value_under_two_disagreeing_spellings_is_refused() -> None:
-    data = _owned_case("copy").model_dump(mode="json")
-    data["ledgerTail"] = {"logIndex": 1, "entryHash": "ab" * 32}
-    data["ledger_tail"] = {"log_index": 2, "entry_hash": "ab" * 32}
-
-    with pytest.raises(ValidationError, match="disagree"):
-        as_VulnerabilityCase.model_validate(data)
-
-
-@pytest.mark.spec("SYNC-16-005")
-def test_a_null_and_a_value_under_two_spellings_disagree() -> None:
-    """An explicit null says "no tail", so it cannot sit beside one."""
-    data = _owned_case("copy").model_dump(mode="json")
-    data["ledgerTail"] = None
-    data["ledger_tail"] = {"log_index": 2, "entry_hash": "ab" * 32}
-
-    with pytest.raises(ValidationError, match="disagree"):
-        as_VulnerabilityCase.model_validate(data)
-    assert (
-        as_VulnerabilityCase.model_validate(
-            {**_owned_case("copy").model_dump(mode="json"), "ledgerTail": None}
-        ).ledger_tail
-        is None
-    )
-
-
 @pytest.mark.spec("SYNC-16-006")
 def test_the_case_managers_own_copy_is_skipped() -> None:
     """The CASE_MANAGER receives its own broadcast as a participant; its case
@@ -703,8 +823,9 @@ def test_the_case_managers_own_copy_is_skipped() -> None:
     dl = _replica_holding("manager case", actor_id=_CASE_ACTOR_ID)
 
     result = _announce(
-        _owned_case("its own copy").with_ledger_tail(
-            LedgerPosition(log_index=4, entry_hash="ef" * 32)
+        _at(
+            _owned_case("its own copy"),
+            LedgerPosition(log_index=4, entry_hash="ef" * 32),
         ),
         dl,
         receiver=_CASE_ACTOR_ID,
@@ -712,32 +833,37 @@ def test_the_case_managers_own_copy_is_skipped() -> None:
 
     assert result.disposition is HandlerDisposition.SKIPPED, result.reason
     assert _case_name(dl) == "manager case"
-    assert dl.read(CaseCopyPosition.build_id(_CASE_ID)) is None
+    assert _position(dl) == LedgerPosition(
+        log_index=-1, entry_hash=_owned_case("x").genesis_hash
+    )
     assert dl.outbox_list() == []
 
 
 @pytest.mark.spec("SYNC-16-007")
 def test_a_genesis_request_for_a_later_copy_is_its_own_activity() -> None:
-    """The genesis-replay Reject's id names the copy's tail, so a request
+    """The genesis-replay Reject's id names the copy's position, so a request
     after a later copy is not deduplicated as a repeat of the first."""
     dl = _replica_holding("empty replica")
     _announce(
-        _owned_case("first copy").with_ledger_tail(
-            LedgerPosition(log_index=3, entry_hash="ef" * 32)
+        _at(
+            _owned_case("first copy"),
+            LedgerPosition(log_index=3, entry_hash="ef" * 32),
         ),
         dl,
     )
     _announce(
-        _owned_case("first copy again").with_ledger_tail(
-            LedgerPosition(log_index=3, entry_hash="ef" * 32)
+        _at(
+            _owned_case("first copy again"),
+            LedgerPosition(log_index=3, entry_hash="ef" * 32),
         ),
         dl,
     )
     assert len(dl.outbox_list()) == 1
 
     _announce(
-        _owned_case("later copy").with_ledger_tail(
-            LedgerPosition(log_index=5, entry_hash="cd" * 32)
+        _at(
+            _owned_case("later copy"),
+            LedgerPosition(log_index=5, entry_hash="cd" * 32),
         ),
         dl,
     )
@@ -775,25 +901,6 @@ def test_the_genesis_request_survives_the_inbox_rebuild() -> None:
     assert "RejectLogEntryReceivedBT" in outcome.failure_reason
     assert "not an active participant" in outcome.failure_reason
     assert list(dl.list_objects("VultronReplicationState")) == []
-
-
-@pytest.mark.spec("SYNC-16-005")
-def test_a_malformed_tail_is_refused_under_its_own_name() -> None:
-    data = _owned_case("copy").model_dump(mode="json")
-    data["ledgerTail"] = {"logIndex": -7, "entryHash": ""}
-
-    with pytest.raises(ValidationError, match="ledger_tail"):
-        as_VulnerabilityCase.model_validate(data)
-
-
-@pytest.mark.spec("SYNC-16-005")
-def test_only_a_declared_carried_value_can_be_attached() -> None:
-    case = _owned_case("copy")
-
-    with pytest.raises(ValueError, match="carries no"):
-        case.with_carried("other", LedgerPosition(log_index=0, entry_hash="a"))
-    with pytest.raises(ValueError, match="carries no"):
-        case.with_carried("ledger_tail", case)
 
 
 @pytest.mark.spec("PCR-02-004")

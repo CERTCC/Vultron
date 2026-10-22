@@ -13,12 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Store what an entry the replacing case copy reflects carries (SYNC-16-007).
+"""Store what an entry the case copy already reflects carries (SYNC-16-007).
 
-An entry at or before the tail of the copy that replaced this replica's case
-is stored as a no-op (``EntryReflectedByCaseCopyNode``).  The copy names some
-records by id only, so the records such an entry carries are copied here, or
-the replica would never hold them (CM-23-016, ADR-0142).
+An entry at or before the ledger position of this replica's case, which a
+copy that seeded or replaced it put ahead of the chain, is stored as a no-op
+(``EntryReflectedByCaseCopyNode``).  The copy names some records by id only,
+so the records such an entry carries are copied here, or the replica would
+never hold them (CM-23-016, ADR-0142).
 """
 
 from __future__ import annotations

@@ -278,21 +278,26 @@ No replay fills that gap: the participant's case has diverged from the CASE_MANA
 - The CASE_MANAGER MUST answer the fault from an active participant with `Announce(VulnerabilityCase)` of its current case, and MUST refuse it from any other sender. (SYNC-16-003)
 - The CASE_MANAGER MUST bound the rate at which it re-seeds a peer. (SYNC-16-004)
 
-A case copy carries the sender's **ledger tail**: the index and hash of the last entry the copy reflects, computed from the ledger when the case is read or sent. (SYNC-16-005)
-A participant that already holds the case compares the tail with its own chain. (SYNC-16-006)
+Each case stores its **ledger position**: the index and hash of the last entry its case file reflects, or index -1 and the genesis hash before any. (SYNC-16-005)
+Committing or storing an entry moves the position to that entry in the same transaction, and a case copy carries its position on the wire.
+A participant that already holds the case compares the copy's position with its own chain. (SYNC-16-006)
 
-- If its chain is already past the tail, the copy is stale and the participant leaves its case unchanged.
-- If it holds a different entry at the tail's index, the chains conflict and the participant leaves its case unchanged.
+- If its chain is already past the position, the copy is stale and the participant leaves its case unchanged.
+- If it holds a different entry at the position's index, the chains conflict and the participant leaves its case unchanged.
 - Otherwise it replaces its case with the copy.
-  If its chain falls short of the tail, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before the tail, replayed or drained from its holding area, as a no-op. (SYNC-16-007)
+  If its chain falls short of the copy's position, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before that position, replayed or drained from its holding area, as a no-op. (SYNC-16-007)
 
-[I] In this implementation, the tail travels as the `ledgerTail` property of the case object in `Announce(VulnerabilityCase)`, the only message that carries it, with `logIndex` and `entryHash` members.
-The CASE_MANAGER fills it in each time it sends the announcement, and no case record stores it.
-A replica that holds the case refuses a copy with no tail, because it cannot tell that copy from a stale one.
+Committing or storing an entry at or before the case's position leaves the position where it is, so a case a copy put ahead of its chain never moves back while the chain catches up.
+A participant first seeded from a copy stores the entries up to the copy's position the same way, as no-ops. (SYNC-16-007)
+
+[I] In this implementation, the position travels as the `ledgerPosition` property of the case object, with `logIndex` and `entryHash` members.
+A received case that has an owner and no `ledgerPosition` is refused when it is parsed.
+A replica that holds the case refuses a copy with no owner, which names no position, because it cannot tell that copy from a stale one.
 The copy carries each participant and report as the CASE_MANAGER's store holds it when it sends the copy, because a replica that takes the copy replaces its own with them.
 The CASE_MANAGER receives its own announcement as a participant and skips it, because its case is the copy's source.
-A replica already past the tail that holds a different entry at the tail's index reports the conflict, not a stale copy, because the chains disagree.
-Until its chain reaches the tail of the copy that last replaced its case, the replica treats that tail as its own position, so an older copy is stale too.
+A replica already past the position that holds a different entry at the position's index reports the conflict, not a stale copy, because the chains disagree.
+The replica's own position is the later of its chain's tail and its case's position, so a copy older than the one that last replaced its case is stale too.
+A re-delivery of the same announcement is judged the same way: current while the replica is still at the copy's position, stale once its chain is past it.
 A replica stores an entry the copy reflects without applying it, but still stores each record the entry carries that the copy names by id only, such as a note, a case status or a proposed embargo.
 The `Reject(CaseLedgerEntry)` names the last entry the replica's chain stores.
 A replica whose chain stores no entry has none to name, so its `Reject` names no entry, carries an empty last-accepted hash and names the case as its `target`; the CASE_MANAGER answers it with a replay from genesis. (SYNC-16-007)
@@ -586,9 +591,9 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-16-002 | §5.5 | A fault about applying an entry MUST NOT be ledgered |
 | SYNC-16-003 | §5.5 | CASE_MANAGER MUST re-seed an active participant that reports divergence |
 | SYNC-16-004 | §5.5 | CASE_MANAGER MUST bound the re-seed rate per peer |
-| SYNC-16-005 | §5.5 | A case copy MUST carry the sender's ledger tail |
+| SYNC-16-005 | §5.5 | A case MUST store the ledger position it is a projection of, and carry it on the wire |
 | SYNC-16-006 | §5.5 | Participant MUST NOT replace its case with a stale or conflicting copy |
-| SYNC-16-007 | §5.5 | After replacement, participant MUST backfill to the copy's tail |
+| SYNC-16-007 | §5.5 | After replacement, participant MUST backfill to the copy's position |
 | SYNC-16-008 | §5.5 | CASE_MANAGER SHOULD log divergence after a re-seed as an error |
 
 ---

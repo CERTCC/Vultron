@@ -61,14 +61,10 @@ from vultron.core.behaviors.embargo.nodes.activation_effect import (
     ApplyEmbargoActivationFromLedgerNode,
     ApplyEmbargoProposalRejectionFromLedgerNode,
 )
-from vultron.core.behaviors.embargo.nodes.expiry import (
-    ApplyInviteExpiryNoopFromLedgerNode,
-)
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
-    ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.teardown import (
@@ -109,17 +105,15 @@ _SLOTS = [
     # relay (EP-09-007)
     ApplyEmbargoProposalFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
-    ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
     # the owner's activation and rejection (ADR-0122)
     ApplyEmbargoActivationFromLedgerNode,
     ApplyEmbargoProposalRejectionFromLedgerNode,
-    # abandonment (EMB-16-001)
+    # abandonment: the manager's Reject and its Undo slots (EMB-16-001)
     ApplyEmbargoAbandonmentFromLedgerNode,
-    # the no-op late Accept (EMB-17-004); an expiry and an honoured late
-    # Accept are consent-row entries (CM-28-014, ADR-0140)
-    ApplyInviteExpiryNoopFromLedgerNode,
+    # an expiry and an honoured late Accept are consent-row entries, and a
+    # late Accept with no embargo to bind has no entry (CM-28-014, EMB-17-004)
     # teardown (EP-08-004)
     ApplyEmbargoTeardownNode,
     # withdrawal (MSM-07-010)

@@ -125,8 +125,8 @@ before the Offer's state is read (#4437).
   `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, so an Accept after a Reject (or the
   reverse) is refused as "already answered".
 - **Only the Case Owner's proposal is made into an Offer** (CM-21-019): the
-  sender guard runs before the expiry clock decision, the tree's first write
-  (CLP-10-025), so a stranger's proposal leaves no entry, Offer or expiry. A
+  sender guard runs before anything is written, so a stranger's proposal
+  leaves no entry and no Offer. A
   redelivery is recognised by the Offer derived from the proposal, whose
   `attributedTo` must be the sender, not by the role: the sender may have handed
   ownership on since (`SenderIsOfferingCaseOwnerNode`, HP-01-003).
@@ -249,8 +249,10 @@ CASE_MANAGER inbox receives Reject
   entry only closes the Offer, which every reader learns from the ledger itself, so
   it has no replay effect (RSH-08-004).
 - **"Open" is read from the ledger.** An Offer is open until the ledger holds an
-  answer, withdrawal or expiry entry for it, found through `find_protocol_pair()`
-  with `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES` (CLP-11-001, CLP-11-003).
+  answer or withdrawal entry for it, found through `find_protocol_pair()` with
+  `OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES`, or until the `end_time` the ledgered
+  Offer carries passes; nothing records the expiry (CM-21-017, CLP-11-001,
+  ADR-0152).
 - **One open Offer per case (CM-21-014).** The CASE_MANAGER refuses a new proposal
   while an Offer is open; once closed, the owner may propose again to anyone, the
   decliner included. The check is `NoOpenOwnershipOfferNode`
