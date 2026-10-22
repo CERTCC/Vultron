@@ -28,7 +28,10 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from test.adapters.driven.test_sqlite_core_roundtrip import _insert_raw_row
-from test.support.ledger import checking_each_commit
+from test.support.ledger import (
+    case_snapshot_position_violations,
+    checking_each_commit,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import STORED_ROW_CONTEXT
 from vultron.core.behaviors.bridge import BTBridge
@@ -357,6 +360,34 @@ def test_the_commit_check_catches_a_write_that_puts_the_position_back(
 
     assert len(failures) == 1
     assert "before committing entry 1" in failures[0]
+
+
+@pytest.mark.spec("SYNC-16-005")
+@pytest.mark.parametrize("slot", ["object", "target"])
+def test_the_snapshot_check_reads_a_case_in_either_slot(slot: str) -> None:
+    """A case carried as the object or the target (full-case Invite) is checked.
+
+    The entry carries the case at the entry's own position, which no snapshot
+    may name, so the check reports it whichever member holds the case.
+    """
+    case = _case()
+    genesis = _entry(case, 0, case.genesis_hash)
+    ahead = case.model_copy(update={"ledger_position": _position(genesis)})
+    carried = ahead.model_dump(by_alias=True, mode="json", exclude_none=True)
+    entry = _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=case.id_,
+            log_index=0,
+            object_id="https://example.org/activities/carrying",
+            semantic_type="test_event",
+            payload_snapshot={"actor": OWNER, slot: carried},
+            prev_log_hash=case.genesis_hash,
+        )
+    )
+
+    (violation,) = case_snapshot_position_violations([entry], OWNER)
+
+    assert f"as its {slot} at its own or a later position" in violation
 
 
 @pytest.mark.spec("SYNC-16-005")

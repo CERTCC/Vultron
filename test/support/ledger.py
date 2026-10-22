@@ -77,6 +77,10 @@ def chain_tail(dl: CasePersistence, case: VulnerabilityCase) -> LedgerPosition:
     return LedgerPosition(log_index=last.log_index, entry_hash=last.entry_hash)
 
 
+_CASE_SLOTS = ("object", "target")
+"""The snapshot members a carried case can sit in."""
+
+
 def case_snapshot_position_violations(
     entries: list[CaseLedgerEntry], manager_id: str
 ) -> list[str]:
@@ -89,31 +93,36 @@ def case_snapshot_position_violations(
     """
     found: list[str] = []
     for entry in entries:
-        carried = entry.payload_snapshot.get("object")
-        if not (
-            isinstance(carried, dict)
-            and carried.get("type") == "VulnerabilityCase"
-            and isinstance(carried.get("ledgerPosition"), dict)
-        ):
-            continue
-        named = LedgerPosition.model_validate(carried["ledgerPosition"])
         before = LedgerPosition(
             log_index=entry.log_index - 1, entry_hash=entry.prev_log_hash
         )
-        if named.log_index >= entry.log_index:
-            found.append(
-                f"entry {entry.log_index} ({entry.semantic_type}) carries the"
-                f" case at its own or a later position {named.log_index}"
-            )
-        elif (
+        authored = (
             snapshot_actor_id(entry.payload_snapshot.get("actor"))
             == manager_id
-            and named != before
-        ):
-            found.append(
-                f"entry {entry.log_index} ({entry.semantic_type}) carries the"
-                f" case at {named.log_index}, not the position before it"
-            )
+        )
+        # A case travels as the activity's object (Create, Update) or its
+        # target (the full-case Invite).
+        for slot in _CASE_SLOTS:
+            carried = entry.payload_snapshot.get(slot)
+            if not (
+                isinstance(carried, dict)
+                and carried.get("type") == "VulnerabilityCase"
+                and isinstance(carried.get("ledgerPosition"), dict)
+            ):
+                continue
+            named = LedgerPosition.model_validate(carried["ledgerPosition"])
+            if named.log_index >= entry.log_index:
+                found.append(
+                    f"entry {entry.log_index} ({entry.semantic_type}) carries"
+                    f" the case as its {slot} at its own or a later position"
+                    f" {named.log_index}"
+                )
+            elif authored and named != before:
+                found.append(
+                    f"entry {entry.log_index} ({entry.semantic_type}) carries"
+                    f" the case as its {slot} at {named.log_index}, not the"
+                    " position before it"
+                )
     return found
 
 

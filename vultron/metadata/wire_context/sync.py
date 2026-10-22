@@ -192,11 +192,13 @@ def vultron_property_terms() -> dict[str, str]:
     """Map each Vultron-namespace wire property to its ``vultron:`` IRI.
 
     A property is a field a wire class marks with
-    :data:`~vultron.wire.as2.vocab.base.base.VULTRON_PROPERTY_KEY` in its
+    :data:`~vultron.core.models.base.VULTRON_PROPERTY_KEY` in its
     ``json_schema_extra``, such as a termination ``Remove``'s
-    ``terminationCause`` (EMB-13-005).  The term is the field's wire name:
-    its serialization alias, else its alias, else its name.  A property is
-    one term however many classes declare it.
+    ``terminationCause`` (EMB-13-005) or a case's ``ledgerPosition``
+    (SYNC-16-005).  The classes walked are the wire vocabulary's and the core
+    classes ``WIRE_TYPE_MAP`` registers (:func:`_wire_object_classes`).  The
+    term is the field's wire name: its serialization alias, else its alias,
+    else its name.  A property is one term however many classes declare it.
     """
     terms: set[str] = set()
     for cls in _wire_object_classes():
