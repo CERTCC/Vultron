@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.report.trigger_report_trees import (
     create_invalidate_report_trigger_tree,
     create_reject_report_trigger_tree,
@@ -138,7 +139,7 @@ def case_with_owner(
         attributed_to=CASE_MANAGER_ID,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(name="Test Case")
+    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
     case.vulnerability_reports.append(report.id_)
     case.actor_participant_index[ACTOR_ID] = owner_participant.id_
     case.actor_participant_index[CASE_MANAGER_ID] = manager_participant.id_

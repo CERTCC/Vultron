@@ -26,6 +26,7 @@ from typing import Any
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -36,6 +37,7 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 from vultron.adapters.inbox_staging import (
     InlineObjectStaging,
 )
+from vultron.adapters.outbox_sealed_body import OUTBOUND_DUMP_KWARGS
 from vultron.core.behaviors.case.nodes.proposal_announcement import (
     announced_case_id,
     case_is_announced,
@@ -78,7 +80,9 @@ def receiver_dl():
 def _create_case(actor: str, **kwargs: Any) -> as_Create:
     return as_Create(
         actor=actor,
-        object_=as_VulnerabilityCase(id_=_CASE_ID, name="c1"),
+        object_=as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="c1"
+        ),
         context=_CASE_ID,
         to=[_RECEIVER_URI],
         **kwargs,
@@ -86,7 +90,10 @@ def _create_case(actor: str, **kwargs: Any) -> as_Create:
 
 
 def _body(activity: as_Activity) -> dict[str, Any]:
-    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    # The outbound body's own options, so the inline case keeps its own
+    # fields, such as the ledgerPosition a received case must carry
+    # (SYNC-16-005).
+    return activity.model_dump(mode="json", **OUTBOUND_DUMP_KWARGS)
 
 
 def _deliver(dl: SqliteDataLayer, activity: as_Activity) -> InboxOutcome:
@@ -205,7 +212,9 @@ def test_a_received_stub_invite_whose_actor_names_the_receiver_is_not_one_sent(
     activity = rm_invite_to_case_activity(
         _INVITEE_URI,
         target=as_VulnerabilityCase(
-            id_=_CASE_ID, stub_summary="A vul in a widget"
+            attributed_to=CASE_OWNER_ID,
+            id_=_CASE_ID,
+            stub_summary="A vul in a widget",
         ),
         actor=_RECEIVER_URI,
         to=[_RECEIVER_URI],

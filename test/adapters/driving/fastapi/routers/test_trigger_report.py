@@ -26,6 +26,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
@@ -197,7 +198,9 @@ def _seed_owner_case(dl, actor_id, report_id):
         attributed_to=manager_actor.id_,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(name="Owner Case for Close")
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="Owner Case for Close"
+    )
     case.vulnerability_reports.append(report_id)
     case.actor_participant_index[actor_id] = owner_p.id_
     case.actor_participant_index[manager_actor.id_] = manager_p.id_

@@ -21,7 +21,7 @@ entries a replacing copy is ahead of the replica's chain by (SYNC-16-007).
 does the replacement between them (ADR-0142).
 """
 
-from typing import Any, cast
+from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
@@ -42,7 +42,7 @@ from vultron.core.services.case_copy import (
     CaseCopyVerdict,
     judge_case_copy,
 )
-from vultron.errors import VultronValidationError, VultronWiringError
+from vultron.errors import VultronWiringError
 
 #: Blackboard key: whether the announced copy replaces a case this replica
 #: already holds, written by :class:`CaseCopyNotStaleNode` and read by
@@ -68,9 +68,8 @@ class CaseCopyNotStaleNode(
       and the case is unchanged;
     - otherwise ``SUCCESS``: the copy replaces the case.
 
-    A copy that names no position, an ownerless one (CLP-08-002), cannot be
-    told from a stale one, so a replica holding the case refuses it
-    (``FAILURE``, WARNING).  A copy this actor
+    Every case names its position (SYNC-16-005): an ownerless one, which
+    could not, is refused when it is built (ARCH-10-001).  A copy this actor
     sent itself, as the CASE_MANAGER receiving its own broadcast, is skipped
     like a stale one: its case is the copy's source (``is_stale``, INFO).
 
@@ -91,7 +90,7 @@ class CaseCopyNotStaleNode(
     def __init__(
         self,
         case_id: str,
-        case_obj: VulnerabilityCase | Any,
+        case_obj: VulnerabilityCase,
         request: AnnounceVulnerabilityCaseReceivedEvent,
         name: str | None = None,
     ) -> None:
@@ -133,22 +132,7 @@ class CaseCopyNotStaleNode(
             )
             return Status.FAILURE
 
-        position = getattr(self.case_obj, "ledger_position", None)
-        if not isinstance(position, LedgerPosition):
-            self.feedback_message = (
-                f"the copy of case '{self.case_id}' names no ledger position,"
-                " so this replica cannot tell it from a stale one"
-                " (SYNC-16-005)"
-            )
-            self.logger.warning(
-                "%s: refusing Announce '%s' from '%s': %s",
-                self.name,
-                self._request.activity_id,
-                self._request.actor_id,
-                self.feedback_message,
-            )
-            return Status.FAILURE
-
+        position = self.case_obj.ledger_position
         judgement = judge_case_copy(self.case_id, position, self.datalayer)
         if judgement.verdict is CaseCopyVerdict.CONFLICT:
             self.is_conflict = True
@@ -224,7 +208,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
     def __init__(
         self,
         case_id: str,
-        case_obj: VulnerabilityCase | Any,
+        case_obj: VulnerabilityCase,
         request: AnnounceVulnerabilityCaseReceivedEvent,
         name: str | None = None,
     ) -> None:
@@ -251,7 +235,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None and self.actor_id is not None
-        position = required_position(self.case_obj, self.case_id, self.name)
+        position = self.case_obj.ledger_position
         judgement = judge_case_copy(self.case_id, position, self.datalayer)
         if position.log_index <= judgement.chain_index:
             return Status.SUCCESS
@@ -296,27 +280,8 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
         )
 
 
-def required_position(
-    case_obj: Any, case_id: str, node_name: str
-) -> LedgerPosition:
-    """The ledger position of a copy the guard admitted to replace a held case.
-
-    Raises:
-        VultronValidationError: The copy names none; the guard refuses such a
-            copy, so reaching here is a composition fault.
-    """
-    position = getattr(case_obj, "ledger_position", None)
-    if not isinstance(position, LedgerPosition):
-        raise VultronValidationError(
-            f"{node_name}: the copy replacing case '{case_id}' names no"
-            " ledger position; the guard admits none (SYNC-16-006)"
-        )
-    return position
-
-
 __all__ = [
     "CASE_COPY_REPLACES_KEY",
     "CaseCopyNotStaleNode",
     "RequestCaseCopyBackfillNode",
-    "required_position",
 ]

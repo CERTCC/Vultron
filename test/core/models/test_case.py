@@ -16,7 +16,9 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.clock import SteppingClock
 from test.support.embargo_register import activate, terminate
 from vultron.core.models import _helpers
@@ -57,7 +59,7 @@ class TestVulnerabilityCaseBasics:
         assert case.id_ == _CASE_ID
 
     def test_id_auto_generated_when_not_given(self):
-        c = VulnerabilityCase()
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
         assert c.id_.startswith("urn:uuid:")
 
     def test_attributed_to_stored(self, case: VulnerabilityCase):
@@ -94,9 +96,59 @@ class TestVulnerabilityCaseInitialStatus:
         assert isinstance(status, CaseStatus)
         assert status.attributed_to == _ACTOR
 
-    def test_no_seeding_without_attributed_to(self):
-        c = VulnerabilityCase(id_=_CASE_ID)
-        assert c.case_statuses == []
+
+class TestVulnerabilityCaseRequiresOwner:
+    """Every case has an owner: construction and loading refuse one without.
+
+    The genesis hash, and so the whole ledger chain, is computed from the
+    owner (CLP-08-002/003), so an ownerless case is refused (ARCH-10-001).
+    """
+
+    def test_construction_without_attributed_to_raises(self):
+        with pytest.raises(ValidationError, match="attributedTo"):
+            VulnerabilityCase(id_=_CASE_ID)
+
+    @pytest.mark.parametrize("blank", ["", "   "])
+    def test_construction_with_blank_attributed_to_raises(self, blank: str):
+        with pytest.raises(ValidationError, match=r"attributed_?[tT]o"):
+            VulnerabilityCase(id_=_CASE_ID, attributed_to=blank)
+
+    def test_loading_stored_case_without_owner_raises(
+        self, case: VulnerabilityCase
+    ):
+        stored = case.model_dump(mode="json")
+        del stored["attributed_to"]
+        with pytest.raises(ValidationError, match="attributedTo"):
+            VulnerabilityCase.model_validate(stored)
+
+    def test_assigning_none_owner_raises(self, case: VulnerabilityCase):
+        with pytest.raises(ValidationError):
+            case.attributed_to = None  # type: ignore[assignment]
+
+    def test_genesis_hash_always_computed(self, case: VulnerabilityCase):
+        assert case.genesis_hash
+
+    def test_blank_carried_genesis_hash_is_recomputed(self):
+        c = VulnerabilityCase(
+            id_=_CASE_ID, attributed_to=CASE_OWNER_ID, genesis_hash=""
+        )
+        assert c.genesis_hash
+
+    @pytest.mark.parametrize("by_alias", [True, False])
+    def test_schema_shows_no_stand_in_default(self, by_alias: bool):
+        """The refused stand-in defaults stay out of the published schema."""
+        properties = VulnerabilityCase.model_json_schema(by_alias=by_alias)[
+            "properties"
+        ]
+        for name in (
+            ("genesisHash", "ledgerPosition")
+            if by_alias
+            else (
+                "genesis_hash",
+                "ledger_position",
+            )
+        ):
+            assert "default" not in properties[name]
 
 
 class TestVulnerabilityCaseRegistration:
@@ -117,13 +169,14 @@ class TestVulnerabilityCaseCurrentStatus:
         assert case.case_status is case.current_status
 
     def test_current_status_raises_when_no_materialized(self):
-        c = VulnerabilityCase(id_=_CASE_ID)
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         c.case_statuses = ["urn:uuid:some-id"]  # only str refs
         with pytest.raises(ValueError, match="no materialized CaseStatus"):
             _ = c.current_status
 
     def test_current_status_raises_when_empty(self):
-        c = VulnerabilityCase(id_=_CASE_ID)
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c.case_statuses = []
         with pytest.raises(ValueError):
             _ = c.current_status
 
@@ -145,7 +198,7 @@ class TestVulnerabilityCaseCurrentStatus:
             context=_CASE_ID,
             updated=datetime(2026, 1, 1, tzinfo=UTC),
         )
-        c = VulnerabilityCase(id_=_CASE_ID)
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         c.case_statuses = [older, newer]
         assert c.current_status is newer
 
@@ -176,7 +229,7 @@ class TestVulnerabilityCaseCurrentStatus:
             published=stamp,
             updated=stamp,
         )
-        c = VulnerabilityCase(id_=_CASE_ID)
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
         c.case_statuses = [first, second]
         assert c.current_status is second
 
@@ -468,12 +521,14 @@ def test_a_case_refuses_an_inline_participant_missing_a_row() -> None:
     )
     with pytest.raises(ValidationError, match="no consent row"):
         VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="urn:case",
             embargo_register=register(active=_E1),
             case_participants=[rowless],
         )
     rowless.write_uninvited_rows([_E1])
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="urn:case",
         embargo_register=register(active=_E1),
         case_participants=[rowless],

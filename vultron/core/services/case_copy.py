@@ -123,7 +123,7 @@ def judge_case_copy(
 
     held_hash: str | None = None
     if position.log_index == EMPTY_LEDGER_LOG_INDEX:
-        held_hash = case.genesis_hash if case and case.genesis_hash else None
+        held_hash = case.genesis_hash if case is not None else None
     elif position.log_index in entries:
         held_hash = entries[position.log_index].entry_hash
     elif held_at is not None and held_at.log_index == position.log_index:
@@ -170,9 +170,9 @@ def entry_reflected_by_case_copy(
     its position, so this is ``False`` for it.
     """
     case = dl.read_case(entry.case_id)
-    position = case.ledger_position if case is not None else None
-    if position is None:
+    if case is None:
         return False
+    position = case.ledger_position
     if entry.log_index < position.log_index:
         return True
     return (
@@ -195,10 +195,11 @@ def entry_conflicts_with_case_position(
     here, when the chain reaches the position.
     """
     case = dl.read_case(entry.case_id)
-    position = case.ledger_position if case is not None else None
+    if case is None:
+        return False
+    position = case.ledger_position
     return (
-        position is not None
-        and entry.log_index == position.log_index
+        entry.log_index == position.log_index
         and entry.entry_hash != position.entry_hash
     )
 

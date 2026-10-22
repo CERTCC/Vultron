@@ -9,6 +9,7 @@ copy/paste mistake in any property on the same class cannot pass undetected.
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
@@ -76,7 +77,7 @@ _CASE_URI = "https://example.org/cases/c1"
 _ACTOR_URI = "https://example.org/actors/alice"
 
 _report = VulnerabilityReport(id_="https://example.org/reports/r1")
-_case = VulnerabilityCase(id_=_CASE_URI)
+_case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_URI)
 _note = VultronNote(
     id_="https://example.org/notes/n1",
     content="test note",

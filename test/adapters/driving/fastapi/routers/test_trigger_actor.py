@@ -26,6 +26,7 @@ from fastapi.testclient import TestClient
 
 import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
 from test.conftest import seed_case_actor_replica
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import archive_received, case_stub
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import trigger_runner
@@ -114,7 +115,9 @@ def case_obj(dl, actor):
     """Create and persist a as_VulnerabilityCase with a CASE_MANAGER participant."""
     case_actor = as_Service(name="Case Actor")
     dl.create(case_actor)
-    case = as_VulnerabilityCase(name="TEST-CASE-001")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-CASE-001"
+    )
     owner_participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case.id_,
@@ -144,7 +147,9 @@ def case_obj_with_case_actor(dl, actor):
     """
     case_actor = as_Service(name="Case Actor Service")
     dl.create(case_actor)
-    case = as_VulnerabilityCase(name="TEST-CASE-OCM")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-CASE-OCM"
+    )
     owner_participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case.id_,

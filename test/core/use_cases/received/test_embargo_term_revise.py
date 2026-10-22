@@ -18,6 +18,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -88,7 +89,9 @@ class TestEmbargoTermRevise:
 
         activity = activate_embargo_activity(
             embargo,
-            target=as_VulnerabilityCase(id_=case.id_),
+            target=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=case.id_
+            ),
             actor=_OWNER,
             to=[_COORD],
         )
@@ -120,7 +123,9 @@ class TestEmbargoTermRevise:
 
         activity = activate_embargo_activity(
             embargo,
-            target=as_VulnerabilityCase(id_=case.id_),
+            target=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=case.id_
+            ),
             actor=_OWNER,
             to=[_COORD],
         )
@@ -173,7 +178,9 @@ class TestEmbargoTermRevise:
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=as_VulnerabilityCase(id_=case.id_),
+            origin=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=case.id_
+            ),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
             reason=TerminationReason.EARLY,
@@ -230,7 +237,9 @@ class TestEmbargoTermRevise:
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=as_VulnerabilityCase(id_=case.id_),
+            origin=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=case.id_
+            ),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
             reason=TerminationReason.EARLY,
@@ -293,7 +302,9 @@ class TestEmbargoTermRevise:
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=as_VulnerabilityCase(id_=case.id_),
+            origin=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=case.id_
+            ),
             actor=_CASE_MANAGER,
             to=["https://example.org/users/coord"],
             reason=TerminationReason.EARLY,

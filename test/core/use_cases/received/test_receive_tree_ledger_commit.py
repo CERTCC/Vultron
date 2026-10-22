@@ -28,6 +28,7 @@ from typing import cast
 import py_trees
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -384,7 +385,9 @@ def test_announce_case_tree_has_no_commit_stage():
     Only the CASE_MANAGER sends it and only a participant replica receives it,
     so the tree carries no commit stage.
     """
-    case = as_VulnerabilityCase(id_=CASE_ID, name="4304")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="4304"
+    )
     event = cast(
         AnnounceVulnerabilityCaseReceivedEvent,
         received_event(
@@ -410,7 +413,9 @@ def test_bootstrap_create_case_tree_has_no_commit_stage():
     case's genesis entry was committed where the CASE_MANAGER created the
     case, so the participant's tree carries no commit stage.
     """
-    case = as_VulnerabilityCase(id_=CASE_ID, name="4476")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="4476"
+    )
 
     tree = create_create_case_received_tree(
         case,

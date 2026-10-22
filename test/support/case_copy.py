@@ -34,6 +34,6 @@ def copy_from(
     a first seed takes (PCR-02-003).
     """
     held = dl.read_case(case.id_)
-    if held is None or held.ledger_position is None:
+    if held is None:
         return case
     return case.model_copy(update={"ledger_position": held.ledger_position})

@@ -29,6 +29,7 @@ from typing import NamedTuple, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.rm import RM
@@ -355,7 +356,9 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         self.dl.create(self.case_actor)
 
         # Case
-        self.case = as_VulnerabilityCase(name="Test Case #624")
+        self.case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Test Case #624"
+        )
 
         self.actor_participant = as_CaseParticipant(
             attributed_to=actor_id,
@@ -680,7 +683,9 @@ class TestCreateParticipantStatusNode:
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = as_VulnerabilityCase(name="Test Case BT-15-001")
+        self.case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Test Case BT-15-001"
+        )
 
         self.actor_participant = as_CaseParticipant(
             attributed_to=actor_id,
@@ -1483,7 +1488,9 @@ class TestValidateTriggerTransitions:
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = as_VulnerabilityCase(name="Test Case AC-1..6")
+        self.case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Test Case AC-1..6"
+        )
         self.actor_participant = as_CaseParticipant(
             attributed_to=actor_id,
             context=self.case.id_,
@@ -1738,7 +1745,9 @@ class TestSoleObserverVfdGuard:
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = as_VulnerabilityCase(name="Test Case CM-25-005")
+        self.case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Test Case CM-25-005"
+        )
         self.actor_participant = as_CaseParticipant(
             attributed_to=actor_id,
             context=self.case.id_,
@@ -1861,7 +1870,9 @@ class TestVendorVfdRoleGuard:
         reset_datalayer(self.case_manager_actor.id_)
         self.dl.create(self.case_manager_actor)
 
-        self.case = as_VulnerabilityCase(name="Test Case #2862")
+        self.case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Test Case #2862"
+        )
         self.vendor_participant = as_CaseParticipant(
             attributed_to=vendor_id,
             context=self.case.id_,
@@ -1992,7 +2003,9 @@ class TestCrossMachineEntailments:
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = as_VulnerabilityCase(name="Test Case #2236")
+        self.case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Test Case #2236"
+        )
         self.actor_participant = as_CaseParticipant(
             attributed_to=actor_id,
             context=self.case.id_,
@@ -2279,7 +2292,9 @@ class TestCreateParticipantStatusNodeCrossMachineOnBypassPath:
         reset_datalayer(self.case_actor.id_)
         self.dl.create(self.case_actor)
 
-        self.case = as_VulnerabilityCase(name="Test Case #3100")
+        self.case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Test Case #3100"
+        )
         self.actor_participant = as_CaseParticipant(
             attributed_to=actor_id,
             context=self.case.id_,

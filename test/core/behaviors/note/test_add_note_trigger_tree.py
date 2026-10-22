@@ -19,6 +19,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -95,7 +96,7 @@ def _make_case_with_case_manager(
     store: SqliteDataLayer,
     actor_id: str,
 ) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
     finder_participant = ReporterParticipant(
         attributed_to=actor_id,
         context=case.id_,
@@ -217,7 +218,9 @@ class TestAddNoteToCaseTriggerBT:
 
     def test_failure_when_no_case_manager(self, dl, bridge):
         store, actor = dl
-        case = as_VulnerabilityCase(name="No Manager Case")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="No Manager Case"
+        )
         participant = ReporterParticipant(
             attributed_to=actor.id_,
             context=case.id_,

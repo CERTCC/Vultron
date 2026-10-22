@@ -43,6 +43,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
 from vultron.demo.utils import reset_demo_failures
 from vultron.errors import DemoFailureError
@@ -152,7 +153,8 @@ class TestDumpRunsAfterMidPhaseFailure:
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
         case = module.as_VulnerabilityCase(
-            id_="https://example.org/cases/issue-2239"
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/issue-2239",
         )
         # rvv phase 1 returns
         # (reporter, vendor, vendor_in_vendor, vendor2, report, offer, case).
@@ -198,7 +200,8 @@ class TestDumpRunsAfterMidPhaseFailure:
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
         case = module.as_VulnerabilityCase(
-            id_="https://example.org/cases/issue-2239-mask"
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/issue-2239-mask",
         )
         phase_one_result = (
             MagicMock(),

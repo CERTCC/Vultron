@@ -24,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 import vultron.core.models._helpers as model_helpers
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models import embargo_register
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -72,7 +73,9 @@ E1, E2, E3 = _embargo(1), _embargo(2), _embargo(3)
 
 
 def _case_file() -> EmbargoCaseFile:
-    case = VulnerabilityCase(id_=CASE_ID, name="apply")
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="apply"
+    )
     participants = {}
     for actor_id in (ALICE, BOB):
         record = CaseParticipant(

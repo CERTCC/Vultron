@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from vultron.adapters.driven.db_record import (
     _KEEP_INLINE_NESTED_TYPES,
@@ -367,7 +368,7 @@ def _make_wire_vulnerability_case():
         as_VulnerabilityCase,
     )
 
-    return as_VulnerabilityCase(name="Case-2401")
+    return as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Case-2401")
 
 
 def _make_wire_embargo_event():
@@ -773,7 +774,8 @@ def _role_offer_naming_a_peer():
         role=CVDRole.VENDOR,
         target_actor=as_Actor(id_=_PEER_ACTOR_ID),
         case=as_VulnerabilityCase(
-            id_="urn:uuid:case-dl08003-0000-0000-000000000001"
+            attributed_to=CASE_OWNER_ID,
+            id_="urn:uuid:case-dl08003-0000-0000-000000000001",
         ),
         id_="urn:uuid:role-dl08003-0000-0000-000000000001",
         actor=_CASE_ACTOR_ID,
@@ -795,7 +797,8 @@ def _ownership_offer_naming_a_peer():
 
     return offer_case_ownership_transfer_activity(
         as_VulnerabilityCase(
-            id_="urn:uuid:case-dl08003-0000-0000-000000000001"
+            attributed_to=CASE_OWNER_ID,
+            id_="urn:uuid:case-dl08003-0000-0000-000000000001",
         ),
         target=_PEER_ACTOR_ID,
         id_="urn:uuid:own-dl08003-0000-0000-000000000001",
@@ -952,7 +955,8 @@ def test_from_obj_emits_wire_identity_keys_no_trailing_underscores():
     )
 
     case = as_VulnerabilityCase(
-        id_="urn:uuid:case-arch23005-0000-0000-000000000001"
+        attributed_to=CASE_OWNER_ID,
+        id_="urn:uuid:case-arch23005-0000-0000-000000000001",
     )
     record = object_to_record(cast(Any, case))
 

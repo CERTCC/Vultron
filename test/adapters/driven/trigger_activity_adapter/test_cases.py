@@ -19,6 +19,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, register
 from vultron.adapters.driven.trigger_activity_adapter import _base
 from vultron.adapters.driven.trigger_activity_adapter._base import (
@@ -60,7 +61,9 @@ _CONTEXT_ID = "https://example.org/contexts/ctx-001"
 
 
 def _make_case(dl) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(name="CVE-2025-001")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="CVE-2025-001"
+    )
     dl.create(case)
     return case
 
@@ -807,7 +810,9 @@ class TestAnnounceVulnerabilityCaseEmbedsEveryReport:
     would reach a recipient that cannot resolve it."""
 
     def _case_naming(self, dl, report_ids):
-        case = as_VulnerabilityCase(name="CVE-2025-020")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="CVE-2025-020"
+        )
         case.vulnerability_reports.extend(report_ids)
         dl.create(case)
         return case

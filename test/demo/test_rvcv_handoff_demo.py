@@ -42,6 +42,7 @@ from test.demo.conftest import (
     _TestClientRouter,
     create_isolated_actor_app,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_of_type
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
@@ -100,7 +101,8 @@ class TestPhaseDumpCaseLedgersRvcv:
         case_actor_client = _bound_client("case-actor")
 
         case = demo.as_VulnerabilityCase(
-            id_="https://example.org/cases/rvcv-test-case"
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/rvcv-test-case",
         )
         monkeypatch.setenv("DEVLOGS_DIR", str(tmp_path))
 
@@ -168,6 +170,7 @@ class TestPhaseDumpCaseLedgersRvcv:
         case_actor_client = _bound_client("case-actor")
 
         case = demo.as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/rvcv-with-ca",
             actor_participant_index={
                 "https://example.org/actors/case-actor": (
@@ -953,7 +956,11 @@ def _otc_ownership_transferred(
                 # (ADR-0148).  It runs in-process: the Offer's own delivery
                 # is not this test's subject.
                 case_wire = as_VulnerabilityCase.model_validate(
-                    {"id": case_id, "name": case.name or "OTC Test Case"}
+                    {
+                        "attributed_to": CASE_OWNER_ID,
+                        "id": case_id,
+                        "name": case.name or "OTC Test Case",
+                    }
                 )
                 proposal = propose_case_ownership_transfer_activity(
                     case_wire,

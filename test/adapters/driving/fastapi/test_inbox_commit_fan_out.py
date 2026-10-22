@@ -29,6 +29,7 @@ from typing import Any
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import inbox_handler as ih
@@ -118,7 +119,9 @@ def test_owner_offer_actor_dispatched_by_inbox_fans_out_every_commit(
     dl = _case_manager_store()
     activity = recommend_actor_activity(
         as_Actor(id_=_INVITEE_ID),
-        target=as_VulnerabilityCase(id_=_CASE_ID, name="FanOutWiring"),
+        target=as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="FanOutWiring"
+        ),
         actor=_OWNER_ID,
         to=[_MANAGER_ID],
         suggested_roles=["vendor"],

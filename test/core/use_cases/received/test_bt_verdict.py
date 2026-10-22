@@ -22,6 +22,7 @@ from py_trees.common import Status
 from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTExecutionResult
 from vultron.core.behaviors.case.nodes.incomplete_activity import (
@@ -299,7 +300,9 @@ def _store(
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_STORE_OWNER)
     if holds_case:
-        case = as_VulnerabilityCase(id_=_CASE_ID, name="Gate verdict")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Gate verdict"
+        )
         if manager_id is not None:
             seed_case_manager_participant(dl, case, manager_id)
         dl.create(case)

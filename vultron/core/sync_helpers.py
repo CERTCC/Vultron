@@ -232,8 +232,7 @@ def store_ledger_entry(
             raise VultronNotFoundError("VulnerabilityCase", entry.case_id)
         held = case.ledger_position
         if (
-            held is not None
-            and entry.log_index == held.log_index
+            entry.log_index == held.log_index
             and entry.entry_hash != held.entry_hash
         ):
             raise VultronEntryRefusedError(
@@ -243,7 +242,7 @@ def store_ledger_entry(
                 " chains conflict (SYNC-16-007)"
             )
         dl.save(entry)
-        if held is not None and entry.log_index <= held.log_index:
+        if entry.log_index <= held.log_index:
             return case
         case.ledger_position = LedgerPosition(
             log_index=entry.log_index, entry_hash=entry.entry_hash

@@ -16,6 +16,10 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import (
+    CASE_OWNER_ID,
+    CONSTRUCTED_CASE_OWNERSHIP,
+)
 from test.support.inbox_replay import (
     RecordingInboxReplay,
     deliver_replayed,
@@ -71,7 +75,9 @@ def dl():
 
 @pytest.fixture()
 def case():
-    return as_VulnerabilityCase(id_=_CASE_ID, name="DR-10 Announce Case")
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="DR-10 Announce Case"
+    )
 
 
 def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
@@ -266,7 +272,9 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         # Build an Announce that wraps a non-case object; we can't use the typed
         # factory here because it requires as_VulnerabilityCase,
         # so we inject via model_copy to simulate a malformed incoming payload.
-        good_case = as_VulnerabilityCase(id_=_CASE_ID2, name="Placeholder")
+        good_case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID2, name="Placeholder"
+        )
         announce = announce_vulnerability_case_activity(
             good_case, actor=_OWNER_ID, to=[_RECEIVER_ID]
         )
@@ -627,6 +635,7 @@ class TestAnnounceStoresEmbeddedParticipants:
             context=_CASE_ID,
         )
         case = as_VulnerabilityCase.model_construct(
+            **CONSTRUCTED_CASE_OWNERSHIP,
             id_=_CASE_ID,
             name="DR-10 Announce Case with Participants",
             case_participants=[
@@ -692,6 +701,7 @@ class TestAnnounceStoresEmbeddedParticipants:
         as-is (they reference objects the receiver doesn't have locally).
         """
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=_CASE_ID,
             name="Announce with string participants",
             case_participants=[_VENDOR_PARTICIPANT_ID],  # bare string ref

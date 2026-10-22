@@ -16,6 +16,7 @@ from typing import cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
     propose,
@@ -88,7 +89,9 @@ class TestEmbargoLogEntryCascade:
         dl.save(case_read)
         write_consent_rows(dl, case_read)
 
-        case_ref = as_VulnerabilityCase(id_=case_id)
+        case_ref = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=case_id
+        )
         activity = factory(embargo, target=case_ref, actor=author_id)
         event = make_payload(activity, receiving_actor_id=author_id)
         sync_port = SyncActivityAdapter(dl)

@@ -28,6 +28,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.errors import VultronOutboxObjectIntegrityError
@@ -197,7 +198,9 @@ class TestCreateCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case(self):
-        _assert_accepts_inline(self.cls, as_VulnerabilityCase())
+        _assert_accepts_inline(
+            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        )
 
 
 class TestAddNoteToCaseActivity:
@@ -227,7 +230,9 @@ class TestUpdateCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case(self):
-        _assert_accepts_inline(self.cls, as_VulnerabilityCase())
+        _assert_accepts_inline(
+            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        )
 
 
 class TestRmEngageCaseActivity:
@@ -242,7 +247,9 @@ class TestRmEngageCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case(self):
-        _assert_accepts_inline(self.cls, as_VulnerabilityCase())
+        _assert_accepts_inline(
+            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        )
 
 
 class TestRmDeferCaseActivity:
@@ -257,7 +264,9 @@ class TestRmDeferCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case(self):
-        _assert_accepts_inline(self.cls, as_VulnerabilityCase())
+        _assert_accepts_inline(
+            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        )
 
 
 class TestRmCloseCaseActivity:
@@ -272,7 +281,9 @@ class TestRmCloseCaseActivity:
         _assert_rejects_link(self.cls)
 
     def test_accepts_inline_case(self):
-        _assert_accepts_inline(self.cls, as_VulnerabilityCase())
+        _assert_accepts_inline(
+            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        )
 
 
 class TestRmInviteToCaseActivity:

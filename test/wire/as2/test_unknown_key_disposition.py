@@ -25,6 +25,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
+from test.support.case_owner import INBOUND_CASE_OWNERSHIP
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.registry import CORE_TYPE_MAP, CORE_VOCABULARY
@@ -85,6 +86,7 @@ FOREIGN_KEY_POSITIONS: list[tuple[str, dict[str, Any], str]] = [
         "inline domain object",
         _with_inline_object(
             {
+                **INBOUND_CASE_OWNERSHIP,
                 "type": "VulnerabilityCase",
                 "id": "https://example.org/cases/1",
                 "name": "a case",
@@ -117,6 +119,7 @@ NEAR_MISS_POSITIONS: list[tuple[str, dict[str, Any], str, str]] = [
         "inline domain object separator variant",
         _with_inline_object(
             {
+                **INBOUND_CASE_OWNERSHIP,
                 "type": "VulnerabilityCase",
                 "id": "https://example.org/cases/1",
                 "name": "a case",
@@ -526,6 +529,7 @@ def test_every_near_miss_is_named_in_one_refusal() -> None:
     body = _envelope(
         Actor="dup",
         object={
+            **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
             "id": "https://example.org/cases/1",
             "Name": "a case",
@@ -569,6 +573,7 @@ def test_untyped_dict_in_a_core_slot_is_partitioned_by_the_slot(
     caplog.set_level(logging.INFO)
     body = _with_inline_object(
         {
+            **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
             "id": "https://example.org/cases/1",
             "caseStatuses": [
@@ -763,6 +768,7 @@ def test_a_sparse_case_carrying_stub_keys_is_still_a_case(
         type="Invite",
         object="https://example.org/actors/bob",
         target={
+            **INBOUND_CASE_OWNERSHIP,
             "type": "VulnerabilityCase",
             "id": "https://example.org/cases/1",
             "caseStatus": {"type": "CaseStatus", "context": "x"},
@@ -780,10 +786,29 @@ def test_a_sparse_case_carrying_stub_keys_is_still_a_case(
 @pytest.mark.parametrize(
     "inline",
     [
-        {"type": "VulnerabilityCase", "id": "urn:uuid:c1"},
-        {"type": "VulnerabilityCase", "id": "urn:uuid:c1", FOREIGN_KEY: 1},
-        {"type": "VulnerabilityCase", "id": "urn:uuid:c1", "name": "n"},
-        {"type": "VulnerabilityCase", "id": "urn:uuid:c1", "caseStatus": {}},
+        {
+            **INBOUND_CASE_OWNERSHIP,
+            "type": "VulnerabilityCase",
+            "id": "urn:uuid:c1",
+        },
+        {
+            **INBOUND_CASE_OWNERSHIP,
+            "type": "VulnerabilityCase",
+            "id": "urn:uuid:c1",
+            FOREIGN_KEY: 1,
+        },
+        {
+            **INBOUND_CASE_OWNERSHIP,
+            "type": "VulnerabilityCase",
+            "id": "urn:uuid:c1",
+            "name": "n",
+        },
+        {
+            **INBOUND_CASE_OWNERSHIP,
+            "type": "VulnerabilityCase",
+            "id": "urn:uuid:c1",
+            "caseStatus": {},
+        },
     ],
     ids=["minimal", "minimal-plus-foreign", "full", "stub-only-key"],
 )
@@ -901,6 +926,7 @@ _AS2_CONTEXT = "https://www.w3.org/ns/activitystreams"
 
 _NOTE: dict[str, Any] = {"type": "Note", "content": "hi"}
 _CASE: dict[str, Any] = {
+    **INBOUND_CASE_OWNERSHIP,
     "type": "VulnerabilityCase",
     "id": "https://example.org/cases/1",
     "name": "a case",

@@ -292,8 +292,7 @@ A participant refuses an entry at the position's index whose hash differs from t
 A participant first seeded from a copy stores the entries up to the copy's position the same way, as no-ops. (SYNC-16-007)
 
 [I] In this implementation, the position travels as the `ledgerPosition` property of the case object, with `logIndex` and `entryHash` members.
-A received case that has an owner and no `ledgerPosition` is refused when it is parsed.
-A replica that holds the case refuses a copy with no owner, which names no position, because it cannot tell that copy from a stale one.
+A received case with no owner or no `ledgerPosition` is refused when it is parsed, so every copy a replica judges names a position.
 The copy carries each participant and report as the CASE_MANAGER's store holds it when it sends the copy, because a replica that takes the copy replaces its own with them.
 The CASE_MANAGER receives its own announcement as a participant and skips it, because its case is the copy's source.
 A replica already past the position that holds a different entry at the position's index reports the conflict, not a stale copy, because the chains disagree.

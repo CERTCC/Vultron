@@ -40,6 +40,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -122,7 +123,9 @@ def _offer() -> Any:
 
 
 def _case_ref() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(id_=CASE_ID, name="Issue 2235 Case")
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Issue 2235 Case"
+    )
 
 
 @dataclass(frozen=True)

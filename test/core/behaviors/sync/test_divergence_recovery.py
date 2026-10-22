@@ -28,6 +28,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
 from test.support.received import received_event
@@ -128,7 +129,11 @@ def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
     replica side when it builds the fault's emission.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
-    dl.create(as_VulnerabilityCase(id_=_CASE_ID, name="current copy"))
+    dl.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="current copy"
+        )
+    )
     activity = create_processing_fault_activity(
         actor=_REPLICA_ID,
         fault=as_ProcessingFault(
@@ -400,20 +405,6 @@ def test_a_copy_that_conflicts_with_the_chain_is_refused_at_error(
         r.levelno == logging.ERROR and "conflicts" in r.getMessage()
         for r in caplog.records
     )
-
-
-@pytest.mark.spec("SYNC-16-006")
-def test_an_ownerless_copy_of_a_held_case_is_refused() -> None:
-    """A copy with no owner names no ledger position (CLP-08-002), so the
-    replica cannot tell it from a stale one."""
-    dl = _replica_holding("replica case")
-
-    result = _announce(
-        as_VulnerabilityCase(id_=_CASE_ID, name="ownerless copy"), dl
-    )
-
-    assert result.disposition is HandlerDisposition.REFUSED
-    assert _case_name(dl) == "replica case"
 
 
 @pytest.mark.spec("PCR-02-004")

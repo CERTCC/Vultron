@@ -22,7 +22,15 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, ClassVar, Literal
 
-from pydantic import Field, ValidationInfo, computed_field, model_validator
+from pydantic import (
+    Field,
+    GetJsonSchemaHandler,
+    ValidationInfo,
+    computed_field,
+    model_validator,
+)
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import CoreSchema
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
@@ -90,10 +98,23 @@ def _owner(data: dict[str, Any]) -> Any:
     return data.get("attributed_to") or data.get(wire_key("attributed_to"))
 
 
+def _names_blank_id(data: dict[str, Any]) -> bool:
+    """Whether *data* carries an id key whose value is blank.
+
+    A blank id is refused by ``id_``'s type (CS-08-001); a before-validator
+    that sees one leaves *data* as it is, so that refusal names the id rather
+    than a seed built from it.
+    """
+    return any(
+        isinstance(data.get(key), str) and not data[key].strip()
+        for key in ("id", "id_")
+    )
+
+
 def _start_ledger_position(
     data: dict[str, Any], info: ValidationInfo
 ) -> dict[str, Any]:
-    """Start an owned case that names no ledger position at its empty ledger.
+    """Start a case that names no ledger position at its empty ledger.
 
     Only a case this process builds starts there: index -1 with its genesis
     hash, the position of a ledger with no entries (CLP-08-004).  A stored row
@@ -101,8 +122,8 @@ def _start_ledger_position(
     was written before cases carried their position, and no conversion is made,
     so the store must be reset (#4087).  A received one is a sender that left
     out what SYNC-16-005 requires, and a receiver infers nothing for it
-    (ADR-0103).  An explicit value, ``None`` included, is left to
-    :meth:`VulnerabilityCase._ledger_position_iff_owner`.
+    (ADR-0103).  An explicit value is left to field validation and
+    :meth:`VulnerabilityCase._empty_ledger_names_genesis`.
     """
     key = _present_key(data, "ledger_position")
     if key in data or not _owner(data):
@@ -171,7 +192,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
     (e.g. ``VulnerabilityReportRef``, ``CaseParticipantRef``), ensuring
     DataLayer round-trip compatibility.
 
-    When first created with an ``attributed_to`` actor and an empty
+    Every case has an owner (``attributed_to``).  When first created with an empty
     ``case_statuses`` list, an initial :class:`CaseStatus` is appended
     automatically so that ``current_status`` never encounters an empty
     history list.
@@ -235,30 +256,66 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         Field(default_factory=dict)
     )
     case_activity: list[NonEmptyString] = Field(default_factory=list)
-    genesis_hash: str = Field(
+    # Every case has an owner (CP-09-001, CM-02-008): the genesis hash, and so
+    # the whole ledger chain, is computed from it (CLP-08-002/003).  A case
+    # with no owner is refused at construction and on load (ARCH-10-001).
+    attributed_to: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
+    # Never empty: the empty default only stands in until the before-validator
+    # computes the hash from the owner, and is refused if it is still there.
+    genesis_hash: NonEmptyString = Field(
         default="",
+        validate_default=True,
         description=(
             "Per-case genesis hash binding this ledger to its origin "
-            "identity and timestamp (CLP-08-003). "
-            "The empty-string default is intentional: rehydration paths "
-            "may deserialise objects that were stored before genesis hashes "
-            "were introduced. The model_validator enforces non-empty when "
-            "attributed_to is present at construction time."
+            "identity and timestamp (CLP-08-003).  Computed from the owner "
+            "at construction when not carried (CLP-08-002)."
         ),
     )
     # The ledger position this case file is a projection of (ADR-0124,
     # ADR-0142): the entry last applied to it, or index -1 with the genesis
-    # hash before any.  ``None`` exactly when the case has no owner, and so no
-    # genesis hash and no ledger (CLP-08-002/003).  It moves only through
+    # hash before any.  Every case has one, since every case has an owner and
+    # so a genesis hash (CLP-08-002/003).  It moves only through
     # ``store_ledger_entry``, as each entry is committed or stored, and
-    # travels with the case on the wire (SYNC-16-005).
-    ledger_position: LedgerPosition | None = Field(
-        default=None, json_schema_extra=VULTRON_PROPERTY_EXTRA
+    # travels with the case on the wire (SYNC-16-005).  The ``None`` default
+    # only stands in until the before-validator starts the position, and is
+    # refused if it is still there.
+    ledger_position: LedgerPosition = Field(
+        default=None,
+        validate_default=True,
+        json_schema_extra=VULTRON_PROPERTY_EXTRA,
     )
     # ADR-0017: ID-only cross-refs to avoid graph-cycle issues
     parent_cases: list[NonEmptyString] = Field(default_factory=list)
     child_cases: list[NonEmptyString] = Field(default_factory=list)
     sibling_cases: list[NonEmptyString] = Field(default_factory=list)
+
+    #: Fields whose default only stands in until a before-validator fills it;
+    #: the published schema leaves those defaults out, since a case that
+    #: still holds one is refused.
+    _STAND_IN_DEFAULT_FIELDS: ClassVar[tuple[str, ...]] = (
+        "genesis_hash",
+        "ledger_position",
+    )
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls, core_schema: CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        """Leave the stand-in defaults out of the published schema.
+
+        ``genesis_hash`` and ``ledger_position`` default to a value the field
+        type refuses, so a schema showing it would invite a client to send
+        it (ARCH-10-001).
+        """
+        json_schema = handler(core_schema)
+        properties = handler.resolve_ref_schema(json_schema).get(
+            "properties", {}
+        )
+        for field_name in cls._STAND_IN_DEFAULT_FIELDS:
+            for key in (field_name, wire_key(field_name)):
+                if key in properties:
+                    properties[key].pop("default", None)
+        return json_schema
 
     @model_validator(mode="before")
     @classmethod
@@ -277,15 +334,14 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         ``attributed_to`` and lets this validator compute the hash; it does
         not pass a hash of its own.
 
-        When ``attributed_to`` is present, ``genesis_hash`` MUST be non-empty
-        after this validator runs — if the hash cannot be computed (e.g.,
-        ``published`` is absent), a
+        ``genesis_hash`` MUST be non-empty after this validator runs — if the
+        hash cannot be computed (e.g., ``published`` is absent), a
         :exc:`~vultron.errors.VultronValidationError` is raised (fail-closed
         per CLP-08-003/CLP-08-004).  No-ops when ``genesis_hash`` is already
         set — a received case keeps its sender's hash; one that carries none
-        derives it here from its carried inputs (ADR-0103) — or when
-        ``attributed_to`` is absent (genesis hash requires an owner as
-        input).
+        derives it here from its carried inputs (ADR-0103).  A case with no
+        ``attributed_to`` is left to the required-field check, which refuses
+        it (ARCH-10-001).
 
         Both spellings of each input are read: the class is its own wire class
         (ARCH-25-003, ADR-0099), so an inbound case arrives as ``attributedTo`` and
@@ -301,11 +357,14 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             and INBOUND_CONTEXT_KEY in info.context
         )
         attributed_to = _owner(data)
+        if not attributed_to or _names_blank_id(data):
+            return data  # the field checks refuse the case
         hash_key = _present_key(data, "genesis_hash")
-        genesis_hash = data.get(hash_key, "")
-        if not genesis_hash and attributed_to:
+        if not data.get(hash_key):
             data = dict(data)
-            if not data.get("id") and not data.get("id_"):
+            # Mint only an absent id: a blank one is refused by ``id_``'s
+            # type, not silently replaced (CS-08-001).
+            if data.get("id") is None and data.get("id_") is None:
                 data["id"] = _new_urn()
             case_id = data.get("id") or data.get("id_")
             published_val = _genesis_published(data, inbound)
@@ -315,7 +374,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
                     created_at=published_val,
                     owner_actor_id=attributed_to,
                 )
-        if attributed_to and not data.get(hash_key):
+        if not data.get(hash_key):
             case_id = data.get("id") or data.get("id_") or "<unknown>"
             raise VultronValidationError(
                 f"VulnerabilityCase '{case_id}': genesis_hash could not "
@@ -337,12 +396,14 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         if not isinstance(data, dict):
             return data
         statuses_key = _present_key(data, "case_statuses")
-        attributed_to = data.get("attributed_to") or data.get(
-            wire_key("attributed_to")
-        )
-        if not data.get(statuses_key) and attributed_to:
+        attributed_to = _owner(data)
+        if not attributed_to or _names_blank_id(data):
+            return data  # the field checks refuse the case
+        if not data.get(statuses_key):
             data = dict(data)
-            if not data.get("id") and not data.get("id_"):
+            # Mint only an absent id: a blank one is refused by ``id_``'s
+            # type, not silently replaced (CS-08-001).
+            if data.get("id") is None and data.get("id_") is None:
                 data["id"] = _new_urn()
             case_id = data.get("id") or data.get("id_")
             data[statuses_key] = [
@@ -380,30 +441,15 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         return self
 
     @model_validator(mode="after")
-    def _ledger_position_iff_owner(self) -> VulnerabilityCase:
-        """Refuse a position on an ownerless case, or an owned case without one.
+    def _empty_ledger_names_genesis(self) -> VulnerabilityCase:
+        """Refuse an empty-ledger position that names another hash (CLP-08-004).
 
-        A case has a ledger exactly when it has an owner: the owner anchors its
-        genesis hash (CLP-08-002/003), and so its position (SYNC-16-005).  An
-        empty ledger's position must name that genesis hash (CLP-08-004).
-        Checks only; the position an omitted field starts at is set before
-        validation (:func:`_start_ledger_position`, ARCH-21-004).
+        Every case has an owner, so a genesis hash and a ledger position
+        (CLP-08-002/003, SYNC-16-005); the field types refuse a case missing
+        either.  Checks only; the position an omitted field starts at is set
+        before validation (:func:`_start_ledger_position`, ARCH-21-004).
         """
         position = self.ledger_position
-        if self.attributed_to is None:
-            if position is not None:
-                raise ValueError(
-                    f"VulnerabilityCase '{self.id_}' has a ledger_position but"
-                    " no owner; a case without an owner has no ledger"
-                    " (CLP-08-002)"
-                )
-            return self
-        if position is None:
-            raise ValueError(
-                f"VulnerabilityCase '{self.id_}' has an owner but no"
-                " ledger_position; an owned case names the ledger position it"
-                " is a projection of (SYNC-16-005)"
-            )
         if (
             position.log_index == EMPTY_LEDGER_LOG_INDEX
             and position.entry_hash != self.genesis_hash

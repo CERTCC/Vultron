@@ -19,6 +19,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -65,7 +66,7 @@ def _make_case_with_case_manager(
     store: SqliteDataLayer,
     actor_id: str,
 ) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
     finder_participant = ReporterParticipant(
         attributed_to=actor_id,
         context=case.id_,
@@ -132,7 +133,9 @@ class TestSenderSideBT:
     @pytest.mark.spec("CM-24-006")
     def test_bt_failure_when_case_manager_absent(self, dl, bridge):
         store, actor = dl
-        case = as_VulnerabilityCase(name="No Manager")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="No Manager"
+        )
         participant = ReporterParticipant(
             attributed_to=actor.id_,
             context=case.id_,
@@ -176,7 +179,9 @@ class TestSenderSideStaleKeyRegression:
         # Run 2 (no blackboard clear between runs): fails — case has no
         # CASE_MANAGER participant, so ResolveCaseManagerNode takes its no-op
         # path.  BT-17-003 requires it to clear /case_manager_id to None.
-        case2 = as_VulnerabilityCase(name="No Manager Case")
+        case2 = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="No Manager Case"
+        )
         participant2 = ReporterParticipant(
             attributed_to=actor.id_,
             context=case2.id_,

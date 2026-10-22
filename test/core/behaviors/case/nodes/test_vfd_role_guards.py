@@ -27,6 +27,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.case.nodes.vfd_role_guards import (
     CheckDeployerRoleNode,
     CheckNotSoleObserverVfdNode,
@@ -86,6 +87,7 @@ def case_with_vendor_and_deployer(
     coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -174,6 +176,7 @@ def test_vendor_guard_failure_when_actor_not_in_case(
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[vendor_participant.id_],
@@ -259,6 +262,7 @@ def test_deployer_guard_failure_when_actor_not_in_case(
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[deployer_participant.id_],
@@ -308,6 +312,7 @@ def case_with_observer_actors(
     coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -466,6 +471,7 @@ def case_with_vendor_at_vf_and_deployer(
     coordinator_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -523,6 +529,7 @@ def case_with_vendor_at_vf_in_fallback(
     actor_participant_index, forcing the fallback DataLayer read.
     """
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -566,6 +573,7 @@ def test_not_sole_observer_failure_when_actor_not_in_case(
 ) -> None:
     """FAILURE when actor_id is not present in actor_participant_index."""
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[observer_participant.id_],

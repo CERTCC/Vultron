@@ -32,6 +32,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
     create_participant_replica_gated_tree,
@@ -73,6 +74,7 @@ def case_with_manager(bt_scenario: BTTestScenario) -> VulnerabilityCase:
         case_roles=[CVDRole.VENDOR],
     )
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Gated Case",
         case_participants=[manager.id_, vendor.id_],
@@ -306,6 +308,7 @@ class TestParticipantReplicaGate:
             case_roles=[CVDRole.VENDOR],
         )
         case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             name="No manager",
             case_participants=[vendor.id_],

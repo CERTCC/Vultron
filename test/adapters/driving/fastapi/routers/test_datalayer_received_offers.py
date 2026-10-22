@@ -23,6 +23,7 @@ route depends on it.
 import pytest
 from fastapi import status
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import archive_received
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.wire.as2.factories import (
@@ -148,7 +149,9 @@ def test_a_received_activity_of_another_type_is_not_an_offer(
     invite = rm_invite_to_case_activity(
         as_Service(id_=dl_actor_id),
         target=as_VulnerabilityCase(
-            id_="https://example.org/cases/c-1", stub_summary="s"
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/c-1",
+            stub_summary="s",
         ),
         actor=FINDER,
         id_=OFFER_ID,

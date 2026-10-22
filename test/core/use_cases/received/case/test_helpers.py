@@ -25,6 +25,7 @@ Covers:
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_participant import (
     CaseParticipant,
@@ -96,6 +97,7 @@ def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
         ],
     )
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="CBT-05-007 inline participant test",
         vulnerability_reports=[_REPORT_ID],
@@ -152,6 +154,7 @@ def test_bootstrap_bare_uri_participant_is_refused(make_payload):
         context=_CASE_ID,
     )
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="CBT-05-008 bare URI test",
         vulnerability_reports=[_REPORT_ID],
@@ -245,6 +248,7 @@ def test_bootstrap_from_an_actor_no_anchor_names_is_refused(
         context=_CASE_ID,
     )
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="CBT-01-011 unanchored sender",
         vulnerability_reports=[_CBT01011_REPORT_ID],

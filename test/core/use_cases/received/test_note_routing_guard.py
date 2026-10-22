@@ -21,6 +21,7 @@ falls back to ``_find_case_actor_id`` and incorrectly commits.
 
 from __future__ import annotations
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
@@ -119,7 +120,9 @@ class TestAddNoteToCaseLedgerRouting:
         """
         dl = _make_case_actor_dl()
 
-        case_ref = as_VulnerabilityCase(id_=CASE_ID)
+        case_ref = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        )
         note = as_Note(
             id_=NOTE_ID, content="Test note content", context=CASE_ID
         )
@@ -152,7 +155,9 @@ class TestAddNoteToCaseLedgerRouting:
         """
         dl = _make_case_actor_dl()
 
-        case_ref = as_VulnerabilityCase(id_=CASE_ID)
+        case_ref = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        )
         note = as_Note(
             id_=NOTE_ID, content="Test note content", context=CASE_ID
         )
@@ -190,7 +195,9 @@ class TestAddNoteToCaseLedgerRouting:
         """
         dl = _make_case_actor_dl()
 
-        case_ref = as_VulnerabilityCase(id_=CASE_ID)
+        case_ref = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        )
         note = as_Note(
             id_=NOTE_ID, content="Test note content", context=CASE_ID
         )

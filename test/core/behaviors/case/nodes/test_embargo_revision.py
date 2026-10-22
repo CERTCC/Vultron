@@ -297,21 +297,6 @@ def test_a_report_naming_no_reporter_raises(
 
 @pytest.mark.executes_as(MANAGER)
 @pytest.mark.spec("EP-04-011")
-def test_a_case_naming_no_owner_raises(
-    bt_scenario: BTTestScenario,
-) -> None:
-    seed(bt_scenario, owner=None)
-
-    result = relay(bt_scenario)
-
-    bt_scenario.assert_failure(
-        result, reason="names no CASE_OWNER", allow_internal=True
-    )
-    assert invites(bt_scenario) == []
-
-
-@pytest.mark.executes_as(MANAGER)
-@pytest.mark.spec("EP-04-011")
 def test_a_winner_who_is_not_a_recipient_raises_and_relays_nothing(
     bt_scenario: BTTestScenario,
 ) -> None:

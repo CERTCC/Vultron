@@ -56,6 +56,7 @@ from test.core.use_cases.received.test_participant_removal_planned import (
     _RemovalCase,
     _seed,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import terminate
 from test.support.ledger import with_genesis
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -1050,7 +1051,7 @@ def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
     )
     offer = offer_case_participant_activity(
         as_Actor(id_=VENDOR),
-        target=as_VulnerabilityCase(id_=CASE_ID),
+        target=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID),
         actor=MANAGER,
         to=[OWNER],
         roles=[CVDRole.VENDOR],
@@ -1066,7 +1067,9 @@ def test_the_owners_accept_of_a_removed_invitee_is_refused_before_the_commit(
     result = case.route(
         accept_case_participant_offer_activity(
             offer,
-            target=as_VulnerabilityCase(id_=CASE_ID),
+            target=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID
+            ),
             actor=OWNER,
             to=[MANAGER],
         )

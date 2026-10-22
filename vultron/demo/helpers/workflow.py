@@ -315,7 +315,7 @@ def receiver_engages_case(
     with demo_step("Receiver engages the vulnerability case"):
         result = (
             ActorSession(client=receiver_client, actor=receiver)
-            .with_case(as_VulnerabilityCase(id_=case_id))
+            .with_case(case_id)
             .quiet()
             .engage_case()
             .model_dump(exclude_none=True)

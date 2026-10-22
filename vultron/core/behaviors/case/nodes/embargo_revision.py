@@ -42,7 +42,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import _as_id, from_now_utc
+from vultron.core.models._helpers import from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.ports.case_persistence import CasePersistence
@@ -73,15 +73,11 @@ def creation_revision_parties(
     attributed to it (EP-04-011), so both read it here.
 
     Raises:
-        BtNodePreconditionError: If *case* names no owner, *report_id* is
-            missing, or the report names no author.
+        BtNodePreconditionError: If *report_id* is missing, or the report
+            names no author.
         VultronNotFoundError: If no report is stored under *report_id*.
     """
-    owner_id = _as_id(case.attributed_to)
-    if not owner_id:
-        raise BtNodePreconditionError(
-            f"case '{case.id_}' names no CASE_OWNER (CP-09-001)"
-        )
+    owner_id = case.attributed_to
     if not report_id:
         raise BtNodePreconditionError(
             "no report id, so the reporter cannot be resolved"

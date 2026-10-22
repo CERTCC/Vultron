@@ -26,6 +26,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.clock_decisions import clock_decision_node_ids
 from test.support.embargo_register import activate, register
 from test.support.refusal_effects import refusal_effect_node_ids
@@ -83,7 +84,9 @@ def _run_sign_node(
         embargo_consents=rows,
     )
 
-    case = VulnerabilityCase(id_="https://example.org/cases/sign")
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/sign"
+    )
     if earlier_accepted:
         activate(case, _EARLIER_EMBARGO_ID)
     activate(case, _EMBARGO_ID)
@@ -243,7 +246,9 @@ def _case_at(em_state: str) -> VulnerabilityCase:
     """A case whose embargo register derives *em_state* (ADR-0122)."""
     case_id = "https://example.org/cases/joiner"
     return VulnerabilityCase(
-        id_=case_id, embargo_register=_REGISTERS[em_state]()
+        attributed_to=CASE_OWNER_ID,
+        id_=case_id,
+        embargo_register=_REGISTERS[em_state](),
     )
 
 
@@ -326,7 +331,7 @@ def _case_with_inert_invitee() -> tuple[VulnerabilityCase, CaseParticipant]:
         case_roles=[CVDRole.VENDOR],
         joined=False,
     )
-    case = VulnerabilityCase(id_=_CM21_CASE_ID)
+    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CM21_CASE_ID)
     case.case_participants.append(participant.id_)
     case.actor_participant_index[_CM21_INVITEE_ID] = participant.id_
     return case, participant
@@ -341,7 +346,7 @@ def test_accept_with_no_participant_record_is_refused_before_any_write(
     The case holds no record for the invitee, so the guard fails with a reason
     naming the missing record and writes nothing.
     """
-    case = VulnerabilityCase(id_=_CM21_CASE_ID)
+    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CM21_CASE_ID)
     bt_scenario.seed(case)
     node = InviteeHasParticipantRecordNode(
         case_id=_CM21_CASE_ID, invitee_id=_CM21_INVITEE_ID

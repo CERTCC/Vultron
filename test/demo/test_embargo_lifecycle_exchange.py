@@ -43,7 +43,7 @@ def _session(name: str, log: list[str]) -> MagicMock:
     # Dataclass fields are instance attributes, so autospec does not copy them.
     session.actor = MagicMock()
     session.client = MagicMock()
-    session.case = MagicMock(id_=CASE_ID)
+    session.case_id = CASE_ID
     session.actor.id_ = f"http://{name}:7999/api/v2/actors/{name}"
     session.client.base_url = f"http://{name}:7999/api/v2"
     session.with_case.return_value = session

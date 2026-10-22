@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -84,7 +85,9 @@ class TestUseCaseExecution:
     def test_create_case_executes_with_valid_semantics(self, make_payload):
         """CreateCaseReceivedUseCase executes when semantics match."""
         case = as_VulnerabilityCase(
-            name="TEST-CASE-002", content="Test vulnerability case"
+            attributed_to=CASE_OWNER_ID,
+            name="TEST-CASE-002",
+            content="Test vulnerability case",
         )
         create_activity = as_Create(
             actor="https://example.org/users/tester",

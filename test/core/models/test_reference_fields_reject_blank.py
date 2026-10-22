@@ -29,6 +29,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.blank_strings import BLANKS
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.activity import (
     VultronAccept,
     VultronActivity,
@@ -68,23 +69,30 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
     ),
     (
         "VulnerabilityCase.case_participants",
-        lambda v: VulnerabilityCase(id_=CASE, case_participants=[v]),
+        lambda v: VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE, case_participants=[v]
+        ),
     ),
     (
         "VulnerabilityCase.actor_participant_index (value)",
         lambda v: VulnerabilityCase(
-            id_=CASE, actor_participant_index={ACTOR: v}
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE,
+            actor_participant_index={ACTOR: v},
         ),
     ),
     (
         "VulnerabilityCase.actor_participant_index (key)",
         lambda v: VulnerabilityCase(
-            id_=CASE, actor_participant_index={v: URI}
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE,
+            actor_participant_index={v: URI},
         ),
     ),
     (
         "VulnerabilityCase.embargo_register (embargo)",
         lambda v: VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE,
             embargo_register=[
                 EmbargoRegisterEntry(
@@ -109,11 +117,15 @@ CASES: list[tuple[str, Callable[[Any], Any]]] = [
     ),
     (
         "VulnerabilityCase.parent_cases",
-        lambda v: VulnerabilityCase(id_=CASE, parent_cases=[v]),
+        lambda v: VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE, parent_cases=[v]
+        ),
     ),
     (
         "VulnerabilityCase.case_activity",
-        lambda v: VulnerabilityCase(id_=CASE, case_activity=[v]),
+        lambda v: VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE, case_activity=[v]
+        ),
     ),
     (
         "VultronOfferRecord.offer_to",
