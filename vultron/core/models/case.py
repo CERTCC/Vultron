@@ -52,7 +52,6 @@ from vultron.core.models.base import (
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.dimensions import EmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_register import (
     EmbargoRegisterEntry,
@@ -744,14 +743,15 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
         em = self.em_state
         if current.em.state == em:
             return None
-        stamped = current.model_copy(update={"em": EmDimension(state=em)})
+        stamped = current.with_em(em)
         return [stamped if s is current else s for s in self.case_statuses]
 
     def _stamp_em(self) -> None:
         """Write the derived EM onto the current status's copy (ADR-0122).
 
         Bypasses assignment validation like :meth:`_set_cs_context`: the copy
-        differs only by a freshly validated ``EmDimension`` (ARCH-21-004).
+        differs only by a freshly validated ``EmDimension`` and the label
+        :meth:`CaseStatus.with_em` derives from it (ARCH-21-004).
         """
         statuses = self._em_stamped_statuses()
         if statuses is not None:

@@ -55,7 +55,8 @@ groups:
     statement: >
       When StatusAdoptionGate passes, `add_participant_status_tree` MUST write
       the post-adoption `CaseStatus` directly to the canonical case ledger via
-      `EmitCaseStatusUpdateNode` (RSH-04-004). The post-adoption `CaseStatus`
+      `EmitCaseStatusUpdateNode`, unless it changes neither EM nor PXA
+      (RSH-04-004). The post-adoption `CaseStatus`
       MUST set each of P, X and A that either the case's current PXA state or
       the `CaseStatus` the sender's `ParticipantStatus` embeds sets, and MUST
       NOT clear one the case already sets. It MUST NOT emit a self-addressed
@@ -335,7 +336,11 @@ groups:
       a canonical `CaseLedgerEntry`, then emits `Announce(CaseLedgerEntry)` for
       participant replica sync. It MUST NOT route through the inbox
       authorization seam (`add_case_status_tree`) — the CASE_MANAGER is always the
-      authority for its own outbound state changes.
+      authority for its own outbound state changes. A snapshot whose EM and PXA
+      equal those of the case's last committed `CaseStatus` changes nothing, so
+      the node MUST NOT commit or write it (CLP-07-013, ADR-0152). The change
+      is measured against the ledger, not the case's current status, which
+      already carries the register's EM (ADR-0122).
     rationale: >
       The inbox seam handles a received `Add(CaseStatus)`, which only the
       CASE_MANAGER sends, and only to a participant replica, which writes
@@ -348,6 +353,10 @@ groups:
       patches per BT tree factory.
     verification: Inspection of `vultron/core/behaviors/` confirms `EmitCaseStatusUpdateNode` writes directly to
       `case.case_statuses` and emits `Announce(CaseLedgerEntry)` without routing through `add_case_status_tree`.
+      `test/core/behaviors/status/nodes/test_case_status.py` shows an unchanged snapshot
+      is neither committed nor written and an EM change after a commit is committed; the
+      demo and CI ledger invariant checks find no `CaseStatus` entry equal to the one
+      before it (`test/support/ledger_status_repeats.py`).
     note: >
       Implemented in ISSUE-2175 (`EmitCaseStatusUpdateNode`). The inbound
       adoption path was refactored onto the same node in ISSUE-2176 (RSH-01-003),

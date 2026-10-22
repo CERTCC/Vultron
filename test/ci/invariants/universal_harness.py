@@ -59,6 +59,7 @@ from test.ci.invariants.common import (
     check_semantic_type_count,
     check_semantic_type_is_registry_label,
     check_semantic_type_present,
+    check_status_entries_record_changes,
     check_unique_payload_snapshot_ids,
     load_actor_names,
     load_narrative_edges,
@@ -324,6 +325,21 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         assert not violations, (
             f"{len(violations)} activity id(s) recorded more than once on a"
             f" replica (CLP-07-002 violation):\n" + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("CLP-07-013")
+    def test_invariant_clp07_status_entries_record_changes(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """No ``CaseStatus`` entry repeats the previous one unchanged
+        (CLP-07-013).  A same-state ``ParticipantStatus`` is allowed
+        (BTND-10-001), so it is not checked here."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_status_entries_record_changes(replicas)
+        assert not violations, (
+            f"{len(violations)} CaseStatus entr(ies) that change nothing or"
+            " are mislabelled (CLP-07-013):\n" + "\n".join(violations[:20])
         )
 
     @pytest.mark.case_ledger_invariants

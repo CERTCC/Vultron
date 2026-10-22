@@ -189,6 +189,10 @@ sender check: authorization happened at the gates.
   case has not moved when `EmitCaseStatusUpdateNode` runs, so a bare snapshot
   re-commits the old P/X/A. Pass `reported_status_id`; the node adds every
   P/X/A latch the report sets and clears none (`adopted_pxa`, RSH-01-003, #4956).
+- **A snapshot that changes nothing is not written.** The node compares EM and
+  P/X/A with the last committed `CaseStatus` entry, not `case.current_status`,
+  which already carries the register's EM stamp, so comparing with it would miss
+  every EM change (RSH-04-004, CLP-07-013, #5123).
 - **Write directly, never through the inbox.** The CASE_MANAGER records its own
   state change by an inner commit, not by sending `Add(CaseStatus)` to itself
   (RSH-04-004, ADR-0108). The inbox gates exist for *external* suggestions.

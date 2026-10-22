@@ -322,9 +322,10 @@ That copy is **read-only**: `CaseStatus.em` is a frozen field and `EmDimension` 
 Every in-place write path raises a `ValidationError` at runtime: `status.em = …`, `status.em.state = …`, and the retired flat spelling `status.em_state = …`, which `CaseStatus` no longer defines (SDO-03-003).
 
 The only writer is the case itself.
-When its embargo register changes — through any `EmbargoLifecycle` operation or the function that applies a committed entry — the case replaces its current status with a `model_copy` carrying the new `EmDimension`.
+When its embargo register changes — through any `EmbargoLifecycle` operation or the function that applies a committed entry — the case replaces its current status with the copy `CaseStatus.with_em` makes, carrying the new `EmDimension`.
+The copy's `name` label is derived again from its states, so it never names the EM it replaced.
 Nothing else may write that copy.
-A status with a different EM state is built by construction or by `model_copy(update={"em": EmDimension(state=…)})`; assignment through an existing instance always raises.
+A status with a different EM state is built by construction or by `CaseStatus.with_em`; assignment through an existing instance always raises.
 
 ---
 

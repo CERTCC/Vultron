@@ -224,7 +224,7 @@ class EmDimension(_ScalarDimension):
 
     Frozen so that ``instance.state = EM.X`` raises ``ValidationError``.
     A status with a different EM is always built by construction or by
-    ``status.model_copy(update={"em": EmDimension(state=...)})``, never by
+    ``status.with_em(...)``, which also re-derives its label, never by
     mutation (SDO-03-006).
     """
 

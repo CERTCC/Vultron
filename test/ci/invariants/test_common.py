@@ -40,6 +40,7 @@ from test.ci.invariants.common import (
     check_semantic_type_count,
     check_semantic_type_is_registry_label,
     check_semantic_type_present,
+    check_status_entries_record_changes,
     check_unique_payload_snapshot_ids,
     for_each_replica,
 )
@@ -1944,3 +1945,104 @@ def test_post_close_invariant_does_not_take_the_owners_closure_as_boundary():
         "expected exactly one the CASE_MANAGER's own RM.CLOSED status entry,"
         " found 0"
     ]
+
+
+# ---------------------------------------------------------------------------
+# Status entries record changes (CLP-07-013; #5123, #5124, #5125)
+# ---------------------------------------------------------------------------
+
+_PARTICIPANT = "https://example.org/cases/test-case/participants/vendor"
+
+
+def _case_status_entry(
+    index: int, em: str, pxa: str, name: str | None = None
+) -> dict:
+    return _entry(
+        index,
+        _SHA256(f"cs:{index}"),
+        GENESIS_HASH,
+        semantic_type="add_case_status_to_case",
+        payload={
+            "type": "Add",
+            "target": CASE_URI,
+            "object": {
+                "id": f"urn:uuid:cs-{index}",
+                "type": "CaseStatus",
+                "name": name if name is not None else f"{em} {pxa}",
+                "published": f"2026-10-22T00:00:0{index}Z",
+                "emState": em,
+                "pxaState": pxa,
+            },
+        },
+    )
+
+
+def _participant_status_entry(index: int, vf: str) -> dict:
+    return _entry(
+        index,
+        _SHA256(f"ps:{index}"),
+        GENESIS_HASH,
+        semantic_type="add_participant_status_to_participant",
+        payload={
+            "type": "Add",
+            "target": {"id": _PARTICIPANT, "type": "CaseParticipant"},
+            "object": {
+                "id": f"urn:uuid:ps-{index}",
+                "type": "ParticipantStatus",
+                "name": f"ACCEPTED {vf}",
+                "rmState": "ACCEPTED",
+                "vfState": vf,
+            },
+        },
+    )
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_status_check_flags_an_unchanged_case_status():
+    replicas = {
+        "case-actor": [
+            _case_status_entry(0, "ACTIVE", "pxa"),
+            _case_status_entry(1, "ACTIVE", "pxa"),
+        ]
+    }
+    violations = check_status_entries_record_changes(replicas)
+    assert len(violations) == 1
+    assert "entry 1" in violations[0]
+    assert "repeats entry 0" in violations[0]
+
+
+@pytest.mark.spec("BTND-10-001")
+def test_status_check_allows_a_same_state_participant_confirmation():
+    """A participant may confirm a state it already holds (BTND-10-001,
+    CSB-16-001), so the universal invariant must pass that run."""
+    replicas = {
+        "case-actor": [
+            _participant_status_entry(0, "Vf"),
+            _participant_status_entry(1, "Vf"),
+            _participant_status_entry(2, "VF"),
+        ]
+    }
+    assert check_status_entries_record_changes(replicas) == []
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_status_check_passes_real_changes():
+    replicas = {
+        "case-actor": [
+            _case_status_entry(0, "NONE", "pxa"),
+            _participant_status_entry(1, "Vf"),
+            _case_status_entry(2, "ACTIVE", "pxa"),
+            _participant_status_entry(3, "VF"),
+            _case_status_entry(4, "ACTIVE", "Pxa"),
+        ]
+    }
+    assert check_status_entries_record_changes(replicas) == []
+
+
+def test_status_check_flags_a_mislabelled_case_status():
+    replicas = {
+        "case-actor": [_case_status_entry(0, "ACTIVE", "pxa", name="NONE pxa")]
+    }
+    violations = check_status_entries_record_changes(replicas)
+    assert len(violations) == 1
+    assert "'NONE pxa'" in violations[0]

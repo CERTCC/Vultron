@@ -42,18 +42,18 @@ import logging
 from typing import Any
 
 from py_trees.common import Status
-from pydantic import ValidationError
 
 from vultron.core.behaviors.sync.nodes._helpers import (
-    _extract_id_from_field,
     _LedgerEffectNode,
 )
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _SingleSemanticTypeNode,
 )
-from vultron.core.models._helpers import _as_id, project_wire_snapshot_to_core
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.sync_helpers import case_status_from_snapshot
+from vultron.errors import VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -125,22 +125,9 @@ class ApplyCaseStatusFromLedgerNode(_LedgerEffectNode):
 
     def _reconstruct(self, status_data: Any) -> CaseStatus | None:
         """Return the entry's CaseStatus, or ``None`` after reporting why."""
-        status_id = _extract_id_from_field(status_data)
-        if not status_id or not isinstance(status_data, dict):
-            self.feedback_message = (
-                "add_case_status_to_case entry carries no inline CaseStatus"
-            )
-            self.logger.warning("%s: %s", self.name, self.feedback_message)
-            return None
         try:
-            # Projected, not validated raw: the snapshot is AS2-shaped, and its
-            # timestamps are the CASE_MANAGER's to carry (CLP-15-007).
-            return CaseStatus.model_validate(
-                project_wire_snapshot_to_core(CaseStatus, status_data)
-            )
-        except ValidationError as exc:
-            self.feedback_message = (
-                f"CaseStatus '{status_id}' in the entry is malformed: {exc}"
-            )
+            return case_status_from_snapshot(status_data)
+        except VultronValidationError as exc:
+            self.feedback_message = str(exc)
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return None

@@ -52,7 +52,9 @@ from vultron.adapters.driving.fastapi.deps import (
     get_ledger_stream_shutdown,
     get_trigger_dispatcher,
     get_trigger_dl,
+    outbox_store,
 )
+from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.adapters.driving.fastapi.ledger_stream import (
     EVENT_STREAM_MEDIA_TYPE,
     case_ledger_entries,
@@ -72,6 +74,9 @@ from vultron.core.models.use_case_result import (
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.trigger_dispatcher import TriggerDispatcher
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.use_cases.triggers.case.add_participant_status import (
+    vf_steps_to,
+)
 from vultron.core.use_cases.triggers.request_bodies import (
     AddNoteToCaseRequest,
     NotifyFixDeployedRequest,
@@ -177,31 +182,40 @@ def demo_notify_fix_ready(
     Implements: DEMOMA-07-001, TRIG-09-001, TRIG-09-004, TRIG-02-003, TRIG-06-001,
         TRIG-12-001.
     """
-    # VF hypercube: vf → Vf is the only valid first hop from the initial
-    # state; Vf → VF is the second hop.  The verb is two protocol steps, so
-    # it is two trigger runs — each validated by ValidateTriggerTransitionsNode
-    # — and the response is the second hop's status.  Neither hop is on the
-    # actor's record until the CASE_MANAGER records it (RSH-08-003), so the
-    # second is validated as following the first.
-    first = run_trigger(
-        AddParticipantStatusTriggerRequest(
-            actor_id=actor_id, case_id=body.case_id, vf_state=CS_vf.Vf
-        ),
-        dispatcher=dispatcher,
-        dl=actor_dl,
-        background_tasks=background_tasks,
-    )
-    return run_trigger(
-        AddParticipantStatusTriggerRequest(
+    # VF hypercube: vf → Vf → VF, one adjacent hop per protocol step.  The
+    # verb sends only the hops the actor still needs (an invited vendor is
+    # already at Vf, #5125), each as its own trigger run validated by
+    # ValidateTriggerTransitionsNode, and the response is the last hop's
+    # status.  No hop is on the actor's record until the CASE_MANAGER records
+    # it (RSH-08-003), so each later hop is validated as following the one
+    # before.
+    with domain_error_translation():
+        steps = vf_steps_to(
+            outbox_store(actor_dl),
             actor_id=actor_id,
             case_id=body.case_id,
-            vf_state=CS_vf.VF,
-            follows_status_id=first.status_id,
-        ),
-        dispatcher=dispatcher,
-        dl=actor_dl,
-        background_tasks=background_tasks,
-    )
+            target=CS_vf.VF,
+        )
+    if not steps:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The actor's fix is already ready (VF): nothing to send.",
+        )
+    follows: str | None = None
+    for step in steps:
+        result = run_trigger(
+            AddParticipantStatusTriggerRequest(
+                actor_id=actor_id,
+                case_id=body.case_id,
+                vf_state=step,
+                follows_status_id=follows,
+            ),
+            dispatcher=dispatcher,
+            dl=actor_dl,
+            background_tasks=background_tasks,
+        )
+        follows = result.status_id
+    return result
 
 
 @router.post(
