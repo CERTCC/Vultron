@@ -246,21 +246,13 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      When a Participant Actor sends any activity about a case to the case's CASE_MANAGER,
-      it SHOULD state its ledger position for that case in the activity's `ledgerTail`
-      property: the `log_index` and `entry_hash` of the last canonical entry it has
-      applied, or index -1 and the per-case genesis hash when it has applied none.
-    rationale: >-
-      The CASE_MANAGER has no other acknowledgement of how far a participant has got, so
-      a position stated with each activity lets it answer a lag the participant may not
-      know it has (SYNC-17-004). On most activities `context` names the case and cannot
-      carry the position as well; where an activity already carries the position
-      elsewhere, SYNC-17-008 says how the two relate.
-    adr:
-    - ADR-0155
+      When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD include the
+      hash of the last canonical recorded log entry it has applied as a parameter in the activity's
+      context field
     verification: >-
-      A test marked `SYNC-03-004` sends an activity from a participant to the
-      CASE_MANAGER and asserts its `ledgerTail` equals the participant's ledger tail.
+      Integration tests in `test/demo/` confirm that messages from Participant Actors
+      to the CASE_MANAGER include the last applied canonical log hash in the
+      activity context field.
     stories:
     - story_2022_045
     - story_2022_088
@@ -1633,11 +1625,11 @@ groups:
     `Announce(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives
     with a gap, so no `Reject(CaseLedgerEntry)` is sent and the reject-and-replay loop
     never starts. The CASE_MANAGER cannot see the lag either, because nothing tells it
-    how far a participant has got. The participant therefore states its position, on
-    the activities it sends (SYNC-03-004) and, when it chooses, in a
-    `Read(CaseLedgerEntry)`, and the CASE_MANAGER answers a position behind its tail by
-    replaying. This is how the LedgerReconciliation phase detects a gap and retries
-    until convergence (SYNC-00-003, SYNC-00-007, SYNC-00-008). Rationale: ADR-0155.
+    how far a participant has got. The participant therefore states its position, when
+    it chooses, in a `Read(CaseLedgerEntry)`, and the CASE_MANAGER answers a position
+    behind its tail by replaying. A position stated on every case activity is planned
+    separately (#5109, #5110) and composes the same answer. This is how the
+    LedgerReconciliation phase detects a gap and retries until convergence (SYNC-00-003, SYNC-00-007, SYNC-00-008). Rationale: ADR-0155.
   specs:
   - id: SYNC-17-001
     priority: MAY
@@ -1646,7 +1638,7 @@ groups:
       A participant MAY send the case's CASE_MANAGER `Read(CaseLedgerEntry)` whose
       `object` is the last canonical entry it has applied for that case, by reference.
       A participant that has applied no entry for the case has no entry to name and
-      states its position only through SYNC-03-004.
+      sends no `Read(CaseLedgerEntry)`.
     rationale: >-
       ActivityStreams defines `Read` as the actor having read the object, so the
       activity states a fact and asks for nothing. A `Reject(CaseLedgerEntry)` would
@@ -1663,19 +1655,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST act on a participant's stated ledger position, whether
-      carried by `Read(CaseLedgerEntry)` (SYNC-17-001) or by `ledgerTail` (SYNC-03-004),
-      only when the sender is an active participant in the case (CM-10-004). From any
-      other sender it MUST record no replication state for the sender and send nothing
-      in answer to the stated position; a `Read(CaseLedgerEntry)` from such a sender
-      MUST report `REFUSED`. What the activity carrying a `ledgerTail` does otherwise is
-      unaffected.
+      The CASE_MANAGER MUST act on a participant's stated ledger position in
+      `Read(CaseLedgerEntry)` (SYNC-17-001) only when the sender is an active
+      participant in the case (CM-10-004). From any other sender it MUST record no
+      replication state for the sender, send nothing in answer, and report `REFUSED`.
     rationale: >-
       A removed, unconsented or closed participant's replica stops on purpose, so its
       stated position always lags. Answering it would send withheld case content, as an
       unchecked `Reject` would (SYNC-03-005). Catch-up for a participant that becomes
-      active again is CM-10-006's backfill, which an invitee's accepting activity still
-      starts even though its `ledgerTail` is not answered.
+      active again is CM-10-006's backfill.
     relationships:
     - rel_type: refines
       spec_id: CM-10-004
@@ -1685,11 +1673,10 @@ groups:
     - ADR-0114
     - ADR-0155
     verification: >-
-      Tests marked `SYNC-17-002` send a lagging position from a removed participant
-      and from an unconsented participant, each once as `Read(CaseLedgerEntry)` and
-      once as the `ledgerTail` of another activity. Each asserts no replication state
-      for the sender and no `Announce(CaseLedgerEntry)` queued to it; the `Read` cases
-      also assert `REFUSED`.
+      Tests marked `SYNC-17-002` send `Read(CaseLedgerEntry)` with a lagging position
+      from a removed participant and from an unconsented participant, and assert
+      `REFUSED`, no replication state for the sender and no `Announce(CaseLedgerEntry)`
+      queued to it.
     stories:
     - story_2022_045
   - id: SYNC-17-003
@@ -1720,10 +1707,10 @@ groups:
       replay. When the position is the tail it MUST send nothing.
     rationale: >-
       This is the retry that SYNC-00-008 requires. It runs whenever the participant
-      speaks, so a lost last entry is recovered without waiting for a new commit. A
-      `ledgerTail` often predates entries already on their way to the sender, so a
-      stated lag can be transient; the replay rate bound, not the outbox
-      de-duplication, is what limits the replays such a race causes.
+      reads, so a lost last entry is recovered without waiting for a new commit. A
+      `Read` can predate entries already on their way to the sender, so a stated lag
+      can be transient; the replay rate bound, not the outbox de-duplication, is what
+      limits the replays such a race causes.
     relationships:
     - rel_type: refines
       spec_id: SYNC-00-007
@@ -1766,23 +1753,18 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST NOT commit a ledger entry for a stated ledger position:
-      not for a `Read(CaseLedgerEntry)`, and not for its answer to a position, whichever
-      carrier stated it. A `ledgerTail` inside the verbatim snapshot of an activity
-      that is ledgered for its own sake is expected (CLP-07-011).
+      The CASE_MANAGER MUST NOT commit a ledger entry for a `Read(CaseLedgerEntry)` or
+      for its answer to one.
     rationale: >-
       Stating a position changes nothing in the case file, so it is an observation and
       not a case event (ADR-0152). Ledgering it would add an entry every time a
-      participant checks, which itself would leave every other participant behind. An
-      activity ledgered for what else it does keeps every field it was sent with, so
-      the other participants can see the sender's stated position at that moment.
+      participant checks, which itself would leave every other participant behind.
     adr:
     - ADR-0152
     - ADR-0155
     verification: >-
-      Tests marked `SYNC-17-006` deliver `Read(CaseLedgerEntry)`, and a lagging
-      `ledgerTail` on an activity that commits no entry of its own, and assert each
-      leaves the CASE_MANAGER's ledger unchanged.
+      Tests marked `SYNC-17-006` deliver `Read(CaseLedgerEntry)` at the tail and behind
+      it, and assert each leaves the CASE_MANAGER's ledger unchanged.
     stories:
     - story_2022_045
   - id: SYNC-17-007
@@ -1802,30 +1784,3 @@ groups:
     verification: >-
       A test marked `SYNC-17-007` restarts a participant holding a case and asserts one
       `Read(CaseLedgerEntry)` naming its tail is queued to the CASE_MANAGER.
-  - id: SYNC-17-008
-    priority: MUST
-    kind: protocol
-    statement: >-
-      When an activity states the sender's position both in `ledgerTail` and in a carrier
-      an earlier rule defines (the last applied hash in a `Reject(CaseLedgerEntry)`'s
-      `context`, SYNC-03-001; the `LedgerPosition` in a full-case Invite reply's
-      `content`, CM-11-012), the two MUST name the same entry. When they differ, the
-      CASE_MANAGER MUST log it at WARNING with the sender and both positions and MUST NOT
-      act on `ledgerTail` (SYNC-17-002); the activity is otherwise handled by its earlier
-      carrier's rule.
-    rationale: >-
-      Two positions that disagree cannot both be true, and the earlier carrier is the
-      one its own handling already checks. Acting on neither keeps a malformed sender
-      from steering a replay, without refusing an activity whose own rule still holds.
-    relationships:
-    - rel_type: refines
-      spec_id: SYNC-03-004
-    adr:
-    - ADR-0155
-    verification: >-
-      Tests marked `SYNC-17-008` deliver a `Reject(CaseLedgerEntry)` and a full-case
-      Invite reply whose `ledgerTail` names a different entry from the earlier carrier,
-      and assert the WARNING record, that the earlier carrier's handling ran, and that
-      no replication state was written from `ledgerTail`.
-    stories:
-    - story_2022_045

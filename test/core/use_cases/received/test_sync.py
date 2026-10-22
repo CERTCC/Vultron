@@ -270,6 +270,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         )
 
     @pytest.mark.spec("SYNC-03-001")
+    @pytest.mark.spec("SYNC-03-004")
     def test_mismatch_reject_carries_tail_hash(self, dl, first_entry):
         """The queued Reject carries the local tail hash as context (SYNC-03-001)."""
         dl.save(first_entry)
