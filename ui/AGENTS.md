@@ -97,7 +97,9 @@ values on `DemoState`. Do not model EM or PXA per-participant.
   **not** validated against the RM machine — do not flag a leaver closing from
   `RECEIVED`. The case manager then records the leaver's legal path to `CLOSED`
   (e.g. `VALID → DEFERRED → CLOSED`) as status snapshots; those replay the
-  closure the Leave already drew, so they are logged, not flagged.
+  closure the Leave already drew, so they are logged, not flagged. Only a
+  case-manager snapshot that is one legal RM step from the previous rung and
+  strictly nearer `CLOSED` counts; any other snapshot is judged as a transition.
 - Entry names and phrasing come from the semantic registry artifact (§9): an
   event-log line carries the registry's phrase; a type the registry does not
   list is logged as unhandled, never dropped.

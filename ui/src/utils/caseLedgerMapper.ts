@@ -1740,9 +1740,12 @@ function handleRemoveEmbargo(
  * Whether an RM snapshot of `rmNext` for a lane its Leave already CLOSED is the
  * next step of the leaver's legal path to CLOSED, as the case manager records it
  * after the Leave. It must be recorded by the case manager (`recordedBy` is the
- * caseactor lane), lie strictly forward of the cursor `shadow.leftFrom[laneId]`
- * (the rung the lane left from, then each recorded step), and have CLOSED still
- * ahead of it. Anything else after a Leave is judged as a transition.
+ * caseactor lane), be ONE legal RM transition from the cursor
+ * `shadow.leftFrom[laneId]` (the rung the lane left from, then each recorded
+ * step), and be strictly nearer CLOSED than the cursor (fewer legal transitions
+ * from it to CLOSED). The distance rule rejects the ACCEPTED ↔ DEFERRED cycle and
+ * any step away from CLOSED; the one-step rule rejects a skipped rung. Anything
+ * else after a Leave is judged as a transition.
  */
 function isRecordedClosePath(
   shadow: ShadowState,
@@ -1754,8 +1757,11 @@ function isRecordedClosePath(
   if (cursor === undefined || recordedBy !== 'caseactor') return false
   if (shadow.rm[laneId] !== 'CLOSED' || rmNext === 'CLOSED') return false
   const toStep = triggerPath('rm', cursor, rmNext)
-  const toClosed = triggerPath('rm', rmNext, 'CLOSED')
-  return toStep !== null && toStep.length > 0 && toClosed !== null && toClosed.length > 0
+  const fromCursor = triggerPath('rm', cursor, 'CLOSED')
+  const fromNext = triggerPath('rm', rmNext, 'CLOSED')
+  if (toStep === null || toStep.length !== 1) return false
+  if (fromCursor === null || fromNext === null) return false
+  return fromNext.length < fromCursor.length
 }
 
 function handleCloseCase(
