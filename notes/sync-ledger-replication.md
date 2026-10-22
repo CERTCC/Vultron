@@ -381,6 +381,28 @@ peer. Three properties are load-bearing; tests are in
   starves bootstrap (SYNC-15-001/002 rely on the following replay); an exemption
   readmits the storm, since an unanchored peer reports genesis every time.
 
+## A Participant Checks with Read(CaseLedgerEntry) (SYNC-17, ADR-0155)
+
+The CASE_MANAGER learns how far a participant has got only from the participant.
+Reason: the gap `Reject` fires only when a later entry arrives, so a lost last entry
+before a quiet period leaves the replica behind with no signal on either side.
+
+- **`Read`, never `Reject`, for a check** (SYNC-17-001). `Read` states a fact; a
+  `Reject` of an entry nothing refused would mislead other implementations.
+- **One answer**: record the position, replay if behind (SYNC-17-003/004). The
+  position stated on every case activity (#5109, #5110) composes this answer, never
+  a copy of it.
+- **No CASE_MANAGER sweep.** `last_acknowledged_hash` is written only by a stated
+  position or a `Reject`, so comparing it with the tail on a timer or on commit
+  reads every quiet peer as behind; and a paused peer lags on purpose.
+- **Active senders only** (SYNC-17-002): a removed, unconsented or closed peer's
+  `Read` is `REFUSED` and answered with nothing; its catch-up is CM-10-006's backfill.
+- **Same replay guard.** A `Read` replay goes through `should_replay()` /
+  `record_replay()` and the outbox de-duplication, like a `Reject` replay. A `Read`
+  can predate entries already in flight, so only the rate bound limits the
+  redundant replays.
+- **Never ledgered** (SYNC-17-006): a `Read` is an observation (ADR-0152).
+
 ## Document Boundary: Internal Spec vs. External Companion
 
 `specs/sync-ledger-replication.yaml` is normative.
