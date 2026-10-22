@@ -1629,7 +1629,8 @@ groups:
     it chooses, in a `Read(CaseLedgerEntry)`, and the CASE_MANAGER answers a position
     behind its tail by replaying. A position stated on every case activity is planned
     separately (#5109, #5110) and composes the same answer. This is how the
-    LedgerReconciliation phase detects a gap and retries until convergence (SYNC-00-003, SYNC-00-007, SYNC-00-008). Rationale: ADR-0155.
+    LedgerReconciliation phase detects a gap and retries until convergence
+    (SYNC-00-003, SYNC-00-007, SYNC-00-008). Rationale: ADR-0155.
   specs:
   - id: SYNC-17-001
     priority: MAY
