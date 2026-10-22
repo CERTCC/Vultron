@@ -342,9 +342,9 @@ groups:
       When the CASE_MANAGER receives the SYNC-03-007 fault from an active participant of
       the case (CM-10-004), it MUST log the fault at ERROR, MUST recompute the hash of
       its own stored copy of the named entry as SYNC-03-006 does, and MUST log whether
-      that copy is intact. It MUST NOT send anything, re-seed the peer or record
-      replication state because of the fault. From any other sender it MUST report
-      `REFUSED`.
+      that copy is intact, or that it holds no copy of the named entry. It MUST NOT send
+      anything, re-seed the peer or record replication state because of the fault. From
+      any other sender it MUST report `REFUSED`.
     rationale: >-
       A hash mismatch comes from deterministic content, such as a broken entry in the
       CASE_MANAGER's store or a fault in rendering or parsing its wire form, so neither a
@@ -359,8 +359,9 @@ groups:
       spec_id: SYNC-16-002
     verification: >-
       `test/core/behaviors/sync/test_hash_mismatch_fault.py` asserts the ERROR record and
-      the self-check result, an empty outbox and unchanged replication state for a fault
-      from an active participant, and `REFUSED` for one from any other sender.
+      the self-check result (intact, not intact, or no stored copy), an empty outbox and
+      unchanged replication state for a fault from an active participant of a seeded
+      case, and `REFUSED` for one from a sender that is not a participant of that case.
     stories:
     - story_2022_045
 - id: SYNC-04
@@ -1512,7 +1513,8 @@ groups:
       A processing fault that reports a failure to apply a `CaseLedgerEntry` MUST NOT be
       committed to the case ledger, by the participant or by the CASE_MANAGER. It MUST
       be surfaced through structured logging, and the CASE_MANAGER's response to it is
-      per-peer replication state (SYNC-04).
+      per-peer replication state (SYNC-04), except for the hash-mismatch fault, which it
+      only logs and self-checks (SYNC-03-008).
     rationale: >-
       It reports on replication, as `Reject(CaseLedgerEntry)` does. Ledgering it loops:
       the diverged replica cannot apply the entry that records its own fault, and a

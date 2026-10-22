@@ -62,6 +62,9 @@ def test_hash_mismatch_failure_class_is_defined() -> None:
 @pytest.mark.spec("SYNC-03-008")
 def test_hash_mismatch_fault_from_a_non_participant_is_refused() -> None:
     """Only an active participant's hash-mismatch fault is acted on."""
+    # Probe only: no case is seeded, so a handler that refuses an unknown case
+    # also passes. #5094 replaces it with a seeded case, a stranger and an
+    # active participant, so the sender rule is what decides the outcome.
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     activity = create_processing_fault_activity(
         actor=_STRANGER_ID,
