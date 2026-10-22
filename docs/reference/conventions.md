@@ -89,13 +89,25 @@ The badge names the kind of page, not whether it states requirements; the banner
 ## Normative and non-normative pages
 
 Not everything in this documentation about the Vultron Protocol is a normative requirement.
-The banners below say whether a page contains normative requirements.
+The normative text is the [Vultron Protocol Specification](vultron-spec/index.md) together with the [Protocol](specs/protocol.md) and [Foundation](specs/foundation.md) requirement pages.
+Three banners say where a page stands relative to it.
 
 !!! info "Recognizing normative pages"
 
     {% include-markdown "../includes/normative.md" %}
 
-    Pages that contain normative requirements are marked with this banner at or near the top of the page.
+    The normative pages carry this banner at the top of the page.
+    They are the body sections of the Protocol Specification and the Protocol and Foundation requirement pages.
+    The specification's landing page, its single-page edition, its annexes, and its open questions do not carry it.
+
+!!! info "Recognizing pages that explain the protocol's design"
+
+    {% include-markdown "../includes/specification_governs.md" %}
+
+    Pages that explain how the protocol is designed carry this banner at or near the top of the page.
+    They include the Formal Protocol pages and the Report Management, Embargo Management, and Case State process models.
+    They are informative, and they predate the Protocol Specification, so they can lag it.
+    Where such a page and the specification differ, the specification governs.
 
 !!! info "Recognizing non-normative pages"
 

@@ -8,7 +8,7 @@ description: >
 
 # Adding Participants to an Embargoed Case
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Here we describe the who and when of adding Participants to
 an embargoed case.

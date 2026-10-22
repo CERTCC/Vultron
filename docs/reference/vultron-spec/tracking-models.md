@@ -9,6 +9,8 @@ page_type: reference
 
 # Case Tracking Models
 
+{% include-markdown "../../includes/normative.md" %}
+
 {% include-markdown "./_full-page-tip.md" %}
 
 This page holds sections 6 to 9 of the [Vultron Protocol Specification](index.md): the state machines each participant uses to track a shared case.

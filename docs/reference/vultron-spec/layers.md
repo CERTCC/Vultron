@@ -9,6 +9,8 @@ page_type: reference
 
 # Protocol Layers
 
+{% include-markdown "../../includes/normative.md" %}
+
 {% include-markdown "./_full-page-tip.md" %}
 
 This page holds sections 4 and 5 of the [Vultron Protocol Specification](index.md): what each protocol message means, and how it is encoded on the wire, including the required Representational State Transfer (REST) transport profile.

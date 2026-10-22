@@ -8,7 +8,7 @@ description: >
 
 # Default Embargoes
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Embargo negotiation can go around in circles: one side proposes, the other rejects, and the case sits with no embargo at all.
 Defaults exist to stop that.

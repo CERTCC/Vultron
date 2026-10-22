@@ -8,7 +8,7 @@ description: >
 
 # Transition Functions
 
-{% include-markdown "../../includes/normative.md" %}
+{% include-markdown "../../includes/specification_governs.md" %}
 
 This page gives the transition function $succ$ of the formal protocol for the Report Management (RM), Embargo Management (EM), and Case State (CS) processes, plus the general messages.
 It is for implementers who need the exact sender and receiver behavior for each message type.

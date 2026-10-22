@@ -6,6 +6,8 @@ page_type: reference
 
 # Foundation Specifications
 
+{% include-markdown "../../includes/normative.md" %}
+
 Rules Vultron inherits from the standards beneath it: ActivityStreams 2.0, ActivityPub, and HTTP.
 They cover addressing and delivery, HTTP status codes, and rules that only restate ActivityStreams, such as every object ID being an IRI.
 Each requirement carries a tag that names its standard: `as2`, `activitypub`, or `http`.

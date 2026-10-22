@@ -11,7 +11,7 @@ contents: generated
 
 # A Formal Protocol Definition for MPCVD
 
-{% include-markdown "../../includes/normative.md" %}
+{% include-markdown "../../includes/specification_governs.md" %}
 
 This section defines the Multi-Party Coordinated Vulnerability Disclosure (MPCVD) process formally, as a Communicating Hierarchical State Machine.
 It is for implementers and researchers who already know the [Report Management (RM)](../../topics/process_models/rm/index.md), [Embargo Management (EM)](../../topics/process_models/em/index.md), and [Case State (CS)](../../topics/process_models/cs/index.md) process models and need their exact combined definition.

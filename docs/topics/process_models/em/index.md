@@ -7,7 +7,7 @@ contents: generated
 
 # Embargo Management Process Model
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 This section describes the Embargo Management (EM) process for Coordinated Vulnerability Disclosure (CVD).
 <!-- start_excerpt -->

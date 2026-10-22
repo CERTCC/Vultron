@@ -9,6 +9,8 @@ page_type: reference
 
 # Interactions and Lifecycle
 
+{% include-markdown "../../includes/normative.md" %}
+
 {% include-markdown "./_full-page-tip.md" %}
 
 This page holds sections 10 and 11 of the [Vultron Protocol Specification](index.md): the cascade rules that couple the state machines, including the Case State (CS) dimensions, and the lifecycle of a participant within a case.

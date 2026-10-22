@@ -57,8 +57,8 @@ fragment instead of copying prose — one source, many render points
 
 - **Placement.** Put a fragment beside its hosts as `_<slug>.md` (e.g.
   `docs/topics/process_models/cs/_events_sigma.md`). Reserve `docs/includes/`
-  for banners included across the whole tree (`normative.md`), which carry no
-  `_` prefix.
+  for the banners shared across sections (`normative.md`,
+  `specification_governs.md`), which carry no `_` prefix.
 - **Path.** The include argument resolves relative to the *including* file, not
   to `docs/`: `mkdocs.yml` sets no `base_path`. A `docs/`-rooted argument fails
   the strict build.
