@@ -13,7 +13,11 @@ from vultron.core.models.ledger_position import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import snapshot_actor_id
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronEntryRefusedError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -206,18 +210,40 @@ def store_ledger_entry(
     carries the case names the position before the entry, and no entry's hash
     depends on itself.
 
+    The position never moves back.  A replica whose case a copy seeded or
+    replaced ahead of its chain stores the entries at or before the copy's
+    position as idempotent no-ops (SYNC-16-007): the entry is stored and the
+    case stays at the copy's position, which already reflects it.  An entry
+    at the position's index with another hash is refused, not stored: the
+    chain would name one entry there and the case another.
+
     Returns:
         The case as stored, at its new position.
 
     Raises:
         VultronNotFoundError: *dl* holds no case for the entry; a ledger entry
             belongs to a stored case, whose genesis hash anchors it.
+        VultronEntryRefusedError: *entry* is at the index the case's position
+            names, with another hash (SYNC-16-007).
     """
     with dl.transaction():
         case = dl.read_case(entry.case_id)
         if case is None:
             raise VultronNotFoundError("VulnerabilityCase", entry.case_id)
+        held = case.ledger_position
+        if (
+            entry.log_index == held.log_index
+            and entry.entry_hash != held.entry_hash
+        ):
+            raise VultronEntryRefusedError(
+                f"ledger entry '{entry.id_}' is at index {entry.log_index}"
+                f" with hash {entry.entry_hash:.16}…, but case"
+                f" '{entry.case_id}' names {held.entry_hash:.16}… there: the"
+                " chains conflict (SYNC-16-007)"
+            )
         dl.save(entry)
+        if entry.log_index <= held.log_index:
+            return case
         case.ledger_position = LedgerPosition(
             log_index=entry.log_index, entry_hash=entry.entry_hash
         )

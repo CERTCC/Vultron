@@ -22,6 +22,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
@@ -61,6 +62,7 @@ def case_with_manager(
     vendor_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[
@@ -113,6 +115,7 @@ def test_returns_failure_when_case_has_no_case_manager(
     bt_scenario: BTTestScenario, vendor_participant: CaseParticipant
 ) -> None:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[vendor_participant.id_],

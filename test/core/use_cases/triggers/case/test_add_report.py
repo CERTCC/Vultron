@@ -27,6 +27,7 @@ from test.support.case_manager import (
     CASE_MANAGER_ID,
     make_case_with_case_manager,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -157,7 +158,9 @@ class TestSvcAddReportToCaseUseCase:
     @pytest.mark.spec("PCR-08-016")
     def test_add_report_to_case_without_case_manager_queues_nothing(self):
         """A case with no CASE_MANAGER fails fast with nothing queued."""
-        case = as_VulnerabilityCase(name="No Manager")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="No Manager"
+        )
         self.dl.create(case)
         report = as_VulnerabilityReport(name="Orphan", content="c")
         self.dl.create(report)
@@ -202,7 +205,9 @@ class TestSvcAddReportToCaseUseCase:
         """SvcAddReportToCaseUseCase raises VultronValidationError when report_id
         is not a VulnerabilityReport."""
         # Create a wrong type object (as_VulnerabilityCase instead)
-        case_obj = as_VulnerabilityCase(name="Not a Report")
+        case_obj = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Not a Report"
+        )
         self.dl.create(case_obj)
 
         request = AddReportToCaseTriggerRequest(

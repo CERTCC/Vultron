@@ -4569,8 +4569,8 @@ groups:
     kind: project
     statement: >-
       `ActorSession` MUST be a frozen dataclass with fields `client:
-      DataLayerClient`, `actor: as_Actor`, `case: as_VulnerabilityCase | None =
-      None`, and `narrate: bool = True`. The `__post_init__` method MUST
+      DataLayerClient`, `actor: as_Actor`, `case_id: str | None = None`, and
+      `narrate: bool = True`. The `__post_init__` method MUST
       perform the container/actor authority check (formerly
       `_assert_client_hosts_actor`), running it exactly once at construction
       rather than on every trigger call.
@@ -4593,19 +4593,24 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `ActorSession.with_case(case: as_VulnerabilityCase) -> ActorSession` MUST
-      return a new frozen `ActorSession` with the `case` field set. It MUST NOT
-      modify the receiver. Case-scoped trigger methods MUST raise if `self.case`
-      is `None` at call time.
+      `ActorSession.with_case(case: as_VulnerabilityCase | str) ->
+      ActorSession` MUST return a new frozen `ActorSession` with `case_id` set
+      to the case's ID (or the given ID). It MUST NOT modify the receiver.
+      Case-scoped trigger methods MUST raise if `self.case_id` is `None` at
+      call time.
     rationale: >-
       Cases do not exist at session construction time; the actor must exist
       before the case does. The immutable-copy pattern (`with_case`) matches the
       frozen dataclass semantics and avoids a mutable binding that could drift
-      between steps.
+      between steps. A trigger names its case by ID, so the session keeps only
+      the ID: a caller holding just the ID binds it directly rather than
+      building a placeholder case, which could not name the case's owner
+      (#5092).
     verification: >-
-      `session.with_case(case)` returns a new object; `session.case` is still
-      `None` on the original. A case-scoped method called on a session where
-      `self.case is None` raises `ValueError`.
+      `session.with_case(case)` returns a new object; `session.case_id` is
+      still `None` on the original. `with_case` accepts a bare case ID. A
+      case-scoped method called on a session where `self.case_id is None`
+      raises `ValueError`.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-26-002

@@ -34,6 +34,7 @@ from typing import assert_type
 import py_trees.behaviour
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -318,7 +319,9 @@ def test_real_registry_runs_add_on_behalf_status_to_a_status_result(
     The vendor is an existing invitee: an on-behalf assertion never creates
     a participant (PRM-06-006)."""
     actor, dl = actor_and_dl
-    case = as_VulnerabilityCase(name="Dispatch Case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="Dispatch Case"
+    )
     cm = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case.id_,

@@ -88,16 +88,13 @@ def _resolve_owner_recipient(
     # a missing case flows to the None return, letting the caller fail loudly
     # (ARCH-15-001). Conformance allowlist: module-resolver category.
     case_obj = dl.read_case(case_id)
-    if case_obj is not None:
-        owner_id = resolve_case_owner_id(case_obj, dl)
-        if owner_id:
-            return owner_id
-
-    raw_owner = getattr(case_obj, "attributed_to", None)
-    fallback = getattr(raw_owner, "id_", raw_owner) or None
-    if fallback and fallback != emitting_actor_id:
-        return cast(str, fallback)
-    return None
+    if case_obj is None:
+        return None
+    owner_id = resolve_case_owner_id(case_obj, dl)
+    if owner_id:
+        return owner_id
+    fallback = case_obj.attributed_to
+    return fallback if fallback != emitting_actor_id else None
 
 
 class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):

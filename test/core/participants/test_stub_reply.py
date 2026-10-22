@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -54,7 +55,9 @@ _RECORD_ID = f"{CASE_ID}/participants/invitee"
 
 def _case(*, in_force: bool = True) -> VulnerabilityCase:
     """A case seating the invitee's record, as the stub Invite left it."""
-    case = VulnerabilityCase(id_=CASE_ID, name="Stub reply")
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Stub reply"
+    )
     if in_force:
         activate(case, EMBARGO)
     case.actor_participant_index[INVITEE] = _RECORD_ID

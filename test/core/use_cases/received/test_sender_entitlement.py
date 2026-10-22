@@ -57,6 +57,7 @@ from test.core.use_cases.received.test_reject_sync import (
     _make_entry,
     _make_reject_event,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
     propose,
@@ -899,7 +900,9 @@ def test_ledger_reject_from_non_participant_is_refused():
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=SYNC_CASE_MANAGER_ID)
     entry0 = _make_entry(SYNC_CASE_ID, 0, "0" * 64)
     dl.save(entry0)
-    case = as_VulnerabilityCase(id_=SYNC_CASE_ID, name="Reject Sync Case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=SYNC_CASE_ID, name="Reject Sync Case"
+    )
     seed_store_owner_as_case_manager(dl, case)
     dl.create(case)
     event = _make_reject_event(entry0, "", _IMPOSTOR_ID)
@@ -1249,7 +1252,9 @@ def test_owner_embargo_decision_from_a_non_owner_is_refused(
     event = make_payload(
         factory(
             embargo,
-            target=as_VulnerabilityCase(id_=owned_case.id_),
+            target=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=owned_case.id_
+            ),
             actor=_BYSTANDER_ID,
             to=[_CASE_MANAGER_ID],
         ),
@@ -1509,7 +1514,9 @@ def test_owner_embargo_decision_from_a_closed_owner_is_refused(
     event = make_payload(
         factory(
             embargo,
-            target=as_VulnerabilityCase(id_=owned_case.id_),
+            target=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=owned_case.id_
+            ),
             actor=_OWNER_ID,
             to=[_CASE_MANAGER_ID],
         ),

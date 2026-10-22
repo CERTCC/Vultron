@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.received import archive_received
 from vultron.errors import (
@@ -54,7 +55,9 @@ _STUB = as_VulnerabilityCaseStub(case_id=_CASE_ID, summary="A case to join")
 
 
 def _make_case(dl) -> as_VulnerabilityCase:
-    case = as_VulnerabilityCase(name="CVE-2025-001")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="CVE-2025-001"
+    )
     dl.create(case)
     return case
 
@@ -405,7 +408,9 @@ class TestAcceptCaseInvite:
     ):
         offer = recommend_actor_activity(
             _INVITEE,
-            target=as_VulnerabilityCase(id_=_CASE_ID, name="Not an Invite"),
+            target=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Not an Invite"
+            ),
             actor=_ACTOR,
             to=[_INVITEE],
         )
@@ -604,7 +609,9 @@ def _make_role_case(dl):
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(id_=_CASE_ID, name="Role Test Case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Role Test Case"
+    )
     dl.create(case)
     return case
 

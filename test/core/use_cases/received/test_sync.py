@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.support.case_manager import add_case_manager_participant
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import (
     RecordingInboxReplay,
     deliver_replayed,
@@ -895,7 +896,9 @@ class TestAnnounceLedgerEntryDisposition:
             case_roles=[CVDRole.CASE_MANAGER],
         )
         dl.create(manager)
-        case = as_VulnerabilityCase(id_=CASE_URI, name="Disposition Case")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_URI, name="Disposition Case"
+        )
         case.case_participants.append(manager.id_)
         case.actor_participant_index[manager_id] = manager.id_
         dl.create(case)

@@ -24,6 +24,7 @@ from typing import cast
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from vultron.core.behaviors.case.nodes.invite_embargo_consent import (
     _SignEmbargoConsentLeafNode,
@@ -89,7 +90,9 @@ _REGISTER = [
 
 def _invitee_case(participant: CaseParticipant) -> VulnerabilityCase:
     """A case holding :data:`_REGISTER` and *participant* on its roster."""
-    case = VulnerabilityCase(id_="https://example.org/cases/pec-chain")
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/pec-chain"
+    )
     activate(case, _EARLIER_EMBARGO_ID)
     propose(case, _EMBARGO_ID)
     activate(case, _EMBARGO_ID)

@@ -32,6 +32,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -60,6 +61,7 @@ _CASE_ACTOR_ID = "http://coordinator:7999/api/v2/actors/case-actor-1"
 def _receiver_case_payload() -> dict:
     """Minimal receiver-side case satisfying the pre-replica assertions."""
     return {
+        "attributedTo": CASE_OWNER_ID,
         "id": _CASE_ID,
         "type": "VulnerabilityCase",
         "actorParticipantIndex": {
@@ -192,7 +194,11 @@ def _forwarded_offer_payload() -> dict:
     return {
         "type": "Offer",
         "target": _OT_TRANSFEREE_ID,
-        "object": {"id": _OT_CASE_ID, "type": "VulnerabilityCase"},
+        "object": {
+            "attributedTo": CASE_OWNER_ID,
+            "id": _OT_CASE_ID,
+            "type": "VulnerabilityCase",
+        },
     }
 
 
@@ -228,7 +234,11 @@ class TestIsOwnershipTransferOfferFor:
         obj = {
             "type": "Offer",
             "target": {"id": _OT_TRANSFEREE_ID, "type": "Service"},
-            "object": {"id": _OT_CASE_ID, "type": "VulnerabilityCase"},
+            "object": {
+                "attributedTo": CASE_OWNER_ID,
+                "id": _OT_CASE_ID,
+                "type": "VulnerabilityCase",
+            },
         }
         assert _is_ownership_transfer_offer_for(
             _record(obj), _OT_CASE_ID, _OT_TRANSFEREE_ID
@@ -269,7 +279,11 @@ class TestIsOwnershipTransferOfferFor:
         original = {
             "type": "Offer",
             "target": _OT_CASE_ACTOR_ID,  # addressed to CaseActor, not transferee
-            "object": {"id": _OT_CASE_ID, "type": "VulnerabilityCase"},
+            "object": {
+                "attributedTo": CASE_OWNER_ID,
+                "id": _OT_CASE_ID,
+                "type": "VulnerabilityCase",
+            },
         }
         assert not _is_ownership_transfer_offer_for(
             _record(original), _OT_CASE_ID, _OT_TRANSFEREE_ID
@@ -367,6 +381,7 @@ class TestFindOwnershipTransferOfferForActor:
                         # sent to CaseActor, NOT to transferee
                         "target": _OT_CASE_ACTOR_ID,
                         "object": {
+                            "attributedTo": CASE_OWNER_ID,
                             "id": _OT_CASE_ID,
                             "type": "VulnerabilityCase",
                         },
@@ -406,6 +421,7 @@ def _pxa_case_payload(em_state: str = "EXITED") -> dict:
     if register_status == "TERMINATED":
         entry["termination"] = {"reason": "EARLY"}
     return {
+        "attributedTo": CASE_OWNER_ID,
         "id": _PXA_CASE_ID,
         "type": "VulnerabilityCase",
         "actorParticipantIndex": {},
@@ -679,6 +695,7 @@ _IC_CASE_ID = "urn:uuid:test-case-ic-0001"
 _IC_PARTICIPANT_ID = "urn:uuid:test-participant-ic-0001"
 
 _IC_INITIALIZED_CASE = {
+    "attributedTo": CASE_OWNER_ID,
     "id": _IC_CASE_ID,
     "type": "VulnerabilityCase",
     "vulnerability_reports": [_IC_REPORT_ID],
@@ -687,6 +704,7 @@ _IC_INITIALIZED_CASE = {
     ],
 }
 _IC_EMPTY_CASE = {
+    "attributedTo": CASE_OWNER_ID,
     "id": _IC_CASE_ID,
     "type": "VulnerabilityCase",
     "vulnerability_reports": [_IC_REPORT_ID],

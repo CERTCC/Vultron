@@ -19,6 +19,7 @@ import pytest
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
     get_all_actor_datalayers,
@@ -398,6 +399,7 @@ def _seed_action_rules_data(dl):
     dl.create(participant)
 
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=_URN_CASE_ID,
         name="Test Case",
         case_statuses=[

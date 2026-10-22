@@ -24,17 +24,28 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
-from vultron.core.use_cases.received._bt_verdict import verdict_from_bt
+from vultron.core.use_cases.received._bt_verdict import (
+    stale_case_copy_verdict,
+    verdict_from_bt,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class AnnounceVulnerabilityCaseReceivedUseCase:
-    """Seed the local DataLayer with a full VulnerabilityCase from the case owner.
+    """Seed, or update, the local replica from a full VulnerabilityCase copy.
 
-    Per MV-10-003, the invitee creates the case if it does not already exist.
-    Per MV-10-004, if the case already exists locally, the announcement is
-    accepted without overwriting the existing record (idempotent).
+    Per MV-10-003 and PCR-02-003, the invitee creates the case if it does not
+    already exist.  Per PCR-02-004, a copy of a case the replica already
+    holds is an authoritative update, judged by the ledger position the copy
+    names (SYNC-16-005, SYNC-16-006): a copy the replica is already past is
+    ``SKIPPED``; one naming a different entry at an index the replica holds
+    is ``REFUSED`` and logged at ERROR; any other copy replaces the case,
+    position included.  The case is unchanged in both of the first two.  A
+    repeat of the same Announce is judged the same way (SYNC-16-006).  After a
+    replacement whose position is ahead of the chain the replica asks for
+    the missing entries and stores each one the copy reflects as a no-op
+    (SYNC-16-007).
 
     Only the case's CASE_MANAGER sends it, and every receiver, a participant
     replica, takes it from the CASE_MANAGER alone (PCR-03-001): the one its
@@ -96,9 +107,15 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             activity=request,
             inbox_replay=self._inbox_replay,
         )
-        verdict = verdict_from_bt(
-            tree, result, label="AnnounceVulnerabilityCaseReceivedBT"
+        verdict = stale_case_copy_verdict(
+            tree,
+            verdict_from_bt(
+                tree, result, label="AnnounceVulnerabilityCaseReceivedBT"
+            ),
         )
+        if verdict.disposition is HandlerDisposition.SKIPPED:
+            # The guard logged the stale copy (SYNC-16-006).
+            return verdict
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(
                 "%s (activity '%s')", verdict.reason, request.activity_id

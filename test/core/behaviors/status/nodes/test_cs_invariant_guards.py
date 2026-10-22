@@ -28,6 +28,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.status.nodes.cs_invariant_guards import (
@@ -132,12 +133,13 @@ class TestCheckCsEphemeralStateNode:
     def test_first_ever_status_succeeds(self, dl, bridge):
         """No current status (first ever) → SUCCESS; no constraint applies.
 
-        VulnerabilityCase without attributed_to does not trigger
-        _init_case_statuses auto-seeding, so case_statuses is empty and
-        current_status raises ValueError → guard returns SUCCESS.
+        A case with no materialized status (its seeded one dropped) makes
+        current_status raise ValueError → guard returns SUCCESS.
         """
-        # attributed_to intentionally absent to suppress auto-seeding
-        bare_case = VulnerabilityCase(id_=CASE_ID, context=ACTOR_ID)
+        bare_case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, context=ACTOR_ID
+        )
+        bare_case.case_statuses = []  # drop the status the owner seeded
         dl.create(bare_case)
         asserted = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)
@@ -287,12 +289,13 @@ class TestCheckCsHistoryPrefixNode:
     def test_first_ever_status_succeeds(self, dl, bridge):
         """No current status (first ever) → SUCCESS.
 
-        VulnerabilityCase without attributed_to does not trigger
-        _init_case_statuses auto-seeding, so current_status raises ValueError
-        → guard returns SUCCESS.
+        A case with no materialized status (its seeded one dropped) makes
+        current_status raise ValueError → guard returns SUCCESS.
         """
-        # attributed_to intentionally absent to suppress auto-seeding
-        bare_case = VulnerabilityCase(id_=CASE_ID, context=ACTOR_ID)
+        bare_case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, context=ACTOR_ID
+        )
+        bare_case.case_statuses = []  # drop the status the owner seeded
         dl.create(bare_case)
         asserted = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pXA)

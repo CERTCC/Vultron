@@ -25,6 +25,7 @@ from typing import Any
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -350,7 +351,9 @@ class TestCaseTriggerToField:
 
     def test_engage_case_raises_when_no_case_manager(self):
         """SvcEngageCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
-        case_solo = VulnerabilityCase(name="Solo Case")
+        case_solo = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Solo Case"
+        )
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"
         )
@@ -585,7 +588,9 @@ def _make_case_with_case_owner_and_manager(
         attributed_to=manager_id,
         case_roles=[CVDRole.CASE_MANAGER],
     )
-    case = VulnerabilityCase(name="Owner+Manager Case")
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="Owner+Manager Case"
+    )
     case.actor_participant_index[owner_id] = owner_p.id_
     case.actor_participant_index[finder_id] = finder_p.id_
     case.actor_participant_index[manager_id] = manager_p.id_

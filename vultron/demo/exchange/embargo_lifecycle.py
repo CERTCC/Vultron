@@ -125,8 +125,8 @@ def _answer_relayed_invite(
     """
     answered = False
     with demo_gate(f"{label} received the relayed Invite of {embargo_id}"):
-        assert answerer.case is not None, "answerer is not bound to a case"
-        case_id = str(answerer.case.id_)
+        assert answerer.case_id is not None, "answerer is not bound to a case"
+        case_id = answerer.case_id
         invite_id = find_embargo_invite_for_actor(
             client=answerer.client,
             embargo_id=embargo_id,

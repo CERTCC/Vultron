@@ -36,6 +36,7 @@ import pytest
 from test.core.use_cases.received._archived_redelivery import (
     archived_redelivery,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
     propose,
@@ -204,7 +205,7 @@ def _make_close_case_event(
     receiving_actor_id: str = CASE_ACTOR_ID,
     activity_id: str = "https://example.org/activities/leave-role-test",
 ) -> CloseCaseReceivedEvent:
-    case_obj = as_VulnerabilityCase(id_=CASE_ID)
+    case_obj = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID)
     activity = VultronActivity(
         id_=activity_id,
         type_="Leave",
@@ -1115,7 +1116,7 @@ def _add_note_event(note_id: str, sender_id: str = VENDOR_ID):
     note = as_Note(id_=note_id, content="late note", context=CASE_ID)
     activity = add_note_to_case_activity(
         note,
-        target=as_VulnerabilityCase(id_=CASE_ID),
+        target=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID),
         actor=sender_id,
         to=[CASE_ACTOR_ID],
     )
@@ -1346,7 +1347,9 @@ class TestPostCloseWriteBoundary:
             target=participant,
             actor=VENDOR_ID,
             to=[CASE_ACTOR_ID],
-            context=as_VulnerabilityCase(id_=CASE_ID),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID
+            ),
         )
         event = received_event(activity).model_copy(
             update={"receiving_actor_id": CASE_ACTOR_ID}

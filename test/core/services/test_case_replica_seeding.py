@@ -22,6 +22,9 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import (
+    CONSTRUCTED_CASE_OWNERSHIP,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import (
@@ -164,6 +167,7 @@ class TestStoreEmbeddedParticipantsProjectsWireIngress:
         # which was the whole reason ingress needed projecting.
         assert wire_participant.participant_statuses[-1].rm.state == rm_state
         return as_VulnerabilityCase.model_construct(
+            **CONSTRUCTED_CASE_OWNERSHIP,
             id_=self._CASE_ID,
             name="Bug #2232 ingress case",
             case_participants=[wire_participant],

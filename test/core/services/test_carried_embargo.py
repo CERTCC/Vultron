@@ -17,6 +17,7 @@ from collections.abc import Generator
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -59,7 +60,9 @@ def dl() -> Generator[SqliteDataLayer, None, None]:
 
 
 def test_a_case_with_no_embargo_needs_nothing(dl: SqliteDataLayer) -> None:
-    store_carried_embargo(VulnerabilityCase(id_=_CASE, name="c"), dl)
+    store_carried_embargo(
+        VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE, name="c"), dl
+    )
 
     assert dl.list_objects("EmbargoEvent") == []
 
@@ -70,7 +73,10 @@ def test_an_inline_embargo_is_stored_as_its_own_record(
 ) -> None:
     embargo = _embargo()
     case = VulnerabilityCase(
-        id_=_CASE, name="c", embargo_register=register(active=embargo)
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE,
+        name="c",
+        embargo_register=register(active=embargo),
     )
 
     store_carried_embargo(case, dl)
@@ -91,7 +97,10 @@ def test_an_inline_embargo_of_another_case_is_refused_unstored(
         end_time=days_from_now_utc(45),
     )
     case = VulnerabilityCase(
-        id_=_CASE, name="c", embargo_register=register(active=foreign)
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE,
+        name="c",
+        embargo_register=register(active=foreign),
     )
 
     with pytest.raises(VultronValidationError, match=other_case):
@@ -105,7 +114,10 @@ def test_a_bare_reference_the_store_holds_passes(dl: SqliteDataLayer) -> None:
     embargo = _embargo()
     dl.create(embargo)
     case = VulnerabilityCase(
-        id_=_CASE, name="c", embargo_register=register(active=embargo.id_)
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE,
+        name="c",
+        embargo_register=register(active=embargo.id_),
     )
 
     store_carried_embargo(case, dl)
@@ -117,7 +129,10 @@ def test_a_bare_reference_the_store_lacks_is_refused(
 ) -> None:
     missing = f"{_CASE}/embargo_events/missing"
     case = VulnerabilityCase(
-        id_=_CASE, name="c", embargo_register=register(active=missing)
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE,
+        name="c",
+        embargo_register=register(active=missing),
     )
 
     with pytest.raises(VultronNotFoundError) as excinfo:
@@ -135,7 +150,10 @@ def test_a_reference_to_a_non_embargo_record_is_refused(
     )
     dl.create(report)
     case = VulnerabilityCase(
-        id_=_CASE, name="c", embargo_register=register(active=report.id_)
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE,
+        name="c",
+        embargo_register=register(active=report.id_),
     )
 
     with pytest.raises(VultronValidationError):
@@ -317,7 +335,10 @@ def test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten(
     foreign = _held_for_other_case(dl)
     active: EmbargoEvent | str = foreign.id_ if as_reference else _embargo()
     case = VulnerabilityCase(
-        id_=_CASE, name="c", embargo_register=register(active=active)
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE,
+        name="c",
+        embargo_register=register(active=active),
     )
 
     with pytest.raises(VultronValidationError, match=_OTHER_CASE):
@@ -376,6 +397,7 @@ def _case_with_report(
         else _REPORT
     )
     return VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=_CASE,
         name="c",
         vulnerability_reports=[report],

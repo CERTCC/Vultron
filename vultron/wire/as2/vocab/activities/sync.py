@@ -61,17 +61,20 @@ class _RejectLogEntryActivity(as_Reject):
     determine which entries need to be replayed (SYNC-03-001).
 
     object_: :class:`~vultron.wire.as2.vocab.objects.case_ledger_entry.as_CaseLedgerEntry`
-        the receiver could not apply.
+        the receiver could not apply, or absent when the receiver holds no
+        entry and asks for a replay from genesis.  Then ``context`` is empty
+        and ``target`` names the case (SYNC-16-007).
     context: Last applied entry hash string.
 
-    Spec: SYNC-03-001, SYNC-03-002.
+    Spec: SYNC-03-001, SYNC-03-002, SYNC-16-007.
     """
 
-    object_: as_CaseLedgerEntry = Field(
-        default=...,
+    object_: as_CaseLedgerEntry | None = Field(  # type: ignore[assignment]
+        default=None,
         validation_alias="object",
         serialization_alias="object",
     )
+
     # context carries the last_accepted_hash as a plain string and is
     # inherited from as_Object as ``context: Any | None = None``.
     context: Any = Field(  # type: ignore[assignment]

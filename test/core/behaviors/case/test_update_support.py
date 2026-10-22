@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.case import update_support
 from vultron.core.behaviors.case.update_support import broadcast_case_update
 from vultron.core.models.case import VulnerabilityCase
@@ -54,7 +55,11 @@ def test_announces_to_the_selected_recipients_and_queues_it(monkeypatch):
     port.announce_vulnerability_case.return_value = "urn:uuid:announce-1"
 
     broadcast_case_update(
-        dl, CASE_ID, VulnerabilityCase(id_=CASE_ID), MANAGER_ID, port
+        dl,
+        CASE_ID,
+        VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID),
+        MANAGER_ID,
+        port,
     )
 
     port.announce_vulnerability_case.assert_called_once_with(
@@ -73,7 +78,11 @@ def test_no_active_participant_means_no_announce(monkeypatch):
     port = MagicMock()
 
     broadcast_case_update(
-        dl, CASE_ID, VulnerabilityCase(id_=CASE_ID), MANAGER_ID, port
+        dl,
+        CASE_ID,
+        VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID),
+        MANAGER_ID,
+        port,
     )
 
     port.announce_vulnerability_case.assert_not_called()
@@ -87,7 +96,7 @@ def test_omitted_exclusions_exclude_nobody(monkeypatch):
     broadcast_case_update(
         MagicMock(),
         CASE_ID,
-        VulnerabilityCase(id_=CASE_ID),
+        VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID),
         MANAGER_ID,
         MagicMock(),
     )
@@ -101,7 +110,7 @@ def test_given_exclusions_reach_the_selection(monkeypatch):
     broadcast_case_update(
         MagicMock(),
         CASE_ID,
-        VulnerabilityCase(id_=CASE_ID),
+        VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID),
         MANAGER_ID,
         MagicMock(),
         excluded_actor_ids={PARTICIPANT_ID},

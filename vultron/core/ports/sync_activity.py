@@ -64,6 +64,30 @@ class SyncActivityPort(Protocol):
         """
         ...
 
+    def send_genesis_replay_reject(
+        self,
+        case_id: str,
+        copy_tail_hash: str,
+        actor_id: str,
+        to: list[str],
+    ) -> None:
+        """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
+
+        Called by a replica whose case was replaced by a copy ahead of its
+        chain while its chain stores no entry: there is no entry to name, so
+        the Reject carries an empty last-accepted hash and names the case as
+        its ``target``, asking for a replay from genesis (SYNC-16-007).
+
+        Args:
+            case_id: The case to replay.
+            copy_tail_hash: The ``entry_hash`` of the tail the replacing copy
+                named.  It keeps each request its own: a request for a later
+                copy is not a repeat of an earlier one (ID-04-004).
+            actor_id: URI of the actor sending the rejection.
+            to: List of recipient actor URIs (the CASE_MANAGER).
+        """
+        ...
+
     def send_announce_log_entry(
         self,
         entry: CaseLedgerEntry,

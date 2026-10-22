@@ -33,6 +33,7 @@ from test.adapters.driving.fastapi.sse_helpers import (
     parse_sse_body,
     save_ledger_entry,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import (
     get_ledger_stream_shutdown,
@@ -151,7 +152,9 @@ def client_trigger_only(dl):
 @pytest.fixture
 def case_with_actor(dl, actor):
     """Create a as_VulnerabilityCase listing the actor as a participant."""
-    case_obj = as_VulnerabilityCase(name="TEST-DEMO-CASE-001")
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-DEMO-CASE-001"
+    )
     participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
@@ -179,7 +182,9 @@ def vendor_case(dl, actor):
         as_ParticipantStatus,
     )
 
-    case_obj = as_VulnerabilityCase(name="TEST-DEMO-VENDOR-CASE")
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-DEMO-VENDOR-CASE"
+    )
     participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
@@ -610,7 +615,9 @@ class TestDemoGetCaseLedger:
             as_VulnerabilityCase,
         )
 
-        other_case = as_VulnerabilityCase(name="OTHER-CASE")
+        other_case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="OTHER-CASE"
+        )
         dl.create(other_case)
         _make_log_entry(dl, case_with_actor.id_, log_index=0)
         _make_log_entry(dl, other_case.id_, log_index=0)
@@ -672,7 +679,9 @@ class TestDemoGetCaseLedger:
     ):
         """Resolves HTTP URL case IDs through their surrogate key."""
         http_case_id = "https://example.org/cases/demo/123"
-        case = as_VulnerabilityCase(id_=http_case_id, name="HTTP Case")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=http_case_id, name="HTTP Case"
+        )
         dl.create(case)
         _make_log_entry(dl, http_case_id, log_index=0)
         _make_log_entry(dl, http_case_id, log_index=1)
@@ -737,7 +746,9 @@ class TestDemoGetCaseLedgerEntry:
     ):
         """Resolves HTTP URL case IDs through their surrogate key."""
         http_case_id = "https://example.org/cases/demo/456"
-        case = as_VulnerabilityCase(id_=http_case_id, name="HTTP Case")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=http_case_id, name="HTTP Case"
+        )
         dl.create(case)
         _make_log_entry(dl, http_case_id, log_index=0)
 
@@ -821,7 +832,9 @@ class TestDemoStreamCaseLedger:
     def test_only_streams_the_requested_case(
         self, client_demo: TestClient, actor, case_with_actor, dl
     ):
-        other = as_VulnerabilityCase(name="OTHER-STREAM-CASE")
+        other = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="OTHER-STREAM-CASE"
+        )
         dl.create(other)
         _make_log_entry(dl, case_with_actor.id_, log_index=0)
         _make_log_entry(dl, other.id_, log_index=0)
@@ -875,7 +888,11 @@ class TestDemoStreamCaseLedger:
         self, client_demo: TestClient, actor, dl
     ):
         http_case_id = "https://example.org/cases/demo/stream"
-        dl.create(as_VulnerabilityCase(id_=http_case_id, name="HTTP Case"))
+        dl.create(
+            as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=http_case_id, name="HTTP Case"
+            )
+        )
         _make_log_entry(dl, http_case_id, log_index=0)
         events = parse_sse_body(
             client_demo.get(self._url(actor, http_case_id)).text

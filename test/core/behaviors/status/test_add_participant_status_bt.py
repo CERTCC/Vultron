@@ -37,6 +37,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.note_wire import assert_case_manager_note_recorded
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -917,7 +918,9 @@ class TestAddParticipantStatusTree:
             ),
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         bridge = self._bridge_with_factory(populated_dl)
@@ -963,7 +966,9 @@ class TestAddParticipantStatusTree:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=OUTSIDER_ID
             ),
             actor=OUTSIDER_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         bridge = self._bridge_with_factory(populated_dl)
@@ -1010,7 +1015,9 @@ class TestAddParticipantStatusTree:
                 attributed_to=CASE_MANAGER_ID,
             ),
             actor=CASE_MANAGER_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         cm_event = make_payload(cm_activity)
         cm_tree = add_participant_status_tree(
@@ -1058,7 +1065,9 @@ class TestAddParticipantStatusTree:
                 attributed_to=CASE_MANAGER_ID,
             ),
             actor=CASE_MANAGER_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(cm_activity)
         # Default DETERMINISTIC bundle — RequireCaseOwnerApproval is wired
@@ -1109,7 +1118,9 @@ class TestAddParticipantStatusTree:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1152,7 +1163,9 @@ class TestAddParticipantStatusTree:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         tree = add_participant_status_tree(
             request=make_payload(activity),
@@ -1191,7 +1204,9 @@ class TestAddParticipantStatusTree:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1255,7 +1270,9 @@ class TestNoAutoCloseSequenceInTree:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1284,7 +1301,9 @@ class TestNoAutoCloseSequenceInTree:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1515,7 +1534,11 @@ class TestRejectionValidatorBeforeCommit:
             target=vendor_participant,
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Fix1 Regression"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Fix1 Regression",
+            ),
         )
         event = make_payload(activity)
 
@@ -1601,7 +1624,11 @@ class TestRejectionValidatorBeforeCommit:
             status=incoming_status,
             target=vendor_participant,
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Fix1 Full Reject"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                name="Fix1 Full Reject",
+            ),
         )
         event = make_payload(activity)
 
@@ -1824,7 +1851,9 @@ class TestAddParticipantStatusTeardownWiring:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1850,7 +1879,9 @@ class TestAddParticipantStatusTeardownWiring:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1877,7 +1908,9 @@ class TestAddParticipantStatusTeardownWiring:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1909,7 +1942,9 @@ class TestAddParticipantStatusTeardownWiring:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -1946,7 +1981,9 @@ class TestAddParticipantStatusTeardownWiring:
                 id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
             ),
             actor=ACTOR_ID,
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
         event = make_payload(activity)
         tree = add_participant_status_tree(
@@ -2002,7 +2039,9 @@ def _pxa_report(
         ),
         actor=sender,
         to=[CASE_MANAGER_ID],
-        context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+        context=as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+        ),
     )
 
 
@@ -2230,7 +2269,9 @@ class TestAdoptedPxaReachesTheCaseStatus:
             ),
             actor=ACTOR_ID,
             to=[CASE_MANAGER_ID],
-            context=as_VulnerabilityCase(id_=CASE_ID, name="Test"),
+            context=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test"
+            ),
         )
 
         result = _run_at_case_manager(populated_dl, make_payload(activity))

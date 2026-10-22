@@ -18,6 +18,7 @@ TestRehydrateFields (_rehydrate_fields expansion), and hydrate() for list fields
 Fixtures (dl) come from conftest.
 """
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.wire.as2.factories import rm_submit_report_activity
 
@@ -184,7 +185,7 @@ def test_hydrate_expands_list_ref_field(dl):
     )
 
     case_actor_id = "https://example.org/actors/case-actor-hydrate"
-    case = as_VulnerabilityCase()
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
 
     participant = as_CaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
@@ -219,7 +220,7 @@ def test_hydrate_leaves_already_expanded_participants_unchanged(dl):
     )
 
     case_actor_id = "https://example.org/actors/case-actor-noop"
-    case = as_VulnerabilityCase()
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
     participant = as_CaseParticipant(
         case_roles=[CVDRole.CASE_MANAGER],
         attributed_to=case_actor_id,
@@ -242,7 +243,7 @@ def test_hydrate_keeps_unresolvable_string_ids(dl):
     )
 
     missing_id = "urn:uuid:00000000-0000-0000-0000-000000000000"
-    case = as_VulnerabilityCase()
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
     object.__setattr__(case, "case_participants", [missing_id])
     dl.save(case)
 
@@ -260,7 +261,7 @@ def test_hydrate_warns_for_unresolvable_string_ids(dl, caplog):
     )
 
     missing_id = "urn:uuid:00000000-0000-0000-0000-000000000001"
-    case = as_VulnerabilityCase()
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
     object.__setattr__(case, "case_participants", [missing_id])
     dl.save(case)
 

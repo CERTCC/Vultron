@@ -18,6 +18,7 @@
 import pytest
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.report import VulnerabilityReport
@@ -49,6 +50,7 @@ def case_obj(
     bt_scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],

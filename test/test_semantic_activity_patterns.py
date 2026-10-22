@@ -3,6 +3,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
@@ -270,6 +271,7 @@ def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
     """An OfferCaseOwnershipTransferActivity with a full inline as_VulnerabilityCase
     must be classified as OFFER_CASE_OWNERSHIP_TRANSFER, not SUBMIT_REPORT."""
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/urn:uuid:test-case",
         name="TEST-001",
     )
@@ -344,7 +346,9 @@ def _make_case() -> as_VulnerabilityCaseStub:
         (as_Actor(id_=ACTOR_URI), CASE_URI),
         (
             as_Actor(id_=ACTOR_URI),
-            as_VulnerabilityCase(id_=CASE_URI, name="Full case"),
+            as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_URI, name="Full case"
+            ),
         ),
         (ACTOR_URI, as_VulnerabilityCaseStub(case_id=CASE_URI)),
     ],
@@ -472,7 +476,9 @@ def test_announce_vulnerability_case_pattern_matches():
     activities are routed to AnnounceVulnerabilityCaseReceivedUseCase.
     """
     case = as_VulnerabilityCase(
-        id_="https://example.org/cases/case-pattern-001", name="Pattern Test"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/case-pattern-001",
+        name="Pattern Test",
     )
     announce = announce_vulnerability_case_activity(
         case,
@@ -536,6 +542,7 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
     """
     actor = as_Actor(id_="https://example.org/actors/alice")
     full_case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/c1",
         name="Full",
         stub_summary="Security issue — details shared after acceptance",
@@ -562,7 +569,9 @@ _CASE_URI = "https://example.org/cases/urn:uuid:test-case-mgr"
 
 
 def _make_case_manager_case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(id_=_CASE_URI, name="CASE-001")
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_URI, name="CASE-001"
+    )
 
 
 @pytest.mark.spec("SE-08-003")
@@ -850,7 +859,9 @@ def test_strict_target_rejects_bare_string_uri():
     )
 
     case = as_VulnerabilityCase(
-        id_="https://example.org/cases/strict-target-test", name="T-001"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/strict-target-test",
+        name="T-001",
     )
 
     # Bare string target must NOT match when strict=True (AC-1 fix)
@@ -889,7 +900,9 @@ def test_strict_target_matches_typed_actor():
     )
 
     case = as_VulnerabilityCase(
-        id_="https://example.org/cases/strict-target-test", name="T-001"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/strict-target-test",
+        name="T-001",
     )
     actor = as_Actor(id_="https://example.org/actors/alice")
 
@@ -1081,7 +1094,7 @@ def test_undo_of_an_embargo_invite_is_not_the_ownership_withdrawal() -> None:
 
 def _proposal():
     return propose_case_ownership_transfer_activity(
-        as_VulnerabilityCase(name="Proposed"),
+        as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Proposed"),
         target="https://example.org/coordinator",
         actor="https://example.org/vendor",
         to=["https://example.org/case-actor"],

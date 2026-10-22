@@ -36,6 +36,8 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_copy import copy_from
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -207,7 +209,9 @@ class _World:
         # and the sender guard is what decides (HP-01-005).
         activity = add_note_to_case_activity(
             note,
-            target=as_VulnerabilityCase(id_=self.case_id),
+            target=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=self.case_id
+            ),
             actor=sender_id,
             to=[self.receiver_id],
         )
@@ -425,7 +429,8 @@ class _Replica:
             attributed_to=self.manager_id,
         )
         activity = announce_vulnerability_case_activity(
-            snapshot,
+            # A current copy: it names the replica's own tail (SYNC-16-006).
+            copy_from(snapshot, self.dl),
             actor=sender_id,
             to=[self.receiver_id],
             context=self.case_id,
@@ -496,7 +501,7 @@ def test_announce_from_a_stranger_to_a_bootstrapped_replica_is_refused() -> (
 def test_announce_tree_takes_no_clock_decision() -> None:
     """Only a participant replica receives the Announce, and a replica takes
     no clock decision: the tree names no case for the CASE_MANAGER gate."""
-    case = as_VulnerabilityCase(name="No clock")
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="No clock")
     event = cast(
         AnnounceVulnerabilityCaseReceivedEvent,
         received_event(

@@ -33,6 +33,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.case_status import CaseStatus as CoreCaseStatus
 from vultron.core.ports.datalayer import DataLayer
 from vultron.enums.roles import CVDRole
@@ -197,6 +198,7 @@ def test_rehydrate_materialises_object_slots(
     stored object to VulnerabilityCase and preserves activity IDs as strings.
     """
     stored = LooselyTypedStoredCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         type_="VulnerabilityCase",
         case_activity=[recorded_activity.id_],
@@ -219,6 +221,7 @@ def test_rehydrate_materialises_from_a_bare_case_id(
     """
     dl.add(
         LooselyTypedStoredCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID,
             type_="VulnerabilityCase",
             case_activity=[recorded_activity.id_],
@@ -332,7 +335,10 @@ def test_unresolvable_activity_id_is_kept_as_string(
     no object-only slot to refuse, so an unresolvable URI is simply preserved.
     """
     stored = LooselyTypedStoredCase(
-        id_=CASE_ID, type_="VulnerabilityCase", case_activity=[MISSING_ID]
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        type_="VulnerabilityCase",
+        case_activity=[MISSING_ID],
     )
     dl.add(stored)
     result = rehydrate(stored, dl=dl.as_port())

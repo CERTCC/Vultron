@@ -29,6 +29,7 @@ from unittest.mock import patch
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes import CommitCaseLedgerEntryNode
@@ -132,7 +133,9 @@ class TestResolveCaseManagerIdCallers:
 
         scenario = BTTestScenario(actor_id=ACTOR_ID)
         # Seed case with no participants (empty actor_participant_index)
-        case = as_VulnerabilityCase(id_=CASE_ID, name="No CM")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="No CM"
+        )
         scenario.dl.create(case)
 
         node = ResolveCaseManagerNode(case_id=CASE_ID)
@@ -148,7 +151,9 @@ class TestResolveCaseManagerIdCallers:
         )
 
         scenario = BTTestScenario(actor_id=ACTOR_ID)
-        case = as_VulnerabilityCase(id_=CASE_ID, name="No CM")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="No CM"
+        )
         scenario.dl.create(case)
 
         node = CheckIsCaseManagerNode()

@@ -27,6 +27,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID, INBOUND_CASE_OWNERSHIP
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.wire.as2.parser import parse_activity
@@ -92,7 +93,11 @@ def test_a_sparse_case_is_a_case_not_a_stub():
 @pytest.mark.spec("CM-11-013")
 def test_a_sparse_case_validates_as_a_case():
     case = VulnerabilityCase.model_validate(
-        {"type": "VulnerabilityCase", "id": _CASE_ID}
+        {
+            "attributed_to": CASE_OWNER_ID,
+            "type": "VulnerabilityCase",
+            "id": _CASE_ID,
+        }
     )
     assert case.id_ == _CASE_ID
 
@@ -189,7 +194,13 @@ def test_an_invite_with_an_enriched_stub_target_parses():
 @pytest.mark.spec("CM-11-013")
 def test_an_invite_whose_target_is_a_sparse_case_parses_it_as_a_case():
     activity = parse_activity(
-        _invite({"type": "VulnerabilityCase", "id": _CASE_ID})
+        _invite(
+            {
+                **INBOUND_CASE_OWNERSHIP,
+                "type": "VulnerabilityCase",
+                "id": _CASE_ID,
+            }
+        )
     )
     assert isinstance(activity.target, VulnerabilityCase)
     assert not isinstance(activity.target, as_VulnerabilityCaseStub)

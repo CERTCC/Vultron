@@ -149,7 +149,7 @@ def replay(bridge, entries, *, peer_id: str, from_index: int, sync_port):
         actor_id=MANAGER_ID,
         sync_port=sync_port,
         case_actor_id=MANAGER_ID,
-        replay_entry=entries[-1],
+        replay_case_id=entries[-1].case_id,
         replay_peer_id=peer_id,
         replay_case_ledger_entries=entries,
         replay_from_index=from_index,

@@ -18,6 +18,7 @@ from vultron.wire.as2.enums import (
     as_ObjectType as AOtype,
     as_TransitiveActivityType as TAtype,
 )
+from vultron.wire.as2.ledger_reject_envelope import is_genesis_replay_reject
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Event
@@ -109,6 +110,22 @@ class InlineActivityObjectPattern(ActivityPattern):
         if verb not in ACTIVITY_VERBS or verb in excluded:
             return False
         return self._match_qualifiers(activity)
+
+
+class LedgerEntryRejectPattern(ActivityPattern):
+    """``Reject(CaseLedgerEntry)``, or the objectless genesis-replay form.
+
+    Matches what the base pattern matches, and also a plain ``Reject`` that
+    names no entry, carries an empty last-accepted hash and names the case
+    as its ``target``: a replica with no stored entry asking for a replay
+    from genesis (SYNC-16-007).  The parser refuses any other ``Reject``
+    without an object, so nothing else reaches the second branch.
+    """
+
+    def match(self, activity: as_Activity) -> bool:
+        if super().match(activity):
+            return True
+        return is_genesis_replay_reject(activity)
 
 
 def _match_activity_field(

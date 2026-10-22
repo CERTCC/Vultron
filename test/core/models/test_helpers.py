@@ -27,6 +27,7 @@ from pathlib import Path
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.clock import SteppingClock
 from vultron.core.models import _helpers
 from vultron.core.models._helpers import now_utc_after, require_future_aware
@@ -284,6 +285,7 @@ def test_has_case_statuses_true_when_non_empty():
     from vultron.core.models.case_status import CaseStatus
 
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/x1",
         case_statuses=[CaseStatus(context="https://example.org/cases/x1")],
     )
@@ -293,20 +295,21 @@ def test_has_case_statuses_true_when_non_empty():
 def test_has_case_statuses_false_when_empty():
     from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 
-    # No attributed_to → _init_case_statuses skips seeding → stays empty
     case = VulnerabilityCase(
-        id_="https://example.org/cases/x2",
-        case_statuses=[],
+        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/x2"
     )
+    case.case_statuses = []
     assert has_case_statuses(case) is False
 
 
-def test_has_case_statuses_false_when_default():
-    """VulnerabilityCase without attributed_to keeps case_statuses empty."""
+def test_has_case_statuses_true_when_default():
+    """A new case is seeded with one status, since it always has an owner."""
     from vultron.core.models.case import VulnerabilityCase, has_case_statuses
 
-    case = VulnerabilityCase(id_="https://example.org/cases/x3")
-    assert has_case_statuses(case) is False
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/x3"
+    )
+    assert has_case_statuses(case) is True
 
 
 # --- parse_published -------------------------------------------------------

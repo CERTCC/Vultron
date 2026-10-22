@@ -36,7 +36,6 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     PortInformation,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.predicates.addressing import same_actor_id
 from vultron.core.services.embargo_duration import (
@@ -284,14 +283,7 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
         )
         if failure is not None:
             return failure
-        owner_id = _as_id(case.attributed_to)
-        if owner_id is None:
-            self.feedback_message = (
-                f"case '{case_id}' has no owner; cannot select its actor"
-                " default embargo"
-            )
-            self.logger.error("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
+        owner_id = case.attributed_to
 
         # The profile id is the sender's spelling; the owner is stored
         # canonical, so compare with same_actor_id (#4772).

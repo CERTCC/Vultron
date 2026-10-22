@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.case.nodes import (
     CheckInviteeNotAlreadyParticipantNode,
 )
@@ -89,6 +90,7 @@ def _seed_case_with_participant(
     if removed:
         participant.record_removal(f"{_CASE_ID}/removals/1")
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="Test Case",
     )
@@ -108,7 +110,9 @@ def _seed_case_with_participant(
 
 def _seed_fresh_case(bt_scenario: BTTestScenario) -> VulnerabilityCase:
     """Seed a case with no participants."""
-    case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+    )
     bt_scenario.dl.create(case)
     return case
 
@@ -234,7 +238,9 @@ def _seed_case_with_status(
 ) -> tuple[VulnerabilityCase, CaseStatus]:
     """Seed a case that already has a CaseStatus entry."""
     status = CaseStatus(context=_CASE_ID)
-    case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+    )
     case.case_statuses.append(status.id_)
     bt_scenario.dl.create(status)
     bt_scenario.dl.create(case)
@@ -287,7 +293,9 @@ class TestCheckCaseStatusIdempotencyNode:
     def test_returns_success_when_status_not_present(
         self, bt_scenario: BTTestScenario
     ) -> None:
-        case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+        )
         bt_scenario.dl.create(case)
         node = CheckCaseStatusIdempotencyNode(
             case_id=_CASE_ID, status_id="https://example.org/statuses/new"

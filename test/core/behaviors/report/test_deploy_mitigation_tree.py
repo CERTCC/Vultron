@@ -28,6 +28,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_mitigation import (
     DEPLOY_MITIGATION_DETERMINISTIC,
@@ -78,6 +79,7 @@ def case_with_deployer(
     deployer_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Mitigation Case",
         case_participants=[deployer_participant.id_],
@@ -491,6 +493,7 @@ def test_non_deployer_role_skips_deploy_arm(
         case_roles=[CVDRole.VENDOR],
     )
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Mitigation Case",
         case_participants=[non_deployer.id_],

@@ -516,3 +516,31 @@ def test_parse_activity_keeps_a_non_blank_target():
         }
     )
     assert activity.target == "https://example.org/cases/1"
+
+
+@pytest.mark.parametrize("owner", [None, *BLANKS, "absent"])
+def test_parse_activity_refuses_inbound_case_without_owner(owner: object):
+    """An inbound case naming no owner is refused at the parse edge.
+
+    Every case has an owner: its genesis hash, and so its whole ledger chain,
+    is computed from it (CLP-08-002/003).  The parse edge refuses an inline
+    ``VulnerabilityCase`` without ``attributedTo`` so core receives only
+    owned cases (ADR-0032, ARCH-10-001).
+    """
+    case: dict[str, object] = {
+        "type": "VulnerabilityCase",
+        "id": "https://example.org/cases/ownerless",
+        "published": PUBLISHED,
+    }
+    if owner != "absent":
+        case["attributedTo"] = owner
+    body = {
+        "type": "Create",
+        "id": "https://example.org/activities/create-ownerless",
+        "actor": "https://example.org/actors/sender",
+        "published": PUBLISHED,
+        "object": case,
+    }
+
+    with pytest.raises(VultronParseValidationError, match="attributed"):
+        parse_activity(body)

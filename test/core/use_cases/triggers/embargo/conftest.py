@@ -16,8 +16,6 @@ from vultron.adapters.driven.datalayer_sqlite import (
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.case_ledger import compute_genesis_hash
-from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -87,69 +85,6 @@ def _build_active_embargo_case(
     write_consent_rows(dl, case)
 
     return case, proposal, participant.id_
-
-
-def _build_proposed_embargo_case_no_owner_attribution(
-    dl: SqliteDataLayer,
-    actor_id: str,
-    case_manager_id: str,
-) -> tuple[VulnerabilityCase, as_Invite, str]:
-    """Build a PROPOSED embargo case with ``attributed_to=None``."""
-    case = VulnerabilityCase(name="No-attribution proposed embargo case")
-    # No attributed_to → no auto-seeded CaseStatus; seed one manually.
-    case.add_case_status(CaseStatus(context=case.id_))
-    # Set genesis_hash explicitly so EmitCaseStatusUpdateNode can bootstrap
-    # the ledger chain without attributed_to (RSH-04-002/004, CLP-08-005).
-    assert case.published is not None
-    case.genesis_hash = compute_genesis_hash(
-        case.id_, case.published, case_manager_id
-    )
-
-    embargo = as_EmbargoEvent(context=case.id_, end_time=days_from_now_utc(45))
-    proposal = em_propose_embargo_activity(
-        embargo, context=case.id_, actor=case_manager_id
-    )
-
-    case_manager_participant = VendorParticipant(
-        attributed_to=case_manager_id,
-        context=case.id_,
-        embargo_consents=[
-            EmbargoConsent(
-                embargo_id=embargo.id_, state=EmbargoConsentState.AGREED
-            )
-        ],
-    )
-    case_manager_participant.add_role(CVDRole.CASE_MANAGER)
-
-    actor_participant = ReporterParticipant(
-        attributed_to=actor_id,
-        context=case.id_,
-        embargo_consents=[
-            EmbargoConsent(
-                embargo_id=embargo.id_, state=EmbargoConsentState.INVITED
-            )
-        ],
-    )
-
-    case.case_participants = [
-        case_manager_participant.id_,
-        actor_participant.id_,
-    ]
-    case.actor_participant_index = {
-        case_manager_id: case_manager_participant.id_,
-        actor_id: actor_participant.id_,
-    }
-    propose(case, embargo.id_)
-    case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
-
-    dl.create(case)
-    dl.create(embargo)
-    dl.create(proposal)
-    dl.create(case_manager_participant)
-    dl.create(actor_participant)
-    write_consent_rows(dl, case)
-
-    return case, proposal, actor_participant.id_
 
 
 def _build_exited_case(

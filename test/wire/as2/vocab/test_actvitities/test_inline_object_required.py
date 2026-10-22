@@ -24,6 +24,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.wire.as2.vocab.activities.actor import (
     _AcceptActorRecommendationActivity,
@@ -123,7 +124,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 
 _ACTOR = as_Person(name="Alice")
-_CASE = as_VulnerabilityCase(name="Test Case")
+_CASE = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
 _REPORT = as_VulnerabilityReport(name="CVE-TEST-001")
 _NOTE = as_Note(name="Test Note")
 # ``context`` is required: it names the case the status belongs to, and a status

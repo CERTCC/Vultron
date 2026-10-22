@@ -288,7 +288,7 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
         # is the case's attributed_to (CP-09-001), and there is only one
         # (CM-21-001).  The former owner stays a participant (CM-21-009).
         if stored_case is not None and not same_actor_id(
-            str(stored_case.attributed_to), self._owner_uri
+            stored_case.attributed_to, self._owner_uri
         ):
             logger.info(
                 "%s: proposer '%s' does not own case '%s' (owner '%s'), so"

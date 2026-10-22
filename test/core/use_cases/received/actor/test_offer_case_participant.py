@@ -36,6 +36,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -87,7 +88,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 CASE_ID = "https://example.org/cases/offer-round-trip-case"
 CASE_ACTOR_ID = "https://example.org/actors/case-actor"
-CASE_OWNER_ID = "https://example.org/actors/case-owner"
 RECOMMENDER_ID = "https://example.org/actors/finder"
 RECOMMENDED_ID = "https://example.org/actors/vendor-new"
 BYSTANDER_ID = "https://example.org/actors/bystander"
@@ -104,7 +104,9 @@ def _case_ref(case_id: str) -> as_VulnerabilityCase:
     The CASE_MANAGER's receipt commit refuses a bare-string ``target``, so a
     test that reaches that commit must send what production sends.
     """
-    return as_VulnerabilityCase(id_=case_id, name="OfferRoundTripTest")
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=case_id, name="OfferRoundTripTest"
+    )
 
 
 def _seed_dl_for_case_owner() -> tuple[SqliteDataLayer, str]:

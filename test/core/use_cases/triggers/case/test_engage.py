@@ -4,6 +4,7 @@ from typing import cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -64,7 +65,7 @@ def _make_case_with_case_manager(
     finder_id: str,
     case_actor_id: str,
 ) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
-    case = as_VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
 
     actor_participant = as_CaseParticipant(
         attributed_to=actor_id,
@@ -269,7 +270,9 @@ class TestEngageCaseRMTransitionViaBT:
 
     def test_engage_by_an_actor_with_no_participant_sends_nothing(self):
         """An actor the case does not index is refused and sends nothing."""
-        case_solo = as_VulnerabilityCase(name="Unseated Case")
+        case_solo = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Unseated Case"
+        )
         self.dl.create(case_solo)
         before = set(self.dl.outbox_list())
 
@@ -285,7 +288,9 @@ class TestEngageCaseRMTransitionViaBT:
         assert set(self.dl.outbox_list()) == before
 
     def test_engage_case_rm_not_updated_when_no_participant(self):
-        case_solo = as_VulnerabilityCase(name="Solo Case")
+        case_solo = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Solo Case"
+        )
         case_solo.actor_participant_index[self.vendor.id_] = (
             f"{case_solo.id_}/participants/vendor"
         )

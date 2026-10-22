@@ -32,6 +32,7 @@ from py_trees.common import Status
 from pydantic import ValidationError
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckAutoCaseCreationEnabledNode,
@@ -74,6 +75,7 @@ def case_obj(
     bt_scenario: BTTestScenario, report: VulnerabilityReport
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.id_],
@@ -165,16 +167,20 @@ class TestVultronCaseIdContract:
     (see issue #716).
     """
 
-    def test_empty_id_raises_validation_error(self) -> None:
-        with pytest.raises(ValidationError):
-            VulnerabilityCase(id_="")
-
-    def test_whitespace_only_id_raises_validation_error(self) -> None:
-        with pytest.raises(ValidationError):
-            VulnerabilityCase(id_="   ")
+    @pytest.mark.parametrize("key", ["id_", "id"])
+    @pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
+    def test_blank_id_is_refused_as_the_id(self, key: str, blank: str) -> None:
+        """The refusal names the id, not a status seeded from it (CS-08-001)."""
+        with pytest.raises(ValidationError) as excinfo:
+            VulnerabilityCase.model_validate(
+                {"attributed_to": CASE_OWNER_ID, key: blank}
+            )
+        locs = {error["loc"][0] for error in excinfo.value.errors()}
+        assert key in locs
+        assert "context" not in locs
 
     def test_auto_generated_id_is_nonempty(self) -> None:
-        case = VulnerabilityCase()
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
         assert case.id_ and case.id_.strip()
 
 

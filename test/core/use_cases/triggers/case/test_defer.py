@@ -2,6 +2,7 @@
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -65,7 +66,7 @@ def _make_case_with_case_manager(
     finder_id: str,
     case_actor_id: str,
 ) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
-    case = as_VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
 
     actor_participant = as_CaseParticipant(
         attributed_to=actor_id,
@@ -197,7 +198,9 @@ class TestDeferCaseRMTransitionViaBT:
 
     def test_defer_by_an_actor_with_no_participant_sends_nothing(self):
         """An actor the case does not index is refused and sends nothing."""
-        case_solo = as_VulnerabilityCase(name="Unseated Case")
+        case_solo = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Unseated Case"
+        )
         self.dl.create(case_solo)
         before = set(self.dl.outbox_list())
 
@@ -239,7 +242,9 @@ class TestDeferCaseRMTransitionViaBT:
     def test_defer_case_rm_not_updated_when_no_participant(self):
         # Build a case with a valid vendor participant (so RM transition
         # succeeds) but no CASE_MANAGER, so ResolveCaseManagerNode fails.
-        case_solo = as_VulnerabilityCase(name="Solo Case")
+        case_solo = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Solo Case"
+        )
         vendor_participant = as_CaseParticipant(
             attributed_to=self.vendor.id_,
             context=case_solo.id_,
