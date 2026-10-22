@@ -346,9 +346,10 @@ groups:
       anything, re-seed the peer or record replication state because of the fault. From
       any other sender it MUST report `REFUSED`.
     rationale: >-
-      A hash mismatch comes from deterministic content, such as a broken entry in the
-      CASE_MANAGER's store or a fault in rendering or parsing its wire form, so neither a
-      replay nor a re-seed can repair it; only a code fix or an operator can. The fault's
+      A hash mismatch comes from deterministic content: a fault in rendering or parsing
+      the wire form, or a broken stored entry the send-side check (SYNC-03-009) did not
+      see because fan-out checked its in-memory copy. Neither a replay nor a re-seed can
+      repair it; only a code fix or an operator can. The fault's
       purpose is to make the problem visible where the ledger is kept, and the self-check
       says which side is broken. The reject-and-replay loop it leaves is already bounded
       by the replay cooldown (SYNC-15-003, SYNC-15-013).
@@ -372,14 +373,17 @@ groups:
       whether by fan-out, replay or backfill, it MUST recompute the entry's hash from its
       content as SYNC-03-006 does. An entry that states no hash, or whose content does
       not reproduce it, MUST NOT be sent and MUST be logged at ERROR with the case, the
-      entry, its `log_index` and the recipient, and no later entry of the same send MUST
-      be sent.
+      entry, its `log_index` and the recipients, and the CASE_MANAGER MUST NOT send any
+      later entry of the same send. This takes precedence over SYNC-03-002, SYNC-17-004
+      and CM-10-006, which otherwise oblige it to send every entry in a range.
     rationale: >-
       A broken entry in the CASE_MANAGER's own store is found where it starts, not after
-      a replica refuses it (SYNC-03-007), and broken content never leaves the
-      CASE_MANAGER. Holding the entry back stalls the replica at it, as sending it would:
-      the replica sees a gap and its `Reject` loop is bounded by the replay cooldown
-      (SYNC-15-003, SYNC-15-013). A later entry is not sent because the replica could
+      a replica refuses it (SYNC-03-006) and reports it (SYNC-03-007), and broken content
+      never leaves the CASE_MANAGER. Holding the entry back stalls the replica at it, as
+      sending it would. The replica's `Reject` loop stays bounded without the replay
+      cooldown: a replay held back at the broken entry sends nothing, so it records no
+      position (SYNC-15-011), and the replica sends one `Reject` per later fan-out, with
+      nothing replayed to amplify it. A later entry is not sent because the replica could
       only hold it as a forward gap (SYNC-14-001). The receiver's check stays, because a
       fault in rendering or parsing the wire form still shows up first at the receiver.
     relationships:
@@ -387,11 +391,18 @@ groups:
       spec_id: SYNC-03-006
     - rel_type: refines
       spec_id: SYNC-08-001
+    - rel_type: constrains
+      spec_id: SYNC-03-002
+    - rel_type: constrains
+      spec_id: SYNC-17-004
+    - rel_type: constrains
+      spec_id: CM-10-006
     verification: >-
-      `test/core/behaviors/sync/test_send_side_hash_check.py` gives each send path a
-      ledger with an entry whose content does not reproduce its hash and asserts that
-      the entries before it are queued, that it and every later entry are not, and
-      that the hold-back is logged at ERROR.
+      `test/core/behaviors/sync/test_send_side_hash_check.py` gives a send a ledger with
+      an entry whose content does not reproduce its hash, and one with an entry that
+      states no hash, and asserts that the entries before it are queued, that it and
+      every later entry are not, and that the hold-back is logged at ERROR. #5120 adds
+      the same cases for each send path.
     stories:
     - story_2022_045
 - id: SYNC-04

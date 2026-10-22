@@ -18,6 +18,9 @@ The implementation issue removes the ``xfail`` and adds a test for each send
 site.
 """
 
+import logging
+from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import cast
 
 import pytest
@@ -26,6 +29,7 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import send_ledger_suffix
 from vultron.core.models.case_ledger import (
     CaseLedgerEntry,
     HashChainLedgerRecord,
+    compute_genesis_hash,
 )
 from vultron.core.ports.sync_activity import SyncActivityPort
 
@@ -49,7 +53,9 @@ class _RecordingSyncPort:
 
 def _chain(length: int) -> list[CaseLedgerEntry]:
     entries: list[CaseLedgerEntry] = []
-    prev = "genesis"
+    prev = compute_genesis_hash(
+        _CASE_ID, datetime(2026, 1, 1, tzinfo=UTC), _CASE_ACTOR_ID
+    )
     for log_index in range(length):
         entry = HashChainLedgerRecord(
             case_id=_CASE_ID,
@@ -64,27 +70,45 @@ def _chain(length: int) -> list[CaseLedgerEntry]:
     return entries
 
 
+def _tampered(entry: CaseLedgerEntry) -> CaseLedgerEntry:
+    """Content no longer reproduces the stated hash."""
+    return entry.model_copy(
+        update={"payload_snapshot": {"log_index": "tampered"}}
+    )
+
+
+def _hashless(entry: CaseLedgerEntry) -> CaseLedgerEntry:
+    """The entry states no hash, so there is nothing to check."""
+    return entry.model_copy(update={"entry_hash": ""})
+
+
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="SYNC-03-009: no send-side hash check yet. Tracked by #5120.",
 )
 @pytest.mark.spec("SYNC-03-009")
-def test_replay_stops_at_an_entry_whose_content_does_not_reproduce_its_hash() -> (
-    None
-):
+@pytest.mark.parametrize("break_entry", [_tampered, _hashless])
+def test_replay_stops_at_an_entry_that_does_not_verify(
+    break_entry: Callable[[CaseLedgerEntry], CaseLedgerEntry],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Entries before the broken one go out; it and everything after do not."""
     entries = _chain(4)
-    entries[2] = entries[2].model_copy(
-        update={"payload_snapshot": {"log_index": "tampered"}}
-    )
+    entries[2] = break_entry(entries[2])
     port = _RecordingSyncPort()
 
-    send_ledger_suffix(
-        cast(SyncActivityPort, port),
-        entries,
-        after_index=-1,
-        actor_id=_CASE_ACTOR_ID,
-        peer_id=_PEER_ID,
-    )
+    with caplog.at_level(logging.ERROR):
+        send_ledger_suffix(
+            cast(SyncActivityPort, port),
+            entries,
+            after_index=-1,
+            actor_id=_CASE_ACTOR_ID,
+            peer_id=_PEER_ID,
+        )
 
     assert port.sent == [0, 1]
+    assert any(
+        record.levelno == logging.ERROR and _PEER_ID in record.getMessage()
+        for record in caplog.records
+    )
