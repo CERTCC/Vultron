@@ -33,7 +33,7 @@ npm run lint   # eslint
 ```
 
 Nothing Python is needed at runtime: the demo imports the committed
-`src/data/protocol_states.json` directly.
+`src/data/protocol_states.json` and `src/data/semantic_registry.json` directly.
 
 ## 2. Visual grammar: decision / consequence nodes
 
@@ -95,7 +95,12 @@ values on `DemoState`. Do not model EM or PXA per-participant.
 - `close_case` is the closer's **self-declaratory `Leave`** (CM-23-012,
   ADR-0084): it advances that actor's RM to `CLOSED` from **any** rung and is
   **not** validated against the RM machine — do not flag a leaver closing from
-  `RECEIVED`.
+  `RECEIVED`. The case manager then records the leaver's legal path to `CLOSED`
+  (e.g. `VALID → DEFERRED → CLOSED`) as status snapshots; those replay the
+  closure the Leave already drew, so they are logged, not flagged.
+- Entry names and phrasing come from the semantic registry artifact (§9): an
+  event-log line carries the registry's phrase; a type the registry does not
+  list is logged as unhandled, never dropped.
 
 ## 6. How the protocol validates the log
 
@@ -109,8 +114,12 @@ diff whose path was guessed). A clean single legal step gets none.
 - `node_modules/.bin` tools (eslint, tsc, vite) run via `npm run *`; `jq` reads `*.jsonl`.
 - **Two log locations — do not confuse them:**
   - **`ui/src/sample-logs/`** — COMMITTED ledgers the "Load …" buttons import via
-    `?raw`. In-tree, so a fresh clone builds. One dir per scenario, plus
-    `synthetic/` (hand-authored violation fixtures).
+    `?raw`. In-tree, so a fresh clone builds. One dir per scenario, named for
+    the scenario, holding its case-actor copy, plus `synthetic/` (hand-authored
+    violation fixtures). To refresh them, take the `<scenario>-case-logs`
+    artifacts of a green `demo-integration.yml` run on `main` (or run the
+    container demo), copy each `case-actor/` ledger in, and update the imports in
+    `App-logreplay.tsx`. Never hand-edit a recorded ledger.
   - **`devlogs/`** (repo root) — GITIGNORED runtime output from the container
     demo. Not tracked; a fresh clone has none. Point manual uploads here.
 
@@ -133,6 +142,14 @@ exposing helpers (`nextState`, `requireNextState`, `isLegalTransition`,
 `machineStates`) that handlers and filters go through. The artifact also carries
 `embargo_viability`, a cross-machine rule the per-machine tables cannot express.
 
+The ledger vocabulary works the same way. `src/data/semantic_registry.json`,
+generated from `SEMANTIC_REGISTRY` by `uv run export-demo-semantics`
+([`export_semantics.py`](../vultron/metadata/demo_scenarios/export_semantics.py))
+and drift-tested, lists every semantic type with its wire summary and phrase
+template. `src/semanticRegistry.ts` is the only file that reads it. Do not add a
+closed list of semantic types or a phrase table to `ui/`: the Python demo
+report renders the same templates (DRPT-03-005).
+
 **Several dests per trigger.** A machine may list more than one dest for one
 (source, trigger): EM's `accept`/`reject` from PROPOSED/REVISE either close the
 last open proposal (leave negotiation) or leave another open (stay; ADR-0130).
@@ -154,6 +171,8 @@ export a scraped copy.
 - `src/actions/*.ts` + `src/state/actionFilters.ts` — Multi-Vendor handlers and
   filters (imported only by `App-multivendor.tsx`).
 - `src/utils/caseLedger*.ts` — the Log Replay parser and mapper.
+- `src/semanticRegistry.ts` — the ledger vocabulary (§9), read by the Log
+  Replay mapper.
 - **Shared (a change here affects both modes):** `protocol.ts`,
   `participantHelpers.ts`, `stateUpdaters.ts`, `constants.ts`, `types.ts`,
   `components/`.

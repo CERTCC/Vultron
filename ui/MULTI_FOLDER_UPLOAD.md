@@ -5,8 +5,8 @@
 When running the container-based demos, log files are generated in **separate subfolders**:
 
 ```text
-devlogs/fv/
-├── finder/
+devlogs/rv/
+├── reporter/
 │   └── urn_uuid_...-case-ledger.jsonl
 ├── vendor/
 │   └── urn_uuid_...-case-ledger.jsonl
@@ -24,19 +24,19 @@ The Log Replay demo now supports **adding files from multiple uploads**:
 ### Step-by-Step Process
 
 1. **First Upload**: Click "📁 Select Log Files"
-   - Navigate to `devlogs/fv/finder/`
+   - Navigate to `devlogs/rv/reporter/`
    - Select the JSONL file
    - Click "Open"
    - ✅ Status shows: "Loaded X log entries from 1 upload(s)"
 
 2. **Second Upload**: Click "📁 Add More Log Files"
-   - Navigate to `devlogs/fv/vendor/`
+   - Navigate to `devlogs/rv/vendor/`
    - Select the JSONL file
    - Click "Open"
    - ✅ Status shows: "Loaded X log entries from 2 upload(s)"
 
 3. **Third Upload**: Click "📁 Add More Log Files"
-   - Navigate to `devlogs/fv/case-actor/`
+   - Navigate to `devlogs/rv/case-actor/`
    - Select the JSONL file
    - Click "Open"
    - ✅ Status shows: "Loaded X log entries from 3 upload(s) • Y events visualized"
@@ -99,9 +99,9 @@ If you want to avoid multiple uploads:
 mkdir -p /tmp/vultron-logs
 
 # Copy all JSONL files to one place
-cp devlogs/fv/finder/*.jsonl /tmp/vultron-logs/
-cp devlogs/fv/vendor/*.jsonl /tmp/vultron-logs/
-cp devlogs/fv/case-actor/*.jsonl /tmp/vultron-logs/
+cp devlogs/rv/reporter/*.jsonl /tmp/vultron-logs/
+cp devlogs/rv/vendor/*.jsonl /tmp/vultron-logs/
+cp devlogs/rv/case-actor/*.jsonl /tmp/vultron-logs/
 
 # Now you can select all three files in one upload from /tmp/vultron-logs/
 ```
@@ -111,9 +111,9 @@ cp devlogs/fv/case-actor/*.jsonl /tmp/vultron-logs/
 ```bash
 # Create a folder with symlinks
 mkdir -p /tmp/vultron-logs-symlinked
-ln -s $(pwd)/devlogs/fv/finder/*.jsonl /tmp/vultron-logs-symlinked/
-ln -s $(pwd)/devlogs/fv/vendor/*.jsonl /tmp/vultron-logs-symlinked/
-ln -s $(pwd)/devlogs/fv/case-actor/*.jsonl /tmp/vultron-logs-symlinked/
+ln -s $(pwd)/devlogs/rv/reporter/*.jsonl /tmp/vultron-logs-symlinked/
+ln -s $(pwd)/devlogs/rv/vendor/*.jsonl /tmp/vultron-logs-symlinked/
+ln -s $(pwd)/devlogs/rv/case-actor/*.jsonl /tmp/vultron-logs-symlinked/
 
 # Upload all from the symlinked folder
 ```
@@ -130,9 +130,9 @@ We could add a "Load Two-Actor Demo" button that:
 // Future feature (not yet implemented)
 const handleLoadDemoLogs = async () => {
   const paths = [
-    '/devlogs/fv/finder/urn_uuid_...',
-    '/devlogs/fv/vendor/urn_uuid_...',
-    '/devlogs/fv/case-actor/urn_uuid_...',
+    '/devlogs/rv/reporter/urn_uuid_...',
+    '/devlogs/rv/vendor/urn_uuid_...',
+    '/devlogs/rv/case-actor/urn_uuid_...',
   ]
   // Fetch and load automatically
 }
