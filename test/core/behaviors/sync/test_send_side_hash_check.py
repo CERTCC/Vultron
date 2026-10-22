@@ -66,7 +66,7 @@ def _chain(length: int) -> list[CaseLedgerEntry]:
 
 @pytest.mark.xfail(
     strict=True,
-    reason="SYNC-03-009: no send-side hash check yet. Tracked by #5095.",
+    reason="SYNC-03-009: no send-side hash check yet. Tracked by #5120.",
 )
 @pytest.mark.spec("SYNC-03-009")
 def test_replay_stops_at_an_entry_whose_content_does_not_reproduce_its_hash() -> (
