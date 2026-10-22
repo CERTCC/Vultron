@@ -40,6 +40,7 @@ from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    em_undo_embargo_invite_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
     withdraw_from_embargo_activity,
@@ -52,6 +53,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Reject,
     as_Remove,
+    as_Undo,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -395,6 +397,31 @@ def test_em_reject_embargo_plain_invite_raises(sample_embargo):
     plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_embargo)
     with pytest.raises(VultronActivityConstructionError) as exc_info:
         em_reject_embargo_activity(proposal=plain_invite)
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# em_undo_embargo_invite_activity — the CASE_MANAGER withdraws an Invite it
+# sent (ADR-0152)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-013")
+def test_em_undo_embargo_invite_returns_undo_of_the_invite(sample_proposal):
+    result = em_undo_embargo_invite_activity(
+        invite=sample_proposal, context=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Undo)
+    assert result.object_ == sample_proposal
+    assert result.context == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_em_undo_embargo_invite_plain_invite_raises(sample_embargo):
+    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_embargo)
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        em_undo_embargo_invite_activity(invite=plain_invite)
     assert exc_info.value.__cause__ is not None
 
 

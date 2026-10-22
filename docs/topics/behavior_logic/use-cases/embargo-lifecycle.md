@@ -155,16 +155,16 @@ An act whose entry fails to commit changes nothing.
 |---|---|---|
 | Proposal or revision, `Invite(Event)` on the case | the new embargo, now proposed | a `Create(EmbargoConsent)` for every Participant: the proposer's row `AGREED`, because proposing terms is consenting to them, and every other row `UNINVITED` |
 | Relayed invitation, `Invite(Event)` to one Participant | no register change | an `Update(EmbargoConsent)` moving the invitee's row to `INVITED`, with its respond-by deadline (CM-28-013) |
-| Case manager's policy answer to a proposal | no register change | an `Update(EmbargoConsent)` for the case manager's own row, `AGREED` or `DECLINED` |
+| Case manager's own answer to a proposal, by its policy or by its own `accept` or `reject` request | no register change, and no `Accept` or `Reject` is sent | an `Update(EmbargoConsent)` for the case manager's own row, `AGREED` or `DECLINED` (MSM-07-004) |
 | Participant's answer, `Accept` or `Reject` of `Invite(Event)` | the row the answer states, `AGREED` or `DECLINED` | nothing: the answer is that row's entry |
 | Owner's activation, `Accept(Event, target=Case)` | the activation, the supersession of the embargo it replaces, and the owner's own `AGREED` row | an `Update(EmbargoConsent)` for each signatory carried over to terms that end no later (EP-05-001) |
 | Owner's rejection, `Reject(Event, target=Case)` | the rejected proposal | nothing |
-| Abandonment once the case is public, one ER per open proposal | the canceled proposal | nothing |
+| Abandonment once the case is public: the case manager's `Reject(Invite(Event))` of a proposal it received, or its `Undo(Invite(Event))` of one it sent itself | the canceled proposal | an `Undo(Invite(Event))` of each invitation the case manager relayed for that proposal, which changes nothing more |
 | Withdrawal, `Leave(Event)` | no register change | an `Update(EmbargoConsent)` moving the withdrawing Participant's row for the embargo in force to `DECLINED`, and one for each open revision it had agreed to (MSM-07-010) |
 | Termination, `Remove(Event, origin=Case)` | the end of the embargo in force and the cancellation of every open proposal (EP-08-004) | nothing: a termination writes no consent row (MSM-07-006) |
 | Invitation deadline passes | the expiry of that invitation (CM-28-009) | an `Update(EmbargoConsent)` moving the row to `TIMED_OUT` |
-| Late `Accept` of the current embargo | the decision to honor it | an `Update(EmbargoConsent)` moving the row to `AGREED` |
-| Late `Accept` of a superseded embargo | the fresh invitation | an `Update(EmbargoConsent)` moving the row to `INVITED`, with its deadline |
+| Late `Accept` of the current embargo | the `Accept` itself, as for an on-time `Accept`: the row it states, `AGREED` | nothing: the `Accept` is that row's entry |
+| Late `Accept` of a superseded embargo | the fresh invitation, relayed on behalf of the current embargo's proposer | an `Update(EmbargoConsent)` moving the row to `INVITED`, with its deadline |
 | Late `Accept` of an embargo the case no longer has | nothing: the `Accept` changes nothing, so no entry is committed (EMB-17-004) | nothing |
 | Stub invitation re-sent after the embargo changed | the replacement invitation | an `Update(EmbargoConsent)` moving the invitee's row for the embargo in force to `INVITED`; with no embargo in force, nothing |
 
@@ -199,7 +199,11 @@ It is mandatory, and it applies at every point in the lifecycle:
 - An EA MUST NOT move the case to `ACTIVE`; the actor emits ER instead (EMB-02-002).
 - An EV arriving while the case is public MUST be refused, not adopted, and the embargo ends because the case is public, not because the proposal arrived: the proposal is at most how the actor notices (EMB-03-003).
 - An actor sitting at `EM.PROPOSED` that *observes* the case go public MUST abandon the proposal, return to `EM.NONE`, and emit ER (EMB-16-001).
-  The case manager makes that abandonment for the case, and its committed ER is what notifies everyone else.
+  The case manager makes that abandonment for the case, and its committed entries are what notify everyone else.
+  It rejects each proposal it received with `Reject(Invite(Event))`, which cancels the proposal.
+  It then withdraws each invitation it relayed for that proposal with `Undo(Invite(Event))`.
+  When the case manager made the proposal itself, withdrawing that proposal with `Undo(Invite(Event))` is the cancel.
+  A replica tells the case manager's `Reject` from a Participant's by who sent it: the case manager's cancels the proposal, and a Participant's declines it.
   Only the case owner, or the case manager it delegates to, decides that abandonment.
   Any other participant's status report already tells the case manager the case went public, so it sends no ER as the abandonment, which the case manager would read as that participant declining the proposal (EMB-16-002).
   That rule covers only proposals already open on the case.
@@ -287,8 +291,8 @@ The case manager instead asks whether the accepted embargo is still the case's c
 
 | What the late Accept refers to | What the case manager does |
 |---|---|
-| The case's current embargo | Honor it; record the Participant's consent row as `AGREED`, exactly as for an on-time Accept, directly from `TIMED_OUT` or `DECLINED`, since a Participant that accepts after declining has changed its answer (EMB-17-002) |
-| A superseded embargo | Send a fresh invitation carrying the current terms. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
+| The case's current embargo | Honor it; record the `Accept` exactly as an on-time Accept, so the Participant's consent row moves to `AGREED` directly from `TIMED_OUT` or `DECLINED`, since a Participant that accepts after declining has changed its answer (EMB-17-002) |
+| A superseded embargo | Send a fresh invitation carrying the current terms, relayed like any other on behalf of the current embargo's proposer. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
 | An embargo the case no longer has | Nothing: the `Accept` changes nothing, so record no entry, send no reply, and change no consent. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
 
 Note what none of the three rows does: remove the accepting actor.

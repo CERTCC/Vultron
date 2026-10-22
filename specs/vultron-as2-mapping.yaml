@@ -871,6 +871,34 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: VAM-05-011
+  - id: VAM-05-013
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `UNDO_INVITE_TO_EMBARGO_ON_CASE` MUST be represented as
+      `Undo(Invite(Event)[context=VulnerabilityCase])`, whose object is an
+      `Invite(EmbargoEvent)` the sender itself sent. Only the CASE_MANAGER
+      sends it, when it abandons an open proposal (EMB-16-001, ADR-0152).
+    rationale: >-
+      An actor undoes only an activity it performed, so withdrawing an
+      invitation one sent is an `Undo` and declining one received is a `Reject`
+      (ADR-0152). The shape is told apart from the ownership-transfer `Undo`
+      (VAM-04-015) by its object, an embargo Invite.
+    verification: >-
+      `test_undo_of_an_embargo_invite_maps_to_its_semantic` in
+      `test/test_semantic_activity_patterns.py` confirms that
+      `Undo(Invite(EmbargoEvent))[context=VulnerabilityCase]` maps to
+      `UNDO_INVITE_TO_EMBARGO_ON_CASE`, and inspection of `_instances.py`
+      confirms `UndoInviteToEmbargoOnCasePattern` uses `TAtype.UNDO` with
+      `InviteToEmbargoOnCasePattern` as its object.
+    relationships:
+    - rel_type: satisfies
+      spec_id: EMB-16-001
+    adr:
+    - ADR-0152
+    stories:
+    - story_2022_014
+    - story_2022_080
 - id: VAM-06
   title: Case Participant Management Messages
   specs:

@@ -246,8 +246,10 @@ catch-up fetch or deferral, refuse instead.
   `Update(EmbargoConsent)` carrying the `TIMED_OUT` row if the row still needs
   `TIME_OUT` (the Accept tree's clock decision,
   CLP-10-025), then routes to honour (EMB-17-001),
-  re-invite (EMB-17-003) or no-op (EMB-17-004). Honour and re-invite commit an
-  entry so replicas learn the outcome (RSH-08-004); the no-op changes nothing
+  re-invite (EMB-17-003) or no-op (EMB-17-004). The honour commits the Accept
+  itself, as an on-time Accept is, and the re-invite a relayed Invite
+  attributed to the embargo's proposer, so replicas learn the outcome
+  (RSH-08-004, ADR-0152); the no-op changes nothing
   anywhere, so it commits and sends nothing and is `SKIPPED` (ADR-0152,
   CLP-02-013). Each runs only at the
   CASE_MANAGER — the expiry behind the received-tree factory's clock-decision
@@ -486,13 +488,18 @@ the teardown from the committed entries alone. It decides *who* tears down, not
 *whether* (RSH-03-002). The CSB-18 diagnostic runs only at the CASE_MANAGER too
 (#4829).
 
-**The P/X/A abandonment decides every open proposal (EMB-16-001).** The
-CASE_MANAGER commits one `Reject(Invite(EmbargoEvent))` per proposal under
-`reject_invite_to_embargo_on_case_abandoned`, addressed to nobody, after
-`check_abandonable` passes, and cancels each proposal by copying the `CANCEL`
-step that entry is, only after it commits, so a failed commit leaves that
-proposal open (CLP-07-013, #4442, ADR-0124). Replicas copy the same step
-through the `EmbargoAbandonment` slot without repeating the owner check.
+**The P/X/A abandonment decides every open proposal (EMB-16-001).** After
+`check_abandonable` passes, the CASE_MANAGER commits, per proposal, the
+activity that cancels it, then an `Undo(Invite(EmbargoEvent))` of each Invite
+it relayed for it, all addressed to nobody and all in one transaction
+(CLP-07-015). The cancel follows the Invite's shape (ADR-0152): a
+`Reject(Invite(EmbargoEvent))` of a proposal it received, committed as
+`reject_invite_to_embargo_on_case`, or an `Undo` of a proposal it sent itself,
+as `undo_invite_to_embargo_on_case`. It cancels each proposal by copying the
+`CANCEL` step only after its entry commits (CLP-07-013, ADR-0124). A replica
+tells the manager's `Reject` from a participant's by the payload's `actor`
+(`sent_by_case_manager`), copies the `CANCEL` from it, and finds each later
+`Undo` already in place.
 
 **A non-manager sends no ER for the abandonment (EMB-16-002).** Its ER would read
 at the manager as declining the proposal (MSM-07-004), an abandonment it has no

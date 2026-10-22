@@ -101,6 +101,7 @@ from vultron.wire.as2.vocab.examples.embargo import (
     reject_embargo_revision,
     relay_embargo_proposal,
     remove_embargo,
+    undo_embargo_invite,
     withdraw_from_embargo,
 )
 from vultron.wire.as2.vocab.examples.fault import (
@@ -421,6 +422,7 @@ def main(outdir=None):
         propose_embargo_revision,
         request_invite_actor_to_case,
         relay_embargo_proposal,
+        undo_embargo_invite,
         notify_embargo_termination,
         announce_embargo_termination,
         accept_embargo_revision,

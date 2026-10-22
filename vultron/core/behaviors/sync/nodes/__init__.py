@@ -78,7 +78,6 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
-    IsEmbargoReinviteEventNode,
     IsInviteAcceptEventNode,
     IsInviteRejectEventNode,
     IsOwnershipTransferEventNode,
@@ -87,6 +86,7 @@ from vultron.core.behaviors.sync.nodes.event_conditions import (
     IsRemoveEmbargoEventNode,
     IsRemoveNoteEventNode,
     IsSubmitReportEventNode,
+    IsUndoEmbargoInviteEventNode,
     IsWithdrawFromEmbargoEventNode,
 )
 from vultron.core.behaviors.sync.nodes.fanout import (
@@ -173,10 +173,10 @@ __all__ = [
     "IsSubmitReportEventNode",
     "IsOwnershipTransferEventNode",
     "IsEmbargoProposalEventNode",
-    "IsEmbargoReinviteEventNode",
     "IsEmbargoInviteRelayEventNode",
     "IsAcceptEmbargoInviteEventNode",
     "IsRejectEmbargoInviteEventNode",
+    "IsUndoEmbargoInviteEventNode",
     "IsWithdrawFromEmbargoEventNode",
     "IsEmbargoAbandonmentEventNode",
     # effects

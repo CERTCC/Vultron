@@ -1,0 +1,36 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Undo",
+  "id": "urn:uuid:3b5403a2-8be0-4b45-b696-f06e6114a3ff/embargo_proposals/1/invites/coordinator/undo",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Undo https://vultron.example/case-actors/vendorco-case-actor Invite Embargo for VendorCo Case #77334640",
+  "context": "urn:uuid:3b5403a2-8be0-4b45-b696-f06e6114a3ff",
+  "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Invite",
+    "id": "urn:uuid:3b5403a2-8be0-4b45-b696-f06e6114a3ff/embargo_proposals/1/invites/coordinator",
+    "name": "https://vultron.example/case-actors/vendorco-case-actor Invite Embargo for VendorCo Case #77334640",
+    "context": "urn:uuid:3b5403a2-8be0-4b45-b696-f06e6114a3ff",
+    "endTime": "2026-06-08T19:12:00+00:00",
+    "published": "2026-06-01T19:12:00+00:00",
+    "updated": "2026-10-21T21:33:18+00:00",
+    "summary": "The vendor proposes to embargo case 1 for 90 days.",
+    "to": [
+      "https://vultron.example/organizations/coordinator"
+    ],
+    "attributedTo": "https://vultron.example/organizations/vendorco",
+    "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+    "object": {
+      "id": "urn:uuid:3b5403a2-8be0-4b45-b696-f06e6114a3ff/embargo_events/2026-08-30T00:00:00+00:00",
+      "type": "EmbargoEvent",
+      "name": "Embargo for VendorCo Case #77334640",
+      "context": "urn:uuid:3b5403a2-8be0-4b45-b696-f06e6114a3ff",
+      "startTime": "2026-06-01T19:12:00+00:00",
+      "endTime": "2026-08-30T00:00:00+00:00",
+      "published": "2026-06-01T19:12:00+00:00",
+      "updated": "2026-06-01T19:12:00+00:00",
+      "content": "We propose to embargo VendorCo Case #77334640 for 90 days.",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    }
+  }
+}

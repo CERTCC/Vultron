@@ -46,7 +46,6 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.embargo.expiry_tree import (
-    create_commit_and_honour_late_accept_tree,
     create_commit_and_record_expiry_tree,
 )
 from vultron.core.behaviors.sync import commit_tree
@@ -1891,98 +1890,6 @@ class TestAssessAndRecordInviteExpiry:
         assert committed_semantic_types(dl, case_id) == before
 
 
-class TestHonourLateAcceptCommit:
-    """The honour tree commits the AGREED row's Update, then writes it."""
-
-    @staticmethod
-    def _honour(dl: SqliteDataLayer, case_id: str, embargo_id: str):
-        return _run_as_manager(
-            dl,
-            create_commit_and_honour_late_accept_tree(
-                case_id=case_id,
-                accepting_actor_id=_INVITEE,
-                invite_id=f"{case_id}/invites/i1",
-                embargo_id=embargo_id,
-            ),
-        )
-
-    @pytest.mark.spec("EMB-17-001", "ADR-0118", "CLP-07-013")
-    @pytest.mark.parametrize(
-        "held", [EmbargoConsentState.TIMED_OUT, EmbargoConsentState.DECLINED]
-    )
-    def test_the_participant_becomes_a_signatory(self, held):
-        """TIMED_OUT or DECLINED → AGREED in one step (CM-18-003)."""
-        dl = _make_dl()
-        case_id = f"https://example.org/cases/honour-{held.value.lower()}"
-        embargo_id = f"{case_id}/embargos/e1"
-        _make_active_embargo_case(
-            dl,
-            case_id,
-            embargo_id,
-            invitee_consent=held,
-            invitee_deadline=_PAST,
-        )
-
-        assert self._honour(dl, case_id, embargo_id).status is (
-            py_trees.common.Status.SUCCESS
-        )
-
-        assert committed_semantic_types(dl, case_id)[-1] == (
-            UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE
-        )
-        assert consent_row_updates(
-            dl, case_id, EmbargoConsentState.AGREED, _INVITEE
-        )
-        assert _invitee_consent(dl, case_id, embargo_id) is (
-            EmbargoConsentState.AGREED
-        )
-
-    @pytest.mark.spec("EMB-17-001", "ADR-0118")
-    def test_a_signatory_commits_nothing(self):
-        """A participant already AGREED: no entry, no change."""
-        dl = _make_dl()
-        case_id = "https://example.org/cases/honour-signatory"
-        embargo_id = f"{case_id}/embargos/e1"
-        _make_active_embargo_case(
-            dl,
-            case_id,
-            embargo_id,
-            invitee_consent=EmbargoConsentState.AGREED,
-        )
-        before = committed_semantic_types(dl, case_id)
-
-        assert self._honour(dl, case_id, embargo_id).status is (
-            py_trees.common.Status.SUCCESS
-        )
-
-        assert committed_semantic_types(dl, case_id) == before
-        assert _invitee_consent(dl, case_id, embargo_id) is (
-            EmbargoConsentState.AGREED
-        )
-
-    @pytest.mark.spec("EMB-17-001")
-    def test_an_actor_with_no_record_fails_and_commits_nothing(self):
-        dl = _make_dl()
-        case_id = "https://example.org/cases/honour-stranger"
-        embargo_id = f"{case_id}/embargos/e1"
-        _make_active_embargo_case(dl, case_id, embargo_id)
-        before = committed_semantic_types(dl, case_id)
-
-        result = _run_as_manager(
-            dl,
-            create_commit_and_honour_late_accept_tree(
-                case_id=case_id,
-                accepting_actor_id="https://example.org/actors/stranger",
-                invite_id=f"{case_id}/invites/i1",
-                embargo_id=embargo_id,
-            ),
-        )
-
-        assert result.status is py_trees.common.Status.FAILURE
-        assert not result.internal_error
-        assert committed_semantic_types(dl, case_id) == before
-
-
 class TestLateAcceptHandling:
     """EMB-17: late-Accept compatibility routing."""
 
@@ -2206,7 +2113,7 @@ class TestLateAcceptHandling:
             return original(self, embargo_id, trigger, *args, **kwargs)
 
         monkeypatch.setattr(_CoreParticipant, "apply_pec_transition", _spy)
-        # The honour decides its row by the consent table, then copies it
+        # The expiry decides its row by the consent table, then copies it
         # through the one apply function (ADR-0124).
         original_move = expiry_commit.consent_row_move
 
@@ -2252,7 +2159,12 @@ class TestLateAcceptHandling:
         assert (
             participant.consent_for(embargo_id) == EmbargoConsentState.AGREED
         )
-        assert [t for t in applied if t in triggers] == triggers
+        # The honoured Accept is recorded as an on-time Accept is: its row is
+        # checked before the commit and applied after it (EMB-17-002), so
+        # the trigger shows up more than once, but nothing else moves first.
+        assert list(dict.fromkeys(t for t in applied if t in triggers)) == (
+            triggers
+        )
         if start is EmbargoConsentState.TIMED_OUT:
             assert PEC_Trigger.INVITE not in applied
 

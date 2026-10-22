@@ -49,15 +49,14 @@ from vultron.core.behaviors.embargo.nodes import (
 from vultron.core.behaviors.embargo.trigger_tree import (
     reject_proposed_embargo_bt,
 )
-from vultron.core.behaviors.sync.nodes.event_conditions import (
-    EMBARGO_ABANDONMENT_SEMANTIC_TYPE,
-)
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
 )
@@ -113,6 +112,63 @@ def _proposed_case(
     return case, dl, proposals
 
 
+_REJECT = MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
+_UNDO = MessageSemantics.UNDO_INVITE_TO_EMBARGO_ON_CASE.value
+_ABANDONMENT_TYPES = frozenset({_REJECT, _UNDO})
+_RELAY_INVITEE = "https://example.org/actors/coordinator"
+
+
+def _relay(dl: SqliteDataLayer, case_id: str, embargo_id: str) -> str:
+    """Send and commit the CASE_MANAGER's relay of *embargo_id*; its id.
+
+    ``actor`` is the CASE_MANAGER and ``attributedTo`` the proposer, as
+    ``RelayEmbargoInviteToEachNode`` builds it (EP-09-002).
+    """
+    invite_id, blob = TriggerActivityAdapter(dl).propose_embargo(
+        embargo_id=embargo_id,
+        case_id=case_id,
+        actor=CASE_MANAGER_ACTOR,
+        to=[_RELAY_INVITEE],
+        attributed_to=OTHER_PARTICIPANT_ACTOR,
+    )
+    commit_emitted_activity(
+        datalayer=dl,
+        actor_id=CASE_MANAGER_ACTOR,
+        case_id=case_id,
+        activity_id=invite_id,
+        activity_blob=blob,
+        semantic_type=MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
+        sync_port=SyncActivityAdapter(dl),
+    )
+    return invite_id
+
+
+def _own_proposal_case(
+    suffix: str,
+) -> tuple[VulnerabilityCase, SqliteDataLayer, str, str]:
+    """A PROPOSED case whose one open proposal the CASE_MANAGER sent itself.
+
+    Returns the case, the store, the embargo and the proposal's Invite, held
+    under its own id as an activity this actor sent.
+    """
+    case, _cm, dl = make_case_with_manager(suffix, em_state=EM.NONE)
+    case = cast(VulnerabilityCase, dl.read(case.id_))
+    embargo = as_EmbargoEvent(
+        id_=f"{case.id_}/embargo_events/own",
+        context=case.id_,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(embargo)
+    invite_id, _blob = TriggerActivityAdapter(dl).propose_embargo(
+        embargo_id=embargo.id_, case_id=case.id_, actor=CASE_MANAGER_ACTOR
+    )
+    propose(case, embargo.id_)
+    case.pending_embargo_proposal_index = {embargo.id_: invite_id}
+    dl.save(case)
+    write_consent_rows(dl, case)
+    return case, dl, embargo.id_, invite_id
+
+
 def _replica_of(
     manager_dl: SqliteDataLayer,
     case: VulnerabilityCase,
@@ -158,7 +214,7 @@ def _abandonment_entries(
         for entry in dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
         and entry.case_id == case_id
-        and str(entry.semantic_type) == EMBARGO_ABANDONMENT_SEMANTIC_TYPE
+        and str(entry.semantic_type) in _ABANDONMENT_TYPES
     ]
 
 
@@ -180,8 +236,63 @@ def test_the_manager_abandons_every_open_proposal_and_commits_each():
     ) == sorted(proposals.values())
     for entry in entries:
         snapshot = entry.payload_snapshot
+        # The CASE_MANAGER declines the proposal it received (ADR-0152).
+        assert str(entry.semantic_type) == _REJECT
         assert snapshot["type"] == "Reject"
         assert snapshot["actor"] == CASE_MANAGER_ACTOR
+
+
+@pytest.mark.spec("EMB-16-001")
+@pytest.mark.spec("CLP-07-015")
+def test_the_manager_withdraws_each_invite_it_relayed_after_the_reject():
+    """The Reject cancels the proposal; one Undo per relayed Invite follows.
+
+    Only the proposal the Undo relays were for gets them, and the other
+    proposal, never relayed, is still cancelled (ADR-0152).
+    """
+    case, dl, proposals = _proposed_case("abandon-relayed")
+    relayed, unrelayed = proposals
+    relays = [_relay(dl, case.id_, relayed) for _ in range(2)]
+    before = len(committed_semantic_types(dl, case.id_))
+
+    assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.SUCCESS
+
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.proposed_embargo_ids == []
+    assert updated.current_status.em.state == EM.NONE
+    added = committed_semantic_types(dl, case.id_)[before:]
+    assert added[:4] == [_REJECT, _UNDO, _UNDO, _REJECT]
+    undos = [
+        e
+        for e in _abandonment_entries(dl, case.id_)
+        if str(e.semantic_type) == _UNDO
+    ]
+    assert sorted(e.payload_snapshot["object"]["id"] for e in undos) == sorted(
+        relays
+    )
+    for entry in undos:
+        assert entry.payload_snapshot["type"] == "Undo"
+        assert entry.payload_snapshot["actor"] == CASE_MANAGER_ACTOR
+        assert entry.payload_snapshot["object"]["object"]["id"] == relayed
+    assert unrelayed not in updated.proposed_embargo_ids
+
+
+@pytest.mark.spec("EMB-16-001")
+def test_the_manager_withdraws_its_own_proposal_with_an_undo():
+    """An Invite one sent is withdrawn, not declined (ADR-0152): the Undo of
+    the CASE_MANAGER's own proposal carries the cancel."""
+    case, dl, embargo_id, invite_id = _own_proposal_case("abandon-own")
+
+    assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.SUCCESS
+
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.proposed_embargo_ids == []
+    assert updated.current_status.em.state == EM.NONE
+    (entry,) = _abandonment_entries(dl, case.id_)
+    assert str(entry.semantic_type) == _UNDO
+    assert entry.payload_snapshot["type"] == "Undo"
+    assert entry.payload_snapshot["object"]["id"] == invite_id
+    assert entry.payload_snapshot["object"]["object"]["id"] == embargo_id
 
 
 @pytest.mark.spec("CLP-10-001")
@@ -193,7 +304,7 @@ def test_the_manager_queues_nothing_to_itself():
     assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.SUCCESS
 
     queued = _queued(dl)
-    assert not any(a.type_ == "Reject" for a in queued)
+    assert not any(a.type_ in ("Reject", "Undo") for a in queued)
     assert not any(
         CASE_MANAGER_ACTOR in [*(a.to or []), *(a.cc or [])] for a in queued
     )
@@ -297,9 +408,7 @@ def _fail_commits_after(monkeypatch: pytest.MonkeyPatch, allowed: int) -> None:
         monkeypatch,
         commit_tree,
         allowed=allowed,
-        when=lambda kw: (
-            kw.get("semantic_type") == EMBARGO_ABANDONMENT_SEMANTIC_TYPE
-        ),
+        when=lambda kw: kw.get("semantic_type") in _ABANDONMENT_TYPES,
     )
 
 
@@ -339,6 +448,26 @@ def test_a_later_failed_commit_abandons_no_proposal(monkeypatch):
     assert updated.proposed_embargo_ids == list(proposals)
     assert _abandonment_entries(dl, case.id_) == []
     assert {a.id_ for a in dl.list_objects("Reject")} == stored
+
+
+@pytest.mark.spec("CLP-07-015")
+@pytest.mark.spec("EMB-16-001")
+def test_a_failed_undo_keeps_no_part_of_the_abandonment(monkeypatch):
+    """The Reject commits and the Undo of a relayed Invite fails: the
+    abandonment is one transaction (ADR-0146), so neither is kept."""
+    case, dl, proposals = _proposed_case("abandon-undo-fails", days=(60,))
+    (embargo_id,) = proposals
+    _relay(dl, case.id_, embargo_id)
+    before = cast(VulnerabilityCase, dl.read(case.id_)).model_dump(mode="json")
+    _fail_commits_after(monkeypatch, allowed=1)
+
+    assert _run(dl, case.id_, CASE_MANAGER_ACTOR) == Status.FAILURE
+
+    updated = cast(VulnerabilityCase, dl.read(case.id_))
+    assert updated.model_dump(mode="json") == before
+    assert updated.proposed_embargo_ids == [embargo_id]
+    assert _abandonment_entries(dl, case.id_) == []
+    assert dl.list_objects("Undo") == []
 
 
 @pytest.mark.spec("CLP-07-013")

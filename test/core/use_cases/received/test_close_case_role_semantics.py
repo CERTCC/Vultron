@@ -999,9 +999,6 @@ class TestOwnerCloseSettlesPendingInvites:
         from vultron.core.behaviors.embargo.nodes.relay import (
             EMBARGO_INVITE_SEMANTIC_TYPE,
         )
-        from vultron.core.models.rsvp_deadline import (
-            EMBARGO_REINVITE_SEMANTIC_TYPE,
-        )
 
         embargo_id = f"{CASE_ID}/embargo_events/proposed"
 
@@ -1025,9 +1022,8 @@ class TestOwnerCloseSettlesPendingInvites:
         entries = [
             entry(0, EMBARGO_INVITE_SEMANTIC_TYPE, VENDOR_ID, "urn:invite:1"),
             entry(1, EMBARGO_INVITE_SEMANTIC_TYPE, OWNER_ID, "urn:invite:2"),
-            entry(
-                2, EMBARGO_REINVITE_SEMANTIC_TYPE, VENDOR_ID, "urn:invite:3"
-            ),
+            # A re-invite is a relay like any other (ADR-0152).
+            entry(2, EMBARGO_INVITE_SEMANTIC_TYPE, VENDOR_ID, "urn:invite:3"),
             entry(3, "close_case", VENDOR_ID, "urn:leave:4"),
         ]
 

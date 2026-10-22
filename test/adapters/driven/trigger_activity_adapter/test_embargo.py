@@ -323,6 +323,39 @@ class TestRejectEmbargo:
         assert obj.get("id") == proposal_id
 
 
+class TestUndoEmbargoInvite:
+    """The CASE_MANAGER withdraws an Invite it sent (VAM-05-013, ADR-0152)."""
+
+    @pytest.mark.spec("VAM-05-013")
+    @pytest.mark.spec("DL-06-004")
+    def test_embeds_the_sent_invite_and_persists_the_undo(self, adapter, dl):
+        invite_id, embargo_id = _make_proposal(adapter, dl)
+
+        activity_id, blob = adapter.undo_embargo_invite(
+            invite_id=invite_id, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        body = json.loads(blob)
+        assert body["type"] == "Undo"
+        assert body["actor"] == _ACTOR
+        assert body["object"]["id"] == invite_id
+        assert body["object"]["object"]["id"] == embargo_id
+        assert dl.read(activity_id) is not None
+
+    @pytest.mark.spec("ID-04-004")
+    def test_one_invite_is_withdrawn_under_one_id(self, adapter, dl):
+        invite_id, _ = _make_proposal(adapter, dl)
+
+        first, _ = adapter.undo_embargo_invite(
+            invite_id=invite_id, case_id=_CASE_ID, actor=_ACTOR
+        )
+        second, _ = adapter.undo_embargo_invite(
+            invite_id=invite_id, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        assert first == second
+
+
 class TestAnnounceEmbargo:
     def test_returns_id_and_dict(self, adapter, dl):
         embargo = _make_embargo(dl)

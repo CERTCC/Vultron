@@ -13,6 +13,8 @@ Records the sender's own refusal of the proposed terms. The proposal is rejected
 - **Formal definition:** [Embargo Proposal Rejection (ER)](../../../formal_protocol/messages.md#em-message-types)
 - **Mapping status:** [collapse](../../index.md#mapping-status)
 
+The Case Manager sends the same activity when it abandons an open proposal once the case is public, an exploit is public or attacks are observed. Its Reject cancels the proposal, and each Invite it relayed for the proposal is then withdrawn.
+
 ```python exec="true" idprefix=""
 from vultron.wire.as2.vocab.examples.vocab_examples import (
     reject_embargo,

@@ -40,10 +40,8 @@ A participant replica never evaluates a deadline and runs no ``TIME_OUT``:
 it copies the ``Update(EmbargoConsent)`` entry through the consent slot of
 ``create_announce_log_entry_tree`` (RSH-08-004, CM-28-016).
 
-For the honour late-Accept decision (EMB-17-002):
-:class:`~vultron.core.behaviors.embargo.nodes.expiry_commit.CommitAndApplyHonourLateAcceptNode`
-commits the CASE_MANAGER's ``Update(EmbargoConsent)`` carrying the
-``AGREED`` row before writing it; replicas copy the row from that entry.
+A late Accept of the embargo in force is honoured by being recorded as an
+on-time Accept is (EMB-17-002, ADR-0152); replicas copy the row it states.
 """
 
 from datetime import datetime
@@ -167,8 +165,9 @@ class InviteNotExpiredNode(py_trees.behaviour.Behaviour):
     diversions route a late Accept by its compatibility with the case's
     embargo ahead of this guard
     (:func:`~vultron.core.behaviors.embargo.expiry_tree.late_accept_diversions`,
-    EMB-17-001, CLP-10-026); this guard is the backstop that keeps it from
-    being recorded as an answer.
+    EMB-17-001, CLP-10-026), and the backstop
+    (:func:`~vultron.core.behaviors.embargo.expiry_tree.on_time_or_honoured_accept`)
+    lets through only a late Accept the case honours (EMB-17-002).
     SUCCESS otherwise, including on a store that is not the CASE_MANAGER,
     where the decision does not run and *result_out* stays unset.
     Read-only.

@@ -365,14 +365,13 @@ def test_an_accept_after_a_reject_records_the_new_answer(activated: bool):
 
     assert accepted.disposition is HandlerDisposition.APPLIED, accepted.reason
     assert _consent(net, BYSTANDER, embargo_id) == EmbargoConsentState.AGREED
-    # Proposed: the Accept's own entry records the change.  Active: the
-    # CASE_MANAGER honours it, and its one act is the Update(EmbargoConsent)
-    # carrying the AGREED row (CLP-07-013, ADR-0124, ADR-0140).
+    # Either way the Accept's own entry records the change: on the embargo
+    # in force the CASE_MANAGER honours it by committing it as an on-time
+    # Accept is, with no Update(EmbargoConsent) after it (CLP-07-002,
+    # ADR-0152).
     added = Counter(_entries(net)) - Counter(entries)
     assert added == Counter(
-        [UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE]
-        if activated
-        else [MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value]
+        [MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value]
     )
     assert net.queued(MANAGER, to=BYSTANDER, type_="Invite") == invites
 

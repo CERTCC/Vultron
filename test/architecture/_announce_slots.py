@@ -30,6 +30,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     _make_event,
     _to_persistable_entry,
 )
+from test.support.embargo_register import activate, propose
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.announce_tree import (
@@ -76,10 +77,16 @@ def effect_slot_conditions() -> list[py_trees.behaviour.Behaviour]:
     return conditions
 
 
-def _replica_store() -> SqliteDataLayer:
-    """A replica holding the case, so the relay classifier sees the manager."""
+def _replica_store(active_embargo: str | None = None) -> SqliteDataLayer:
+    """A replica holding the case, so the relay classifier sees the manager.
+
+    With *active_embargo* the case's register holds that embargo in force.
+    """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA)
     case = VulnerabilityCase(id_=CASE_ID, attributed_to=PROPOSER)
+    if active_embargo is not None:
+        propose(case, active_embargo)
+        activate(case, active_embargo)
     manager = CaseParticipant(
         attributed_to=MANAGER,
         context=CASE_ID,
@@ -91,9 +98,17 @@ def _replica_store() -> SqliteDataLayer:
     return dl
 
 
-def matching_slots(semantic_type: str, snapshot: dict[str, Any]) -> list[str]:
-    """Names of the slot conditions an *semantic_type* entry satisfies."""
-    dl = _replica_store()
+def matching_slots(
+    semantic_type: str,
+    snapshot: dict[str, Any],
+    *,
+    active_embargo: str | None = None,
+) -> list[str]:
+    """Names of the slot conditions an *semantic_type* entry satisfies.
+
+    *active_embargo*, when given, is in force on the replica's case.
+    """
+    dl = _replica_store(active_embargo)
     entry = _to_persistable_entry(
         HashChainLedgerRecord(
             case_id=CASE_ID,

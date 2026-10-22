@@ -18,7 +18,11 @@
 A participant's rejection is ``Reject(Invite(EmbargoEvent))``, its own
 consent.  The case owner's rejection is its decision for the case,
 ``Reject(EmbargoEvent, target=Case)``, which rejects the proposal and writes
-no consent (ADR-0122).
+no consent (ADR-0122).  A CASE_MANAGER that is not the owner builds no
+``Reject``: a CASE_MANAGER-sent ``Reject(Invite(EmbargoEvent))`` is its
+abandonment of the proposal (EMB-16-001), so it records its own consent as
+its ``Update(EmbargoConsent)`` of the row, and the response reports that
+``Update`` as its activity (MSM-07-004, TRIG-04-001).
 """
 
 import json
@@ -101,16 +105,22 @@ class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
             self._captured["activity"] = json.loads(reject_blob)
             return reject_id, reject_blob
 
-        build_tree = (
-            reject_embargo_proposal_trigger_bt
-            if self._is_owner
-            else reject_embargo_trigger_bt
-        )
-        return build_tree(
+        if self._is_owner:
+            return reject_embargo_proposal_trigger_bt(
+                case_id=self._case.id_,
+                embargo_id=self._embargo_id,
+                result_out=self._result_out,
+                activity_builder=_build_activity,
+            )
+        # A participant sends its Reject(Invite); a non-owner CASE_MANAGER
+        # instead commits its Update(EmbargoConsent) of the row, which the
+        # tree writes to the response (MSM-07-004, TRIG-04-001).
+        return reject_embargo_trigger_bt(
             case_id=self._case.id_,
             embargo_id=self._embargo_id,
             result_out=self._result_out,
             activity_builder=_build_activity,
+            own_consent_out=self._captured,
         )
 
     def _log_lifecycle_result(self) -> None:

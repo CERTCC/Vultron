@@ -1039,6 +1039,42 @@ def test_leave_of_the_case_is_not_a_withdrawal_from_the_embargo() -> None:
 
 
 # ---------------------------------------------------------------------------
+# VAM-05-013 — the CASE_MANAGER's withdrawal of an embargo Invite it sent,
+# Undo(Invite(EmbargoEvent)), when it abandons a proposal (ADR-0152).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("VAM-05-013")
+@pytest.mark.spec("EMB-16-001")
+def test_undo_of_an_embargo_invite_maps_to_its_semantic() -> None:
+    import vultron.wire.as2.vocab.examples.embargo as examples
+    from vultron.wire.as2.extractor import (
+        InviteToEmbargoOnCasePattern,
+        UndoInviteToEmbargoOnCasePattern,
+    )
+
+    undo = examples.undo_embargo_invite()
+
+    assert (
+        UndoInviteToEmbargoOnCasePattern.object_
+        is InviteToEmbargoOnCasePattern
+    )
+    assert (
+        find_matching_semantics(undo)
+        == MessageSemantics.UNDO_INVITE_TO_EMBARGO_ON_CASE
+    )
+
+
+@pytest.mark.spec("VAM-05-013")
+def test_undo_of_an_embargo_invite_is_not_the_ownership_withdrawal() -> None:
+    import vultron.wire.as2.vocab.examples.embargo as examples
+
+    assert not UndoCaseOwnershipTransferActivityPattern.match(
+        examples.undo_embargo_invite()
+    )
+
+
+# ---------------------------------------------------------------------------
 # VAM-04-015 — the ownership-transfer withdrawal, an Undo of the proposal
 # ---------------------------------------------------------------------------
 

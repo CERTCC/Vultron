@@ -37,6 +37,7 @@ from vultron.core.behaviors.embargo.nodes import (
     CommitAndApplyEmbargoTerminationNode,
     CommitEmbargoDecisionNode,
     CommitEmbargoProposalNode,
+    CommitOwnConsentDecisionNode,
     LeaveAbandonmentToCaseManagerNode,
     ProposeEmbargoLifecycleNode,
     ReadOpenEmbargoProposalsNode,
@@ -202,7 +203,13 @@ class TestRejectEmbargoTriggerBt:
             result_out=result_out,
             activity_builder=activity_builder,
         )
-        _assert_manager_arm_order(tree, RejectEmbargoLifecycleNode)
+        # The CASE_MANAGER's own Reject is its row's Update, never a Reject
+        # (MSM-07-004, ADR-0152).
+        _assert_manager_arm_order(
+            tree,
+            RejectEmbargoLifecycleNode,
+            commit_type=CommitOwnConsentDecisionNode,
+        )
 
 
 @pytest.mark.spec("RSH-04-002")

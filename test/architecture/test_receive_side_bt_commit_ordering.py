@@ -290,9 +290,9 @@ def _commit_node_types() -> tuple[type, ...]:
     they are named here to be checked: ``CommitAndApplyInviteExpiryNode``
     (the invitation expiry and its ``TIMED_OUT`` row, decided first so the
     row is written only once both commit, ADR-0124),
-    ``CommitAndApplyHonourLateAcceptNode`` (the late-Accept
-    honour and its ``AGREED`` row, a CASE_MANAGER diversion's commit,
-    CLP-10-026), ``ExpireInvitationsNode`` (the overdue-invitation
+    ``RelayEmbargoInviteToEachNode`` (each relayed Invite and its
+    invitee's row, the late-Accept re-invite among them, a CASE_MANAGER
+    diversion's commit, CLP-10-026, ADR-0152), ``ExpireInvitationsNode`` (the overdue-invitation
     sweep and the owner-close settle step, each running that expiry per row
     in a nested tree, CM-28-015, CM-23-014),
     ``_CommitCaseManagerActivityBase`` (the termination ``Remove``,
@@ -313,16 +313,18 @@ def _commit_node_types() -> tuple[type, ...]:
         EmitCaseStatusUpdateNode,
     )
     from vultron.core.behaviors.embargo.nodes.expiry_commit import (
-        CommitAndApplyHonourLateAcceptNode,
         CommitAndApplyInviteExpiryNode,
     )
     from vultron.core.behaviors.embargo.nodes.invitation_expiry import (
         ExpireInvitationsNode,
     )
+    from vultron.core.behaviors.embargo.nodes.relay import (
+        RelayEmbargoInviteToEachNode,
+    )
     from vultron.core.behaviors.sync.nodes import CreateLogEntryNode
 
     return (
-        CommitAndApplyHonourLateAcceptNode,
+        RelayEmbargoInviteToEachNode,
         CommitAndApplyInviteExpiryNode,
         ExpireInvitationsNode,
         CommitCaseLedgerEntryNode,
@@ -479,8 +481,8 @@ def test_only_the_clock_decision_stage_commits_ahead_of_the_guards() -> None:
         for n in stage.iterate()
         if isinstance(n, _commit_node_types())
     }
-    # The late-Accept honour diversion is seen committing its own entries.
-    assert "CommitAndApplyHonourLateAcceptNode" in diverted
+    # The late-Accept re-invite diversion is seen committing its own entries.
+    assert "ReinviteLateAccepterNode" in diverted
 
 
 @pytest.mark.spec("CLP-10-025")

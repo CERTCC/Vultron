@@ -366,8 +366,8 @@ an entry attributed to the invitee (ADR-0140; trees in
 | Situation | Behaviour |
 |---|---|
 | `INVITED` row past its deadline | `Update(EmbargoConsent)` carrying the `TIMED_OUT` row, that row only (CM-28-005, CM-28-009, CM-28-014) |
-| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: `Update(EmbargoConsent)` carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; the late Accept is not committed (EMB-17-002, EMB-17-009) |
-| Accepted embargo is stale | send a fresh Invite to the current embargo with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
+| Accepted embargo is still current (EM `ACTIVE` or `REVISE`) | honour it: commit the Accept itself, as an on-time Accept is, its entry carrying the `AGREED` row, directly from `TIMED_OUT` or `DECLINED`; no `Update(EmbargoConsent)` follows (EMB-17-002, EMB-17-009, ADR-0152) |
+| Accepted embargo is stale | relay a fresh Invite to the current embargo, `attributedTo` its proposer (the CASE_MANAGER for terms it made itself), with a fresh deadline; the answer recorded for the stale terms can no longer change (EMB-17-003) |
 | No current embargo (EM `EXITED`/`NONE`) | a no-op: no entry, no reply, rows and case participation unchanged; reported `SKIPPED` (EMB-17-004) |
 
 A late Accept is never refused (EMB-17): the accepter has signalled willingness

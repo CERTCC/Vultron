@@ -13,12 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's EMB-17-003 re-invite of a late accepter (EMB-17-011).
+"""The CASE_MANAGER's EMB-17-003 re-invite of a late accepter.
 
 A late ``Accept`` names an embargo that is no longer the case's current one,
-so the manager asks the accepter again about the current embargo.  The frame is
-the relay's (:class:`~vultron.core.behaviors.embargo.nodes.relay.RelayEmbargoInviteToEachNode`),
-narrowed to one fixed recipient and committed under a semantic type of its own.
+so the manager asks the accepter again about the current embargo.  The
+re-invite is a relay (:class:`~vultron.core.behaviors.embargo.nodes.relay.RelayEmbargoInviteToEachNode`),
+narrowed to one fixed recipient: ``attributedTo`` names the current embargo's
+proposer, and it is committed as ``invite_to_embargo_on_case`` (ADR-0152).
 """
 
 from typing import TYPE_CHECKING
@@ -28,6 +29,7 @@ from py_trees.common import Status
 from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
 )
+from vultron.core.behaviors.embargo.proposer import embargo_proposer_id
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     PortInformation,
@@ -35,8 +37,8 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
 from vultron.core.participants.recipients import invitation_recipients
+from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronNotFoundError
 
 if TYPE_CHECKING:
@@ -48,27 +50,29 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
 
     A late ``Accept`` named an embargo that is no longer the case's current
     one, so the manager asks the accepter again about the current embargo
-    (EMB-17-003).  The frame is the relay's — stamp a fresh deadline (ASK-03-004,
-    CM-28-012), build, queue, commit once queued (ADR-0119), apply PEC
-    ``INVITE`` and record the deadline (CM-18-003, CM-28-013) — with two
-    differences: the Invite is the manager's own ask, so it has no
-    ``attributedTo``, and it is committed under
-    :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_SEMANTIC_TYPE`, so
-    a replica replays the invitee's record and never re-adjudicates a proposal
-    (EP-09-007, RSH-08-004).  The recipient and embargo are fixed at
-    construction; the collect node and the recipients key are not used.
-    *answers* is the received activity the re-invite answers (the late
-    ``Accept``, or the ``Add(CaseParticipant)`` that reinstated the
-    invitee): given, the Invite's id is derived from it, so a redelivery
-    after a send whose commit failed rebuilds the same Invite (OX-06-002).
+    (EMB-17-003).  The re-invite is a relay (ADR-0152): the frame is the
+    relay's — stamp a fresh deadline (ASK-03-004, CM-28-012), build, queue,
+    commit once queued (ADR-0119), apply PEC ``INVITE`` and record the
+    deadline (CM-18-003, CM-28-013) — with ``attributedTo`` naming the
+    embargo's proposer, read from the case's ledger
+    (:func:`~vultron.core.behaviors.embargo.proposer.embargo_proposer_id`),
+    or the CASE_MANAGER itself when it made the embargo without a proposal,
+    as it makes the protocol default.  It is committed as
+    ``invite_to_embargo_on_case``, and a replica applies it through the relay
+    slot: the register already holds the embargo it names, so it proposes
+    nothing and EM does not move (EP-09-007, RSH-08-004).  The recipient and
+    embargo are fixed at construction; the collect node and the recipients
+    key are not used.  *answers* is the received activity the re-invite
+    answers (the late ``Accept``, or the ``Add(CaseParticipant)`` that
+    reinstated the invitee): given, the Invite's id is derived from it, so a
+    redelivery after a send whose commit failed rebuilds the same Invite
+    (OX-06-002).
 
     The one recipient is still judged by
     :func:`~vultron.core.participants.recipients.invitation_recipients`
     (CM-10-007): a removed or RM ``CLOSED`` invitee is sent nothing, and the
     node succeeds without an Invite (CM-31-013, ADR-0116).
     """
-
-    _SEMANTIC_TYPE = EMBARGO_REINVITE_SEMANTIC_TYPE
 
     def __init__(
         self,
@@ -80,7 +84,7 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         *,
         answers: str | None = None,
     ) -> None:
-        # No proposer: ``_attributed_to`` answers ``None``.
+        # The proposer is read from the ledger once the embargo is known.
         super().__init__(
             case_id=case_id,
             embargo_id=embargo_id,
@@ -115,9 +119,10 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
         return True
 
     def update(self) -> Status:
-        if (f := self._require_datalayer()) is not None:
+        if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None
+        assert self.actor_id is not None
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1: the CASE_MANAGER holds its case
@@ -137,10 +142,18 @@ class ReinviteStaleAccepterNode(RelayEmbargoInviteToEachNode):
             self.logger.info("%s: %s", self.name, self.feedback_message)
             return Status.SUCCESS
         self._recipients = [self._invitee_id]
+        # Whose terms these are (CM-24-002): the CASE_MANAGER's own when it
+        # made the embargo without a proposal (ADR-0152).
+        self._proposer_id = (
+            embargo_proposer_id(
+                recorded_entries_for_case(
+                    case_id=self._case_id, dl=self.datalayer
+                ),
+                self._embargo_id,
+            )
+            or self.actor_id
+        )
         return super().update()
-
-    def _attributed_to(self) -> str | None:
-        return None
 
 
 class ReinviteLateAccepterNode(ReinviteStaleAccepterNode):
@@ -200,8 +213,8 @@ class InviteReinstatedParticipantToEmbargoNode(ReinviteStaleAccepterNode):
     A participant reinstated into a case whose active embargo it has not
     accepted stays inert, so the CASE_MANAGER asks it (CM-31-013, ADR-0116):
     the same one-recipient Invite as the EMB-17-003 re-invite, the manager's
-    own ask about the embargo in force, committed under
-    :data:`~vultron.core.models.rsvp_deadline.EMBARGO_REINVITE_SEMANTIC_TYPE`.
+    relayed ask about the embargo in force, attributed to its proposer and
+    committed as ``invite_to_embargo_on_case`` (ADR-0152).
     Its CM-10-006 backfill waits for its consent: the honored ``Accept``
     admits it, and that tree backfills it.
 

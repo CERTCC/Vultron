@@ -23,6 +23,7 @@ from vultron.core.models.events.embargo import (
     RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
+    UndoInviteToEmbargoOnCaseReceivedEvent,
     WithdrawFromEmbargoOnCaseReceivedEvent,
 )
 from vultron.core.states.em import EM
@@ -53,6 +54,7 @@ from vultron.wire.as2.extractor import (
     RejectEmbargoProposalOnCasePattern,
     RejectInviteToEmbargoOnCasePattern,
     RemoveEmbargoEventFromCasePattern,
+    UndoInviteToEmbargoOnCasePattern,
     WithdrawFromEmbargoOnCasePattern,
 )
 from vultron.wire.as2.vocab.activities.embargo import (
@@ -61,6 +63,7 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
+    _EmUndoEmbargoInviteActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
     _WithdrawFromEmbargoActivity,
@@ -308,6 +311,13 @@ ENTRIES: list[SemanticEntry] = [
                 distinguisher=StateContext(machine=EM, states=(EM.PROPOSED,)),
                 howto=HowToGuide.ESTABLISH_EMBARGO,
                 shorthand=ProtocolShorthand.ER,
+                notes=(
+                    "The Case Manager sends the same activity when it "
+                    "abandons an open proposal once the case is public, an "
+                    "exploit is public or attacks are observed. Its Reject "
+                    "cancels the proposal, and each Invite it relayed for "
+                    "the proposal is then withdrawn."
+                ),
             ),
             Occasion(
                 when="a Participant refuses a proposed embargo revision",
@@ -321,6 +331,45 @@ ENTRIES: list[SemanticEntry] = [
                 distinguisher=StateContext(machine=EM, states=(EM.REVISE,)),
                 howto=HowToGuide.MANAGE_EMBARGO,
                 shorthand=ProtocolShorthand.EJ,
+            ),
+        ),
+        page=MessagePage.EM,
+    ),
+    # The CASE_MANAGER's withdrawal of an Invite it sent (ADR-0152): an actor
+    # undoes only an activity it performed.  Only the CASE_MANAGER sends it,
+    # and a participant learns it from the ledger, so no received use case
+    # handles it (ADR-0140 item 5).
+    SemanticEntry(
+        semantics=MessageSemantics.UNDO_INVITE_TO_EMBARGO_ON_CASE,
+        pattern=UndoInviteToEmbargoOnCasePattern,
+        event_class=UndoInviteToEmbargoOnCaseReceivedEvent,
+        use_case_class=None,
+        phrase="{actor} withdrew the embargo invitation",
+        wire_activity_class=_EmUndoEmbargoInviteActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager abandons an open embargo proposal "
+                    "once the case is public, an exploit is public or "
+                    "attacks are observed"
+                ),
+                anchor="withdraw-embargo-invite",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Withdraw an embargo invitation",
+                description=(
+                    "Withdraws an Invite the Case Manager sent for the "
+                    "abandoned proposal. The Case Manager first rejects the "
+                    "proposal it received, which cancels it, then withdraws "
+                    "each Invite it relayed for it. When the Case Manager "
+                    "made the proposal itself, withdrawing that proposal is "
+                    "the cancel."
+                ),
+                example="undo_embargo_invite",
+                notes=(
+                    "Each participant learns of it from the case ledger, "
+                    "so it is addressed to nobody."
+                ),
             ),
         ),
         page=MessagePage.EM,

@@ -39,6 +39,7 @@ from vultron.core.behaviors.embargo.nodes import EMBARGO_TEARDOWN_SEMANTIC_TYPE
 from vultron.core.behaviors.embargo.nodes.late_accept import (
     LateAcceptChangesNothingNode,
 )
+from vultron.core.behaviors.embargo.proposer import embargo_proposer_id
 from vultron.core.behaviors.embargo.rsvp_stamp import invite_rsvp_deadline
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -48,7 +49,6 @@ from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     ThreatSignal,
 )
-from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
     HandlerResult,
@@ -121,6 +121,23 @@ def _entries(
         for obj in net.stores[actor].list_objects("CaseLedgerEntry")
         if isinstance(obj, CaseLedgerEntry)
         and str(obj.semantic_type) == semantic_type
+    ]
+
+
+_INVITE = "invite_to_embargo_on_case"
+_ACCEPT = "accept_invite_to_embargo_on_case"
+
+
+def _invites_of(
+    net: _Network, actor: str, invitee: str, embargo_id: str
+) -> list[CaseLedgerEntry]:
+    """Every ``invite_to_embargo_on_case`` entry to *invitee* of *embargo_id*."""
+    return [
+        entry
+        for entry in _entries(net, actor, _INVITE)
+        if entry.payload_snapshot.get("to") == [invitee]
+        and isinstance(entry.payload_snapshot.get("object"), dict)
+        and entry.payload_snapshot["object"].get("id") == embargo_id
     ]
 
 
@@ -393,14 +410,16 @@ def test_the_managers_expiry_is_committed_and_replayed_by_a_replica():
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("CLP-10-006")
 @pytest.mark.spec("TB-06-007")
-@pytest.mark.spec("EMB-17-011")
+@pytest.mark.spec("EP-09-002")
 def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     """A late Accept of a stale embargo is re-invited; a replica learns it.
 
-    The manager commits the fresh Invite as its own ledger entry before it
-    queues it, so the ledger holds the entry before the outbox does
-    (CLP-10-006).  The replica, replaying it, moves the invitee's row for the embargo in force to ``INVITED``
-    with the Invite's new deadline and leaves EM alone (CM-28-013, EP-09-007).
+    The re-invite is a relay (ADR-0152): the manager commits the fresh
+    Invite as ``invite_to_embargo_on_case``, ``attributedTo`` the embargo's
+    proposer, which for this case's creation-time embargo is the manager
+    itself.  The replica, replaying it through the relay slot, moves the
+    invitee's row for the embargo in force to ``INVITED`` with the Invite's
+    new deadline and leaves EM alone (CM-28-013, EP-09-007).
     """
     net = _Network("https://example.org/cases/answer-reinvite")
     revision_id = _propose(net, "reinvite", 90)
@@ -438,6 +457,8 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     proposals_before = list(before.proposed_embargo_ids)
     active_before = before.active_embargo_id
     assert em_before == EM.REVISE
+    assert active_before is not None
+    assert _invites_of(net, MANAGER, BYSTANDER, active_before) == []
 
     net.receive(MANAGER, body)
     # A late-Accept arm answers the delivery itself (CLP-10-026).
@@ -461,22 +482,22 @@ def test_the_managers_reinvite_is_committed_and_replayed_by_a_replica():
     manager_deadline = manager_record.rsvp_deadline_for(active_before)
     assert manager_deadline is not None
     assert manager_deadline > datetime.now(tz=UTC)
-    assert (
-        _semantic_types(net, MANAGER).count(EMBARGO_REINVITE_SEMANTIC_TYPE)
-        == 1
-    )
-    (entry,) = _entries(net, MANAGER, EMBARGO_REINVITE_SEMANTIC_TYPE)
+    (entry,) = _invites_of(net, MANAGER, BYSTANDER, active_before)
     snapshot = entry.payload_snapshot
     assert snapshot["actor"] == MANAGER
-    assert snapshot.get("attributedTo") is None
+    # The case's embargo in force is the manager's own terms, so the manager
+    # names itself as their proposer (ADR-0152).
+    entries = sorted(
+        _entries(net, MANAGER, _INVITE), key=lambda e: e.log_index
+    )
+    assert embargo_proposer_id(entries, active_before) in (None, MANAGER)
+    assert snapshot["attributedTo"] == MANAGER
     assert snapshot["to"] == [BYSTANDER]
     # The entry is the body the outbox delivers, with the deadline as endTime.
     assert invite_rsvp_deadline(snapshot) == manager_deadline
 
     # The replica's own store (TB-06-007): same consent and deadline, no EM move.
-    assert (
-        _semantic_types(net, OWNER).count(EMBARGO_REINVITE_SEMANTIC_TYPE) == 1
-    )
+    assert len(_invites_of(net, OWNER, BYSTANDER, active_before)) == 1
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
     assert replayed.consent_for(revision_id) == EmbargoConsentState.TIMED_OUT
     assert replayed.consent_for(active_before) == EmbargoConsentState.INVITED
@@ -502,30 +523,32 @@ def test_a_late_accept_of_a_stale_embargo_reinvites_nobody_from_a_replica():
     assert body is not None
     _deliver_all(net, OWNER)
     queued_before = len(net.queued(OWNER, to=BYSTANDER, type_="Invite"))
+    invites_before = _semantic_types(net, OWNER).count(_INVITE)
 
     net.receive(OWNER, body)
 
-    assert (
-        _semantic_types(net, OWNER).count(EMBARGO_REINVITE_SEMANTIC_TYPE) == 0
-    )
+    assert _semantic_types(net, OWNER).count(_INVITE) == invites_before
     assert (
         len(net.queued(OWNER, to=BYSTANDER, type_="Invite")) == queued_before
     )
 
 
 @pytest.mark.spec("EMB-17-001")
+@pytest.mark.spec("EMB-17-002")
 @pytest.mark.spec("EMB-17-009")
 @pytest.mark.spec("RSH-08-004")
 @pytest.mark.spec("TB-06-007")
-def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
+def test_an_honoured_late_accept_is_committed_and_replayed_by_a_replica():
     """Late Accept honours into an AGREED row when the embargo is still active.
 
     When the invitee's RSVP deadline has passed and the embargo is still
-    active and matching, the CASE_MANAGER commits two
-    ``Update(EmbargoConsent)`` entries, the ``TIMED_OUT`` row (CM-28-009) and
-    then the ``AGREED`` row (EMB-17-001, EMB-17-009), with no separate expiry
-    or honour entry.  The replica copies the rows from the ledger
-    broadcast without re-evaluating the deadline (RSH-08-004, ADR-0124).
+    active and matching, the CASE_MANAGER commits the ``TIMED_OUT`` row
+    (CM-28-009) and then the received Accept itself, carrying the ``AGREED``
+    row it states, as an on-time Accept is (EMB-17-002, EMB-17-009).  No
+    ``Update(EmbargoConsent)`` of the ``AGREED`` row follows: one state
+    change, one entry (CLP-07-002, ADR-0152).  The replica copies the row
+    from the Accept's entry without re-evaluating the deadline (RSH-08-004,
+    ADR-0124).
 
     OWNER activates the revision first so that ``active_embargo_id == embargo_id`` when
     BYSTANDER's late Accept arrives — that is the condition that routes to the
@@ -587,6 +610,29 @@ def test_the_managers_honour_decision_is_committed_and_replayed_by_a_replica():
     replayed = cast(CaseParticipant, net.stores[OWNER].read(bystander_pid))
     assert replayed.consent_for(revision_id) == EmbargoConsentState.AGREED
     assert replayed.is_signatory(revision_id)
+
+    # The Accept itself is the entry, verbatim, and nothing records the row
+    # a second time.
+    (accept_entry,) = [
+        e
+        for e in _entries(net, MANAGER, _ACCEPT)
+        if e.log_object_id == str(body["id"])
+    ]
+    assert accept_entry.payload_snapshot == body
+    assert (
+        consent_row_updates(
+            net.stores[MANAGER],
+            net.case_id,
+            EmbargoConsentState.AGREED,
+            BYSTANDER,
+        )
+        == []
+    )
+    # The same row an on-time Accept leaves (AC-4).
+    manager_record = cast(
+        CaseParticipant, net.stores[MANAGER].read(bystander_pid)
+    )
+    assert replayed.embargo_consents == manager_record.embargo_consents
 
 
 def _late_accept_on_an_exited_embargo(

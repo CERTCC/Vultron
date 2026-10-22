@@ -260,6 +260,7 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "rm_reject_full_case_invite_activity": _answers("invite"),
     "em_accept_embargo_activity": _answers("proposal"),
     "em_reject_embargo_activity": _answers("proposal"),
+    "em_undo_embargo_invite_activity": _answers("invite"),
     "rm_read_report_activity": _answers("offer"),
     "rm_validate_report_activity": _answers("offer"),
     "rm_invalidate_report_activity": _answers("offer"),
