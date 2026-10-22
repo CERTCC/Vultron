@@ -121,7 +121,7 @@ five minutes ahead or more than seven days old
 ([CLP-14-007](../../reference/specs/protocol.md#clp-14-007),
 [CLP-14-008](../../reference/specs/protocol.md#clp-14-008)). A deployment that knows
 its own clock conditions may tune both thresholds
-([CLP-14-009](../../reference/specs/protocol.md#clp-14-009)). These are sanity
+([CLP-14-009](../../reference/specs/project.md#clp-14-009)). These are sanity
 checks, not proof of honesty; a participant with a badly wrong clock can still
 produce a well-formed but misleading assertion.
 A retry of an assertion the ledger already holds is answered with the entry recorded for it, however old its timestamp, because it records nothing new ([OX-06-002](../../reference/specs/project.md#ox-06-002)).
@@ -255,7 +255,7 @@ Each further replay from that same position doubles the wait, up to a ceiling, s
 A reject from a position that *has* advanced always triggers a replay, so a peer making progress is never held back.
 
 The holding area should also be bounded, so that a hostile or broken peer streaming far-future entries cannot exhaust the replica's storage.
-When it is full, the replica discards the held `Announce` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/protocol.md#sync-14-006)).
+When it is full, the replica discards the held `Announce` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/project.md#sync-14-006)).
 Discarding is safe because the reject for that gap has already been sent — but the eviction itself sends nothing, so recovery waits on the replay that reject triggers, or on the next entry that fails to match the tail.
 The cooldown above may delay either.
 
@@ -263,7 +263,7 @@ The holding area is deliberately **not** the ledger
 ([SYNC-14-005](../../reference/specs/project.md#sync-14-005)). Across Vultron,
 the presence of an entry in an actor's own store means *this entry is committed
 and its effects are applied*
-([SYNC-13-001](../../reference/specs/protocol.md#sync-13-001)). A held entry is
+([SYNC-13-001](../../reference/specs/project.md#sync-13-001)). A held entry is
 neither, so storing it would break that meaning.
 
 ### Entries that arrive before the case

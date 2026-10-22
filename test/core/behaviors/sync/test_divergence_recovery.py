@@ -19,6 +19,7 @@ implementation issue removes the ``xfail`` from the tests it makes pass, and
 replaces a probe with a full behaviour test where the probe only pins a name.
 """
 
+import logging
 from typing import Any, cast
 
 import pytest
@@ -33,6 +34,7 @@ from vultron.core.models.events.actor import (
     AnnounceVulnerabilityCaseReceivedEvent,
 )
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -187,6 +189,45 @@ def test_a_copy_behind_the_replica_chain_is_skipped() -> None:
 
     assert result.disposition == HandlerDisposition.SKIPPED
     assert cast(Any, dl.read(_CASE_ID)).name == "replica at entry 0"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "SYNC-16-006: a copy is not yet judged by its position, so a"
+        " conflicting one replaces the case unlogged. Tracked by #4797."
+    ),
+)
+@pytest.mark.spec("CLP-04-008")
+def test_a_conflicting_copy_is_logged_at_error(caplog) -> None:
+    """A copy naming a different entry at an index the replica holds is
+    refused, and the conflict is logged at ERROR."""
+    dl = _replica_store()
+    case = _owned_case(dl, "replica at entry 0")
+    _commit(dl, case, 0, case.genesis_hash)
+    conflicting = case.model_copy(
+        update={
+            "name": "conflicting copy",
+            "ledger_position": LedgerPosition(
+                log_index=0, entry_hash="f" * 64
+            ),
+        }
+    )
+    activity = announce_vulnerability_case_activity(
+        conflicting, actor=_CASE_ACTOR_ID, to=[_REPLICA_ID], context=_CASE_ID
+    )
+
+    with caplog.at_level(logging.ERROR, logger="vultron"):
+        AnnounceVulnerabilityCaseReceivedUseCase(
+            dl,
+            cast(
+                AnnounceVulnerabilityCaseReceivedEvent,
+                received_event(activity),
+            ),
+        ).execute()
+
+    assert cast(Any, dl.read(_CASE_ID)).name == "replica at entry 0"
+    assert any(r.levelno == logging.ERROR for r in caplog.records), caplog.text
 
 
 def _owned_case(dl: SqliteDataLayer, name: str) -> as_VulnerabilityCase:

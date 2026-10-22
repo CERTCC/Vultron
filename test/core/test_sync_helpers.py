@@ -75,6 +75,7 @@ def _store(dl: SqliteDataLayer, entry: CaseLedgerEntry) -> CaseLedgerEntry:
     return entry
 
 
+@pytest.mark.spec("CLP-04-008")
 class TestEmptyLedger:
     def test_empty_ledger_is_fresh(self, dl):
         """SYNC-10-005: empty prefix is trivially contiguous."""
@@ -83,6 +84,7 @@ class TestEmptyLedger:
         assert reason == ""
 
 
+@pytest.mark.spec("CLP-04-008")
 class TestReconstructTailHash:
     def test_empty_log_with_case_returns_genesis(self, dl):
         """CLP-08-005: empty ledger returns per-case genesis hash."""
@@ -99,6 +101,7 @@ class TestReconstructTailHash:
             reconstruct_tail_hash(CASE_ID, dl)
 
 
+@pytest.mark.spec("CLP-04-008")
 class TestContiguousChain:
     def test_single_genesis_entry_is_fresh(self, dl):
         case = _make_case()
@@ -148,6 +151,7 @@ class TestContiguousChain:
         assert fresh is True, reason
 
 
+@pytest.mark.spec("CLP-04-008")
 class TestMissingGenesisEntry:
     def test_missing_genesis_is_stale(self, dl):
         """SYNC-10-004: a real gap (hash mismatch) is stale.
@@ -204,6 +208,7 @@ class TestMissingGenesisEntry:
         assert "genesis entry missing" in reason or "log_index=1" in reason
 
 
+@pytest.mark.spec("CLP-04-008")
 class TestHashMismatch:
     def test_wrong_prev_log_hash_is_stale(self, dl):
         """SYNC-10-004: hash mismatch at any link is stale."""
@@ -245,6 +250,7 @@ class TestHashMismatch:
         assert "prev_log_hash mismatch" in reason or "genesis" in reason
 
 
+@pytest.mark.spec("CLP-04-008")
 class TestIndexGap:
     def test_gap_in_middle_is_stale(self, dl):
         """A genuine missing entry (broken hash chain) is stale.

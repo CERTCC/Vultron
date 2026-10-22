@@ -349,7 +349,7 @@ class TestSvcInviteActorToCaseUseCase:
         )
         assert "cc" not in activity
 
-    @pytest.mark.spec("CM-24-004")
+    @pytest.mark.spec("CM-24-004", "CLP-10-027")
     def test_invite_is_queued_in_the_owners_outbox_only(self):
         """The Offer leaves from the owner's outbox; nothing is queued as the
         CASE_MANAGER and nothing is committed by the owner."""
@@ -1108,6 +1108,7 @@ class TestSvcSuggestActorToCaseUseCase:
 class TestSvcAcceptCaseInviteUseCase:
     """Tests for the accept-case-invite trigger use case."""
 
+    @pytest.mark.spec("PCR-08-008")
     def test_accept_creates_activity(self):
         """The Invite is read from intake's archive: a stub Invite precedes its
         case, so the inbox never defers it (PCR-06-005)."""
@@ -1621,7 +1622,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 end_time=end_time if aware else end_time.replace(tzinfo=None),
             )
 
-    @pytest.mark.spec("CM-24-004")
+    @pytest.mark.spec("CM-24-004", "CLP-10-027")
     def test_offer_is_queued_in_the_owners_outbox_only(self):
         """The proposal is stored and queued in the owner's store; nothing is
         queued as the CASE_MANAGER and the owner commits no ledger entry."""

@@ -64,7 +64,7 @@ def is_ledger_fresh_for_case(
     ``(False, reason)`` is returned — the check is **fail-closed** per
     CLP-08-003/CLP-08-004.
 
-    Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005, CLP-04-007, CLP-08-004.
+    Spec: SYNC-10-003, SYNC-10-004, SYNC-10-005, CLP-04-008, CLP-08-004.
 
     Args:
         case_id: URI of the case whose local ledger to check.

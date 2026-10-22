@@ -77,11 +77,11 @@ everything after the last hash a participant reports.
 - **One hash predicate, wherever an entry is checked.** The receiver's check, the
   CASE_MANAGER's check of its own copy on a hash-mismatch fault, and any send-side
   check all call `ledger_entry_hash_intact()`. A second copy of the hashing logic
-  can disagree with the first and blame the wrong side (SYNC-03-008, #5095).
+  can disagree with the first and blame the wrong side (SYNC-03-010, #5095).
 - **A hash refusal is reported, not recovered.** The replica sends
   `LedgerEntryRefused/HashMismatch`; the CASE_MANAGER logs it at ERROR and checks its
   own copy, and does nothing else. Replay and re-seed resend the same content, so
-  neither can repair it; the replay cooldown bounds the loop (SYNC-03-007/008).
+  neither can repair it; the replay cooldown bounds the loop (SYNC-03-007/008/010).
 
 ## Canonical Serialization
 

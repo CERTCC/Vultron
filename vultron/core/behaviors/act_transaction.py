@@ -119,7 +119,7 @@ class ActTransaction(py_trees.composites.Sequence):
         except _RolledBack:
             self.logger.info(
                 "%s: a step failed, so nothing the act wrote is kept"
-                " (CLP-07-015)",
+                " (CLP-07-016)",
                 self.name,
             )
         yield self
@@ -142,7 +142,7 @@ class ActTransaction(py_trees.composites.Sequence):
             raise ActTransactionError(
                 f"{self.name}: child {running!r} returned"
                 " RUNNING; an act's transaction cannot stay open between"
-                " ticks (CLP-07-015)"
+                " ticks (CLP-07-016)"
             )
         if self.status != Status.SUCCESS:
             raise _RolledBack
@@ -195,7 +195,7 @@ class OneActExemption(BaseModel):
 
     ``create_receive_activity_tree`` runs the guarded commit of a received
     act's own entry and every effect after it in one :class:`ActTransaction`
-    (CLP-07-015, ADR-0146).  A tree that must not do so names one of these,
+    (CLP-07-015, CLP-07-016, ADR-0146).  A tree that must not do so names one of these,
     registered in :data:`ONE_ACT_EXEMPTIONS`; a bare opt-out does not exist.
 
     Attributes:
@@ -225,7 +225,7 @@ def received_act_stage(
     A tree that commits to *case_id* runs its commit and every effect after
     it in one ``ActTransaction`` named ``{name}Act``: the act's own entry and
     every consequence a later node commits succeed or fail as one
-    (CLP-07-015, ADR-0146, ADR-0151).  A tree with no commit has no act to
+    (CLP-07-015, CLP-07-016, ADR-0146, ADR-0151).  A tree with no commit has no act to
     hold, and its effects run as they are.
 
     Raises:
@@ -241,12 +241,12 @@ def received_act_stage(
             where=where,
             kind="one-act",
             registry_name="ONE_ACT_EXEMPTIONS",
-            spec_id="CLP-07-015",
+            spec_id="CLP-07-016",
         )
         if case_id is None:
             raise VultronWiringError(
                 f"{where}: one-act exemption {exemption.name!r} exempts a"
-                " tree that commits to no case; drop it (CLP-07-015)"
+                " tree that commits to no case; drop it (CLP-07-016)"
             )
         return act
     if case_id is None:

@@ -142,7 +142,7 @@ class TestSvcAddReportToCaseUseCase:
         activity_dict = activity_of(result)
         assert activity_dict.get("type") == "Add"
 
-    @pytest.mark.spec("PCR-08-005")
+    @pytest.mark.spec("PCR-08-005", "PCR-08-018")
     def test_add_report_to_case_addresses_case_manager_alone(self):
         """The queued Add goes to the CASE_MANAGER and no one else."""
         report = as_VulnerabilityReport(name="To-Field Report", content="c")

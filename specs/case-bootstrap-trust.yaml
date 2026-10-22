@@ -55,12 +55,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The bootstrap case snapshot MUST distinguish the actor that *asked for* the case from the actor
-      that *created* it. The actor whose `CaseProposal` caused the case to exist — the report
-      receiver, whatever other roles it also holds — MUST be a participant with `CVDRole.CASE_OWNER`.
-      The actor that created the case MUST be a participant with `CVDRole.CASE_MANAGER`, and
-      SHOULD also carry `CVDRole.COORDINATOR`. `CVDRole.CASE_OWNER` MUST NOT be delegated to the
-      CASE_MANAGER.
+      The bootstrap case snapshot MUST distinguish the actor that *asked for* the case
+      from the actor that *created* it. The actor whose `CaseProposal` caused the case
+      to exist — the report receiver, whatever other roles it also holds — MUST be a
+      participant with the `CASE_OWNER` role. The actor that created the case MUST be a
+      participant with the `CASE_MANAGER` role, and SHOULD also carry the `COORDINATOR`
+      role. The `CASE_OWNER` role MUST NOT be delegated to the CASE_MANAGER.
     rationale: >-
       Under ADR-0041 the CASE_MANAGER creates the case, so "creator/owner" names two different actors
       and the earlier wording invited code to collapse them. They confer different authority:
@@ -70,11 +70,11 @@ groups:
       Keeping them distinct is what makes "the CASE_MANAGER owns write privileges" true without making
       "the CASE_MANAGER owns the case" true.
     verification: >-
-      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts both halves of the
-      distinction on the bootstrap snapshot: `TestADR0041OwnerParticipant` that the proposing report
-      receiver is a participant carrying `CVDRole.CASE_OWNER`, and the case-manager-participant assertions
-      that the creating actor carries `CVDRole.CASE_MANAGER` alongside `CVDRole.COORDINATOR` and
-      never `CVDRole.CASE_OWNER`.
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts both halves
+      of the distinction on the bootstrap snapshot: `TestADR0041OwnerParticipant` that
+      the proposing report receiver is a participant carrying `CVDRole.CASE_OWNER`, and
+      `TestCaseActorIsOneParticipantDistinctFromTheOwner` that the creating actor is the
+      one participant carrying `CVDRole.CASE_MANAGER` and is not the case owner.
     relationships:
     - rel_type: refines
       spec_id: CM-02-001
@@ -135,10 +135,15 @@ groups:
   - id: CBT-01-007
     priority: MUST
     kind: protocol
-    statement: The bootstrap `Create(VulnerabilityCase)` payload MUST carry every nested domain object of the case (e.g.,
-      each `CaseParticipant` in `case_participants`), each inline or by reference.
-    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that every `CaseParticipant`
-      of the case is present in the bootstrap payload so the receiver can persist each participant record.
+    statement: >-
+      The bootstrap `Create(VulnerabilityCase)` payload MUST carry every nested domain
+      object of the case (e.g., each `CaseParticipant` the case lists), each inline or
+      by reference.
+    verification: >-
+      `test/adapters/driven/trigger_activity_adapter/test_cases.py::TestCaseOnTheWireCarriesItsParticipants::test_create_case_carries_participants_and_reports`
+      confirms every `CaseParticipant` of the case is present in the bootstrap payload,
+      and integration tests in `test/demo/test_case_proposal_round_trip.py` confirm the
+      receiver can persist each participant record.
     relationships:
     - rel_type: refines
       spec_id: CBT-01-002
@@ -330,9 +335,10 @@ groups:
   - id: CBT-03-001
     priority: SHOULD
     kind: protocol
-    statement: If a CASE_MANAGER-originated case message arrives before the required bootstrap trust handoff, the receiving actor
-      SHOULD queue it only for a short bounded interval rather than accepting or permanently trusting it immediately. The
-      default queue expiry interval is 300 seconds (configurable via `AppConfig.pre_bootstrap_queue_timeout_seconds`).
+    statement: >-
+      If a CASE_MANAGER-originated case message arrives before the required bootstrap
+      trust handoff, the receiving actor SHOULD queue it only for a short bounded
+      interval rather than accepting or permanently trusting it immediately.
     relationships:
     - rel_type: refines
       spec_id: PCR-06-002
@@ -348,10 +354,12 @@ groups:
   - id: CBT-03-003
     priority: MUST
     kind: protocol
-    statement: 'When the bounded pre-bootstrap queue expires (default: 300 seconds, configurable via `AppConfig.pre_bootstrap_queue_timeout_seconds`),
-      the receiver MUST drop the queued message, log a warning, and require a resend after bootstrap.'
-    verification: A unit test confirms that when the pre-bootstrap queue timeout (`AppConfig.pre_bootstrap_queue_timeout_seconds`)
-      elapses, the queued message is discarded, a warning is logged, and the activity is not applied to local case state.
+    statement: >-
+      When the bounded pre-bootstrap queue interval (CBT-03-001) expires, the receiver
+      MUST drop the queued message and require a resend after bootstrap.
+    verification: >-
+      A unit test confirms that when the pre-bootstrap queue timeout elapses, the queued
+      message is discarded and the activity is not applied to local case state.
     stories:
     - story_2022_090
     - story_2022_088
@@ -362,6 +370,36 @@ groups:
       / case creator by sending an `as_Question` activity (`vultron.wire.as2.vocab.base.objects.activities.intransitive.as_Question`)
       asking for the bootstrap `Create(VulnerabilityCase)` to be resent. The `target` of the `as_Question` SHOULD be set to
       the `case_actor_id` recorded on the `VultronPendingCaseInbox` entry.
+  - id: CBT-03-005
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase's pre-bootstrap queue (CBT-03-001, CBT-03-003) MUST expire after 300
+      seconds by default, configurable via
+      `AppConfig.pre_bootstrap_queue_timeout_seconds` (environment variable
+      `VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS`).
+    verification: >-
+      `test/test_config.py::test_defaults_pre_bootstrap_queue_timeout_seconds` asserts
+      the 300-second default, and
+      `::test_env_override_pre_bootstrap_queue_timeout_seconds` asserts the environment
+      override.
+    relationships:
+    - rel_type: implements
+      spec_id: CBT-03-001
+    - rel_type: implements
+      spec_id: CBT-03-003
+  - id: CBT-03-006
+    priority: MUST
+    kind: project
+    statement: >-
+      When this codebase drops an expired pre-bootstrap queue (CBT-03-003), it MUST log
+      a warning.
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_handler.py::test_pending_case_queue_expires_drops_and_warns`
+      asserts the WARNING record when an expired queue is dropped.
+    relationships:
+    - rel_type: implements
+      spec_id: CBT-03-003
 - id: CBT-04
   title: Late-Joiner Bootstrap
   specs:
@@ -412,7 +450,7 @@ groups:
   specs:
   - id: CBT-05-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Tests MUST verify that the original report submitter accepts CASE_MANAGER-originated `Announce(VulnerabilityCase)`
       updates only after a valid creator-signed bootstrap `Create(VulnerabilityCase)` has established trust.
     verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that an `Announce(VulnerabilityCase)`
@@ -423,7 +461,7 @@ groups:
     - story_2022_088
   - id: CBT-05-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Tests MUST verify that a bootstrap `Create(VulnerabilityCase)` is rejected when the sender does not match the
       actor that received the report or when the case does not reference the known submitted report.
     verification: '`TestBootstrapCreateRejectedBadSender` in `test/core/use_cases/received/case/test_create.py` confirms
@@ -436,7 +474,7 @@ groups:
     - story_2022_090
   - id: CBT-05-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Tests MUST verify that pre-bootstrap CASE_MANAGER messages remain unapplied, expire safely, and lead to a replay
       request to the report receiver.
     verification: Integration tests in `test/demo/test_pcr_bootstrap.py` confirm that pre-bootstrap CASE_MANAGER messages
@@ -447,7 +485,7 @@ groups:
     - story_2022_088
   - id: CBT-05-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Tests MUST verify that late joiners establish trust through `InviteActorToCase` and may then accept CASE_MANAGER-originated
       `Announce(VulnerabilityCase)` updates without an intermediate `Create(VulnerabilityCase)` bootstrap.
     verification: Integration tests in `test/demo/test_invite_actor_demo.py` confirm that late joiners establish trust
@@ -458,8 +496,12 @@ groups:
     - story_2022_090
   - id: CBT-05-005
     priority: MUST
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/core/use_cases/received/case/test_bootstrap_participants.py::TestBootstrapParticipantStorage`
+      asserts each embedded participant of a valid bootstrap is stored, and
+      `test/demo/test_case_proposal_round_trip.py` asserts the reporter receives the
+      case it is a participant of.
     stories:
     - story_2022_013
     - story_2022_063
@@ -469,8 +511,11 @@ groups:
       new case, making the reporter addressable without a separate `InviteActorToCase`.
   - id: CBT-05-006
     priority: MUST
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/core/use_cases/received/case/test_bootstrap_participants.py::TestM4AddParticipantStatusAfterBootstrap`
+      runs `AddParticipantStatusBT` on the reporter's replica after bootstrap and
+      asserts it succeeds.
     stories:
     - story_2022_092
     - story_2022_093
@@ -480,8 +525,11 @@ groups:
       CASE_MANAGER's participant index.
   - id: CBT-05-007
     priority: MUST
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
+    verification: >-
+      `test/core/use_cases/received/case/test_helpers.py::test_reporter_participant_stored_at_accepted_when_inline`
+      asserts the reporter's participant record is stored at `RM.ACCEPTED` after
+      bootstrap.
     stories:
     - story_2022_088
     - story_2022_038

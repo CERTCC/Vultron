@@ -19,10 +19,12 @@ it makes pass, and replaces a probe with a full behaviour test where the probe
 only pins a name.
 """
 
+import logging
 from typing import cast
 
 import pytest
 
+from test.core.use_cases.received.conftest import seed_case_participant
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models import fault_classes
@@ -33,10 +35,14 @@ from vultron.core.use_cases.received.fault import (
 )
 from vultron.wire.as2.factories import create_processing_fault_activity
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
 
 _CASE_ID = "https://example.org/cases/case-hash-mismatch-001"
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _STRANGER_ID = "https://example.org/actors/stranger"
+_PARTICIPANT_ID = "https://example.org/actors/participant"
 _HASH_MISMATCH = "https://certcc.github.io/Vultron/ns/errors/LedgerEntryRefused/HashMismatch"
 
 
@@ -80,3 +86,39 @@ def test_hash_mismatch_fault_from_a_non_participant_is_refused() -> None:
     ).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SYNC-03-010: the fault use case logs at WARNING. Tracked by #5094.",
+)
+@pytest.mark.spec("SYNC-03-010")
+def test_hash_mismatch_fault_from_an_active_participant_is_logged_at_error(
+    caplog,
+) -> None:
+    """An active participant's hash-mismatch fault is logged at ERROR.
+
+    #5094 adds the self-check result (intact, not intact, no stored copy).
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+    case = as_VulnerabilityCase(
+        id_=_CASE_ID, name="hash mismatch", attributed_to=_CASE_ACTOR_ID
+    )
+    seed_case_participant(dl, case, _PARTICIPANT_ID)
+    dl.create(case)
+    activity = create_processing_fault_activity(
+        actor=_PARTICIPANT_ID,
+        fault=as_ProcessingFault(
+            failure_class=_HASH_MISMATCH,
+            in_reply_to=f"{_CASE_ID}/ledger/entries/7/announce",
+        ),
+        to=[_CASE_ACTOR_ID],
+    )
+
+    with caplog.at_level(logging.ERROR, logger="vultron"):
+        CreateProcessingFaultReceivedUseCase(
+            dl,
+            cast(CreateProcessingFaultReceivedEvent, received_event(activity)),
+        ).execute()
+
+    assert any(r.levelno == logging.ERROR for r in caplog.records), caplog.text

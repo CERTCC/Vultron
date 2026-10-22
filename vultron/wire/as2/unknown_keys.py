@@ -91,7 +91,7 @@ _EMBARGO_FIELDS_RETIRED = (
 )
 
 _LEDGER_EVENT_TYPE_RETIRED = (
-    "eventType is retired on every object (CLP-02-014): the case ledger"
+    "eventType is retired on every object (CLP-02-015): the case ledger"
     " entry's eventType was renamed semanticType, so send an entry's"
     " semantic type as semanticType"
 )

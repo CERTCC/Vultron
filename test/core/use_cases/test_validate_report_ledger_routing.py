@@ -32,7 +32,7 @@ Context: the case is created at RM.RECEIVED (when the Offer(Report) arrives),
 so a case with a CASE_MANAGER participant already exists by the time
 ``validate-report`` is triggered (ADR-0015).
 
-Spec refs: ADR-0021, CLP-10-001, CLP-10-002, CLP-10-003.
+Spec refs: ADR-0021, CLP-10-001, CLP-10-027, CLP-10-002, CLP-10-003.
 """
 
 from __future__ import annotations

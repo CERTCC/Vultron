@@ -33,7 +33,7 @@ from vultron.core.predicates.addressing import same_actor_id
 class _EmitCaseActorReportActivityBase(_EmitSingleActivityBase):
     """Base class for emit nodes that route report-phase activities to the CaseActor.
 
-    Per ADR-0021 CLP-10-001: trigger trees MUST emit an outbound activity
+    Per ADR-0021 CLP-10-027: trigger trees MUST emit an outbound activity
     addressed to case_manager_id so the CaseActor receives it and can commit
     a canonical ledger entry.
 
@@ -153,7 +153,7 @@ class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
     resulting activity ID via ``outbox_append``. Routes the activity
     to the Case Actor (CASE_MANAGER participant) using ``_compute_report_addressees``.
 
-    Per ADR-0021 CLP-10-001: trigger trees MUST emit an outbound activity
+    Per ADR-0021 CLP-10-027: trigger trees MUST emit an outbound activity
     addressed to case_manager_id so the CaseActor receives the activity and
     can execute the guarded commit.
 
