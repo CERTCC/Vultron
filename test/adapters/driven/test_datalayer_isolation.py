@@ -19,7 +19,10 @@ caching behaviour.
 
 import pytest
 
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import (
+    CASE_OWNER_ID,
+    STORED_CASE_OWNERSHIP,
+)
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     get_all_actor_datalayers,
@@ -32,9 +35,10 @@ from vultron.core.ports.datalayer import StorableRecord
 
 def _record(id_: str, type_: str = "Note") -> StorableRecord:
     """Helper to build a minimal StorableRecord for testing."""
-    data: dict[str, str] = {"id_": id_}
+    data: dict[str, object] = {"id_": id_}
     if type_ == "VulnerabilityCase":
-        data["attributed_to"] = CASE_OWNER_ID  # every case has an owner
+        # Every case has an owner, so a genesis hash and a ledger position.
+        data.update(STORED_CASE_OWNERSHIP)
     return StorableRecord(id_=id_, type_=type_, data_=data)
 
 
@@ -203,7 +207,7 @@ class TestCrossActorReplicaIsolation:
                 type_="VulnerabilityCase",
                 data_={
                     "id_": self.CASE_ID,
-                    "attributed_to": CASE_OWNER_ID,
+                    **STORED_CASE_OWNERSHIP,
                     "summary": "A's view",
                 },
             )

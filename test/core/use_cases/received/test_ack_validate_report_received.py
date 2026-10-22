@@ -20,7 +20,10 @@ from typing import cast
 
 import pytest
 
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import (
+    CASE_OWNER_ID,
+    CONSTRUCTED_CASE_OWNERSHIP,
+)
 from test.support.embargo_register import register
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -239,7 +242,7 @@ class TestFullReportFlow:
             entry_status=EmbargoRegisterStatus.ACTIVE,
         )
         case = as_VulnerabilityCase.model_construct(
-            attributed_to=CASE_OWNER_ID,
+            **CONSTRUCTED_CASE_OWNERSHIP,
             id_=self.CASE_ID,
             name="Flow test case",
             vulnerability_reports=[self.REPORT_ID],

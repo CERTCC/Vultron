@@ -17,14 +17,12 @@ from __future__ import annotations
 
 import functools
 from collections.abc import Iterator
-from datetime import UTC, datetime
 from typing import cast
 
 import anyio
 import pytest
 
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
-from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import delivered, received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driving.fastapi.inbox_handler import (
@@ -39,10 +37,10 @@ from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
-    compute_genesis_hash,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
@@ -63,8 +61,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 _CASE_ACTOR_BASE = "http://case-actor-sync-901.test"
 _PEER_BASE = "http://peer-sync-901.test"
-# The case owner the hand-set genesis hash is anchored to (CLP-08-002); these
-# cases carry no `attributed_to`, so the anchor is only a hash input here.
+# The case owner the genesis hash is anchored to (CLP-08-002); an owned case
+# has a ledger, and so a ledger position (SYNC-16-005).
 _OWNER_ID = "http://vendor-sync-901.test/actors/vendor"
 
 
@@ -162,16 +160,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     )
 
     case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID, name="SYNC-901 integration case"
-    )
-    object.__setattr__(
-        case,
-        "genesis_hash",
-        compute_genesis_hash(
-            case_id=case.id_,
-            created_at=datetime.now(UTC),
-            owner_actor_id=_OWNER_ID,
-        ),
+        name="SYNC-901 integration case", attributed_to=_OWNER_ID
     )
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
@@ -277,8 +266,8 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     )
 
     case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID,
         name="SYNC-902 mismatch/replay integration case",
+        attributed_to=_OWNER_ID,
     )
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,
@@ -307,6 +296,16 @@ def test_sync_predecessor_mismatch_reject_and_replay(two_app_setup) -> None:
     case_actor_dl.save(entry0)
     case_actor_dl.save(entry1)
     case_actor_dl.save(entry2)
+    # The peer's replica: the case at the one entry it holds (SYNC-16-005).
+    peer_dl.save(
+        case.model_copy(
+            update={
+                "ledger_position": LedgerPosition(
+                    log_index=0, entry_hash=entry0.entry_hash
+                )
+            }
+        )
+    )
     peer_dl.save(entry0)
 
     wire_entry2 = WireCaseLedgerEntry.model_validate(
@@ -418,17 +417,8 @@ def test_sync_duplicate_delivery_idempotency(
     peer_dl = peer_iso.store_for(peer_actor_id)
 
     case = as_VulnerabilityCase(
-        attributed_to=CASE_OWNER_ID,
         name="SYNC-903 duplicate delivery integration case",
-    )
-    object.__setattr__(
-        case,
-        "genesis_hash",
-        compute_genesis_hash(
-            case_id=case.id_,
-            created_at=datetime.now(UTC),
-            owner_actor_id=_OWNER_ID,
-        ),
+        attributed_to=_OWNER_ID,
     )
     case_actor_participant = as_CaseParticipant(
         attributed_to=case_actor_id,

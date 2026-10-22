@@ -24,13 +24,16 @@ from pydantic import (
     model_validator,
 )
 from pydantic.alias_generators import to_camel
-from pydantic.config import JsonDict
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
     absent_times_as_none,
 )
-from vultron.core.models.base import VULTRON_CONTEXT_URI
+from vultron.core.models.base import (
+    VULTRON_CONTEXT_URI,
+    VULTRON_PROPERTY_EXTRA,
+    VULTRON_PROPERTY_KEY,
+)
 from vultron.wire.as2.vocab.base.enums import VocabNamespace
 from vultron.wire.as2.vocab.base.registry import (
     VOCABULARY,
@@ -47,15 +50,6 @@ ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
 #: which is the URL of the context *document*; this is the term namespace it
 #: defines (VM-10-002). Single source of truth for the context generator.
 VULTRON_NS_URI = "https://certcc.github.io/Vultron/ns#"
-
-#: Key of the ``json_schema_extra`` marker that declares a wire field a
-#: Vultron-namespace property, such as a termination ``Remove``'s
-#: ``terminationCause`` (EMB-13-005).  The context generator maps each marked
-#: field's wire name to ``vultron:<name>``, so a receiver can resolve it.
-VULTRON_PROPERTY_KEY = "vultronProperty"
-
-#: The marker itself: pass it as a field's ``json_schema_extra``.
-VULTRON_PROPERTY_EXTRA: JsonDict = {VULTRON_PROPERTY_KEY: True}
 
 # Re-exported: this was the constant's original home, and wire-layer callers
 # import it from here.  It now lives in core, because core objects are what

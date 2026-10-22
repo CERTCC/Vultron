@@ -1,10 +1,10 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Offer",
-  "id": "urn:uuid:33939bda-2fa0-4d59-a863-4bb73bb01dd8",
-  "name": "https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer VendorCo Case #32995788 to https://vultron.example/organizations/coordinator",
-  "context": "urn:uuid:81de97ce-c5bf-4a16-becf-74455af0b338",
-  "content": "Please offer ownership of case VendorCo Case #32995788 to the coordinator.",
+  "id": "urn:uuid:9e9809b1-46aa-4bdb-b6a0-2596f4b8ff0e",
+  "name": "https://vultron.example/organizations/vendorco Offer https://vultron.example/organizations/vendorco Offer VendorCo Case #25584766 to https://vultron.example/organizations/coordinator",
+  "context": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
+  "content": "Please offer ownership of case VendorCo Case #25584766 to the coordinator.",
   "to": [
     "https://vultron.example/case-actors/vendorco-case-actor"
   ],
@@ -12,17 +12,17 @@
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Offer",
-    "id": "urn:uuid:a03e7661-269e-4414-849d-bf97b8c8d96c",
-    "name": "https://vultron.example/organizations/vendorco Offer VendorCo Case #32995788 to https://vultron.example/organizations/coordinator",
-    "published": "2026-10-20T20:07:22+00:00",
-    "updated": "2026-10-20T20:07:22+00:00",
+    "id": "urn:uuid:152b3934-a2f7-495f-87d6-6e25ef5412aa",
+    "name": "https://vultron.example/organizations/vendorco Offer VendorCo Case #25584766 to https://vultron.example/organizations/coordinator",
+    "published": "2026-10-22T14:04:24+00:00",
+    "updated": "2026-10-22T14:04:24+00:00",
     "actor": "https://vultron.example/organizations/vendorco",
     "target": {
       "@context": "https://www.w3.org/ns/activitystreams",
       "type": "Actor",
       "id": "https://vultron.example/organizations/coordinator",
-      "published": "2026-10-20T20:07:22+00:00",
-      "updated": "2026-10-20T20:07:22+00:00",
+      "published": "2026-10-22T14:04:24+00:00",
+      "updated": "2026-10-22T14:04:24+00:00",
       "inbox": {
         "@context": "https://www.w3.org/ns/activitystreams",
         "type": "OrderedCollection",
@@ -37,23 +37,23 @@
       }
     },
     "object": {
-      "id": "urn:uuid:81de97ce-c5bf-4a16-becf-74455af0b338",
+      "id": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
       "type": "VulnerabilityCase",
-      "name": "VendorCo Case #32995788",
-      "published": "2026-10-20T20:07:21+00:00",
-      "updated": "2026-10-20T20:07:21+00:00",
+      "name": "VendorCo Case #25584766",
+      "published": "2026-10-22T14:04:23+00:00",
+      "updated": "2026-10-22T14:04:23+00:00",
       "attributedTo": "https://vultron.example/organizations/vendorco",
       "caseParticipants": [],
       "actorParticipantIndex": {},
       "vulnerabilityReports": [],
       "caseStatuses": [
         {
-          "id": "urn:uuid:e7274eb2-3dce-4bed-b7c5-57f154b833f2",
+          "id": "urn:uuid:ae3f6696-f263-43a8-83ea-34aae0fe6683",
           "type": "CaseStatus",
           "name": "NONE pxa",
-          "context": "urn:uuid:81de97ce-c5bf-4a16-becf-74455af0b338",
-          "published": "2026-10-20T20:07:21+00:00",
-          "updated": "2026-10-20T20:07:21+00:00",
+          "context": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
+          "published": "2026-10-22T14:04:23+00:00",
+          "updated": "2026-10-22T14:04:23+00:00",
           "attributedTo": "https://vultron.example/organizations/vendorco",
           "emState": "NONE",
           "pxaState": "pxa",
@@ -64,7 +64,11 @@
       "embargoRegister": [],
       "pendingEmbargoProposalIndex": {},
       "caseActivity": [],
-      "genesisHash": "e1d7c394cb78c048febef7870a780112492365474a665a6e5923574ba8de270b",
+      "genesisHash": "5b4e8bd4b5d2e94c1d1269ef9c189010cf6f315f113b8151201f6e5b42eb3c8d",
+      "ledgerPosition": {
+        "logIndex": -1,
+        "entryHash": "5b4e8bd4b5d2e94c1d1269ef9c189010cf6f315f113b8151201f6e5b42eb3c8d"
+      },
       "parentCases": [],
       "childCases": [],
       "siblingCases": [],

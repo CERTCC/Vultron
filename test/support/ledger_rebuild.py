@@ -39,7 +39,11 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
-from test.support.ledger import ledger_entries
+from test.support.ledger import (
+    assert_case_at_chain_tail,
+    case_snapshot_position_violations,
+    ledger_entries,
+)
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
@@ -277,6 +281,11 @@ def case_file_differences(
     )
     if got_register != want_register:
         found.append(f"embargo register: {got_register} != {want_register}")
+    if replica.ledger_position != manager.ledger_position:
+        found.append(
+            f"ledger position: {replica.ledger_position}"
+            f" != {manager.ledger_position}"
+        )
     return found
 
 
@@ -312,10 +321,22 @@ def assert_rebuilds_from_ledger(
     if as_actor is None:
         as_actor = replica_actor(manager_dl, case_id)
     assert as_actor is not None, f"'{case_id}' has no participant to rebuild"
+    # The CASE_MANAGER's case names its chain tail, and no entry carries the
+    # case at a position it may not name (SYNC-16-005).
+    assert_case_at_chain_tail(manager_dl, case_id)
+    manager_id = resolve_case_manager_id(
+        _case(manager_dl, case_id), manager_dl
+    )
+    violations = case_snapshot_position_violations(
+        ledger_entries(manager_dl, case_id), str(manager_id)
+    )
+    assert not violations, "\n".join(violations)
     replica = rebuild_from_ledger(
         manager_dl, case_id, as_actor=as_actor, seed=seed
     )
     try:
+        # So does the replica's, once it stores the whole chain.
+        assert_case_at_chain_tail(replica, case_id)
         differences = case_file_differences(manager_dl, replica, case_id)
     finally:
         replica.close()

@@ -12,7 +12,9 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import (
+    CONSTRUCTED_CASE_OWNERSHIP,
+)
 from test.support.embargo_register import register
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -79,7 +81,7 @@ def _case(manager: str = _CREATOR) -> as_VulnerabilityCase:
         name="manager",
     )
     return as_VulnerabilityCase.model_construct(
-        attributed_to=CASE_OWNER_ID,
+        **CONSTRUCTED_CASE_OWNERSHIP,
         id_=_CASE_ID,
         name="tree test",
         case_participants=[participant],
@@ -252,7 +254,7 @@ def test_bare_participant_refusal_leaves_the_link_unbound(dl, make_payload):
     link = _link()
     dl.save(link)
     case = as_VulnerabilityCase.model_construct(
-        attributed_to=CASE_OWNER_ID,
+        **CONSTRUCTED_CASE_OWNERSHIP,
         id_=_CASE_ID,
         name="bare",
         case_participants=["urn:x:bare-participant"],

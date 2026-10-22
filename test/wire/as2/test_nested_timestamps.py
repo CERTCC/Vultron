@@ -101,6 +101,8 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
             "name": "c",
             "attributedTo": ACTOR,
             "genesisHash": SENDER_GENESIS,
+            # The wire form names the case's ledger position (SYNC-16-005).
+            "ledgerPosition": {"logIndex": -1, "entryHash": SENDER_GENESIS},
         },
         {},
     ),
@@ -366,7 +368,7 @@ def test_case_needing_its_time_for_genesis_is_refused_at_parse(spelling: str):
     obj = {
         key: value
         for key, value in KINDS["VulnerabilityCase"][0].items()
-        if key != "genesisHash"
+        if key not in ("genesisHash", "ledgerPosition")
     }
     obj["published"] = SENDER_PUBLISHED
     ABSENT[spelling](obj)

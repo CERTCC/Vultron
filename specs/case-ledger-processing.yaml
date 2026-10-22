@@ -655,6 +655,9 @@ groups:
       the
       change is made; a decision that changes nothing, such as the observation that a
       deadline has passed or that a closure is complete, is not committed (ADR-0152).
+      Moving the case's `ledger_position` to an entry as it is committed (SYNC-16-005)
+      is part of applying that entry, not a change to the case file of its own, and
+      takes no entry.
     rationale: >-
       Two replicas at the same ledger position must hold the same case file, and a
       replica infers nothing: if a change is not in the ledger, it did not happen

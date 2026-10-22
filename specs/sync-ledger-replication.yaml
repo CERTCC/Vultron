@@ -1541,7 +1541,7 @@ groups:
       and record no replication state for the sender.
     rationale: >-
       The CASE_MANAGER's case is authoritative (PCR-03-001), and a copy carrying its
-      ledger tail (SYNC-16-005) lets the replica replace its case file and backfill
+      ledger position (SYNC-16-005) lets the replica replace its case file and backfill
       (SYNC-16-006, SYNC-16-007). The sender gate is the one the gap Reject uses
       (SYNC-03-005).
     relationships:
@@ -1582,25 +1582,35 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The wire form of a `VulnerabilityCase` MUST carry the sender's ledger tail for
-      that case: the `log_index` and `entry_hash` of the last entry the sender had
-      committed, or had stored as a replica, when the case was read; for an empty
-      ledger, index -1 and the per-case genesis hash. The tail MUST be computed from the
-      ledger each time the case is read or sent and MUST NOT be stored as a value of the
-      case file, so filling it in is not a change to the case file under CLP-07-013.
+      Each `VulnerabilityCase` MUST store `ledger_position`, the ledger position its
+      case file is a projection of: the `log_index` and `entry_hash` of the last entry
+      applied to it, or, before any, index -1 and the per-case genesis hash. Committing
+      an entry, or storing one as a replica, MUST move the position to that entry in
+      the same transaction that stores the entry. A ledger entry whose
+      `payloadSnapshot` carries the case MUST carry it at the position before that
+      entry. The position MUST travel with the case on its wire form, so a copy names
+      the position it reflects, and a received case that carries none MUST be
+      refused.
     rationale: >-
       A case copy is the case as applying the ledger up to some entry leaves it
-      (ADR-0124); the tail names that entry, so a receiver can tell a current copy from
-      a stale one. Computing it from the ledger means it can never disagree with the
-      ledger it points into.
+      (ADR-0124); the position names that entry, so a receiver can tell a current
+      copy from a stale one. Stored on the case, it is right on a replica too, whose
+      case can be ahead of its own chain after it replaces its case with a copy.
+      Moving it with the entry it names keeps the two from disagreeing, and a
+      snapshot taken before the entry keeps any entry's hash from depending on
+      itself.
     relationships:
     - rel_type: refines
       spec_id: PCR-02-001
     adr:
     - ADR-0142
     verification: >-
-      `test/core/behaviors/sync/test_divergence_recovery.py` asserts a case read after a
-      commit carries that commit's index and hash.
+      `test/core/behaviors/sync/test_case_ledger_position.py` asserts that a case
+      stored after a commit or a replica's store names that entry, that the store and
+      the move commit together, that a case-carrying snapshot names the position
+      before its entry, and that a stored or received case without the field is
+      refused; `test/demo/test_rebuild_from_ledger.py` asserts the CASE_MANAGER's
+      and every replica's case names its chain tail after each demo.
     stories:
     - story_2022_088
   - id: SYNC-16-006
@@ -1608,12 +1618,12 @@ groups:
     kind: protocol
     statement: >-
       A participant that receives `Announce(VulnerabilityCase)` from the case's
-      CASE_MANAGER for a case it already holds MUST compare the copy's ledger tail
-      (SYNC-16-005) with its own chain. If its chain is already past the tail it MUST
+      CASE_MANAGER for a case it already holds MUST compare the copy's ledger position
+      (SYNC-16-005) with its own chain. If its chain is already past it, it MUST
       leave its case file unchanged and report `SKIPPED`. If it holds an entry at the
-      tail's index whose hash differs, it MUST leave its case file unchanged, report
-      `REFUSED` and log the conflict at ERROR. Otherwise it MUST replace its case file
-      with the copy.
+      position's index whose hash differs, it MUST leave its case file unchanged,
+      report `REFUSED` and log the conflict at ERROR. Otherwise it MUST replace its
+      case file with the copy.
     rationale: >-
       The transport is unordered and the outbox retries, so an old copy can arrive late;
       replacing with it would drop the effects of the entries the replica already holds

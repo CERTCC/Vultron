@@ -27,6 +27,8 @@ import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.ledger import (
+    assert_case_at_chain_tail,
+    case_snapshot_position_violations,
     creation_entry_sequence,
     fail_commits,
     ledger_entries,
@@ -45,12 +47,14 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import ledger_entry_hash_intact
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.events.status import (
     AddParticipantStatusToParticipantReceivedEvent,
 )
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.rm import RM
@@ -496,13 +500,20 @@ def _rebuild_case_file(
 
     A copy, as a replica's apply is (ADR-0124): every record comes from an
     entry's snapshot and nothing is read from the store that wrote it.  A
-    later entry carrying the same record replaces the earlier copy.
+    later entry carrying the same record replaces the earlier copy.  Applying
+    an entry moves the case's position to it, as a replica's store does
+    (SYNC-16-005).
     """
     records: dict[str, CoreObject] = {}
     for entry in entries:
         key, cls = _CARRIED[entry.semantic_type]
         record = cls.model_validate(entry.payload_snapshot[key])
         records[record.id_] = record
+        case = records.get(entry.case_id)
+        if isinstance(case, VulnerabilityCase):
+            case.ledger_position = LedgerPosition(
+                log_index=entry.log_index, entry_hash=entry.entry_hash
+            )
     return records
 
 
@@ -603,6 +614,39 @@ class TestCreateCaseTriggerLedger:
         for status in case.case_statuses:
             assert isinstance(status, CaseStatus)
             assert rebuilt[status.id_] == status
+
+    @pytest.mark.spec("SYNC-16-005")
+    def test_the_case_names_the_tail_its_creation_entries_left(self):
+        """After the creation commits, the stored case names its chain tail."""
+        case = self._create(to=[_RECIPIENT])
+
+        entries = ledger_entries(self.dl, case.id_)
+        assert len(entries) > 1
+        assert case.ledger_position == LedgerPosition(
+            log_index=entries[-1].log_index, entry_hash=entries[-1].entry_hash
+        )
+        assert_case_at_chain_tail(self.dl, case.id_)
+
+    @pytest.mark.spec("SYNC-16-005")
+    def test_the_genesis_entry_carries_the_case_before_it(self):
+        """No entry's hash depends on itself (AC-3 of #5091).
+
+        The genesis ``Create`` carries the case at the empty ledger, though the
+        case has since moved past it, and every entry still reproduces its
+        hash.
+        """
+        case = self._create(to=[_RECIPIENT])
+
+        entries = ledger_entries(self.dl, case.id_)
+        genesis = entries[0]
+        assert genesis.payload_snapshot["object"]["ledgerPosition"] == {
+            "logIndex": -1,
+            "entryHash": case.genesis_hash,
+        }
+        assert case.ledger_position is not None
+        assert case.ledger_position.log_index == entries[-1].log_index
+        assert all(ledger_entry_hash_intact(e) for e in entries)
+        assert case_snapshot_position_violations(entries, self.actor.id_) == []
 
     @pytest.mark.spec("CLP-07-013")
     def test_the_create_is_the_only_outbox_item(self):

@@ -26,6 +26,7 @@ from pydantic import Field, ValidationInfo, computed_field, model_validator
 
 from vultron.core.models._helpers import (
     INBOUND_CONTEXT_KEY,
+    STORED_CONTEXT_KEY,
     _as_id,
     _new_urn,
     most_recent_status,
@@ -35,7 +36,11 @@ from vultron.core.models._helpers import (
 from vultron.core.models.actor_recommendation_record import (
     ActorRecommendationRecord,
 )
-from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.base import (
+    VULTRON_PROPERTY_EXTRA,
+    CoreObject,
+    NonEmptyString,
+)
 from vultron.core.models.case_ledger import compute_genesis_hash
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
@@ -49,6 +54,10 @@ from vultron.core.models.embargo_register import (
     replaces_violations,
 )
 from vultron.core.models.embargo_termination import EmbargoTermination
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
@@ -74,6 +83,52 @@ def _present_key(data: dict[str, Any], field_name: str) -> str:
     """
     as2 = wire_key(field_name)
     return as2 if as2 in data else field_name
+
+
+def _owner(data: dict[str, Any]) -> Any:
+    """Return the case owner *data* carries under either spelling, or ``None``."""
+    return data.get("attributed_to") or data.get(wire_key("attributed_to"))
+
+
+def _start_ledger_position(
+    data: dict[str, Any], info: ValidationInfo
+) -> dict[str, Any]:
+    """Start a case that names no ledger position at its empty ledger.
+
+    Only a case this process builds starts there: index -1 with its genesis
+    hash, the position of a ledger with no entries (CLP-08-004).  A stored row
+    or a received case that omits the field is refused instead.  A stored one
+    was written before cases carried their position, and no conversion is made,
+    so the store must be reset (#4087).  A received one is a sender that left
+    out what SYNC-16-005 requires, and a receiver infers nothing for it
+    (ADR-0103).  An explicit value is left to field validation and
+    :meth:`VulnerabilityCase._empty_ledger_names_genesis`.
+    """
+    key = _present_key(data, "ledger_position")
+    if key in data or not _owner(data):
+        return data
+    context = info.context if isinstance(info.context, dict) else {}
+    case_id = data.get("id") or data.get("id_") or "<unknown>"
+    if STORED_CONTEXT_KEY in context:
+        raise VultronValidationError(
+            f"VulnerabilityCase '{case_id}' was stored without a"
+            " ledger_position, the shape before #5091 made each case store"
+            " the ledger position it is a projection of (SYNC-16-005); no"
+            " conversion is made, so a store written before the change must"
+            " be reset"
+        )
+    if INBOUND_CONTEXT_KEY in context:
+        raise VultronValidationError(
+            f"VulnerabilityCase '{case_id}' carries no ledgerPosition; a"
+            " case's wire form names the ledger position it is a projection"
+            " of (SYNC-16-005)"
+        )
+    data = dict(data)
+    data[key] = LedgerPosition(
+        log_index=EMPTY_LEDGER_LOG_INDEX,
+        entry_hash=data[_present_key(data, "genesis_hash")],
+    )
+    return data
 
 
 def _genesis_published(data: dict[str, Any], inbound: bool) -> datetime | None:
@@ -195,6 +250,19 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             "at construction when not carried (CLP-08-002)."
         ),
     )
+    # The ledger position this case file is a projection of (ADR-0124,
+    # ADR-0142): the entry last applied to it, or index -1 with the genesis
+    # hash before any.  Every case has one, since every case has an owner and
+    # so a genesis hash (CLP-08-002/003).  It moves only through
+    # ``store_ledger_entry``, as each entry is committed or stored, and
+    # travels with the case on the wire (SYNC-16-005).  The ``None`` default
+    # only stands in until the before-validator starts the position, and is
+    # refused if it is still there.
+    ledger_position: LedgerPosition = Field(
+        default=None,
+        validate_default=True,
+        json_schema_extra=VULTRON_PROPERTY_EXTRA,
+    )
     # ADR-0017: ID-only cross-refs to avoid graph-cycle issues
     parent_cases: list[NonEmptyString] = Field(default_factory=list)
     child_cases: list[NonEmptyString] = Field(default_factory=list)
@@ -239,9 +307,7 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             isinstance(info.context, dict)
             and INBOUND_CONTEXT_KEY in info.context
         )
-        attributed_to = data.get("attributed_to") or data.get(
-            wire_key("attributed_to")
-        )
+        attributed_to = _owner(data)
         if not attributed_to:
             return data  # the required-field check refuses the case
         hash_key = _present_key(data, "genesis_hash")
@@ -266,7 +332,9 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
                 "be computed — 'published' timestamp is required "
                 "(CLP-08-003)."
             )
-        return data
+        # The genesis hash is the empty ledger's position, so the position
+        # starts here, once the hash is known (SYNC-16-005).
+        return _start_ledger_position(data, info)
 
     @model_validator(mode="before")
     @classmethod
@@ -321,6 +389,27 @@ class VulnerabilityCase(CoreObject, RetiredFieldsRecord):
             for cs in self.case_statuses
         ]
         object.__setattr__(self, "case_statuses", statuses)
+        return self
+
+    @model_validator(mode="after")
+    def _empty_ledger_names_genesis(self) -> VulnerabilityCase:
+        """Refuse an empty-ledger position that names another hash (CLP-08-004).
+
+        Every case has an owner, so a genesis hash and a ledger position
+        (CLP-08-002/003, SYNC-16-005); the field types refuse a case missing
+        either.  Checks only; the position an omitted field starts at is set
+        before validation (:func:`_start_ledger_position`, ARCH-21-004).
+        """
+        position = self.ledger_position
+        if (
+            position.log_index == EMPTY_LEDGER_LOG_INDEX
+            and position.entry_hash != self.genesis_hash
+        ):
+            raise ValueError(
+                f"VulnerabilityCase '{self.id_}' ledger_position names index"
+                f" {EMPTY_LEDGER_LOG_INDEX} with a hash other than its"
+                " genesis_hash (CLP-08-004)"
+            )
         return self
 
     @model_validator(mode="after")

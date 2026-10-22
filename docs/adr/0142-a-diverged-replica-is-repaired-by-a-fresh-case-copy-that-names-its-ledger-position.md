@@ -3,7 +3,7 @@ status: accepted-provisional
 date: 2026-10-16
 created: 2026-10-16
 updated: 2026-10-16
-revision: 1
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; Concern #4742; ADR-0080, ADR-0114, ADR-0124;
@@ -62,27 +62,35 @@ It is logged, and the CASE_MANAGER's response to it is per-peer replication stat
 
 On that fault from an active participant, the CASE_MANAGER sends the replica `Announce(VulnerabilityCase)` of its current case, rate-bounded per peer.
 
-The case's wire form carries a **ledger tail**: the index and hash of the last entry the copy reflects.
-The ledger is part of how a case is tracked, so the case says where in it the copy stands.
-The tail is filled in from the ledger each time the case is read or sent and is never stored as its own value, so it cannot disagree with the ledger it points into, and filling it in is not a change to the case file that needs its own entry.
+Each case stores its **ledger position**: the index and hash of the last entry its case file reflects, or index -1 and the genesis hash before any.
+The ledger is part of how a case is tracked, so the case says which point in it the case file is a projection of (ADR-0124), at rest and on the wire.
+Applying an entry moves the position to it, in the same transaction that stores the entry, on the CASE_MANAGER as it commits and on a replica as it stores.
+Moving it is part of applying the entry, so it is not a change to the case file that needs its own entry.
+A ledger entry that carries the case carries it at the position before that entry, so no entry's hash depends on itself.
 
-### The replica decides by the tail
+The position is stored, not computed from the ledger when the case is read, because a replica's case and its chain can name different points.
+After a replica replaces its case with a copy that is ahead of its chain, the case reflects the copy's position while the chain is still being backfilled.
+A value computed from the chain would be wrong there, and a separate record of the copy's position would store the same value away from the case it describes.
+A case write that skipped the apply path would leave the position stale while it still looks authoritative; since the apply function is the only writer of the case file (ADR-0124), a stale position exposes such a write.
 
-Every full-case announcement to a replica that already holds the case is an authoritative update (PCR-02-004), judged by its tail:
+### The replica decides by the position
 
-- If the replica's chain is already past the tail, the copy is stale and is skipped.
-- If the replica holds a different entry at the tail's index, the two chains conflict; the copy is refused and the conflict reported.
-- Otherwise the replica replaces its case file with the copy, and if its chain falls short of the tail it asks for the missing entries with the usual Reject.
-  Each entry at or before the tail, whether replayed or the held refused entry drained after the replacement, is already reflected in the copy and is stored as a no-op, so the chain catches up and the refused entry stops being refused.
+Every full-case announcement to a replica that already holds the case is an authoritative update (PCR-02-004), judged by the position the copy names:
+
+- If the replica's chain is already past the position, the copy is stale and is skipped.
+- If the replica holds a different entry at the position's index, the two chains conflict; the copy is refused and the conflict reported.
+- Otherwise the replica replaces its case file with the copy, and if its chain falls short of the position it asks for the missing entries with the usual Reject.
+  Each entry at or before the position, whether replayed or the held refused entry drained after the replacement, is already reflected in the copy and is stored as a no-op, so the chain catches up and the refused entry stops being refused.
 
 A copy taken at a position is the case as applying the ledger to that position leaves it (ADR-0124), so replacing and then backfilling leaves the replica exactly where seed-plus-replay would.
 
 ### Consequences
 
 - Good, because a diverged replica recovers without a person, and the CASE_MANAGER learns that it diverged.
-- Good, because no new message type is needed: a fault class, one field on the case's wire form, and the existing announcement and replay.
-- Good, because the tail makes every full-case announcement safe to apply, not only a repair, so the replica rule needs no repair-only window, and a late old copy can no longer move a replica backwards.
+- Good, because no new message type is needed: a fault class, one stored field on the case, and the existing announcement and replay.
+- Good, because the position makes every full-case announcement safe to apply, not only a repair, so the replica rule needs no repair-only window, and a late old copy can no longer move a replica backwards.
 - Good, because a repeated divergence right after a repair shows that the CASE_MANAGER's case disagrees with its own ledger, which can be logged as the defect it is.
+- Bad, because the stored shape of `VulnerabilityCase` changes; a store written before the field existed is refused on load and must be reset, with no migration.
 - Bad, because a repair hides the bug that caused the divergence unless the fault is watched; the fault and the repair are logged for that reason.
 - Bad, because every apply step must treat an entry a newer copy is already past as a no-op, for every domain, not only the embargo register.
 - Neutral, because the fault is not ledgered, so other participants never learn that one replica diverged; nothing they do depends on it.
@@ -105,18 +113,19 @@ A copy taken at a position is the case as applying the ledger to that position l
 
 - Good, because it recovers and reports in one message.
 - Good, because the full-case announcement and the backfill already exist.
-- Bad, because the case's wire form gains a field, and a replica must now judge every full-case announcement against its chain.
+- Bad, because the case gains a stored field, and a replica must now judge every full-case announcement against its chain.
 
 ### Reuse the "replay from genesis" Reject
 
 - Good, because the CASE_MANAGER already answers it by sending the case and replaying.
 - Bad, because a Reject means "received and understood but declined" (MSM-05-001), and the CASE_MANAGER would still not learn why.
-- Bad, because the copy it sends carries no position, so a replica cannot tell it from a stale one without the tail rule anyway.
+- Bad, because the copy it sends carries no position, so a replica cannot tell it from a stale one without the position rule anyway.
 
 ## More Information
 
 Decided in the planning of Concern #4742 on 2026-10-16.
-Implementation: the tail and the replica's rule in #4797, the fault in #4798, the CASE_MANAGER's repair in #4799.
+Revised on 2026-10-22, in the review of PR #5076: the case stores its position rather than having a tail computed from the ledger and never stored.
+Implementation: the stored position in #5091, the replica's rule in #4797, the fault in #4798, the CASE_MANAGER's repair in #4799.
 Whether ASK-07-008 should keep ledgering the other fault classes is Concern #4800.
 
 Generated spec requirements: `sync-ledger-replication.yaml` SYNC-16-001 through SYNC-16-008.

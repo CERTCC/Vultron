@@ -16,7 +16,10 @@ from typing import Any, cast
 
 import pytest
 
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import (
+    CASE_OWNER_ID,
+    CONSTRUCTED_CASE_OWNERSHIP,
+)
 from test.support.inbox_replay import (
     RecordingInboxReplay,
     deliver_replayed,
@@ -605,7 +608,7 @@ class TestAnnounceStoresEmbeddedParticipants:
             context=_CASE_ID,
         )
         case = as_VulnerabilityCase.model_construct(
-            attributed_to=CASE_OWNER_ID,
+            **CONSTRUCTED_CASE_OWNERSHIP,
             id_=_CASE_ID,
             name="DR-10 Announce Case with Participants",
             case_participants=[

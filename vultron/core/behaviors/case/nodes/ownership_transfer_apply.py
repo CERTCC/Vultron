@@ -41,6 +41,7 @@ from vultron.core.models.participant_semantic_types import (
 )
 from vultron.core.participants.ownership_offer import recorded_ownership_offer
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.sync_helpers import at_stored_position
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronError, VultronNotFoundError
 
@@ -246,7 +247,19 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
             return Status.FAILURE
 
         # --- Save phase: single atomic transaction (CM-21-004) ---------------
-        self.datalayer.save_many(to_save)  # type: ignore[union-attr]
+        # Saved at the position the commits above moved it to (SYNC-16-005).
+        self.datalayer.save_many(  # type: ignore[union-attr]
+            [
+                (
+                    at_stored_position(
+                        obj, cast(CaseOutboxPersistence, self.datalayer)
+                    )
+                    if isinstance(obj, VulnerabilityCase)
+                    else obj
+                )
+                for obj in to_save
+            ]
+        )
         self.logger.info(
             "%s: atomically transferred ownership of case '%s' from '%s'"
             " to '%s' (%d object(s) saved) — CM-21-004",
@@ -283,10 +296,16 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
                     cause_id=cause_id,
                 ),
             )
+        # The participant entries moved the case's position; the case entry
+        # carries the case at the position before it (SYNC-16-005).
         self._commit(
             UPDATE_CASE_OWNER_SEMANTIC_TYPE,
             trigger_activity.record_case_owner_updated(
-                case=case, actor=actor_id, cause_id=cause_id
+                case=at_stored_position(
+                    case, cast(CaseOutboxPersistence, self.datalayer)
+                ),
+                actor=actor_id,
+                cause_id=cause_id,
             ),
         )
 

@@ -128,6 +128,10 @@
     "embargoRegister": [],
     "genesisHash": "bfb65af19f60db4b1fabb82eb934d8901f09aac65756c60b192c1e52ca60644e",
     "id": "urn:test:vulnerabilitycase:golden",
+    "ledgerPosition": {
+      "entryHash": "bfb65af19f60db4b1fabb82eb934d8901f09aac65756c60b192c1e52ca60644e",
+      "logIndex": -1
+    },
     "notes": [],
     "parentCases": [],
     "pendingEmbargoProposalIndex": {},

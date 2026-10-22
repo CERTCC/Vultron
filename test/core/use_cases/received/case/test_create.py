@@ -34,7 +34,10 @@ from collections.abc import Callable
 
 import pytest
 
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import (
+    CASE_OWNER_ID,
+    CONSTRUCTED_CASE_OWNERSHIP,
+)
 from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.events import CreateCaseReceivedEvent, VultronEvent
@@ -96,7 +99,7 @@ def _case_with_case_actor_participant() -> tuple:
         name="CaseActor",
     )
     case = as_VulnerabilityCase.model_construct(
-        attributed_to=CASE_OWNER_ID,
+        **CONSTRUCTED_CASE_OWNERSHIP,
         id_=_CASE_ID,
         name="CBT test case",
         case_participants=[participant],
@@ -401,7 +404,7 @@ def _bootstrap_event(
         name="CaseActor",
     )
     case = as_VulnerabilityCase.model_construct(
-        attributed_to=CASE_OWNER_ID,
+        **CONSTRUCTED_CASE_OWNERSHIP,
         id_=case_id,
         name="CBT-06 case",
         case_participants=[participant],

@@ -4,7 +4,10 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
-from test.support.case_owner import CASE_OWNER_ID
+from test.support.case_owner import (
+    CASE_OWNER_ID,
+    CONSTRUCTED_CASE_OWNERSHIP,
+)
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -52,7 +55,7 @@ def _run(dl, node: py_trees.behaviour.Behaviour):
 def test_inline_participants_are_stored_as_their_own_records(dl):
     participant = _participant()
     case = as_VulnerabilityCase.model_construct(
-        attributed_to=CASE_OWNER_ID,
+        **CONSTRUCTED_CASE_OWNERSHIP,
         id_=_CASE_ID,
         name="snapshot",
         case_participants=[participant],

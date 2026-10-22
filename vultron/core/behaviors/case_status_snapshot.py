@@ -46,6 +46,7 @@ from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.cs import CS_pxa
+from vultron.core.sync_helpers import at_stored_position
 from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -263,6 +264,8 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
 
         # Persist only after the ledger commit succeeds to avoid phantom state.
         self.datalayer.save(new_status)
+        # The commit moved the stored case's ledger position (SYNC-16-005).
+        case = at_stored_position(case, self.datalayer)
         case.add_case_status(new_status)
         self.datalayer.save(case)
 

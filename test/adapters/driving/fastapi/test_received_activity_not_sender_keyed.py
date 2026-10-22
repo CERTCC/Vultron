@@ -89,7 +89,11 @@ def _create_case(actor: str, **kwargs: Any) -> as_Create:
 
 
 def _body(activity: as_Activity) -> dict[str, Any]:
-    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    # serialize_as_any: the inline case keeps its own fields, such as the
+    # ledgerPosition a received case must carry (SYNC-16-005).
+    return activity.model_dump(
+        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
+    )
 
 
 def _deliver(dl: SqliteDataLayer, activity: as_Activity) -> InboxOutcome:
