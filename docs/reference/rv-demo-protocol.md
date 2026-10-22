@@ -283,10 +283,11 @@ POST /api/v2/actors/{vendor_id}/demo/notify-fix-ready
 
 ### What happens
 
-1. The `notify-fix-ready` trigger sends two `Add(ParticipantStatus)` activities in sequence, one per hop of the vendor-path state: `vfd` → `Vfd` (vendor aware) and `Vfd` → `VFd` (fix ready).
-   The two hops are separate because the Case State machine admits one event per step.
+1. The `notify-fix-ready` trigger sends one `Add(ParticipantStatus)` activity per hop of the vendor-path state the Vendor still needs: `vfd` → `Vfd` (vendor aware), then `Vfd` → `VFd` (fix ready).
+   The hops are separate because the Case State machine admits one event per step.
+   In `rv` the Vendor owns the case and starts at `vfd`, so both hops are sent; an invited vendor is already at `Vfd` when it accepts its invite, and sends only the second.
 2. The Case Actor validates the transition, appends the status to the Vendor's participant record, commits an `add_participant_status_to_participant` entry, and fans it out.
-   The Vendor's own replica changes only when it copies that entry: the trigger checks and sends each hop but writes neither ([RSH-08-006](specs/protocol.md#rsh-08-006)).
+   The Vendor's own replica changes only when it copies that entry: the trigger checks and sends each hop but writes none ([RSH-08-006](specs/protocol.md#rsh-08-006)).
 3. The demo does not call `notify-fix-deployed`.
    The `D` dimension belongs to a Deployer, and a vendor-only participant stops at `VFd`.
 
@@ -410,6 +411,7 @@ The Case Actor commits the entries below, in this order.
 Each entry's `semanticType` names the protocol act; the actor column names the participant on whose behalf it was recorded.
 The exact count of entries in the initialization block depends on how many participant records and statuses the acceptance cascade writes, so the table shows the shape of one run rather than an invariant.
 Each act that moves a participant's RM state is followed by the status the Case Actor wrote for it, which every replica copies ([CLP-07-013](specs/protocol.md#clp-07-013)).
+A case status follows a participant status only when it changes the case's EM or PXA: one that would repeat the case status before it is not committed ([RSH-04-004](specs/protocol.md#rsh-04-004)).
 
 | Index | `semanticType` | Recorded for | Phase |
 |------:|:------------|:-------------|:------|
@@ -423,22 +425,22 @@ Each act that moves a participant's RM state is followed by the status the Case 
 | 11 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED` it recorded) | 1 |
 | 12 | `add_note_to_case` | Reporter | 3 |
 | 13 | `add_note_to_case` | Vendor | 3 |
-| 14–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Vf` and `VF` statuses and the case status that follows each | 4 |
-| 18–19 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
-| 20–21 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
-| 22–23 | `add_participant_status_to_participant`, `add_case_status_to_case` | Reporter's `Pxa` status and the case status that follows it | 5 |
-| 24 | `close_case` | Reporter | 6 |
-| 25 | `add_participant_status_to_participant` | Case Actor (the Reporter's `ACCEPTED → CLOSED`) | 6 |
-| 26 | `close_case` | Vendor | 6 |
-| 27 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
-| 28 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`, the write boundary) | 6 |
+| 14–15 | `add_participant_status_to_participant` | Vendor's `Vf` and `VF` statuses; neither changes the case's EM or PXA, so no case status follows | 4 |
+| 16–17 | `add_participant_status_to_participant`, `add_case_status_to_case` | Vendor's `Pxa` status and the case status that follows it | 5 |
+| 18–19 | `remove_embargo_event_from_case`, `add_case_status_to_case` | Case Actor (embargo teardown; the case status carrying `EM.EXITED`) | 5 |
+| 20 | `add_participant_status_to_participant` | Reporter's `Pxa` status; the case already holds `P`, so no case status follows | 5 |
+| 21 | `close_case` | Reporter | 6 |
+| 22 | `add_participant_status_to_participant` | Case Actor (the Reporter's `ACCEPTED → CLOSED`) | 6 |
+| 23 | `close_case` | Vendor | 6 |
+| 24 | `add_participant_status_to_participant` | Case Actor (the Vendor's `ACCEPTED → CLOSED`) | 6 |
+| 25 | `add_participant_status_to_participant` | Case Actor (its own `ACCEPTED → CLOSED`, the write boundary) | 6 |
 
 The ledger ends at the Case Actor's own `RM.CLOSED` status entry: the Reporter left first, so no participant act follows the owner closure.
 No separate entry marks the closure ([ADR-0152](../adr/0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md)).
 
 Each participant's replica holds the same sequence, entry for entry, up to the last entry recording its own closure, and nothing after it (CM-23-004).
-The Reporter's replica ends at index 25, its own closure step.
-The Vendor's replica ends at index 27, its own closure step, so it does not hold the Case Actor's own status entry.
+The Reporter's replica ends at index 22, its own closure step.
+The Vendor's replica ends at index 24, its own closure step, so it does not hold the Case Actor's own status entry.
 The demo runner exports all three ledgers as JSONL under `devlogs/rv/` at the end of a run, and the invariant harness in `test/ci/invariants/` checks them against the causal edges the [`rv` scenario narrative](../topics/scenarios/rv.md) declares.
 
 ---

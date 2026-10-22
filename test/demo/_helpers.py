@@ -38,6 +38,10 @@ from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
     replica_actor,
 )
+from test.support.ledger_status_repeats import (
+    mislabelled_case_statuses,
+    unchanged_status_entries,
+)
 from vultron.adapters.driven.datalayer_sqlite import get_all_actor_datalayers
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -319,6 +323,20 @@ def _managed_cases() -> Iterator[tuple[Any, str]]:
                 yield dl, case.id_
 
 
+def _status_entry_faults(dl: Any, case_id: str) -> list[str]:
+    """Each status entry of *case_id*'s ledger that changes nothing or whose
+    label contradicts its states (CLP-07-013; #5123, #5124, #5125)."""
+    triples = [
+        (e.log_index, str(e.semantic_type), e.payload_snapshot)
+        for e in ledger_entries(dl, case_id)
+    ]
+    return [
+        f"'{case_id}': {fault}"
+        for fault in unchanged_status_entries(triples)
+        + mislabelled_case_statuses(triples)
+    ]
+
+
 def _multi_party_cases() -> set[str]:
     """The id of every case a hosted store holds seating more than one actor.
 
@@ -360,7 +378,9 @@ def check_cases_rebuild_from_their_ledgers() -> None:
 
     Run each time the demo clears the node, before it does.  It first checks
     that every hosted entry carries the registry's label for its payload
-    (:func:`check_entries_carry_registry_labels`, #4724 AC-3).  A case whose
+    (:func:`check_entries_carry_registry_labels`, #4724 AC-3), and each
+    rebuilt case's ledger is checked for a status entry that changes nothing
+    or is mislabelled (:func:`_status_entry_faults`).  A case whose
     rebuild differs from its CASE_MANAGER's, or fails in any other way, is
     recorded in :data:`REBUILD_FAILURES` rather than raised, because the demo
     runner would log a raise as a failed demo and hide the difference.  So
@@ -398,6 +418,7 @@ def check_cases_rebuild_from_their_ledgers() -> None:
                     f"'{case_id}': {type(exc).__name__}: {exc}"
                 )
             REBUILD_FAILURES.extend(_replica_position_mismatches(dl, case_id))
+            REBUILD_FAILURES.extend(_status_entry_faults(dl, case_id))
     finally:
         logging.disable(previous_level)
 

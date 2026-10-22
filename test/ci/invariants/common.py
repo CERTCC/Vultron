@@ -36,6 +36,10 @@ import pytest
 import yaml
 
 from test.support.ledger_labels import label_mismatch
+from test.support.ledger_status_repeats import (
+    mislabelled_case_statuses,
+    unchanged_status_entries,
+)
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
 from vultron.demo.helpers.ledger_dump import (
@@ -1035,6 +1039,28 @@ def check_unique_payload_snapshot_ids(
                     f" {sorted(indices)}; CLP-07-002 violation)"
                 )
     return violations
+
+
+def check_status_entries_record_changes(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """No status entry repeats the previous one unchanged, or is mislabelled.
+
+    A ``CaseStatus`` or ``ParticipantStatus`` entry equal to the previous one
+    for its target, apart from id, label and times, records a change that
+    changes nothing, which is not committed (CLP-07-013, ADR-0152; #5123,
+    #5125).  A ``CaseStatus`` label must name its own states (#5124).  Read
+    from the authoritative log; every replica holds a prefix of it.
+
+    Returns one violation string per faulty entry.
+    """
+    triples = [
+        (log_index(e), semantic_type(e), payload(e))
+        for e in sorted(auth_entries(replicas), key=log_index)
+    ]
+    return unchanged_status_entries(triples) + mislabelled_case_statuses(
+        triples
+    )
 
 
 def check_semantic_type_is_registry_label(

@@ -21,6 +21,7 @@ from pydantic import AliasChoices, Field, model_validator
 
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.dimensions import EmDimension, PxaDimension
+from vultron.core.states.em import EM
 
 
 class CaseStatus(CoreObject):
@@ -80,8 +81,7 @@ class CaseStatus(CoreObject):
     # and ``EmDimension`` a frozen model, so ``status.em = ...`` and
     # ``status.em.state = ...`` raise ``ValidationError`` (SDO-03-006,
     # EMB-18-001).  The owning ``VulnerabilityCase`` stamps the derived EM onto
-    # a copy via ``model_copy(update={"em": ...})`` rather than mutating the
-    # status (ADR-0122).
+    # a copy via :meth:`with_em` rather than mutating the status (ADR-0122).
 
     @model_validator(mode="after")
     def _set_name(self) -> "CaseStatus":
@@ -102,9 +102,24 @@ class CaseStatus(CoreObject):
         ``validate_assignment`` is in effect on the core branch (ARCH-21-001).
         """
         if self.name is None:
-            object.__setattr__(
-                self,
-                "name",
-                " ".join([self.em.state.name, self.pxa.state.name]),
-            )
+            object.__setattr__(self, "name", self._derived_name())
         return self
+
+    def _derived_name(self) -> str:
+        """The label :meth:`_set_name` derives from the current states."""
+        return " ".join([self.em.state.name, self.pxa.state.name])
+
+    def with_em(self, em: EM) -> "CaseStatus":
+        """A copy of this status carrying *em*: the owning case's EM stamp.
+
+        ``model_copy`` runs no validator, so a label derived from the old
+        states would survive the copy and contradict its EM (#5124).  A
+        derived label is derived again for the copy; an explicit one is
+        kept, as :meth:`_set_name` keeps it.  The status itself is left as
+        it was (ADR-0122).
+        """
+        relabel = self.name == self._derived_name()
+        copy = self.model_copy(update={"em": EmDimension(state=em)})
+        if relabel:
+            object.__setattr__(copy, "name", copy._derived_name())
+        return copy

@@ -167,16 +167,15 @@ def case_with_actor(dl, actor):
     return case_obj
 
 
-@pytest.fixture
-def vendor_case(dl, actor):
-    """A case where the actor is an engaged VENDOR at the initial VF state.
+def _make_vendor_case(dl, actor, vf=None) -> as_VulnerabilityCase:
+    """A case where the actor is an engaged VENDOR, at *vf* when given.
 
     The VF hop vf→Vf is role-gated to the Vendor (ADR-0075), and fix readiness
     (``VF``) entails RM ∈ {ACCEPTED, DEFERRED, CLOSED} (CSB-15), so the demo
     ``notify-fix-ready`` ratchet needs both the role and an RM.ACCEPTED status
     that the bare ``case_with_actor`` participant does not carry.
     """
-    from vultron.core.models.dimensions import RmDimension
+    from vultron.core.models.dimensions import RmDimension, VfDimension
     from vultron.core.states.rm import RM
     from vultron.wire.as2.vocab.objects.case_participant import (
         as_ParticipantStatus,
@@ -194,6 +193,7 @@ def vendor_case(dl, actor):
                 attributed_to=actor.id_,
                 context=case_obj.id_,
                 rm=RmDimension(state=RM.ACCEPTED),
+                vf=None if vf is None else VfDimension(state=vf),
             )
         ],
     )
@@ -203,6 +203,12 @@ def vendor_case(dl, actor):
     dl.create(participant)
     _add_case_manager(case_obj, dl)
     return case_obj
+
+
+@pytest.fixture
+def vendor_case(dl, actor):
+    """A case where the actor is an engaged VENDOR at the initial VF state."""
+    return _make_vendor_case(dl, actor)
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +271,66 @@ class TestDemoNotifyFixReady:
         # ``client_demo`` runs the background flushes with a no-op emitter, so
         # nothing the route queued is left behind.
         assert set(dl.outbox_list()) - before == set()
+
+    @pytest.mark.spec("DEMOMA-07-001")
+    @pytest.mark.spec("BTND-10-001")
+    def test_a_vendor_already_at_vf_sends_only_the_vf_step(
+        self, client_demo: TestClient, dl, actor
+    ):
+        """An invited vendor is already at ``Vf``, so only ``Vf → VF`` is
+        sent: no no-change ``Vf`` status reaches the ledger (#5125)."""
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.cs import CS_vf
+
+        case = _make_vendor_case(dl, actor, vf=CS_vf.Vf)
+        before = {
+            obj.id_
+            for obj in dl.list_objects("ParticipantStatus")
+            if isinstance(obj, ParticipantStatus)
+        }
+
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/notify-fix-ready",
+            json={"case_id": case.id_},
+        )
+
+        assert response.status_code == status.HTTP_202_ACCEPTED, response.text
+        sent = [
+            obj
+            for obj in dl.list_objects("ParticipantStatus")
+            if isinstance(obj, ParticipantStatus) and obj.id_ not in before
+        ]
+        assert [s.vf.state for s in sent if s.vf is not None] == [CS_vf.VF]
+        assert len(sent) == 1
+        assert response.json()["status_id"] == sent[0].id_
+
+    @pytest.mark.spec("DEMOMA-07-001")
+    def test_a_vendor_already_at_vf_ready_is_refused(
+        self, client_demo: TestClient, dl, actor
+    ):
+        """A fix already ready leaves no step to send: 409, nothing sent."""
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.cs import CS_vf
+
+        case = _make_vendor_case(dl, actor, vf=CS_vf.VF)
+        before = len(list(dl.list_objects("ParticipantStatus")))
+
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/notify-fix-ready",
+            json={"case_id": case.id_},
+        )
+
+        assert response.status_code == status.HTTP_409_CONFLICT, response.text
+        assert (
+            len(
+                [
+                    obj
+                    for obj in dl.list_objects("ParticipantStatus")
+                    if isinstance(obj, ParticipantStatus)
+                ]
+            )
+            == before
+        )
 
     def test_unknown_case_returns_404(self, client_demo: TestClient, actor):
         response = client_demo.post(

@@ -188,6 +188,20 @@ class TestCheckCaseStatusIdempotencyNode:
 # ---------------------------------------------------------------------------
 
 
+def _case_status_entries(dl) -> list[CaseLedgerEntry]:
+    """The case's committed ``add_case_status_to_case`` entries, in order."""
+    return sorted(
+        (
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and obj.case_id == CASE_ID
+            and obj.semantic_type == "add_case_status_to_case"
+        ),
+        key=lambda entry: entry.log_index,
+    )
+
+
 class TestEmitCaseStatusUpdateNode:
     @pytest.mark.spec("RSH-04-004")
     @pytest.mark.spec("RSH-04-002")
@@ -264,6 +278,116 @@ class TestEmitCaseStatusUpdateNode:
         assert isinstance(entry, CaseLedgerEntry)
         snapshot_object = entry.payload_snapshot["object"]
         assert snapshot_object["pxaState"] == expected.name
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("RSH-04-003")
+    def test_an_unchanged_status_is_not_committed_again(
+        self, populated_dl, populated_bridge
+    ):
+        """A snapshot equal in EM and PXA to the last committed one is no
+        change, so it is neither committed nor appended (#5123)."""
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        first = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert first.status == Status.SUCCESS
+        after_first = populated_dl.read(CASE_ID)
+        assert isinstance(after_first, CoreCase)
+
+        again = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        second = populated_bridge.execute_with_setup(
+            tree=again, actor_id=ACTOR_ID
+        )
+
+        assert second.status == Status.SUCCESS
+        assert len(_case_status_entries(populated_dl)) == 1
+        after_second = populated_dl.read(CASE_ID)
+        assert isinstance(after_second, CoreCase)
+        assert len(after_second.case_statuses) == len(
+            after_first.case_statuses
+        )
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.parametrize(
+        ("reported", "commits"),
+        [
+            # The case already holds every latch the report sets.
+            (CS_pxa.pxa, False),
+            (CS_pxa.Pxa, False),
+            # A new latch is a change.
+            (CS_pxa.PXa, True),
+        ],
+        ids=["no-latch", "held-latch", "new-latch"],
+    )
+    def test_an_adopted_status_commits_only_a_pxa_change(
+        self, populated_dl, populated_bridge, reported, commits
+    ):
+        """A participant status that reports nothing new about P/X/A adds no
+        CaseStatus entry (#5123)."""
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        populated_dl.save(case)
+        first = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        assert first.status == Status.SUCCESS
+        report = ParticipantStatus(
+            context=CASE_ID,
+            case_status=CaseStatus(
+                context=CASE_ID, pxa=PxaDimension(state=reported)
+            ),
+        )
+        populated_dl.create(report)
+
+        result = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(
+                case_id=CASE_ID, reported_status_id=report.id_
+            ),
+            actor_id=ACTOR_ID,
+        )
+
+        assert result.status == Status.SUCCESS
+        assert len(_case_status_entries(populated_dl)) == (2 if commits else 1)
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("RSH-04-002")
+    def test_an_em_change_after_a_commit_is_committed(
+        self, populated_dl, populated_bridge
+    ):
+        """The case's current status already carries the register's EM (the
+        stamp, ADR-0122), so the change is measured against the last
+        committed status, not the current one."""
+        from vultron.core.models.embargo_register import RegisterChange
+        from vultron.core.states.em import EM
+        from vultron.core.states.embargo_register import RegisterTrigger
+
+        first = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        assert first.status == Status.SUCCESS
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        case.apply_embargo_register_step(
+            [
+                RegisterChange(
+                    embargo_id="https://example.org/embargoes/e1",
+                    trigger=RegisterTrigger.PROPOSE,
+                )
+            ]
+        )
+        populated_dl.save(case)
+        assert case.current_status.em.state is EM.PROPOSED
+
+        result = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.SUCCESS
+        entries = _case_status_entries(populated_dl)
+        assert len(entries) == 2
+        assert entries[-1].payload_snapshot["object"]["emState"] == "PROPOSED"
 
     @pytest.mark.spec("ARCH-15-001")
     @pytest.mark.spec("VM-08-003")
