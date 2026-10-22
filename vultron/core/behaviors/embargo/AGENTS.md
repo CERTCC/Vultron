@@ -181,16 +181,12 @@ carry. A consent-row `Update`'s id derives from its cause and the row, so the
 cause must be the act itself (the relayed Invite, the re-issued stub), never
 an id two acts share.
 
-A decision the CASE_MANAGER takes from the clock or policy about one row (an
-RSVP time-out, its own consent to terms it has a stake in) is the occasion for
-one act, its factory-built `Update(EmbargoConsent)` carrying the row, committed
-before the row is written (`nodes/expiry_commit.py`,
-`CommitOwnConsentDecisionNode`, ADR-0140). No second entry records the
-decision, and none is attributed to the invitee; the consent slot copies the
-row. The CASE_MANAGER never commits a `Reject(Invite(EmbargoEvent))` as its
-own consent: from it, that shape is the abandonment (MSM-07-004, ADR-0152).
-An honoured late Accept is no decision of this kind: the Accept's own entry
-carries its row. A row the actor's own activity states (the owner's
+A CASE_MANAGER decision about one row (an RSVP time-out, its own consent,
+never a `Reject` since from it that is the abandonment, MSM-07-004) is one
+act, its factory-built `Update(EmbargoConsent)` carrying the row, committed
+before the row is written (`expiry_commit.py`, `CommitOwnConsentDecisionNode`,
+ADR-0140, ADR-0152); the consent slot copies it. An honoured late Accept is
+the Accept's own entry. A row the actor's own activity states (the owner's
 agreement at activation, a joiner's at its stub Accept) is applied from that
 activity's entry on both sides, decided by the same function
 (`models/embargo_consent_move.py`: `owner_agreement`, `joiner_agreement`).
