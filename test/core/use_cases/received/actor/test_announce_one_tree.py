@@ -20,7 +20,6 @@ in that tree, and the refused Announce is still archived (CLP-10-018).
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
 
 from test.conftest import TEST_ACTOR_ID
 from test.support.case_owner import CASE_OWNER_ID
@@ -43,13 +42,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _CASE_ID = "https://example.org/cases/case-one-tree"
-
-
-class _IdlessCase(BaseModel):
-    """A case-typed object whose id resolves to nothing."""
-
-    type_: str = "VulnerabilityCase"
-    id_: str | None = None
 
 
 @pytest.fixture()
@@ -95,7 +87,12 @@ def _anchor(dl: SqliteDataLayer) -> None:
             "Announce object is not a VulnerabilityCase (VulnerabilityReport)",
         ),
         (
-            {"object_": _IdlessCase()},
+            # Only an unvalidated case can lack its id.
+            {
+                "object_": as_VulnerabilityCase.model_construct(
+                    attributed_to=CASE_OWNER_ID, id_=None
+                )
+            },
             "Announced case object has no id",
         ),
     ],

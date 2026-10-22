@@ -643,8 +643,10 @@ class TestCreateCaseTriggerLedger:
             "logIndex": -1,
             "entryHash": case.genesis_hash,
         }
-        assert case.ledger_position is not None
-        assert case.ledger_position.log_index == entries[-1].log_index
+        assert case.ledger_position == LedgerPosition(
+            log_index=entries[-1].log_index,
+            entry_hash=entries[-1].entry_hash,
+        )
         assert all(ledger_entry_hash_intact(e) for e in entries)
         assert case_snapshot_position_violations(entries, self.actor.id_) == []
 

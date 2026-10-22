@@ -13,10 +13,10 @@
 
 """Each case stores the ledger position it is a projection of (SYNC-16-005).
 
-The position is ``None`` exactly when the case has no owner (CLP-08-002), a
-new owned case starts at its empty ledger, every commit and replica store
-moves it in the transaction that stores the entry, and a stored or received
-case without the field is refused rather than given one.
+Every case names a position: a new case starts at its empty ledger
+(CLP-08-004), every commit and replica store moves it in the transaction
+that stores the entry, and a stored or received case without the field is
+refused rather than given one.
 """
 
 import logging
@@ -181,8 +181,9 @@ def test_building_a_case_without_the_field_starts_it_at_its_empty_ledger() -> (
     """Construction and storage reads share the validator; only a read refuses."""
     case = VulnerabilityCase.model_validate(_old_shape_row())
 
-    assert case.ledger_position is not None
-    assert case.ledger_position.log_index == EMPTY_LEDGER_LOG_INDEX
+    assert case.ledger_position == LedgerPosition(
+        log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash=case.genesis_hash
+    )
 
 
 @pytest.mark.spec("SYNC-16-005")

@@ -35,9 +35,6 @@ from typing import Any
 
 from py_trees.common import Status
 
-from vultron.core.behaviors.case.nodes.case_copy import (
-    required_position,
-)
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
@@ -70,7 +67,7 @@ def announced_case_id(
         raise VultronValidationError("Announce carries no activity")
     if case_obj is None:
         raise VultronValidationError("Announce carries no case object")
-    if getattr(case_obj, "type_", None) != "VulnerabilityCase":
+    if not isinstance(case_obj, VulnerabilityCase):
         raise VultronValidationError(
             "Announce object is not a VulnerabilityCase"
             f" ({type(case_obj).__name__})"
@@ -133,7 +130,7 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
     def __init__(
         self,
         case_id: str,
-        case_obj: VulnerabilityCase | Any,
+        case_obj: VulnerabilityCase,
         request: AnnounceVulnerabilityCaseReceivedEvent,
         name: str | None = None,
     ) -> None:
@@ -227,9 +224,6 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
         replacement.
         """
         assert self.datalayer is not None
-        # The tree admitted only a case, and every case names a position
-        # (SYNC-16-005); refuse anything else before the transaction.
-        required_position(self.case_obj, self.case_id, self.name)
         with self.datalayer.transaction():
             _store_embedded_reports(self.case_obj, self.datalayer)
             store_embedded_participants(

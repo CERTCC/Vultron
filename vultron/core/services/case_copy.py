@@ -123,7 +123,7 @@ def judge_case_copy(
 
     held_hash: str | None = None
     if position.log_index == EMPTY_LEDGER_LOG_INDEX:
-        held_hash = case.genesis_hash if case and case.genesis_hash else None
+        held_hash = case.genesis_hash if case is not None else None
     elif position.log_index in entries:
         held_hash = entries[position.log_index].entry_hash
     elif held_at is not None and held_at.log_index == position.log_index:

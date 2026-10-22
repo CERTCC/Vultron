@@ -21,7 +21,7 @@ entries a replacing copy is ahead of the replica's chain by (SYNC-16-007).
 does the replacement between them (ADR-0142).
 """
 
-from typing import Any, cast
+from typing import cast
 
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
@@ -42,7 +42,7 @@ from vultron.core.services.case_copy import (
     CaseCopyVerdict,
     judge_case_copy,
 )
-from vultron.errors import VultronValidationError, VultronWiringError
+from vultron.errors import VultronWiringError
 
 #: Blackboard key: whether the announced copy replaces a case this replica
 #: already holds, written by :class:`CaseCopyNotStaleNode` and read by
@@ -90,7 +90,7 @@ class CaseCopyNotStaleNode(
     def __init__(
         self,
         case_id: str,
-        case_obj: VulnerabilityCase | Any,
+        case_obj: VulnerabilityCase,
         request: AnnounceVulnerabilityCaseReceivedEvent,
         name: str | None = None,
     ) -> None:
@@ -132,7 +132,7 @@ class CaseCopyNotStaleNode(
             )
             return Status.FAILURE
 
-        position = required_position(self.case_obj, self.case_id, self.name)
+        position = self.case_obj.ledger_position
         judgement = judge_case_copy(self.case_id, position, self.datalayer)
         if judgement.verdict is CaseCopyVerdict.CONFLICT:
             self.is_conflict = True
@@ -208,7 +208,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
     def __init__(
         self,
         case_id: str,
-        case_obj: VulnerabilityCase | Any,
+        case_obj: VulnerabilityCase,
         request: AnnounceVulnerabilityCaseReceivedEvent,
         name: str | None = None,
     ) -> None:
@@ -235,7 +235,7 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
         assert self.datalayer is not None and self.actor_id is not None
-        position = required_position(self.case_obj, self.case_id, self.name)
+        position = self.case_obj.ledger_position
         judgement = judge_case_copy(self.case_id, position, self.datalayer)
         if position.log_index <= judgement.chain_index:
             return Status.SUCCESS
@@ -280,32 +280,8 @@ class RequestCaseCopyBackfillNode(DataLayerActionWithPorts):
         )
 
 
-def required_position(
-    case_obj: Any, case_id: str, node_name: str
-) -> LedgerPosition:
-    """The ledger position an announced copy of *case_id* names (SYNC-16-005).
-
-    Every ``VulnerabilityCase`` names one, so only a copy that is not a case
-    names none.
-
-    Raises:
-        VultronValidationError: *case_obj* is not a ``VulnerabilityCase``;
-            the tree refuses such an Announce before it is built
-            (``announced_case_id``), so reaching here is a composition
-            fault.
-    """
-    if not isinstance(case_obj, VulnerabilityCase):
-        raise VultronValidationError(
-            f"{node_name}: the copy of case '{case_id}' is not a"
-            f" VulnerabilityCase ({type(case_obj).__name__}); the tree"
-            " admits none (SYNC-16-006)"
-        )
-    return case_obj.ledger_position
-
-
 __all__ = [
     "CASE_COPY_REPLACES_KEY",
     "CaseCopyNotStaleNode",
     "RequestCaseCopyBackfillNode",
-    "required_position",
 ]

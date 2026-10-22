@@ -1645,8 +1645,8 @@ groups:
     - ADR-0142
     verification: >-
       `test/core/behaviors/sync/test_divergence_recovery.py` covers the stale,
-      conflicting and current copy, a copy behind or conflicting with the last
-      replacing copy, and an ownerless copy, which names no position;
+      conflicting and current copy, and a copy behind or conflicting with the
+      last replacing copy;
       `test/core/use_cases/received/actor/test_announce.py` covers a repeat of the
       same Announce.
     stories:
