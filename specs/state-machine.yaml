@@ -46,7 +46,7 @@ groups:
     statement: '`create_*_machine()` factory functions MUST NOT be called for runtime state changes in production use-case
       or handler code'
     relationships:
-    - rel_type: constrains
+    - rel_type: extends
       spec_id: SM-02-001
   - id: SM-02-003
     priority: SHOULD

@@ -1527,9 +1527,10 @@ groups:
     rationale: >-
       A link recorded at both ends is one fact kept twice, and the two copies drift:
       authors wrote the second copy with an opposite verb, which closed a loop. The
-      reverse direction is a query over the graph, so a second copy adds nothing.
+      reverse direction can be computed from the requirements graph
+      (`relation_graph.upstream_graph()`), so a second copy adds nothing.
     verification: >-
-      `test/metadata/specs/test_relation_graph.py::test_both_ends_recorded_is_reported`
+      `test/metadata/specs/test_lint.py::test_lint_fails_on_a_link_recorded_at_both_ends`
       fails when two requirements that each name the other pass spec-lint.
     tags:
     - documentation
@@ -1570,10 +1571,11 @@ groups:
       upstream end, not by which end recorded the link, also catches a `constrains`
       recorded backwards, which the recorded edges alone hide.
     verification: >-
-      `test/metadata/specs/test_relation_graph.py` asserts that a two-node loop, a
-      three-node loop and a self-loop each produce one error naming every member, that
-      a `constrains` recorded the wrong way closes a loop, and that
-      `test_real_specs_have_no_relationship_loops` finds none in `specs/`.
+      `test/metadata/specs/test_lint.py::test_lint_fails_on_a_relationship_loop` asserts
+      spec-lint exits 1 naming the loop, and `test/metadata/specs/test_relation_graph.py`
+      asserts that a two-node loop, a three-node loop and a self-loop each produce one
+      error naming every member, that a `constrains` recorded the wrong way closes a
+      loop, and that `test_real_specs_have_no_relationship_loops` finds none in `specs/`.
     relationships:
     - rel_type: depends_on
       spec_id: SR-13-012
@@ -1593,9 +1595,11 @@ groups:
       `B constrains A` points both arcs the same way. The pair check enforces
       SR-13-012 directly.
     verification: >-
-      `test/metadata/specs/test_relation_graph.py::test_mirror_image_double_recording_is_reported`
-      and `test_both_ends_recorded_is_reported` assert one error naming both
-      requirements, and `test_real_specs_record_each_link_once` finds none in `specs/`.
+      `test/metadata/specs/test_lint.py::test_lint_fails_on_a_link_recorded_at_both_ends`
+      asserts spec-lint exits 1 naming both requirements, and
+      `test/metadata/specs/test_relation_graph.py::test_mirror_image_double_recording_is_reported`,
+      `test_both_ends_recorded_is_reported` and `test_real_specs_record_each_link_once`
+      assert the error text and that `specs/` has no such pair.
     relationships:
     - rel_type: depends_on
       spec_id: SR-13-012
@@ -1618,7 +1622,8 @@ groups:
     verification: >-
       `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` and
       `test_relation_type_docstring_lists_every_definition` fail on a missing,
-      extra or reworded definition.
+      extra or reworded definition, and `test_upstream_end_matches_the_end_sr_13_names`
+      fails when a table entry's upstream end is not the end its statement names.
     relationships:
     - rel_type: depends_on
       spec_id: SR-02-004

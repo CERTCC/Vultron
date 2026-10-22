@@ -207,7 +207,7 @@ groups:
       Tests confirm that parsing an `as_CaseProposal` whose `proposerCaseRoles` includes
       `CASE_MANAGER` raises a validation error naming CP-01-012.
     relationships:
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: CP-01-011
     adr:
     - ADR-0133

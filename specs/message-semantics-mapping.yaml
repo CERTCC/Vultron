@@ -1141,6 +1141,8 @@ groups:
       moves its row to AGREED with one ledger entry, and that a non-owner sender, a non-open
       proposal and P/X/A are each refused with nothing committed.
     relationships:
+    - rel_type: depends_on
+      spec_id: VAM-05-008
     - rel_type: derives_from
       spec_id: EP-09-005
     - rel_type: depends_on
@@ -1180,6 +1182,8 @@ groups:
       before the termination entry, that a refused termination commits neither entry, and
       that a non-owner sender or a non-open proposal is refused with nothing committed.
     relationships:
+    - rel_type: depends_on
+      spec_id: VAM-05-009
     - rel_type: derives_from
       spec_id: EP-09-005
     - rel_type: depends_on
@@ -1212,6 +1216,8 @@ groups:
       proposals, refuses the three cases named in the statement with a reported reason,
       and changes no register entry.
     relationships:
+    - rel_type: depends_on
+      spec_id: VAM-05-011
     - rel_type: derives_from
       spec_id: CM-18-003
     - rel_type: refines

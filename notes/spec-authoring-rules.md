@@ -191,9 +191,11 @@ MS-02-002 prose writes "MUST NOT", but the enum uses underscores; `MUST NOT`
 
 What each type means, and which end is upstream, is SR-13-001 through SR-13-011
 (`spec-dump --group SR-13`); do not keep a second copy here. Record a link once,
-on the end SR-13-012 names, never at both ends: the reverse direction is a graph
-query, and a second copy written with an opposite verb closes a loop that
-spec-lint rejects (SR-13-014, SR-13-015). A narrower case is `refines` on the
+on the end SR-13-012 names, never at both ends. A second copy written with an
+opposite verb closes a loop that spec-lint rejects (SR-13-014, SR-13-015).
+`spec-dump` and the docs "Related" column show only the links a requirement
+records, so to find what points *at* a requirement, walk the predecessors in
+`relation_graph.upstream_graph()`. A narrower case is `refines` on the
 narrower requirement, never `constrains` on the general one (SR-13-013).
 
 `related_to` is **not** valid and fails at load. For a loose link, omit the

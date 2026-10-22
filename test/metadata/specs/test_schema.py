@@ -758,13 +758,30 @@ def _sr_13_definitions(registry) -> dict[str, str]:
     }
 
 
-def test_every_relation_type_has_a_definition_and_upstream_end():
+def test_every_relation_type_has_a_definition():
     assert set(RELATION_DEFINITIONS) == set(RelationType)
     for member in RelationType:
         assert member.definition.startswith(
             ("A `" + member.value, "An `" + member.value)
         )
-        assert isinstance(member.upstream_end, RelationEnd)
+
+
+def _end_named_by(statement: str) -> RelationEnd:
+    """The upstream end an SR-13 definition names in its closing clause."""
+    clause = statement.rsplit(";", 1)[1].strip()
+    if clause.startswith("B is the"):
+        return RelationEnd.TARGET
+    if clause.startswith("A is the"):
+        return RelationEnd.SOURCE
+    assert clause == "neither end is upstream.", clause
+    return RelationEnd.NEITHER
+
+
+@pytest.mark.spec_corpus
+@pytest.mark.spec("SR-13-016")
+def test_upstream_end_matches_the_end_sr_13_names(real_registry):
+    for value, statement in _sr_13_definitions(real_registry).items():
+        assert RelationType(value).upstream_end is _end_named_by(statement)
 
 
 @pytest.mark.spec_corpus

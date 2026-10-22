@@ -1731,7 +1731,7 @@ groups:
     postconditions:
     - description: Only VENDOR actors may record vf.state=VF; all others receive FAILURE
     relationships:
-    - rel_type: constrains
+    - rel_type: extends
       spec_id: CSB-02-001
       note: Trigger-side precondition complementing receive-side CF handling
 
@@ -1776,7 +1776,7 @@ groups:
     postconditions:
     - description: Only DEPLOYER actors may record d.state=D; all others receive FAILURE
     relationships:
-    - rel_type: constrains
+    - rel_type: extends
       spec_id: CSB-03-001
       note: Trigger-side precondition complementing receive-side CD handling
 
@@ -1822,7 +1822,7 @@ groups:
         this trigger; actors wishing to report fix deployment must call notify-fix-deployed
         separately (and must hold CVDRole.DEPLOYER per CSB-15-002)
     relationships:
-    - rel_type: constrains
+    - rel_type: extends
       spec_id: CSB-04-001
       note: >-
         P event trigger must not imply D event; separates participant-agnostic

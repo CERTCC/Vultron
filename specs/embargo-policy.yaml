@@ -493,7 +493,7 @@ groups:
       A unit test asserts that a 30-day actor default with no sender proposal yields a 30-day
       active embargo, not the protocol default.
     relationships:
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: EP-04-003
     adr:
     - ADR-0096

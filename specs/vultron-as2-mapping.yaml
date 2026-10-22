@@ -723,7 +723,7 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AcceptInviteToEmbargoOnCasePattern` wraps `InviteToEmbargoOnCasePattern` inside an `Accept` outer
       pattern; integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
-      `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
+      `test/test_semantic_activity_patterns.py::test_owner_embargo_decisions_are_distinct_from_invite_answers`
       asserts that the `accept_embargo` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_014
@@ -734,7 +734,7 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `RejectInviteToEmbargoOnCasePattern` wraps `InviteToEmbargoOnCasePattern` inside a `Reject` outer
       pattern; integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
-      `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
+      `test/test_semantic_activity_patterns.py::test_owner_embargo_decisions_are_distinct_from_invite_answers`
       asserts that the `reject_embargo` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_014
@@ -753,9 +753,6 @@ groups:
       `Accept(EmbargoEvent, target=VulnerabilityCase)` maps to `ACTIVATE_EMBARGO_ON_CASE` and no
       other semantics, and inspection of `_instances.py` confirms `ActivateEmbargoOnCasePattern`
       uses `TAtype.ACCEPT`, `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-07-008
     adr:
     - ADR-0122
     stories:
@@ -775,9 +772,6 @@ groups:
       `REJECT_EMBARGO_PROPOSAL_ON_CASE` and no other semantics, and inspection of
       `_instances.py` confirms `RejectEmbargoProposalOnCasePattern` uses `TAtype.REJECT`,
       `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-07-009
     adr:
     - ADR-0122
     stories:
@@ -825,9 +819,6 @@ groups:
       `CLOSE_CASE`, and inspection of `_instances.py` confirms
       `WithdrawFromEmbargoOnCasePattern` uses `TAtype.LEAVE`, `AOtype.EVENT`, and
       `context_=VULNERABILITY_CASE`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-07-010
     adr:
     - ADR-0122
     stories:
@@ -1043,16 +1034,6 @@ groups:
       `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
       asserts that the `add_status_to_case` vocabulary example extracts as this
       semantic type.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-03-001
-      note: CV shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-002
-      note: CF shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-003
-      note: CD shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
     stories:
     - story_2022_062
     - story_2022_081

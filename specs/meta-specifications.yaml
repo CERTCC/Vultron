@@ -965,7 +965,7 @@ groups:
     - rel_type: refines
       spec_id: MS-12-007
       note: closes MS-12-006's suppression code alongside the code MS-12-007 guards
-    - rel_type: constrains
+    - rel_type: depends_on
       spec_id: MS-12-006
       note: holds the suppression escape hatch MS-12-006 provides at no carrier
     adr:

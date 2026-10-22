@@ -5935,7 +5935,7 @@ groups:
     verification: >-
       A received-side test removes a signatory and asserts its consent rows are unchanged.
     relationships:
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: CM-18-005
     adr:
     - ADR-0116
@@ -6263,7 +6263,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-10-005
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-14-010
     adr:
     - ADR-0125
@@ -6286,7 +6286,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-10-005
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-14-010
     adr:
     - ADR-0125
@@ -6356,11 +6356,11 @@ groups:
     stories:
     - story_2022_104
     relationships:
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-14-001
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-14-011
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-14-012
     - rel_type: refines
       spec_id: CM-10-004
@@ -6493,7 +6493,7 @@ groups:
     stories:
     - story_2022_104
     relationships:
-    - rel_type: constrains
+    - rel_type: extends
       spec_id: CM-24-006
     adr:
     - ADR-0125
