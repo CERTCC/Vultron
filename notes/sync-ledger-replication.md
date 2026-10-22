@@ -74,6 +74,14 @@ everything after the last hash a participant reports.
   stored entry with `HashChainLedgerRecord.to_ledger_entry()` and check one with
   `ledger_entry_hash_intact()`, never a hand-built `CaseLedgerEntry`: hashed
   fields such as `received_at` then default to a fresh clock (#3744).
+- **One hash predicate, wherever an entry is checked.** The receiver's check, the
+  CASE_MANAGER's check of its own copy on a hash-mismatch fault, and any send-side
+  check all call `ledger_entry_hash_intact()`. A second copy of the hashing logic
+  can disagree with the first and blame the wrong side (SYNC-03-008, #5095).
+- **A hash refusal is reported, not recovered.** The replica sends
+  `LedgerEntryRefused/HashMismatch`; the CASE_MANAGER logs it at ERROR and checks its
+  own copy, and does nothing else. Replay and re-seed resend the same content, so
+  neither can repair it; the replay cooldown bounds the loop (SYNC-03-007/008).
 
 ## Canonical Serialization
 
