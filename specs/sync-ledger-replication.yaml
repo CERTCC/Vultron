@@ -1687,3 +1687,170 @@ groups:
       `test/core/behaviors/sync/test_divergence_recovery.py` asserts the ERROR record.
     stories:
     - story_2022_045
+- id: SYNC-17
+  title: Participant Position Statements
+  description: >-
+    A participant's replica can fall behind with nothing to show it: when the last
+    `Announce(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives
+    with a gap, so no `Reject(CaseLedgerEntry)` is sent and the reject-and-replay loop
+    never starts. The CASE_MANAGER cannot see the lag either, because nothing tells it
+    how far a participant has got. The participant therefore states its position, when
+    it chooses, in a `Read(CaseLedgerEntry)`, and the CASE_MANAGER answers a position
+    behind its tail by replaying. A position stated on every case activity is planned
+    separately (#5109, #5110) and composes the same answer. This is how the
+    LedgerReconciliation phase detects a gap and retries until convergence
+    (SYNC-00-003, SYNC-00-007, SYNC-00-008). Rationale: ADR-0155.
+  specs:
+  - id: SYNC-17-001
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A participant MAY send the case's CASE_MANAGER `Read(CaseLedgerEntry)` whose
+      `object` is the last canonical entry it has applied for that case, by reference.
+      A participant that has applied no entry for the case has no entry to name and
+      sends no `Read(CaseLedgerEntry)`.
+    rationale: >-
+      ActivityStreams defines `Read` as the actor having read the object, so the
+      activity states a fact and asks for nothing. A `Reject(CaseLedgerEntry)` would
+      claim a refusal that did not happen.
+    adr:
+    - ADR-0155
+    verification: >-
+      A test marked `SYNC-17-001` builds the activity with the wire factory and asserts
+      its type is `Read` and its `object` is the entry's id.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-17-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on a participant's stated ledger position in
+      `Read(CaseLedgerEntry)` (SYNC-17-001) only when the sender is an active
+      participant in the case (CM-10-004). From any other sender it MUST record no
+      replication state for the sender, send nothing in answer, and report `REFUSED`.
+    rationale: >-
+      A removed, unconsented or closed participant's replica stops on purpose, so its
+      stated position always lags. Answering it would send withheld case content, as an
+      unchecked `Reject` would (SYNC-03-005). Catch-up for a participant that becomes
+      active again is CM-10-006's backfill.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-10-004
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0114
+    - ADR-0155
+    verification: >-
+      Tests marked `SYNC-17-002` send `Read(CaseLedgerEntry)` with a lagging position
+      from a removed participant and from an unconsented participant, and assert
+      `REFUSED`, no replication state for the sender and no `Announce(CaseLedgerEntry)`
+      queued to it.
+    stories:
+    - story_2022_045
+  - id: SYNC-17-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER acts on a stated position (SYNC-17-002) that names an entry
+      in its ledger, it MUST record that entry's hash as the sender's acknowledged
+      position in its per-peer replication state (SYNC-04-001).
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-04-001
+    adr:
+    - ADR-0155
+    verification: >-
+      A test marked `SYNC-17-003` delivers `Read(CaseLedgerEntry)` from an active
+      participant and asserts the sender's replication state holds the named hash.
+    stories:
+    - story_2022_045
+  - id: SYNC-17-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the position the CASE_MANAGER acts on (SYNC-17-002) is behind its ledger
+      tail, it MUST send the sender every canonical entry after that position, in log
+      order, as `Announce(CaseLedgerEntry)`, under the same replay rate bound (SYNC-15-003,
+      SYNC-15-013) and outbox de-duplication (SYNC-15-012) as a `Reject`-triggered
+      replay. When the position is the tail it MUST send nothing.
+    rationale: >-
+      This is the retry that SYNC-00-008 requires. It runs whenever the participant
+      reads, so a lost last entry is recovered without waiting for a new commit. A
+      `Read` can predate entries already on their way to the sender, so a stated lag
+      can be transient; the replay rate bound, not the outbox de-duplication, is what
+      limits the replays such a race causes.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-00-007
+    - rel_type: refines
+      spec_id: SYNC-00-008
+    - rel_type: refines
+      spec_id: SYNC-03-002
+    adr:
+    - ADR-0155
+    verification: >-
+      Tests marked `SYNC-17-004` drop the last `Announce(CaseLedgerEntry)` to a
+      participant, send no further entry and no `Reject`, and assert that the
+      participant's `Read(CaseLedgerEntry)` brings its tail to the CASE_MANAGER's. They
+      also assert that a position at the tail queues nothing, and that a second lagging
+      position inside the replay cooldown queues no second replay.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-17-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When a stated position names an entry the CASE_MANAGER's ledger does not hold, or
+      an index at which its entry has a different hash, the CASE_MANAGER MUST log it at
+      WARNING with the sender and the position, record no replication state and send
+      nothing.
+    rationale: >-
+      Such a position is not a lag, and replaying from a guessed point would send a
+      suffix the replica cannot anchor. A replica whose case file has diverged reports
+      it by SYNC-16-001.
+    adr:
+    - ADR-0155
+    verification: >-
+      Tests marked `SYNC-17-005` send `Read(CaseLedgerEntry)` naming an unknown entry,
+      and a position whose index holds an entry with a different hash. Each asserts the
+      WARNING record, an empty outbox and no replication state for the sender.
+    stories:
+    - story_2022_045
+  - id: SYNC-17-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT commit a ledger entry for a `Read(CaseLedgerEntry)` or
+      for its answer to one.
+    rationale: >-
+      Stating a position changes nothing in the case file, so it is an observation and
+      not a case event (ADR-0152). Ledgering it would add an entry every time a
+      participant checks, which itself would leave every other participant behind.
+    adr:
+    - ADR-0152
+    - ADR-0155
+    verification: >-
+      Tests marked `SYNC-17-006` deliver `Read(CaseLedgerEntry)` at the tail and behind
+      it, and assert each leaves the CASE_MANAGER's ledger unchanged.
+    stories:
+    - story_2022_045
+  - id: SYNC-17-007
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The reference implementation's participant SHOULD send `Read(CaseLedgerEntry)`
+      for each case it holds after a restart, and SHOULD support sending it on a
+      configurable interval that is off by default, with that default documented beside
+      the retry defaults (SYNC-05-003).
+    rationale: >-
+      When to check is the participant's own policy (ADR-0155). A restart is the moment
+      it is most likely to have missed an entry; a periodic check costs traffic that a
+      deployment should choose.
+    adr:
+    - ADR-0155
+    verification: >-
+      A test marked `SYNC-17-007` restarts a participant holding a case and asserts one
+      `Read(CaseLedgerEntry)` naming its tail is queued to the CASE_MANAGER.
