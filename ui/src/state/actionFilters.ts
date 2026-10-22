@@ -49,7 +49,7 @@ import { isLegalTransition, canStartEmbargo, embargoViable } from '../protocol'
 function buildInviteAction(state: DemoState): Action | null {
   // The case is done once every REPORT-MANAGING participant (finder + vendors) has
   // closed — the protocol's M7 ("all participants RM.CLOSED → close case"; the Case
-  // Actor auto-closes at that point; see two-actor-demo.md / fvv-demo.md).
+  // Actor auto-closes at that point; see docs/topics/scenarios/rv.md and rvv.md).
   //
   // DELIBERATE DEMO OVERLAY (not artifact-driven, and cannot be — read this before
   // "fixing" it to defer to protocol_states.json):
