@@ -82,6 +82,22 @@ def test_constrains_recorded_backwards_closes_a_loop():
 
 
 @pytest.mark.spec("SR-13-014")
+def test_loop_error_lists_every_link_sharing_an_arc():
+    registry = _registry(
+        (A, "refines", B), (A, "depends_on", B), (B, "depends_on", A)
+    )
+
+    (error,) = relation_graph.check_relationship_loops(registry)
+
+    for edge in (
+        f"{A} refines {B}",
+        f"{A} depends_on {B}",
+        f"{B} depends_on {A}",
+    ):
+        assert edge in error
+
+
+@pytest.mark.spec("SR-13-014")
 def test_chain_without_a_loop_passes():
     registry = _registry(
         (A, "refines", B), (B, "depends_on", C), (C, "constrains", A)
