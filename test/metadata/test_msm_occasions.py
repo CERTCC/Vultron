@@ -778,6 +778,72 @@ def test_the_message_types_page_opens_with_the_whole_table():
     assert _includes(_MESSAGES / "index.md") == [f"{_FROM_PAGES}/lookup.md"]
 
 
+_QUICK_REFERENCE = _DOCS / "reference/quick_reference.md"
+
+
+@pytest.mark.spec("MSM-06-004")
+def test_quick_reference_includes_the_generated_message_tables():
+    """The quick reference embeds both generated tables and keeps no
+    hand-written emit or response column beside them (#5066)."""
+    fragments = Path(gen.FRAGMENT_DIR).relative_to("docs/reference").as_posix()
+    included = [
+        p for p in _includes(_QUICK_REFERENCE) if p.startswith(f"{fragments}/")
+    ]
+    assert included == [
+        f"{fragments}/lookup.md",
+        f"{fragments}/shorthands.md",
+    ]
+    text = _QUICK_REFERENCE.read_text(encoding="utf-8").lower()
+    assert "response expected" not in text
+    assert "emit when" not in text
+
+
+@pytest.mark.spec("MSM-06-004")
+def test_shorthand_table_lists_every_shorthand_with_its_carriers(table):
+    rows = gen.render_shorthands(table).splitlines()[2:]
+    assert [row.split(" | ")[0] for row in rows] == [
+        f"| `{shorthand.value}`" for shorthand in ProtocolShorthand
+    ]
+    by_type = dict(zip(ProtocolShorthand, rows, strict=True))
+    assert by_type[ProtocolShorthand.RS] == (
+        "| `RS` | Report Submission | RM"
+        " | [`Offer(VulnerabilityReport)`](../rm.md#report-submission) |"
+    )
+    assert by_type[ProtocolShorthand.EK] == (
+        "| `EK` | Embargo Acknowledgment | EM"
+        f" | [none](../em.md#{gen.NO_WIRE_ANCHOR}) |"
+    )
+    assert (
+        "(../cs.md#participant-public-awareness)"
+        in by_type[ProtocolShorthand.CP]
+    )
+    carried = {row.shorthand for g in table.groups for row in g.occasions}
+    for shorthand, row in by_type.items():
+        assert ("[none]" in row) is (shorthand not in carried), row
+
+
+def test_shorthand_table_links_each_wire_activity_once(table):
+    """Two occasions of one shorthand on one wire activity link it once."""
+    group, row = _rows(table)["fix-readiness"]
+    twin = row.model_copy(update={"anchor": "fix-readiness-twin"})
+    doubled = table.model_copy(
+        update={
+            "groups": (group.model_copy(update={"occasions": (row, twin)}),)
+        }
+    )
+    line = next(
+        line
+        for line in gen.render_shorthands(doubled).splitlines()
+        if line.startswith("| `CF`")
+    )
+    assert line.count("](../cs.md#") == 1, line
+
+
+def test_every_formal_model_page_has_the_no_wire_activity_section():
+    for page, _ in gen.SHORTHAND_FAMILIES.values():
+        assert gen.NO_WIRE_ANCHOR in _slugs(_MESSAGES / f"{page.value}.md")
+
+
 @pytest.mark.spec("MSM-08-004")
 def test_each_message_page_includes_its_slice_and_each_section_once(table):
     """Each occasion anchor resolves to exactly one section on its page: the
@@ -848,7 +914,8 @@ def test_no_fragment_is_exempt_from_lint_docs():
 
 def test_tables_carry_no_exec_block():
     """A table is mostly links, which an exec block would hide from MkDocs."""
-    for path in _FRAGMENTS.glob("lookup*.md"):
+    tables = [*_FRAGMENTS.glob("lookup*.md"), _FRAGMENTS / "shorthands.md"]
+    for path in tables:
         assert "exec=" not in path.read_text(encoding="utf-8"), path
 
 

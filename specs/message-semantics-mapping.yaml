@@ -776,6 +776,35 @@ groups:
       occasion section states its entry's status, linked to the definitions on
       `docs/reference/messages/index.md`, and that the page defines every
       `MappingStatus` value.
+  - id: MSM-06-004
+    priority: MUST
+    kind: process
+    statement: The Protocol Quick Reference MUST include the whole occasion table and a
+      table of the formal message set, both as committed fragments generated from
+      `SEMANTIC_REGISTRY` (MSM-06-001). The formal table MUST list each shorthand with
+      the wire activities whose occasions carry it, or state that it has none, and the
+      page MUST NOT carry a hand-written message table or a per-shorthand emit or
+      response rule.
+    rationale: The quick reference's hand-written table gave an emit trigger and an
+      expected response for every shorthand, including the seven that the fault
+      trichotomy and cumulative hash-chain acknowledgment replace on the wire, and
+      nothing compared it with the registry. ADR-0128 kept that table and only linked
+      the occasion table; once the occasion table was complete, a second, ungated
+      answer to "what is sent when" competed with it. The formal emit conditions and
+      responses stay on the formal protocol pages, which own them.
+    verification: >-
+      `test_quick_reference_includes_the_generated_message_tables` in
+      `test/metadata/test_msm_occasions.py` asserts that
+      `docs/reference/quick_reference.md` includes `lookup.md` and `shorthands.md`
+      from the fragment directory and has no "Response Expected" or "emit when"
+      column, and `test_shorthand_table_lists_every_shorthand_with_its_carriers`
+      asserts one row per `ProtocolShorthand` naming its occasions' wire activities
+      or linking its family page's section on shorthands with no wire activity.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MSM-06-001
+    adr:
+    - ADR-0128
 - id: MSM-07
   title: Participant Embargo Consent (PEC) State Machine Coupling to EM Wire Activities
   description: >-
