@@ -1,11 +1,15 @@
-"""Generate and check the committed docs-site artifacts (DF-11-005/008/011).
+"""Generate and check the committed docs-site artifacts (DF-11-005/008/011/014).
 
-Three kinds of artifact are generated and committed:
+Four kinds of artifact are generated and committed:
 
 - each section **landing page** under ``docs/`` whose index declares
   ``contents: generated`` — only the contents listing between the markers, so
   the hand-written framing survives
   (:mod:`~vultron.metadata.docs.landing_pages`);
+- each **start page** under ``docs/start/`` — only the reading-path listing
+  between its markers, rendered from the page's ``thread:`` frontmatter
+  (:mod:`~vultron.metadata.docs.threads`, DF-11-014); whether each thread's
+  members are reader-facing pages is the separate ``docs-threads`` check;
 - ``docs/includes/stakeholder_types.md`` — whole file, from the schema
   (:mod:`~vultron.metadata.docs.stakeholder_fragment`);
 - ``notes/site-coverage-matrix.md`` — whole file, from page frontmatter
@@ -49,6 +53,11 @@ from vultron.metadata.docs.stakeholder_fragment import (
     FRAGMENT_PATH,
     render_fragment,
 )
+from vultron.metadata.docs.threads import (
+    load_threads,
+    page_titles,
+    splice_thread_listing,
+)
 from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
 
 
@@ -66,8 +75,10 @@ def desired_contents(root: Path) -> dict[str, str]:
             group-opening index declares no ``contents:``, or a target set is
             empty (DF-09-009).
         MetadataLoadErrors: If a routing index fails to link a member of its
-            section; every missing link is listed.
-        ValueError: If a landing page's markers are missing or malformed.
+            section, every missing link listed; or if a start page's thread
+            is missing or does not validate (DF-11-013).
+        ValueError: If a landing or start page's markers are missing or
+            malformed.
     """
     contents = {
         FRAGMENT_PATH: render_fragment(),
@@ -93,6 +104,13 @@ def desired_contents(root: Path) -> dict[str, str]:
         # source read here is non-empty.
         path = f"docs/{page.path}"
         contents[path] = splice_listing(_read(root / path), page)
+    threads = load_threads(root)
+    titles = page_titles(root, threads)
+    for thread in threads:
+        path = f"docs/{thread.path}"
+        contents[path] = splice_thread_listing(
+            _read(root / path), thread, titles
+        )
     return contents
 
 
@@ -114,8 +132,8 @@ def stale_artifacts(root: Path | None = None) -> list[str]:
 def write_artifacts(root: Path | None = None) -> list[str]:
     """Rewrite every stale artifact in place; return the paths written.
 
-    One pass is enough: no artifact declares a ``level`` or
-    ``stakeholder_type``, so writing one never changes what the coverage
+    One pass is enough: writing a page rewrites only the text between its
+    markers, never its frontmatter, so it never changes what the coverage
     matrix counts.
     """
     written: list[str] = []
@@ -157,7 +175,8 @@ def main(argv: list[str] | None = None) -> None:
     if stale:
         for path in stale:
             print(
-                f"[ERROR] {path} is stale — run '{WRITE_COMMAND}' (DF-11-005).",
+                f"[ERROR] {path} is stale — run '{WRITE_COMMAND}' "
+                "(DF-11-005, DF-11-014).",
                 file=sys.stderr,
             )
         sys.exit(1)
