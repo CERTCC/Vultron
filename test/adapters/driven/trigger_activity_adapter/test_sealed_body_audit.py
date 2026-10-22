@@ -86,10 +86,9 @@ _CAUSE_ID = "https://example.org/activities/accepted-offer"
 #: Ledger records that carry the case as stored, its participants and reports
 #: by id: each of those has an entry of its own, so a replica copying the
 #: record holds the case as the CASE_MANAGER does (ADR-0124).  A record is no
-#: message, so it seeds no recipient (CBT-01-012 does not apply).
-_CASE_AS_STORED = frozenset(
-    {"record_case_created", "record_case_owner_updated"}
-)
+#: message, so it seeds no recipient (CBT-01-012 does not apply).  The genesis
+#: record is not one: it is the creation's delivered ``Create`` (ADR-0157).
+_CASE_AS_STORED = frozenset({"record_case_owner_updated"})
 
 #: Port methods that build a domain *object*, not an outbound activity, or
 #: (``add_object_to_case_semantics``) classify one without persisting it.
@@ -312,8 +311,11 @@ RECIPES: dict[str, Recipe] = {
     "reject_close_case": lambda w: w.adapter.reject_close_case(
         case_id=w.case_id, actor=_ACTOR, close_sender=_PEER
     ),
+    # The genesis entry is the creation's own Create, read back (ADR-0157).
     "record_case_created": lambda w: w.adapter.record_case_created(
-        case_id=w.case_id, actor=_CASE_ACTOR
+        create_activity_id=w.adapter.create_case(
+            case_id=w.case_id, actor=_CASE_ACTOR, to=[_PEER]
+        )[0]
     ),
     "record_report_added_to_case": lambda w: (
         w.adapter.record_report_added_to_case(

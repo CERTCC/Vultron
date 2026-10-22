@@ -88,10 +88,15 @@ class _CasesMixin:
         to: list[str] | None = None,
         id_: str | None = None,
     ) -> tuple[str, str]:
-        """Create and persist a ``Create(as_VulnerabilityCase)`` activity."""
+        """Create and persist a ``Create(as_VulnerabilityCase)`` activity.
+
+        ``context`` is the case, as for the proposal path's ``Create``
+        (ADR-0045): the creator commits this same activity as the case's
+        genesis entry (CLP-07-007, CLP-07-011).
+        """
         case = _case_for_wire(self._dl, case_id)
         extra = _addressing(actor, to, id_)
-        activity = create_case_activity(case=case, **extra)
+        activity = create_case_activity(case=case, context=case_id, **extra)
         return _create_and_seal(self._dl, activity, "create_case")
 
     def engage_case(

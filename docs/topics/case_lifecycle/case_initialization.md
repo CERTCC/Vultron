@@ -44,7 +44,7 @@ These are the entries [CLP-07-013](../../reference/specs/protocol.md#clp-07-013)
 
 | Order | Entry (`semanticType`) | What it carries |
 |---|---|---|
-| 1 | `create_case` | The genesis entry: `Create(VulnerabilityCase)` with the case, naming its embargoes, reports and participants by id; it is the root of the case's hash chain |
+| 1 | `create_case` | The genesis entry: the `Create(VulnerabilityCase)` the CASE_MANAGER sends, with the case's participants, reports and active embargo inline; it is the root of the case's hash chain |
 | 2 | `create_embargo_event`, once per embargo the case's creation writes | `Create(EmbargoEvent)` with the embargo in full, its start and end times included |
 | 3 | `add_report_to_case`, once per linked report | `Add(VulnerabilityReport)` with the report in full, and the report's `Offer` provenance when it is known |
 | 4 | `create_case_participant`, once per participant record | `Create(CaseParticipant)` with the record in full as it was created, its first status included |
@@ -56,6 +56,7 @@ Participants are taken in roster order, so a case created from a proposal has en
 
 Each commit fans its entry out to the case's other participants, and a participant must hold the case before the first entry about it arrives ([CP-09-009](../../reference/specs/protocol.md#cp-09-009)).
 The entries are committed after the `Create(VulnerabilityCase)` is queued, on both creation paths.
+That queued `Create` is the genesis entry itself, so the activity the case's first participant receives is the one every ledger records ([CLP-07-011](../../reference/specs/protocol.md#clp-07-011)).
 A ledger entry records a completed act, and a message is sent once it is in the sender's outbox ([SYNC-09-002](../../reference/specs/protocol.md#sync-09-002)).
 When an actor creates a case for itself, it is the case's only participant, so the entries go to nobody.
 

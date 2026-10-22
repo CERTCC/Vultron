@@ -19,7 +19,10 @@ Every change the CASE_MANAGER makes to the case file is committed as its own
 entry, and the entry's ``payloadSnapshot`` is the activity built here and
 sealed, verbatim (CLP-07-013, VM-08-003).  None is queued to the outbox, or
 stored as an activity: the ledger fan-out is its delivery (see
-``_base._seal_record``).  Each id is derived from the CASE_MANAGER and what
+``_base._seal_record``).  The genesis entry is the exception: it is the
+``Create(VulnerabilityCase)`` the creation already built and queued, so the
+case's creation is one activity, delivered and ledgered (CLP-07-011).  Each
+id is derived from the CASE_MANAGER and what
 changed, so a re-run builds nothing new and hands back the body the first run
 sealed (ID-04-004), which is what lets the commit boundary recognise the retry
 as the entry it already holds.
@@ -32,6 +35,7 @@ announced case carries its participants and reports inline (AKM-02-004).
 
 import logging
 
+from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -45,7 +49,6 @@ from vultron.wire.as2.factories import (
     add_report_to_case_activity,
     add_status_to_case_activity,
     add_status_to_participant_activity,
-    create_case_activity,
     create_embargo_consent_activity,
     create_embargo_event_activity,
     create_participant_activity,
@@ -65,14 +68,6 @@ from ._base import _case_for_wire, _seal_record, _to_wire
 logger = logging.getLogger(__name__)
 
 
-def _stored_case(dl: CaseOutboxPersistence, case_id: str) -> VulnerabilityCase:
-    """The case as *dl* holds it; raises when it holds none."""
-    case = dl.read_case(case_id)
-    if case is None:
-        raise VultronNotFoundError("VulnerabilityCase", case_id)
-    return case
-
-
 class _LedgerRecordsMixin:
     """CASE_MANAGER-authored activities recorded in the case ledger."""
 
@@ -80,22 +75,24 @@ class _LedgerRecordsMixin:
 
     def record_case_created(
         self,
-        case_id: str,
-        actor: str,
+        create_activity_id: str,
     ) -> tuple[str, str]:
-        """Build and seal the genesis ``Create(VulnerabilityCase)``."""
-        # The case as stored, its embargoes, participants and reports by id:
-        # each of them is carried in full by an entry of its own
-        # (``create_embargo_event``, ``add_report_to_case``,
-        # ``create_case_participant``), so a replica copying this entry stores
-        # the case exactly as the CASE_MANAGER holds it (ADR-0124).
-        activity = create_case_activity(
-            case=_stored_case(self._dl, case_id),
-            actor=actor,
-            context=case_id,
-            id_=derived_activity_id("case-created", actor, case_id),
-        )
-        return _seal_record(self._dl, activity)
+        """Hand back the built ``Create(VulnerabilityCase)`` for the genesis entry.
+
+        The case's creation is one activity, delivered and ledgered
+        (CLP-07-011): the ``Create`` the creation sealed for the outbox,
+        carrying its participants, reports and active embargo inline.  Each
+        of them is also carried in full by an entry of its own
+        (``create_embargo_event``, ``add_report_to_case``,
+        ``create_case_participant``), so a replica that builds its case from
+        the ledger copies each record from its own entry (ADR-0124).
+        """
+        sealed = read_sealed_body(self._dl, create_activity_id)
+        if sealed is None:
+            raise VultronNotFoundError(
+                "Create(VulnerabilityCase)", create_activity_id
+            )
+        return create_activity_id, sealed.body
 
     def record_embargo_event_created(
         self,

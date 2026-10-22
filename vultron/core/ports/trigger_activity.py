@@ -535,10 +535,18 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
 
     def record_case_created(
         self,
-        case_id: str,
-        actor: str,
+        create_activity_id: str,
     ) -> tuple[str, str]:
-        """The genesis ``Create(VulnerabilityCase)`` (``create_case``), the case as stored."""
+        """The genesis ``Create(VulnerabilityCase)`` (``create_case``).
+
+        It is the ``Create`` the CASE_MANAGER built for the case under
+        *create_activity_id*, its sealed body verbatim: one activity, both
+        delivered and ledgered (CLP-07-011).  Unlike the other ``record_*``
+        methods it builds nothing.
+
+        Raises:
+            VultronNotFoundError: no body is sealed under *create_activity_id*.
+        """
         ...
 
     def record_embargo_event_created(

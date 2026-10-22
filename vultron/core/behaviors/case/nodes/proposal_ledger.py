@@ -33,6 +33,12 @@ from py_trees.common import Status
 from py_trees.ports import NoDataAvailable, PortInformation
 
 from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.creation_records import (
+    CREATE_CASE_SEMANTIC_TYPE,
+    _EntryNotCommitted,
+    creation_embargoes,
+    genesis_record,
+)
 from vultron.core.behaviors.case.offer_provenance import find_offer_for_report
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
@@ -50,21 +56,9 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import same_actor_id
-from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
-from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
-
-
-class _EntryNotCommitted(VultronError):
-    """A creation entry the commit tree did not commit (CLP-07-013)."""
-
-
-#: ``semantic_type`` of a case's genesis ledger entry, the root of the
-#: CASE_MANAGER's hash chain.  Its presence is what "the case's creation
-#: entries are committed" means to a later step (CM-14-007, CM-14-011).
-CREATE_CASE_SEMANTIC_TYPE = MessageSemantics.CREATE_CASE.value
 
 
 class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
@@ -76,7 +70,8 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
 
     Commits entries in causal order per ADR-0041 AC-4:
 
-      1. ``create_case``                     actor=CaseActor
+      1. ``create_case``, the ``Create(VulnerabilityCase)`` the creation
+         built and queued (CLP-07-011)       actor=CaseActor
       2. ``create_embargo_event`` for each embargo the creation wrote
          (CLP-07-013)                        actor=CaseActor
       3. ``add_report_to_case``              actor=CaseActor
@@ -97,19 +92,16 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     and every entry committed before it: no record is kept without its
     entry (#4442).
 
-    On the proposal path it runs *after* the accept flow has queued its
-    ``Create(VulnerabilityCase)`` (``EmitCreateVulnerabilityCaseNode``):
-    every commit fans its entry out through the FIFO outbox, and the
-    proposer, already a participant, must hold the case object before its
-    first ``Announce(CaseLedgerEntry)`` arrives (CM-14-011, CP-09-009).
-    Committed ahead of the Create, the fan-out put ten entries in front of it
-    and every recipient took the SYNC-15 pre-genesis path on the normal
-    case-creation route (#3033, #2898).  On the create-case trigger path it
-    runs after ``UpdateActorOutbox`` too, so on both paths the entries record
-    a case whose creation was sent (ADR-0119); the creator is that case's
-    only participant, so there the entries fan out to nobody.
+    On both paths it runs *after* the ``Create(VulnerabilityCase)`` is
+    queued, which is also the genesis entry: the proposer must hold the case
+    before its first ``Announce(CaseLedgerEntry)`` arrives (CM-14-011,
+    CP-09-009, #3033), and the entries record a case whose creation was sent
+    (ADR-0119).  On the create-case trigger path the creator is the only
+    participant, so the entries fan out to nobody.
 
-    Reads ``case_id`` from the blackboard.
+    Reads ``case_id`` from the blackboard, and ``create_case_activity_id``,
+    the id of the ``Create(VulnerabilityCase)`` the creation built: that
+    activity is the genesis entry, delivered and ledgered (CLP-07-011).
     """
 
     def __init__(
@@ -126,45 +118,68 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         self._offer_id = offer_id
         self._offer_actor_id = offer_actor_id
         self._case_id_bb: str | None = None
+        self._create_activity_id_bb: str | None = None
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "case_id": PortInformation(data_type=str, required=False),
+        "create_case_activity_id": PortInformation(
+            data_type=str, required=False
+        ),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id"}
+        return {
+            "case_id": "/case_id",
+            "create_case_activity_id": "/create_case_activity_id",
+        }
 
     def initialise(self) -> None:
         super().initialise()
         self._case_id_bb = None
+        self._create_activity_id_bb = None
         try:
             self._case_id_bb = self.get_input("case_id")
         except (NoDataAvailable, NotImplementedError):
             pass
+        try:
+            self._create_activity_id_bb = self.get_input(
+                "create_case_activity_id"
+            )
+        except (NoDataAvailable, NotImplementedError):
+            pass
+
+    def _commit_genesis(self, case_id: str) -> None:
+        """Commit the built ``Create(VulnerabilityCase)`` as the genesis entry.
+
+        See :func:`~.creation_records.genesis_record`; nothing is committed
+        for a case that already has its genesis entry.
+        """
+        assert self.datalayer is not None
+        activity = genesis_record(
+            self.datalayer,
+            self._require_trigger_activity_port(),
+            case_id,
+            self._create_activity_id_bb,
+        )
+        if activity is not None:
+            self._commit_one(
+                case_id, case_id, CREATE_CASE_SEMANTIC_TYPE, activity
+            )
 
     def _commit_creation_embargoes(
         self, case: VulnerabilityCase, case_id: str
     ) -> None:
         """Commit each embargo the creation wrote, in full (CLP-07-013).
 
-        One ``create_embargo_event`` entry per embargo the register names, in
-        register order: the default embargo, and a contested creation's
-        losing terms (EP-04-003).  A replica's embargo decisions read the
-        event's times, so no entry may name it by id alone (#5122).
+        One ``create_embargo_event`` entry per embargo the register names,
+        in register order (:func:`~.creation_records.creation_embargoes`).
         """
         assert self.datalayer is not None
         assert self.actor_id is not None
         port = self._require_trigger_activity_port()
-        for entry in case.embargo_register:
-            try:
-                embargo = read_embargo_event(self.datalayer, entry.embargo_id)
-            except VultronError as exc:
-                raise _EntryNotCommitted(
-                    f"embargo '{entry.embargo_id}' of case '{case_id}' cannot"
-                    f" be read: {exc}"
-                ) from exc
+        for embargo in creation_embargoes(self.datalayer, case):
             self._commit_one(
                 case_id,
                 embargo.id_,
@@ -427,29 +442,14 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
         case = raw_case
         # A missing port is a composition fault, raised as VultronWiringError
         # rather than reported as a failed commit (ARCH-15-001).
-        port = self._require_trigger_activity_port()
+        self._require_trigger_activity_port()
 
-        # 1. create_case  (actor = CaseActor, in _CASE_AUTHORED_SIGNATURES)
-        #
-        # The genesis create_case entry is the root of the CaseActor's
-        # canonical hash chain: if it is missing, every later entry (and every
-        # replica seeded from it) is broken.
-        #
-        # On the proposal path this node runs after the emit nodes, so the
-        # Create(VulnerabilityCase) is already queued (with
-        # Accept(as_CaseProposal)).  Both are in the tree's ActTransaction, so
-        # a failure here rolls them back with the case before delivery is
-        # told of them (ADR-0146, DL-02-004).  Holding the Create back would
-        # mean fanning the genesis entry out ahead of it, which is the
-        # pre-genesis path CP-09-009 exists to avoid.  Pinned by
-        # test_a_genesis_commit_failure_queues_neither_accept_nor_create.
+        # 1. create_case: the queued Create(VulnerabilityCase) itself, the
+        # root of the hash chain.  A failure rolls the Create and Accept back
+        # with the case before delivery is told of them (ADR-0146, DL-02-004);
+        # pinned by test_a_genesis_commit_failure_queues_neither_accept_nor_create.
         try:
-            self._commit_one(
-                case_id,
-                case_id,
-                CREATE_CASE_SEMANTIC_TYPE,
-                port.record_case_created(case_id=case_id, actor=self.actor_id),
-            )
+            self._commit_genesis(case_id)
         except _EntryNotCommitted as exc:
             return self._genesis_failed(case, str(exc))
 

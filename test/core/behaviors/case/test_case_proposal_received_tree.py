@@ -2372,6 +2372,7 @@ class TestADR0041GenesisCommitFailure:
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
         node._case_id_bb = case.id_
+        node._create_activity_id_bb = _CREATE_ID
 
         assert node.update() == Status.FAILURE, (
             "genesis create_case commit failure must propagate as FAILURE,"
@@ -2536,6 +2537,7 @@ class TestADR0041GenesisCommitFailure:
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
         node._case_id_bb = case.id_
+        node._create_activity_id_bb = _CREATE_ID
 
         assert node.update() == Status.FAILURE
         assert missing in node.feedback_message
@@ -2578,6 +2580,7 @@ class TestADR0041GenesisCommitFailure:
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
         node._case_id_bb = case.id_
+        node._create_activity_id_bb = _CREATE_ID
 
         assert node.update() == Status.FAILURE
         assert missing in node.feedback_message

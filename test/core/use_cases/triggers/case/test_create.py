@@ -33,6 +33,7 @@ from test.support.ledger import (
     fail_commits,
     ledger_entries,
 )
+from test.support.ledger_rebuild import case_naming_its_records
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -508,6 +509,10 @@ def _rebuild_case_file(
     for entry in entries:
         key, cls = _CARRIED[entry.semantic_type]
         record = cls.model_validate(entry.payload_snapshot[key])
+        if isinstance(record, VulnerabilityCase):
+            # The genesis Create carries its records inline; each is copied
+            # from its own entry (ADR-0157).
+            record = case_naming_its_records(record)
         records[record.id_] = record
         case = records.get(entry.case_id)
         if isinstance(case, VulnerabilityCase):
@@ -614,6 +619,24 @@ class TestCreateCaseTriggerLedger:
         for status in case.case_statuses:
             assert isinstance(status, CaseStatus)
             assert rebuilt[status.id_] == status
+
+    @pytest.mark.spec("CLP-07-011")
+    @pytest.mark.spec("CLP-02-013")
+    def test_the_sent_create_is_the_genesis_entry(self):
+        """One activity, delivered and ledgered (ADR-0157): the ``Create`` the
+        outbox delivers is the genesis entry's snapshot, byte for byte."""
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        case = self._create(to=[_RECIPIENT])
+
+        genesis = ledger_entries(self.dl, case.id_)[0]
+        (sent,) = [
+            item
+            for item in self.dl.outbox_list()
+            if getattr(self.dl.read(item), "type_", None) == "Create"
+        ]
+        assert genesis.semantic_type == "create_case"
+        assert read_sealed_body_dict(self.dl, sent) == genesis.payload_snapshot
 
     @pytest.mark.spec("SYNC-16-005")
     def test_the_case_names_the_tail_its_creation_entries_left(self):
