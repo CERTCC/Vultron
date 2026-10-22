@@ -781,49 +781,66 @@ def test_the_message_types_page_opens_with_the_whole_table():
 _QUICK_REFERENCE = _DOCS / "reference/quick_reference.md"
 
 
+def _glance_section() -> str:
+    """The quick reference's "Message Types at a Glance" section, as written."""
+    text = _QUICK_REFERENCE.read_text(encoding="utf-8")
+    start = text.index("\n## Message Types at a Glance\n")
+    end = text.index("\n## ", start + 1)
+    return text[start:end]
+
+
 @pytest.mark.spec("MSM-06-004")
 def test_quick_reference_includes_the_generated_message_tables():
-    """The quick reference embeds both generated tables and keeps no
-    hand-written emit or response column beside them (#5066)."""
+    """The section embeds both generated tables and writes no table row of
+    its own, whatever its columns are called (#5066)."""
     fragments = Path(gen.FRAGMENT_DIR).relative_to("docs/reference").as_posix()
-    included = [
-        p for p in _includes(_QUICK_REFERENCE) if p.startswith(f"{fragments}/")
-    ]
-    assert included == [
+    section = _glance_section()
+    assert [posixpath.normpath(p) for p in _INCLUDE.findall(section)] == [
         f"{fragments}/lookup.md",
         f"{fragments}/shorthands.md",
     ]
-    text = _QUICK_REFERENCE.read_text(encoding="utf-8").lower()
-    assert "response expected" not in text
-    assert "emit when" not in text
+    rows = [
+        line for line in section.splitlines() if line.lstrip().startswith("|")
+    ]
+    assert rows == []
+
+
+def _linked_anchors(line: str) -> list[str]:
+    return [target.partition("#")[2] for target in _LINK.findall(line)]
 
 
 @pytest.mark.spec("MSM-06-004")
 def test_shorthand_table_lists_every_shorthand_with_its_carriers(table):
+    """Each row links the first occasion of each wire activity that carries
+    its shorthand, in table order, or "none" on its family page."""
     rows = gen.render_shorthands(table).splitlines()[2:]
-    assert [row.split(" | ")[0] for row in rows] == [
-        f"| `{shorthand.value}`" for shorthand in ProtocolShorthand
-    ]
     by_type = dict(zip(ProtocolShorthand, rows, strict=True))
+    for shorthand, line in by_type.items():
+        assert line.startswith(
+            f"| `{shorthand.value}` | {shorthand.formal_name} |"
+        )
+        expected: dict[str, str] = {}
+        for group in table.groups:
+            for row in group.occasions:
+                if row.shorthand is shorthand:
+                    expected.setdefault(row.send, row.anchor)
+        if expected:
+            assert _linked_anchors(line) == list(expected.values()), line
+            assert "[none]" not in line, line
+        else:
+            page, _ = gen.SHORTHAND_FAMILIES[shorthand.value[0]]
+            assert line.endswith(
+                f" | [none](../{page.value}.md#{gen.NO_WIRE_ANCHOR}) |"
+            ), line
     assert by_type[ProtocolShorthand.RS] == (
         "| `RS` | Report Submission | RM"
         " | [`Offer(VulnerabilityReport)`](../rm.md#report-submission) |"
     )
-    assert by_type[ProtocolShorthand.EK] == (
-        "| `EK` | Embargo Acknowledgment | EM"
-        f" | [none](../em.md#{gen.NO_WIRE_ANCHOR}) |"
-    )
-    assert (
-        "(../cs.md#participant-public-awareness)"
-        in by_type[ProtocolShorthand.CP]
-    )
-    carried = {row.shorthand for g in table.groups for row in g.occasions}
-    for shorthand, row in by_type.items():
-        assert ("[none]" in row) is (shorthand not in carried), row
 
 
+@pytest.mark.spec("MSM-06-004")
 def test_shorthand_table_links_each_wire_activity_once(table):
-    """Two occasions of one shorthand on one wire activity link it once."""
+    """Two occasions of one shorthand on one wire activity link the first."""
     group, row = _rows(table)["fix-readiness"]
     twin = row.model_copy(update={"anchor": "fix-readiness-twin"})
     doubled = table.model_copy(
@@ -836,9 +853,10 @@ def test_shorthand_table_links_each_wire_activity_once(table):
         for line in gen.render_shorthands(doubled).splitlines()
         if line.startswith("| `CF`")
     )
-    assert line.count("](../cs.md#") == 1, line
+    assert _linked_anchors(line) == ["fix-readiness"], line
 
 
+@pytest.mark.spec("MSM-06-004")
 def test_every_formal_model_page_has_the_no_wire_activity_section():
     for page, _ in gen.SHORTHAND_FAMILIES.values():
         assert gen.NO_WIRE_ANCHOR in _slugs(_MESSAGES / f"{page.value}.md")

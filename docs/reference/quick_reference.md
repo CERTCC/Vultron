@@ -52,10 +52,12 @@ PEC is specified in [§9 Participant Embargo Consent (PEC) State Machine](vultro
 
 ## Message Types at a Glance
 
+### Occasion table
+
 Each row of the [occasion table](messages/index.md) is a situation in a case, with the ActivityStreams 2.0 (AS2) activity that conveys it, whom to send it to, who may send it, and the section that documents it.
 The table is generated from the semantic registry, the list of patterns that [semantic extraction](glossary.md#activity-wire-format) matches each inbound activity against.
 
-{% include-markdown "./messages/_occasions/lookup.md" heading-offset=1 %}
+{% include-markdown "./messages/_occasions/lookup.md" heading-offset=2 %}
 
 ### Formal message set
 

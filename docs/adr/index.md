@@ -226,6 +226,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0123 An Embargo Invite May Name Its Terms by URI](0123-embargo-invite-may-name-its-terms-by-uri.md) *(provisional)*
 - [ADR-0124 The Case Is a Projection of Its Ledger: Every Change Is an Entry, and Replicas Copy](0124-case-is-a-projection-of-its-ledger.md) *(revision 2)* *(provisional)*
 - [ADR-0127 Decision Records Leave Routine Agent Context; Specs and Notes Carry the Current State](0127-decision-records-leave-routine-agent-context.md) *(provisional)*
+- [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md) *(provisional)*
 - [ADR-0129 A Sender Rule States Every Position on Both Sides, and Is the Source of "Sent By"](0129-a-sender-rule-states-every-position-on-both-sides-and-is-the-source-of-sent-by.md) *(provisional)*
 - [ADR-0131 Post-Close Traffic Is Dropped, and Only a Late Leave May Be Answered](0131-post-close-traffic-is-dropped-and-only-a-late-leave-may-be-answered.md) *(provisional)*
 - [ADR-0132 The Report Receiver Introduces the CASE_MANAGER to the Reporter](0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md) *(provisional)* — partially supersedes 0041-caseactor-authoritative-case-initialization.md
@@ -249,7 +250,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0116 Removing a Participant Withdraws Entitlement, Not Membership](0116-removing-a-participant-withdraws-entitlement-not-membership.md) *(revision 3)*
 - [ADR-0125 A Case Splits by Its Owner Proposing a Child Case: the Child Links Its Parent and Inherits the Embargo Terms Only](0125-case-split-child-case-inherits-the-embargo-only.md)
 - [ADR-0126 CI Is the Full-Suite Authority After a Pull Request's First Push](0126-ci-is-the-full-suite-authority-after-the-first-push.md) *(revision 2)* — partially superseded by 0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md, 0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md
-- [ADR-0128 Message Vocabulary Docs Are Projections of the Semantic Registry](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)
 - [ADR-0130 EM Is Computed From the Embargo Register Under the EM Transition Table](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md) *(revision 2)*
 - [ADR-0138 A Pushed Pull Request Is Merged Locally Only on Conflict](0138-a-pushed-pull-request-is-merged-locally-only-on-conflict.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 - [ADR-0139 A Fresh Agent Reviews the Branch Before Its First Push](0139-a-fresh-agent-reviews-the-branch-before-its-first-push.md)

@@ -223,6 +223,10 @@ how-to tree.
   introduction, an addendum, sections for shorthands with no wire activity) stays
   around the includes; an addendum follows the section's JSON example, which is
   the section's last block.
+- **The Protocol Quick Reference includes `lookup.md` and `shorthands.md`, and
+  writes no message table of its own** (MSM-06-004): `shorthands.md` lists each
+  formal shorthand with the wire activities that carry it, so the formal set
+  cannot drift from the registry the way a hand-written table did (#5066).
 - **Include paths start with `./`**: `include-markdown` resolves a path with no
   `./` or `../` prefix against `docs/`, so `"_occasions/lookup.md"` finds nothing.
 - **The mapping status is in the generated section, not the table** (MSM-06-003):
