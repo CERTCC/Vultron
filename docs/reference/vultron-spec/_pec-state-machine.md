@@ -88,7 +88,8 @@ After an embargo is terminated no entry is `ACTIVE`, so the termination writes n
 Abandoning an open proposal once the case is public, an exploit is public or attacks are observed writes no row either (EMB-16-001).
 The CASE_MANAGER cancels the proposal with its `Reject` of the proposal it received, or its `Undo` of one it made itself, and then withdraws each invitation it relayed for the proposal with an `Undo`.
 Each row for the canceled proposal is frozen as it stood.
-The CASE_MANAGER's `Reject` is its abandonment, not its consent, so a CASE_MANAGER that has a stake in an embargo records its own answer as its own update of the row and never as a `Reject` (MSM-07-004).
+The CASE_MANAGER's `Reject` is its abandonment, not its consent (MSM-07-004).
+A CASE_MANAGER that has a stake in an embargo therefore records its own answer as its own update of the row, never as a `Reject`.
 
 A participant lapses when the case owner activates a revision that ends later than the embargo the participant agreed to, and the participant has not agreed to the revision.
 It did agree, and the embargo in force has since become something it did not agree to.

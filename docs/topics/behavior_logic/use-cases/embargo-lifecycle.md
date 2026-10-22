@@ -200,7 +200,8 @@ It is mandatory, and it applies at every point in the lifecycle:
 - An EV arriving while the case is public MUST be refused, not adopted, and the embargo ends because the case is public, not because the proposal arrived: the proposal is at most how the actor notices (EMB-03-003).
 - An actor sitting at `EM.PROPOSED` that *observes* the case go public MUST abandon the proposal, return to `EM.NONE`, and emit ER (EMB-16-001).
   The case manager makes that abandonment for the case, and its committed entries are what notify everyone else.
-  It rejects each proposal it received with `Reject(Invite(Event))`, which cancels the proposal, and then withdraws each invitation it relayed for that proposal with `Undo(Invite(Event))`.
+  It rejects each proposal it received with `Reject(Invite(Event))`, which cancels the proposal.
+  It then withdraws each invitation it relayed for that proposal with `Undo(Invite(Event))`.
   When the case manager made the proposal itself, withdrawing that proposal with `Undo(Invite(Event))` is the cancel.
   A replica tells the case manager's `Reject` from a Participant's by who sent it: the case manager's cancels the proposal, and a Participant's declines it.
   Only the case owner, or the case manager it delegates to, decides that abandonment.

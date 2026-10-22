@@ -48,7 +48,8 @@ A revision that ends later sends no such notice, because those participants neve
 - **Triggering transition:** Proposed → None (P → N), or Proposed → Proposed (P → P) while another proposal is open (EMB-18-005).
 - **Who decides:** a participant's `Reject` of the Invite is its own refusal of those terms, the Case Owner's included.
   It changes no embargo on the case (see [The Case Owner's Decision](#the-case-owners-decision)).
-- **The Case Manager's `Reject`:** when the case becomes public, an exploit is public or attacks are observed while a proposal is open, the Case Manager rejects each proposal it received, and that `Reject` cancels the proposal (EMB-16-001).
+- **The Case Manager's `Reject`:** when the case becomes public, an exploit is public or attacks are observed while a proposal is open, the Case Manager rejects each proposal it received.
+  That `Reject` cancels the proposal (EMB-16-001).
   A replica tells it from a participant's `Reject` by its `actor`.
   The Case Manager never sends a `Reject` of an Invite as its own consent: a Case Manager with a stake in the embargo records its answer as its own update of its consent row.
 - **Refusal on a public case:** a receiver answers an `EP` with `ER` when the case is public, an exploit is public, or attacks are observed.
