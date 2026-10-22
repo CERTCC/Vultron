@@ -35,7 +35,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from test.support.ledger_labels import registry_label
+from test.support.ledger_labels import label_mismatch
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
 from vultron.demo.helpers.ledger_dump import (
@@ -1050,20 +1050,12 @@ def check_semantic_type_is_registry_label(
 
     Returns one violation string per mismatched entry per replica.
     """
-    violations: list[str] = []
-    for actor, entries in replicas.items():
-        for e in entries:
-            try:
-                label = registry_label(payload(e))
-            except Exception as exc:  # noqa: BLE001 — reported, not raised
-                label = f"<unparseable: {type(exc).__name__}: {exc}>"
-            if label != semantic_type(e):
-                violations.append(
-                    f"Actor {actor!r} logIndex={log_index(e)}: semanticType"
-                    f" {semantic_type(e)!r}, but the registry labels its"
-                    f" {payload(e).get('type')!r} payload {label!r}"
-                )
-    return violations
+    return [
+        f"Actor {actor!r} logIndex={log_index(e)}: {reason}"
+        for actor, entries in replicas.items()
+        for e in entries
+        if (reason := label_mismatch(semantic_type(e), payload(e))) is not None
+    ]
 
 
 def for_each_replica(
