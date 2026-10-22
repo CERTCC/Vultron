@@ -47,6 +47,7 @@ import pkgutil
 import sys
 from pathlib import Path
 
+from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
 import vultron.wire.as2.vocab as vocab_pkg
@@ -198,13 +199,33 @@ def vultron_property_terms() -> dict[str, str]:
     one term however many classes declare it.
     """
     terms: set[str] = set()
-    for cls in _all_object_subclasses():
-        assert issubclass(cls, as_Object)  # narrowed for the type checkers
+    for cls in _wire_object_classes():
         for name, info in cls.model_fields.items():
             extra = info.json_schema_extra
             if isinstance(extra, dict) and extra.get(VULTRON_PROPERTY_KEY):
                 terms.add(_wire_name(name, info))
     return {term: f"vultron:{term}" for term in sorted(terms)}
+
+
+def _wire_object_classes() -> list[type[BaseModel]]:
+    """Every class whose fields travel on the wire.
+
+    The wire vocabulary's ``as_Object`` subclasses, and the core classes
+    ``WIRE_TYPE_MAP`` registers: under ARCH-25-003 (ADR-0099) a paired type's
+    wire class *is* its core class, so a case's ``ledgerPosition`` is declared
+    on ``VulnerabilityCase`` itself, which the ``as_Object`` walk never sees
+    (the same gap :func:`vultron_context_terms` closes for types).
+    """
+    classes: list[type[BaseModel]] = []
+    for cls in _all_object_subclasses():
+        assert issubclass(cls, as_Object)  # narrowed for the type checkers
+        classes.append(cls)
+    classes.extend(
+        cls
+        for cls in WIRE_TYPE_MAP.values()
+        if cls.__module__.startswith(CORE_MODELS_PACKAGE)
+    )
+    return classes
 
 
 def build_context_document() -> dict[str, object]:

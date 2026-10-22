@@ -25,6 +25,7 @@ from typing import cast
 import pytest
 
 from test.support.embargo_register import activate, propose, terminate
+from test.support.ledger import without_owner
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -230,7 +231,7 @@ def test_an_owner_without_a_participant_record_is_refused_unchanged(
     owner, dl = owner_and_dl
     case, (owner_p,) = _make_case(dl, owner.id_)
     if unseedable == "no_owner":
-        case.attributed_to = None
+        case = without_owner(case)
     else:
         case.actor_participant_index = {}
     dl.save(case)

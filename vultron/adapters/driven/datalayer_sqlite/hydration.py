@@ -35,6 +35,7 @@ from pydantic import BaseModel, ValidationError
 
 from vultron.adapters.driven.db_record import (
     _AS_LIST_REF_FIELDS,
+    STORED_ROW_CONTEXT,
     Record,
     object_ref_fields,
     record_to_object,
@@ -232,7 +233,10 @@ def from_row(
             return None
     else:
         try:
-            obj = cast(PersistableModel, core_cls.model_validate(row.data))
+            obj = cast(
+                PersistableModel,
+                core_cls.model_validate(row.data, context=STORED_ROW_CONTEXT),
+            )
         except (ValidationError, VultronValidationError) as exc:
             # The row's stored shape does not validate against the core class.
             # Under extra="forbid" (ARCH-12-003, #2940) this is the sole
@@ -559,7 +563,10 @@ def object_from_storage(
         try:
             vocab_cls = find_in_vocabulary(raw_type, include_core=True)
             return cast(
-                PersistableModel, vocab_cls.model_validate(stored_record)
+                PersistableModel,
+                vocab_cls.model_validate(
+                    stored_record, context=STORED_ROW_CONTEXT
+                ),
             )
         except (KeyError, ValidationError, VultronValidationError) as exc:
             failures.append(f"type={raw_type!r}: {exc}")
@@ -569,7 +576,10 @@ def object_from_storage(
     if isinstance(raw_type, str) and isinstance(raw_data, dict):
         try:
             vocab_cls = find_in_vocabulary(raw_type, include_core=True)
-            return cast(PersistableModel, vocab_cls.model_validate(raw_data))
+            return cast(
+                PersistableModel,
+                vocab_cls.model_validate(raw_data, context=STORED_ROW_CONTEXT),
+            )
         except (KeyError, ValidationError, VultronValidationError) as exc:
             failures.append(f"type_={raw_type!r}: {exc}")
 

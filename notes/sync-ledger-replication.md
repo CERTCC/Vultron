@@ -282,10 +282,13 @@ same entry forever (ADR-0142).
 - **Never ledger it.** A fault about applying an entry is replication signalling,
   like the gap Reject; the replica that sent it could not apply its entry
   (SYNC-16-002).
-- **A case copy is judged by its ledger tail.** The tail is computed from the
-  ledger whenever the case is read or sent, never stored, so it cannot disagree
-  with the ledger. A copy behind the replica's chain is stale and must not replace
-  the case, because an old copy can arrive late (SYNC-16-006).
+- **A case stores the ledger position it is a projection of.** Only
+  `store_ledger_entry()` moves it, in the transaction that stores the entry, on
+  every commit and replica store; a node that saves a case after its entry
+  commits must read the case afresh, or it puts the position back (SYNC-16-005).
+- **A case copy is judged by the position it names.** A copy behind the
+  replica's chain is stale and must not replace the case, because an old copy
+  can arrive late (SYNC-16-006).
 - **Every apply node is forward-only over a newer copy.** An entry a copy already
   reflects is stored as a no-op, as `case_file_is_past()` does for the embargo
   register, or a backfill after a re-seed refuses it again. That includes the held

@@ -321,7 +321,9 @@ class TestOwnershipTransferUseCases:
             make_payload, case_id
         )
         case = _read_case(dl, case_id)
-        case_before = case.model_dump()
+        # The case file: the Offer's own entry moves the case's ledger
+        # position, which is part of applying it, not a change (CLP-07-013).
+        case_before = case.model_dump(exclude={"ledger_position"})
         proposal_id = "https://example.org/activities/proposal_inner"
         proposal = propose_case_ownership_transfer_activity(
             case,
@@ -356,7 +358,10 @@ class TestOwnershipTransferUseCases:
         assert kwargs["actor"] == _CASE_ACTOR_ID
         assert kwargs["attributed_to"] == _VENDOR_ID
         assert kwargs["to"] == [_COORDINATOR_ID]
-        assert _read_case(dl, case_id).model_dump() == case_before
+        assert (
+            _read_case(dl, case_id).model_dump(exclude={"ledger_position"})
+            == case_before
+        )
 
     @pytest.mark.spec("CM-21-005")
     @pytest.mark.parametrize(

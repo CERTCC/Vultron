@@ -328,6 +328,14 @@ def _is_datetime_field(field: FieldInfo) -> bool:
 #: ARCH-25-003 (ADR-0099) a core class is what an inbound payload validates into.
 INBOUND_CONTEXT_KEY = "inbound_wire"
 
+#: Validation-context key that marks a ``model_validate`` call as reading a
+#: *stored* row back.  The datalayer's row readers set it; nothing else should.
+#: A validator that defaults an omitted field at construction refuses the
+#: omission under this key instead, so a row written before the field existed
+#: is refused with a reset note rather than silently given a value it never
+#: held (no migration, #4087).
+STORED_CONTEXT_KEY = "stored_row"
+
 
 def blank_times_as_none(
     cls: type[BaseModel], data: dict[str, Any]

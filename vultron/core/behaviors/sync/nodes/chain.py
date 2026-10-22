@@ -40,6 +40,7 @@ from vultron.core.sync_helpers import (
     _find_prev_actor_published,
     reconstruct_tail_hash,
     recorded_entries_for_case,
+    store_ledger_entry,
 )
 from vultron.errors import VultronError, VultronValidationError
 
@@ -374,7 +375,7 @@ class PersistLogEntryNode(DataLayerActionWithPorts):
             )
             return Status.SUCCESS
 
-        self.datalayer.save(entry)
+        store_ledger_entry(entry, self.datalayer)
         self.logger.info(
             "%s: committed log entry case_id=%s semantic_type=%s log_index=%d actor_id=%s",
             self.name,

@@ -22,7 +22,7 @@ from typing import Any, get_args
 
 from pydantic import BaseModel, ValidationError
 
-from vultron.core.models._helpers import strip_annotated
+from vultron.core.models._helpers import STORED_CONTEXT_KEY, strip_annotated
 from vultron.core.models.base import CoreObject
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
@@ -396,6 +396,10 @@ def _retype_inline_object_refs(
         return obj
 
 
+STORED_ROW_CONTEXT: dict[str, bool] = {STORED_CONTEXT_KEY: True}
+"""Validation context for reading a stored row back (``STORED_CONTEXT_KEY``)."""
+
+
 class Record(StorableRecord):
     """Record wrapper stored in TinyDB.
 
@@ -466,7 +470,9 @@ class Record(StorableRecord):
             raise ValueError(  # noqa: B904  # ruff-baseline #3353
                 f"Type '{self.type_}' not found in vocabulary for Record conversion"
             )
-        obj = cls.model_validate(self.data_)
+        # A stored row: a validator that defaults an omitted field refuses
+        # the omission instead (STORED_CONTEXT_KEY).
+        obj = cls.model_validate(self.data_, context=STORED_ROW_CONTEXT)
         return _retype_inline_object_refs(obj, self.data_)
 
 

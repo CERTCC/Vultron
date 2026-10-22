@@ -168,6 +168,9 @@ replica decides nothing:
 - **A replica copies.** Applying an entry mints no id, reads no clock, reads no
   policy or state outside the case, and runs no lifecycle logic (CM-23-016).
   Lifecycle and policy code runs on the CASE_MANAGER before the commit.
+- **Moving the case's position is not a change.** Storing an entry moves the
+  case's `ledger_position` to it in the same transaction (`store_ledger_entry()`),
+  as part of applying it; it takes no entry of its own (SYNC-16-005).
 - **Case file vs. case bookkeeping (CLP-07-014).** The recommendation index,
   offer records and pending markers are the CASE_MANAGER's working records: not
   ledgered, not replicated, never read to compute a case-file value.

@@ -32,6 +32,7 @@ from vultron.core.behaviors.sync.nodes._helpers import hold_received_announce
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case_ledger import ledger_entry_hash_intact
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.sync_helpers import store_ledger_entry
 from vultron.errors import VultronError, VultronWiringError
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class PersistReceivedLogEntryNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         entry = _require_log_entry(self.activity, self.name)
-        self.datalayer.save(entry)
+        store_ledger_entry(entry, self.datalayer)
         self.logger.info(
             "%s: stored received log entry '%s' for case '%s'",
             self.name,

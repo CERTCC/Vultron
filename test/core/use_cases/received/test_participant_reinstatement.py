@@ -57,6 +57,7 @@ from test.core.use_cases.received.test_participant_removal_planned import (
     _seed,
 )
 from test.support.embargo_register import terminate
+from test.support.ledger import with_genesis
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -190,8 +191,7 @@ def _replica(case: _RemovalCase, actor_id: str) -> SqliteDataLayer:
     _seed(replica)
     seeded = replica.read(CASE_ID)
     assert isinstance(seeded, as_VulnerabilityCase)
-    seeded.genesis_hash = case.read_case().genesis_hash
-    replica.save(seeded)
+    replica.save(with_genesis(seeded, case.read_case().genesis_hash))
     return replica
 
 

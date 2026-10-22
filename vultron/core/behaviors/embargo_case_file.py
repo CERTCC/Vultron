@@ -28,7 +28,9 @@ from vultron.core.models.embargo_apply import (
     EmbargoCaseFile,
     changed_objects,
 )
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.sync_helpers import at_stored_position
 from vultron.errors import VultronNotFoundError
 
 
@@ -60,10 +62,22 @@ def save_case_file(
     before: EmbargoCaseFile,
     after: EmbargoCaseFile,
 ) -> None:
-    """Save every object *after* changed from *before*, in one write."""
-    objects = changed_objects(before, after)
+    """Save every object *after* changed from *before*, in one write.
+
+    The case is saved at its stored ledger position: on the CASE_MANAGER the
+    entries this case file applies were committed after *before* was read, and
+    their commits moved the position (:func:`at_stored_position`).
+    """
+    objects: list[PersistableModel] = [
+        (
+            at_stored_position(obj, datalayer)
+            if isinstance(obj, VulnerabilityCase)
+            else obj
+        )
+        for obj in changed_objects(before, after)
+    ]
     if objects:
-        datalayer.save_many(list(objects))
+        datalayer.save_many(objects)
 
 
 __all__ = ["read_embargo_case_file", "save_case_file"]

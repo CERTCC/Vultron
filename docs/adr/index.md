@@ -235,7 +235,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0136 Organize the Site's Top Level by Subject and Reader, Not Diátaxis Type](0136-organize-the-site-top-level-by-subject-and-reader-not-diataxis-type.md) *(revision 2)* *(provisional)* — partially supersedes 0102-docs-stakeholder-types-and-invisible-prerequisite-levels.md
 - [ADR-0137 Case Records and Notes Are Attached by One Message, Never Created First](0137-case-records-are-attached-by-one-message-never-created-first.md) *(revision 2)* *(provisional)*
 - [ADR-0141 A Refused Assertion Is Answered With a Reject of the Refused Activity](0141-a-refused-assertion-is-answered-with-a-reject-of-the-refused-activity.md) *(provisional)*
-- [ADR-0142 A Diverged Replica Is Repaired by a Fresh Case Copy That Names Its Ledger Position](0142-a-diverged-replica-is-repaired-by-a-fresh-case-copy-that-names-its-ledger-position.md) *(provisional)*
+- [ADR-0142 A Diverged Replica Is Repaired by a Fresh Case Copy That Names Its Ledger Position](0142-a-diverged-replica-is-repaired-by-a-fresh-case-copy-that-names-its-ledger-position.md) *(revision 2)* *(provisional)*
 - [ADR-0144 Once a Report Belongs to a Case, Only Its Owner Closes It, by Leave](0144-once-a-report-belongs-to-a-case-only-its-owner-closes-it-by-leave.md) *(provisional)*
 - [ADR-0145 A Case Is Left Through the Leave-Case Trigger, Whose Actor Runs Its Pre-Close Step First](0145-a-case-is-left-through-the-leave-case-trigger-whose-actor-runs-its-pre-close-step-first.md) *(provisional)*
 - [ADR-0146 One Atomic Commit per CASE_MANAGER Act](0146-one-atomic-commit-per-case-manager-act.md) *(revision 5)* *(provisional)*
