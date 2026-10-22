@@ -15,9 +15,6 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Code MUST follow PEP 8 style guidelines
-    relationships:
-    - rel_type: refines
-      spec_id: IMPLTS-07-017
   - id: CS-01-004
     priority: SHOULD
     kind: project
@@ -568,10 +565,6 @@ groups:
       PR #1629 extracting five helper modules after five scenarios had already
       been written) is more expensive and less reliable than proactive
       extraction. Extraction-first keeps the codebase clean incrementally.
-    relationships:
-    - rel_type: constrains
-      spec_id: DEMOMA-17-001
-      note: DEMOMA-17-001 is the MUST-level specialisation of this rule for demo scenario files
 
 - id: CS-23
   title: Exception Handler Breadth

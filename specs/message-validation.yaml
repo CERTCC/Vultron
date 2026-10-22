@@ -574,7 +574,7 @@ groups:
       fails if any string constant under `vultron/core/` names a key on the wire-side
       `RETIRED_NAMES` list.
     relationships:
-    - rel_type: constrains
+    - rel_type: derives_from
       spec_id: ARCH-12-003
     - rel_type: refines
       spec_id: SDO-03-005

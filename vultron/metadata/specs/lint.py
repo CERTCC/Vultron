@@ -35,6 +35,10 @@ from vultron.metadata.specs.registry import (
     SpecRegistry,
     load_registry,
 )
+from vultron.metadata.specs.relation_graph import (
+    check_both_ends_recorded,
+    check_relationship_loops,
+)
 from vultron.metadata.specs.retire import retired_spec_ids
 from vultron.metadata.specs.schema import (
     SPEC_ID_CITATION_RE,
@@ -1047,6 +1051,8 @@ def lint(
         return _report_closed_debt_owners(registry, debt_owners)
 
     hard_errors.extend(registry.validate_cross_references())
+    hard_errors.extend(check_relationship_loops(registry))
+    hard_errors.extend(check_both_ends_recorded(registry))
     hard_errors.extend(_check_prefix_consistency(registry))
     hard_errors.extend(_check_spec_id_prefix_consistency(registry))
     hard_errors.extend(_check_scenario_start_groups(registry))

@@ -3713,13 +3713,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EDF-06-001
-    - rel_type: constrains
-      spec_id: DEMOMA-11-009
-      note: >-
-        DEMOMA-11-009 remains active and is NOT superseded: it is retained as
-        the RVCV-handoff instance of this general rule, and additionally
-        constrained by it (the general form also governs *what* the wait may
-        observe, per EDF-06-001 through EDF-06-003).
     tags:
     - demo
     - testing

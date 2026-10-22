@@ -19,9 +19,6 @@ groups:
     statement: The `core/` package (or equivalent domain layer) MUST NOT import from `wire/`, `adapters/`, or any external
       framework
     rationale: Keeps domain logic replaceable without touching the wire or transport layer
-    relationships:
-    - rel_type: derives_from
-      spec_id: CS-05-001
   - id: ARCH-01-002
     priority: MUST
     kind: architecture

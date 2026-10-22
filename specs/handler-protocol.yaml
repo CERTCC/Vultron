@@ -400,9 +400,6 @@ groups:
       `::test_use_case_map_holds_exactly_the_handled_entries` fail when a
       `MessageSemantics` value has no `SEMANTIC_REGISTRY` entry or the routing table
       omits an entry that names a handler class.
-    relationships:
-    - rel_type: derives_from
-      spec_id: DR-02-001
   - id: HP-03-002
     priority: MUST
     kind: architecture

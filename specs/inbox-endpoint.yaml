@@ -151,9 +151,6 @@ groups:
       No check covers this yet: the inbox enforces no request body size limit
       (#4596). Once it does, inspection of `vultron/adapters/driving/fastapi/`
       confirms that the limit is read from `AppConfig` rather than hard-coded.
-    relationships:
-    - rel_type: depends_on
-      spec_id: HTTP-02-001
   - id: IE-03-003
     priority: MUST
     kind: foundation

@@ -1222,3 +1222,58 @@ def test_case_manager_acts_map_to_their_semantics(
 
     assert find_matching_semantics(getattr(examples, example)()) == semantics
     assert not lookup_entry(semantics).handled
+
+
+# ---------------------------------------------------------------------------
+# VAM-02-002, VAM-05-003, VAM-05-005..007, VAM-08-002 — each wire form maps to
+# its semantic type
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("VAM-02-002")
+@pytest.mark.spec("VAM-05-003")
+@pytest.mark.spec("VAM-05-005")
+@pytest.mark.spec("VAM-05-006")
+@pytest.mark.spec("VAM-05-007")
+@pytest.mark.spec("VAM-08-002")
+@pytest.mark.parametrize(
+    ("module", "example", "semantics"),
+    [
+        ("report", "submit_report", MessageSemantics.SUBMIT_REPORT),
+        (
+            "embargo",
+            "remove_embargo",
+            MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+        ),
+        (
+            "embargo",
+            "propose_embargo",
+            MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        ),
+        (
+            "embargo",
+            "accept_embargo",
+            MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+        ),
+        (
+            "embargo",
+            "reject_embargo",
+            MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+        ),
+        (
+            "status",
+            "add_status_to_case",
+            MessageSemantics.ADD_CASE_STATUS_TO_CASE,
+        ),
+    ],
+)
+def test_wire_form_examples_map_to_their_semantics(
+    module: str, example: str, semantics: MessageSemantics
+) -> None:
+    import importlib
+
+    examples = importlib.import_module(
+        f"vultron.wire.as2.vocab.examples.{module}"
+    )
+
+    assert find_matching_semantics(getattr(examples, example)()) == semantics

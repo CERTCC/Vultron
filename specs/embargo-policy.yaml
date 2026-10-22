@@ -371,6 +371,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: EP-08-001
+      note: >-
+        EP-04-003 is the two-party case-creation instance of this ordering rule.
+        Both MUST resolve earliest-end-date first, and both MUST share one
+        comparator (#3392).
     stories:
     - story_2022_014
     - story_2022_079
@@ -468,9 +472,6 @@ groups:
       A unit test asserts that a case created with no `EmbargoPolicy` in the store and no
       sender proposal reaches `EM.ACTIVE` at the configured protocol default, and that
       configuring a value outside [72 hours, 5 days] is refused.
-    relationships:
-    - rel_type: constrains
-      spec_id: VP-07-001
     adr:
     - ADR-0096
     stories:
@@ -1070,13 +1071,6 @@ groups:
       A unit test asserts that, given three open proposals with distinct embargo
       `end_time` values, the proposal selected for acceptance is the earliest-expiring
       one.
-    relationships:
-    - rel_type: constrains
-      spec_id: EP-04-003
-      note: >-
-        EP-04-003 is the two-party case-creation instance of this ordering rule, so
-        it refines EP-08-001 rather than the reverse. Both MUST resolve
-        earliest-end-date first, and both MUST share one comparator (#3392).
     adr:
     - ADR-0100
     stories:

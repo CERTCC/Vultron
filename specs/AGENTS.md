@@ -141,6 +141,8 @@ that bite most often:
   `lint_suppress: [must_without_verification]` no longer loads.
   `uv run spec-lint --list-unverified` names the marked IDs per kind.
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.
+  Each type's meaning and upstream end is SR-13; record a link at one end only
+  (SR-13-012), or spec-lint fails on the loop or the double record.
 - **`references:`** — not a schema field, silently dropped. Use `adr:`.
 - **Item format is field presence, not a class you pick** (ADR-0101).
   `BehavioralSpec` requires at least one of `preconditions`, `steps`,

@@ -246,14 +246,6 @@ groups:
       references.
     tags:
     - documentation
-  - id: MS-07-003
-    priority: SHOULD
-    kind: process
-    statement: Cross-references SHOULD be placed in both source and target requirements using the corresponding inverse relationship
-      for bidirectional traceability.
-    rationale: Bidirectional links enable impact analysis from either end.
-    tags:
-    - documentation
   - id: MS-07-004
     priority: MUST
     kind: process
@@ -402,7 +394,9 @@ groups:
   - id: MS-10-002
     priority: SHOULD
     kind: process
-    statement: Spec files SHOULD be traceable via stable IDs and bidirectional cross-references.
+    statement: >-
+      Spec files SHOULD be traceable via stable IDs and cross-references that the
+      requirements graph lets a reader follow from either end.
     rationale: Traceability supports change impact analysis.
     tags:
     - documentation
@@ -941,7 +935,7 @@ groups:
       for an added, removed and unchanged suppression, a relabel in and out, and the
       logged skip when no base ref is available.
     relationships:
-    - rel_type: constrains
+    - rel_type: depends_on
       spec_id: SR-11-003
       note: guards the suppression escape hatch SR-11-003 provides against growth
     - rel_type: depends_on

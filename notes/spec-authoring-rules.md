@@ -8,7 +8,8 @@ description: >
   that inline-object requirements are `project`, which HTTP status codes are
   `foundation` and which are `project`, splitting a spec that mixes
   kinds, what a kind change moves, and the scoping of MS-12-006;
-  the enum values spec-lint accepts for `kind`, `priority` and `rel_type`; `adr:`
+  the enum values spec-lint accepts for `kind`, `priority` and `rel_type`, and
+  where each relationship is recorded (SR-13); `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
   (MS-02-003/004); the `verification_debt` ratchet (MS-10-005..009); guards that
@@ -188,13 +189,16 @@ MS-02-002 prose writes "MUST NOT", but the enum uses underscores; `MUST NOT`
 
 ### Valid `rel_type` Values in Spec Relationships
 
-```text
-implements, supersedes, extends, depends_on, conflicts, refines,
-derives_from, verifies, part_of, constrains, satisfies
-```
+What each type means, and which end is upstream, is SR-13-001 through SR-13-011
+(`spec-dump --group SR-13`); do not keep a second copy here. Record a link once,
+on the end SR-13-012 names, never at both ends: the reverse direction is a graph
+query, and a second copy written with an opposite verb closes a loop that
+spec-lint rejects (SR-13-014, SR-13-015). A narrower case is `refines` on the
+narrower requirement, never `constrains` on the general one (SR-13-013).
 
-`related_to` is **not** valid and fails at load. For a loose link, use `refines`
-with a `note:`, or omit the relationship.
+`related_to` is **not** valid and fails at load. For a loose link, omit the
+relationship: a `refines` that does not assert a narrower case misleads the
+graph walk "what does a change to this requirement affect?".
 
 ### Link an ADR With `adr:`, Not `references:`
 
