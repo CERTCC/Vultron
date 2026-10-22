@@ -169,3 +169,48 @@ def test_apply_remove_note_idempotent_when_absent(
 @pytest.mark.spec("SYNC-12-001")
 def test_apply_remove_note_skips_missing_case(bridge, case_actor):
     assert _run_remove(bridge, case_actor).status == Status.SUCCESS
+
+
+@pytest.mark.spec("CM-23-016")
+def test_apply_note_stores_a_note_the_seeded_case_already_names(
+    bridge, datalayer, case_actor
+):
+    """A replica seeded from a case copy holds the note's id but not the note,
+    which the copy names by id only; the replayed entry stores it (#5052)."""
+    datalayer.save(
+        as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="Seeded case",
+            attributed_to=OWNER_ACTOR_ID,
+            notes=[NOTE_ID],
+        )
+    )
+    entry = _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=0,
+            object_id="https://example.org/activities/add-note",
+            semantic_type="add_note_to_case",
+            payload_snapshot={
+                "object": {
+                    "id": NOTE_ID,
+                    "type": "Note",
+                    "content": "seeded note",
+                    "context": CASE_ID,
+                }
+            },
+            prev_log_hash="0" * 64,
+        )
+    )
+
+    result = bridge.execute_with_setup(
+        tree=ApplyNoteFromLedgerNode(name="ApplyNote"),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=_make_event(entry, actor_id=case_actor.id_),
+    )
+
+    assert result.status == Status.SUCCESS
+    note = datalayer.read(NOTE_ID)
+    assert note is not None
+    assert getattr(note, "content", None) == "seeded note"
+    assert datalayer.read(CASE_ID).notes == [NOTE_ID]

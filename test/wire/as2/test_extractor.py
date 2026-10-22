@@ -184,6 +184,37 @@ def test_extract_refuses_a_case_object_naming_no_owner():
         extract_event(activity)
 
 
+@pytest.mark.spec("SYNC-16-005")
+def test_extract_refuses_a_case_object_naming_no_ledger_position():
+    """A case that reaches extraction without a ledger position is refused.
+
+    The parse edge already refuses one (SYNC-16-005); extraction names the
+    fault rather than handing core a case it would start at its empty ledger.
+    """
+    from vultron.wire.as2.errors import VultronParseValidationError
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    unpositioned = as_VulnerabilityCase.model_construct(
+        id_="https://example.org/cases/unpositioned",
+        type_="VulnerabilityCase",
+        attributed_to=CASE_OWNER_ID,
+        ledger_position=None,
+    )
+    activity = as_Create(
+        actor="https://example.org/alice", object_=unpositioned
+    )
+
+    with pytest.raises(
+        VultronParseValidationError, match="names no ledger position"
+    ):
+        extract_event(activity)
+
+
 @pytest.mark.spec("VAM-05-005")
 def test_extract_intent_embargo_pass_through_fields():
     """New EmbargoEvent fields (published, updated) survive extraction."""

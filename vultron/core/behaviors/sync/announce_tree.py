@@ -39,9 +39,11 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
     BufferPreGenesisEntryNode,
+    CheckEntryAgreesWithCasePositionNode,
     CheckEntryHashIntactNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
+    EntryReflectedByCaseCopyNode,
     IsAcceptCaseParticipantRoleEventNode,
     IsAcceptEmbargoInviteEventNode,
     IsAddCaseStatusEventNode,
@@ -68,6 +70,9 @@ from vultron.core.behaviors.sync.nodes import (
     ReconstructChainTailNode,
     ReplayHeldSuccessorNode,
     SendRejectLogEntryNode,
+)
+from vultron.core.behaviors.sync.nodes.case_copy_effect import (
+    StoreRecordsReflectedEntryCarriesNode,
 )
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoConsentFromLedgerNode,
@@ -389,7 +394,52 @@ def create_announce_log_entry_tree(
             CheckHashOrRejectOnMismatchNode(
                 name="CheckHashOrRejectOnMismatch"
             ),
-            log_entry_event_effects,
+            # An entry at the case's position with another hash is from a
+            # different chain than the copy that set it: refused at ERROR,
+            # never stored as a no-op (SYNC-16-007).
+            CheckEntryAgreesWithCasePositionNode(
+                name="CheckEntryAgreesWithCasePosition"
+            ),
+            # An entry the case copy that replaced this replica's case
+            # already reflects is stored without its effects, an idempotent
+            # no-op: applying it again over the copy could move the case
+            # backwards, or refuse an entry the copy is past.  Only the
+            # records it carries that the copy names by id are copied
+            # (SYNC-16-007, CM-23-016).
+            py_trees.composites.Selector(
+                name="ApplyEffectsUnlessReflected",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="StoreReflectedEntry",
+                        memory=False,
+                        children=[
+                            EntryReflectedByCaseCopyNode(
+                                name="EntryReflectedByCaseCopy"
+                            ),
+                            StoreRecordsReflectedEntryCarriesNode(
+                                name="StoreRecordsReflectedEntryCarries"
+                            ),
+                        ],
+                    ),
+                    # A reflected entry whose records fail to store must not
+                    # fall through to its effects: the guard is repeated so
+                    # that branch admits only an entry the copy lacks.
+                    py_trees.composites.Sequence(
+                        name="ApplyUnreflectedEntry",
+                        memory=False,
+                        children=[
+                            py_trees.decorators.Inverter(
+                                name="EntryNotReflectedByCaseCopy",
+                                child=EntryReflectedByCaseCopyNode(
+                                    name="CheckEntryReflectedByCaseCopy"
+                                ),
+                            ),
+                            log_entry_event_effects,
+                        ],
+                    ),
+                ],
+            ),
             PersistReceivedLogEntryNode(name="PersistReceivedLogEntry"),
         ],
     )

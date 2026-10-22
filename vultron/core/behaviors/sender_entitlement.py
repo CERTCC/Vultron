@@ -166,6 +166,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
+from vultron.core.behaviors.sync.nodes.replay import rejected_case_id
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -835,7 +836,8 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
     The guard of the ``LEDGER_PEER`` kind, the standing of a
     ``Reject(CaseLedgerEntry)`` resync request (SYNC-03-005).
     Reads ``activity`` from the blackboard and takes the case from the
-    ``CaseLedgerEntry`` it carries.
+    ``CaseLedgerEntry`` it carries, or, for the ``Reject`` that names no entry
+    because its sender holds none, from its ``target`` (SYNC-16-007).
     Returns ``SUCCESS`` only when the sender is an active participant of that
     case (:func:`~vultron.core.participants.recipients.is_case_content_recipient`,
     CM-10-004).
@@ -874,26 +876,26 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
             return f
         assert self.datalayer is not None
 
-        entry = getattr(self.activity, "rejected_entry", None)
-        if not isinstance(entry, CaseLedgerEntry):
-            try:
-                entry = _log_entry_from(self.activity, self.name)
-            except VultronError as exc:
-                self.logger.warning("%s: %s", self.name, exc)
-                return Status.FAILURE
+        # The rejected entry's case, or the case the objectless genesis
+        # Reject names as its target (SYNC-16-007).
+        try:
+            case_id = rejected_case_id(self.activity, self.name)
+        except VultronError as exc:
+            self.logger.warning("%s: %s", self.name, exc)
+            return Status.FAILURE
         sender_id = getattr(self.activity, "actor_id", None)
         if not sender_id:
             self.logger.warning("%s: activity has no actor_id", self.name)
             return Status.FAILURE
 
         # Regime 1: no case means no participant, so the sender is refused.
-        case, failure = self._require_case(entry.case_id)
+        case, failure = self._require_case(case_id)
         if failure is not None:
             return failure
         if not is_case_content_recipient(case, self.datalayer, sender_id):
             self.feedback_message = (
                 f"Sender '{sender_id}' is not an active participant in case"
-                f" '{entry.case_id}' — REFUSED (SYNC-03-005, CM-10-004)"
+                f" '{case_id}' — REFUSED (SYNC-03-005, CM-10-004)"
             )
             self.logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

@@ -375,6 +375,14 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 f"VulnerabilityCase {object_id!r} names no owner: its"
                 " `attributedTo` is missing (CLP-08-002)"
             )
+        # The parse edge refuses a case naming no position (SYNC-16-005),
+        # so, like a missing owner, reaching here without one is a fault.
+        ledger_position = getattr(obj, "ledger_position", None)
+        if not isinstance(ledger_position, LedgerPosition):
+            raise VultronParseValidationError(
+                f"VulnerabilityCase {object_id!r} names no ledger position:"
+                " its `ledgerPosition` is missing (SYNC-16-005)"
+            )
         raw_participants = getattr(obj, "case_participants", []) or []
         participants: list[str | CaseParticipant] = []
         for ref in raw_participants:
@@ -427,6 +435,11 @@ def _build_case_object(obj: object) -> dict[str, Any]:
                 # from ``published`` (CLP-08-002), which a received case
                 # need not carry.
                 genesis_hash=getattr(obj, "genesis_hash", "") or "",
+                # Carried as received, like the genesis hash: core would
+                # otherwise start an owned case at its empty ledger, and a
+                # replica judges the copy by this position (SYNC-16-005,
+                # SYNC-16-006).
+                ledger_position=ledger_position,
             )
         }
     return {}

@@ -517,6 +517,13 @@ class TestToWireObject:
         assert found == {}
 
 
+def _make_owned_case(dl) -> as_VulnerabilityCase:
+    """A case with an owner, so it has a genesis hash to anchor its ledger."""
+    case = as_VulnerabilityCase(name="CVE-2025-001", attributed_to=_ACTOR)
+    dl.create(case)
+    return case
+
+
 class TestAnnounceVulnerabilityCase:
     def test_returns_activity_id(self, adapter, dl):
         case = _make_case(dl)
@@ -541,6 +548,26 @@ class TestAnnounceVulnerabilityCase:
         )
 
         assert dl.read(activity_id) is not None
+
+    @pytest.mark.spec("SYNC-16-005")
+    def test_an_empty_ledger_copy_names_the_genesis_position(
+        self, adapter, dl
+    ):
+        """No entry yet: the copy is at index -1 and the case's genesis hash."""
+        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+
+        case = _make_owned_case(dl)
+
+        activity_id = adapter.announce_vulnerability_case(
+            case_id=case.id_, actor=_ACTOR, context_id=case.id_, to=[_PEER]
+        )
+
+        body = read_sealed_body_dict(dl, activity_id)
+        assert body is not None
+        assert body["object"]["ledgerPosition"] == {
+            "logIndex": -1,
+            "entryHash": case.genesis_hash,
+        }
 
 
 class TestCaseOnTheWireCarriesItsParticipants:
@@ -615,6 +642,44 @@ class TestCaseOnTheWireCarriesItsParticipants:
         assert {p["id"] for p in carried} == participant_ids
         [report] = wire_case["vulnerabilityReports"]
         assert report["id"] == report_id and report["content"] == "PoC"
+
+    @pytest.mark.spec("SYNC-16-006")
+    @pytest.mark.spec("PCR-02-004")
+    def test_an_inline_participant_is_carried_as_the_store_holds_it(
+        self, adapter, dl
+    ):
+        """A case that holds a participant inline carries the stored record,
+        not the snapshot it took in: a replica that judges the copy current
+        replaces its own participants with what the copy carries."""
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
+        case_id = "https://example.org/cases/wire-inline-participant"
+        snapshot = CaseParticipant(
+            context=case_id, attributed_to=_PEER, case_roles=[CVDRole.VENDOR]
+        )
+        current = snapshot.model_copy(
+            update={"case_roles": [CVDRole.VENDOR, CVDRole.COORDINATOR]}
+        )
+        dl.create(current)
+        case = as_VulnerabilityCase(
+            id_=case_id,
+            name="CVE-2025-031",
+            attributed_to=_ACTOR,
+            case_participants=[snapshot],
+        )
+        dl.create(case)
+
+        activity_id = adapter.announce_vulnerability_case(
+            case_id=case_id, actor=_ACTOR, context_id=case_id, to=[_PEER]
+        )
+
+        [carried] = self._sealed_case(dl, activity_id)["caseParticipants"]
+        assert carried["id"] == snapshot.id_
+        assert set(carried["caseRoles"]) == {
+            str(CVDRole.VENDOR),
+            str(CVDRole.COORDINATOR),
+        }
 
     @pytest.mark.spec("CBT-01-007")
     def test_announce_carries_participants(self, adapter, dl):

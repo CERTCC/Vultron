@@ -16,6 +16,7 @@ from vultron.wire.as2.enums import (
 from vultron.wire.as2.extractor._pattern import (
     ActivityPattern,
     InlineActivityObjectPattern,
+    LedgerEntryRejectPattern,
 )
 
 # ---------------------------------------------------------------------------
@@ -448,10 +449,12 @@ AnnounceVulnerabilityCasePattern = ActivityPattern(
     activity_=TAtype.ANNOUNCE,
     object_=VOtype.VULNERABILITY_CASE,
 )
-RejectLogEntryPattern = ActivityPattern(
+RejectLogEntryPattern = LedgerEntryRejectPattern(
     description=(
         "Participant rejects a CaseLedgerEntry announcement due to "
-        "hash-chain mismatch. The object is the rejected CaseLedgerEntry."
+        "hash-chain mismatch. The object is the rejected CaseLedgerEntry, or "
+        "absent when the participant holds no entry and asks for a replay "
+        "from genesis, naming the case as its target (SYNC-16-007)."
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_LEDGER_ENTRY,

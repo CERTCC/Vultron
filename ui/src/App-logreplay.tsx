@@ -18,39 +18,36 @@ import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // them in-tree means a fresh clone builds without needing devlogs/, and no reliance
 // on Vite's `server.fs.allow` reaching outside ui/.
 //
-// All ledgers below were regenerated 2026-08 on the NEW case-ledger vocabulary
-// (create_case / add_report_to_case / add_case_status_to_case / case_fully_closed
-// / engage_case / add_case_participant / reject_invite / accept_actor_recommendation
-// — see ui/AGENTS.md §5–6). Filenames are per-run UUIDs; when regenerating, copy
-// the newest case-actor copy from devlogs/<scenario>/ and update the path here.
+// The scenario ledgers below were recorded 2026-10 by the container demos
+// (`.github/workflows/demo-integration.yml` on `main`, one run for all nine), after
+// the ledger reshaping of #5038, #5039 and #4724. Every entry's `semanticType` is
+// the semantic registry's label (see `semanticRegistry.ts`). Filenames are per-run
+// UUIDs; when regenerating, copy the case-actor copy from devlogs/<scenario>/ (or
+// that scenario's `<scenario>-case-logs` CI artifact) and update the path here.
 //
-// fv: the happy-path sample (Finder + Vendor; formerly "two-actor"). One shared
-// ledger across finder/vendor/case-actor; the case-actor copy suffices.
-import sampleLedgerRaw from './sample-logs/fv/urn_uuid_15d15384-9a33-4ae4-8d1a-34c0efc92bc4-case-ledger.jsonl?raw'
+// rv: the happy-path sample (Reporter + Vendor). Each actor holds its own replica;
+// the case-actor copy is the canonical ledger.
+import sampleLedgerRaw from './sample-logs/rv/urn_uuid_6576cedb-8f42-4ace-b298-2533245fbecc-case-ledger.jsonl?raw'
 // Hand-authored fixture with two deliberate protocol violations (RM re-validate,
 // EM re-terminate) to exercise the red ⚠️ violation flagging. See
 // sample-logs/synthetic/README.md for the entry-by-entry expected result.
 import violationLedgerRaw from './sample-logs/synthetic/violations-case-ledger.jsonl?raw'
-// Three-party container demo: finder + two vendors (vendor invites vendor2). These
-// logs are NOT verified for protocol validity — a good stress test for the
-// violation flagging. The case-actor copy is the authoritative view.
-import fvvLedgerRaw from './sample-logs/fvv/urn_uuid_ae1cd883-a581-4ff8-854d-5049978f9d1e-case-ledger.jsonl?raw'
-// Coordinator container scenarios (F/V/C notation: Finder/Vendor/Coordinator, with
-// -extension vs -handoff variants). Each is the case-actor (authoritative) copy.
-// The -handoff logs replay but the case-ownership TRANSFER is not yet depicted
-// (deferred — see ui/AGENTS.md §5), so the CASE_OWNER migration shows only as role
-// changes we don't yet render.
-import fcvLedgerRaw from './sample-logs/fcv/urn_uuid_cb1999cc-a443-4814-9a1e-c547eb4f97e9-case-ledger.jsonl?raw'
-import fvcvExtLedgerRaw from './sample-logs/fvcv-extension/urn_uuid_d7d50e80-fc30-4868-a30c-264bf50682aa-case-ledger.jsonl?raw'
-import fccvExtLedgerRaw from './sample-logs/fccv-extension/urn_uuid_bb5e990d-36dc-47df-bd01-82fb50cb08a8-case-ledger.jsonl?raw'
-import fvcvHandoffLedgerRaw from './sample-logs/fvcv-handoff/urn_uuid_3dc59246-014a-47bc-910f-ec5d31d34bf3-case-ledger.jsonl?raw'
-import fccvHandoffLedgerRaw from './sample-logs/fccv-handoff/urn_uuid_2addf5ae-8be3-4eaf-9e7e-0fb1a3dd4099-case-ledger.jsonl?raw'
-// New 2026-08 scenarios. fcv-reject: the fcv path where the invited vendor DECLINES
-// (reject_invite_actor_to_case). fcvcv: a five-actor case (finder, coordinator,
+// Three-party container demo: reporter + two vendors (vendor invites vendor2).
+import rvvLedgerRaw from './sample-logs/rvv/urn_uuid_be55d860-868b-4c45-92ca-9de127a78d19-case-ledger.jsonl?raw'
+// Coordinator container scenarios (R/V/C notation: Reporter/Vendor/Coordinator,
+// with -extension vs -handoff variants). Each is the case-actor (canonical) copy.
+// The -handoff logs depict the ownership transfer as offer/accept nodes, but the
+// lanes keep their host labels, so the CASE_OWNER label does not move (deferred).
+import rcvLedgerRaw from './sample-logs/rcv/urn_uuid_200c3f97-317a-43bc-8bb5-91a86db99e56-case-ledger.jsonl?raw'
+import rvcvExtLedgerRaw from './sample-logs/rvcv-extension/urn_uuid_dc3815f3-ba95-4f04-a2e6-94b17408cb1a-case-ledger.jsonl?raw'
+import rccvExtLedgerRaw from './sample-logs/rccv-extension/urn_uuid_5f39a8e0-61ea-4982-b796-256541608f4d-case-ledger.jsonl?raw'
+import rvcvHandoffLedgerRaw from './sample-logs/rvcv-handoff/urn_uuid_027c4cf0-7bc7-49e0-a6bf-9c3a8634f7fb-case-ledger.jsonl?raw'
+import rccvHandoffLedgerRaw from './sample-logs/rccv-handoff/urn_uuid_1aa5fe3b-1e25-4f47-9c34-30093b72d9e8-case-ledger.jsonl?raw'
+// rcv-reject: the rcv path where the invited vendor DECLINES
+// (reject_invite_actor_to_case). rcvcv: a five-actor case (reporter, coordinator,
 // vendor, second coordinator, second vendor via actor6/vendor-3) — the richest set.
-// Both are freshly wired and not yet visually verified against a build.
-import fcvRejectLedgerRaw from './sample-logs/fcv-reject/urn_uuid_4fee1081-d1ea-4bf8-869d-7d6aad69bf3e-case-ledger.jsonl?raw'
-import fcvcvLedgerRaw from './sample-logs/fcvcv/urn_uuid_9a24ccaf-b2f1-4a83-859d-03fd5e04900b-case-ledger.jsonl?raw'
+import rcvRejectLedgerRaw from './sample-logs/rcv-reject/urn_uuid_6dd675df-0465-4a82-b293-98f913796bf9-case-ledger.jsonl?raw'
+import rcvcvLedgerRaw from './sample-logs/rcvcv/urn_uuid_4511a243-d064-41ad-9705-9b42935da174-case-ledger.jsonl?raw'
 
 // ---------------------------------------------------------------------------
 // Sample scenario catalog — drives the data-driven picker on the landing view.
@@ -78,81 +75,80 @@ interface SampleScenario {
 
 const SAMPLE_SCENARIOS: SampleScenario[] = [
   {
-    id: 'fv',
-    title: '▶ FV — Finder + Vendor',
-    blurb: 'Finder + Vendor happy path. The simplest end-to-end case.',
+    id: 'rv',
+    title: '▶ RV — Reporter + Vendor',
+    blurb: 'Reporter + Vendor happy path. The simplest end-to-end case.',
     raw: sampleLedgerRaw,
     group: 'Core',
     accent: '#2e7d32',
   },
   {
-    id: 'fvv',
-    title: '▶ FVV — Finder + 2 Vendors',
+    id: 'rvv',
+    title: '▶ RVV — Reporter + 2 Vendors',
     blurb: 'Vendor invites a second vendor. Multi-vendor coordination.',
-    raw: fvvLedgerRaw,
+    raw: rvvLedgerRaw,
     group: 'Core',
     accent: '#1565c0',
-    note: 'Unverified logs — violations (if any) flagged in red',
   },
   {
-    id: 'fcv',
-    title: '▶ FCV — Finder + Coordinator + Vendor',
+    id: 'rcv',
+    title: '▶ RCV — Reporter + Coordinator + Vendor',
     blurb: 'A Coordinator receives, owns, and validates the case; a vendor joins.',
-    raw: fcvLedgerRaw,
+    raw: rcvLedgerRaw,
     group: 'Coordinator',
     accent: '#00838f',
   },
   {
-    id: 'fcv-reject',
-    title: '▶ FCV — Vendor Declines',
-    blurb: 'The FCV path where the invited vendor declines the invitation.',
-    raw: fcvRejectLedgerRaw,
+    id: 'rcv-reject',
+    title: '▶ RCV — Vendor Declines',
+    blurb: 'The RCV path where the invited vendor declines the invitation.',
+    raw: rcvRejectLedgerRaw,
     group: 'Coordinator',
     accent: '#00838f',
-    note: 'New (2026-08) — not yet visually verified',
+    note: 'Not yet visually verified',
   },
   {
-    id: 'fvcv-extension',
-    title: '▶ FVCV — Extension',
+    id: 'rvcv-extension',
+    title: '▶ RVCV — Extension',
     blurb: 'Vendor owns the case; Coordinator recommends a 2nd vendor (ADR-0026).',
-    raw: fvcvExtLedgerRaw,
+    raw: rvcvExtLedgerRaw,
     group: 'Coordinator',
     accent: '#00838f',
   },
   {
-    id: 'fccv-extension',
-    title: '▶ FCCV — Extension',
+    id: 'rccv-extension',
+    title: '▶ RCCV — Extension',
     blurb: 'Coordinator owns the case; a 2nd coordinator recommends a vendor.',
-    raw: fccvExtLedgerRaw,
+    raw: rccvExtLedgerRaw,
     group: 'Coordinator',
     accent: '#00838f',
   },
   {
-    id: 'fvcv-handoff',
-    title: '▶ FVCV — Handoff',
+    id: 'rvcv-handoff',
+    title: '▶ RVCV — Handoff',
     blurb: 'Vendor transfers case ownership to the Coordinator mid-case.',
-    raw: fvcvHandoffLedgerRaw,
+    raw: rvcvHandoffLedgerRaw,
     group: 'Coordinator',
     accent: '#6a1b9a',
-    note: 'Ownership transfer not yet depicted (deferred)',
+    note: 'Owner label does not move with the transfer (deferred)',
   },
   {
-    id: 'fccv-handoff',
-    title: '▶ FCCV — Handoff',
+    id: 'rccv-handoff',
+    title: '▶ RCCV — Handoff',
     blurb: 'Ownership transfers between coordinators mid-case.',
-    raw: fccvHandoffLedgerRaw,
+    raw: rccvHandoffLedgerRaw,
     group: 'Coordinator',
     accent: '#6a1b9a',
-    note: 'Ownership transfer not yet depicted (deferred)',
+    note: 'Owner label does not move with the transfer (deferred)',
   },
   {
-    id: 'fcvcv',
-    title: '▶ FCVCV — Five Actors',
-    blurb: 'Finder, Coordinator, Vendor, 2nd Coordinator, 2nd Vendor (deployer).',
-    raw: fcvcvLedgerRaw,
+    id: 'rcvcv',
+    title: '▶ RCVCV — Five Actors',
+    blurb: 'Reporter, Coordinator, Vendor, 2nd Coordinator, 2nd Vendor (deployer).',
+    raw: rcvcvLedgerRaw,
     group: 'Coordinator',
     accent: '#00838f',
-    note: 'New (2026-08) — richest scenario; not yet visually verified',
+    note: 'Richest scenario; not yet visually verified',
   },
   {
     id: 'synthetic-violation',
@@ -577,7 +573,7 @@ function AppLogReplay() {
               borderRadius: '4px',
               marginTop: '0.5rem',
             }}>
-              devlogs/fv/case-actor/urn_uuid_*-case-ledger.jsonl
+              devlogs/rv/case-actor/urn_uuid_*-case-ledger.jsonl
             </code>
           </div>
         </div>

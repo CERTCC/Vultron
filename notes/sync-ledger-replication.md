@@ -287,13 +287,47 @@ same entry forever (ADR-0142).
   every commit and replica store. A node that saves or snapshots a case it read
   before committing passes it through `at_stored_position()` first, or the save
   puts the position back and the snapshot names a stale one (SYNC-16-005).
-- **A case copy is judged by the position it names.** A copy behind the
-  replica's chain is stale and must not replace the case, because an old copy
-  can arrive late (SYNC-16-006).
-- **Every apply node is forward-only over a newer copy.** An entry a copy already
-  reflects is stored as a no-op, as `case_file_is_past()` does for the embargo
-  register, or a backfill after a re-seed refuses it again. That includes the held
-  refused entry, which the seed drains before any replay arrives (SYNC-16-007).
+- **A position never moves back.** Storing an entry at or before the case's
+  position leaves the position where it is: a replica seeded ahead of its chain
+  stores the replayed entries as no-ops, and moving back would make the next
+  copy look ahead again (SYNC-16-007).
+- **A different entry at the position is refused, never stored.** The entries
+  before the position carry no hash the case names, so a divergence among them
+  shows only at the position's index. `CheckEntryAgreesWithCasePositionNode`
+  refuses that entry at ERROR before any effect, and `store_ledger_entry()`
+  raises for it, so the chain never names one entry and the case another
+  (SYNC-16-007).
+- **A case copy is judged by the position it names.** Chain already past it:
+  stale, `SKIPPED`, because an old copy can arrive late. A different entry at its
+  index: `REFUSED` at ERROR. Otherwise the copy replaces the case, position
+  included (SYNC-16-006). A repeat of an earlier Announce takes the same
+  judgement, so it replaces the case only while it is still current
+  (`services/case_copy.py`).
+- **A copy carries each record as the store holds it now.** `_case_for_wire`
+  re-reads a participant or report the case holds inline, because a current
+  copy replaces the replica's participant records unconditionally; a stale
+  inline snapshot regressed a replica's RM (#4797). The CASE_MANAGER skips a
+  copy of its own, as it receives its broadcast as a participant: its case is
+  the source.
+- **Replace in one transaction.** `SeedAnnouncedCaseNode` writes the
+  participants, reports and the case at the copy's position together (ADR-0146);
+  a split write could leave a replaced case whose reflected entries are applied
+  again.
+- **An entry the copy reflects is gated once, before every apply node.**
+  `EntryReflectedByCaseCopyNode` stores an entry at or before
+  `case.ledger_position` without effects, so no apply node needs its own "copy is
+  past" test; `case_file_is_past()` stays for the embargo register's own replays.
+  That includes the held refused entry, which the seed drains before any replay
+  arrives, and the backfill after a join seed (SYNC-16-007).
+- **An empty chain still asks.** A replica with no stored entry sends the `Reject`
+  that names none: empty last-accepted hash, case as `target`. The parser admits an
+  objectless `Reject` only in that form (`ledger_reject_envelope.py`), and the
+  CASE_MANAGER reads the case through `rejected_case_id`, never the entry.
+- **A no-op still copies what the copy names by id.** A copy carries participants,
+  reports and the active embargo inline but names notes, statuses and other
+  embargoes by id; `StoreRecordsReflectedEntryCarriesNode` stores those records
+  from the reflected entry, or the replica ends short of seed-plus-replay
+  (CM-23-016, #5052).
 - **Divergence is a starting-state mismatch, not invalid content.** An entry that is
   wrong in itself, like an impossible participant status, takes RSH-09-006's fault:
   a fresh copy cannot repair it (SYNC-16-001).

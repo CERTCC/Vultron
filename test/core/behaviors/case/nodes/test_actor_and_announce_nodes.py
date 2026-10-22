@@ -505,6 +505,13 @@ def case():
     )
 
 
+def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
+    """*case* with an owner, so it names a ledger position (SYNC-16-005)."""
+    return as_VulnerabilityCase(
+        id_=case.id_, name=case.name, attributed_to=ACTOR_ID
+    )
+
+
 def _announce_event_for(
     case: as_VulnerabilityCase,
 ) -> AnnounceVulnerabilityCaseReceivedEvent:
@@ -544,29 +551,42 @@ class TestSeedAnnouncedCaseNode:
         assert result.status == Status.SUCCESS
         assert dl.read(CASE_ID2) is not None
 
-    def test_idempotent_when_case_exists(
+    @pytest.mark.spec("PCR-02-004")
+    def test_replaces_a_case_already_present(
         self, bridge, dl, case, announce_event
     ) -> None:
-        """MV-10-004: SUCCESS without overwrite when case already present."""
-        dl.create(case)
+        """PCR-02-004: a copy the guard admitted replaces the held case."""
+        copy = _owned(case)
+        dl.create(copy.model_copy(update={"name": "held case"}))
         tree = SeedAnnouncedCaseNode(
-            case_id=CASE_ID2, case_obj=case, request=announce_event
+            case_id=CASE_ID2,
+            case_obj=copy,
+            request=announce_event,
         )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=announce_event
         )
         assert result.status == Status.SUCCESS
-        assert dl.read(CASE_ID2) is not None
+        assert cast(as_VulnerabilityCase, dl.read(CASE_ID2)).name == (
+            "Seed Announce Test"
+        )
 
-    def test_idempotent_skip_line_is_debug(
+    def test_replacing_a_held_case_logs_at_info(
         self, bridge, dl, case, announce_event, caplog
     ) -> None:
-        """The routine idempotency skip is DEBUG, not INFO (SL-04-007)."""
+        """Replacing a held case is a state change, so INFO (SL-04-007).
+
+        The guard ahead of the node has judged the copy current by its
+        ledger position (SYNC-16-006); the node replaces the case (PCR-02-004).
+        """
         import logging
 
-        dl.create(case)
+        copy = _owned(case)
+        dl.create(copy)
         tree = SeedAnnouncedCaseNode(
-            case_id=CASE_ID2, case_obj=case, request=announce_event
+            case_id=CASE_ID2,
+            case_obj=copy,
+            request=announce_event,
         )
 
         with caplog.at_level(logging.DEBUG):
@@ -574,13 +594,11 @@ class TestSeedAnnouncedCaseNode:
                 tree=tree, actor_id=ACTOR_ID, activity=announce_event
             )
 
-        skip_records = [
-            r
-            for r in caplog.records
-            if "already exists locally" in r.getMessage()
+        replace_records = [
+            r for r in caplog.records if "replacing case" in r.getMessage()
         ]
-        assert skip_records, "Expected the idempotent-skip log entry"
-        assert all(r.levelno == logging.DEBUG for r in skip_records)
+        assert replace_records, "Expected the replacement log entry"
+        assert all(r.levelno == logging.INFO for r in replace_records)
 
     def test_persisted_case_has_no_inline_participants(
         self, bridge, dl, announce_event

@@ -66,7 +66,11 @@ def _coerce_em(v: object) -> EM:
     if isinstance(v, EM):
         return v
     if isinstance(v, str):
-        return EM[v]
+        # As for RM below: Pydantic absorbs only ValueError (#2964).
+        try:
+            return EM[v]
+        except KeyError:
+            raise ValueError(f"Unknown EM value: {v!r}") from None
     raise ValueError(f"Cannot coerce {v!r} to EM")
 
 

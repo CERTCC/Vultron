@@ -7,10 +7,11 @@
  * §5–6 for the format history.
  *
  * The ledger is a single shared, hash-chained log: each container-based demo run
- * writes per-folder copies (devlogs/two-actor/{finder,vendor,case-actor}/), but in
- * the current sample all three are byte-identical — one authoritative ledger, not
- * three perspectives. `normalizeLedger` dedups by `entryHash` so uploading all
- * three folders is safe.
+ * writes one replica per actor (devlogs/rv/{reporter,vendor,case-actor}/). The
+ * replicas share entries and entry hashes but differ in `receivedAt`, and a
+ * replica may lag the case-actor copy by its last entries — one authoritative
+ * ledger, not several perspectives. `normalizeLedger` dedups by `entryHash` so
+ * uploading every folder is safe.
  *
  * Each line is a `CaseLedgerEntry` carrying an explicit `semanticType` verb plus an
  * ActivityStreams 2.0 `payloadSnapshot`. The mapper (`caseLedgerMapper.ts`) reads
@@ -18,67 +19,22 @@
  */
 
 /**
- * The event verbs the ledger emits.
+ * A ledger entry's semantic type: the semantic registry's label for its payload.
  *
- * **2026-08 vocabulary shift.** A merge from `main` changed the case-LIFECYCLE
- * verbs while leaving the per-participant / note / embargo / invite verbs intact
- * (see ui/AGENTS.md §5–6). The mapping from the OLD vocabulary the earlier
- * fixtures used:
- *   - `offer_case_manager_role` → **`create_case`** — case bootstrap; same
- *     `actorParticipantIndex` roster + `caseStatuses[0]` EM/PXA, `actor` = the
- *     case-actor recorder. (`offer_case_manager_role` is no longer emitted.)
- *   - `submit_report` → **`add_report_to_case`** — the finder's report; `actor`
- *     is now the recorder/owner and the finder is `object.attributedTo`
- *     (`object.type = VulnerabilityReport`).
- *   - case-level EM/PXA (previously only embedded on participant statuses / the
- *     offer) now also arrives as first-class **`add_case_status_to_case`**
- *     (`emState`/`pxaState` directly on `object`, a `CaseStatus`).
- *   - **`case_fully_closed`** — the derived "all participants closed" marker
- *     (no `object`); the per-participant `close_case` nodes still show closure.
- *   - **`engage_case`** — the owner formally engages the case (no machine change;
- *     EM/PXA already seeded at create).
- *   - **`add_case_participant`** — roster bookkeeping (`object.type =
- *     CaseParticipant`); the actual join still renders via `accept_invite…`.
- *   - **`reject_invite_actor_to_case`** — an invitee declines (fcv-reject);
- *     `actor` = the rejecter, `object.object` = the invitee.
- *   - **`accept_actor_recommendation`** — a leg of the ADR-0026 suggest-actor
- *     handshake (fcvcv), folded into the "Actor Recommended" overlay.
+ * The set of types is not declared here. `../semanticRegistry` reads it from the
+ * generated `src/data/semantic_registry.json` (exported from Python's
+ * `SEMANTIC_REGISTRY` by `uv run export-demo-semantics`), so a type the protocol
+ * adds or retires reaches the UI without a hand edit. The mapper's `handleEntry`
+ * switch draws the types it depicts; every other registered type is logged in the
+ * registry's phrasing.
  *
- * The ADR-0026 suggest-actor verbs (`offer_actor_to_case` /
- * `offer_case_participant` / `accept_offer_case_participant`) and
- * `accept_case_manager_role` are still emitted by some scenarios; their handlers
- * are retained. `offer_case_manager_role` / `submit_report` are kept in the union
- * for backward-compatible replay of older uploaded logs, but current fixtures no
- * longer contain them.
+ * A few retired types are still handled so older uploaded logs replay:
+ * `offer_case_manager_role` (now `create_case`), `submit_report` as a ledger verb
+ * (now `add_report_to_case`), `create_note` (now `add_note_to_case`),
+ * `add_case_participant` (now `create_case_participant`) and
+ * `accept_case_manager_role`.
  */
-export type LedgerSemanticType =
-  | 'offer_case_manager_role'
-  | 'create_case'
-  | 'validate_report'
-  | 'create_note'
-  | 'add_note_to_case'
-  | 'add_participant_status_to_participant'
-  | 'add_case_status_to_case'
-  | 'remove_embargo_event_from_case'
-  | 'close_case'
-  | 'case_fully_closed'
-  | 'engage_case'
-  | 'invite_actor_to_case'
-  | 'accept_invite_actor_to_case'
-  | 'reject_invite_actor_to_case'
-  | 'add_case_participant'
-  | 'submit_report'
-  | 'add_report_to_case'
-  | 'accept_case_manager_role'
-  | 'offer_actor_to_case'
-  | 'offer_case_participant'
-  | 'accept_offer_case_participant'
-  | 'accept_actor_recommendation'
-  // Case-ownership handoff (the -handoff scenarios): the current owner offers to
-  // transfer case ownership to another actor, who accepts. `reject_case_ownership_transfer`
-  // exists in the protocol source but is not emitted by any current fixture.
-  | 'offer_case_ownership_transfer'
-  | 'accept_case_ownership_transfer'
+export type LedgerSemanticType = string
 
 /** A case-level status snapshot (`CaseStatus`): the global EM/PXA pair. */
 export interface CaseStatusSnapshot {
@@ -179,8 +135,9 @@ export type LaneId = 'finder' | `vendor-${number}` | 'coordinator' | 'caseactor'
  * vendor in the coordinator scenarios — seeded as "vendor2", so it reuses the
  * vendor-N machinery as `vendor-2`), … and the Case Actor runs as a sub-actor
  * with a `case-actor-…` path segment on whichever host owns the case
- * (`//vendor:…/case-actor-<caseId>` in two-actor/fvv/fvcv-*; `//coordinator:…/
- * case-actor-<caseId>` in fcv/fccv-*).
+ * (`//vendor:…/case-actor-<caseId>` in rv/rvv/rvcv-*; `//coordinator:…/
+ * case-actor-<caseId>` in rcv/rccv-*). Current recordings name it
+ * `//case-actor:…/actors/case-actor`, its own host).
  *
  * Order matters: the `case-actor` test MUST run FIRST — the recorder sub-actor's
  * URL is itself a `//vendor:` or `//coordinator:` URL, and it must resolve to the
@@ -200,7 +157,7 @@ export function actorUrlToLaneId(url?: string | null): LaneId {
   if (url.includes('//coordinator:')) return 'coordinator'
   // `actor5:` hosts Vendor2 in the coordinator scenarios → reuse the vendor-2 lane.
   if (url.includes('//actor5:')) return 'vendor-2'
-  // `actor6:` hosts the VendorDeployer (V2/"vendor-deployer") in the fcvcv
+  // `actor6:` hosts the VendorDeployer (V2/"vendor-deployer") in the rcvcv
   // scenario → reuse the vendor-3 lane (same rationale as actor5→vendor-2: lane
   // identity is keyed on the host, and this host runs the vendor fix lifecycle).
   if (url.includes('//actor6:')) return 'vendor-3'
