@@ -259,6 +259,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0151 A Received Act Commits Its Own Entry with Its Consequences](0151-a-received-act-commits-its-own-entry-with-its-consequences.md) *(revision 2)* — partially superseded by 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md; partially supersedes 0111-intake-is-the-first-received-side-stage.md
 - [ADR-0153 One Role Check per Message Picks the Received Path](0153-one-role-check-per-message-picks-the-received-path.md) — partially supersedes 0088-consolidate-case-authority-determination.md
 - [ADR-0154 A Received Message Is One Staged Record, Archived Only When Applied](0154-a-received-message-is-one-staged-record-archived-only-when-applied.md) — partially supersedes 0111-intake-is-the-first-received-side-stage.md, 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md
+- [ADR-0155 A Participant States Its Ledger Position, and the Case Manager Answers a Lag](0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md)
 
 ## Rejected ADRs
 

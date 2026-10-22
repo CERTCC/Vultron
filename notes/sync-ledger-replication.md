@@ -5,9 +5,9 @@ kind: guidance
 description: >
   Rules for replicating the canonical case ledger to participants: single-writer
   log, hash-chain sync, canonical serialization, commit and replica invariants,
-  the sync-port wiring rule, fan-out recipients and the embargo pause, ingress
-  never writing the ledger, the held out-of-order Announce, divergence recovery,
-  replay rate limiting, and SYNC test patterns.
+  participant position statements, the sync-port wiring rule, fan-out recipients
+  and the embargo pause, ingress never writing the ledger, the held out-of-order
+  Announce, divergence recovery, replay rate limiting, and SYNC test patterns.
 related_specs:
   - specs/sync-ledger-replication.yaml
   - specs/case-ledger-processing.yaml
@@ -84,11 +84,27 @@ no optional whitespace. [RFC 8785 (JCS)](https://www.rfc-editor.org/rfc/rfc8785)
 is the target; the gap between it and the current serializer is #3659. Leaf
 hashes must stay valid if the chain later becomes a Merkle tree (SYNC-01-005).
 
-## Log Position in Activity Context
+## The Participant States Its Position (SYNC-17, ADR-0155)
 
-A participant SHOULD put the hash of its last accepted entry in the `context` of
-every message to the CASE_MANAGER, so the CASE_MANAGER can replay missing entries
-without waiting for a sync request.
+The CASE_MANAGER learns how far a participant has got only from the participant.
+Reason: the gap `Reject` fires only when a later entry arrives, so a lost last entry
+before a quiet period leaves the replica behind with no signal on either side.
+
+- **Two carriers, one answer.** Every activity a participant sends the CASE_MANAGER
+  carries `ledgerTail` (`LedgerPosition`, SYNC-03-004), not `context`, which names
+  the case. A participant that wants to check sends `Read(CaseLedgerEntry)` naming
+  its last applied entry (SYNC-17-001). Both reach the same handling: record the
+  position, replay if behind (SYNC-17-003/004).
+- **`Read`, never `Reject`, for a check.** `Read` states a fact; a `Reject` of an
+  entry nothing refused would mislead other implementations.
+- **No CASE_MANAGER sweep.** `last_acknowledged_hash` is written only by a stated
+  position or a `Reject`, so comparing it with the tail on a timer or on commit
+  reads every quiet peer as behind; and a paused peer lags on purpose.
+- **Active senders only** (SYNC-17-002): a removed, unconsented or closed peer's
+  stated position is answered with nothing; its catch-up is CM-10-006's backfill.
+- **Same replay guard.** A stated-position replay goes through `should_replay()` /
+  `record_replay()` and the outbox de-duplication, like a `Reject` replay.
+- **Never ledgered** (SYNC-17-006): a stated position is an observation (ADR-0152).
 
 ## Commit Discipline
 
