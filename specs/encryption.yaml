@@ -27,7 +27,7 @@ groups:
     - production
     relationships:
     - rel_type: implements
-      spec_id: VP-15-003
+      spec_id: VP-15-004
     stories:
     - story_2022_035
     - story_2022_036
@@ -113,8 +113,6 @@ groups:
     - production
     relationships:
     - rel_type: implements
-      spec_id: VP-15-003
-    - rel_type: implements
       spec_id: VP-15-004
     stories:
     - story_2022_091
@@ -155,7 +153,7 @@ groups:
     - rel_type: depends_on
       spec_id: SE-01-001
     - rel_type: implements
-      spec_id: VP-15-003
+      spec_id: VP-15-004
   - id: ENC-03-002
     priority: MUST
     kind: project

@@ -475,7 +475,9 @@ groups:
   - id: VP-04-001
     priority: MUST
     kind: protocol
-    statement: Every accepted embargo MUST have a non-null end_time; embargoes without a specified endpoint MUST NOT be accepted.
+    statement: >-
+      Every accepted embargo MUST specify an end time (`endTime`); an embargo without
+      one MUST NOT be accepted.
     verification: >-
       Inspection of `vultron/core/models/embargo_event.py` confirms that
       `end_time` is a required `datetime` field with no `None` default, and a
@@ -1705,7 +1707,7 @@ groups:
   specs:
   - id: VP-15-001
     priority: SHOULD
-    kind: protocol
+    kind: architecture
     statement: >-
       Vultron Protocol messages SHOULD use well-defined format specifications (e.g., JSON
       Schema, protobuf, XSD)
@@ -1713,7 +1715,7 @@ groups:
     - story_2022_106
   - id: VP-15-002
     priority: SHOULD
-    kind: protocol
+    kind: architecture
     statement: >-
       Vultron Protocol implementations SHOULD use common API patterns (e.g., REST, WebSockets)
       for inter-participant communication
@@ -1727,7 +1729,7 @@ groups:
     - story_2022_106
   - id: VP-15-003
     priority: SHOULD
-    kind: protocol
+    kind: architecture
     statement: >-
       Vultron Protocol implementations SHOULD use transport-layer encryption to protect sensitive
       data in transit
@@ -1748,7 +1750,7 @@ groups:
     - story_2022_091
   - id: VP-15-005
     priority: MAY
-    kind: protocol
+    kind: architecture
     statement: >-
       Vultron Protocol implementations MAY use encryption to protect sensitive data at rest
     scope:
