@@ -61,6 +61,7 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
+    _EmUndoEmbargoInviteActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
 )
@@ -242,6 +243,9 @@ class TestBareStringObjectRejected(unittest.TestCase):
     def test_em_reject_embargo_rejects_string(self):
         self._assert_string_rejected(_EmRejectEmbargoActivity)
 
+    def test_em_undo_embargo_invite_rejects_string(self):
+        self._assert_string_rejected(_EmUndoEmbargoInviteActivity)
+
     def test_rm_validate_report_rejects_string(self):
         self._assert_string_rejected(_RmValidateReportActivity)
 
@@ -311,6 +315,10 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
 
     def test_em_reject_embargo_accepts_typed(self):
         obj = _EmRejectEmbargoActivity(actor=_ACTOR.id_, object_=_PROPOSE)
+        assert isinstance(obj.object_, _EmProposeEmbargoActivity)
+
+    def test_em_undo_embargo_invite_accepts_typed(self):
+        obj = _EmUndoEmbargoInviteActivity(actor=_ACTOR.id_, object_=_PROPOSE)
         assert isinstance(obj.object_, _EmProposeEmbargoActivity)
 
     def test_rm_validate_report_accepts_typed(self):

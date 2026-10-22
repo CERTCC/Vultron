@@ -307,3 +307,29 @@ class RejectInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     @property
     def case(self) -> "VulnerabilityCase | None":
         return cast("VulnerabilityCase | None", self.inner_context)
+
+
+class UndoInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
+    """The CASE_MANAGER withdrew an embargo invitation it had sent (EMB-16-001).
+
+    ``Undo(Invite(EmbargoEvent))``: an actor undoes only an activity it
+    performed (ADR-0152), so the sender is the CASE_MANAGER that sent the
+    Invite.  No received use case handles it: a participant learns the
+    withdrawal from the committed entry (EP-09-007).
+    """
+
+    semantic_type: Literal[MessageSemantics.UNDO_INVITE_TO_EMBARGO_ON_CASE] = (
+        MessageSemantics.UNDO_INVITE_TO_EMBARGO_ON_CASE
+    )
+
+    @property
+    def invite_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def embargo_id(self) -> str | None:
+        return self.inner_object_id
+
+    @property
+    def case_id(self) -> str | None:
+        return self.inner_context_id

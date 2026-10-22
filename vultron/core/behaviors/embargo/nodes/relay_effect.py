@@ -4,12 +4,13 @@ The CASE_MANAGER commits three kinds of entry while it relays an embargo
 negotiation: the proposal it received, each ``Invite(EmbargoEvent)`` it relays
 to a participant, and each participant's ``Accept`` or ``Reject`` of its
 Invite — the case owner's included, which is the owner's consent (ADR-0122).
-The re-invite of a late accepter whose embargo went stale (EMB-17-003) has an
-semantic type of its own, and so has the owner's decision on a proposal
-(``activation_effect.py``).  A participant replica writes none
-of that state when the activity reaches it directly (EP-09-003, RSH-08-003); it
-copies the state from the ``Announce(CaseLedgerEntry)`` broadcast through
-these nodes (RSH-08-004, ADR-0108).
+A re-invite of a late accepter whose embargo went stale (EMB-17-003) is a
+relayed Invite like any other (ADR-0152); the owner's decision on a proposal
+has a semantic type of its own (``activation_effect.py``).  A participant
+replica writes none of that state when the activity reaches it directly
+(EP-09-003, RSH-08-003); it copies the state from the
+``Announce(CaseLedgerEntry)`` broadcast through these nodes (RSH-08-004,
+ADR-0108).
 
 Each node copies; none runs ``EmbargoLifecycle`` (ADR-0124, CM-23-016).  A
 proposal entry is its whole register step, so its slot copies the
@@ -17,11 +18,11 @@ proposal entry is its whole register step, so its slot copies the
 (``ApplyEmbargoChangeFromLedgerNode``); an ``Accept`` or ``Reject`` entry is
 its sender's row's entry, so its slot copies the row the answer states
 (ADR-0122).  Every other consent row an act changes (a proposal's new rows,
-a relayed Invite's or re-invite's ``INVITED`` row) follows as the
+a relayed Invite's ``INVITED`` row) follows as the
 CASE_MANAGER's own ``Create`` or ``Update(EmbargoConsent)`` entry
 (CLP-07-013), which the consent slot copies
-(``ApplyEmbargoConsentFromLedgerNode``), so the Invite and re-invite slots
-write no row.  Every slot stores the embargo the entry carries, and the
+(``ApplyEmbargoConsentFromLedgerNode``), so the Invite slots write no
+row.  Every slot stores the embargo the entry carries, and the
 relay slot indexes the proposal on the proposer's replica.
 
 Regime 2 (ADR-0087): a replica that holds no copy of the case skips the entry
@@ -145,8 +146,15 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         embargo_id: str,
         snapshot: dict[str, Any],
     ) -> None:
-        """Index the Invite on the proposer's replica only (EP-08-002)."""
+        """Index the Invite on the proposer's replica only (EP-08-002).
+
+        Only while the embargo is an open proposal: a re-invite to the
+        embargo in force names its proposer too (ADR-0152), and the
+        activation already took that embargo out of the index (EP-08-003).
+        """
         assert self.datalayer is not None
+        if not case.proposal_is_undecided(embargo_id):
+            return
         # Normalised: the snapshot keeps the relay's spelling (OID-01-006).
         proposer_id = snapshot_actor_id(
             snapshot.get(wire_key("attributed_to"))
@@ -421,22 +429,6 @@ class ApplyEmbargoInviteFromLedgerNode(_EmbargoRelayEffectNode):
         )
         self.logger.info("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
-
-
-class ApplyEmbargoReinviteFromLedgerNode(_EmbargoRelayEffectNode):
-    """Store the CASE_MANAGER's EMB-17-003 re-invite of a stale accepter.
-
-    The invitee's PEC ``INVITE`` and the Invite's RSVP deadline are the
-    CASE_MANAGER's next entry, an ``Update(EmbargoConsent)`` the consent slot
-    copies (ADR-0124, CM-28-013).  It moves no EM state and indexes no
-    proposal: the embargo is the case's current one, and the Invite carries no
-    proposer.
-    """
-
-    def update(self) -> Status:
-        return self._store_only(
-            self._get_entry().payload_snapshot.get("object")
-        )
 
 
 __all__ = [

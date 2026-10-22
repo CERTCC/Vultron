@@ -69,6 +69,11 @@ _EXAMPLES: dict[str, as_Activity] = activity_examples()
 #: ``test_vocab_examples_dispatchable._KNOWN_UNDISPATCHABLE``.
 _UNDISPATCHABLE = frozenset({"update_case", "create_participant"})
 
+#: Examples of a recognized semantic type no received use case handles
+#: (SE-05-002): reported "no use case found", so nothing archives them and no
+#: addressee check runs.
+_UNHANDLED = frozenset({"undo_embargo_invite"})
+
 #: Examples a bystander refuses before any received tree runs, so intake never
 #: archives them; each names the issue that owns moving the refusal into the
 #: tree (CLP-10-005, CLP-10-018).  They are still refused, write nothing and
@@ -142,6 +147,7 @@ def test_the_sweep_has_examples() -> None:
     assert set(_EXAMPLES) >= _UNDISPATCHABLE
     assert set(_KEPT_BEFORE_THE_CHECK) <= set(_EXAMPLES)
     assert set(_REFUSED_BEFORE_ANY_TREE) <= set(_EXAMPLES)
+    assert set(_EXAMPLES) >= _UNHANDLED
 
 
 @pytest.mark.spec("HP-01-005")
@@ -163,6 +169,11 @@ def test_an_unaddressed_copy_is_refused_and_acts_on_nothing(
     assert outcome.status is InboxOutcomeStatus.REJECTED, (
         f"{name}: {outcome.status} ({outcome.failure_reason})"
     )
+    if name in _UNHANDLED:
+        assert outcome.unhandled, f"{name} is handled now: drop it"
+        assert _object_counts(bystander_dl) == before
+        assert bystander_dl.outbox_list() == []
+        return
     archive = ReceivedActivityRecord.build_id(activity.id_)
     if name in _REFUSED_BEFORE_ANY_TREE:
         # Pinned until its owning issue lands; then the entry must go.

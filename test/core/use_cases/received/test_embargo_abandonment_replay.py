@@ -14,9 +14,11 @@
 """A replica follows the CASE_MANAGER's P/X/A abandonment (EMB-16-001, #4131).
 
 Each actor has its own store (TB-06-007).  The CASE_MANAGER abandons every
-open proposal and commits one ER per proposal; a participant that receives
-nothing but the ``Announce(CaseLedgerEntry)`` fan-out drops each proposal
-and reaches EM ``NONE`` with the last (EP-09-007, RSH-08-004).
+open proposal, committing its ``Reject`` of each proposal it received (or its
+``Undo`` of one it sent itself) and an ``Undo`` of each Invite it relayed for
+it (ADR-0152); a participant that receives nothing but the
+``Announce(CaseLedgerEntry)`` fan-out drops each proposal and reaches EM
+``NONE`` with the last (EP-09-007, RSH-08-004).
 """
 
 from typing import Any, cast

@@ -942,6 +942,22 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """
         ...
 
+    def undo_embargo_invite(
+        self,
+        invite_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Undo(Invite)`` of an embargo Invite *actor* sent.
+
+        The CASE_MANAGER's withdrawal of an Invite it sent, when it abandons
+        an open proposal (EMB-16-001, ADR-0152).  The id is derived from
+        *actor* and the Invite, so one Invite is withdrawn by one activity
+        (ID-04-004).  Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
     def activate_embargo(
         self,
         embargo_id: str,

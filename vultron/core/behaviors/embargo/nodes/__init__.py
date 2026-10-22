@@ -75,7 +75,6 @@ from vultron.core.behaviors.embargo.nodes.expiry import (
     InviteExpiryNeedsApplyNode,
 )
 from vultron.core.behaviors.embargo.nodes.expiry_commit import (
-    CommitAndApplyHonourLateAcceptNode,
     CommitAndApplyInviteExpiryNode,
 )
 from vultron.core.behaviors.embargo.nodes.invite_answer import (
@@ -94,6 +93,7 @@ from vultron.core.behaviors.embargo.nodes.manager_commit import (
     EMBARGO_TEARDOWN_SEMANTIC_TYPE,
     CommitEmbargoDecisionNode,
     CommitEmbargoProposalNode,
+    CommitOwnConsentDecisionNode,
     EmbargoActivityBuilder,
     IndexOwnEmbargoProposalNode,
 )
@@ -133,7 +133,6 @@ from vultron.core.behaviors.embargo.nodes.relay_effect import (
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
-    ApplyEmbargoReinviteFromLedgerNode,
     ApplyEmbargoRejectionFromLedgerNode,
 )
 from vultron.core.behaviors.embargo.nodes.teardown import (
@@ -217,6 +216,7 @@ __all__ = [
     "EMBARGO_TEARDOWN_SEMANTIC_TYPE",
     "CommitEmbargoDecisionNode",
     "CommitEmbargoProposalNode",
+    "CommitOwnConsentDecisionNode",
     "CommitAndApplyEmbargoTerminationNode",
     "COMMITTED_ACTIVITY_KEY",
     "IndexOwnEmbargoProposalNode",
@@ -229,7 +229,6 @@ __all__ = [
     # Relay ledger replay (EP-09-007)
     "ApplyEmbargoProposalFromLedgerNode",
     "ApplyEmbargoInviteFromLedgerNode",
-    "ApplyEmbargoReinviteFromLedgerNode",
     "ApplyEmbargoAcceptanceFromLedgerNode",
     "ApplyEmbargoRejectionFromLedgerNode",
     # P/X/A abandonment of open proposals (EMB-16-001, #4131)
@@ -241,7 +240,6 @@ __all__ = [
     "case_manager_admits_proposal_guard",
     # Invite expiry: evaluation (CM-28-014, BT-17-001) and replay (ADR-0118)
     "EvaluateInviteExpiryNode",
-    "CommitAndApplyHonourLateAcceptNode",
     "CommitAndApplyInviteExpiryNode",
     "InviteExpiryChangedConsentNode",
     "InviteExpiryNeedsApplyNode",

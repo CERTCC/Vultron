@@ -19,8 +19,10 @@
 withheld once the embargo gate admits a participant, then re-issues the stub
 Invites that carry stale terms.  A received tree runs them behind the
 CASE_MANAGER gate it takes from the factory: the ``Add(EmbargoEvent)`` and
-``Remove(EmbargoEvent)`` trees in their ``manager_effects``, and the Invite
-Accept tree in its late-Accept honour diversion (CLP-10-026).
+``Remove(EmbargoEvent)`` trees in their ``manager_effects`` (CLP-10-026).  An
+Invite ``Accept``, on time or a late one the case honours, runs the backfill
+alone: it never changes the embargo in force, so it leaves no stub Invite
+stale (CM-11-016, ADR-0152).
 """
 
 import py_trees

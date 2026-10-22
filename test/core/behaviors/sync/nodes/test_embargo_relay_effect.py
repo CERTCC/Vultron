@@ -633,6 +633,30 @@ class TestApplyEmbargoInvite:
             REVISION_ID: PROPOSAL_ID
         }
 
+    @pytest.mark.spec("EP-08-003")
+    @pytest.mark.spec("EMB-17-003")
+    def test_a_reinvite_to_the_embargo_in_force_indexes_nothing(
+        self, bridge, datalayer, revising_case
+    ):
+        """A re-invite names the in-force embargo's proposer (ADR-0152), but
+        that embargo is decided, so the proposer's replica indexes no open
+        proposal for it, as the CASE_MANAGER's store holds none."""
+        result = _run(
+            bridge,
+            ApplyEmbargoInviteFromLedgerNode(name="Invite"),
+            _entry(
+                "invite_to_embargo_on_case",
+                _invite_snapshot(
+                    attributed_to=PARTICIPANT_ACTOR_ID,
+                    to=[OWNER_ACTOR_ID],
+                    embargo=_embargo_snapshot(ACTIVE_EMBARGO_ID),
+                ),
+            ),
+        )
+
+        assert result.status == Status.SUCCESS
+        assert _case(datalayer).pending_embargo_proposal_index == {}
+
     @pytest.mark.spec("EP-04-011")
     def test_the_invitees_replica_writes_no_index(
         self, bridge, datalayer, revising_case
