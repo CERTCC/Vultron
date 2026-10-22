@@ -19,11 +19,13 @@ from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     ActivateEmbargoOnCaseReceivedEvent,
     AnnounceEmbargoEventToCaseReceivedEvent,
+    CreateEmbargoConsentReceivedEvent,
     InviteToEmbargoOnCaseReceivedEvent,
     RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
     UndoInviteToEmbargoOnCaseReceivedEvent,
+    UpdateEmbargoConsentReceivedEvent,
     WithdrawFromEmbargoOnCaseReceivedEvent,
 )
 from vultron.core.states.em import EM
@@ -50,22 +52,26 @@ from vultron.wire.as2.extractor import (
     AcceptInviteToEmbargoOnCasePattern,
     ActivateEmbargoOnCasePattern,
     AnnounceEmbargoEventToCasePattern,
+    CreateEmbargoConsentPattern,
     InviteToEmbargoOnCasePattern,
     RejectEmbargoProposalOnCasePattern,
     RejectInviteToEmbargoOnCasePattern,
     RemoveEmbargoEventFromCasePattern,
     UndoInviteToEmbargoOnCasePattern,
+    UpdateEmbargoConsentPattern,
     WithdrawFromEmbargoOnCasePattern,
 )
 from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
     _AnnounceEmbargoActivity,
+    _CreateEmbargoConsentActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
     _EmUndoEmbargoInviteActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
+    _UpdateEmbargoConsentActivity,
     _WithdrawFromEmbargoActivity,
 )
 
@@ -451,6 +457,74 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="withdraw_from_embargo",
                 howto=HowToGuide.MANAGE_EMBARGO,
+            ),
+        ),
+        page=MessagePage.EM,
+    ),
+    # The CASE_MANAGER's own acts on consent rows, each committed as its own
+    # entry carrying the row in full (ADR-0122, CLP-07-013).  Only the
+    # CASE_MANAGER sends them, and a participant takes the row from the
+    # ledger, so no received use case handles them (ADR-0140 item 5).
+    SemanticEntry(
+        semantics=MessageSemantics.CREATE_EMBARGO_CONSENT,
+        pattern=CreateEmbargoConsentPattern,
+        event_class=CreateEmbargoConsentReceivedEvent,
+        use_case_class=None,
+        phrase="{actor} created an embargo consent row",
+        wire_activity_class=_CreateEmbargoConsentActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager creates a participant's consent row "
+                    "for an embargo, such as the UNINVITED row a proposal "
+                    "writes"
+                ),
+                anchor="create-embargo-consent",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Create embargo consent",
+                description=(
+                    "Carries the new consent row in full: the embargo it "
+                    "answers, the participant it belongs to and its state."
+                ),
+                example="create_embargo_consent",
+                notes=(
+                    "Each participant learns of it from the case ledger, so "
+                    "it is addressed to nobody."
+                ),
+            ),
+        ),
+        page=MessagePage.EM,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.UPDATE_EMBARGO_CONSENT,
+        pattern=UpdateEmbargoConsentPattern,
+        event_class=UpdateEmbargoConsentReceivedEvent,
+        use_case_class=None,
+        phrase="{actor} updated an embargo consent row",
+        wire_activity_class=_UpdateEmbargoConsentActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager changes a participant's consent row, "
+                    "such as an invitation timing out, the rows carried over "
+                    "at activation or a change of its own consent"
+                ),
+                anchor="update-embargo-consent",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Update embargo consent",
+                description=(
+                    "Carries the changed consent row in full. A Case Manager "
+                    "with an embargo stake of its own records a change of "
+                    "its own consent this way, never as a Reject of the "
+                    "Invite."
+                ),
+                example="update_embargo_consent",
+                notes=(
+                    "Each participant learns of it from the case ledger, so "
+                    "it is addressed to nobody."
+                ),
             ),
         ),
         page=MessagePage.EM,

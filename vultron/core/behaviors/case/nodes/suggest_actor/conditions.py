@@ -57,6 +57,7 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.protocol_pair import (
     INVITE_ACTOR_TO_CASE_REPLY_TYPES,
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
@@ -387,7 +388,7 @@ class InviteInFlightNode(DataLayerActionWithPorts):
             self.datalayer,
             self.case_id,
             self.recommended_id,
-            "invite_actor_to_case",
+            MessageSemantics.INVITE_ACTOR_TO_CASE.value,
             INVITE_ACTOR_TO_CASE_REPLY_TYPES,
             invitee,
         ):
@@ -432,7 +433,7 @@ class PendingOfferCaseParticipantNode(DataLayerActionWithPorts):
             self.datalayer,
             self.case_id,
             self.recommended_id,
-            "offer_case_participant",
+            MessageSemantics.OFFER_CASE_PARTICIPANT.value,
             OFFER_CASE_PARTICIPANT_REPLY_TYPES,
             offered_participant_actor,
         ):

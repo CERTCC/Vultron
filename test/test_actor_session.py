@@ -155,9 +155,7 @@ def test_sync_log_entry_returns_entry_hash():
     ).with_case(_case())
     raw = {"entry_hash": "abcd1234", "log_index": 3}
     with patch("vultron.demo.actor_session.post_to_trigger", return_value=raw):
-        result = session.quiet().sync_log_entry(
-            object_id=_CASE_ID, semantic_type="close_case"
-        )
+        result = session.quiet().sync_log_entry(object_id=_CASE_ID)
     assert isinstance(result, WireSyncLogEntryResult)
     assert result.entry_hash == "abcd1234"
     assert result.log_index == 3

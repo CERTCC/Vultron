@@ -802,17 +802,26 @@ groups:
       are either side-effects of EM wire activities (MSM-07-002 through MSM-07-005,
       MSM-07-008)
       or timer-based internal events (MSM-07-007) with no dedicated wire message or
-      dispatch value of their own.
+      dispatch value of their own. The CASE_MANAGER's `Create(EmbargoConsent)` and
+      `Update(EmbargoConsent)`, which record a consent row it brings into existence or
+      changes as its own ledger entry (CLP-07-013), are case-file record changes, not
+      PEC transitions: they carry no shorthand, and the registry labels them
+      `create_embargo_consent` and `update_embargo_consent` with no received use case
+      (ADR-0140).
     rationale: >-
       PEC is participant-local state tracking each actor's relationship to the shared
       EM state, not a parallel message-driven machine. Extending the formal set with
       PEC-specific shorthands would imply dedicated wire messages where none exist and
       none are needed — the EM messages already carry the PEC signal as a side-effect.
-      Documenting PEC as a side-effect is the faithful description of the design.
+      Documenting PEC as a side-effect is the faithful description of the design. A
+      ledger entry's semantic type is the registry's label for its payload (ADR-0140),
+      so the CASE_MANAGER's consent-row records need registry entries; they name the
+      record, not a PEC trigger, and no receiver dispatches on them.
     verification: >-
-      A grep for PEC-specific entries across vultron/core/models/events/base.py and
-      vultron/semantic_registry/ confirms no MessageSemantics member and no registry
-      entry is named exclusively for a PEC transition.
+      `test_no_semantics_or_registry_entry_is_named_for_a_pec_transition` in
+      `test/test_message_semantics_mapping.py` confirms that no MessageSemantics member
+      and no registry entry is named for a PEC transition, other than the two
+      consent-row records, which it confirms carry no use case.
     relationships:
     - rel_type: derives_from
       spec_id: CM-18-003

@@ -639,3 +639,69 @@ def test_snapshot_actor_naming_no_id_is_refused(bridge):
     assert result.status == Status.FAILURE
     assert "CLP-07-003" in (result.feedback_message or "")
     mock_factory.assert_not_called()
+
+
+@pytest.mark.spec("SE-02-001")
+def test_an_activity_without_message_semantics_is_an_internal_error():
+    """An entry is labelled only by its registry semantics (ADR-0140, #4724).
+
+    There is no fallback label: an activity carrying no ``MessageSemantics``
+    is a wiring fault, never a ``"case_event"`` entry.
+    """
+    from types import SimpleNamespace
+
+    from vultron.core.behaviors.case.nodes.lifecycle import _semantic_type_of
+    from vultron.errors import VultronBTInternalError
+
+    with pytest.raises(VultronBTInternalError, match="no MessageSemantics"):
+        _semantic_type_of(
+            SimpleNamespace(activity_id="urn:x", activity_type="Update")
+        )
+
+
+@pytest.mark.spec("SE-02-001")
+def test_an_activity_with_message_semantics_is_labelled_by_its_value():
+    """The label is the ``MessageSemantics`` value the pattern matched."""
+    from types import SimpleNamespace
+
+    from vultron.core.behaviors.case.nodes.lifecycle import _semantic_type_of
+
+    assert (
+        _semantic_type_of(
+            SimpleNamespace(semantic_type=MessageSemantics.ADD_NOTE_TO_CASE)
+        )
+        == MessageSemantics.ADD_NOTE_TO_CASE.value
+    )
+
+
+@pytest.mark.spec("SE-02-001")
+@pytest.mark.spec("ARCH-15-001")
+def test_the_node_refuses_an_unlabelled_event_as_an_internal_error(
+    bridge, datalayer
+):
+    """Run through the node, an unlabelled event writes no entry (#4724).
+
+    The raise surfaces as the bridge's internal error, not a refusal, and
+    the commit tree is never built, so the case ledger stays empty.
+    """
+    from vultron.core.sync_helpers import is_ledgered_activity
+
+    # model_construct skips validation: no parser can build this event, so
+    # only a wiring fault can put it on the blackboard.
+    activity = VultronEvent.model_construct(
+        semantic_type=None,
+        activity_id=ACTIVITY_ID,
+        actor_id=ACTOR_ID,
+        received_evidence=json.dumps(_CREATE_BODY),
+    )
+    node = CommitCaseLedgerEntryNode(case_id=CASE_ID)
+    with patch(_FACTORY_PATH) as mock_factory:
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID, activity=activity
+        )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "no MessageSemantics" in (result.feedback_message or "")
+    mock_factory.assert_not_called()
+    assert not is_ledgered_activity(datalayer, CASE_ID, ACTIVITY_ID)

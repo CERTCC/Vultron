@@ -38,21 +38,29 @@ CASE_MANAGER records as its own entries after it (CLP-07-013, ADR-0124):
   CASE_MANAGER changed the case's ``attributed_to`` to the new owner
   (CM-21-002).  The entry carries the case, and a replica copies its
   ``attributed_to``.
+
+Each is a ``MessageSemantics`` member, so the registry labels the entry's
+payload with it (ADR-0140); these names are its string values.
 """
 
+from vultron.core.models.events.base import MessageSemantics
+
 #: ``Create(CaseParticipant)`` -- the CASE_MANAGER created a participant record.
-#: A ledger semantic type only: this implementation does not support a received
-#: ``Create(CaseParticipant)`` message, so no ``MessageSemantics`` member names it.
-CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE = "create_case_participant"
+#: The registry recognizes it, but no received use case handles it (ADR-0140).
+CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE = (
+    MessageSemantics.CREATE_CASE_PARTICIPANT.value
+)
 
 #: ``Update(CaseParticipant)`` -- the CASE_MANAGER changed a participant record.
-#: A ledger semantic type only, never a received message.
-UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE = "update_case_participant"
+#: The registry recognizes it, but no received use case handles it.
+UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE = (
+    MessageSemantics.UPDATE_CASE_PARTICIPANT.value
+)
 
 #: ``Update(VulnerabilityCase)`` -- the CASE_MANAGER named a new Case Owner in
-#: the case's ``attributed_to``.  A ledger semantic type only, never a received
-#: message.
-UPDATE_CASE_OWNER_SEMANTIC_TYPE = "update_case_owner"
+#: the case's ``attributed_to``.  The registry recognizes it, but no received
+#: use case handles it.
+UPDATE_CASE_OWNER_SEMANTIC_TYPE = MessageSemantics.UPDATE_CASE_OWNER.value
 
 __all__ = [
     "CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE",

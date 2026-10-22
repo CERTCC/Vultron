@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING
 
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_semantic_types import (
     CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
@@ -86,5 +87,5 @@ def commit_participant_status_added(
         case_id=case_id,
         activity_id=status.id_,
         activity_blob=blob,
-        semantic_type="add_participant_status_to_participant",
+        semantic_type=MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value,
     )

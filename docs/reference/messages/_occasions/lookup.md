@@ -27,6 +27,7 @@
 |---|---|---|---|---|---|
 | the Case Manager has opened a case for a submitted report | `Create(VulnerabilityCase)` | a participant | the addressee of the case proposal or vulnerability report offer | — | [Create case](../case_management.md#create-case) |
 | the Case Owner links a further report to an existing case | `Add(VulnerabilityReport)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Add report to case](../case_management.md#add-report-to-case) |
+| the Case Manager records the new Case Owner once a case ownership transfer is accepted | `Update(VulnerabilityCase)` | a participant | not handled | — | [Update case owner](../case_management.md#update-case-owner) |
 | the Case Owner offers a CVD role on the case to another participant | `Offer(CaseParticipantRole)[context=VulnerabilityCase]` | the case manager | the case owner | — | [Offer case participant role](../case_management.md#offer-case-participant-role) |
 | a participant accepts a role offered to it on the case | `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | the case manager | the addressee of the case participant role offer | — | [Accept case participant role](../case_management.md#accept-case-participant-role) |
 | a participant declines a role offered to it on the case | `Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | the case manager | the addressee of the case participant role offer | — | [Reject case participant role](../case_management.md#reject-case-participant-role) |
@@ -46,6 +47,8 @@
 | a Participant ends its participation in the case | `Leave(VulnerabilityCase)` | the case manager | the case owner or a participant | — | [Close case](../case_management.md#close-case) |
 | the Case Owner reinstates a removed Participant | `Add(CaseParticipant)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Add case participant to case](../case_management.md#add-case-participant-to-case) |
 | the Case Owner removes a Participant from active participation | `Remove(CaseParticipant)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Remove case participant from case](../case_management.md#remove-case-participant-from-case) |
+| the Case Manager creates a participant record, such as the inert record for the invitee of a stub Invite | `Create(CaseParticipant)` | a participant | not handled | — | [Create case participant](../case_management.md#create-case-participant) |
+| the Case Manager changes a participant record, such as moving the CASE_OWNER role on an ownership transfer | `Update(CaseParticipant)` | a participant | not handled | — | [Update case participant](../case_management.md#update-case-participant) |
 
 ## Embargo
 
@@ -66,6 +69,8 @@
 | the Case Owner decides to activate a proposed embargo | `Accept(Event)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Activate embargo](../em.md#activate-embargo) |
 | the Case Owner decides to reject a proposed embargo | `Reject(Event)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Reject embargo proposal](../em.md#reject-embargo-proposal) |
 | a Participant bound by the active embargo stops complying with it | `Leave(Event)[context=VulnerabilityCase]` | the case manager | a participant | — | [Withdraw from embargo](../em.md#embargo-withdrawal) |
+| the Case Manager creates a participant's consent row for an embargo, such as the UNINVITED row a proposal writes | `Create(EmbargoConsent)` | a participant | not handled | — | [Create embargo consent](../em.md#create-embargo-consent) |
+| the Case Manager changes a participant's consent row, such as an invitation timing out, the rows carried over at activation or a change of its own consent | `Update(EmbargoConsent)` | a participant | not handled | — | [Update embargo consent](../em.md#update-embargo-consent) |
 
 ## Case status
 

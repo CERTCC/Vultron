@@ -33,12 +33,14 @@ from test.support.ledger import (
     checking_each_commit,
     ledger_entries,
 )
+from test.support.ledger_labels import label_mismatches
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
     replica_actor,
 )
 from vultron.adapters.driven.datalayer_sqlite import get_all_actor_datalayers
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers import invite_chain, runner, workflow
@@ -274,6 +276,30 @@ REBUILD_FAILURES: list[str] = []
 #: see what it covered.
 REBUILT_CASES: list[tuple[str, list[str]]] = []
 
+#: How many ledger entries the label check read, so a test can see it ran.
+LABELLED_ENTRIES: list[int] = []
+
+
+def _hosted_ledger_entries() -> Iterator[Any]:
+    """Every ledger entry any hosted store holds, the replicas' included."""
+    for dl in get_all_actor_datalayers().values():
+        for entry in dl.list_objects("CaseLedgerEntry"):
+            if isinstance(entry, CaseLedgerEntry):
+                yield entry
+
+
+def check_entries_carry_registry_labels() -> None:
+    """Every hosted ledger entry is labelled by the registry (#4724 AC-3).
+
+    An entry's ``semantic_type`` must equal the semantic registry's match for
+    its ``payload_snapshot`` (ADR-0140).  A mismatch is recorded in
+    :data:`REBUILD_FAILURES`, alongside the rebuild differences, for the same
+    reason they are: a raise would be logged as a failed demo and hidden.
+    """
+    entries = list(_hosted_ledger_entries())
+    LABELLED_ENTRIES.append(len(entries))
+    REBUILD_FAILURES.extend(label_mismatches(entries))
+
 
 def _managed_cases() -> Iterator[tuple[Any, str]]:
     """``(store, case id)`` for every case a hosted actor manages."""
@@ -332,7 +358,9 @@ def _replica_position_mismatches(manager_dl: Any, case_id: str) -> list[str]:
 def check_cases_rebuild_from_their_ledgers() -> None:
     """Rebuild every managed case from its ledger alone (#4294 AC-5).
 
-    Run each time the demo clears the node, before it does.  A case whose
+    Run each time the demo clears the node, before it does.  It first checks
+    that every hosted entry carries the registry's label for its payload
+    (:func:`check_entries_carry_registry_labels`, #4724 AC-3).  A case whose
     rebuild differs from its CASE_MANAGER's, or fails in any other way, is
     recorded in :data:`REBUILD_FAILURES` rather than raised, because the demo
     runner would log a raise as a failed demo and hide the difference.  So
@@ -345,6 +373,7 @@ def check_cases_rebuild_from_their_ledgers() -> None:
     previous_level = logging.root.manager.disable
     logging.disable(logging.CRITICAL)
     try:
+        check_entries_carry_registry_labels()
         managed = list(_managed_cases())
         rebuilt = {case_id for _dl, case_id in managed}
         REBUILD_FAILURES.extend(

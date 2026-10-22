@@ -43,6 +43,7 @@ from vultron.core.behaviors.sync.commit_tree import (
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.states.cs import CS_pxa
@@ -248,7 +249,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
         commit_tree = create_commit_log_entry_tree(
             case_id=self.case_id,
             object_id=new_status.id_,
-            semantic_type="add_case_status_to_case",
+            semantic_type=MessageSemantics.ADD_CASE_STATUS_TO_CASE.value,
             payload_snapshot=payload,
         )
         result = BTBridge(

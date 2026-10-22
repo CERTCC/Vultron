@@ -67,12 +67,21 @@ _EXAMPLES: dict[str, as_Activity] = activity_examples()
 
 #: Examples with no pattern or semantics by decision; see
 #: ``test_vocab_examples_dispatchable._KNOWN_UNDISPATCHABLE``.
-_UNDISPATCHABLE = frozenset({"update_case", "create_participant"})
+_UNDISPATCHABLE: frozenset[str] = frozenset()
 
 #: Examples of a recognized semantic type no received use case handles
 #: (SE-05-002): reported "no use case found", so nothing archives them and no
-#: addressee check runs.
-_UNHANDLED = frozenset({"undo_embargo_invite"})
+#: addressee check runs.  Each is a CASE_MANAGER-only act (ADR-0140, #4724).
+_UNHANDLED = frozenset(
+    {
+        "undo_embargo_invite",
+        "create_participant",
+        "update_participant",
+        "update_case",
+        "create_embargo_consent",
+        "update_embargo_consent",
+    }
+)
 
 #: Examples a bystander refuses before any received tree runs, so intake never
 #: archives them; each names the issue that owns moving the refusal into the

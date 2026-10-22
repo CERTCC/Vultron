@@ -206,7 +206,6 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
         json={
             "case_id": case.id_,
             "object_id": case.id_,
-            "semantic_type": "sync_901_happy_path",
         },
     )
     assert response.status_code == 202, response.text
@@ -223,7 +222,7 @@ def test_sync_single_peer_happy_path_replication(two_app_setup) -> None:
     assert peer_entry.log_index == payload["log_index"]
     assert peer_entry.entry_hash == payload["entry_hash"]
     assert peer_entry.log_object_id == case.id_
-    assert peer_entry.semantic_type == "sync_901_happy_path"
+    assert peer_entry.semantic_type == "announce_vulnerability_case"
 
     # AC-4 guard: each actor app uses its own isolated DataLayer.
     assert case_actor_iso.dl is not peer_iso.dl

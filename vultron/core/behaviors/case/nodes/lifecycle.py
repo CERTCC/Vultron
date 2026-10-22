@@ -37,6 +37,7 @@ from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import (
     same_actor_id,
@@ -81,11 +82,22 @@ def _assert_actor_identity(
 
 
 def _semantic_type_of(activity: Any) -> str:
-    """The semantic an entry records *activity* as."""
+    """The semantic an entry records *activity* as: its registry label.
+
+    A received event always carries the ``MessageSemantics`` its pattern
+    matched (ADR-0140), so an entry is never labelled any other way.
+
+    Raises:
+        VultronBTInternalError: when *activity* carries no
+            ``MessageSemantics``, which only a wiring fault can cause.
+    """
     semantics = getattr(activity, "semantic_type", None)
-    if semantics is not None:
-        return cast(str, semantics.value)
-    return getattr(activity, "activity_type", "case_event") or "case_event"
+    if not isinstance(semantics, MessageSemantics):
+        raise VultronBTInternalError(
+            f"activity '{getattr(activity, 'activity_id', activity)}' carries"
+            " no MessageSemantics to label its ledger entry with (ADR-0140)"
+        )
+    return semantics.value
 
 
 class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
@@ -210,11 +222,8 @@ class CommitCaseLedgerEntryNode(DataLayerActionWithPorts):
         return Status.FAILURE
 
     def _activity_metadata(
-        self, activity: Any | None, case_id: str
+        self, activity: Any, case_id: str
     ) -> tuple[str, str, dict[str, Any]]:
-        if activity is None:
-            return case_id, "case_event", {}
-
         object_id = getattr(activity, "activity_id", case_id)
         semantic_type = _semantic_type_of(activity)
         payload_snapshot = _extract_payload_snapshot(activity)

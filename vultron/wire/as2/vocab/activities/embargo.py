@@ -213,9 +213,8 @@ class _CreateEmbargoConsentActivity(as_Create):
 
     The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
     row in full, such as the ``UNINVITED`` row a proposal writes for a
-    participant (CLP-07-013).  It is not a message any actor sends: it has no
-    ``ActivityPattern`` and no ``MessageSemantics``.  Do not add a received
-    route.
+    participant (CLP-07-013), labelled ``create_embargo_consent``.  The
+    registry recognizes it, but no received use case handles it (ADR-0140).
 
     object_: as_EmbargoConsent
     """
@@ -230,8 +229,9 @@ class _UpdateEmbargoConsentActivity(as_Update):
 
     The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
     changed row in full, such as a ``CARRY_OVER`` at activation or the
-    CASE_MANAGER's own policy consent (CLP-07-013).  Not a message any actor
-    sends; do not add a received route.
+    CASE_MANAGER's own policy consent (CLP-07-013), labelled
+    ``update_embargo_consent``.  The registry recognizes it, but no received
+    use case handles it (ADR-0140).
 
     object_: as_EmbargoConsent
     """

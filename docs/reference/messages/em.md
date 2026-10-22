@@ -67,6 +67,21 @@ A revision that ends later sends no such notice, because those participants neve
 - **Who sends it:** only the Case Manager, which undoes only invitations it sent.
   No use case handles it on receipt.
 
+{% include-markdown "./_occasions/sections/create-embargo-consent.md" %}
+
+- **Protocol role:** each consent row the Case Manager brings into existence is its own ledger entry, after the act that caused it, carrying the row in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
+  A proposal writes an `UNINVITED` row for each participant this way.
+- **Who sends it:** only the Case Manager.
+  No use case handles it on receipt: each replica writes the row from the ledger entry.
+
+{% include-markdown "./_occasions/sections/update-embargo-consent.md" %}
+
+- **Protocol role:** each consent row the Case Manager changes is its own ledger entry, carrying the changed row in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
+  An invitation whose deadline passes unanswered moves to `TIMED_OUT` this way, and the rows carried over at activation are written the same way.
+- **The Case Manager's own consent:** a Case Manager with a stake in the embargo records a change of its own consent as this `Update`, never as a `Reject` of the Invite (MSM-07-004).
+- **Who sends it:** only the Case Manager.
+  No use case handles it on receipt: each replica writes the row from the ledger entry.
+
 {% include-markdown "./_occasions/sections/embargo-proposal-acceptance.md" %}
 
 - **Triggering transition:** Proposed → Active (P → A), or Proposed → Revise (P → R) while another proposal stays open as a revision (EMB-18-005).

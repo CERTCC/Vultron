@@ -62,7 +62,7 @@ class _EntryNotCommitted(VultronError):
 #: ``semantic_type`` of a case's genesis ledger entry, the root of the
 #: CASE_MANAGER's hash chain.  Its presence is what "the case's creation
 #: entries are committed" means to a later step (CM-14-007, CM-14-011).
-CREATE_CASE_SEMANTIC_TYPE = "create_case"
+CREATE_CASE_SEMANTIC_TYPE = MessageSemantics.CREATE_CASE.value
 
 
 class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
@@ -257,7 +257,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                 offer_actor_id=offer_actor_id,
             )
             self._commit_one(
-                case_id, report_id, "add_report_to_case", activity
+                case_id,
+                report_id,
+                MessageSemantics.ADD_REPORT_TO_CASE.value,
+                activity,
             )
 
     def _commit_participant_records(
@@ -352,7 +355,10 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
                 status=status, case_id=case_id, actor=actor
             )
             self._commit_one(
-                case_id, status_id, "add_case_status_to_case", activity
+                case_id,
+                status_id,
+                MessageSemantics.ADD_CASE_STATUS_TO_CASE.value,
+                activity,
             )
 
     def update(self) -> Status:

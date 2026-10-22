@@ -37,6 +37,7 @@ from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -52,7 +53,9 @@ logger = logging.getLogger(__name__)
 FULL_CASE_INVITE_ID_KIND = "invite-actor-to-full-case"
 
 #: Ledger ``semantic_type`` of the full-case Invite's entry.
-FULL_CASE_INVITE_SEMANTIC_TYPE = "invite_actor_to_full_case"
+FULL_CASE_INVITE_SEMANTIC_TYPE = (
+    MessageSemantics.INVITE_ACTOR_TO_FULL_CASE.value
+)
 
 
 def stored_invite_floor(invite: object) -> LedgerPosition | None:

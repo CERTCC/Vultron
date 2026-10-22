@@ -1,0 +1,16 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Update",
+  "id": "urn:uuid:f818faad-02bf-55f2-9936-32e8c85820ba/update",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Update urn:uuid:f818faad-02bf-55f2-9936-32e8c85820ba",
+  "context": "urn:uuid:31fe3ceb-61fb-4c9d-95be-c31c02ffb23d",
+  "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+  "object": {
+    "id": "urn:uuid:f818faad-02bf-55f2-9936-32e8c85820ba",
+    "type": "EmbargoConsent",
+    "attributedTo": "https://vultron.example/organizations/vendorco",
+    "embargoId": "urn:uuid:31fe3ceb-61fb-4c9d-95be-c31c02ffb23d/embargo_events/2026-08-30T00:00:00+00:00",
+    "state": "TIMED_OUT",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  }
+}

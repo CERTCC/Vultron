@@ -115,6 +115,7 @@ a peer → Layer 2; an entry that is present but malformed → Layer 3.
 | — | `test_invariant_clp13_no_rejected_invite_entries` | active | 3 — Committed |
 | — | `test_invariant_clp07_unique_payload_snapshot_ids` | active | 3 — Committed |
 | — | `test_invariant_clp14_timestamp_invariants` | active | 3 — Committed |
+| — | `test_invariant_semantic_type_is_registry_label` | active | 3 — Committed |
 | — | `test_invariant_per_actor_replica_no_rm_state_oscillation` | active | 2 — Received |
 | — | `test_invariant_per_actor_replica_rm_closed_termination` | active | 2 — Received |
 | — | `test_invariant_per_actor_replica_participant_status_schema_completeness` | active | 2 — Received |

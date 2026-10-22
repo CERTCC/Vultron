@@ -247,7 +247,6 @@ class _LedgerRecordsMixin:
         self,
         case_id: str,
         actor: str,
-        semantic_type: str,
         object_id: str,
     ) -> tuple[str, str]:
         """Build and seal the demo sync verb's ``Announce(VulnerabilityCase)``."""
@@ -256,7 +255,7 @@ class _LedgerRecordsMixin:
             actor=actor,
             context=case_id,
             id_=derived_activity_id(
-                "demo-sync-log-entry", actor, case_id, semantic_type, object_id
+                "demo-sync-log-entry", actor, case_id, object_id
             ),
         )
         return _seal_record(self._dl, activity)

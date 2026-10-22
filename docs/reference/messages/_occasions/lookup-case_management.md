@@ -4,6 +4,7 @@
 |---|---|---|---|---|---|
 | the Case Manager has opened a case for a submitted report | `Create(VulnerabilityCase)` | a participant | the addressee of the case proposal or vulnerability report offer | — | [Create case](../case_management.md#create-case) |
 | the Case Owner links a further report to an existing case | `Add(VulnerabilityReport)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Add report to case](../case_management.md#add-report-to-case) |
+| the Case Manager records the new Case Owner once a case ownership transfer is accepted | `Update(VulnerabilityCase)` | a participant | not handled | — | [Update case owner](../case_management.md#update-case-owner) |
 | the Case Owner offers a CVD role on the case to another participant | `Offer(CaseParticipantRole)[context=VulnerabilityCase]` | the case manager | the case owner | — | [Offer case participant role](../case_management.md#offer-case-participant-role) |
 | a participant accepts a role offered to it on the case | `Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | the case manager | the addressee of the case participant role offer | — | [Accept case participant role](../case_management.md#accept-case-participant-role) |
 | a participant declines a role offered to it on the case | `Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])` | the case manager | the addressee of the case participant role offer | — | [Reject case participant role](../case_management.md#reject-case-participant-role) |
@@ -23,3 +24,5 @@
 | a Participant ends its participation in the case | `Leave(VulnerabilityCase)` | the case manager | the case owner or a participant | — | [Close case](../case_management.md#close-case) |
 | the Case Owner reinstates a removed Participant | `Add(CaseParticipant)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Add case participant to case](../case_management.md#add-case-participant-to-case) |
 | the Case Owner removes a Participant from active participation | `Remove(CaseParticipant)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Remove case participant from case](../case_management.md#remove-case-participant-from-case) |
+| the Case Manager creates a participant record, such as the inert record for the invitee of a stub Invite | `Create(CaseParticipant)` | a participant | not handled | — | [Create case participant](../case_management.md#create-case-participant) |
+| the Case Manager changes a participant record, such as moving the CASE_OWNER role on an ownership transfer | `Update(CaseParticipant)` | a participant | not handled | — | [Update case participant](../case_management.md#update-case-participant) |
