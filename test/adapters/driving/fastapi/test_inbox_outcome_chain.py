@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -824,6 +825,9 @@ def _managed_case() -> Any:
         [manager, receiver],
         attributed_to=_VENDOR_ID,
         vulnerability_reports=[_LEGIT_REPORT_ID],
+        # One creation time, so every copy has the genesis hash the held
+        # case has, as the CASE_MANAGER's copies do (SYNC-16-006).
+        published=datetime(2026, 10, 1, tzinfo=UTC),
     )
 
 

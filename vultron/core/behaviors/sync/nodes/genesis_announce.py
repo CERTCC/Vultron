@@ -31,7 +31,7 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
-from vultron.core.behaviors.sync.nodes.replay import require_rejected_entry
+from vultron.core.behaviors.sync.nodes.replay import rejected_case_id
 from vultron.core.behaviors.sync.nodes.replay_guard import should_replay
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -101,14 +101,14 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
             )
             return Status.SUCCESS
 
-        entry = require_rejected_entry(activity, self.name)
+        case_id = rejected_case_id(activity, self.name)
         peer_id = activity.actor_id
         # CM-10-004: the case object is case content; a withheld peer's replay
         # is withheld too (SendMissingEntriesNode), so seed nothing.
         try:
             withheld = peer_is_withheld(
                 cast(CasePersistence, self.datalayer),
-                case_id=entry.case_id,
+                case_id=case_id,
                 peer_id=peer_id,
             )
         except VultronError as exc:
@@ -121,7 +121,7 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
                 " '%s'; not pre-seeding the case (CM-10-004)",
                 self.name,
                 peer_id,
-                entry.case_id,
+                case_id,
             )
             return Status.SUCCESS
         # SYNC-15-014: the pre-seed anchors the replay that follows it, so it
@@ -130,7 +130,7 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
         # again per Reject kept the loop the guard bounds alive (#4882).
         if not should_replay(
             cast(CasePersistence, self.datalayer),
-            case_id=entry.case_id,
+            case_id=case_id,
             peer_id=peer_id,
             from_hash="",
         ):
@@ -139,7 +139,7 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
                 " re-announcing case '%s' (SYNC-15-014)",
                 self.name,
                 peer_id,
-                entry.case_id,
+                case_id,
             )
             return Status.SUCCESS
         # `case_actor_id` is no longer read here: the announce is authored by the
@@ -149,11 +149,11 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
 
         try:
             activity_id = factory.announce_vulnerability_case(
-                case_id=entry.case_id,
+                case_id=case_id,
                 # The executing actor, which the CASE_MANAGER gate has already
                 # established holds that role — not a looked-up CaseActor id.
                 actor=self.actor_id,
-                context_id=entry.case_id,
+                context_id=case_id,
                 to=[peer_id],
             )
             # Route through the shared emit seam (OX-14-001, ASK-04-008).

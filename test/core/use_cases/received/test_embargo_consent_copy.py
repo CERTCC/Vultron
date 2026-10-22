@@ -26,7 +26,6 @@ import pytest
 
 from test.support.inbox_replay import held_depth
 from test.support.ledger import committed_semantic_types, fail_commits
-from test.support.received import received_event
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -53,7 +52,6 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.errors import VultronEntryRefusedError
-from vultron.wire.as2.factories import announce_vulnerability_case_activity
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
@@ -370,18 +368,19 @@ class TestReplicaCopies:
         assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(diverged)
 
     @pytest.mark.spec("CM-23-016")
-    def test_a_held_entry_applies_once_the_case_reaches_its_start(self):
+    @pytest.mark.spec("SYNC-16-007")
+    def test_a_held_entry_is_stored_once_a_fresh_copy_reflects_it(self):
         """A refused entry's held Announce is retried; it is never dropped.
 
-        Once this replica's case is where the entry starts (here the
-        diverged row is put back), the CASE_MANAGER's fresh
-        ``Announce(VulnerabilityCase)`` (SYNC-16) seeds nothing new, but its
-        tree replays the held Announce through the inbox, and that delivery
-        applies and stores it (SYNC-14-009, SYNC-16-007).
+        The CASE_MANAGER's fresh ``Announce(VulnerabilityCase)`` names its
+        tail, the refused entry, so it replaces the diverged case
+        (SYNC-16-006).  Its tree replays the held Announce through the inbox,
+        and that delivery stores the entry as the no-op the copy already
+        reflects, so the replica's rows match the CASE_MANAGER's
+        (SYNC-14-009, SYNC-16-007).
         """
         net = _net("cc-gap-retry")
         replica = net.stores[BYSTANDER]
-        agreed = _rows(_record(net, BYSTANDER, BYSTANDER))
         _drop_row(net, BYSTANDER, BYSTANDER)
         commit_and_apply_embargo_entries(
             net.stores[MANAGER],
@@ -395,19 +394,21 @@ class TestReplicaCopies:
             is HandlerDisposition.DEFERRED
         )
 
-        restored = _record(net, BYSTANDER, BYSTANDER)
-        restored.copy_consent_row(_row_change(net, BYSTANDER, _S.AGREED).row)
-        replica.save(restored)
-        assert _rows(restored) == agreed
-        seed = announce_vulnerability_case_activity(
-            net.case(MANAGER), actor=MANAGER, to=[BYSTANDER]
+        # The CASE_MANAGER's copy names its tail, the entry the replica
+        # holds (SYNC-16-005), so it replaces the case and the held entry is
+        # stored as the no-op the copy already reflects (SYNC-16-007).
+        seed_id = TriggerActivityAdapter(
+            net.stores[MANAGER]
+        ).announce_vulnerability_case(
+            case_id=net.case_id,
+            actor=MANAGER,
+            context_id=net.case_id,
+            to=[BYSTANDER],
         )
-        assert (
-            net.receive_event(
-                BYSTANDER,
-                received_event(seed, receiving_actor_id=BYSTANDER),
-            ).disposition
-            is HandlerDisposition.APPLIED
+        seed = read_sealed_body_dict(net.stores[MANAGER], seed_id)
+        assert seed is not None
+        assert net.receive(BYSTANDER, seed).disposition is (
+            HandlerDisposition.APPLIED
         )
 
         assert replica.read(entry_id) is not None

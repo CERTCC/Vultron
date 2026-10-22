@@ -361,7 +361,7 @@ these properties:
 | Append-only | A committed entry is immutable and identified by its content hash |
 | Deterministic projection | The same run of entries produces the same state in every conforming implementation |
 | Idempotent replay | Re-processing entries already seen changes nothing |
-| Monotonic progress | A replica never regresses the position it has acknowledged |
+| Monotonic progress | A replica never regresses the position it has acknowledged, and a late copy of the case cannot move it back |
 | Reject on divergence | An entry that does not extend the chain is not silently applied |
 | Order-independent convergence | Delivery order does not affect the final state |
 
@@ -372,6 +372,13 @@ order those entries arrived in.
 The holding area is kept in the replica's store, apart from its ledger, so a restart keeps what it holds.
 Nothing in it is committed, so it never stands in for an applied entry ([SYNC-14-005](../../reference/specs/project.md#sync-14-005)).
 An entry it does not hold comes back the same way an evicted one does — the next entry that does not match the replica's tail produces a `Reject`, and the CASE_MANAGER replays from the position that reject names.
+
+A replica that already holds the case also receives fresh copies of it, as `Announce(VulnerabilityCase)`.
+Each copy names the **ledger position** it reflects, the last entry its case file is a projection of, so the replica can tell a current copy from a stale one ([SYNC-16-005](../../reference/specs/protocol.md#sync-16-005)).
+A copy the replica's chain is already past changes nothing, and a copy that names a different entry at a position the replica holds is refused as a conflict ([SYNC-16-006](../../reference/specs/protocol.md#sync-16-006)).
+Any other copy replaces the replica's case.
+When that copy is ahead of the replica's chain, the replica asks for the missing entries with a `Reject`, and stores each entry the copy already reflects without applying it again or moving its position back ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
+An entry at the copy's position that is not the entry the copy names comes from a different chain, so the replica refuses it as a conflict and does not store it ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
 
 ---
 

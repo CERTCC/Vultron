@@ -94,6 +94,11 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
+        # A replica seeded from a case copy holds the reference but not the
+        # note, which the copy names by id only: store the note either way,
+        # so an attachment the case already shows still resolves (#5052).
+        self._materialise_note(note_data, note_id)
+
         if note_attached(case, note_id):
             self.logger.debug(
                 "%s: note '%s' already in case '%s' — idempotent no-op",
@@ -102,8 +107,6 @@ class ApplyNoteFromLedgerNode(_LedgerEffectNode):
                 case_id,
             )
             return Status.SUCCESS
-
-        self._materialise_note(note_data, note_id)
 
         attach_note(self.datalayer, case, note_id)
         self.logger.info(

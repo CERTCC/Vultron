@@ -36,6 +36,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_copy import copy_from
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -425,7 +426,8 @@ class _Replica:
             attributed_to=self.manager_id,
         )
         activity = announce_vulnerability_case_activity(
-            snapshot,
+            # A current copy: it names the replica's own tail (SYNC-16-006).
+            copy_from(snapshot, self.dl),
             actor=sender_id,
             to=[self.receiver_id],
             context=self.case_id,

@@ -74,6 +74,13 @@ def case():
     return as_VulnerabilityCase(id_=_CASE_ID, name="DR-10 Announce Case")
 
 
+def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
+    """*case* with an owner, so it names a ledger position (SYNC-16-005)."""
+    return as_VulnerabilityCase.model_validate(
+        {**case.model_dump(exclude_none=True), "attributed_to": _OWNER_ID}
+    )
+
+
 @pytest.fixture()
 def case_actor():
     return VultronService(
@@ -188,7 +195,10 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         assert link.case_id == _CASE_ID
 
     @pytest.mark.spec("MV-10-004")
-    def test_redelivery_of_the_same_announce_is_stable(self, dl, event, case):
+    @pytest.mark.spec("SYNC-16-006")
+    def test_redelivery_of_the_same_announce_is_stable(
+        self, dl, make_payload, case
+    ):
         """MV-10-004: receiving the same Announce twice leaves the same state.
 
         Asserts *stability*, which is what idempotency means here — not merely
@@ -202,17 +212,34 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
 
         Anchored on the invite record instead, so both deliveries are genuinely
         admitted, and asserting the payload's own name so an unapplied announce
-        cannot pass.
+        cannot pass.  The copy names its ledger position (SYNC-16-005), so the
+        redelivery is judged current and applied again, not refused.
         """
         _anchor_expected_authority(dl)
+        event = make_payload(
+            announce_vulnerability_case_activity(
+                _owned(case),
+                actor=_CASE_ACTOR_ID,
+                to=[_RECEIVER_ID],
+                context=_CASE_ID,
+            )
+        )
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        first_result = AnnounceVulnerabilityCaseReceivedUseCase(
+            dl, event
+        ).execute()
         first = cast(Any, dl.read(_CASE_ID))
+        assert first_result.disposition is HandlerDisposition.APPLIED
         assert first is not None
         assert first.name == "DR-10 Announce Case"
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        second_result = AnnounceVulnerabilityCaseReceivedUseCase(
+            dl, event
+        ).execute()
         second = cast(Any, dl.read(_CASE_ID))
+        assert second_result.disposition is HandlerDisposition.APPLIED, (
+            second_result.reason
+        )
 
         assert second is not None
         assert second.name == first.name
@@ -685,7 +712,7 @@ class TestAnnounceStoresEmbeddedParticipants:
     def test_embedded_participants_stored_when_case_already_exists(
         self,
         dl,
-        announce_with_participants_event,
+        make_payload,
         case_with_participants,
     ):
         """Participants are stored even when the case already exists locally.
@@ -695,12 +722,21 @@ class TestAnnounceStoresEmbeddedParticipants:
         must still be persisted on that path.
         """
         case, _, _ = case_with_participants
+        # A copy of a held case names its ledger position, so it has an
+        # owner (SYNC-16-005).
+        case = _owned(case)
         # Pre-seed the case so the use-case hits the existing-case branch.
         dl.create(case)
+        announce = make_payload(
+            announce_vulnerability_case_activity(
+                case,
+                actor=_CASE_ACTOR_ID,
+                to=[_RECEIVER_ID],
+                context=_CASE_ID,
+            )
+        )
 
-        AnnounceVulnerabilityCaseReceivedUseCase(
-            dl, announce_with_participants_event
-        ).execute()
+        AnnounceVulnerabilityCaseReceivedUseCase(dl, announce).execute()
 
         stored_ca = dl.read(_CASE_ACTOR_PARTICIPANT_ID)
         stored_vendor = dl.read(_VENDOR_PARTICIPANT_ID)

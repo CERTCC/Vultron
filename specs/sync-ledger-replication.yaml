@@ -1586,7 +1586,8 @@ groups:
       case file is a projection of: the `log_index` and `entry_hash` of the last entry
       applied to it, or, before any, index -1 and the per-case genesis hash. Committing
       an entry, or storing one as a replica, MUST move the position to that entry in
-      the same transaction that stores the entry. A ledger entry whose
+      the same transaction that stores the entry, unless the position is already past
+      it or names it, which MUST leave the position unchanged. A ledger entry whose
       `payloadSnapshot` carries the case MUST carry it at the position before that
       entry. The position MUST travel with the case on its wire form, so a copy names
       the position it reflects, and a received case that carries none MUST be
@@ -1598,7 +1599,9 @@ groups:
       case can be ahead of its own chain after it replaces its case with a copy.
       Moving it with the entry it names keeps the two from disagreeing, and a
       snapshot taken before the entry keeps any entry's hash from depending on
-      itself.
+      itself. Never moving it back keeps a case a copy put ahead of its chain at
+      the copy's position while the chain catches up (SYNC-16-007); a different entry at
+      the position's index is a conflict, not one it already reflects.
     relationships:
     - rel_type: refines
       spec_id: PCR-02-001
@@ -1609,8 +1612,10 @@ groups:
       stored after a commit or a replica's store names that entry, that the store and
       the move commit together, that a case-carrying snapshot names the position
       before its entry, and that a stored or received case without the field is
-      refused; `test/demo/test_rebuild_from_ledger.py` asserts the CASE_MANAGER's
-      and every replica's case names its chain tail after each demo.
+      refused; `test/core/behaviors/sync/test_divergence_recovery.py` asserts that
+      storing an entry behind the position leaves it;
+      `test/demo/test_rebuild_from_ledger.py` asserts the CASE_MANAGER's and every
+      replica's case names its chain tail after each demo.
     stories:
     - story_2022_088
   - id: SYNC-16-006
@@ -1618,17 +1623,21 @@ groups:
     kind: protocol
     statement: >-
       A participant that receives `Announce(VulnerabilityCase)` from the case's
-      CASE_MANAGER for a case it already holds MUST compare the copy's ledger position
-      (SYNC-16-005) with its own chain. If its chain is already past it, it MUST
-      leave its case file unchanged and report `SKIPPED`. If it holds an entry at the
-      position's index whose hash differs, it MUST leave its case file unchanged,
-      report `REFUSED` and log the conflict at ERROR. Otherwise it MUST replace its
-      case file with the copy.
+      CASE_MANAGER for a case it already holds, a repeat of an earlier Announce
+      included, MUST compare the copy's ledger position (SYNC-16-005) with its own:
+      the later of its chain's tail and its case's stored position. If its own is
+      already past the copy's, it MUST leave its case file unchanged and report
+      `SKIPPED`. If it holds an entry at the position's index, or its case names one
+      there, whose hash differs, it MUST leave its case file unchanged, report
+      `REFUSED` and log the conflict at ERROR. Otherwise it MUST replace its case file
+      with the copy, taking the copy's position.
     rationale: >-
       The transport is unordered and the outbox retries, so an old copy can arrive late;
       replacing with it would drop the effects of the entries the replica already holds
       past the copy. A different entry at the same index means the chains themselves
-      disagree, which no copy repairs.
+      disagree, which no copy repairs. The case's stored position counts as well as
+      the chain, because after a replacement the case can be ahead of the chain, and
+      a copy older than the replacing one must not move it back.
     relationships:
     - rel_type: refines
       spec_id: PCR-02-004
@@ -1636,24 +1645,43 @@ groups:
     - ADR-0142
     verification: >-
       `test/core/behaviors/sync/test_divergence_recovery.py` covers the stale,
-      conflicting and current copy.
+      conflicting and current copy, a copy behind or conflicting with the last
+      replacing copy, and an ownerless copy, which names no position;
+      `test/core/use_cases/received/actor/test_announce.py` covers a repeat of the
+      same Announce.
     stories:
     - story_2022_088
   - id: SYNC-16-007
     priority: MUST
     kind: protocol
     statement: >-
-      After replacing its case file under SYNC-16-006 with a copy whose tail is ahead of
-      its chain, a participant MUST send `Reject(CaseLedgerEntry)` carrying its own
-      tail, and MUST store each entry it applies at or before the copy's tail, whether
-      replayed or drained from its holding area (SYNC-14-003), as an idempotent no-op, not
-      refuse it.
+      After replacing its case file under SYNC-16-006 with a copy whose position is
+      ahead of its chain, a participant MUST send `Reject(CaseLedgerEntry)` carrying its
+      own tail. A participant whose case is at a position ahead of its chain, after
+      such a replacement or a first seed from a copy (PCR-02-003), MUST store each entry
+      it receives at or before that position, whether replayed or drained from its
+      holding area (SYNC-14-003), as an idempotent no-op, not refuse it, and MUST NOT
+      move the case's position back for it (SYNC-16-005). It MUST refuse, not store, an
+      entry at the position's index whose hash differs from the one the position
+      names, and log the conflict at ERROR. When its chain stores no
+      entry, the `Reject` MUST name no rejected entry, MUST carry an empty
+      last-accepted hash and MUST name the case as its `target`, asking for a replay
+      from genesis; a receiver MUST refuse a `Reject` that names no entry yet carries a
+      last-accepted hash, and the CASE_MANAGER MUST answer the empty-hash form as it
+      answers any replay from genesis (SYNC-15-002).
     rationale: >-
       Those entries are already reflected in the copy. The refused entry the replica
       held under SYNC-16-001 drains first, before any replay arrives, so a rule that
       covered only replayed entries would refuse it again. Storing them advances the chain
       to the copy's position, after which the entries that follow apply normally, so the
-      replica ends where seed-plus-replay leaves it (ADR-0114).
+      replica ends where seed-plus-replay leaves it (ADR-0114). A first seed is the same
+      case: the copy already reflects the entries the joining replica's backfill
+      brings. The entries before the position carry no hash the case names, so a
+      chain that diverged among them shows only at the position's index; refusing the
+      entry there keeps the chain from naming one entry and the case another. A replica
+      with no entry has none for the `Reject` to name; waiting for
+      the next fan-out would stall it on a quiet case, so it names the case instead and
+      asks for everything.
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-16-006
@@ -1664,7 +1692,13 @@ groups:
     verification: >-
       `test/core/behaviors/sync/test_divergence_recovery.py` replaces a short replica's
       case and asserts its chain reaches the CASE_MANAGER's tail with matching case
-      files.
+      files, that a replica with no entry sends the `Reject` that names none, that such
+      a `Reject` carrying a hash is refused at parse, and that a first seed ahead of the
+      chain stores the backfilled entries as no-ops at the copy's position, and that an
+      entry at the position's index with another hash is refused at ERROR, unstored;
+      `test/core/use_cases/received/test_case_copy_replacement.py` backfills a replaced
+      replica without moving its position back, and replays a replica with no entry
+      from genesis to the CASE_MANAGER's tail.
     stories:
     - story_2022_045
     - story_2022_088

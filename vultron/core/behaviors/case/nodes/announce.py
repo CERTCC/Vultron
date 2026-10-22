@@ -16,13 +16,16 @@
 """BT leaf nodes for received Announce(VulnerabilityCase) activities.
 
 Provides :func:`announced_case_id`, which names the case an Announce carries,
-and the action node that seeds a local DataLayer with the announced
-``VulnerabilityCase``, stores embedded participants, and links any matching
-report-case associations.  The sender check is not here: the received tree's
-factory composes it from the use case's declared rule (HP-01-008).
+and the action node that seeds, or replaces, the local case with the
+announced ``VulnerabilityCase``, stores embedded participants, and links any
+matching report-case associations.  The guard that judges a copy of a held
+case by its ledger position, and the node that asks for the entries it is ahead
+by, are in :mod:`.case_copy`.  The sender check is not here: the received
+tree's factory composes it from the use case's declared rule (HP-01-008).
 
-Per ``specs/mpcvd-cases.yaml`` MV-10-003 (create if absent) and
-MV-10-004 (idempotent if already present).
+Per ``specs/mpcvd-cases.yaml`` MV-10-003 (create if absent),
+``specs/participant-case-replica.yaml`` PCR-02-003 and PCR-02-004 (an
+authoritative update if present), and ADR-0142.
 
 The composite tree factory is in ``announce_case_received_tree.py`` at
 the process-area root per BTND-07-003.
@@ -32,6 +35,9 @@ from typing import Any
 
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.case_copy import (
+    required_position,
+)
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.models.case import VulnerabilityCase
@@ -44,7 +50,10 @@ from vultron.core.services.case_replica_seeding import (
     normalize_participant_refs,
     store_embedded_participants,
 )
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 
 def announced_case_id(
@@ -97,19 +106,28 @@ def _store_embedded_reports(case_obj, datalayer) -> None:
 
 
 class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
-    """Persist a received ``VulnerabilityCase`` announcement in the DataLayer.
+    """Seed, or replace, the local case with a received ``VulnerabilityCase``.
 
     On first receipt the node saves ``case_obj`` and stores any embedded
-    participants and linked report-case associations (MV-10-003).  On
-    repeated receipt the case is already present so the node skips the
-    save but still refreshes participants and links (MV-10-004, idempotent).
+    participants and linked report-case associations (MV-10-003,
+    PCR-02-003).  For a case this replica already holds, the copy is an
+    authoritative update (PCR-02-004): the guard before this node has
+    judged it current by its ledger position (SYNC-16-006), so the node
+    replaces the stored case with it, position included, refreshes its
+    participants, stores any report it lacks and links them, in one
+    transaction.  A case stored at a position ahead of the replica's chain
+    stores the entries up to it as no-ops (SYNC-16-007).  A re-delivery of
+    the same Announce takes the same judgement (SYNC-16-006): at the case's
+    own position it is current and replaces the case with itself; once the
+    chain is past it, it is stale and skipped.
 
     On both paths the ``EmbargoEvent`` the case names is held *before* the
     case is saved, and a case naming one this store cannot read is refused
     with ``FAILURE`` and nothing saved (EMB-18-003).
 
     Returns ``SUCCESS`` in both paths, ``FAILURE`` on such a refusal, a
-    persist error, or a missing DataLayer.
+    first-seed persist error, or a missing DataLayer.  A store failure while
+    replacing rolls the replacement back and raises.
     """
 
     def __init__(
@@ -142,35 +160,20 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
 
         existing = self.datalayer.read(self.case_id)
         if existing is not None:
-            # Idempotent path — case already present locally (MV-10-004).
-            # Still refresh participants and normalise the stored case so the
-            # DataLayer row never carries inline sub-objects (#2233 write-path).
-            # This path handles a replica that already holds the case and a
-            # re-delivery of the same Announce.  The copy replaces the case
-            # whole, its ledger position included: the case file is the copy,
-            # at the position the copy names.  Judging the copy by that
-            # position first (stale, conflicting, ahead) is SYNC-16-006.
-            self.logger.debug(
-                "%s: case '%s' already exists locally"
-                " — refreshing participants and normalising row (MV-10-004)",
+            # Replace path: the replica holds the case, and the guard judged
+            # the copy current by its ledger position (PCR-02-004, SYNC-16-006).
+            # Refresh participants, store any report this replica lacks
+            # (one it holds is kept), then save the copy with
+            # string participant refs so the row never carries inline
+            # sub-objects (#2233 write-path).
+            self.logger.info(
+                "%s: replacing case '%s' with the copy from actor '%s'"
+                " (PCR-02-004)",
                 self.name,
                 self.case_id,
+                self._request.actor_id,
             )
-            _store_embedded_reports(self.case_obj, self.datalayer)
-            store_embedded_participants(
-                self.case_obj, self.datalayer, self.case_id
-            )
-            # Persist a copy whose case_participants are string IDs only.
-            # model_copy avoids direct field assignment (CM-27-001, #2295).
-            _case_to_save = self.case_obj.model_copy(
-                update={
-                    "case_participants": normalize_participant_refs(
-                        self.case_obj
-                    )
-                }
-            )
-            self.datalayer.save(_case_to_save)
-            link_report_case_links(self.datalayer, self.case_obj)
+            self._replace()
             return Status.SUCCESS
 
         try:
@@ -208,3 +211,41 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
                 exc,
             )
             return Status.FAILURE
+
+    def _replace(self) -> None:
+        """Replace the held case with the copy, as one transaction.
+
+        The participants, reports and the case at the copy's ledger position
+        (SYNC-16-005) commit together or not at all, so a failure part-way
+        leaves no replica half replaced (ADR-0146).  A store failure raises,
+        and the handler reports it as an internal error.
+
+        The embargo the copy carries is stored before, outside the
+        transaction, on both paths (:meth:`update`): it is an immutable
+        record copied as received (CM-23-016), so one left stored by a failed
+        replacement is the record a redelivery stores again, not a half
+        replacement.
+        """
+        assert self.datalayer is not None
+        # The guard admitted the copy, so it names a position (SYNC-16-006).
+        required_position(self.case_obj, self.case_id, self.name)
+        with self.datalayer.transaction():
+            _store_embedded_reports(self.case_obj, self.datalayer)
+            store_embedded_participants(
+                self.case_obj,
+                self.datalayer,
+                self.case_id,
+                authoritative=True,
+            )
+            # Persist a copy whose case_participants are string IDs only.
+            # model_copy avoids direct field assignment (CM-27-001, #2295).
+            self.datalayer.save(
+                self.case_obj.model_copy(
+                    update={
+                        "case_participants": normalize_participant_refs(
+                            self.case_obj
+                        )
+                    }
+                )
+            )
+            link_report_case_links(self.datalayer, self.case_obj)
