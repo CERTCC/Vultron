@@ -213,7 +213,7 @@ function makeParticipant(
   if (laneId === 'coordinator') {
     // A real coordinator PARTICIPANT (2026-07 scenarios), distinct from the
     // virtual `caseactor` recorder above. Unlike the recorder, it has a genuine
-    // RM/VFD lifecycle (in fcv/fccv-extension it's the CASE_OWNER and validates
+    // RM/VFD lifecycle (in rcv/rccv-extension it's the CASE_OWNER and validates
     // the report; it also closes at case end), so it starts at the machine
     // initials like the finder/vendor and is seeded from its first status
     // snapshot — NOT the 'N/A' sentinel.
@@ -686,7 +686,7 @@ function handleEntry(
       // (already rendered as "Case Created"); no machine change, so log-only.
       return logOnly(entry, participants)
     case 'accept_actor_recommendation':
-      // A leg of the ADR-0026 suggest-actor handshake (fcvcv): an actor accepts a
+      // A leg of the ADR-0026 suggest-actor handshake (rcvcv): an actor accepts a
       // recommendation to bring another actor onto the case. Folded into the
       // "Actor Recommended" overlay (handleOfferActorToCase); log-only here.
       return logOnly(entry, participants)
@@ -744,16 +744,32 @@ function referentLabel(
 }
 
 /**
- * The entry's summary in the semantic registry's phrasing (the same templates the
- * Python demo report renders, DRPT-03-002). Slots are filled with lane names; an
- * unfilled slot renders as an em-dash.
+ * A display name for an actor URL no lane claims, by the Python report's path
+ * segment heuristic (DRPT-03-008): the last path segment, title-cased, or the
+ * host when that segment is an opaque id.
+ */
+function urlSegmentLabel(url: string): string {
+  const segments = url.replace(/\/+$/, '').split('/')
+  const last = segments[segments.length - 1] ?? ''
+  const opaque = /^[0-9a-f-]{16,}$/i.test(last) || last.includes(':')
+  const word = opaque ? (url.match(/\/\/([^:/]+)/)?.[1] ?? last) : last
+  return word.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+/**
+ * The entry's summary in the semantic registry's phrasing, rendered as the
+ * Python demo report's `CaseTimelineEvent.summary` renders it (DRPT-03-002): the
+ * actor slot is the acting lane's name, and the object and target slots both
+ * take the label of the activity's object. An unfilled slot renders as `—`.
  */
 function entryPhrase(entry: CaseLedgerEntry, participants: Map<string, ParticipantState>): string {
   const snapshot = entry.payloadSnapshot
+  const actorUrl = snapshot?.actor
+  const objectLabel = referentLabel(snapshot?.object, participants)
   return renderPhrase(entry.semanticType, {
-    actor: laneLabel(snapshot?.actor, participants),
-    object: referentLabel(snapshot?.object, participants),
-    target: referentLabel(snapshot?.target, participants),
+    actor: actorUrl ? laneLabel(actorUrl, participants) ?? urlSegmentLabel(actorUrl) : undefined,
+    object: objectLabel,
+    target: objectLabel,
   })
 }
 
@@ -790,7 +806,7 @@ function handleCreateCase(
   roster.add(actorUrlToLaneId(entry.payloadSnapshot?.actor))
   for (const laneId of roster) ensureParticipant(participants, laneId, laneIndex)
   // Ensure the standard lanes exist even if the index was sparse. NOTE: vendor-1 is
-  // created defensively but is NOT auto-joined here — in fcv/fccv the primary vendor
+  // created defensively but is NOT auto-joined here — in rcv/rccv the primary vendor
   // is a LATE joiner absent from the offer roster (the coordinator is the receiver),
   // so it must stay hidden until its accept-invite. Only the actual roster joins now.
   ensureParticipant(participants, 'finder', laneIndex)
@@ -820,17 +836,17 @@ function handleCreateCase(
   // Report-receipt seed: the case RECEIVER/OWNER enters at RM.RECEIVED so the
   // later `validate_report` is a legal RECEIVED→VALID step (seeding at ACCEPTED
   // would make `validate` illegal). The receiver is the primary vendor in
-  // two-actor/fvv/fvcv-extension but the COORDINATOR in fcv/fccv-extension.
+  // rv/rvv/rvcv-extension but the COORDINATOR in rcv/rccv-extension.
   //
   // Identifying the owner (2026-08): `create_case`'s `object.attributedTo` is the
   // case-actor RECORDER, not the owner (the legacy `offer_case_manager_role` put
   // the owner there). So we derive the owner from the roster instead: it is the
   // single participant that is neither the finder nor the caseactor recorder
-  // (fv → vendor-1, fcv → coordinator). We still honor `object.attributedTo` when
+  // (rv → vendor-1, rcv → coordinator). We still honor `object.attributedTo` when
   // it names a genuine owner lane (legacy logs), falling back to the roster rule,
   // then to vendor-1.
   //
-  // GUARDED on `=== undefined` (not on seededRm): some ledgers (e.g. fvv) log
+  // GUARDED on `=== undefined` (not on seededRm): some ledgers (e.g. rvv) log
   // validate_report BEFORE the offer, so the receiver's RM may already have
   // advanced to VALID — seeding here would regress it. We only set the baseline
   // when never touched, but always mark the lane seeded so later status snapshots
@@ -934,7 +950,7 @@ function handleReport(
 
 /**
  * First leg of the extension flow's suggest-actor handshake: a participant (the
- * Coordinator in fvcv-extension; the actor5/vendor-2 host in fccv-extension)
+ * Coordinator in rvcv-extension; the actor5/vendor-2 host in rccv-extension)
  * recommends a new actor to the case. The CaseActor then forwards it to the Case
  * Owner (`offer_case_participant`) who approves it (`accept_offer_case_participant`)
  * — both folded into this single node as log lines — after which the regular
@@ -982,7 +998,7 @@ function handleOfferActorToCase(
  * An invitation to join the case.
  *
  * Two payload shapes appear in practice (AGENTS.md §6 quirk #8, now updated):
- *   - EMPTY (`actor` absent) — the older two-actor/fvv logs, and a leading
+ *   - EMPTY (`actor` absent) — the older two-actor and fvv logs (pre-2026-10 names), and a leading
  *     placeholder entry that precedes the populated one in the 2026-07 coordinator
  *     scenarios. Carries no attribution, so it's log-only; the join is shown by the
  *     later accept-invite.
@@ -1102,7 +1118,7 @@ function handleAcceptInvite(
 // --- reject_invite_actor_to_case → invitee declines -------------------------
 
 /**
- * An invited actor declines the invitation (the fcv-reject scenario). The
+ * An invited actor declines the invitation (the rcv-reject scenario). The
  * recorded `actor` is the rejecter; the wrapped `object` is the Invite, whose
  * `object` is the invitee and whose `actor` is the inviter. We render a
  * "Declined Invite" decision node in the rejecter's lane. No machine change — the
@@ -1140,7 +1156,7 @@ function handleRejectInvite(
 // --- offer/accept_case_ownership_transfer → case-ownership handoff -----------
 
 /**
- * Case-ownership HANDOFF (the `-handoff` scenarios: fvcv-handoff, fccv-handoff).
+ * Case-ownership HANDOFF (the `-handoff` scenarios: rvcv-handoff, rccv-handoff).
  * The current case owner offers to transfer ownership to another actor, who then
  * accepts. Rendered as an offer→accept node pair mirroring the invite/accept
  * grammar, so the handoff — previously invisible (these verbs hit the `default`
@@ -1291,7 +1307,7 @@ function handleValidateReport(
   }
 
   // The validator is the case receiver/owner, which is the primary vendor in
-  // two-actor/fvv/fvcv-extension but the COORDINATOR in fcv/fccv-extension — name
+  // rv/rvv/rvcv-extension but the COORDINATOR in rcv/rccv-extension — name
   // the actual lane rather than assuming "Vendor".
   const validatorName = participants.get(laneId)?.name ?? laneId
   const nodes = synthesizeCluster(
@@ -1385,7 +1401,7 @@ function handleParticipantStatus(
   // The case-actor recorder is the virtual CASE_MANAGER (§9): it has no report-
   // management disposition of its own and stays at RM/VFD = 'N/A'. The 2026-08
   // ledger attributes a case-management RM lifecycle to the case-actor sub-actor
-  // URL (e.g. fv logIndex 2–4: RECEIVED→VALID→ACCEPTED), but that merely mirrors
+  // URL (RECEIVED→VALID→ACCEPTED→CLOSED on the case-actor participant), but that merely mirrors
   // the OWNER's progress — the owner's own participant lane (vendor/coordinator)
   // already carries it. So we ignore RM/VFD on the caseactor lane to keep it N/A
   // and avoid a spurious lifecycle in the recorder lane; case-level EM/PXA still
@@ -1412,37 +1428,45 @@ function handleParticipantStatus(
       logLines.push(`  ↳ seeded ${laneId} RM = ${rmNext} (first snapshot)`)
     } else {
       const src = shadow.rm[laneId]
-      if (rmNext !== src && isRecordedClosePath(shadow, laneId, rmNext)) {
-        // Shadow stays CLOSED: the Leave already depicted this participant's closure.
+      const recordedBy = actorUrlToLaneId(entry.payloadSnapshot?.actor)
+      if (isRecordedClosePath(shadow, laneId, rmNext, recordedBy)) {
+        // Shadow stays CLOSED: the Leave already depicted this participant's
+        // closure. Advance the cursor so the next step must follow this one.
         logLines.push(
           `  ↳ recorded close path after Leave: ${laneId} RM ${shadow.leftFrom[laneId]} → ${rmNext} → CLOSED`
         )
-      } else if (rmNext !== src) {
-        const path = triggerPath('rm', src, rmNext)
-        if (path && path.length > 0) {
-          changes.push({ machine: 'rm', from: src, to: rmNext, trigger: path[path.length - 1] })
-          if (path.length > 1) {
-            logLines.push(`  ↳ RM path: ${src} → ${rmNext} via ${path.join(', ')}`)
-            inferredNotes.push(
-              `RM ${src} → ${rmNext} was not a single logged step: the mapper inferred the ` +
-                `legal path [${path.join(' → ')}] because intermediate states were not recorded.`
+        shadow.leftFrom[laneId] = rmNext
+      } else {
+        // Any close path is over: CLOSED was recorded again, or this snapshot is
+        // not its next step and is judged as a transition below.
+        delete shadow.leftFrom[laneId]
+        if (rmNext !== src) {
+          const path = triggerPath('rm', src, rmNext)
+          if (path && path.length > 0) {
+            changes.push({ machine: 'rm', from: src, to: rmNext, trigger: path[path.length - 1] })
+            if (path.length > 1) {
+              logLines.push(`  ↳ RM path: ${src} → ${rmNext} via ${path.join(', ')}`)
+              inferredNotes.push(
+                `RM ${src} → ${rmNext} was not a single logged step: the mapper inferred the ` +
+                  `legal path [${path.join(' → ')}] because intermediate states were not recorded.`
+              )
+            }
+            shadow.rm[laneId] = rmNext
+          } else {
+            violation = true
+            // Record the illegal jump as a change so a flagged node still renders.
+            // Without this, a status entry whose ONLY content is an illegal RM jump
+            // would hit the `changes.length === 0` early return and be invisible.
+            changes.push({ machine: 'rm', from: src, to: rmNext, trigger: 'illegal' })
+            violationReasons.push(
+              `RM cannot reach ${rmNext} from ${src}: no sequence of legal RM ` +
+                `transitions connects them. The report's management state jumped illegally.`
             )
+            logLines.push(
+              `  ↳ PROTOCOL VIOLATION: rm has no path "${src}" → "${rmNext}" (subject=${laneId}); forcing shadow`
+            )
+            shadow.rm[laneId] = rmNext
           }
-          shadow.rm[laneId] = rmNext
-        } else {
-          violation = true
-          // Record the illegal jump as a change so a flagged node still renders.
-          // Without this, a status entry whose ONLY content is an illegal RM jump
-          // would hit the `changes.length === 0` early return and be invisible.
-          changes.push({ machine: 'rm', from: src, to: rmNext, trigger: 'illegal' })
-          violationReasons.push(
-            `RM cannot reach ${rmNext} from ${src}: no sequence of legal RM ` +
-              `transitions connects them. The report's management state jumped illegally.`
-          )
-          logLines.push(
-            `  ↳ PROTOCOL VIOLATION: rm has no path "${src}" → "${rmNext}" (subject=${laneId}); forcing shadow`
-          )
-          shadow.rm[laneId] = rmNext
         }
       }
     }
@@ -1713,17 +1737,25 @@ function handleRemoveEmbargo(
 // --- close_case → a participant's self-declaratory Leave (CM-23-012) -----------
 
 /**
- * Whether an RM snapshot of `rmNext` for a lane its Leave already CLOSED is a
- * step of the leaver's legal path to CLOSED, as the case manager records it after
- * the Leave: reachable from the rung the lane left from, with CLOSED reachable
- * from it. Any other snapshot after a Leave is still judged as a transition.
+ * Whether an RM snapshot of `rmNext` for a lane its Leave already CLOSED is the
+ * next step of the leaver's legal path to CLOSED, as the case manager records it
+ * after the Leave. It must be recorded by the case manager (`recordedBy` is the
+ * caseactor lane), lie strictly forward of the cursor `shadow.leftFrom[laneId]`
+ * (the rung the lane left from, then each recorded step), and have CLOSED still
+ * ahead of it. Anything else after a Leave is judged as a transition.
  */
-function isRecordedClosePath(shadow: ShadowState, laneId: string, rmNext: string): boolean {
-  const leftFrom = shadow.leftFrom[laneId]
-  if (shadow.rm[laneId] !== 'CLOSED' || leftFrom === undefined || rmNext === 'CLOSED') return false
-  const toStep = triggerPath('rm', leftFrom, rmNext)
+function isRecordedClosePath(
+  shadow: ShadowState,
+  laneId: string,
+  rmNext: string,
+  recordedBy: LaneId
+): boolean {
+  const cursor = shadow.leftFrom[laneId]
+  if (cursor === undefined || recordedBy !== 'caseactor') return false
+  if (shadow.rm[laneId] !== 'CLOSED' || rmNext === 'CLOSED') return false
+  const toStep = triggerPath('rm', cursor, rmNext)
   const toClosed = triggerPath('rm', rmNext, 'CLOSED')
-  return toStep !== null && toClosed !== null && toClosed.length > 0
+  return toStep !== null && toStep.length > 0 && toClosed !== null && toClosed.length > 0
 }
 
 function handleCloseCase(

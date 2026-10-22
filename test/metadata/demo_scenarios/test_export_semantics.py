@@ -88,8 +88,15 @@ def test_export_carries_a_readme_warning_against_hand_edits() -> None:
     assert REGEN_COMMAND in readme
 
 
-def test_export_is_deterministic_json() -> None:
-    text = serialize(build_payload())
-    assert text == serialize(build_payload())
+def test_committed_artifact_has_the_shape_the_ui_declares() -> None:
+    """The committed file parses, and every row carries exactly the fields
+    ``ui/src/semanticRegistry.ts`` declares on ``SemanticRegistryEntry``."""
+    text = OUTPUT_PATH.read_text(encoding="utf-8")
     assert text.endswith("\n")
-    json.loads(text)
+    payload = json.loads(text)
+    assert set(payload) == {"_README", "entries"}
+    for row in payload["entries"]:
+        assert set(row) == {"semanticType", "wire", "phrase"}
+        assert isinstance(row["semanticType"], str) and row["semanticType"]
+        assert isinstance(row["phrase"], str) and row["phrase"]
+        assert row["wire"] is None or isinstance(row["wire"], str)

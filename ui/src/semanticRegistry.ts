@@ -11,10 +11,12 @@
  * keep parallel phrase tables (DRPT-03-005, ADR-0128).
  *
  * Phrase templates use named slots (`{actor}`, `{object}`, `{target}`, …;
- * SE-07-002). `renderPhrase` fills the slots it is given and renders every other
- * slot as an em-dash, as the Python report does (DRPT-03-004). A type the
- * artifact does not list — a log from another protocol version — falls back to
- * its humanized name (DRPT-03-006).
+ * SE-07-002). `renderPhrase` applies the rendering rules of the Python report's
+ * `CaseTimelineEvent.summary`: it fills the slots it is given, renders every other
+ * slot as an em-dash (DRPT-03-004), drops the leading `— ` when no actor is
+ * given, and capitalizes the first letter. A type the artifact does not list — a
+ * log from another protocol version — falls back to its humanized name
+ * (DRPT-03-006). Choosing the slot VALUES (display names) is the caller's job.
  */
 
 import semanticRegistry from './data/semantic_registry.json'
@@ -40,16 +42,6 @@ const BY_TYPE: ReadonlyMap<string, SemanticRegistryEntry> = new Map(
 
 const MISSING_SLOT = '—'
 
-/** Every semantic type the registry lists, in registry (dispatch) order. */
-export function registeredSemanticTypes(): string[] {
-  return ENTRIES.map((entry) => entry.semanticType)
-}
-
-/** The registry entry for `semanticType`, or `undefined` when it lists none. */
-export function lookupSemanticType(semanticType: string): SemanticRegistryEntry | undefined {
-  return BY_TYPE.get(semanticType)
-}
-
 /** Whether the registry lists `semanticType`. */
 export function isRegisteredSemanticType(semanticType: string): boolean {
   return BY_TYPE.has(semanticType)
@@ -58,18 +50,21 @@ export function isRegisteredSemanticType(semanticType: string): boolean {
 /**
  * Render `semanticType`'s phrase with `slots` filled in.
  *
- * A slot the caller does not supply renders as an em-dash, and a leading
- * `— ` (no actor) is dropped, as `CaseTimelineEvent.summary` does. An
+ * A slot the caller does not supply renders as an em-dash. With no `actor`
+ * given, a leading `— ` is dropped. The result starts with a capital letter. An
  * unregistered type renders as its humanized name.
  */
 export function renderPhrase(semanticType: string, slots: PhraseSlots = {}): string {
   const entry = BY_TYPE.get(semanticType)
+  let phrase: string
   if (!entry) {
-    const humanized = semanticType.replace(/_/g, ' ').trim()
-    return humanized || 'performed an action'
+    phrase = semanticType.replace(/_/g, ' ').trim() || 'performed an action'
+  } else {
+    const filled: Record<string, string | undefined> = slots
+    phrase = entry.phrase.replace(/\{(\w+)\}/g, (_, name: string) => filled[name] ?? MISSING_SLOT)
+    if (slots.actor === undefined && phrase.startsWith(`${MISSING_SLOT} `)) {
+      phrase = phrase.slice(MISSING_SLOT.length + 1)
+    }
   }
-  const filled: Record<string, string | undefined> = slots
-  let phrase = entry.phrase.replace(/\{(\w+)\}/g, (_, name: string) => filled[name] ?? MISSING_SLOT)
-  if (phrase.startsWith(`${MISSING_SLOT} `)) phrase = phrase.slice(MISSING_SLOT.length + 1)
-  return phrase
+  return phrase.charAt(0).toUpperCase() + phrase.slice(1)
 }
