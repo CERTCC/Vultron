@@ -23,9 +23,9 @@ set is derived from code (``_ledger_commit_inventory``).
 The label is named through ``MessageSemantics``, never spelled as a string:
 no code string under ``vultron/core/behaviors/`` equals a semantic type
 (#4724 AC-4), so renaming a member breaks the code that names it instead of
-leaving a stale string.  The
-in-process demo and per-actor-store harnesses check each written entry
-against the registry's matcher (``test/support/ledger_labels.py``).
+leaving a stale string.  The in-process demo and per-actor-store harnesses
+check each written entry against the registry's matcher
+(``test/support/ledger_labels.py``).
 """
 
 import ast
@@ -61,7 +61,12 @@ def test_every_committed_semantic_type_has_a_registry_pattern():
     assert not unmatched, f"committed, but no registry pattern: {unmatched}"
 
 
-_LABELS = frozenset(m.value for m in MessageSemantics)
+#: Every label the scan looks for.  ``UNKNOWN`` is the dispatcher's
+#: fallback, never a committed type, and ``"unknown"`` is an ordinary English
+#: default elsewhere (``rm_anomaly.py``'s ``anomaly_type``), so it is left out.
+_LABELS = frozenset(
+    m.value for m in MessageSemantics if m is not MessageSemantics.UNKNOWN
+)
 
 
 def _docstring_ids(tree: ast.AST) -> set[int]:
@@ -100,8 +105,9 @@ def _string_literals(path: Path, tree: ast.AST) -> list[str]:
 
     Any code string equal to a ``MessageSemantics`` value counts, whatever it
     is bound to or passed as: a constant of any name, a ``semantic_type=``
-    keyword, a positional argument or a comparison.  Docstrings and
-    ``__all__`` entries are prose and symbol names, so they are left out.
+    keyword, a positional argument or a comparison, except ``"unknown"``
+    (see ``_LABELS``).  Docstrings and ``__all__`` entries are prose and
+    symbol names, so they are left out.
     """
     skipped = _docstring_ids(tree) | _all_list_ids(tree)
     rel = path.relative_to(_corpus.REPO_ROOT)
@@ -110,7 +116,6 @@ def _string_literals(path: Path, tree: ast.AST) -> list[str]:
         for node in ast.walk(tree)
         if isinstance(node, ast.Constant)
         and isinstance(node.value, str)
-        and "_" in node.value
         and node.value in _LABELS
         and id(node) not in skipped
     ]
@@ -154,5 +159,6 @@ def test_the_literal_scan_skips_prose_and_symbol_names():
         "def f():\n"
         '    """\'close_case\'"""\n'
         "__all__ = ['refusal_notice']\n"
+        "kind = anomaly.get('anomaly_type', 'unknown')\n"
     )
     assert _string_literals(_BEHAVIORS_ROOT / "x.py", tree) == []

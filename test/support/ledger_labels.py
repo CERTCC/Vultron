@@ -59,7 +59,7 @@ def label_mismatch(
     if label == semantic_type:
         return None
     return (
-        f"stored semantic_type {semantic_type!r}, but the registry labels"
+        f"semantic type {semantic_type!r}, but the registry labels"
         f" its {payload_snapshot.get('type')!r} payload {label!r}"
     )
 
