@@ -46,11 +46,6 @@ from py_trees.common import Status
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
 )
-from vultron.core.behaviors.embargo.copy_commit import (
-    PlannedEmbargoEntry,
-    commit_and_apply_embargo_entries,
-    consent_row_entry,
-)
 from vultron.core.behaviors.embargo.decided_entries import (
     EMBARGO_DECISION_KEY,
     EmbargoDecision,
@@ -264,31 +259,18 @@ class CommitOwnConsentDecisionNode(
     def update(self) -> Status:
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
-        dl = cast(CaseOutboxPersistence, self.datalayer)
         rows = self._rows()
         committed: list[dict[str, Any]] = []
-        entries = []
-        for row in rows:
-            planned = consent_row_entry(
-                datalayer=dl,
-                trigger_activity=self._require_trigger_activity_port(),
-                actor_id=cast(str, self.actor_id),
-                case_id=self._case_id,
-                change=row,
-                cause_id=f"own-consent:{self._embargo_id}",
-            )
-            commit = planned.commit
-            assert commit is not None
-
-            def _commit(commit: Callable[[], Any] = commit) -> Any:
-                snapshot = commit()
-                committed.append(snapshot)
-                return snapshot
-
-            entries.append(
-                PlannedEmbargoEntry(change=planned.change, commit=_commit)
-            )
-        commit_and_apply_embargo_entries(dl, self._case_id, entries)
+        commit_and_apply_decision(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            decision=EmbargoDecision(
+                case_id=self._case_id, act=None, rows=rows
+            ),
+            trigger_activity=self._require_trigger_activity_port(),
+            actor_id=cast(str, self.actor_id),
+            cause_id=f"own-consent:{self._embargo_id}",
+            on_row_commit=committed.append,
+        )
         if self._captured is not None and committed:
             self._captured["activity"] = committed[0]
         self.feedback_message = (

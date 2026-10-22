@@ -174,6 +174,7 @@ def consent_row_entry(
     change: ConsentRowChange,
     cause_id: str,
     sync_port: "SyncActivityPort | None" = None,
+    on_commit: Callable[[dict[str, Any]], None] | None = None,
 ) -> PlannedEmbargoEntry:
     """The CASE_MANAGER's own entry for one consent row it creates or changes.
 
@@ -184,7 +185,8 @@ def consent_row_entry(
     re-run commits the entry its first run committed (ID-04-004).
     *sync_port*, when given, fans the entry out to the case's participants;
     a node inside a tree that carries one may leave it unset, and the nested
-    commit inherits the tree's.
+    commit inherits the tree's.  *on_commit*, when given, is called with the
+    committed snapshot, so a caller can report the activity it committed.
     """
 
     def _commit() -> dict[str, Any]:
@@ -207,7 +209,7 @@ def consent_row_entry(
                     cause_id=cause_id,
                 )
             )
-        return commit_emitted_activity(
+        snapshot = commit_emitted_activity(
             datalayer=datalayer,
             actor_id=actor_id,
             case_id=case_id,
@@ -216,6 +218,9 @@ def consent_row_entry(
             semantic_type=semantic_type,
             sync_port=sync_port,
         )
+        if on_commit is not None:
+            on_commit(snapshot)
+        return snapshot
 
     return PlannedEmbargoEntry(change=change, commit=_commit)
 
