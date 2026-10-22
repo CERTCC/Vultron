@@ -128,6 +128,7 @@ classDiagram
         case_statuses list~CaseStatus~
         active_embargo EmbargoEvent | None
         genesis_hash str
+        ledger_position LedgerPosition | None
     }
 
     class CaseParticipant {
