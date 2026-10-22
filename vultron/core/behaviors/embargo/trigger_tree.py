@@ -447,6 +447,7 @@ def reject_embargo_trigger_bt(
     embargo_id: str,
     result_out: dict[str, object],
     activity_builder: EmbargoActivityBuilder,
+    own_consent_out: dict[str, object] | None = None,
 ) -> py_trees.behaviour.Behaviour:
     """Build trigger-side BT for rejecting an embargo invite (EP-09-008).
 
@@ -456,7 +457,8 @@ def reject_embargo_trigger_bt(
     has a stake in (EP-09-002), sends no ``Reject``: the CASE_MANAGER's
     ``Reject`` of a proposal is its abandonment of it (EMB-16-001,
     ADR-0152), so its own consent is committed as its ``Update(EmbargoConsent)``
-    of the row (:class:`CommitOwnConsentDecisionNode`, MSM-07-004).
+    of the row (:class:`CommitOwnConsentDecisionNode`, MSM-07-004), whose
+    snapshot it writes to ``own_consent_out["activity"]`` when given.
     """
     return py_trees.composites.Sequence(
         name="RejectEmbargoTriggerBT",
@@ -474,6 +476,7 @@ def reject_embargo_trigger_bt(
                     case_id=case_id,
                     embargo_id=embargo_id,
                     decision_from=result_out,
+                    captured=own_consent_out,
                 ),
             ],
             result_out,

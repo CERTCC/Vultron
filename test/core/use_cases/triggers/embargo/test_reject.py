@@ -222,7 +222,11 @@ def test_non_owner_manager_reject_is_consent_and_moves_no_register_entry(
         sync_port=SyncActivityAdapter(dl),
     ).execute()
 
-    assert result.activity is None
+    # It reports the Update it committed (TRIG-04-001).
+    activity = activity_of(result)
+    assert activity["type"] == "Update"
+    assert activity["object"]["embargoId"] == embargo_id
+    assert activity["object"]["state"] == EmbargoConsentState.DECLINED.value
     assert not dl.list_objects("Reject")
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.PROPOSED

@@ -39,12 +39,17 @@ escapes to ``BTBridge`` and the trigger raises (BT-14-001).
 """
 
 from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 
 from py_trees.common import Status
 
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
+)
+from vultron.core.behaviors.embargo.copy_commit import (
+    PlannedEmbargoEntry,
+    commit_and_apply_embargo_entries,
+    consent_row_entry,
 )
 from vultron.core.behaviors.embargo.decided_entries import (
     EMBARGO_DECISION_KEY,
@@ -216,8 +221,11 @@ class CommitOwnConsentDecisionNode(
     :class:`~vultron.core.behaviors.embargo.decided_entries.EmbargoDecision`
     in ``decision_from[EMBARGO_DECISION_KEY]``; the row its act states is
     committed first, then any other row it changes, and only then applied by
-    copying (ADR-0124, CLP-07-013), in one transaction (ADR-0146).  A
-    missing decision is a fault in the tree and raises.
+    copying (ADR-0124, CLP-07-013), in one transaction (ADR-0146).  The
+    snapshot of the first ``Update`` is written to ``captured["activity"]``
+    when *captured* is given, so the trigger reports the activity it
+    committed (TRIG-04-001).  A missing decision, or one whose act carries a
+    register step, is a fault in the tree and raises.
     """
 
     def __init__(
@@ -226,15 +234,17 @@ class CommitOwnConsentDecisionNode(
         embargo_id: str,
         decision_from: dict[str, object],
         name: str | None = None,
+        *,
+        captured: dict[str, object] | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._case_id = case_id
         self._embargo_id = embargo_id
         self._decision_from = decision_from
+        self._captured = captured
 
-    def update(self) -> Status:
-        if (f := self._require_datalayer_and_actor()) is not None:
-            return f
+    def _rows(self) -> tuple[ConsentRowChange, ...]:
+        """The rows to commit, the act's own row first."""
         decision = self._decision_from.pop(EMBARGO_DECISION_KEY, None)
         if not isinstance(decision, EmbargoDecision):
             raise VultronBTInternalError(
@@ -242,23 +252,45 @@ class CommitOwnConsentDecisionNode(
                 f" '{self._embargo_id}' on case '{self._case_id}'; a deciding"
                 " lifecycle node must run first"
             )
-        rows = decision.rows
         if isinstance(decision.act, ConsentRowChange):
-            rows = (decision.act, *rows)
-        elif decision.act is not None:
+            return (decision.act, *decision.rows)
+        if decision.act is not None:
             raise VultronBTInternalError(
                 f"{self.name}: the CASE_MANAGER's own consent on case"
                 f" '{self._case_id}' carries a register step"
             )
-        commit_and_apply_decision(
-            datalayer=cast(CaseOutboxPersistence, self.datalayer),
-            decision=EmbargoDecision(
-                case_id=decision.case_id, act=None, rows=rows
-            ),
-            trigger_activity=self._require_trigger_activity_port(),
-            actor_id=cast(str, self.actor_id),
-            cause_id=f"own-consent:{self._embargo_id}",
-        )
+        return decision.rows
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        dl = cast(CaseOutboxPersistence, self.datalayer)
+        rows = self._rows()
+        committed: list[dict[str, Any]] = []
+        entries = []
+        for row in rows:
+            planned = consent_row_entry(
+                datalayer=dl,
+                trigger_activity=self._require_trigger_activity_port(),
+                actor_id=cast(str, self.actor_id),
+                case_id=self._case_id,
+                change=row,
+                cause_id=f"own-consent:{self._embargo_id}",
+            )
+            commit = planned.commit
+            assert commit is not None
+
+            def _commit(commit: Callable[[], Any] = commit) -> Any:
+                snapshot = commit()
+                committed.append(snapshot)
+                return snapshot
+
+            entries.append(
+                PlannedEmbargoEntry(change=planned.change, commit=_commit)
+            )
+        commit_and_apply_embargo_entries(dl, self._case_id, entries)
+        if self._captured is not None and committed:
+            self._captured["activity"] = committed[0]
         self.feedback_message = (
             f"CASE_MANAGER committed its own consent change(s) for embargo"
             f" '{self._embargo_id}' on case '{self._case_id}' as"

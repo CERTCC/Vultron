@@ -146,8 +146,15 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         embargo_id: str,
         snapshot: dict[str, Any],
     ) -> None:
-        """Index the Invite on the proposer's replica only (EP-08-002)."""
+        """Index the Invite on the proposer's replica only (EP-08-002).
+
+        Only while the embargo is an open proposal: a re-invite to the
+        embargo in force names its proposer too (ADR-0152), and the
+        activation already took that embargo out of the index (EP-08-003).
+        """
         assert self.datalayer is not None
+        if not case.proposal_is_undecided(embargo_id):
+            return
         # Normalised: the snapshot keeps the relay's spelling (OID-01-006).
         proposer_id = snapshot_actor_id(
             snapshot.get(wire_key("attributed_to"))

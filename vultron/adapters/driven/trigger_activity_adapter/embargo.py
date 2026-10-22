@@ -146,8 +146,9 @@ class _EmbargoMixin:
         The id is derived from the rejecting actor and the Invite, so an
         actor's rejection of one Invite is one activity (ID-04-004) and
         :meth:`requeue_embargo_refusal` can tell it was sent.  The Invite is
-        read as :meth:`accept_embargo` reads it; the CASE_MANAGER abandoning
-        its own proposal holds that Invite as the one it sent.
+        read as :meth:`accept_embargo` reads it.  The CASE_MANAGER abandoning
+        a proposal it received rejects it here; one it sent itself it
+        withdraws with :meth:`undo_embargo_invite` (ADR-0152).
         """
         proposal = cast(
             Any,

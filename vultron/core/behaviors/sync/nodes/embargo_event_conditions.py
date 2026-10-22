@@ -34,6 +34,7 @@ from vultron.core.behaviors.sync.nodes._event_condition_base import (
     _ActivityEventNode,
     _SingleSemanticTypeNode,
 )
+from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.events.base import MessageSemantics
@@ -60,14 +61,6 @@ _UNDO_EMBARGO_INVITE_EVENT = (
 )
 
 
-def _embargo_id_of(snapshot: dict[str, Any]) -> str | None:
-    """The id of the ``EmbargoEvent`` an Invite snapshot carries, inline or by id."""
-    embargo = snapshot.get("object")
-    if isinstance(embargo, dict):
-        embargo = embargo.get("id")
-    return embargo if isinstance(embargo, str) and embargo else None
-
-
 def _proposes_nothing(
     snapshot: dict[str, Any], case: VulnerabilityCase
 ) -> bool:
@@ -79,7 +72,7 @@ def _proposes_nothing(
     applied, and applying a proposal leaves its entry ``PROPOSED``, so the
     classification of one entry is the same in every slot.
     """
-    embargo_id = _embargo_id_of(snapshot)
+    embargo_id = _extract_id_from_field(snapshot.get("object"))
     if embargo_id is None:
         return False
     held = case.embargo_register_entry(embargo_id)

@@ -22,19 +22,13 @@ of the embargo, to a joiner (EP-09-011) or to a late accepter (EMB-17-003),
 names the same proposer in ``attributedTo``.
 """
 
+from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.wire_keys import wire_key
 from vultron.core.predicates.addressing import snapshot_actor_id
 
 _INVITE_SEMANTIC_TYPE = MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
-
-
-def _carried_embargo_id(value: object) -> str | None:
-    """The id of the ``EmbargoEvent`` an Invite's ``object`` names."""
-    if isinstance(value, dict):
-        value = value.get("id")
-    return value if isinstance(value, str) and value else None
 
 
 def embargo_proposer_id(
@@ -52,7 +46,7 @@ def embargo_proposer_id(
         if entry.semantic_type != _INVITE_SEMANTIC_TYPE:
             continue
         snapshot = entry.payload_snapshot
-        if _carried_embargo_id(snapshot.get("object")) != embargo_id:
+        if _extract_id_from_field(snapshot.get("object")) != embargo_id:
             continue
         return snapshot_actor_id(
             snapshot.get(wire_key("attributed_to"))

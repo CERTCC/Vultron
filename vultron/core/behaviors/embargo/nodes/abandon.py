@@ -122,7 +122,7 @@ _PROPOSALS_REMAP: dict[str, str] = {
 def _holds(datalayer: CasePersistence, invite_id: str) -> bool:
     """Whether this store holds the Invite *invite_id*, received or sent.
 
-    The ER is built from the Invite as this store holds it
+    The Reject or Undo is built from the Invite as this store holds it
     (:func:`holds_activity`): a received Invite from its receiver-keyed
     archive, never under the id its sender chose (DL-06-006).
     """
@@ -175,7 +175,8 @@ class ReadOpenEmbargoProposalsNode(DataLayerActionWithPorts):
     stale value.  FAILURE, before anything moves, when the case has no open
     proposal, or an open proposal names no Invite in
     ``pending_embargo_proposal_index``, or names one this store cannot
-    read: no ER could answer it (MSM-02-006), and failing later, after the
+    read: no Reject or Undo could cancel it (MSM-02-006, ADR-0152), and
+    failing later, after the
     EM write, would leave the manager at ``NONE`` with no entry to tell any
     replica.
     """
@@ -210,7 +211,8 @@ class ReadOpenEmbargoProposalsNode(DataLayerActionWithPorts):
         if unindexed:
             self.feedback_message = (
                 f"open proposal(s) {unindexed} of case '{self._case_id}' name"
-                " no Invite, so no ER can answer them (MSM-02-006)"
+                " no Invite, so no Reject or Undo can cancel them"
+                " (MSM-02-006)"
             )
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -221,7 +223,8 @@ class ReadOpenEmbargoProposalsNode(DataLayerActionWithPorts):
         if unreadable:
             self.feedback_message = (
                 f"Invite(s) {unreadable} of case '{self._case_id}' are not in"
-                " this store, so no ER can answer them (MSM-02-006)"
+                " this store, so no Reject or Undo can cancel them"
+                " (MSM-02-006)"
             )
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
@@ -299,7 +302,7 @@ class AbandonEmbargoProposalsLifecycleNode(_EmbargoLifecycleNode):
             # refused abandonment.
             raise VultronWiringError(
                 f"{self.name}: {TRIGGER_FACTORY_UNAVAILABLE} to build the"
-                f" abandonment ERs of case '{self._case_id_value}'"
+                f" abandonment of case '{self._case_id_value}'"
             )
         return super().update()
 
