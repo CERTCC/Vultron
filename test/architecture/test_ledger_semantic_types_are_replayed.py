@@ -97,6 +97,8 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.REMOVE_NOTE_FROM_CASE.value,
         MS.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
         MS.UNDO_INVITE_TO_EMBARGO_ON_CASE.value,
+        MS.CREATE_EMBARGO_CONSENT.value,
+        MS.UPDATE_EMBARGO_CONSENT.value,
     )
 } | {
     MS.INVITE_TO_EMBARGO_ON_CASE.value: {
@@ -128,6 +130,12 @@ _STUB_REPLY = (
 #: exemption set (ARCH-18-005): each row is a decision, not awaiting a fix.
 # permanent: RSH-08-004 (the recorded no-replica-effect declarations)
 NO_REPLICA_EFFECT: dict[str, str] = {
+    MS.ANNOUNCE_VULNERABILITY_CASE.value: (
+        "the demo-only sync-log-entry checkpoint (TRIG-10-004): it carries"
+        " the case as the CASE_MANAGER holds it and changes nothing a replica"
+        " holds; a replica is seeded by the Announce it receives, never by"
+        " the entry (SYNC-15-002)"
+    ),
     "create_case": (
         "the genesis entry anchors the chain; a replica is seeded by the"
         " Create or Announce(VulnerabilityCase) it receives (CM-14-011,"
@@ -225,6 +233,11 @@ def test_the_derivation_finds_both_commit_paths():
     assert {
         "create_case",
         UPDATE_CASE_OWNER_SEMANTIC_TYPE,
+        # Chosen into a local first, then passed on (#4724 AC-5).
+        MS.CREATE_EMBARGO_CONSENT.value,
+        MS.UPDATE_EMBARGO_CONSENT.value,
+        # The demo verb's label is the registry's, not its caller's (AC-2).
+        MS.ANNOUNCE_VULNERABILITY_CASE.value,
     } <= explicit_semantic_types()
     # A replay slot's own constant is compared, never committed, so defining
     # it must not make its type look committed: Remove(Note) is committed

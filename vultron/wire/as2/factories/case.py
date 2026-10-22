@@ -366,10 +366,9 @@ def update_case_activity(
 ) -> as_Update:
     """Build an Update(as_VulnerabilityCase).
 
-    The snapshot shape of a CASE_MANAGER-authored case-field ledger entry,
-    such as the case's closure (CM-23-002 step 3, CLP-07-013); never sent as
-    a message, so no pattern routes it (#4443).  ``context`` defaults to the
-    case's URI (CLP-07-007).
+    The CASE_MANAGER's ``update_case_owner`` ledger entry naming a new Case
+    Owner (CM-21-002, CLP-07-013); no received use case handles it
+    (ADR-0140).  ``context`` defaults to the case's URI (CLP-07-007).
 
     Args:
         case: The updated ``as_VulnerabilityCase``.

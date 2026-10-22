@@ -701,8 +701,9 @@ groups:
       active participants as `Announce(CaseLedgerEntry)`. The CASE_MANAGER also
       announces the updated case as `Announce(VulnerabilityCase)` after admitting
       a participant's engagement. No participant sends
-      the CASE_MANAGER an `Update(VulnerabilityCase)`; one that arrives is refused
-      as unmatched (CLP-02-013, #4443).
+      the CASE_MANAGER an `Update(VulnerabilityCase)`; one that arrives is the shape
+      of the CASE_MANAGER's own `update_case_owner` act, which no received use case
+      handles, so it is reported "no use case found" (SE-05-002, ADR-0140).
     verification: >-
       Integration tests in `test/demo/` confirm that after the CASE_MANAGER updates
       canonical case state it fans out `Announce(CaseLedgerEntry)` to every active

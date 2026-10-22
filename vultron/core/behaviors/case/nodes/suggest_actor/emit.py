@@ -51,13 +51,16 @@ from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.actor_recommendation_record import (
     ActorRecommendationRecord,
 )
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
 
 #: Ledger ``semantic_type`` of the forwarded ``Offer(CaseParticipant)``, and the
 #: kind label of its derived id.
-OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE = "offer_case_participant"
+OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE = (
+    MessageSemantics.OFFER_CASE_PARTICIPANT.value
+)
 
 
 def _resolve_owner_recipient(

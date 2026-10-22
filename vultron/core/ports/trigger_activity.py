@@ -655,14 +655,13 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         self,
         case_id: str,
         actor: str,
-        semantic_type: str,
         object_id: str,
     ) -> tuple[str, str]:
         """``Announce(VulnerabilityCase)`` for the demo ``sync-log-entry`` verb.
 
         The stored case is carried inline.  The id is derived from the
-        CASE_MANAGER, the case, *semantic_type* and *object_id*, so one request
-        repeated commits one entry.
+        CASE_MANAGER, the case and *object_id*, so one request repeated
+        commits one entry.
         """
         ...
 

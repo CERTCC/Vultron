@@ -414,7 +414,6 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": managed_case.id_,
                 "object_id": managed_case.id_,
-                "semantic_type": "demo_sync",
             },
         )
         assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
@@ -430,7 +429,7 @@ class TestDemoSyncLogEntry:
         entry = dl.read(body["log_entry_id"])
         assert entry is not None
         assert entry.entry_hash == body["entry_hash"]
-        assert entry.semantic_type == "demo_sync"
+        assert entry.semantic_type == "announce_vulnerability_case"
 
     @pytest.mark.spec("TRIG-01-003")
     def test_unknown_actor_returns_404(
@@ -441,18 +440,35 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": managed_case.id_,
                 "object_id": managed_case.id_,
-                "semantic_type": "demo_sync",
             },
         )
         assert resp.status_code == status.HTTP_404_NOT_FOUND
         assert resp.json()["detail"]["error"] == "NotFound"
 
-    def test_missing_semantic_type_returns_422(
+    @pytest.mark.spec("TRIG-03-002")
+    def test_a_caller_supplied_semantic_type_is_ignored(
+        self, client_demo: TestClient, dl, actor, managed_case
+    ):
+        """The entry carries the registry's label, never the caller's (#4724)."""
+        resp = client_demo.post(
+            f"/actors/{actor.id_}/demo/sync-log-entry",
+            json={
+                "case_id": managed_case.id_,
+                "object_id": managed_case.id_,
+                "semantic_type": "a_label_of_my_own",
+            },
+        )
+        assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
+        entry = dl.read(resp.json()["log_entry_id"])
+        assert entry is not None
+        assert entry.semantic_type == "announce_vulnerability_case"
+
+    def test_missing_object_id_returns_422(
         self, client_demo: TestClient, actor, managed_case
     ):
         resp = client_demo.post(
             f"/actors/{actor.id_}/demo/sync-log-entry",
-            json={"case_id": managed_case.id_, "object_id": managed_case.id_},
+            json={"case_id": managed_case.id_},
         )
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
@@ -502,7 +518,6 @@ class TestDemoSyncLogEntry:
                 json={
                     "case_id": case.id_,
                     "object_id": case.id_,
-                    "semantic_type": "single_server",
                 },
             )
 
@@ -542,7 +557,6 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": case.id_,
                 "object_id": case.id_,
-                "semantic_type": "foreign",
             },
         )
         assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR

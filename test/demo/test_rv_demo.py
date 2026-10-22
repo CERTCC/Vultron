@@ -723,7 +723,6 @@ class TestTriggerLogCommit:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            semantic_type="test_commit",
         )
 
         assert isinstance(entry_hash, str)
@@ -758,13 +757,13 @@ class TestTriggerLogCommit:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            semantic_type="event_a",
+            object_id=f"{case.id_}#event-a",
         )
         h2 = demo.trigger_log_commit(
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            semantic_type="event_b",
+            object_id=f"{case.id_}#event-b",
         )
 
         assert h1 != h2
@@ -800,7 +799,6 @@ class TestWaitForReporterLogEntry:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            semantic_type="test_wait",
         )
 
         # In single-server mode the vendor DataLayer is shared, so the entry
@@ -861,7 +859,6 @@ class TestVerifyReplicaState:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            semantic_type="demo_verification",
         )
 
         # Should not raise — single server means replica is trivially consistent

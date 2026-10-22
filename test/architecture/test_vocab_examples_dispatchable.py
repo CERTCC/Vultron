@@ -85,20 +85,7 @@ from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 # collected at all — without that second check a renamed or deleted example would
 # turn its exemption into a permanent ``KeyError``, which ``xfail`` records as a
 # pass.
-_KNOWN_UNDISPATCHABLE: dict[str, str] = {
-    # Permanent, not debt: no actor sends Update(VulnerabilityCase).  A
-    # CASE_MANAGER change to a case field must be its own ledger entry, and this
-    # Update is reserved as that entry's snapshot shape (CLP-07-013, ADR-0124);
-    # the received path changed the case with no entry, so #4443 removed it.
-    # The example renders the snapshot shape on the case-management page.
-    "update_case": "ADR-0124 — Update(VulnerabilityCase) is a ledger-entry snapshot only, never a sent message, so this example has no ActivityPattern and no MessageSemantics by decision (CLP-07-013, #4443)",
-    # A decision, not debt: the CASE_MANAGER commits Create(CaseParticipant) as
-    # its own create_case_participant entry when it sends a stub Invite
-    # (ADR-0114), and replicas apply it from the ledger.  This implementation
-    # does not support a received Create(CaseParticipant) message, so #4598
-    # removed the route; the example renders the entry's snapshot shape.
-    "create_participant": "ADR-0114 — Create(CaseParticipant) is the snapshot of the CASE_MANAGER's create_case_participant ledger entry; this implementation does not support it as a received message, so it has no ActivityPattern and no MessageSemantics (CLP-07-013, #4598)",
-}
+_KNOWN_UNDISPATCHABLE: dict[str, str] = {}
 
 
 def _entry_patterns() -> list[tuple[str, ActivityPattern]]:

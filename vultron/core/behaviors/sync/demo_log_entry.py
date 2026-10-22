@@ -17,14 +17,21 @@
 
 The entry records the CASE_MANAGER's ``Announce(VulnerabilityCase)``, built
 by the factory and committed from its sealed blob like every other
-CASE_MANAGER act (VM-08-003, CLP-07-013); the caller names its
-``semantic_type`` and ``log_object_id``.
+CASE_MANAGER act (VM-08-003, CLP-07-013).  Its ``semantic_type`` is the
+registry's label for that payload (ADR-0140); the caller names only its
+``log_object_id``.
 """
 
 from typing import cast
 
 from vultron.core.behaviors.case_manager_commit import (
     _CommitCaseManagerActivityBase,
+)
+from vultron.core.models.events.base import MessageSemantics
+
+#: The registry's label for the demo verb's ``Announce(VulnerabilityCase)``.
+DEMO_LOG_ENTRY_SEMANTIC_TYPE = (
+    MessageSemantics.ANNOUNCE_VULNERABILITY_CASE.value
 )
 
 
@@ -40,12 +47,11 @@ class CommitDemoLogEntryNode(_CommitCaseManagerActivityBase):
         self,
         case_id: str,
         object_id: str,
-        semantic_type: str,
         name: str | None = None,
     ) -> None:
         super().__init__(
             case_id=case_id,
-            semantic_type=semantic_type,
+            semantic_type=DEMO_LOG_ENTRY_SEMANTIC_TYPE,
             notify_participants=False,
             name=name,
         )
@@ -59,9 +65,8 @@ class CommitDemoLogEntryNode(_CommitCaseManagerActivityBase):
         return self.trigger_activity_factory.record_case_announced(
             case_id=self._case_id,
             actor=cast(str, self.actor_id),
-            semantic_type=self._semantic_type,
             object_id=self._object_id,
         )
 
 
-__all__ = ["CommitDemoLogEntryNode"]
+__all__ = ["CommitDemoLogEntryNode", "DEMO_LOG_ENTRY_SEMANTIC_TYPE"]

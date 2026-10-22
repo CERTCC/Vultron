@@ -17,3 +17,5 @@
 | the Case Owner decides to activate a proposed embargo | `Accept(Event)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Activate embargo](../em.md#activate-embargo) |
 | the Case Owner decides to reject a proposed embargo | `Reject(Event)[target=VulnerabilityCase]` | the case manager | the case owner | — | [Reject embargo proposal](../em.md#reject-embargo-proposal) |
 | a Participant bound by the active embargo stops complying with it | `Leave(Event)[context=VulnerabilityCase]` | the case manager | a participant | — | [Withdraw from embargo](../em.md#embargo-withdrawal) |
+| the Case Manager creates a participant's consent row for an embargo, such as the UNINVITED row a proposal writes | `Create(EmbargoConsent)` | a participant | not handled | — | [Create embargo consent](../em.md#create-embargo-consent) |
+| the Case Manager changes a participant's consent row, such as an invitation timing out, the rows carried over at activation or a change of its own consent | `Update(EmbargoConsent)` | a participant | not handled | — | [Update embargo consent](../em.md#update-embargo-consent) |

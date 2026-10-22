@@ -35,6 +35,7 @@ from dataclasses import dataclass
 
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.protocol_pair import (
     CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES,
     ProtocolPair,
@@ -50,7 +51,9 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
 
 #: The ``semantic_type`` of the entry that records an admitted role Offer.
-OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE = "offer_case_participant_role"
+OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE = (
+    MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE.value
+)
 
 
 def recorded_role_offer_entries(

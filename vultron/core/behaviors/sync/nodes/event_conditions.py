@@ -46,13 +46,19 @@ from vultron.core.models.participant_semantic_types import (
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
 )
 
-_REMOVE_EMBARGO_EVENT = "remove_embargo_event_from_case"
-_ADD_PARTICIPANT_STATUS_EVENT = "add_participant_status_to_participant"
-_ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = "accept_invite_actor_to_case"
-_REJECT_INVITE_ACTOR_TO_CASE_EVENT = "reject_invite_actor_to_case"
-_ADD_NOTE_TO_CASE_EVENT = "add_note_to_case"
-_REMOVE_NOTE_FROM_CASE_EVENT = "remove_note_from_case"
-_ADD_REPORT_TO_CASE_EVENT = "add_report_to_case"
+_REMOVE_EMBARGO_EVENT = MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE.value
+_ADD_PARTICIPANT_STATUS_EVENT = (
+    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.value
+)
+_ACCEPT_INVITE_ACTOR_TO_CASE_EVENT = (
+    MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE.value
+)
+_REJECT_INVITE_ACTOR_TO_CASE_EVENT = (
+    MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE.value
+)
+_ADD_NOTE_TO_CASE_EVENT = MessageSemantics.ADD_NOTE_TO_CASE.value
+_REMOVE_NOTE_FROM_CASE_EVENT = MessageSemantics.REMOVE_NOTE_FROM_CASE.value
+_ADD_REPORT_TO_CASE_EVENT = MessageSemantics.ADD_REPORT_TO_CASE.value
 
 
 class IsRemoveEmbargoEventNode(_SingleSemanticTypeNode):

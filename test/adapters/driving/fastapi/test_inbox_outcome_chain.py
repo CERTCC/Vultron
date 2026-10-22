@@ -417,51 +417,83 @@ def test_real_handler_refusal_reaches_inbox_outcome(dl):
     assert "No CASE_MANAGER is known" in outcome.failure_reason
 
 
-@pytest.mark.spec("CLP-07-013", "CLP-02-013")
-def test_received_update_vulnerability_case_is_refused_unchanged(dl):
-    """#4443: a direct ``Update(VulnerabilityCase)`` has no received path.
+_MANAGER_ACT_CASE_ID = "https://example.org/cases/c-chain-manager-act"
 
-    The wire class stays, because a CASE_MANAGER-authored ledger entry may carry
-    an ``Update(VulnerabilityCase)`` snapshot, but no pattern routes one that
-    arrives in an inbox: the real dispatcher resolves it to ``UNKNOWN`` and the
-    inbox refuses it without touching the stored case.
+
+def _case_manager_acts() -> list[Any]:
+    """The CASE_MANAGER-only shapes, each as a sender would post it (#4724).
+
+    Each is the CASE_MANAGER's own act, committed as its own ledger entry
+    (CLP-07-013).  Built from the vocabulary examples, then re-addressed from
+    an outside sender, so the test shows what an inbox does with one it did
+    not expect.
+    """
+    from vultron.wire.as2.vocab.examples import case, embargo, participant
+
+    return [
+        pytest.param(build, semantics, id=semantics.value)
+        for build, semantics in (
+            (
+                participant.create_participant,
+                MessageSemantics.CREATE_CASE_PARTICIPANT,
+            ),
+            (
+                participant.update_participant,
+                MessageSemantics.UPDATE_CASE_PARTICIPANT,
+            ),
+            (case.update_case, MessageSemantics.UPDATE_CASE_OWNER),
+            (
+                embargo.create_embargo_consent,
+                MessageSemantics.CREATE_EMBARGO_CONSENT,
+            ),
+            (
+                embargo.update_embargo_consent,
+                MessageSemantics.UPDATE_EMBARGO_CONSENT,
+            ),
+        )
+    ]
+
+
+@pytest.mark.spec("SE-05-002", "CLP-07-013", "VAM-01-010")
+@pytest.mark.parametrize(("build", "semantics"), _case_manager_acts())
+def test_a_received_case_manager_act_is_recognized_and_unhandled(
+    dl, build, semantics
+):
+    """A CASE_MANAGER-only shape is recognized but not processed (#4724 AC-1).
+
+    The registry labels it (ADR-0140), so the dispatcher reports "no use
+    case found" (SE-05-002) rather than an unrecognized activity, and the
+    inbox leaves the stored case, the ledger and the outbox as they were.
     """
     from vultron.semantic_registry import (
         find_matching_semantics,
         use_case_map,
     )
-    from vultron.wire.as2.factories import update_case_activity
     from vultron.wire.as2.vocab.objects.vulnerability_case import (
         as_VulnerabilityCase,
     )
 
-    case_id = "https://example.org/cases/c-chain-update"
     dl.create(
         as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=case_id, name="original name"
+            attributed_to=CASE_OWNER_ID,
+            id_=_MANAGER_ACT_CASE_ID,
+            name="original",
         )
     )
-    update = update_case_activity(
-        as_VulnerabilityCase(
-            attributed_to=CASE_OWNER_ID, id_=case_id, name="renamed by sender"
-        ),
-        actor=_SENDER_ID,
-        to=[_RECEIVER_ID],
+    case_before = dl.read(_MANAGER_ACT_CASE_ID)
+    activity = build().model_copy(
+        update={"actor": _SENDER_ID, "to": [_RECEIVER_ID]}
     )
-    assert find_matching_semantics(update) is MessageSemantics.UNKNOWN
-    update_body = update.model_dump(
-        mode="json", by_alias=True, exclude_none=True
-    )
+    assert find_matching_semantics(activity) is semantics
+    body = activity.model_dump(mode="json", by_alias=True, exclude_none=True)
 
     outcome = _process(
-        dl, update_body, DirectActivityDispatcher(use_case_map=use_case_map())
+        dl, body, DirectActivityDispatcher(use_case_map=use_case_map())
     )
 
     assert outcome.status is InboxOutcomeStatus.REJECTED
-    assert outcome.failure_reason == "unrecognized activity semantics"
-    stored = dl.read(case_id)
-    assert stored is not None
-    assert stored.name == "original name"
+    assert outcome.unhandled is True
+    assert dl.read(_MANAGER_ACT_CASE_ID) == case_before
     assert dl.outbox_list() == []
     assert dl.list_objects("CaseLedgerEntry") == []
 
@@ -473,19 +505,16 @@ def _retired_create_activities() -> list[Any]:
     """The received ``Create(X)`` routes #4598 and #4707 removed, one each.
 
     Each addressed to the receiver and naming the case the way the removed
-    pattern required.  ``Create(CaseParticipant)`` is built with the factory
-    the CASE_MANAGER's ledger entry still uses.  ``Create(Note)`` is sent
+    pattern required.  ``Create(CaseParticipant)`` is not among them: it is
+    the CASE_MANAGER's own act, which the registry recognizes (#4724).
+    ``Create(Note)`` is sent
     twice: once with the note's ``context`` naming the case (the form the
     removed route attached) and once with no case context at all.
     """
-    from vultron.wire.as2.factories import create_participant_activity
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_CaseParticipant,
-    )
     from vultron.wire.as2.vocab.objects.case_status import (
         as_CaseStatus,
         as_ParticipantStatus,
@@ -521,19 +550,6 @@ def _retired_create_activities() -> list[Any]:
                 to=[_RECEIVER_ID],
             ),
             id="embargo-event",
-        ),
-        pytest.param(
-            create_participant_activity(
-                as_CaseParticipant(
-                    id_=participant_id,
-                    attributed_to=_SENDER_ID,
-                    context=_RETIRED_CASE_ID,
-                ),
-                context=_RETIRED_CASE_ID,
-                actor=_SENDER_ID,
-                to=[_RECEIVER_ID],
-            ),
-            id="case-participant",
         ),
         pytest.param(
             as_Create(
@@ -574,11 +590,10 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
     Each of the record ``Create`` forms once stored its object with no ledger
     entry, which CLP-07-013 rules out (#4598); ``Create(Note)`` was a second
     way to attach a note (#4707).
-    The wire classes stay (a CASE_MANAGER-authored entry carries
-    ``Create(CaseParticipant)``), but no pattern routes one that
-    arrives in an inbox: the real dispatcher resolves it to ``UNKNOWN`` and
-    the inbox refuses it, leaving the case, the ledger and the outbox as they
-    were, and storing nothing from the inline object (#3763).
+    No pattern routes one that arrives in an inbox: the real dispatcher
+    resolves it to ``UNKNOWN`` and the inbox refuses it, leaving the case,
+    the ledger and the outbox as they were, and storing nothing from the
+    inline object (#3763).
     """
     from vultron.semantic_registry import (
         find_matching_semantics,

@@ -38,6 +38,7 @@ from test.ci.invariants.common import (
     check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
     check_semantic_type_count,
+    check_semantic_type_is_registry_label,
     check_semantic_type_present,
     check_unique_payload_snapshot_ids,
     for_each_replica,
@@ -178,6 +179,62 @@ def test_check_non_empty_payload_snapshots_detects_empty_payload():
     replicas = {"case-actor": [entry]}
     violations = check_non_empty_payload_snapshots(replicas)
     assert violations
+
+
+# ---------------------------------------------------------------------------
+# check_semantic_type_is_registry_label (ADR-0140, #4724)
+# ---------------------------------------------------------------------------
+
+
+def _consent_row_payload() -> dict:
+    from vultron.wire.as2.vocab.examples.embargo import (
+        create_embargo_consent,
+    )
+
+    return create_embargo_consent().model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+
+
+@pytest.mark.spec("SE-02-001")
+def test_check_semantic_type_is_registry_label_passes_a_labelled_entry():
+    entry = _entry(
+        0,
+        _SHA256("label:0"),
+        GENESIS_HASH,
+        semantic_type="create_embargo_consent",
+        payload=_consent_row_payload(),
+    )
+    assert check_semantic_type_is_registry_label({"case-actor": [entry]}) == []
+
+
+@pytest.mark.spec("SE-02-001")
+def test_check_semantic_type_is_registry_label_detects_a_mislabel():
+    entry = _entry(
+        3,
+        _SHA256("label:3"),
+        GENESIS_HASH,
+        semantic_type="consent_row_written",
+        payload=_consent_row_payload(),
+    )
+    (violation,) = check_semantic_type_is_registry_label({"vendor": [entry]})
+    assert "Actor 'vendor' logIndex=3" in violation
+    assert "'consent_row_written'" in violation
+    assert "'create_embargo_consent'" in violation
+
+
+@pytest.mark.spec("SE-02-001")
+def test_check_semantic_type_is_registry_label_reports_an_unparseable_payload():
+    """A payload that is not an AS2 activity is a violation, never a raise."""
+    entry = _entry(
+        0,
+        _SHA256("label:u"),
+        GENESIS_HASH,
+        semantic_type="create_case",
+        payload={"id": "urn:no-type"},
+    )
+    (violation,) = check_semantic_type_is_registry_label({"reporter": [entry]})
+    assert "<unparseable:" in violation
 
 
 # ---------------------------------------------------------------------------
