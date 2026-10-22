@@ -63,6 +63,16 @@ RejectInviteToEmbargoOnCasePattern = ActivityPattern(
     activity_=TAtype.REJECT,
     object_=InviteToEmbargoOnCasePattern,
 )
+UndoInviteToEmbargoOnCasePattern = ActivityPattern(
+    description=(
+        "Withdraw an invitation to an embargo on a vulnerability case: an "
+        "UNDO of the Invite the sender itself sent (ADR-0152).  The "
+        "CASE_MANAGER sends it when it abandons an open proposal "
+        "(EMB-16-001)."
+    ),
+    activity_=TAtype.UNDO,
+    object_=InviteToEmbargoOnCasePattern,
+)
 ActivateEmbargoOnCasePattern = ActivityPattern(
     description=(
         "The case owner activates a proposed embargo on a vulnerability "

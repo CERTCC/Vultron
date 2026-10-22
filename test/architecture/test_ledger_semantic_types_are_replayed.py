@@ -68,10 +68,8 @@ from vultron.core.models.participant_semantic_types import (
     UPDATE_CASE_OWNER_SEMANTIC_TYPE,
     UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
-from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
 
 _EMBARGO = {"type": "EmbargoEvent", "id": "urn:uuid:embargo"}
-_ABANDONED = f"{MS.REJECT_INVITE_TO_EMBARGO_ON_CASE.value}_abandoned"
 
 #: Replayed semantic types and an entry snapshot that identifies each.  Only the
 #: proposal-versus-relay split of ``invite_to_embargo_on_case`` depends on the
@@ -98,8 +96,7 @@ REPLAYED: dict[str, dict[str, Any]] = {
         MS.REMOVE_CASE_PARTICIPANT_FROM_CASE.value,
         MS.REMOVE_NOTE_FROM_CASE.value,
         MS.WITHDRAW_FROM_EMBARGO_ON_CASE.value,
-        EMBARGO_REINVITE_SEMANTIC_TYPE,
-        _ABANDONED,
+        MS.UNDO_INVITE_TO_EMBARGO_ON_CASE.value,
     )
 } | {
     MS.INVITE_TO_EMBARGO_ON_CASE.value: {
@@ -228,7 +225,6 @@ def test_the_derivation_finds_both_commit_paths():
     assert {
         "create_case",
         UPDATE_CASE_OWNER_SEMANTIC_TYPE,
-        EMBARGO_REINVITE_SEMANTIC_TYPE,
     } <= explicit_semantic_types()
     # A replay slot's own constant is compared, never committed, so defining
     # it must not make its type look committed: Remove(Note) is committed

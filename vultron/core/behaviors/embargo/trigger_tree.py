@@ -64,6 +64,7 @@ from vultron.core.behaviors.embargo.nodes import (
     CommitAndApplyEmbargoTerminationNode,
     CommitEmbargoDecisionNode,
     CommitEmbargoProposalNode,
+    CommitOwnConsentDecisionNode,
     EmbargoActivityBuilder,
     EmbargoOutlivesDisclosureNode,
     HasActiveEmbargoNode,
@@ -107,7 +108,6 @@ from vultron.core.models.pending_assertion import (
 )
 
 _ACCEPT_SEMANTIC_TYPE = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE.value
-_REJECT_SEMANTIC_TYPE = MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
 _WITHDRAW_SEMANTIC_TYPE = MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE.value
 
 
@@ -451,20 +451,31 @@ def reject_embargo_trigger_bt(
     """Build trigger-side BT for rejecting an embargo invite (EP-09-008).
 
     ``Reject(Invite(EmbargoEvent))``: the actor's own consent; it moves no
-    register entry (ADR-0122).
+    register entry (ADR-0122).  Any participant other than the CASE_MANAGER
+    sends it to the CASE_MANAGER.  The CASE_MANAGER, answering an embargo it
+    has a stake in (EP-09-002), sends no ``Reject``: the CASE_MANAGER's
+    ``Reject`` of a proposal is its abandonment of it (EMB-16-001,
+    ADR-0152), so its own consent is committed as its ``Update(EmbargoConsent)``
+    of the row (:class:`CommitOwnConsentDecisionNode`, MSM-07-004).
     """
     return py_trees.composites.Sequence(
         name="RejectEmbargoTriggerBT",
         memory=False,
-        children=_answer_arms(
+        children=_decision_arms(
             "RejectEmbargo",
             case_id,
-            RejectEmbargoLifecycleNode(
-                case_id=case_id,
-                embargo_id=embargo_id,
-                result_out=result_out,
-            ),
-            _REJECT_SEMANTIC_TYPE,
+            [
+                RejectEmbargoLifecycleNode(
+                    case_id=case_id,
+                    embargo_id=embargo_id,
+                    result_out=result_out,
+                ).deciding(),
+                CommitOwnConsentDecisionNode(
+                    case_id=case_id,
+                    embargo_id=embargo_id,
+                    decision_from=result_out,
+                ),
+            ],
             result_out,
             activity_builder,
         ),
@@ -592,14 +603,16 @@ def reject_proposed_embargo_bt(
     1. ``ReadEmStateNode`` / ``IsProposedEmbargoNode`` — EM must be PROPOSED.
     2. ``ResolveCaseManagerNode`` — routing guard; FAILURE = no state change.
     3. As the CASE_MANAGER (EP-09-008): ``ReadOpenEmbargoProposalsNode``
-       maps each open proposal to the readable Invite its ER answers
+       maps each open proposal to the readable Invite that proposed it
        (FAILURE before anything moves when one has none),
        ``AbandonEmbargoProposalsLifecycleNode`` then, per proposal, commits
-       one ER as an ``EMBARGO_ABANDONMENT_SEMANTIC_TYPE`` entry the
-       ``EmbargoAbandonment`` slot replays (EP-09-007), addressed to nobody
-       (CLP-10-001), and only then cancels that proposal, so EM reaches
-       ``NONE`` with the last one and a proposal whose entry does not commit
-       stays open (CLP-07-013); then the ``Add(CaseStatus)`` declaration.
+       its ``Reject`` of the proposal it received, or its ``Undo`` of the
+       one it sent itself, which carries the ``CANCEL``, then its ``Undo``
+       of each Invite it relayed for the proposal (ADR-0152), each
+       addressed to nobody (CLP-10-001) and replayed by the replica's
+       abandonment slots (EP-09-007), and only then cancels that proposal,
+       so EM reaches ``NONE`` with the last one (CLP-07-013); then the
+       ``Add(CaseStatus)`` declaration.
     4. As any other participant: no EM write and no ask (EMB-16-002,
        #4148).  The manager has the P/X/A signal from the status
        declaration and abandons on its own detection; an ER sent on the

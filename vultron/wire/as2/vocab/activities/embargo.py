@@ -30,6 +30,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Reject,
     as_Remove,
+    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.objects.embargo_consent import (
@@ -83,6 +84,27 @@ class _EmRejectEmbargoActivity(as_Reject):
     object_: the _EmProposeEmbargoActivity activity being rejected (inline typed
         object required — bare string IDs are rejected at construction time)
     context: the VulnerabilityCase for which the embargo was proposed
+    """
+
+    object_: _EmProposeEmbargoActivity = Field(
+        default=..., validation_alias="object", serialization_alias="object"
+    )
+    context: as_VulnerabilityCaseRef = None
+
+
+class _EmUndoEmbargoInviteActivity(as_Undo):
+    """The CASE_MANAGER withdraws an embargo Invite it sent (EMB-16-001).
+
+    ``Undo(Invite(EmbargoEvent)[context=VulnerabilityCase])``: an actor
+    undoes only an activity it performed, so withdrawing an invitation one
+    sent is an ``Undo`` and declining one received is a ``Reject``
+    (ADR-0152).  The CASE_MANAGER sends it when it abandons an open
+    proposal once P/X/A is set: one for each Invite it relayed, and, when it
+    made the proposal itself, one for that proposal too.
+
+    object_: the _EmProposeEmbargoActivity being withdrawn (inline typed
+        object required — bare string IDs are rejected at construction time)
+    context: the VulnerabilityCase the embargo was proposed for
     """
 
     object_: _EmProposeEmbargoActivity = Field(

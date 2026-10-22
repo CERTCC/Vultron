@@ -72,6 +72,7 @@ from vultron.wire.as2.extractor._instances import (
     ReportSubmissionPattern,
     TentativeRejectInviteActorToFullCasePattern,
     UndoCaseOwnershipTransferActivityPattern,
+    UndoInviteToEmbargoOnCasePattern,
     ValidateReportPattern,
     WithdrawFromEmbargoOnCasePattern,
 )
@@ -125,6 +126,7 @@ __all__ = [
     "TentativeRejectInviteActorToFullCasePattern",
     "RejectEmbargoProposalOnCasePattern",
     "RejectInviteToEmbargoOnCasePattern",
+    "UndoInviteToEmbargoOnCasePattern",
     "RejectLogEntryPattern",
     "RejectActorRecommendationPattern",
     "RemoveCaseParticipantFromCasePattern",

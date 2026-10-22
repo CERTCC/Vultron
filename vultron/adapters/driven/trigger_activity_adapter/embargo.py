@@ -31,6 +31,7 @@ from vultron.wire.as2.factories import (
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
+    em_undo_embargo_invite_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
     withdraw_from_embargo_activity,
@@ -57,6 +58,11 @@ def _attribution(attributed_to: str | None) -> dict[str, str]:
 def _reject_id(actor: str, proposal_id: str) -> str:
     """The id of *actor*'s ``Reject`` of the Invite *proposal_id*."""
     return derived_activity_id("embargo-reject", actor, proposal_id)
+
+
+def _undo_id(actor: str, invite_id: str) -> str:
+    """The id of *actor*'s ``Undo`` of the Invite *invite_id* it sent."""
+    return derived_activity_id("embargo-invite-undo", actor, invite_id)
 
 
 class _EmbargoMixin:
@@ -157,6 +163,32 @@ class _EmbargoMixin:
             id_=_reject_id(actor, proposal_id),
         )
         return _create_and_seal(self._dl, activity, "reject_embargo")
+
+    def undo_embargo_invite(
+        self,
+        invite_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Undo(Invite)`` of an embargo Invite *actor* sent.
+
+        The Invite is read as this actor holds it, the one it sent
+        (:func:`read_held_as_received`), and embedded verbatim (DL-06-004).
+        The id is derived from *actor* and the Invite (ID-04-004).
+        """
+        invite = cast(
+            Any,
+            read_held_as_received(self._dl, invite_id, "Invite(EmbargoEvent)"),
+        )
+        activity = em_undo_embargo_invite_activity(
+            invite=invite,
+            context=case_id,
+            actor=actor,
+            to=to,
+            id_=_undo_id(actor, invite_id),
+        )
+        return _create_and_seal(self._dl, activity, "undo_embargo_invite")
 
     def activate_embargo(
         self,

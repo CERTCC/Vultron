@@ -50,22 +50,19 @@ from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.base import MessageSemantics
-from vultron.core.models.rsvp_deadline import EMBARGO_REINVITE_SEMANTIC_TYPE
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.services.embargo_lifecycle import EmbargoLifecycle
 from vultron.core.sync_helpers import recorded_entries_for_case
 from vultron.errors import VultronBTInternalError
 
-_INVITE_EMISSION_SEMANTIC_TYPES = frozenset(
-    {
-        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value,
-        EMBARGO_REINVITE_SEMANTIC_TYPE,
-    }
+_INVITE_EMISSION_SEMANTIC_TYPE = (
+    MessageSemantics.INVITE_TO_EMBARGO_ON_CASE.value
 )
-"""Ledger entries that record an ``Invite(EmbargoEvent)`` sent to one invitee.
+"""Ledger entries that record an ``Invite(EmbargoEvent)``.
 
-The CASE_MANAGER's relay (EP-09-002) and its EMB-17-003 re-invite.  Each
-names its one invitee in ``to`` and the embargo as its ``object``.
+The CASE_MANAGER's relay (EP-09-002), its EMB-17-003 re-invite among them
+(ADR-0152), names its one invitee in ``to`` and the embargo as its
+``object``.
 """
 
 
@@ -79,7 +76,7 @@ def _is_invite_to(
     entry: CaseLedgerEntry, invitee_id: str, embargo_id: str
 ) -> bool:
     """Whether *entry* records an Invite to *embargo_id* sent to *invitee_id*."""
-    if entry.semantic_type not in _INVITE_EMISSION_SEMANTIC_TYPES:
+    if entry.semantic_type != _INVITE_EMISSION_SEMANTIC_TYPE:
         return False
     snapshot = entry.payload_snapshot
     recipients = _snapshot_value(snapshot, "to")

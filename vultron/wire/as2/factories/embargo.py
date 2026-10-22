@@ -48,6 +48,7 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
+    _EmUndoEmbargoInviteActivity,
     _RejectEmbargoProposalActivity,
     _RemoveEmbargoFromCaseActivity,
     _UpdateEmbargoConsentActivity,
@@ -61,6 +62,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Leave,
     as_Reject,
     as_Remove,
+    as_Undo,
     as_Update,
 )
 from vultron.wire.as2.vocab.objects.embargo_consent import (
@@ -264,6 +266,48 @@ def em_reject_embargo_activity(
         )
         raise VultronActivityConstructionError(
             "em_reject_embargo_activity: invalid arguments"
+        ) from exc
+
+
+def em_undo_embargo_invite_activity(
+    invite: as_Invite,
+    context: as_VulnerabilityCaseRef | None = None,
+    **kwargs,
+) -> as_Undo:
+    """Build an Undo(_EmProposeEmbargoActivity): withdraw an Invite one sent.
+
+    The CASE_MANAGER's withdrawal of an embargo Invite it sent, when it
+    abandons an open proposal (EMB-16-001, ADR-0152).  An actor undoes only
+    an activity it performed; declining an Invite one received is
+    :func:`em_reject_embargo_activity`.  The ``invite`` is embedded verbatim
+    (:func:`as_answered`), as the Invite the sender holds; a plain
+    ``as_Invite`` will fail validation.
+
+    Args:
+        invite: The ``_EmProposeEmbargoActivity`` being withdrawn.
+        context: The ``VulnerabilityCase`` (or its URI) the embargo was
+            proposed for.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``, ``id_``).
+
+    Returns:
+        An ``as_Undo`` whose ``object_`` is the Invite.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _EmUndoEmbargoInviteActivity(
+            object_=as_answered(_EmProposeEmbargoActivity, invite),
+            context=context,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "em_undo_embargo_invite_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "em_undo_embargo_invite_activity: invalid arguments"
         ) from exc
 
 

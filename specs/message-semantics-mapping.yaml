@@ -900,11 +900,12 @@ groups:
     kind: protocol
     statement: >-
       The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (ER wire form:
-      Reject(Invite(Event)[context=VulnerabilityCase])) is always the sending actor's own
-      consent, whoever sends it, the case owner included: it MUST apply the PEC DECLINE
-      trigger to the sender's row for the rejected embargo (valid from UNINVITED, INVITED,
-      AGREED or TIMED_OUT) and MUST NOT change any embargo register entry, except that a
-      Reject of the case's *active* embargo from an AGREED row is not consent withdrawal
+      Reject(Invite(Event)[context=VulnerabilityCase])) is the sending actor's own
+      consent whenever a participant sends it, the case owner included: it
+      MUST apply the PEC DECLINE trigger to the sender's row for the rejected
+      embargo (valid from UNINVITED, INVITED, AGREED or TIMED_OUT) and MUST NOT
+      change any embargo register entry, except that a Reject of the case's
+      *active* embargo from an AGREED row is not consent withdrawal
       and MUST be refused with a reported reason: withdrawal is `Leave(EmbargoEvent)`
       (MSM-07-010). A Reject of the active embargo from any other row refuses the terms in
       force and declines that row only. Rejecting a *proposed*
@@ -913,7 +914,13 @@ groups:
       proposed revision refuses those terms; it is not withdrawal from the embargo in force.
       When no embargo is in force (EM PROPOSED) a Reject of a proposal declines that
       proposal's row only: it withdraws from nothing, and other open proposals the
-      participant agreed to stay AGREED.
+      participant agreed to stay AGREED. The CASE_MANAGER's own Reject of a
+      proposal is not its consent but its abandonment of that proposal, which
+      cancels it (EMB-16-001), and a replica MUST tell the two apart by the
+      payload's `actor` (ADR-0152). A CASE_MANAGER with an embargo stake of its
+      own (EP-09-002) MUST therefore record a change of its own consent as its
+      `Update(EmbargoConsent)` of the row, and MUST NOT send or commit a
+      Reject(Invite(Event)) as that consent.
     rationale: >-
       Symmetric with MSM-07-003: the case owner's rejection of a proposal for the case has its
       own activity (MSM-07-009, ADR-0122), so a Reject of an Invite is the sender's consent
@@ -924,9 +931,20 @@ groups:
       is per embargo, so a
       signatory who refuses proposed terms is still bound by, and still consents to, the
       embargo that remains active; only the case owner decides whether the proposal replaces
-      it.
+      it. A CASE_MANAGER act with a participant's verb and object carries the
+      participant's semantic type (ADR-0152), so the CASE_MANAGER's abandonment
+      and a participant's refusal share one; the CASE_MANAGER's own consent is
+      the row it changes (CLP-07-013), which keeps every CASE_MANAGER-sent
+      Reject an abandonment.
     verification: >-
-      Inspection of vultron/core/use_cases/received/embargo/reject.py and
+      `test_the_managers_own_reject_is_its_update_of_the_row` in
+      `test/core/use_cases/received/test_embargo_proposal_answer_copy.py`
+      asserts the CASE_MANAGER's own Reject commits only its
+      `Update(EmbargoConsent)` and the replica copies the DECLINED row;
+      `test_a_reject_is_the_abandonment_only_from_the_case_manager` in
+      `test/core/behaviors/sync/nodes/test_embargo_abandonment_effect.py`
+      routes the two Rejects. Inspection of
+      vultron/core/use_cases/received/embargo/reject.py and
       vultron/core/services/embargo_lifecycle/consent.py confirms
       RejectInviteToEmbargoOnCaseReceivedUseCase applies
       EmbargoLifecycle.record_embargo_rejection, which declines the rejecting actor's row for
@@ -941,6 +959,7 @@ groups:
     adr:
     - ADR-0093
     - ADR-0122
+    - ADR-0152
     lint_suppress:
     - missing_story_reference
   - id: MSM-07-005

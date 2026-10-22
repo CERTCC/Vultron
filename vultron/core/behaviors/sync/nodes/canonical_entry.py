@@ -102,6 +102,9 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Invite", "VulnerabilityCaseStub"),
     ("Accept", "Invite"),
     ("Reject", "Invite"),
+    # The CASE_MANAGER's withdrawal of an embargo Invite it sent, when it
+    # abandons an open proposal (EMB-16-001, ADR-0152).
+    ("Undo", "Invite"),
     # RI: the full-case Invite's tentative refusal (VAM-04-013).  A stub
     # Invite has no TentativeReject (CM-11-007).
     ("TentativeReject", "Invite"),
@@ -142,6 +145,8 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Add", "EmbargoEvent"),
         ("Remove", "EmbargoEvent"),
         ("Invite", "EmbargoEvent"),
+        # its withdrawal of an embargo Invite it sent (EMB-16-001, ADR-0152)
+        ("Undo", "Invite"),
         ("Offer", "CaseParticipant"),
         ("Invite", "VulnerabilityCase"),
         ("Invite", "VulnerabilityCaseStub"),

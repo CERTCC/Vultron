@@ -17,10 +17,10 @@ An invitation's deadline is read when something asks about it, not by a
 timer: ``assess_invite_expiry``, ``pending_invitations`` and
 ``overdue_invitations`` read rows,
 and ``detect_and_apply_expiry`` moves an unanswered ``INVITED`` row to
-``TIMED_OUT`` (the pocket veto).  The CASE_MANAGER's own expiry and honour of
-a late Accept commit the row before writing it, through the one apply function
-(``CommitAndApplyInviteExpiryNode``, ``CommitAndApplyHonourLateAcceptNode``,
-ADR-0124).
+``TIMED_OUT`` (the pocket veto).  The CASE_MANAGER's own expiry commits the row
+before writing it, through the one apply function
+(``CommitAndApplyInviteExpiryNode``, ADR-0124); an honoured late Accept is
+recorded as an on-time Accept is (EMB-17-002).
 """
 
 import logging

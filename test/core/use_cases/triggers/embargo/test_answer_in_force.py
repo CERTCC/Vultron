@@ -616,7 +616,12 @@ def test_a_case_manager_answering_records_its_own_row(
         in_force.invite_id,
     )
 
-    assert activity_of(result)["object"]["id"] == in_force.invite_id
+    if row_after is EmbargoConsentState.AGREED:
+        assert activity_of(result)["object"]["id"] == in_force.invite_id
+    else:
+        # The CASE_MANAGER's own Reject is its row's Update(EmbargoConsent),
+        # so no Reject is built (MSM-07-004, ADR-0152).
+        assert result.activity is None
     finder = cast(CaseParticipant, in_force.dl.read(in_force.participant_id))
     assert finder.consent_for(embargo_id) == row_after
     updated = cast(VulnerabilityCase, in_force.dl.read(in_force.case.id_))

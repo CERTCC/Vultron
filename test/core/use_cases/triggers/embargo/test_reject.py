@@ -18,6 +18,9 @@ from vultron.core.behaviors.case.nodes.stub_reissue import (
 )
 from vultron.core.behaviors.embargo.nodes import termination_commit
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_consent_semantic_types import (
+    UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
+)
 from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     ThreatSignal,
@@ -196,10 +199,12 @@ def test_non_manager_owner_reject_asks_the_manager_to_reject(
 def test_non_owner_manager_reject_is_consent_and_moves_no_register_entry(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
-    """A CASE_MANAGER that is not the owner declines the Invite, nothing more.
+    """A CASE_MANAGER that is not the owner declines the terms, nothing more.
 
-    Its reject is Reject(Invite(EmbargoEvent)), committed as its consent;
-    the proposal stays open and EM stays PROPOSED (ADR-0122).
+    Its own consent is its row's ``Update(EmbargoConsent)``, never a
+    ``Reject(Invite(EmbargoEvent))``, which from the CASE_MANAGER is the
+    abandonment of the proposal (MSM-07-004, ADR-0152); the proposal stays
+    open and EM stays PROPOSED (ADR-0122).
     """
     manager, dl = owner_actor_and_dl
     owner = _persist_actor(dl, "Vendor Co")
@@ -217,9 +222,8 @@ def test_non_owner_manager_reject_is_consent_and_moves_no_register_entry(
         sync_port=SyncActivityAdapter(dl),
     ).execute()
 
-    activity = activity_of(result)
-    assert activity["type"] == "Reject"
-    assert activity["object"]["id"] == proposal_id
+    assert result.activity is None
+    assert not dl.list_objects("Reject")
     updated = cast(VulnerabilityCase, dl.read(case.id_))
     assert updated.current_status.em.state == EM.PROPOSED
     assert updated.proposed_embargo_ids == [embargo_id]
@@ -232,7 +236,11 @@ def test_non_owner_manager_reject_is_consent_and_moves_no_register_entry(
         == EmbargoConsentState.DECLINED
     )
     committed = committed_semantic_types(dl, case.id_)
-    assert MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value in committed
+    assert UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE in committed
+    assert (
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
+        not in committed
+    )
     assert (
         MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE.value not in committed
     )

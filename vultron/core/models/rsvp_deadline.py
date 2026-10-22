@@ -41,19 +41,6 @@ DEFAULT_MIN_RSVP_WINDOW = timedelta(hours=72)
 DEFAULT_RSVP_WINDOW = timedelta(days=7)
 """Default policy RSVP window when an invite names no deadline (EP-07-001)."""
 
-EMBARGO_REINVITE_SEMANTIC_TYPE = "invite_to_embargo_on_case_reinvite"
-"""Ledger ``semantic_type`` of the CASE_MANAGER's EMB-17-003 re-invite.
-
-Committed when a late ``Accept`` names an embargo that is no longer the case's
-current one and the manager asks the accepter again, with a fresh RSVP deadline
-(ASK-03-004, CM-28-012).  The snapshot is the ``Invite(EmbargoEvent)`` the wire
-carries, but it has no proposer: its ``attributedTo`` is absent, so the
-relayed-Invite classifier would read it as a *proposal* and a replica would move
-EM state for an embargo that is already current.  A semantic type of its own gets a
-replay slot that records only the invitee's PEC ``INVITE`` and deadline
-(CM-28-013, EP-09-007, RSH-08-004), as the manager's abandonment entry does.
-"""
-
 
 class RsvpDeadlineClamp(StrEnum):
     """Which rule, if any, moved the requested deadline."""
