@@ -39,6 +39,7 @@ from test.core.use_cases.received.test_participant_removal_planned import (
     _RemovalCase,
     _seed,
 )
+from test.support.ledger import with_genesis
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -437,8 +438,7 @@ def test_replica_applies_the_removal_from_its_ledger_entry(
     # seeded a clock tick later would not extend the manager's chain.
     seeded = replica.read(CASE_ID)
     assert isinstance(seeded, as_VulnerabilityCase)
-    seeded.genesis_hash = removal.read_case().genesis_hash
-    replica.save(seeded)
+    replica.save(with_genesis(seeded, removal.read_case().genesis_hash))
 
     result = route_received(
         replica,

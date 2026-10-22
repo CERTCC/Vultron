@@ -278,13 +278,14 @@ No replay fills that gap: the participant's case has diverged from the CASE_MANA
 - The CASE_MANAGER MUST answer the fault from an active participant with `Announce(VulnerabilityCase)` of its current case, and MUST refuse it from any other sender. (SYNC-16-003)
 - The CASE_MANAGER MUST bound the rate at which it re-seeds a peer. (SYNC-16-004)
 
-A case copy carries the sender's **ledger tail**: the index and hash of the last entry the copy reflects, computed from the ledger when the case is read or sent. (SYNC-16-005)
-A participant that already holds the case compares the tail with its own chain. (SYNC-16-006)
+Each case stores its **ledger position**: the index and hash of the last entry its case file reflects, or index -1 and the genesis hash before any. (SYNC-16-005)
+Committing or storing an entry moves the position to that entry in the same transaction, and a case copy carries its position on the wire.
+A participant that already holds the case compares the copy's position with its own chain. (SYNC-16-006)
 
-- If its chain is already past the tail, the copy is stale and the participant leaves its case unchanged.
-- If it holds a different entry at the tail's index, the chains conflict and the participant leaves its case unchanged.
+- If its chain is already past the position, the copy is stale and the participant leaves its case unchanged.
+- If it holds a different entry at the position's index, the chains conflict and the participant leaves its case unchanged.
 - Otherwise it replaces its case with the copy.
-  If its chain falls short of the tail, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before the tail, replayed or drained from its holding area, as a no-op. (SYNC-16-007)
+  If its chain falls short of the copy's position, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before that position, replayed or drained from its holding area, as a no-op. (SYNC-16-007)
 
 A divergence fault for an entry the last re-seed already reflected means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
 
@@ -574,7 +575,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-16-002 | §5.5 | A fault about applying an entry MUST NOT be ledgered |
 | SYNC-16-003 | §5.5 | CASE_MANAGER MUST re-seed an active participant that reports divergence |
 | SYNC-16-004 | §5.5 | CASE_MANAGER MUST bound the re-seed rate per peer |
-| SYNC-16-005 | §5.5 | A case copy MUST carry the sender's ledger tail |
+| SYNC-16-005 | §5.5 | A case MUST store the ledger position it is a projection of, and carry it on the wire |
 | SYNC-16-006 | §5.5 | Participant MUST NOT replace its case with a stale or conflicting copy |
 | SYNC-16-007 | §5.5 | After replacement, participant MUST backfill to the copy's tail |
 | SYNC-16-008 | §5.5 | CASE_MANAGER SHOULD log divergence after a re-seed as an error |

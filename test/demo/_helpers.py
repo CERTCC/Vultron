@@ -26,8 +26,13 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
+import vultron.core.behaviors.sync.nodes.chain as chain_nodes
 import vultron.demo.utils as demo_utils
-from test.support.ledger import ledger_entries
+from test.support.ledger import (
+    case_position_mismatch,
+    checking_each_commit,
+    ledger_entries,
+)
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
     replica_actor,
@@ -303,6 +308,27 @@ def _multi_party_cases() -> set[str]:
     }
 
 
+def _replica_position_mismatches(manager_dl: Any, case_id: str) -> list[str]:
+    """Each hosted replica of *case_id* whose case does not name its chain tail.
+
+    A replica stores every entry it applies and moves its case's position
+    with it, so once a demo ends its case names its own chain's tail
+    (SYNC-16-005).  A store holding the case but no entry for it is a case
+    copy the demo seeded by hand, which no entry has reached yet; it is left
+    out.
+    """
+    found: list[str] = []
+    for dl in get_all_actor_datalayers().values():
+        if dl is manager_dl or dl.read_case(case_id) is None:
+            continue
+        if not ledger_entries(dl, case_id):
+            continue
+        mismatch = case_position_mismatch(dl, case_id)
+        if mismatch is not None:
+            found.append(f"'{case_id}': {mismatch}")
+    return found
+
+
 def check_cases_rebuild_from_their_ledgers() -> None:
     """Rebuild every managed case from its ledger alone (#4294 AC-5).
 
@@ -342,6 +368,7 @@ def check_cases_rebuild_from_their_ledgers() -> None:
                 REBUILD_FAILURES.append(
                     f"'{case_id}': {type(exc).__name__}: {exc}"
                 )
+            REBUILD_FAILURES.extend(_replica_position_mismatches(dl, case_id))
     finally:
         logging.disable(previous_level)
 
@@ -400,6 +427,15 @@ def route_exchange_demo_at_testclient(
         # ``demo_environment``, which clears the node with this function:
         # check the cases first.
         mp.setattr(demo_utils, "reset_datalayer", _check_then_reset)
+        # Each CASE_MANAGER commit finds its case at the chain tail the last
+        # one left (SYNC-16-005); a miss fails the test like a rebuild does.
+        mp.setattr(
+            chain_nodes,
+            "store_ledger_entry",
+            checking_each_commit(
+                chain_nodes.store_ledger_entry, REBUILD_FAILURES
+            ),
+        )
         yield base
     finally:
         mp.undo()

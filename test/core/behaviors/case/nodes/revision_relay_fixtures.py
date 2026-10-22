@@ -22,6 +22,7 @@ from typing import Any, cast
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.embargo_register import register, reject
+from test.support.ledger import without_owner
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.act_transaction import ActTransaction
@@ -110,8 +111,11 @@ def seed(
     if not open_proposal:
         reject(case, EMBARGO_ID)
     # A case only materializes status with an owner, so an ownerless case is
-    # one whose record lost it after construction (assignment skips checks).
-    case.attributed_to = owner
+    # one whose record lost it after construction.
+    if owner is None:
+        case = without_owner(case)
+    else:
+        case.attributed_to = owner
     embargo = as_EmbargoEvent(
         id_=EMBARGO_ID, context=CASE_ID, end_time=days_from_now_utc(60)
     )

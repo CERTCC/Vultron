@@ -146,7 +146,10 @@ class SeedAnnouncedCaseNode(DataLayerActionWithPorts, StateWriteCapable):
             # Still refresh participants and normalise the stored case so the
             # DataLayer row never carries inline sub-objects (#2233 write-path).
             # This path handles a replica that already holds the case and a
-            # re-delivery of the same Announce.
+            # re-delivery of the same Announce.  The copy replaces the case
+            # whole, its ledger position included: the case file is the copy,
+            # at the position the copy names.  Judging the copy by that
+            # position first (stale, conflicting, ahead) is SYNC-16-006.
             self.logger.debug(
                 "%s: case '%s' already exists locally"
                 " — refreshing participants and normalising row (MV-10-004)",

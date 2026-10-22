@@ -36,6 +36,7 @@ from pydantic import (
     model_validator,
 )
 from pydantic.alias_generators import to_camel
+from pydantic.config import JsonDict
 from pydantic.functional_validators import ModelWrapValidatorHandler
 
 from vultron.core.models._helpers import (
@@ -59,6 +60,17 @@ from vultron.primitives import NonEmptyString, UriString  # noqa: F401
 #: core MUST NOT import wire (ARCH-01-001 — the one boundary rule ADR-0099 leaves
 #: fully in force).  Wire imports it from here, which ARCH-25-006 permits.
 VULTRON_CONTEXT_URI = "https://certcc.github.io/Vultron/ns/context.jsonld"
+
+#: Key of the ``json_schema_extra`` marker that declares a wire field a
+#: Vultron-namespace property, such as a termination ``Remove``'s
+#: ``terminationCause`` (EMB-13-005) or a case's ``ledgerPosition``
+#: (SYNC-16-005).  The context generator maps each marked field's wire name to
+#: ``vultron:<name>``, so a receiver can resolve it.  In core for the reason
+#: :data:`VULTRON_CONTEXT_URI` is: core classes carry it (ADR-0099).
+VULTRON_PROPERTY_KEY = "vultron_property"
+
+#: The marker itself: pass it as a field's ``json_schema_extra``.
+VULTRON_PROPERTY_EXTRA: JsonDict = {VULTRON_PROPERTY_KEY: True}
 
 
 class ValidatedAssignmentMixin(BaseModel):

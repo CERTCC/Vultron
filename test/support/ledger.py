@@ -32,6 +32,10 @@ from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
 from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
@@ -59,6 +63,145 @@ def ledger_entries(dl: DataLayer, case_id: str) -> list[CaseLedgerEntry]:
         if isinstance(entry, CaseLedgerEntry) and entry.case_id == case_id
     ]
     return sorted(entries, key=lambda entry: entry.log_index)
+
+
+def chain_tail(dl: CasePersistence, case: VulnerabilityCase) -> LedgerPosition:
+    """The position of *dl*'s last entry for *case*: index -1 and its genesis
+    hash when it holds none (CLP-08-004)."""
+    entries = ledger_entries(cast(DataLayer, dl), case.id_)
+    if not entries:
+        return LedgerPosition(
+            log_index=EMPTY_LEDGER_LOG_INDEX, entry_hash=case.genesis_hash
+        )
+    last = entries[-1]
+    return LedgerPosition(log_index=last.log_index, entry_hash=last.entry_hash)
+
+
+_CASE_SLOTS = ("object", "target")
+"""The snapshot members a carried case can sit in."""
+
+
+def case_snapshot_position_violations(
+    entries: list[CaseLedgerEntry], manager_id: str
+) -> list[str]:
+    """Each entry whose snapshot carries the case at a position it may not name.
+
+    No entry's snapshot may name the entry itself or a later one, or its hash
+    would depend on itself; one the CASE_MANAGER authors names exactly the
+    position before it (SYNC-16-005).  A received activity carries the
+    sender's copy, at whatever position the sender held.
+    """
+    found: list[str] = []
+    for entry in entries:
+        before = LedgerPosition(
+            log_index=entry.log_index - 1, entry_hash=entry.prev_log_hash
+        )
+        authored = (
+            snapshot_actor_id(entry.payload_snapshot.get("actor"))
+            == manager_id
+        )
+        # A case travels as the activity's object (Create, Update) or its
+        # target (the full-case Invite).
+        for slot in _CASE_SLOTS:
+            carried = entry.payload_snapshot.get(slot)
+            if not (
+                isinstance(carried, dict)
+                and carried.get("type") == "VulnerabilityCase"
+                and isinstance(carried.get("ledgerPosition"), dict)
+            ):
+                continue
+            named = LedgerPosition.model_validate(carried["ledgerPosition"])
+            if named.log_index >= entry.log_index:
+                found.append(
+                    f"entry {entry.log_index} ({entry.semantic_type}) carries"
+                    f" the case as its {slot} at its own or a later position"
+                    f" {named.log_index}"
+                )
+            elif authored and named != before:
+                found.append(
+                    f"entry {entry.log_index} ({entry.semantic_type}) carries"
+                    f" the case as its {slot} at {named.log_index}, not the"
+                    " position before it"
+                )
+    return found
+
+
+def case_position_mismatch(dl: CasePersistence, case_id: str) -> str | None:
+    """Why *dl*'s case does not name its chain tail, or ``None`` when it does."""
+    case = dl.read_case(case_id)
+    if case is None:
+        return f"case '{case_id}' is not stored"
+    tail = chain_tail(dl, case)
+    if case.ledger_position == tail:
+        return None
+    return (
+        f"case '{case_id}' in the store of '{getattr(dl, 'actor_id', '?')}'"
+        f" names {case.ledger_position}, but its chain ends at {tail}"
+    )
+
+
+def assert_case_at_chain_tail(dl: CasePersistence, case_id: str) -> None:
+    """The stored case names the tail of *dl*'s chain (SYNC-16-005)."""
+    mismatch = case_position_mismatch(dl, case_id)
+    assert mismatch is None, mismatch
+
+
+def checking_each_commit(
+    store: Callable[[CaseLedgerEntry, CasePersistence], VulnerabilityCase],
+    failures: list[str],
+) -> Callable[[CaseLedgerEntry, CasePersistence], VulnerabilityCase]:
+    """*store* (the CASE_MANAGER's commit) checking the case before each entry.
+
+    Before each commit the stored case must still name the chain tail the
+    last commit left, so a write between two commits that put the position
+    back is caught at the next commit, not hidden by it (SYNC-16-005).  Each
+    mismatch is appended to *failures*, naming the entry about to commit.
+    """
+
+    def _checked(
+        entry: CaseLedgerEntry, dl: CasePersistence
+    ) -> VulnerabilityCase:
+        mismatch = case_position_mismatch(dl, entry.case_id)
+        if mismatch is not None:
+            failures.append(
+                f"before committing entry {entry.log_index}"
+                f" ({entry.semantic_type}): {mismatch}"
+            )
+        return store(entry, dl)
+
+    return _checked
+
+
+def with_genesis(
+    case: VulnerabilityCase, genesis_hash: str
+) -> VulnerabilityCase:
+    """*case* re-anchored on *genesis_hash*, still at its empty ledger.
+
+    A test that seeds a replica a clock tick after the manager's store gives
+    it the manager's genesis hash; the empty ledger's position names that hash
+    (CLP-08-004), so both move together, validated.
+    """
+    return VulnerabilityCase.model_validate(
+        {
+            **case.model_dump(),
+            "genesis_hash": genesis_hash,
+            "ledger_position": {
+                "log_index": EMPTY_LEDGER_LOG_INDEX,
+                "entry_hash": genesis_hash,
+            },
+        }
+    )
+
+
+def without_owner(case: VulnerabilityCase) -> VulnerabilityCase:
+    """*case* as a record that lost its owner after construction.
+
+    A case without an owner has no ledger, so no position (CLP-08-002); the
+    two go together, so a test of an ownerless case drops both.
+    """
+    return case.model_copy(
+        update={"attributed_to": None, "ledger_position": None}
+    )
 
 
 def is_consent_row_update(
