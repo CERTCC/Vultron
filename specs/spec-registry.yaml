@@ -1527,8 +1527,9 @@ groups:
     rationale: >-
       A link recorded at both ends is one fact kept twice, and the two copies drift:
       authors wrote the second copy with an opposite verb, which closed a loop. The
-      reverse direction can be computed from the requirements graph
-      (`relation_graph.upstream_graph()`), so a second copy adds nothing.
+      links that name a requirement can be found by filtering
+      `relation_graph.recorded_relationships()` on their target, so a second copy adds
+      nothing.
     verification: >-
       `test/metadata/specs/test_lint.py::test_lint_fails_on_a_link_recorded_at_both_ends`
       fails when two requirements that each name the other pass spec-lint.

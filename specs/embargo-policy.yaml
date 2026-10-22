@@ -537,7 +537,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-06-001
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: EP-04-005
     adr:
     - ADR-0096

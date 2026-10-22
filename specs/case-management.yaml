@@ -5935,7 +5935,7 @@ groups:
     verification: >-
       A received-side test removes a signatory and asserts its consent rows are unchanged.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: CM-18-005
     adr:
     - ADR-0116
