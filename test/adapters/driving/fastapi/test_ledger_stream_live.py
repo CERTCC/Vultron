@@ -106,14 +106,15 @@ def base_url(stream_dl: SqliteDataLayer) -> Iterator[str]:
     assert not thread.is_alive(), "uvicorn did not shut down"
 
 
-def _commit(client: httpx.Client, semantic_type: str) -> int:
+def _commit(client: httpx.Client, label: str) -> int:
+    """Commit one demo entry; *label* names its object, so each is distinct.
+
+    The entry's semantic type is the registry's, never the caller's
+    (ADR-0140), and one object id repeated commits one entry (ID-04-004).
+    """
     response = client.post(
         f"/api/v2/actors/{srv.ACTOR_ID}/demo/sync-log-entry",
-        json={
-            "case_id": srv.CASE_ID,
-            "object_id": srv.CASE_ID,
-            "semantic_type": semantic_type,
-        },
+        json={"case_id": srv.CASE_ID, "object_id": f"{srv.CASE_ID}#{label}"},
     )
     assert response.status_code == 202, response.text
     return int(response.json()["log_index"])
@@ -144,9 +145,11 @@ def test_connect_replay_commit_receive_disconnect(base_url: str, caplog):
                 third = _commit(client, "after_connect")
                 pushed = read_sse_event(lines)
                 assert int(pushed["id"]) == third
-                assert json.loads(pushed["data"])["semanticType"] == (
-                    "after_connect"
+                pushed_entry = json.loads(pushed["data"])
+                assert pushed_entry["semanticType"] == (
+                    "announce_vulnerability_case"
                 )
+                assert pushed_entry["logObjectId"].endswith("#after_connect")
             # Leaving the block closes the connection.
 
             _wait_until(lambda: "client disconnected" in caplog.text)
