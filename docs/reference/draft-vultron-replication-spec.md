@@ -436,11 +436,8 @@ last acknowledged log entry hash for each peer. (SYNC-04-001)
 Per-peer replication state MUST be persisted so that it survives a leader
 restart. (SYNC-04-002)
 
-When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD
-include the hash of its last accepted canonical log entry as a parameter in
-the activity's `context` field. This allows the CASE_MANAGER to proactively
-detect that a participant is behind and immediately replay missing entries
-without waiting for an explicit sync request. (SYNC-03-004)
+When a Participant Actor sends any activity about a case to the case's CASE_MANAGER, it SHOULD state its ledger position for that case in the activity's `ledgerTail` property: the index and hash of the last canonical entry it has applied.
+This allows the CASE_MANAGER to detect that a participant is behind and replay missing entries without waiting for a `Reject`. (SYNC-03-004)
 
 ---
 
@@ -512,7 +509,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-03-001 | §5.1 | Receiver MUST reject on predecessor hash mismatch |
 | SYNC-03-002 | §5.2 | Sender MUST retry from last accepted hash after rejection |
 | SYNC-03-003 | §5.3 | Replication MUST be idempotent |
-| SYNC-03-004 | §9 | Participants SHOULD include last accepted hash in context |
+| SYNC-03-004 | §9 | Participants SHOULD state their ledger position in `ledgerTail` |
 | SYNC-03-006 | §5.1 | Receiver MUST refuse an entry whose content does not reproduce its hash |
 | SYNC-04-001 | §9 | Leader MUST track per-peer last acknowledged hash |
 | SYNC-04-002 | §9 | Per-peer state MUST be persisted across leader restart |

@@ -43,6 +43,12 @@ def test_read_case_ledger_entry_is_a_message_semantic() -> None:
     reason="SYNC-03-004: received events carry no ledgerTail yet. Tracked by #5099.",
 )
 @pytest.mark.spec("SYNC-03-004")
-def test_received_event_carries_the_senders_ledger_tail() -> None:
-    """A received event promotes the sender's stated ``ledgerTail``."""
-    assert "ledger_tail" in VultronEvent.model_fields
+@pytest.mark.spec("SYNC-17-008")
+def test_received_event_carries_the_senders_stated_position() -> None:
+    """A received event promotes the sender's stated ``ledgerTail``.
+
+    The probe names ``stated_position``, not ``ledger_tail``: the extractor
+    already parses a ``ledger_tail`` field from ``content`` for the full-case
+    Invite events, so reusing that name would refuse every other activity.
+    """
+    assert "stated_position" in VultronEvent.model_fields

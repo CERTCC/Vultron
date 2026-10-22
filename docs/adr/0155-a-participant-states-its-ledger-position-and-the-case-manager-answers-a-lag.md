@@ -50,9 +50,11 @@ How does the CASE_MANAGER learn that a participant is behind when nothing new is
 
 ## Decision Outcome
 
-Chosen option: "The participant states its position", because it gives the CASE_MANAGER a truthful acknowledgement it does not have today, uses an ActivityStreams activity in its own meaning, and needs no scheduler on the CASE_MANAGER.
+Chosen option: "The participant states its position: on every activity it sends the CASE_MANAGER, and, when it chooses, in a `Read(CaseLedgerEntry)` naming the last entry it applied", because it gives the CASE_MANAGER a truthful acknowledgement it does not have today, uses an ActivityStreams activity in its own meaning, and needs no scheduler on the CASE_MANAGER.
 
 - **Passive.** Every activity a participant sends the CASE_MANAGER for a case carries the participant's ledger position in a `ledgerTail` property, the `LedgerPosition` shape the full-case Invite already uses.
+  Two activities already carry a position elsewhere: a `Reject(CaseLedgerEntry)` names the last applied hash in `context`, and a full-case Invite reply carries a `LedgerPosition` in `content`.
+  On those, `ledgerTail` must name the same entry; when it does not, the CASE_MANAGER logs the mismatch, ignores `ledgerTail`, and handles the activity by its existing rule.
 - **Active.** A participant that wants to check sends `Read(CaseLedgerEntry)` whose object is the last entry it applied.
   ActivityStreams defines `Read` as "the actor has read the object", so the activity states a fact and asks for nothing.
   When to send it is the participant's own policy.
@@ -60,6 +62,7 @@ Chosen option: "The participant states its position", because it gives the CASE_
   When the position is behind the tail, it replays the entries after it, through the same recipient check, rate limit and outbox de-duplication as a `Reject`-triggered replay.
   It answers a sender that is not an active participant with nothing.
 - **A stated position is not a case event.** It changes nothing in the case file, so it is never ledgered (ADR-0152).
+  An activity ledgered for what else it does keeps its `ledgerTail` in its verbatim snapshot, because the snapshot keeps every field it was sent with.
 - **A position the CASE_MANAGER's ledger does not contain** is logged and answered with nothing; repairing a diverged replica stays with ADR-0142.
 
 ### Consequences
@@ -70,6 +73,8 @@ Chosen option: "The participant states its position", because it gives the CASE_
 - Good, because the published ledger collection, when it lands, adds a pull without replacing this; push and acknowledgement stay the main path.
 - Bad, because a participant that never speaks and never reads stays stale until the next commit; the CASE_MANAGER cannot repair a peer that tells it nothing.
 - Bad, because it adds one received message type and one wire property.
+- Bad, because a `ledgerTail` often predates entries already on their way to the sender, so the CASE_MANAGER sees a lag that delivery is about to close and may replay entries that have already left the outbox, where its de-duplication no longer catches them; only the replay rate bound limits these replays.
+- Bad, because a participant's stated position, inside the snapshot of a ledgered activity, becomes visible to every other participant.
 
 ## Validation
 
@@ -77,6 +82,14 @@ Tests drop the last `Announce(CaseLedgerEntry)` to a participant, send no furthe
 A removed participant whose stated position lags is sent nothing.
 
 ## Pros and Cons of the Options
+
+### The participant states its position
+
+- Good, because the CASE_MANAGER gets an acknowledgement from the only party that knows how far it has got.
+- Good, because `Read` states a fact in ActivityStreams' own meaning and claims no refusal.
+- Good, because it needs no scheduler and no sweep on the CASE_MANAGER.
+- Bad, because it depends on the participant speaking; a silent participant is not repaired until the next commit.
+- Bad, because a passive position can be out of date by the time it arrives, which can cause redundant replays bounded only by the rate limit.
 
 ### The CASE_MANAGER sweeps every peer's replication state
 
@@ -101,4 +114,4 @@ A removed participant whose stated position lags is sent nothing.
 - `Follow` of a ledger collection was set aside: it is a standing subscription, not a one-off check, and it needs the collection to exist.
 - `View` fits less well than `Read`; a ledger is read.
 
-Generated spec requirements: `sync-ledger-replication.yaml` SYNC-03-004, SYNC-17-001 through SYNC-17-007.
+Generated spec requirements: `sync-ledger-replication.yaml` SYNC-03-004, SYNC-17-001 through SYNC-17-008.

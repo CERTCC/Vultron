@@ -91,10 +91,13 @@ Reason: the gap `Reject` fires only when a later entry arrives, so a lost last e
 before a quiet period leaves the replica behind with no signal on either side.
 
 - **Two carriers, one answer.** Every activity a participant sends the CASE_MANAGER
-  carries `ledgerTail` (`LedgerPosition`, SYNC-03-004), not `context`, which names
-  the case. A participant that wants to check sends `Read(CaseLedgerEntry)` naming
-  its last applied entry (SYNC-17-001). Both reach the same handling: record the
-  position, replay if behind (SYNC-17-003/004).
+  carries `ledgerTail` (`LedgerPosition`, SYNC-03-004), not `context`, which on most
+  activities names the case. A participant that wants to check sends
+  `Read(CaseLedgerEntry)` naming its last applied entry (SYNC-17-001). Both reach
+  the same handling: record the position, replay if behind (SYNC-17-003/004).
+- **An older carrier wins a disagreement** (SYNC-17-008). A `Reject`'s `context`
+  hash and a full-case Invite reply's `content` position already state a position;
+  a `ledgerTail` that names another entry is logged and ignored.
 - **`Read`, never `Reject`, for a check.** `Read` states a fact; a `Reject` of an
   entry nothing refused would mislead other implementations.
 - **No CASE_MANAGER sweep.** `last_acknowledged_hash` is written only by a stated
@@ -105,6 +108,10 @@ before a quiet period leaves the replica behind with no signal on either side.
 - **Same replay guard.** A stated-position replay goes through `should_replay()` /
   `record_replay()` and the outbox de-duplication, like a `Reject` replay.
 - **Never ledgered** (SYNC-17-006): a stated position is an observation (ADR-0152).
+  A `ledgerTail` inside the snapshot of an activity ledgered for its own sake stays,
+  because the snapshot is verbatim (CLP-07-011).
+- **A stated lag can be transient.** A `ledgerTail` often predates entries already
+  in flight to the sender; the replay rate bound limits the redundant replays.
 
 ## Commit Discipline
 
