@@ -378,6 +378,7 @@ Each copy names the **ledger position** it reflects, the last entry its case fil
 A copy the replica's chain is already past changes nothing, and a copy that names a different entry at a position the replica holds is refused as a conflict ([SYNC-16-006](../../reference/specs/protocol.md#sync-16-006)).
 Any other copy replaces the replica's case.
 When that copy is ahead of the replica's chain, the replica asks for the missing entries with a `Reject`, and stores each entry the copy already reflects without applying it again or moving its position back ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
+An entry at the copy's position that is not the entry the copy names comes from a different chain, so the replica refuses it as a conflict and does not store it ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
 
 ---
 
