@@ -68,7 +68,9 @@ stakeholder_type: [project-contributor]
     It validates the `stakeholder_type`, `level` (DF-11-001) and `page_type` (DF-11-018) every reader-facing `docs/` page declares, and refuses `level` and `page_type` on working-record pages and every key on include fragments.
     It also fails a working-record page that is in the nav or matched by no `not_in_nav` pattern (DF-11-003).
   - `docs-normative-banner` → `vultron.metadata.docs.normative_banner:main`.
-    It fails, naming `path:line`, when a normative-set page does not include `docs/includes/normative.md` itself or any other page or fragment includes it (DF-12-006).
+    It fails when a normative-set page does not include `docs/includes/normative.md` itself, or when any other page or fragment includes it, naming that include's `path:line` (DF-12-006).
+    It also fails when a listed page or the banner does not exist, or when the docs tree or the normative set is empty (DF-09-009).
+    `docs/reference/conventions.md` is exempt, because it shows the banner as an example.
   - `docs-level-order` → `vultron.metadata.docs.level_order:main`.
     It fails when a `docs/` page uses a glossary term that a higher-level page declares in `introduces:`, unless the page links that introducing page at or before the first use or the use itself links to the glossary (DF-11-002).
     Working-record pages and pages with no level are skipped, and include fragments are checked at their lowest host's level.

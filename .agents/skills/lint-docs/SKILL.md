@@ -157,8 +157,10 @@ sections. Pervasive drift is Phase 4, not Phase 3 — see SG-20.
 Report these with the file, the line, the rule ID, and a recommended fix. Do
 not apply them.
 
-Start with `uv run docs-level-order` and `uv run docs-frontmatter`. Both are
-site-wide, so report only the findings on target pages. Each `docs-level-order`
+Start with `uv run docs-level-order`, `uv run docs-frontmatter` and
+`uv run docs-normative-banner`. All three are site-wide, so report only the
+findings on target pages. A banner finding means a normative-set page lacks
+the `normative.md` include, or another page carries it (DF-12-006). Each `docs-level-order`
 finding is a mechanical instance of SG-10 and SG-11: a concept used at
 `path:line:col` that a higher-level page introduces, with no link. Report it
 with both fixes: link the use to the named page, or re-level the page. The tool

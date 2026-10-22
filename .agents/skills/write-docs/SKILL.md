@@ -263,11 +263,11 @@ In this order:
    Resolve every reported finding before proceeding.
 2. `uv run docs-frontmatter`, `uv run docs-level-order` and
    `uv run docs-normative-banner`, the frontmatter, level-order and banner
-   gates the pre-commit hooks run. The banner gate fails a page outside the
-   normative set that includes `normative.md` (DF-12-006). The first two are
-   site-wide, so a new
-   `introduces:` term can also flag an existing lower-level page that uses it
-   unlinked. Link that use; if the finding is on a page this change does not
+   gates the pre-commit hooks run. All three are site-wide. The banner gate
+   fails a normative-set page that does not include `normative.md` itself, and
+   any other page or fragment that includes it (DF-12-006). The level-order
+   gate can flag an existing lower-level page that uses a new `introduces:`
+   term unlinked. Link that use; if the finding is on a page this change does not
    touch and linking it would collide with another task's ownership of that
    page, stop and ask rather than baselining it.
 3. `format-markdown` — markdownlint-cli2 via `./mdlint.sh`.
