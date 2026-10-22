@@ -294,7 +294,8 @@ groups:
       The predecessor check (SYNC-03-001) proves an entry claims the right place in the
       chain, not that its content is what was hashed. A refused entry is not answered
       with `Reject(CaseLedgerEntry)`: a replay resends the same entry, and the receiver's
-      unmoved tail already makes the next entry trigger one. See #3744.
+      unmoved tail already makes the next entry trigger one. The receiver reports the
+      refusal with a processing fault instead (SYNC-03-007). See #3744.
     verification: >-
       Tests marked `SYNC-03-006` deliver an entry whose content no longer matches its
       hash and assert it is not stored, not buffered, and logged at ERROR.
@@ -306,6 +307,63 @@ groups:
       spec_id: SYNC-01-003
     - rel_type: refines
       spec_id: SYNC-08-001
+  - id: SYNC-03-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A participant that refuses a `CaseLedgerEntry` under SYNC-03-006 MUST send
+      `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` to
+      the case's CASE_MANAGER, naming the refused `Announce(CaseLedgerEntry)` by
+      reference. The fault's id MUST be derived from the refused `Announce` and the
+      failure class.
+    rationale: >-
+      The entry was received but could not be processed, which ASK-07-001 and MSM-05-001
+      answer with a processing fault. Without it only the replica's log shows the
+      refusal, while the CASE_MANAGER's replay resends the same entry. A hash mismatch
+      is not a divergence: a fresh case copy cannot repair it, because the replica still
+      cannot store the entry, so it takes this fault and not SYNC-16-001's. Like that
+      fault, it is replication signalling and is never ledgered (SYNC-16-002).
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-03-006
+    - rel_type: refines
+      spec_id: ASK-07-001
+    verification: >-
+      `test/core/behaviors/sync/test_hash_mismatch_fault.py` delivers an entry whose
+      content does not reproduce its hash and asserts the replica queues the fault to
+      the CASE_MANAGER and stores nothing.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-03-008
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER receives the SYNC-03-007 fault from an active participant of
+      the case (CM-10-004), it MUST log the fault at ERROR, MUST recompute the hash of
+      its own stored copy of the named entry as SYNC-03-006 does, and MUST log whether
+      that copy is intact, or that it holds no copy of the named entry. It MUST NOT send
+      anything, re-seed the peer or record replication state because of the fault. From
+      any other sender it MUST report `REFUSED`.
+    rationale: >-
+      A hash mismatch comes from deterministic content, such as a broken entry in the
+      CASE_MANAGER's store or a fault in rendering or parsing its wire form, so neither a
+      replay nor a re-seed can repair it; only a code fix or an operator can. The fault's
+      purpose is to make the problem visible where the ledger is kept, and the self-check
+      says which side is broken. The reject-and-replay loop it leaves is already bounded
+      by the replay cooldown (SYNC-15-003, SYNC-15-013).
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-03-007
+    - rel_type: refines
+      spec_id: SYNC-16-002
+    verification: >-
+      `test/core/behaviors/sync/test_hash_mismatch_fault.py` asserts the ERROR record and
+      the self-check result (intact, not intact, or no stored copy), an empty outbox and
+      unchanged replication state for a fault from an active participant of a seeded
+      case, and `REFUSED` for one from a sender that is not a participant of that case.
+    stories:
+    - story_2022_045
 - id: SYNC-04
   title: Per-Peer Replication State
   specs:
@@ -1455,7 +1513,8 @@ groups:
       A processing fault that reports a failure to apply a `CaseLedgerEntry` MUST NOT be
       committed to the case ledger, by the participant or by the CASE_MANAGER. It MUST
       be surfaced through structured logging, and the CASE_MANAGER's response to it is
-      per-peer replication state (SYNC-04).
+      per-peer replication state (SYNC-04), except for the hash-mismatch fault, which it
+      only logs and self-checks (SYNC-03-008).
     rationale: >-
       It reports on replication, as `Reject(CaseLedgerEntry)` does. Ledgering it loops:
       the diverged replica cannot apply the entry that records its own fault, and a
