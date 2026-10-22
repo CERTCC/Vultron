@@ -122,13 +122,14 @@ classDiagram
 
     class VulnerabilityCase {
         id_ URI
+        attributed_to URI
         case_participants list~str|CaseParticipant~
         actor_participant_index dict~str,str~
         vulnerability_reports list~str|VulnerabilityReport~
         case_statuses list~CaseStatus~
         active_embargo EmbargoEvent | None
         genesis_hash str
-        ledger_position LedgerPosition | None
+        ledger_position LedgerPosition
     }
 
     class CaseParticipant {
