@@ -1636,8 +1636,9 @@ groups:
       The single-underscore floor excludes the token shapes that are not symbols —
       RFC 2119 keywords, protocol shorthands, one-word state names. Resolution is
       textual and tree-wide rather than a binding lookup, preferring a false
-      negative over blocking a legitimate reference. `rationale` narrates history
-      and is excluded, as in MS-15-001.
+      negative over blocking a legitimate reference. `rationale` is excluded, as in
+      MS-15-001: the problem it names (MS-10-012) may be a removed symbol that
+      must not return.
     verification: >-
       `test_lint_phantom_symbol_is_hard_error` in `test/metadata/specs/test_lint.py`
       confirms a spec naming an absent symbol exits non-zero; the sibling

@@ -144,6 +144,12 @@ def test_history_labels_flag_narration(text, label):
         "A PR-only growth guard has no shared number to race.",
         "Each PR must say what it closes, so reviewers can map the diff.",
         "The marker is used to find the owner of each requirement.",
+        "The marker is only used to find the owner.",
+        "The marker is also used to find the owner.",
+        "It's used to find the owner.",
+        "The marker isn't used to find the owner.",
+        "The marker is commonly used to find the owner.",
+        "The marker is\n    used to find the owner.",
     ],
 )
 def test_history_labels_pass_a_reason(text):
@@ -237,13 +243,15 @@ def test_cli_prints_the_report_and_exits_zero(repo, monkeypatch, capsys):
     ]
 
 
-def test_cli_accepts_a_path_under_specs(repo, monkeypatch, capsys):
+@pytest.mark.parametrize("name", ["specs/bbb.yaml", "bbb.yaml"])
+def test_cli_file_narrows_to_one_spec_file(repo, monkeypatch, capsys, name):
     (repo / "pyproject.toml").write_text("")
     monkeypatch.chdir(repo)
-    main(["missing", "--file", "specs/bbb.yaml", "--file", "aaa.yaml"])
-    assert capsys.readouterr().out.splitlines()[-1] == (
-        "[INFO] 2 item(s) in the missing report"
-    )
+    main(["missing", "--file", name])
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[-1] == "[INFO] 1 item(s) in the missing report"
+    assert any("BBB-01-001" in line for line in lines)
+    assert not any("AAA-01-002" in line for line in lines)
 
 
 def test_cli_rejects_an_unknown_spec_file(repo, monkeypatch, capsys):

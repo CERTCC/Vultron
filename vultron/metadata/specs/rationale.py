@@ -81,9 +81,11 @@ HISTORY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             r"\b(?:previously|originally|formerly|historically|no longer"
             r"|the original|at the time|prior to)\b"
-            # "used to" as a past habit, not the passive "is used to".
+            # "used to" as a past habit, not the passive "is (only) used to",
+            # "it's used to" or "commonly used to".
             r"|(?<!\bis )(?<!\bare )(?<!\bbe )(?<!\bbeen )(?<!\bwas )"
-            r"(?<!\bwere )(?<!\bbeing )\bused to\b",
+            r"(?<!\bwere )(?<!\bbeing )(?<!'s )(?<!n't )(?<!ly )"
+            r"(?<!\bonly )(?<!\balso )(?<!\bnot )\bused to\b",
             re.IGNORECASE,
         ),
     ),
@@ -156,9 +158,14 @@ def load_with_files(spec_dir: Path) -> tuple[SpecRegistry, dict[str, str]]:
 
 
 def history_labels(text: str) -> tuple[str, ...]:
-    """The :data:`HISTORY_PATTERNS` labels whose pattern *text* matches."""
+    """The :data:`HISTORY_PATTERNS` labels whose pattern *text* matches.
+
+    Whitespace runs collapse to one space first, so a line break inside a
+    literal block reads like the space the patterns expect.
+    """
+    flat = " ".join(text.split())
     return tuple(
-        label for label, pattern in HISTORY_PATTERNS if pattern.search(text)
+        label for label, pattern in HISTORY_PATTERNS if pattern.search(flat)
     )
 
 
@@ -324,9 +331,9 @@ __all__ = [
     "history_labels",
     "history_narration_hits",
     "live_adr_bodies",
+    "load_with_files",
     "main",
     "missing_rationale",
     "missing_rationale_ids",
     "report_lines",
-    "load_with_files",
 ]
