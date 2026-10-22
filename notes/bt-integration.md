@@ -400,11 +400,14 @@ commit exactly when the received `(type, object)` pair is a canonical payload
 signature (`_CANONICAL_PAYLOAD_SIGNATURES`); otherwise the CASE_MANAGER would
 refuse its own commit. The `Announce(VulnerabilityCase)` tree passes
 `case_id=None` by decision: only the CASE_MANAGER sends it and only replicas
-receive it, so the gate could only skip. `Update(VulnerabilityCase)` has no
-received tree; an inbound one resolves to `UNKNOWN` and is refused (#4443).
-Nor do `Create(CaseStatus)`, `Create(ParticipantStatus)`, `Create(Event)` or a
-direct `Create(CaseParticipant)`: storing the record they carry would change
-the case file with no entry (CLP-07-013), and the protocol does not allow them:
+receive it, so the gate could only skip. The CASE_MANAGER's own acts
+(`Update(VulnerabilityCase)`, `Create`/`Update(CaseParticipant)`,
+`Create`/`Update(EmbargoConsent)`) have no received tree: the registry
+recognizes each and the dispatcher reports "no use case found" (SE-05-002,
+ADR-0140). `Create(CaseStatus)`, `Create(ParticipantStatus)` and
+`Create(Event)` have none either, and resolve to `UNKNOWN`: storing the
+record they carry would change the case file with no entry (CLP-07-013), and
+the protocol does not allow them:
 each record enters a case only by its one attaching message (VAM-01-011,
 ADR-0137).
 Every other tree whose activity is canonical passes `case_id`, with its

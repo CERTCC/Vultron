@@ -25,6 +25,7 @@ from vultron.core.models.events.case import (
     CreateCaseReceivedEvent,
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
+    UpdateCaseOwnerReceivedEvent,
 )
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
@@ -61,12 +62,14 @@ from vultron.wire.as2.extractor import (
     DeferCasePattern,
     EngageCasePattern,
     RejectCaseProposalPattern,
+    UpdateCaseOwnerPattern,
 )
 from vultron.wire.as2.vocab.activities.case import (
     _AddReportToCaseActivity,
     _CreateCaseActivity,
     _RmDeferCaseActivity,
     _RmEngageCaseActivity,
+    _UpdateCaseActivity,
 )
 
 ENTRIES: list[SemanticEntry] = [
@@ -257,6 +260,43 @@ ENTRIES: list[SemanticEntry] = [
                     "target."
                 ),
                 example="add_report_to_case",
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
+    ),
+    # The CASE_MANAGER's own act on an ownership transfer (CM-21-002): the
+    # case with its new attributedTo, committed as its own entry
+    # (CLP-07-013).  Only the CASE_MANAGER sends it, and a participant
+    # learns it from the ledger, so no received use case handles it
+    # (ADR-0140 item 5).
+    SemanticEntry(
+        semantics=MessageSemantics.UPDATE_CASE_OWNER,
+        pattern=UpdateCaseOwnerPattern,
+        event_class=UpdateCaseOwnerReceivedEvent,
+        use_case_class=None,
+        phrase="{actor} named a new case owner",
+        wire_activity_class=_UpdateCaseActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager records the new Case Owner once a case "
+                    "ownership transfer is accepted"
+                ),
+                anchor="update-case-owner",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Update case owner",
+                description=(
+                    "Carries the case with its new owner in attributedTo. The "
+                    "Case Manager commits it after the Accept of the transfer "
+                    "and after each participant record whose CASE_OWNER role "
+                    "moved."
+                ),
+                example="update_case",
+                notes=(
+                    "Each participant learns of it from the case ledger, so "
+                    "it is addressed to nobody."
+                ),
             ),
         ),
         page=MessagePage.CASE_MANAGEMENT,

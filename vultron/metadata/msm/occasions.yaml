@@ -199,6 +199,20 @@ groups:
     - path: howto/activitypub/activities/initialize_case.md
       title: How to Initialize a Case
     example: add_report_to_case
+  - anchor: update-case-owner
+    heading: Update case owner
+    when: the Case Manager records the new Case Owner once a case ownership transfer is accepted
+    send: Update(VulnerabilityCase)
+    send_to: a participant
+    sent_by: not handled
+    semantics: update_case_owner
+    status: none
+    description: Carries the case with its new owner in attributedTo. The Case Manager commits
+      it after the Accept of the transfer and after each participant record whose CASE_OWNER
+      role moved.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: update_case
   - anchor: offer-case-participant-role
     heading: Offer case participant role
     when: the Case Owner offers a CVD role on the case to another participant
@@ -459,6 +473,34 @@ groups:
     - path: howto/activitypub/activities/manage_participants.md
       title: How to Manage a Case Roster
     example: remove_participant_from_case
+  - anchor: create-case-participant
+    heading: Create case participant
+    when: the Case Manager creates a participant record, such as the inert record for the
+      invitee of a stub Invite
+    send: Create(CaseParticipant)
+    send_to: a participant
+    sent_by: not handled
+    semantics: create_case_participant
+    status: none
+    description: 'Carries the new participant record in full: its roles, statuses, joined
+      mark and consent rows.'
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: create_participant
+  - anchor: update-case-participant
+    heading: Update case participant
+    when: the Case Manager changes a participant record, such as moving the CASE_OWNER role
+      on an ownership transfer
+    send: Update(CaseParticipant)
+    send_to: a participant
+    sent_by: not handled
+    semantics: update_case_participant
+    status: none
+    description: Carries the changed participant record in full, as the Case Manager stored
+      it.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: update_participant
 - page: em
   title: Embargo
   mechanics: false
@@ -707,6 +749,34 @@ groups:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: withdraw_from_embargo
+  - anchor: create-embargo-consent
+    heading: Create embargo consent
+    when: the Case Manager creates a participant's consent row for an embargo, such as the
+      UNINVITED row a proposal writes
+    send: Create(EmbargoConsent)
+    send_to: a participant
+    sent_by: not handled
+    semantics: create_embargo_consent
+    status: none
+    description: 'Carries the new consent row in full: the embargo it answers, the participant
+      it belongs to and its state.'
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: create_embargo_consent
+  - anchor: update-embargo-consent
+    heading: Update embargo consent
+    when: the Case Manager changes a participant's consent row, such as an invitation timing
+      out, the rows carried over at activation or a change of its own consent
+    send: Update(EmbargoConsent)
+    send_to: a participant
+    sent_by: not handled
+    semantics: update_embargo_consent
+    status: none
+    description: Carries the changed consent row in full. A Case Manager with an embargo stake
+      of its own records a change of its own consent this way, never as a Reject of the Invite.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: update_embargo_consent
 - page: cs
   title: Case status
   mechanics: false

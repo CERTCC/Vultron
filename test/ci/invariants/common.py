@@ -35,6 +35,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from test.support.ledger_labels import registry_label
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
 from vultron.demo.helpers.ledger_dump import (
@@ -1032,6 +1033,35 @@ def check_unique_payload_snapshot_ids(
                     f"Actor {actor!r}: payloadSnapshot.id {snap_id!r} is"
                     f" recorded {len(indices)} times (logIndex"
                     f" {sorted(indices)}; CLP-07-002 violation)"
+                )
+    return violations
+
+
+def check_semantic_type_is_registry_label(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """Each entry's ``semanticType`` is the registry's label for its payload (ADR-0140).
+
+    An entry stores its semantic type so replay can route on one string, but
+    the type is never chosen apart from the payload: the semantic registry's
+    matcher must return it for the entry's ``payloadSnapshot`` (ADR-0140 item
+    3, #4724).  Every replica is checked, since a replica copies the entry it
+    receives.  An entry whose snapshot does not parse is reported as such.
+
+    Returns one violation string per mismatched entry per replica.
+    """
+    violations: list[str] = []
+    for actor, entries in replicas.items():
+        for e in entries:
+            try:
+                label = registry_label(payload(e))
+            except Exception as exc:  # noqa: BLE001 — reported, not raised
+                label = f"<unparseable: {type(exc).__name__}: {exc}>"
+            if label != semantic_type(e):
+                violations.append(
+                    f"Actor {actor!r} logIndex={log_index(e)}: semanticType"
+                    f" {semantic_type(e)!r}, but the registry labels its"
+                    f" {payload(e).get('type')!r} payload {label!r}"
                 )
     return violations
 

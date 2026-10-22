@@ -552,10 +552,13 @@ class ActorSession:
         """Send Leave(VulnerabilityCase) for the bound case (leave-case, TRIG-13-001)."""
         return self._post("leave-case", {"case_id": self._require_case_id()})
 
-    def sync_log_entry(
-        self, *, object_id: str, semantic_type: str
-    ) -> WireSyncLogEntryResult:
-        """Commit and fan out a canonical ledger entry (sync-log-entry)."""
+    def sync_log_entry(self, *, object_id: str) -> WireSyncLogEntryResult:
+        """Commit and fan out a canonical ledger entry (sync-log-entry).
+
+        The entry's semantic type is the registry's label for its
+        ``Announce(VulnerabilityCase)`` payload (ADR-0140), never the
+        caller's.
+        """
         return cast(
             WireSyncLogEntryResult,
             self._post(
@@ -563,7 +566,6 @@ class ActorSession:
                 {
                     "case_id": self._require_case_id(),
                     "object_id": object_id,
-                    "semantic_type": semantic_type,
                 },
                 path_prefix="demo",
                 result_cls=WireSyncLogEntryResult,

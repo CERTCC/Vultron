@@ -13,27 +13,35 @@
 
 from datetime import timedelta
 
+from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_termination import FixDeployedCause
 from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
 from vultron.wire.as2.factories import (
     activate_embargo_activity,
     announce_embargo_activity,
+    create_embargo_consent_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
     em_undo_embargo_invite_activity,
     reject_embargo_proposal_activity,
     remove_embargo_from_case_activity,
+    update_embargo_consent_activity,
     withdraw_from_embargo_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Announce,
+    as_Create,
     as_Invite,
     as_Leave,
     as_Reject,
     as_Remove,
     as_Undo,
+    as_Update,
 )
 from vultron.wire.as2.vocab.examples._base import (
     EXAMPLE_TIMESTAMP,
@@ -133,6 +141,53 @@ def undo_embargo_invite() -> as_Undo:
         id_=f"{invite.id_}/undo",
         actor=case_actor().id_,
         context=invite.context,
+        published=EXAMPLE_TIMESTAMP,
+    )
+
+
+def create_embargo_consent() -> as_Create:
+    """The CASE_MANAGER's ``Create(EmbargoConsent)`` of a participant's row.
+
+    When an embargo is proposed, the CASE_MANAGER creates each participant's
+    ``UNINVITED`` row for it and commits the row in full as its own
+    ``create_embargo_consent`` entry (ADR-0122, CLP-07-013).  It is
+    addressed to nobody: each participant takes the row from the ledger.
+    """
+    _case = case()
+    row = EmbargoConsent(
+        embargo_id=embargo_event().id_,
+        state=EmbargoConsentState.UNINVITED,
+        attributed_to=vendor().id_,
+    )
+    return create_embargo_consent_activity(
+        row,
+        id_=f"{row.id_}/create",
+        actor=case_actor().id_,
+        context=_case.id_,
+        published=EXAMPLE_TIMESTAMP,
+    )
+
+
+def update_embargo_consent() -> as_Update:
+    """The CASE_MANAGER's ``Update(EmbargoConsent)`` of a participant's row.
+
+    When an embargo invitation's RSVP deadline passes unanswered, the
+    CASE_MANAGER moves the invitee's row to ``TIMED_OUT`` and commits the
+    changed row in full as its own ``update_embargo_consent`` entry
+    (CM-28-009, ADR-0140).  It records a change of its own consent the same
+    way (MSM-07-004).
+    """
+    _case = case()
+    row = EmbargoConsent(
+        embargo_id=embargo_event().id_,
+        state=EmbargoConsentState.TIMED_OUT,
+        attributed_to=vendor().id_,
+    )
+    return update_embargo_consent_activity(
+        row,
+        id_=f"{row.id_}/update",
+        actor=case_actor().id_,
+        context=_case.id_,
         published=EXAMPLE_TIMESTAMP,
     )
 

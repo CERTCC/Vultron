@@ -107,8 +107,9 @@ groups:
       inline on the single `Add(Note)` that attaches it (VAM-07-002), and MUST send a
       proposed `EmbargoEvent` inline on the `Invite` that proposes it (VAM-05-005). An
       inbox MUST refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)`,
-      `Create(Event)`, `Create(CaseParticipant)` or `Create(Note)` as an unrecognized
-      activity.
+      `Create(Event)` or `Create(Note)` as an unrecognized activity, and MUST report a
+      received `Create(CaseParticipant)`, the CASE_MANAGER's own act, as "no use case
+      found" (SE-05-002, ADR-0140).
     rationale: >-
       VAM-01-011 makes the single message the only protocol form and leaves how a
       receiver handles a stray `Create` to the receiver; this item is this codebase's
@@ -140,6 +141,9 @@ groups:
       of the received `Create` activities, including `Create(Note)` with and without a
       case `context`, resolves to `UNKNOWN` and is refused, and that the case, the
       ledger and the outbox stay unchanged.
+      `test_a_received_case_manager_act_is_recognized_and_unhandled` in the same file
+      confirms that a received `Create(CaseParticipant)` is recognized, reported
+      unhandled, and changes nothing.
     relationships:
     - rel_type: refines
       spec_id: VAM-01-011
@@ -366,6 +370,28 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+  - id: VAM-03-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `UPDATE_CASE_OWNER` MUST be represented as `Update(VulnerabilityCase)`, carrying
+      the case with its new owner in `attributedTo`. Only the CASE_MANAGER sends it,
+      as its own act on an accepted ownership transfer (CM-21-002), and no received
+      use case handles it (SE-05-002, ADR-0140).
+    rationale: >-
+      An entry's semantic type is the registry's label for its payload (ADR-0140), so
+      the CASE_MANAGER's own case-field change needs a registry entry of its own.
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the `update_case`
+      example maps to `UPDATE_CASE_OWNER`.
+    relationships:
+    - rel_type: satisfies
+      spec_id: CM-21-002
+    adr:
+    - ADR-0140
+    lint_suppress:
+    - missing_story_reference
 - id: VAM-04
   title: Actor Suggestion and Invitation Messages
   specs:
@@ -899,6 +925,51 @@ groups:
     stories:
     - story_2022_014
     - story_2022_080
+  - id: VAM-05-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `CREATE_EMBARGO_CONSENT` MUST be represented as `Create(EmbargoConsent)`,
+      carrying the new consent row in full. Only the CASE_MANAGER sends it, as its own
+      act when it brings a consent row into existence (ADR-0122, CLP-07-013), and no
+      received use case handles it (SE-05-002, ADR-0140).
+    rationale: >-
+      An entry's semantic type is the registry's label for its payload (ADR-0140). The
+      record is a case-file change, not a PEC transition (MSM-07-001).
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `create_embargo_consent` example maps to `CREATE_EMBARGO_CONSENT`.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-07-001
+    adr:
+    - ADR-0140
+    lint_suppress:
+    - missing_story_reference
+  - id: VAM-05-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `UPDATE_EMBARGO_CONSENT` MUST be represented as `Update(EmbargoConsent)`,
+      carrying the changed consent row in full. Only the CASE_MANAGER sends it, as its
+      own act when it changes a consent row, its own consent included (MSM-07-004,
+      CLP-07-013), and no received use case handles it (SE-05-002, ADR-0140).
+    rationale: >-
+      An entry's semantic type is the registry's label for its payload (ADR-0140).
+      An expired invitation is this `Update` carrying the invitee's `TIMED_OUT` row
+      (ADR-0140 item 4).
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `update_embargo_consent` example maps to `UPDATE_EMBARGO_CONSENT`.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-07-004
+    adr:
+    - ADR-0140
+    lint_suppress:
+    - missing_story_reference
 - id: VAM-06
   title: Case Participant Management Messages
   specs:
@@ -932,6 +1003,52 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+  - id: VAM-06-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `CREATE_CASE_PARTICIPANT` MUST be represented as `Create(CaseParticipant)`,
+      carrying the record in full. Only the CASE_MANAGER sends it, as its own act
+      when it brings a participant record into existence (ADR-0114, CLP-07-013), and
+      no received use case handles it (SE-05-002, ADR-0140).
+    rationale: >-
+      An entry's semantic type is the registry's label for its payload (ADR-0140).
+      A received `Create(CaseParticipant)` is still not a protocol message
+      (VAM-01-011): it is recognized only so that it is reported, not acted on.
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `create_participant` example maps to `CREATE_CASE_PARTICIPANT`.
+    relationships:
+    - rel_type: refines
+      spec_id: VAM-01-011
+    adr:
+    - ADR-0140
+    lint_suppress:
+    - missing_story_reference
+  - id: VAM-06-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `UPDATE_CASE_PARTICIPANT` MUST be represented as `Update(CaseParticipant)`,
+      carrying the changed record in full. Only the CASE_MANAGER sends it, as its own
+      act when it changes a participant record, such as moving the `CASE_OWNER` role
+      (CM-21-002, CLP-07-013), and no received use case handles it (SE-05-002,
+      ADR-0140).
+    rationale: >-
+      An entry's semantic type is the registry's label for its payload (ADR-0140), so
+      each participant-record change the CASE_MANAGER commits needs a registry entry.
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `update_participant` example maps to `UPDATE_CASE_PARTICIPANT`.
+    relationships:
+    - rel_type: satisfies
+      spec_id: CM-21-002
+    adr:
+    - ADR-0140
+    lint_suppress:
+    - missing_story_reference
 - id: VAM-07
   title: Note Management Messages
   specs:

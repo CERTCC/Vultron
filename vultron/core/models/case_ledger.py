@@ -396,7 +396,7 @@ class CaseLedger:
         log = CaseLedger(case_id=case_id, genesis_hash=g_hash)
         entry = log.append(
             object_id="urn:uuid:report1",
-            semantic_type="report_received",
+            semantic_type="add_report_to_case",
             payload_snapshot={"id": "urn:uuid:report1"},
         )
         assert entry.log_index == 0

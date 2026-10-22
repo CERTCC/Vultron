@@ -92,6 +92,7 @@ from vultron.wire.as2.vocab.examples.embargo import (
     activate_embargo,
     announce_embargo,
     announce_embargo_termination,
+    create_embargo_consent,
     embargo_event,
     notify_embargo_termination,
     propose_embargo,
@@ -102,6 +103,7 @@ from vultron.wire.as2.vocab.examples.embargo import (
     relay_embargo_proposal,
     remove_embargo,
     undo_embargo_invite,
+    update_embargo_consent,
     withdraw_from_embargo,
 )
 from vultron.wire.as2.vocab.examples.fault import (
@@ -132,6 +134,7 @@ from vultron.wire.as2.vocab.examples.participant import (  # noqa: F401
     remove_participant_from_case,
     rm_invite_to_case,
     tentative_reject_full_case_invite,
+    update_participant,
     vendor_participant,
 )
 from vultron.wire.as2.vocab.examples.report import *  # noqa: F403
@@ -423,6 +426,9 @@ def main(outdir=None):
         request_invite_actor_to_case,
         relay_embargo_proposal,
         undo_embargo_invite,
+        create_embargo_consent,
+        update_embargo_consent,
+        update_participant,
         notify_embargo_termination,
         announce_embargo_termination,
         accept_embargo_revision,

@@ -120,12 +120,11 @@ class _RemoveParticipantFromCaseActivity(as_Remove):
 class _UpdateParticipantActivity(as_Update):
     """Update a as_CaseParticipant.
 
-    Reserved as the snapshot shape of a CASE_MANAGER-authored ledger entry
-    recording a change to a participant record, such as a ``CASE_OWNER`` role
-    moving on an ownership transfer (CLP-07-013). It is not a message any
-    actor sends: it has no ``ActivityPattern`` and no ``MessageSemantics``,
-    so an inbox refuses a received one as unrecognized, as it does the case's
-    ``Update`` (#4443). Do not add a received route.
+    The CASE_MANAGER's own act recording a change to a participant record,
+    such as a ``CASE_OWNER`` role moving on an ownership transfer, committed
+    as its ``update_case_participant`` ledger entry (CLP-07-013).  The
+    registry recognizes it, but no received use case handles it, so an inbox
+    reports a received one as "no use case found" (ADR-0140).
 
     object_: as_CaseParticipant
     """

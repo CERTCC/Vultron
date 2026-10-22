@@ -29,20 +29,26 @@ writes it through the one apply function
   the CASE_MANAGER changed a row, such as ``CARRY_OVER`` at activation, its
   own policy consent, a time-out or a withdrawal decline.
 
-Both are ledger semantic types only: no actor sends either as a message, so no
-``MessageSemantics`` member names them.
+Both are ``MessageSemantics`` members, so the registry labels each entry's
+payload with them (ADR-0140); only the CASE_MANAGER sends either, and no
+received use case handles them.
 """
 
 from collections.abc import Mapping
 from types import MappingProxyType
 
 from vultron.core.models.embargo_apply import ConsentRowVerb
+from vultron.core.models.events.base import MessageSemantics
 
 #: ``Create(EmbargoConsent)`` -- the CASE_MANAGER created a consent row.
-CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE = "create_embargo_consent"
+CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE = (
+    MessageSemantics.CREATE_EMBARGO_CONSENT.value
+)
 
 #: ``Update(EmbargoConsent)`` -- the CASE_MANAGER changed a consent row.
-UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE = "update_embargo_consent"
+UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE = (
+    MessageSemantics.UPDATE_EMBARGO_CONSENT.value
+)
 
 #: The semantic type of each consent-row verb, and back: the one map every
 #: builder and replica slot reads.

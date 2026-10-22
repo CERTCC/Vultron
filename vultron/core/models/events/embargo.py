@@ -333,3 +333,48 @@ class UndoInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     @property
     def case_id(self) -> str | None:
         return self.inner_context_id
+
+
+class CreateEmbargoConsentReceivedEvent(VultronEvent):
+    """The CASE_MANAGER created a participant's consent row (ADR-0122).
+
+    ``Create(EmbargoConsent)``: the CASE_MANAGER's own act, such as the
+    ``UNINVITED`` row a proposal writes, committed as its
+    ``create_embargo_consent`` ledger entry.  No received use case handles
+    it: a participant takes the row from the committed entry (ADR-0140
+    item 5).
+    """
+
+    semantic_type: Literal[MessageSemantics.CREATE_EMBARGO_CONSENT] = (
+        MessageSemantics.CREATE_EMBARGO_CONSENT
+    )
+
+    @property
+    def consent_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def case_id(self) -> str | None:
+        return self.context_id
+
+
+class UpdateEmbargoConsentReceivedEvent(VultronEvent):
+    """The CASE_MANAGER changed a participant's consent row (ADR-0122).
+
+    ``Update(EmbargoConsent)``: the CASE_MANAGER's own act, such as a
+    ``CARRY_OVER`` at activation, an invitation's time-out or a change of its
+    own consent (MSM-07-004), committed as its ``update_embargo_consent``
+    ledger entry.  No received use case handles it (ADR-0140 item 5).
+    """
+
+    semantic_type: Literal[MessageSemantics.UPDATE_EMBARGO_CONSENT] = (
+        MessageSemantics.UPDATE_EMBARGO_CONSENT
+    )
+
+    @property
+    def consent_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def case_id(self) -> str | None:
+        return self.context_id

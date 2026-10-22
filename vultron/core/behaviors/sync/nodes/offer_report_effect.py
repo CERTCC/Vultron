@@ -43,6 +43,7 @@ from vultron.core.models._helpers import (
     _as_id,
     project_wire_snapshot_to_core,
 )
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.report import VulnerabilityReport
 
 
@@ -90,7 +91,7 @@ class ApplyOfferReportFromLedgerNode(
         entry = _require_log_entry(self.activity, self.name)
 
         # Only handle add_report_to_case entries.
-        if entry.semantic_type != "add_report_to_case":
+        if entry.semantic_type != MessageSemantics.ADD_REPORT_TO_CASE.value:
             return Status.SUCCESS
 
         snapshot = (

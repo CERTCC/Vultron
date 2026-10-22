@@ -30,15 +30,12 @@ paths commit an entry:
   every such keyword's value (a literal, a constant, or a ``self.<CONST>``
   class constant resolved through each subclass), plus every ``*SEMANTIC_TYPE``
   constant passed as a positional call argument under ``vultron/core``.  A
-  value threaded through a parameter (``semantic_type=semantic_type``) is found at
-  the call that supplies it; any other unresolvable value fails the scan.  A
+  value assigned to a local first (``semantic_type = <CONST>``, then
+  ``semantic_type=semantic_type``) is read from each assignment in the
+  enclosing function; one threaded through a parameter is found at the call
+  that supplies it; any other unresolvable value fails the scan.  A
   constant a replay slot only compares against is not a call argument, so
   defining one never makes a type look committed.
-
-Not covered, by design: the ``sync-log-entry`` trigger
-(``vultron/core/use_cases/triggers/sync_log_entry.py``), an operator tool
-whose client names the semantic type of an ``Announce(VulnerabilityCase)``
-snapshot.
 
 No source is read or parsed outside ``_corpus`` (TB-13-001, TB-13-003): a
 function reached from a live object is found in the shared parse by
@@ -223,6 +220,11 @@ _MODULE_PASS_THROUGH_SEMANTIC_TYPES: dict[str, frozenset[str]] = {
     # ``HashChainLedgerRecord.from_ledger_entry`` rebuilds a record from an
     # entry already committed, to check its hash; it commits nothing.
     "vultron.core.models.case_ledger": frozenset({"entry.semantic_type"}),
+    # ``CommitCaseLedgerEntryNode`` records a received activity under its
+    # ``MessageSemantics``; :func:`received_commit_semantics` finds each.
+    "vultron.core.behaviors.case.nodes.lifecycle": frozenset(
+        {"semantic_type"}
+    ),
 }
 
 
@@ -298,6 +300,83 @@ def _enclosing_class(tree: ast.AST, node: ast.AST) -> ast.ClassDef | None:
     return owner
 
 
+def _enclosing_function(
+    tree: ast.AST, node: ast.AST
+) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    """The innermost function whose source lines contain *node*, if any."""
+    line = _corpus.node_line(node)
+    owner: ast.FunctionDef | ast.AsyncFunctionDef | None = None
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        end = fn.end_lineno or fn.lineno
+        if fn.lineno <= line <= end and (
+            owner is None or fn.lineno >= owner.lineno
+        ):
+            owner = fn
+    return owner
+
+
+def _local_assignments(
+    tree: ast.AST, call: ast.Call, name: str
+) -> list[ast.expr]:
+    """Each value assigned to the local *name* in the function holding *call*.
+
+    A commit that picks its semantic type into a local first
+    (``semantic_type = CREATE_EMBARGO_CONSENT_SEMANTIC_TYPE`` in one branch,
+    another constant in the other, then ``semantic_type=semantic_type``) is
+    found through those assignments.  Empty when *name* is never assigned
+    there, as for a parameter, which the caller resolves instead.
+    """
+    fn = _enclosing_function(tree, call)
+    if fn is None:
+        return []
+    return [
+        stmt.value
+        for stmt in ast.walk(fn)
+        if isinstance(stmt, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == name
+            for target in stmt.targets
+        )
+    ] + [
+        stmt.value
+        for stmt in ast.walk(fn)
+        if isinstance(stmt, ast.AnnAssign)
+        and stmt.value is not None
+        and isinstance(stmt.target, ast.Name)
+        and stmt.target.id == name
+    ]
+
+
+def _assigned_values(
+    assigned: list[ast.expr], module: ModuleType, call: ast.Call, name: str
+) -> Iterator[str]:
+    """The constant each of *assigned* names.
+
+    A local computed rather than named (the receive-side commit reads the
+    received event's semantics) is admitted only as a pass-through of its
+    own module (:data:`_MODULE_PASS_THROUGH_SEMANTIC_TYPES`), whose types the
+    receive-side scan finds instead.
+
+    Raises:
+        AssertionError: on an assigned value the scan cannot resolve in a
+            module that does not declare the local a pass-through, so a local
+            never hides a commit.
+    """
+    resolved = [_constant_value(value, module) for value in assigned]
+    if all(value is not None for value in resolved):
+        yield from (value for value in resolved if value is not None)
+        return
+    assert name in _MODULE_PASS_THROUGH_SEMANTIC_TYPES.get(
+        module.__name__, frozenset()
+    ), (
+        f"{module.__name__}:{call.lineno}: cannot resolve the local semantic"
+        f" type {name}; assign it a constant, or add a pass-through whose"
+        " commits the scan finds elsewhere"
+    )
+
+
 def _semantic_type_keyword_values(
     path: Any, tree: ast.AST, module: ModuleType
 ) -> Iterator[str]:
@@ -328,6 +407,11 @@ def _semantic_type_keyword_values(
                 and (owner := _enclosing_class(tree, node)) is not None
             ):
                 yield from _class_attribute_values(owner, expr.attr, module)
+                continue
+            if isinstance(expr, ast.Name) and (
+                assigned := _local_assignments(tree, node, expr.id)
+            ):
+                yield from _assigned_values(assigned, module, node, expr.id)
                 continue
             source = ast.unparse(expr)
             assert source in _PASS_THROUGH_SEMANTIC_TYPES or (

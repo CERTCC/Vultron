@@ -47,6 +47,7 @@ from vultron.core.models.events.case import (
     CreateCaseReceivedEvent,
     DeferCaseReceivedEvent,
     EngageCaseReceivedEvent,
+    UpdateCaseOwnerReceivedEvent,
 )
 from vultron.core.models.events.case_context import (
     CASE_BOOTSTRAP_SEMANTICS,
@@ -57,7 +58,9 @@ from vultron.core.models.events.case_context import (
 )
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
+    CreateCaseParticipantReceivedEvent,
     RemoveCaseParticipantFromCaseReceivedEvent,
+    UpdateCaseParticipantReceivedEvent,
 )
 from vultron.core.models.events.case_proposal import (
     AcceptCaseProposalReceivedEvent,
@@ -68,11 +71,13 @@ from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     ActivateEmbargoOnCaseReceivedEvent,
     AnnounceEmbargoEventToCaseReceivedEvent,
+    CreateEmbargoConsentReceivedEvent,
     InviteToEmbargoOnCaseReceivedEvent,
     RejectEmbargoProposalOnCaseReceivedEvent,
     RejectInviteToEmbargoOnCaseReceivedEvent,
     RemoveEmbargoEventFromCaseReceivedEvent,
     UndoInviteToEmbargoOnCaseReceivedEvent,
+    UpdateEmbargoConsentReceivedEvent,
     WithdrawFromEmbargoOnCaseReceivedEvent,
 )
 from vultron.core.models.events.fault import (
@@ -118,6 +123,7 @@ AnyReceivedEvent = (
     | EngageCaseReceivedEvent
     | DeferCaseReceivedEvent
     | AddReportToCaseReceivedEvent
+    | UpdateCaseOwnerReceivedEvent
     | CloseCaseReceivedEvent
     |
     # actor
@@ -152,6 +158,8 @@ AnyReceivedEvent = (
     # case_participant
     AddCaseParticipantToCaseReceivedEvent
     | RemoveCaseParticipantFromCaseReceivedEvent
+    | CreateCaseParticipantReceivedEvent
+    | UpdateCaseParticipantReceivedEvent
     |
     # embargo
     ActivateEmbargoOnCaseReceivedEvent
@@ -163,6 +171,8 @@ AnyReceivedEvent = (
     | AcceptInviteToEmbargoOnCaseReceivedEvent
     | RejectInviteToEmbargoOnCaseReceivedEvent
     | UndoInviteToEmbargoOnCaseReceivedEvent
+    | CreateEmbargoConsentReceivedEvent
+    | UpdateEmbargoConsentReceivedEvent
     |
     # note
     AddNoteToCaseReceivedEvent
@@ -207,6 +217,7 @@ __all__ = [
     "EngageCaseReceivedEvent",
     "DeferCaseReceivedEvent",
     "AddReportToCaseReceivedEvent",
+    "UpdateCaseOwnerReceivedEvent",
     "CloseCaseReceivedEvent",
     # actor
     "OfferActorToCaseReceivedEvent",
@@ -238,6 +249,8 @@ __all__ = [
     # case_participant
     "AddCaseParticipantToCaseReceivedEvent",
     "RemoveCaseParticipantFromCaseReceivedEvent",
+    "CreateCaseParticipantReceivedEvent",
+    "UpdateCaseParticipantReceivedEvent",
     # embargo
     "ActivateEmbargoOnCaseReceivedEvent",
     "RejectEmbargoProposalOnCaseReceivedEvent",
@@ -248,6 +261,8 @@ __all__ = [
     "AcceptInviteToEmbargoOnCaseReceivedEvent",
     "RejectInviteToEmbargoOnCaseReceivedEvent",
     "UndoInviteToEmbargoOnCaseReceivedEvent",
+    "CreateEmbargoConsentReceivedEvent",
+    "UpdateEmbargoConsentReceivedEvent",
     # note
     "AddNoteToCaseReceivedEvent",
     "RemoveNoteFromCaseReceivedEvent",

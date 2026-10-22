@@ -1,0 +1,41 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Update",
+  "id": "urn:uuid:1b400363-a2f2-46e9-a6e7-bb0d0667eea5",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Update Coordinator LLC",
+  "context": "urn:uuid:31fe3ceb-61fb-4c9d-95be-c31c02ffb23d",
+  "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+  "object": {
+    "id": "urn:uuid:31fe3ceb-61fb-4c9d-95be-c31c02ffb23d/participants/https://vultron.example/organizations/coordinator",
+    "type": "CaseParticipant",
+    "name": "Coordinator LLC",
+    "context": "urn:uuid:31fe3ceb-61fb-4c9d-95be-c31c02ffb23d",
+    "published": "2026-10-22T15:25:18+00:00",
+    "updated": "2026-10-22T15:25:18+00:00",
+    "attributedTo": "https://vultron.example/organizations/coordinator",
+    "caseRoles": [
+      "coordinator",
+      "case_owner"
+    ],
+    "participantStatuses": [
+      {
+        "id": "urn:uuid:70e64f87-9abe-4bb5-a0ed-1c9e04603941",
+        "type": "ParticipantStatus",
+        "name": "START",
+        "context": "urn:uuid:31fe3ceb-61fb-4c9d-95be-c31c02ffb23d",
+        "published": "2026-10-22T15:25:18+00:00",
+        "updated": "2026-10-22T15:25:18+00:00",
+        "attributedTo": "https://vultron.example/organizations/coordinator",
+        "rmState": "START",
+        "caseEngagement": true,
+        "cvdRole": [
+          "COORDINATOR"
+        ],
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      }
+    ],
+    "embargoConsents": [],
+    "joined": true,
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  }
+}
