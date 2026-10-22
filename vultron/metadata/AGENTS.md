@@ -163,8 +163,8 @@ the new requirement. Use the documented opt-out on that entry:
 
 Remove the suppression in the PR that creates the file, so the reference goes
 back under the check. Only `statement`, `verification`, and behavioral
-step/condition text are scanned; `rationale` is exempt by design, because it
-narrates history and legitimately names things that were removed.
+step/condition text are scanned; `rationale` is exempt, because the problem it
+states (MS-10-012) may be a removed thing that must not return.
 
 A story-less `protocol` or `foundation` spec whose `statement` names a `.py`
 file, a `vultron/`, `test/` or `scripts/` path, or `pytest`, `pydantic` or

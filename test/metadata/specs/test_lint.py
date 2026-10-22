@@ -1239,7 +1239,7 @@ def test_lint_phantom_path_parent_traversal_rejected(tmp_path, capsys):
 
 
 def test_lint_phantom_path_rationale_not_scanned(tmp_path):
-    """rationale narrates history and may cite paths that no longer exist."""
+    """rationale may name a removed path as the problem it prevents (MS-10-012)."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
     data["groups"][0]["specs"][0]["rationale"] = (
@@ -1706,7 +1706,7 @@ def test_lint_phantom_symbol_in_verification_is_hard_error(tmp_path, capsys):
 
 
 def test_lint_phantom_symbol_rationale_not_scanned(tmp_path):
-    """rationale narrates history and may name a removed symbol."""
+    """rationale may name a removed symbol as the problem it prevents."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
     data["groups"][0]["specs"][0]["rationale"] = (

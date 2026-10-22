@@ -236,12 +236,22 @@ def load_registry(
         FileNotFoundError: If the repository root cannot be resolved.
     """
     if spec_dir is None:
-        root = find_repo_root()
-        spec_dir = root / "specs"
+        spec_dir = find_repo_root() / "specs"
+    return SpecRegistry(files=[f for _, f in load_spec_files(spec_dir)])
 
+
+def load_spec_files(spec_dir: Path) -> list[tuple[Path, SpecFile]]:
+    """Each ``spec_dir/*.yaml`` file with its validated contents, sorted.
+
+    The discovery and validation behind :func:`load_registry`, for a caller
+    that needs to know which file each requirement came from.
+
+    Raises:
+        MetadataLoadErrors: As :func:`load_registry` documents.
+    """
     # Paths display relative to the directory holding specs/, which is the
     # repository root for the real corpus (MS-17-001).
-    files = []
+    files: list[tuple[Path, SpecFile]] = []
     collector = FailureCollector()
     for yaml_path in sorted(spec_dir.glob("*.yaml")):
         with collector.attempt():
@@ -249,10 +259,15 @@ def load_registry(
                 yaml_path, root=spec_dir.parent, loader=_SafeLoader
             )
             files.append(
-                validate(SpecFile, raw, path=yaml_path, root=spec_dir.parent)
+                (
+                    yaml_path,
+                    validate(
+                        SpecFile, raw, path=yaml_path, root=spec_dir.parent
+                    ),
+                )
             )
     collector.raise_if_any(
         summary=f"{len(collector.failures)} spec file(s) failed to load:"
     )
 
-    return SpecRegistry(files=files)
+    return files

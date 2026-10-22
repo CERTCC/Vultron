@@ -313,9 +313,9 @@ def _check_phantom_paths(registry: SpecRegistry, repo_root: Path) -> list[str]:
 
     Scanned fields: ``statement``, ``verification``, ``BehavioralSpec`` step
     ``action``, precondition ``description``, and postcondition ``description``.
-    ``rationale`` narrates history by design
-    ("X has been converted to Y", "if X stays in Z...") and legitimately
-    references paths that no longer exist.
+    ``rationale`` is excluded: it states the problem a requirement prevents
+    (MS-10-012), and that problem may be a path or symbol that must not
+    return, so naming one that no longer exists is legitimate there.
 
     File references (backticked path with extension and ``/`` separator) use
     :data:`SPEC_PATH_RE`.  Directory references (two or more path segments
@@ -372,8 +372,8 @@ def _scanned_texts(
 ) -> list[tuple[str, str]]:
     """Return ``(field_label, text)`` pairs for all fields scanned by MS-15-001.
 
-    ``rationale`` is deliberately excluded — it narrates history and may
-    legitimately cite paths that no longer exist.
+    ``rationale`` is deliberately excluded — the problem it names (MS-10-012)
+    may legitimately be a path that no longer exists.
     """
     texts: list[tuple[str, str]] = [
         ("statement", spec.statement or ""),
@@ -909,8 +909,8 @@ def _check_phantom_symbols(
     ADR-0083 applies to message shapes; this applies it to symbol names.
 
     Scanned fields are :func:`_scanned_texts` — the same set
-    ``_check_phantom_paths`` uses. ``rationale`` is again excluded: it narrates
-    history by design and legitimately names symbols that have been removed.
+    ``_check_phantom_paths`` uses. ``rationale`` is again excluded: the problem it
+    names (MS-10-012) may legitimately be a symbol that has been removed.
 
     Resolution is deliberately loose — a token counts as live if it appears
     *anywhere* in the ``vultron/`` or ``test/`` Python text, including comments
