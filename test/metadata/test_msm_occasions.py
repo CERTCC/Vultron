@@ -805,10 +805,6 @@ def test_quick_reference_includes_the_generated_message_tables():
     assert rows == []
 
 
-def _linked_anchors(line: str) -> list[str]:
-    return [target.partition("#")[2] for target in _LINK.findall(line)]
-
-
 @pytest.mark.spec("MSM-06-004")
 def test_shorthand_table_lists_every_shorthand_with_its_carriers(table):
     """Each row links the first occasion of each wire activity that carries
@@ -823,9 +819,11 @@ def test_shorthand_table_lists_every_shorthand_with_its_carriers(table):
         for group in table.groups:
             for row in group.occasions:
                 if row.shorthand is shorthand:
-                    expected.setdefault(row.send, row.anchor)
+                    expected.setdefault(
+                        row.send, f"../{group.page.value}.md#{row.anchor}"
+                    )
         if expected:
-            assert _linked_anchors(line) == list(expected.values()), line
+            assert _LINK.findall(line) == list(expected.values()), line
             assert "[none]" not in line, line
         else:
             page, _ = gen.SHORTHAND_FAMILIES[shorthand.value[0]]
@@ -853,7 +851,7 @@ def test_shorthand_table_links_each_wire_activity_once(table):
         for line in gen.render_shorthands(doubled).splitlines()
         if line.startswith("| `CF`")
     )
-    assert _linked_anchors(line) == ["fix-readiness"], line
+    assert _LINK.findall(line) == ["../cs.md#fix-readiness"], line
 
 
 @pytest.mark.spec("MSM-06-004")

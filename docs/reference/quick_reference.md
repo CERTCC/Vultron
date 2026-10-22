@@ -61,7 +61,7 @@ The table is generated from the semantic registry, the list of patterns that [se
 
 ### Formal message set
 
-The formal message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$ (28 types), each defined in [§4 Semantic Layer — Message Meanings in the specification](vultron-spec/layers.md#4-semantic-layer-message-meanings-n).
+The formal message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$, each defined in [§4 Semantic Layer — Message Meanings in the specification](vultron-spec/layers.md#4-semantic-layer-message-meanings-n).
 The table below lists each type with the wire activities that carry it, and is generated from the same registry as the occasion table.
 The state transition that emits each type is on [Messages](formal_protocol/messages.md), and the response the formal protocol expects from a recipient is on [Transitions](formal_protocol/transitions.md).
 
@@ -69,7 +69,7 @@ The state transition that emits each type is on [Messages](formal_protocol/messa
 
 The formal set and the wire vocabulary are many-to-many ([Mapping status](messages/index.md#mapping-status)).
 Several types share one wire activity, as `EP` and `EV` share `Invite(Event)`, and the occasion's section states what tells them apart.
-`RE`, `EE`, `CE`, `GE`, `EK`, `CK` and `GK` have no wire activity of their own: [Faults and Acknowledgments](messages/faults_and_acknowledgements.md) describes the fault reporting and the cumulative hash-chain acknowledgment that replace them.
+A type whose row reads "none" has no wire activity of its own: [Faults and Acknowledgments](messages/faults_and_acknowledgements.md) describes the fault reporting and the cumulative hash-chain acknowledgment that replace such types.
 
 ## State Transition Summary
 
