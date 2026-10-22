@@ -39,8 +39,8 @@ from test.support.ledger_rebuild import (
     replica_actor,
 )
 from test.support.ledger_status_repeats import (
-    mislabelled_case_statuses,
-    unchanged_status_entries,
+    STATUS_SEMANTIC_TYPES,
+    status_entry_faults,
 )
 from vultron.adapters.driven.datalayer_sqlite import get_all_actor_datalayers
 from vultron.core.models.case import VulnerabilityCase
@@ -325,15 +325,20 @@ def _managed_cases() -> Iterator[tuple[Any, str]]:
 
 def _status_entry_faults(dl: Any, case_id: str) -> list[str]:
     """Each status entry of *case_id*'s ledger that changes nothing or whose
-    label contradicts its states (CLP-07-013; #5123, #5124, #5125)."""
-    triples = [
+    label contradicts its states (CLP-07-013; #5123, #5124, #5125).
+
+    ``ParticipantStatus`` repeats are checked too: no exchange demo confirms
+    a state it already holds, though the protocol allows it (BTND-10-001).
+    """
+    triples = (
         (e.log_index, str(e.semantic_type), e.payload_snapshot)
         for e in ledger_entries(dl, case_id)
-    ]
+    )
     return [
         f"'{case_id}': {fault}"
-        for fault in unchanged_status_entries(triples)
-        + mislabelled_case_statuses(triples)
+        for fault in status_entry_faults(
+            triples, repeat_types=STATUS_SEMANTIC_TYPES
+        )
     ]
 
 

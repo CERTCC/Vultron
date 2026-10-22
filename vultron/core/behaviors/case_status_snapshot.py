@@ -36,7 +36,6 @@ import logging
 from typing import Any, cast
 
 from py_trees.common import Status
-from pydantic import ValidationError
 
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
@@ -44,8 +43,7 @@ from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import (
     create_commit_log_entry_tree,
 )
-from vultron.core.models._helpers import _as_id, project_wire_snapshot_to_core
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.events.base import MessageSemantics
@@ -53,7 +51,11 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_pxa
-from vultron.core.sync_helpers import at_stored_position
+from vultron.core.sync_helpers import (
+    at_stored_position,
+    case_status_from_snapshot,
+    sorted_case_ledger_entries,
+)
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -130,27 +132,18 @@ def last_committed_case_status(
             is a broken store, never a reason to skip (ARCH-15-001).
     """
     entries = [
-        obj
-        for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry)
-        and obj.case_id == case_id
-        and obj.semantic_type == _ADD_CASE_STATUS
+        entry
+        for entry in sorted_case_ledger_entries(dl, case_id)
+        if entry.semantic_type == _ADD_CASE_STATUS
     ]
     if not entries:
         return None
-    last = max(entries, key=lambda entry: entry.log_index)
-    carried = last.payload_snapshot.get("object")
-    if not isinstance(carried, dict):
-        raise VultronValidationError(
-            f"ledger entry '{last.id_}' carries no inline CaseStatus"
-        )
+    last = entries[-1]
     try:
-        return CaseStatus.model_validate(
-            project_wire_snapshot_to_core(CaseStatus, carried)
-        )
-    except ValidationError as exc:
+        return case_status_from_snapshot(last.payload_snapshot.get("object"))
+    except VultronValidationError as exc:
         raise VultronValidationError(
-            f"ledger entry '{last.id_}' carries a malformed CaseStatus: {exc}"
+            f"ledger entry '{last.id_}': {exc}"
         ) from exc
 
 

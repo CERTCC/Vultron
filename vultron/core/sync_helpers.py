@@ -4,9 +4,15 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from vultron.core.models._helpers import parse_published
+from pydantic import ValidationError
+
+from vultron.core.models._helpers import (
+    parse_published,
+    project_wire_snapshot_to_core,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
@@ -20,6 +26,43 @@ from vultron.errors import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def sorted_case_ledger_entries(
+    datalayer: CasePersistence, case_id: str
+) -> list[CaseLedgerEntry]:
+    """Return the case's canonical ledger entries, ascending by ``log_index``."""
+    entries = [
+        obj
+        for obj in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+    ]
+    entries.sort(key=lambda log_entry: log_entry.log_index)
+    return entries
+
+
+def case_status_from_snapshot(status_data: Any) -> CaseStatus:
+    """The ``CaseStatus`` an ``add_case_status_to_case`` entry carries inline.
+
+    Projected, not validated raw: the snapshot is AS2-shaped, and its
+    timestamps are the CASE_MANAGER's to carry (CLP-15-007).
+
+    Raises:
+        VultronValidationError: *status_data* is not an inline status with an
+            id, or is not a valid ``CaseStatus`` (ARCH-15-001).
+    """
+    if not isinstance(status_data, dict) or not status_data.get("id"):
+        raise VultronValidationError(
+            "add_case_status_to_case entry carries no inline CaseStatus"
+        )
+    try:
+        return CaseStatus.model_validate(
+            project_wire_snapshot_to_core(CaseStatus, status_data)
+        )
+    except ValidationError as exc:
+        raise VultronValidationError(
+            f"CaseStatus '{status_data['id']}' in the entry is malformed: {exc}"
+        ) from exc
 
 
 def _get_case_genesis_hash(case_id: str, dl: CasePersistence) -> str:

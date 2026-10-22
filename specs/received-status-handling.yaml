@@ -353,9 +353,10 @@ groups:
       patches per BT tree factory.
     verification: Inspection of `vultron/core/behaviors/` confirms `EmitCaseStatusUpdateNode` writes directly to
       `case.case_statuses` and emits `Announce(CaseLedgerEntry)` without routing through `add_case_status_tree`.
-      `test/core/behaviors/status/nodes/test_case_status.py` shows an unchanged snapshot is neither committed nor
-      written and an EM change after a commit is committed; the demo and CI ledger invariant checks find no
-      `CaseStatus` entry equal to the one before it (`test/support/ledger_status_repeats.py`).
+      `test/core/behaviors/status/nodes/test_case_status.py` shows an unchanged snapshot
+      is neither committed nor written and an EM change after a commit is committed; the
+      demo and CI ledger invariant checks find no `CaseStatus` entry equal to the one
+      before it (`test/support/ledger_status_repeats.py`).
     note: >
       Implemented in ISSUE-2175 (`EmitCaseStatusUpdateNode`). The inbound
       adoption path was refactored onto the same node in ISSUE-2176 (RSH-01-003),

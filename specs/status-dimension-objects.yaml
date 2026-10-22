@@ -272,8 +272,9 @@ groups:
     kind: project
     statement: A `CaseStatus`'s EM copy MUST be immutable once the status is constructed. `EmDimension` MUST be a frozen
       model and `CaseStatus.em` a frozen field, so assigning `status.em`, `status.em.state`, or any flat EM spelling raises.
-      A status with a different EM is built by construction or by the copy `CaseStatus.with_em` makes, never by mutation;
-      the owning `VulnerabilityCase` stamps its current status that way from its embargo register. The copy's label is
+      A status with a different EM is built by construction or by the copy
+      `CaseStatus.with_em` makes, never by mutation; the owning `VulnerabilityCase`
+      stamps its current status that way from its embargo register. The copy's label is
       derived again from its states, so it never names the EM it replaced (#5124).
     rationale: EM is derived from the case's embargo register (ADR-0122); the status holds only a stamped copy. An in-place
       write makes the copy disagree with the register, and EMB-18-001 forbade it with no enforcement. Freezing fails every

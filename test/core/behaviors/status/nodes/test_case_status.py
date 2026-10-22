@@ -390,6 +390,49 @@ class TestEmitCaseStatusUpdateNode:
         assert entries[-1].payload_snapshot["object"]["emState"] == "PROPOSED"
 
     @pytest.mark.spec("ARCH-15-001")
+    @pytest.mark.parametrize(
+        "carried",
+        ["urn:uuid:by-reference", {"id": "urn:uuid:bad", "pxaState": "nope"}],
+        ids=["not-inline", "malformed"],
+    )
+    def test_an_unreadable_committed_status_fails_and_writes_nothing(
+        self, populated_dl, populated_bridge, carried
+    ):
+        """A last committed status that cannot be read is a broken store, not
+        a first status: the node fails and writes nothing (ARCH-15-001)."""
+        first = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        assert first.status == Status.SUCCESS
+        (entry,) = _case_status_entries(populated_dl)
+        populated_dl.save(
+            entry.model_copy(
+                update={
+                    "payload_snapshot": {
+                        **entry.payload_snapshot,
+                        "object": carried,
+                    }
+                }
+            )
+        )
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        statuses_before = len(case.case_statuses)
+
+        result = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.FAILURE
+        assert "Cannot read the committed CaseStatus" in (
+            result.feedback_message or ""
+        )
+        assert len(_case_status_entries(populated_dl)) == 1
+        after = populated_dl.read(CASE_ID)
+        assert isinstance(after, CoreCase)
+        assert len(after.case_statuses) == statuses_before
+
+    @pytest.mark.spec("ARCH-15-001")
     @pytest.mark.spec("VM-08-003")
     def test_missing_trigger_activity_port_commits_and_persists_nothing(
         self, populated_dl

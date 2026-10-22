@@ -2011,8 +2011,10 @@ def test_status_check_flags_an_unchanged_case_status():
     assert "repeats entry 0" in violations[0]
 
 
-@pytest.mark.spec("CLP-07-013")
-def test_status_check_flags_an_unchanged_participant_status():
+@pytest.mark.spec("BTND-10-001")
+def test_status_check_allows_a_same_state_participant_confirmation():
+    """A participant may confirm a state it already holds (BTND-10-001,
+    CSB-16-001), so the universal invariant must pass that run."""
     replicas = {
         "case-actor": [
             _participant_status_entry(0, "Vf"),
@@ -2020,9 +2022,7 @@ def test_status_check_flags_an_unchanged_participant_status():
             _participant_status_entry(2, "VF"),
         ]
     }
-    violations = check_status_entries_record_changes(replicas)
-    assert len(violations) == 1
-    assert _PARTICIPANT in violations[0]
+    assert check_status_entries_record_changes(replicas) == []
 
 
 @pytest.mark.spec("CLP-07-013")

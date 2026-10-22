@@ -332,12 +332,14 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
     def test_invariant_clp07_status_entries_record_changes(
         request: pytest.FixtureRequest,
     ) -> None:
-        """No status entry repeats the previous one unchanged (CLP-07-013)."""
+        """No ``CaseStatus`` entry repeats the previous one unchanged
+        (CLP-07-013).  A same-state ``ParticipantStatus`` is allowed
+        (BTND-10-001), so it is not checked here."""
         replicas = request.getfixturevalue(replicas_fixture)
         violations = check_status_entries_record_changes(replicas)
         assert not violations, (
-            f"{len(violations)} status entr(ies) that change nothing or are"
-            " mislabelled (CLP-07-013):\n" + "\n".join(violations[:20])
+            f"{len(violations)} CaseStatus entr(ies) that change nothing or"
+            " are mislabelled (CLP-07-013):\n" + "\n".join(violations[:20])
         )
 
     @pytest.mark.case_ledger_invariants
