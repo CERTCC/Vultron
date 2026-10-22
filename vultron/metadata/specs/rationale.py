@@ -33,7 +33,8 @@ schema still admits a missing rationale, so three pieces hold the line:
   this is a worklist and never a gate.
 
 CLI: ``uv run spec-rationale {missing,adr-links,history} [--file PATH ...]``
-prints one line per item and always exits 0; ``--file`` narrows the report to
+prints one line per item and exits 0 whatever it finds (2 on a usage error,
+such as a ``--file`` that names no spec file); ``--file`` narrows the report to
 the spec files a backfill task owns.
 """
 
@@ -48,7 +49,11 @@ from pathlib import Path
 from vultron.metadata.adr.back_edges import live_records
 from vultron.metadata.adr.loader import load_adr_post, load_adr_registry
 from vultron.metadata.base import repo_root as _find_repo_root
-from vultron.metadata.specs.registry import SpecRegistry, load_registry
+from vultron.metadata.specs.registry import (
+    SpecRegistry,
+    load_registry,
+    load_spec_files,
+)
 from vultron.metadata.specs.schema import SPEC_ID_CITATION_RE
 
 #: Rationale text that usually narrates how a requirement came about
@@ -59,7 +64,14 @@ from vultron.metadata.specs.schema import SPEC_ID_CITATION_RE
 #: as a pointer to evidence, so a hit is a candidate to read, not a defect.
 HISTORY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("issue reference", re.compile(r"#\d+")),
-    ("pull request", re.compile(r"\bPRs?\b")),
+    (
+        "pull request",
+        re.compile(
+            r"\bPRs? #?\d+\b|\b(?:a|the|this|that|earlier|previous|later"
+            r"|reverted) (?:PR|pull request)\b(?!-)",
+            re.IGNORECASE,
+        ),
+    ),
     (
         "planning item",
         re.compile(r"\b(?:BUG|CONCERN|IDEA|ISSUE|TASK)-\d+\b"),
@@ -67,8 +79,11 @@ HISTORY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "prior state",
         re.compile(
-            r"\b(?:previously|originally|formerly|historically|used to"
-            r"|no longer|the original|at the time|prior to)\b",
+            r"\b(?:previously|originally|formerly|historically|no longer"
+            r"|the original|at the time|prior to)\b"
+            # "used to" as a past habit, not the passive "is used to".
+            r"|(?<!\bis )(?<!\bare )(?<!\bbe )(?<!\bbeen )(?<!\bwas )"
+            r"(?<!\bwere )(?<!\bbeing )\bused to\b",
             re.IGNORECASE,
         ),
     ),
@@ -81,7 +96,10 @@ HISTORY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
             re.IGNORECASE,
         ),
     ),
-    ("until a decision", re.compile(r"\buntil ADR-\d{4}\b")),
+    (
+        "until a decision",
+        re.compile(r"\buntil ADR-\d{4}\b", re.IGNORECASE),
+    ),
 )
 
 
@@ -121,31 +139,20 @@ def missing_rationale_ids(repo_root: Path) -> frozenset[str]:
     return missing_rationale(load_registry(repo_root / "specs"))
 
 
-def spec_file_of(spec_dir: Path, registry: SpecRegistry) -> dict[str, str]:
-    """Map each requirement ID in *registry* to its file under *spec_dir*.
+def load_with_files(spec_dir: Path) -> tuple[SpecRegistry, dict[str, str]]:
+    """The registry under *spec_dir*, and each requirement's file.
 
-    :func:`~vultron.metadata.specs.registry.load_registry` reads
-    ``spec_dir/*.yaml`` in sorted order and keeps every file or raises, so its
-    ``files`` line up one-to-one with the same sorted listing. The file is
-    named relative to the parent of *spec_dir* (``specs/<name>.yaml``).
-
-    Raises:
-        ValueError: *registry* was not loaded from *spec_dir*, so the two
-            listings differ in length.
+    Each file is named relative to the parent of *spec_dir*
+    (``specs/<name>.yaml``), from the same load the registry is built from.
     """
-    paths = sorted(spec_dir.glob("*.yaml"))
-    if len(paths) != len(registry.files):
-        raise ValueError(
-            f"{spec_dir} holds {len(paths)} spec files but the registry has "
-            f"{len(registry.files)}; it was not loaded from this directory"
-        )
-    owner: dict[str, str] = {}
-    for path, spec_file in zip(paths, registry.files, strict=True):
-        name = str(path.relative_to(spec_dir.parent))
-        for group in spec_file.groups:
-            for spec in group.specs:
-                owner[spec.id] = name
-    return owner
+    loaded = load_spec_files(spec_dir)
+    owner = {
+        spec.id: str(path.relative_to(spec_dir.parent))
+        for path, spec_file in loaded
+        for group in spec_file.groups
+        for spec in group.specs
+    }
+    return SpecRegistry(files=[f for _, f in loaded]), owner
 
 
 def history_labels(text: str) -> tuple[str, ...]:
@@ -162,7 +169,7 @@ def history_narration_hits(
 
     Args:
         registry: The loaded requirements.
-        spec_file: Each requirement's file, from :func:`spec_file_of`.
+        spec_file: Each requirement's file, from :func:`load_with_files`.
     """
     hits: list[HistoryHit] = []
     for spec_id, spec in sorted(registry.all_specs.items()):
@@ -181,7 +188,7 @@ def adr_link_candidates(
 
     Args:
         registry: The loaded requirements.
-        spec_file: Each requirement's file, from :func:`spec_file_of`.
+        spec_file: Each requirement's file, from :func:`load_with_files`.
         adr_bodies: Each live record's body, keyed by ``ADR-NNNN``.
 
     Returns:
@@ -225,10 +232,7 @@ def _normalize_files(files: Iterable[str]) -> list[str]:
 
 
 def report_lines(
-    report: str,
-    root: Path,
-    files: Sequence[str] = (),
-    registry: SpecRegistry | None = None,
+    report: str, root: Path, files: Sequence[str] = ()
 ) -> list[str]:
     """The lines ``spec-rationale <report>`` prints for the repo at *root*.
 
@@ -236,15 +240,13 @@ def report_lines(
         report: ``missing``, ``adr-links`` or ``history``.
         root: Repository root.
         files: Spec files to keep (``specs/<name>.yaml``); empty keeps all.
-        registry: An already-loaded ``specs/`` registry, to skip reloading it.
 
     Raises:
         ValueError: *report* is not one of the three names, or a name in
             *files* is not a spec file.
     """
     spec_dir = root / "specs"
-    registry = registry or load_registry(spec_dir)
-    owner = spec_file_of(spec_dir, registry)
+    registry, owner = load_with_files(spec_dir)
     unknown = sorted(set(files) - set(owner.values()))
     if unknown:
         raise ValueError(f"not a spec file under {spec_dir}: {unknown}")
@@ -274,13 +276,14 @@ def report_lines(
 
 
 def main(argv: list[str] | None = None) -> None:
-    """CLI entry point: ``uv run spec-rationale``. Advisory; exits 0."""
+    """CLI entry point: ``uv run spec-rationale``; exits 0, or 2 on misuse."""
     parser = argparse.ArgumentParser(
         prog="spec-rationale",
         description=(
             "Rationale backfill worklists (MS-10-012, MS-10-013, MS-10-015): "
             "requirements with no rationale, rationales that may narrate "
-            "history, and candidate adr: links. Advisory; always exits 0."
+            "history, and candidate adr: links. Advisory: exits 0 whatever it "
+            "finds, 2 on a usage error."
         ),
     )
     parser.add_argument(
@@ -325,5 +328,5 @@ __all__ = [
     "missing_rationale",
     "missing_rationale_ids",
     "report_lines",
-    "spec_file_of",
+    "load_with_files",
 ]

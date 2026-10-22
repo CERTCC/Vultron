@@ -554,7 +554,15 @@ def test_rationale_existing_gap_is_not_flagged(rationale_repo):
 
 
 @pytest.mark.spec("MS-10-014")
-def test_rationale_backfilled_or_retired_is_not_an_addition(rationale_repo):
+def test_rationale_backfilled_is_not_an_addition(rationale_repo):
+    _write_specs(rationale_repo, _spec("TST-01-001"), _spec("TST-01-002"))
+    check = _rationales(rationale_repo)
+    assert check.added == frozenset()
+    assert check.head_total == 0
+
+
+@pytest.mark.spec("MS-10-014")
+def test_rationale_retired_is_not_an_addition(rationale_repo):
     _write_specs(rationale_repo, _spec("TST-01-001"))
     check = _rationales(rationale_repo)
     assert check.added == frozenset()

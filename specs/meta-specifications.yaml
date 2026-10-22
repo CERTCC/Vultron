@@ -663,8 +663,7 @@ groups:
     statement: >-
       Every requirement MUST carry a `rationale:` that explains why the requirement
       is necessary given current conditions: the problem it prevents or the property
-      it guarantees. A rationale that only restates the statement does not satisfy
-      this requirement.
+      it guarantees.
     rationale: >-
       A requirement with no written reason can only be obeyed or guessed at. When it
       conflicts with another requirement, nobody can weigh the two, and when its

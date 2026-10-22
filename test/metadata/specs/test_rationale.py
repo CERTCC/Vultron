@@ -15,12 +15,11 @@ from vultron.metadata.specs.rationale import (
     history_labels,
     history_narration_hits,
     live_adr_bodies,
+    load_with_files,
     main,
     missing_rationale,
     report_lines,
-    spec_file_of,
 )
-from vultron.metadata.specs.registry import load_registry
 
 
 def _spec(spec_id: str, rationale: str | None = "It prevents a gap.", **extra):
@@ -100,26 +99,15 @@ def repo(tmp_path: Path) -> Path:
 
 @pytest.mark.spec("MS-10-012")
 def test_missing_rationale_lists_each_requirement_without_one(repo):
-    registry = load_registry(repo / "specs")
+    registry = load_with_files(repo / "specs")[0]
     assert missing_rationale(registry) == {"AAA-01-002", "BBB-01-001"}
 
 
-def test_spec_file_of_names_each_requirement_file(repo):
-    registry = load_registry(repo / "specs")
-    owner = spec_file_of(repo / "specs", registry)
+def test_load_with_files_names_each_requirement_file(repo):
+    registry, owner = load_with_files(repo / "specs")
     assert owner["AAA-01-004"] == "specs/aaa.yaml"
     assert owner["BBB-01-002"] == "specs/bbb.yaml"
-    assert len(owner) == len(registry.all_specs)
-
-
-def test_spec_file_of_refuses_a_registry_from_another_directory(
-    repo, tmp_path
-):
-    registry = load_registry(repo / "specs")
-    other = tmp_path / "other"
-    other.mkdir()
-    with pytest.raises(ValueError, match="not loaded from this directory"):
-        spec_file_of(other, registry)
+    assert owner.keys() == registry.all_specs.keys()
 
 
 # --- history-narration worklist (MS-10-015) ---------------------------------
@@ -137,6 +125,9 @@ def test_spec_file_of_refuses_a_registry_from_another_directory(
         ("The field was renamed last year.", "edit event"),
         ("Upgraded from SHOULD to MUST.", "edit event"),
         ("Holds until ADR-0099 lands.", "until a decision"),
+        ("Until ADR-0099 lands, it holds.", "until a decision"),
+        ("Rejected in PR #4170.", "pull request"),
+        ("Agents used to skip the check.", "prior state"),
     ],
 )
 def test_history_labels_flag_narration(text, label):
@@ -150,6 +141,9 @@ def test_history_labels_flag_narration(text, label):
         "Without it, a receiver cannot tell a duplicate from a new message.",
         "A count pinned to the live value races every concurrent change.",
         "Prevents a replica from diverging from the canonical ledger.",
+        "A PR-only growth guard has no shared number to race.",
+        "Each PR must say what it closes, so reviewers can map the diff.",
+        "The marker is used to find the owner of each requirement.",
     ],
 )
 def test_history_labels_pass_a_reason(text):
@@ -158,10 +152,7 @@ def test_history_labels_pass_a_reason(text):
 
 @pytest.mark.spec("MS-10-015")
 def test_history_hits_name_each_flagged_requirement_and_file(repo):
-    registry = load_registry(repo / "specs")
-    hits = history_narration_hits(
-        registry, spec_file_of(repo / "specs", registry)
-    )
+    hits = history_narration_hits(*load_with_files(repo / "specs"))
     assert [(h.spec_id, h.spec_file, h.labels) for h in hits] == [
         ("AAA-01-003", "specs/aaa.yaml", ("issue reference",)),
         ("BBB-01-002", "specs/bbb.yaml", ("prior state",)),
@@ -181,9 +172,8 @@ def test_live_adr_bodies_skip_retired_and_archived_records(repo):
 @pytest.mark.spec("MS-10-015")
 def test_adr_link_candidates_omit_cited_and_unknown_ids(repo):
     """A cited record and an ID naming no requirement are not candidates."""
-    registry = load_registry(repo / "specs")
     candidates = adr_link_candidates(
-        registry, spec_file_of(repo / "specs", registry), live_adr_bodies(repo)
+        *load_with_files(repo / "specs"), live_adr_bodies(repo)
     )
     assert [(c.spec_id, c.spec_file, c.adr_id) for c in candidates] == [
         ("AAA-01-001", "specs/aaa.yaml", "ADR-0001"),
@@ -245,6 +235,15 @@ def test_cli_prints_the_report_and_exits_zero(repo, monkeypatch, capsys):
         "specs/aaa.yaml: AAA-01-002: no rationale",
         "[INFO] 1 item(s) in the missing report",
     ]
+
+
+def test_cli_accepts_a_path_under_specs(repo, monkeypatch, capsys):
+    (repo / "pyproject.toml").write_text("")
+    monkeypatch.chdir(repo)
+    main(["missing", "--file", "specs/bbb.yaml", "--file", "aaa.yaml"])
+    assert capsys.readouterr().out.splitlines()[-1] == (
+        "[INFO] 2 item(s) in the missing report"
+    )
 
 
 def test_cli_rejects_an_unknown_spec_file(repo, monkeypatch, capsys):
