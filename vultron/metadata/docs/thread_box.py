@@ -115,7 +115,10 @@ def on_page_markdown(
     boxes = member_boxes(_BUILD.threads, page.file.src_uri, _BUILD.titles)
     if not boxes:
         return markdown
-    hide_footer(page.meta)
+    try:
+        hide_footer(page.meta)
+    except ValueError as exc:
+        raise ValueError(f"docs/{page.file.src_uri}: {exc}") from exc
     return "\n\n".join([markdown.rstrip("\n"), *boxes]) + "\n"
 
 

@@ -514,11 +514,12 @@ def test_pre_commit_hook_runs_on_every_input(changed):
 
 @pytest.mark.spec("DF-11-013")
 class TestRenderingEdges:
+    @pytest.mark.parametrize("brk", ["\n", "\r"])
     @pytest.mark.parametrize("field", ["title", "label"])
-    def test_a_multi_line_title_or_label_is_a_finding(self, field):
+    def test_a_multi_line_title_or_label_is_a_finding(self, field, brk):
         stage_ = {"title": "T", "kind": "set", "members": [member("a.md")]}
         target = stage_ if field == "title" else stage_["members"][0]
-        target[field] = "one\ntwo"
+        target[field] = f"one{brk}two"
         with pytest.raises(MetadataLoadError, match="single line"):
             validate(ThreadDeclaration, {"thread": [stage_]})
 
@@ -531,6 +532,16 @@ class TestRenderingEdges:
             )
         )
         assert r"[A \[x\]](../a.md)" in render_listing(thread, {"a.md": "A"})
+
+    def test_a_backslash_in_a_label_is_escaped(self):
+        thread = _thread(
+            ThreadStage(
+                title="S",
+                kind=StageKind.SET,
+                members=[ThreadMember(page="a.md", blurb="b", label="C:\\")],
+            )
+        )
+        assert r"[C:\\](../a.md)" in render_listing(thread, {"a.md": "A"})
 
     def test_framing_keeps_line_breaks_and_indentation(self):
         thread = _thread(

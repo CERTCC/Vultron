@@ -324,8 +324,8 @@ def page_titles(
 
 
 def _link_text(text: str) -> str:
-    """Escape square brackets, which would end or nest a link's text."""
-    return text.replace("[", r"\[").replace("]", r"\]")
+    """Escape the backslashes and brackets that would end a link's text."""
+    return text.replace("\\", "\\\\").replace("[", r"\[").replace("]", r"\]")
 
 
 def _link(member: ThreadMember, source: str, titles: Mapping[str, str]) -> str:

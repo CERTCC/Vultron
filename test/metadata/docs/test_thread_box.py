@@ -139,6 +139,10 @@ class TestFooter:
             hide_footer(meta)
         assert meta == {"hide": hide}
 
+    def test_the_hook_names_a_page_whose_hide_is_refused(self, two_threads):
+        with pytest.raises(ValueError, match=r"^docs/b\.md: .*list of names"):
+            _run("b.md", {"hide": {"toc": True}})
+
     def test_the_hook_is_registered(self):
         from vultron.metadata.base import mkdocs_config, repo_root
 
