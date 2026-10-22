@@ -1687,3 +1687,155 @@ groups:
       `test/core/behaviors/sync/test_divergence_recovery.py` asserts the ERROR record.
     stories:
     - story_2022_045
+- id: SYNC-18
+  title: Sender Ledger Position on Case Activities
+  description: >-
+    Every case activity states the ledger position its sender held when it built the
+    activity, so the case ledger records what each actor knew when it acted. The
+    position is a record, not a gate: an actor that lags the CASE_MANAGER's latest
+    entry may still act (SYNC-10-005), and a stale answer to a replaced object is
+    already refused by the object it names. A position the CASE_MANAGER's ledger does
+    not hold is a split chain, which it repairs. Rationale: ADR-0156.
+  specs:
+  - id: SYNC-18-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An activity about a case whose ledger its sender holds, sent by any actor, MUST
+      carry the sender's ledger tail for that case as the activity's `ledgerTail`: an
+      object whose `logIndex` and `entryHash` name the last entry the sender had
+      committed, or had stored as a replica, when it built the activity; for an empty
+      ledger, index -1 and the per-case genesis hash. An activity sent before its
+      sender holds the case's ledger, and an activity whose object already states a
+      ledger position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`),
+      MUST NOT carry one.
+    rationale: >-
+      One rule for every sender and message type gives every ledgered act its
+      provenance, and a new message type needs no decision about whether it counts. A
+      stub-Invite reply or a report `Offer` comes from an actor with no ledger to
+      state; an entry and a case copy already state their own positions.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-16-005
+    adr:
+    - ADR-0156
+    verification: >-
+      `test/core/use_cases/received/test_activity_ledger_tail.py` asserts that a
+      participant's `Add(Note)` built by its factory carries `ledgerTail`.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-18-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `ledgerTail` MUST be computed from the sender's ledger when the activity is
+      built, MUST be produced only by `vultron.wire.as2.factories`, and MUST NOT be
+      stored as a value of the case file. A resent activity MUST carry the position
+      it was first sent with.
+    rationale: >-
+      The position describes the moment of the act, so a later resend that restamped
+      it would misstate what the sender knew. The outbox already relays the sealed
+      body (OX-07-001), which keeps the first position.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-18-001
+    adr:
+    - ADR-0156
+    verification: >-
+      `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the stamped
+      position equals the sender's ledger tail when the activity was built.
+    stories:
+    - story_2022_045
+  - id: SYNC-18-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST parse `ledgerTail` as the core `LedgerPosition` at the parse
+      edge, and MUST refuse an activity that SYNC-18-001 requires to carry one when
+      its `ledgerTail` is missing or does not parse, naming the activity and writing
+      nothing.
+    rationale: >-
+      Core code then receives a non-optional position (ADR-0032), and every ledgered
+      act carries one.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-18-001
+    adr:
+    - ADR-0156
+    verification: >-
+      `test/core/use_cases/received/test_activity_ledger_tail.py` delivers an
+      unstamped `Add(Note)` and asserts no ledger entry is written.
+    stories:
+    - story_2022_045
+  - id: SYNC-18-004
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST NOT refuse, hold or defer an activity because its
+      `ledgerTail` is behind the CASE_MANAGER's own ledger tail, and MUST log such a
+      lag at DEBUG with the activity and actor. A reply to the full-case Invite is
+      the one exception, judged against its Invite's floor (CM-11-012).
+    rationale: >-
+      Under asynchronous fan-out an active participant is routinely a few entries
+      behind, and SYNC-10-005 lets it act while it lags. A stale answer to a replaced
+      object is refused by the object it names (EP-09-004), so refusing on the
+      position alone would refuse ordinary acts and catch nothing new.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-10-005
+    adr:
+    - ADR-0156
+    verification: >-
+      `test/core/use_cases/received/test_activity_ledger_tail.py` delivers an
+      `Add(Note)` stamped behind the CASE_MANAGER's tail and asserts it is applied and
+      the lag is logged.
+    stories:
+    - story_2022_045
+  - id: SYNC-18-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When an activity's `ledgerTail` names an index the CASE_MANAGER's ledger holds
+      with a different entry hash, or an index past its own tail, the CASE_MANAGER
+      MUST judge the activity as it would without the position, MUST log the split at
+      ERROR, and, when the sender is an active participant of the case (CM-10-004),
+      MUST send it `Announce(VulnerabilityCase)` of its current case under the rate
+      bound of SYNC-16-004. It MUST NOT re-seed any other sender.
+    rationale: >-
+      The CASE_MANAGER is the single writer, so no participant can hold an entry it
+      did not commit; such a position means the sender's chain has split. The fresh
+      copy repairs it with the path SYNC-16-003 already uses for a reported
+      divergence. Whether the act itself should be refused is open
+      (`notes/sync-ledger-replication.md`).
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-16-003
+    adr:
+    - ADR-0156
+    verification: >-
+      `test/core/use_cases/received/test_activity_ledger_tail.py` delivers an
+      `Add(Note)` whose position names a wrong hash and asserts it is applied, the
+      split is logged at ERROR and a case copy is queued to the sender.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-18-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `ledgerTail` of an admitted activity MUST be recorded in its ledger entry
+      as part of the received body (CLP-07-011), and MUST NOT be removed from it.
+    rationale: >-
+      The entry is the received envelope with a postmark (ADR-0107), so the position
+      is ledgered with the act it describes and replicas receive it unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-07-011
+    adr:
+    - ADR-0156
+    verification: >-
+      `test/core/use_cases/received/test_activity_ledger_tail.py` asserts the
+      entry's `payload_snapshot` holds the received `ledgerTail`.
+    stories:
+    - story_2022_045
