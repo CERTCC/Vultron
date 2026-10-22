@@ -26,6 +26,9 @@ importing from it would close an import cycle (CS-05-003).
 :func:`promote_pxa` is the SM-09-001 persistence-boundary promotion this node
 applies.  :func:`adopted_pxa` is the case ``pxa`` after a participant's
 adopted report, the union of the two sets of latches (RSH-01-003).
+:func:`last_committed_case_status` is the status the node measures a change
+against: a snapshot that changes neither EM nor PXA is not committed
+(CLP-07-013, ADR-0152).
 """
 
 import json
@@ -46,9 +49,14 @@ from vultron.core.models.dimensions import EmDimension, PxaDimension
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.states.cs import CS_pxa
-from vultron.core.sync_helpers import at_stored_position
-from vultron.errors import VultronNotFoundError
+from vultron.core.sync_helpers import (
+    at_stored_position,
+    case_status_from_snapshot,
+    sorted_case_ledger_entries,
+)
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +112,53 @@ def latches_cleared_by(current: CS_pxa, reported: CaseStatus | None) -> str:
     )
 
 
+_ADD_CASE_STATUS = MessageSemantics.ADD_CASE_STATUS_TO_CASE.value
+
+
+def last_committed_case_status(
+    case_id: str, dl: CasePersistence
+) -> CaseStatus | None:
+    """The ``CaseStatus`` the case's last ``add_case_status_to_case`` entry
+    carries, or ``None`` when *dl* holds no such entry.
+
+    The ledger, not the case's current status, is what a change is measured
+    against: the case stamps the register's EM onto its current status as
+    soon as the register moves (ADR-0122), so the current status already
+    shows an EM change no entry has carried yet.
+
+    Raises:
+        VultronValidationError: the last entry carries no valid
+            ``CaseStatus``.  It was validated when it was committed, so this
+            is a broken store, never a reason to skip (ARCH-15-001).
+    """
+    entries = [
+        entry
+        for entry in sorted_case_ledger_entries(dl, case_id)
+        if entry.semantic_type == _ADD_CASE_STATUS
+    ]
+    if not entries:
+        return None
+    last = entries[-1]
+    try:
+        return case_status_from_snapshot(last.payload_snapshot.get("object"))
+    except VultronValidationError as exc:
+        raise VultronValidationError(
+            f"ledger entry '{last.id_}': {exc}"
+        ) from exc
+
+
+def changes_case_status(
+    committed: CaseStatus | None, em: EmDimension, pxa: PxaDimension
+) -> bool:
+    """Whether a snapshot of *em* and *pxa* differs from *committed*.
+
+    With nothing committed yet, any snapshot is a change.
+    """
+    if committed is None:
+        return True
+    return (committed.em.state, committed.pxa.state) != (em.state, pxa.state)
+
+
 class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     """Snapshot the post-mutation CaseStatus, commit a CaseLedgerEntry, and fan out.
 
@@ -113,7 +168,9 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     2. Creates a new CaseStatus snapshotting the current ``em`` + ``pxa`` state.
        With ``reported_status_id`` set, the ``pxa`` also sets every P/X/A
        latch the adopted ``ParticipantStatus`` reports, clearing none
-       (RSH-01-003).
+       (RSH-01-003).  A snapshot whose EM and PXA equal the last committed
+       status's is no change: the node returns ``SUCCESS`` having written
+       nothing (CLP-07-013, ADR-0152).
     3. Builds the CASE_MANAGER's ``Add(CaseStatus)`` through the
        trigger-activity port and commits its sealed blob as a CaseLedgerEntry
        via ``create_commit_log_entry_tree`` (VM-08-003).
@@ -169,6 +226,59 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             )
         return reported.case_status
 
+    def _adopted_pxa(
+        self, current: CaseStatus, reported: CaseStatus | None
+    ) -> CS_pxa:
+        """The snapshot's ``pxa``: *reported*'s latches added, none cleared."""
+        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
+        pxa_state = adopted_pxa(current.pxa.state, reported)
+        if cleared := latches_cleared_by(current.pxa.state, reported):
+            self.logger.info(
+                "%s: status '%s' for case '%s' omits %s, which the case"
+                " already records; kept (RSH-01-003, actor_id=%s)",
+                self.name,
+                self.reported_status_id,
+                self.case_id,
+                cleared,
+                self.actor_id,
+            )
+        return pxa_state
+
+    def _unchanged(self, em: EmDimension, pxa: PxaDimension) -> Status | None:
+        """``SUCCESS`` when the snapshot changes nothing, else ``None``.
+
+        A snapshot whose EM and PXA equal the last committed status's is not
+        committed: a decision that changes nothing takes no entry
+        (CLP-07-013, ADR-0152; #5123).  ``FAILURE`` when the committed status
+        cannot be read.
+        """
+        assert self.case_id is not None
+        assert self.datalayer is not None
+        try:
+            committed = last_committed_case_status(
+                self.case_id, self.datalayer
+            )
+        except VultronValidationError as exc:
+            self.feedback_message = (
+                f"Cannot read the committed CaseStatus of case"
+                f" '{self.case_id}': {exc}"
+            )
+            self.logger.exception("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+        if committed is None or changes_case_status(committed, em, pxa):
+            return None
+        self.logger.info(
+            "%s: case '%s' is still %s %s, as status '%s' records;"
+            " nothing to commit (CLP-07-013, actor_id=%s)",
+            self.name,
+            self.case_id,
+            em.state.name,
+            pxa.state.name,
+            committed.id_,
+            self.actor_id,
+        )
+        return Status.SUCCESS
+
     def update(self) -> Status:
         if not self.case_id:
             self.feedback_message = (
@@ -216,23 +326,15 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
             )
             self.logger.exception("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
-        # AC-1: pX → PX forced promotion at persistence boundary (SM-09-001)
-        pxa_state = adopted_pxa(current.pxa.state, reported)
-        if cleared := latches_cleared_by(current.pxa.state, reported):
-            self.logger.info(
-                "%s: status '%s' for case '%s' omits %s, which the case"
-                " already records; kept (RSH-01-003, actor_id=%s)",
-                self.name,
-                self.reported_status_id,
-                self.case_id,
-                cleared,
-                self.actor_id,
-            )
+        em = EmDimension(state=case.em_state)
+        pxa = PxaDimension(state=self._adopted_pxa(current, reported))
+        if (done := self._unchanged(em, pxa)) is not None:
+            return done
         new_status = CaseStatus(
             context=self.case_id,
             attributed_to=self.actor_id,
-            em=EmDimension(state=case.em_state),
-            pxa=PxaDimension(state=pxa_state),
+            em=em,
+            pxa=pxa,
         )
 
         # The entry records the CASE_MANAGER's own Add(CaseStatus), built by

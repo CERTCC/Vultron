@@ -2416,3 +2416,80 @@ def test_validate_trigger_returns_failure_on_corrupt_participant_status():
 
     assert result == Status.FAILURE
     assert "core-shaped" in node.feedback_message
+
+
+# ---------------------------------------------------------------------------
+# vf_steps_to: the steps notify-fix-ready still sends (#5125)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("DEMOMA-07-001")
+@pytest.mark.parametrize(
+    ("current", "expected"),
+    [
+        (None, [CS_vf.Vf, CS_vf.VF]),
+        (CS_vf.vf, [CS_vf.Vf, CS_vf.VF]),
+        (CS_vf.Vf, [CS_vf.VF]),
+        (CS_vf.VF, []),
+    ],
+    ids=["no-vf", "vf", "Vf", "VF"],
+)
+def test_vf_steps_to_starts_after_the_current_vf(current, expected):
+    """A step the actor has taken is not sent again (#5125)."""
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.participant_status import ParticipantStatus
+    from vultron.core.use_cases.triggers.case.add_participant_status import (
+        vf_steps_to,
+    )
+    from vultron.wire.as2.vocab.base.objects.actors import as_Service
+
+    actor = as_Service(name="Vendor")
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor.id_)
+    dl.create(actor)
+    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="VF-STEPS")
+    participant = CaseParticipant(
+        attributed_to=actor.id_,
+        context=case.id_,
+        participant_statuses=[
+            ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case.id_,
+                rm=RmDimension(state=RM.ACCEPTED),
+                vf=None if current is None else VfDimension(state=current),
+            )
+        ],
+    )
+    case.case_participants.append(participant.id_)
+    case.actor_participant_index[actor.id_] = participant.id_
+    dl.create(case)
+    dl.create(participant)
+
+    steps = vf_steps_to(
+        dl,
+        actor_id=actor.id_,
+        case_id=case.id_,
+        target=CS_vf.VF,
+    )
+
+    assert steps == expected
+
+
+@pytest.mark.spec("DEMOMA-07-001")
+def test_vf_steps_to_leaves_an_unknown_case_to_the_trigger():
+    """The whole ladder: the first trigger run refuses it and says why."""
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.core.use_cases.triggers.case.add_participant_status import (
+        vf_steps_to,
+    )
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id="urn:test:actor")
+    steps = vf_steps_to(
+        dl,
+        actor_id="urn:test:actor",
+        case_id="urn:uuid:no-such-case",
+        target=CS_vf.VF,
+    )
+
+    assert steps == [CS_vf.Vf, CS_vf.VF]

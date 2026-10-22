@@ -423,10 +423,16 @@ class _Replica:
         return cast(VulnerabilityCase, self.dl.read(self.case_id)).name
 
     def announce_from(self, sender_id: str) -> HandlerResult:
+        # The snapshot carries the case's own creation time: its genesis hash
+        # is derived from it (CLP-08-002), so a fresh ``published`` a second
+        # later would name a different genesis than the replica holds.
+        held = self.dl.read_case(self.case_id)
+        assert held is not None
         snapshot = as_VulnerabilityCase(
             id_=self.case_id,
             name="Announced snapshot",
             attributed_to=self.manager_id,
+            published=held.published,
         )
         activity = announce_vulnerability_case_activity(
             # A current copy: it names the replica's own tail (SYNC-16-006).
