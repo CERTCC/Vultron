@@ -42,8 +42,9 @@ An *extractor* error on the base tree is not a skip either: it is re-raised as
 :class:`BaseExtractionError`, naming the merge base, because the failing tree
 is the one materialized from git, not the working tree.
 
-Consumers: the marker-coverage guard (SR-05-005) and the
-``missing_story_reference`` guard (MS-12-007) under ``test/architecture/``.
+Consumers: the marker-coverage guard (SR-05-005), the
+``missing_story_reference`` guard (MS-12-007) and the missing-rationale guard
+(MS-10-014) under ``test/architecture/``.
 The planned ``verification_debt`` guard (#4200) is meant to reuse it. A guard
 that must see both trees at once, rather than a set difference, uses
 :func:`compare_with_base` directly: the kind-change marker guard (MS-12-011)

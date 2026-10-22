@@ -12,7 +12,8 @@ description: >
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
   (MS-02-003/004); the `verification_debt` ratchet (MS-10-005..009); guards that
-  state a domain truth (MS-05-005); removed requirements (MS-09); audit passes
+  state a domain truth (MS-05-005); the rationale rule and its growth guard
+  (MS-10-012 to MS-10-015); removed requirements (MS-09); audit passes
   for retiring a name or splitting a requirement; and the CASE_MANAGER-versus-
   CaseActor naming discriminator.
 related_specs:
@@ -342,6 +343,17 @@ against the old version, especially an example chosen for the old framing:
 VM-01-004's narrated amendment read as a standing endorsement of the divergence
 it described (#2982). History belongs in the ADR the `adr:` field names. Do not
 describe a verification test that does not exist.
+
+Every requirement carries a `rationale:` that states why it is necessary under
+current conditions, the problem it prevents or the property it guarantees
+(MS-10-012), and never narrates how it came about (MS-10-013). A rationale that
+restates the statement gives no reason. Write "a pinned count races every
+concurrent PR", not "changed from a ceiling to a guard in #4315". An issue cited
+as evidence for the reason is fine; an issue cited as the story is not.
+`uv run spec-rationale history` lists likely narration and `adr-links` lists
+requirements a live ADR names but `adr:` omits; both are advisory worklists with
+false positives (MS-10-015). Until the schema requires the field, MS-10-014's
+growth guard fails a PR that adds a requirement without one.
 
 ### A Guard States the Truth the Mistake Violates
 
