@@ -237,11 +237,13 @@ def undo_case_ownership_transfer() -> as_Undo:
 
 
 def update_case() -> as_Update:
-    """The snapshot shape of a CASE_MANAGER-authored case-field ledger entry.
+    """The CASE_MANAGER's ``Update(VulnerabilityCase)`` naming a new owner.
 
-    Not a message any actor sends: no pattern routes a received
-    ``Update(VulnerabilityCase)`` (CLP-07-013, #4443), so the example is
-    authored by the case actor and carries no sender-voice ``content``.
+    On an ownership transfer the CASE_MANAGER commits the case with its new
+    ``attributed_to`` as its own ``update_case_owner`` entry (CM-21-002,
+    CLP-07-013).  No received use case handles it (ADR-0140 item 5), so the
+    example is authored by the case actor and carries no sender-voice
+    ``content``.
     """
     _case = case()
 

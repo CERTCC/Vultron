@@ -959,7 +959,7 @@
         "type": "object"
       },
       "SyncLogEntryRequest": {
-        "description": "Request body for the demo sync-log-entry trigger.\n\nCommits a canonical case ledger entry and fans it out to all participants\nvia Announce(CaseLedgerEntry). Uses Announce(VulnerabilityCase) as the\ncanonical payload type (case-actor-authored).\n\nTRIG-03-002: Unknown fields are silently ignored.",
+        "description": "Request body for the demo sync-log-entry trigger.\n\nCommits a canonical case ledger entry and fans it out to all participants\nvia Announce(CaseLedgerEntry). Uses Announce(VulnerabilityCase) as the\ncanonical payload type (case-actor-authored), and the entry's semantic\ntype is the registry's label for it (ADR-0140), so the caller names none.\n\nTRIG-03-002: Unknown fields are silently ignored, so a client that still\nsends ``semantic_type`` has it ignored.",
         "properties": {
           "case_id": {
             "title": "Case Id",
@@ -968,16 +968,11 @@
           "object_id": {
             "title": "Object Id",
             "type": "string"
-          },
-          "semantic_type": {
-            "title": "Semantic Type",
-            "type": "string"
           }
         },
         "required": [
           "case_id",
-          "object_id",
-          "semantic_type"
+          "object_id"
         ],
         "title": "SyncLogEntryRequest",
         "type": "object"

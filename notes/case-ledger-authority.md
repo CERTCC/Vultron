@@ -101,19 +101,21 @@ Replicas need the asserted content to rebuild state, so the hash chain is
 computed over entries that each include the payload snapshot, never over pointers
 to prior assertions.
 
-**Planned: `semantic_type` is the registry's label for the payload (ADR-0140,
-proposed).** Every payload is a valid AS2 activity, and an entry's `semantic_type`
-must equal the semantic type the registry assigns to its `payload_snapshot`,
-including for the CASE_MANAGER's own acts. Today each write path stamps
-`semantic_type` from its own string constant. The equality test is #4724.
+**`semantic_type` is the registry's label for the payload (ADR-0140).** Every
+payload is a valid AS2 activity, and an entry's `semantic_type` must equal the
+semantic type the registry assigns to its `payload_snapshot`, including for the
+CASE_MANAGER's own acts, which are registry entries with no received use case.
+Name the type through `MessageSemantics`, never a string literal: the demo and
+per-actor-store harnesses check every written entry against the matcher
+(`test/support/ledger_labels.py`), and a ratchet refuses a literal in
+`vultron/core/behaviors/` (#4724).
 
-**Planned: one shape, one semantic type, and observations are not ledgered
-(ADR-0152, proposed).** A pattern never sees the sender, so a CASE_MANAGER act
-with a participant's verb and object carries the participant's semantic type; a
+**One shape, one semantic type, and observations are not ledgered (ADR-0152,
+proposed).** A pattern never sees the sender, so a CASE_MANAGER act with a
+participant's verb and object carries the participant's semantic type; a
 replica that must act differently tells them apart after routing, by `actor` and
 `attributedTo`. A fact any replica can derive (a passed `Offer` `endTime`, a
-completed closure) gets no entry, only the case-file change it causes. The code
-still writes the old per-occasion types until #5037, #5038 and #5039 land.
+completed closure) gets no entry, only the case-file change it causes.
 
 **The field is `semantic_type`, wire key `semanticType` (CLP-02-014).** The
 glossary names "event type" as a term to avoid for it. The hash chain hashes

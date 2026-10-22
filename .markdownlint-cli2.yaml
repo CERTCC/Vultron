@@ -61,7 +61,8 @@ ignores:
   - "wip_outputs/**"
   # Generated knowledge-graph output; git-ignored, but markdownlint globs it anyway
   - "graphify-out/**"
-  - "node_modules/**"
+  # Any node_modules, including ui/node_modules after `npm ci` in ui/
+  - "**/node_modules/**"
   - ".github/**"
   - ".venv/**"
   - ".git/**"

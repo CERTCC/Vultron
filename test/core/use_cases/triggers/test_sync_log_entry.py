@@ -16,7 +16,8 @@
 Covers, against a real in-memory store (``notes/triggers-test-coverage.md``):
 
 - the state mutation: a canonical ``CaseLedgerEntry`` is minted at index 0
-  with the caller's ``semantic_type`` verbatim, and the typed result carries its
+  under the registry's label for its ``Announce(VulnerabilityCase)`` payload
+  (ADR-0140), and the typed result carries its
   id, hash and index;
 - the outbox effect: the entry is fanned out to the case's other participant
   through the injected ``sync_port`` (SYNC-02-002);
@@ -29,6 +30,7 @@ import json
 
 import pytest
 
+from test.support.ledger_labels import registry_label
 from test.support.trigger_results import recipient_ids
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -126,7 +128,6 @@ def test_commits_a_canonical_entry_and_returns_its_identity(actor_and_dl):
             actor_id=actor.id_,
             case_id=case.id_,
             object_id=case.id_,
-            semantic_type="sync_test_event",
         ),
     )
 
@@ -136,7 +137,8 @@ def test_commits_a_canonical_entry_and_returns_its_identity(actor_and_dl):
     entry = dl.read(result.log_entry_id)
     assert isinstance(entry, CaseLedgerEntry)
     assert entry.case_id == case.id_
-    assert entry.semantic_type == "sync_test_event"
+    assert entry.semantic_type == "announce_vulnerability_case"
+    assert registry_label(entry.payload_snapshot) == entry.semantic_type
     assert entry.entry_hash == result.entry_hash
     assert entry.log_object_id == case.id_
 
@@ -154,7 +156,6 @@ def test_fans_the_entry_out_to_the_peer_participant(actor_and_dl):
             actor_id=actor.id_,
             case_id=case.id_,
             object_id=case.id_,
-            semantic_type="sync_fanout",
         ),
     )
 
@@ -186,7 +187,6 @@ def test_the_entry_is_the_case_managers_factory_built_announce(actor_and_dl):
             actor_id=actor.id_,
             case_id=case.id_,
             object_id=case.id_,
-            semantic_type="sync_shape",
         ),
     )
 
@@ -208,7 +208,6 @@ def test_a_repeated_request_commits_one_entry(actor_and_dl):
         actor_id=actor.id_,
         case_id=case.id_,
         object_id=case.id_,
-        semantic_type="sync_twice",
     )
 
     first = _run(dl, request)
@@ -227,7 +226,6 @@ def test_unknown_requester_is_not_found(actor_and_dl):
                 actor_id="https://example.org/actors/nobody",
                 case_id=case.id_,
                 object_id=case.id_,
-                semantic_type="x",
             ),
         )
 
@@ -268,7 +266,6 @@ def test_single_container_commit_lands_in_the_case_managers_store(
                 actor_id=requester.id_,
                 case_id=case.id_,
                 object_id=case.id_,
-                semantic_type="single_container",
             ),
         )
 
@@ -301,7 +298,6 @@ def test_store_without_the_canonical_log_refuses_before_any_tree(
                 actor_id=actor.id_,
                 case_id=case.id_,
                 object_id=case.id_,
-                semantic_type="foreign",
             ),
         )
     assert not any(

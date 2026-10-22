@@ -64,6 +64,24 @@ RejectInviteToEmbargoOnCasePattern = ActivityPattern(
     activity_=TAtype.REJECT,
     object_=InviteToEmbargoOnCasePattern,
 )
+CreateEmbargoConsentPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER creates a participant's embargo consent row: a "
+        "CREATE of the EmbargoConsent carrying the row in full (ADR-0122, "
+        "CLP-07-013)."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.EMBARGO_CONSENT,
+)
+UpdateEmbargoConsentPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER changes a participant's embargo consent row: an "
+        "UPDATE of the EmbargoConsent carrying the row in full (ADR-0122, "
+        "MSM-07-004)."
+    ),
+    activity_=TAtype.UPDATE,
+    object_=VOtype.EMBARGO_CONSENT,
+)
 UndoInviteToEmbargoOnCasePattern = ActivityPattern(
     description=(
         "Withdraw an invitation to an embargo on a vulnerability case: an "
@@ -158,6 +176,15 @@ CloseReportPattern = ActivityPattern(
 
 CreateCaseActivityPattern = ActivityPattern(
     activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
+)
+UpdateCaseOwnerPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER names a new Case Owner on a vulnerability case: an "
+        "UPDATE of the case carrying its new attributedTo, its own act on an "
+        "ownership transfer (CM-21-002, CLP-07-013)."
+    ),
+    activity_=TAtype.UPDATE,
+    object_=VOtype.VULNERABILITY_CASE,
 )
 EngageCasePattern = ActivityPattern(
     description=(
@@ -471,6 +498,22 @@ RemoveCaseParticipantFromCasePattern = ActivityPattern(
     activity_=TAtype.REMOVE,
     object_=VOtype.CASE_PARTICIPANT,
     target_=VOtype.VULNERABILITY_CASE,
+)
+CreateCaseParticipantPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER creates a participant record: a CREATE of the "
+        "CaseParticipant carrying the record in full (ADR-0114, CLP-07-013)."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.CASE_PARTICIPANT,
+)
+UpdateCaseParticipantPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER changes a participant record: an UPDATE of the "
+        "CaseParticipant carrying the record in full (CLP-07-013)."
+    ),
+    activity_=TAtype.UPDATE,
+    object_=VOtype.CASE_PARTICIPANT,
 )
 
 # ---------------------------------------------------------------------------

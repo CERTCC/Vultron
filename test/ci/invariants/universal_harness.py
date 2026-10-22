@@ -57,6 +57,7 @@ from test.ci.invariants.common import (
     check_per_actor_replica_rm_closed_termination,
     check_rm_closed_termination,
     check_semantic_type_count,
+    check_semantic_type_is_registry_label,
     check_semantic_type_present,
     check_unique_payload_snapshot_ids,
     load_actor_names,
@@ -326,6 +327,21 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         )
 
     @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("SE-02-001")
+    @pytest.mark.spec("CLP-02-014")
+    def test_invariant_semantic_type_is_registry_label(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Each entry's semanticType is the registry's label for its payload (ADR-0140)."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_semantic_type_is_registry_label(replicas)
+        assert not violations, (
+            f"{len(violations)} entr(ies) whose semanticType is not the"
+            " registry's label for the payload (ADR-0140):\n"
+            + "\n".join(violations[:20])
+        )
+
+    @pytest.mark.case_ledger_invariants
     @pytest.mark.spec("CLP-14-002")
     @pytest.mark.spec("CLP-14-003")
     @pytest.mark.spec("CLP-14-005")
@@ -438,6 +454,7 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         "test_invariant_clp13_no_rejected_invite_entries": test_invariant_clp13_no_rejected_invite_entries,
         "test_invariant_clp07_unique_payload_snapshot_ids": test_invariant_clp07_unique_payload_snapshot_ids,
         "test_invariant_clp14_timestamp_invariants": test_invariant_clp14_timestamp_invariants,
+        "test_invariant_semantic_type_is_registry_label": test_invariant_semantic_type_is_registry_label,
         "test_invariant_per_actor_replica_no_rm_state_oscillation": test_invariant_per_actor_replica_no_rm_state_oscillation,
         "test_invariant_per_actor_replica_rm_closed_termination": test_invariant_per_actor_replica_rm_closed_termination,
         "test_invariant_per_actor_replica_participant_status_schema_completeness": test_invariant_per_actor_replica_participant_status_schema_completeness,

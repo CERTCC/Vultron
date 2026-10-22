@@ -49,21 +49,22 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from vultron.core.models.events.base import MessageSemantics
 from vultron.primitives import require_non_empty
 
 #: Reply semantic types that close an ``Offer(CaseParticipant)`` protocol pair.
 OFFER_CASE_PARTICIPANT_REPLY_TYPES: frozenset[str] = frozenset(
     {
-        "accept_offer_case_participant",
-        "reject_offer_case_participant",
+        MessageSemantics.ACCEPT_OFFER_CASE_PARTICIPANT.value,
+        MessageSemantics.REJECT_OFFER_CASE_PARTICIPANT.value,
     }
 )
 
 #: Reply semantic types that close an ``Invite(Actor, CaseStub)`` protocol pair.
 INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {
-        "accept_invite_actor_to_case",
-        "reject_invite_actor_to_case",
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE.value,
+        MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE.value,
     }
 )
 
@@ -72,9 +73,9 @@ INVITE_ACTOR_TO_CASE_REPLY_TYPES: frozenset[str] = frozenset(
 #: (CM-11-010, CM-11-011, ADR-0121).
 INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
     {
-        "accept_invite_actor_to_full_case",
-        "tentative_reject_invite_actor_to_full_case",
-        "reject_invite_actor_to_full_case",
+        MessageSemantics.ACCEPT_INVITE_ACTOR_TO_FULL_CASE.value,
+        MessageSemantics.TENTATIVE_REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
+        MessageSemantics.REJECT_INVITE_ACTOR_TO_FULL_CASE.value,
     }
 )
 
@@ -82,14 +83,14 @@ INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES: frozenset[str] = frozenset(
 #: Ledger ``semantic_type`` of a recorded ownership-transfer
 #: ``Offer(VulnerabilityCase)`` — the request side of the pair below.
 OFFER_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
-    "offer_case_ownership_transfer"
+    MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER.value
 )
 
 #: Ledger ``semantic_type`` of the owner's withdrawal of its ownership-transfer
 #: proposal, ``Undo(Offer(Offer(VulnerabilityCase)))``, which closes the Offer
 #: the CASE_MANAGER made from it (CM-21-015, ADR-0148).
 UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
-    "undo_case_ownership_transfer"
+    MessageSemantics.UNDO_CASE_OWNERSHIP_TRANSFER.value
 )
 
 #: Semantic types that close an ownership-transfer ``Offer(VulnerabilityCase)``
@@ -100,8 +101,8 @@ UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE: str = (
 #: past its ``end_time`` is closed with no entry (CM-21-017, ADR-0152).
 OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
     {
-        "accept_case_ownership_transfer",
-        "reject_case_ownership_transfer",
+        MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER.value,
+        MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER.value,
         UNDO_CASE_OWNERSHIP_TRANSFER_SEMANTIC_TYPE,
     }
 )
@@ -110,13 +111,13 @@ OFFER_CASE_OWNERSHIP_TRANSFER_REPLY_TYPES: frozenset[str] = frozenset(
 #: Ledger ``semantic_type`` of the target's ``Accept`` of a role
 #: ``Offer(CaseParticipantRole)``: the grant (CM-02-016, CM-33-006).
 ACCEPT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE: str = (
-    "accept_case_participant_role"
+    MessageSemantics.ACCEPT_CASE_PARTICIPANT_ROLE.value
 )
 
 #: Ledger ``semantic_type`` of the target's ``Reject`` of a role
 #: ``Offer(CaseParticipantRole)`` (CM-33-006).
 REJECT_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE: str = (
-    "reject_case_participant_role"
+    MessageSemantics.REJECT_CASE_PARTICIPANT_ROLE.value
 )
 
 #: Semantic types that close a role ``Offer(CaseParticipantRole)`` once the

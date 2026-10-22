@@ -46,6 +46,7 @@ class VultronObjectType(StrEnum):
     CASE_PARTICIPANT = "CaseParticipant"
     CASE_PARTICIPANT_ROLE = "CaseParticipantRole"
     CASE_STATUS = "CaseStatus"
+    EMBARGO_CONSENT = "EmbargoConsent"
     PARTICIPANT_STATUS = "ParticipantStatus"
     CASE_LEDGER_ENTRY = "CaseLedgerEntry"
     CASE_PROPOSAL = "CaseProposal"

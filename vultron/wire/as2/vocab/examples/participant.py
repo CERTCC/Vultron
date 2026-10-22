@@ -21,6 +21,7 @@ from vultron.core.states.rm import RM
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_participant_to_case_activity,
+    create_participant_activity,
     remove_participant_from_case_activity,
     rm_accept_full_case_invite_activity,
     rm_accept_invite_to_case_activity,
@@ -29,6 +30,7 @@ from vultron.wire.as2.factories import (
     rm_reject_full_case_invite_activity,
     rm_reject_invite_to_case_activity,
     rm_tentative_reject_full_case_invite_activity,
+    update_participant_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -36,6 +38,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Invite,
     as_Reject,
+    as_Update,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.examples._base import (
@@ -201,30 +204,52 @@ def reject_invite_to_case() -> as_Reject:
     return _activity
 
 
-def create_participant() -> as_Create:
-    """The snapshot of a ``create_case_participant`` ledger entry.
-
-    The CASE_MANAGER creates a participant record when it sends a stub Invite
-    and commits ``Create(CaseParticipant)`` as its own entry (ADR-0114).  This
-    implementation does not support a received ``Create(CaseParticipant)``
-    message (#4598), so the example is authored by the case actor and carries
-    no sender-voice ``content``.
-    """
+def _coordinator_participant() -> as_CaseParticipant:
     _case = case()
     _coordinator = _COORDINATOR
-    _coord_participant = as_CaseParticipant(
+    return as_CaseParticipant(
         id_=f"{_case.id_}/participants/{_coordinator.id_}",
         name=_coordinator.name,
         attributed_to=_coordinator.id_,
         context=_case.id_,
         case_roles=[CVDRole.COORDINATOR],
     )
-    _activity = as_Create(
+
+
+def create_participant() -> as_Create:
+    """The CASE_MANAGER's ``Create(CaseParticipant)`` of a participant record.
+
+    The CASE_MANAGER creates a participant record when it sends a stub Invite
+    and commits ``Create(CaseParticipant)`` as its own
+    ``create_case_participant`` entry (ADR-0114).  No received use case
+    handles it (ADR-0140 item 5), so the example is authored by the case
+    actor and carries no sender-voice ``content``.
+    """
+    _case = case()
+    return create_participant_activity(
+        _coordinator_participant(),
+        target=_case.id_,
         actor=case_actor().id_,
-        object_=_coord_participant,
         context=_case.id_,
     )
-    return _activity
+
+
+def update_participant() -> as_Update:
+    """The CASE_MANAGER's ``Update(CaseParticipant)`` of a participant record.
+
+    On an ownership transfer the CASE_MANAGER moves the ``CASE_OWNER`` role
+    and commits each changed record in full as its own
+    ``update_case_participant`` entry (CM-21-002, CLP-07-013).  No received
+    use case handles it (ADR-0140 item 5).
+    """
+    _case = case()
+    participant = _coordinator_participant()
+    participant.case_roles = [CVDRole.COORDINATOR, CVDRole.CASE_OWNER]
+    return update_participant_activity(
+        participant,
+        actor=case_actor().id_,
+        context=_case.id_,
+    )
 
 
 def case_participant() -> as_CaseParticipant:

@@ -34,6 +34,7 @@ from vultron.core.behaviors.case.nodes.suggest_actor.recorded_offer import (
 from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.activity_ids import derived_activity_id
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 
 
@@ -160,7 +161,7 @@ class EmitAcceptActorRecommendationNode(_AnswerRecommenderNode):
     so the recommender can correlate the response.
     """
 
-    _SEMANTIC_TYPE = "accept_actor_recommendation"
+    _SEMANTIC_TYPE = MessageSemantics.ACCEPT_ACTOR_RECOMMENDATION.value
     _LABEL = "AcceptActorRecommendation"
     _ACCEPTS = True
 
@@ -205,7 +206,7 @@ class EmitRejectActorRecommendationNode(_AnswerOnRecordNode):
     recorded Offer's.
     """
 
-    _SEMANTIC_TYPE = "reject_actor_recommendation"
+    _SEMANTIC_TYPE = MessageSemantics.REJECT_ACTOR_RECOMMENDATION.value
     _LABEL = "RejectActorRecommendation"
     _ACCEPTS = False
 

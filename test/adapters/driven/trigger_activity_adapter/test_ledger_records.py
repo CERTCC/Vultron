@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 
+from test.support.ledger_labels import registry_label
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -165,7 +166,6 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
         "record_case_announced": lambda a: a.record_case_announced(
             case_id=CASE_ID,
             actor=CASE_ACTOR_ID,
-            semantic_type="demo_event",
             object_id=CASE_ID,
         ),
     }
@@ -214,7 +214,11 @@ _SHAPES: dict[str, tuple[str, str, str]] = {
         "VulnerabilityCase",
         "update_case_owner",
     ),
-    "record_case_announced": ("Announce", "VulnerabilityCase", "demo_event"),
+    "record_case_announced": (
+        "Announce",
+        "VulnerabilityCase",
+        "announce_vulnerability_case",
+    ),
 }
 
 
@@ -259,6 +263,22 @@ def test_the_record_passes_the_canonical_guard(adapter, recipes, method):
         payload_snapshot=_snapshot(recipes[method], adapter),
         semantic_type=_SHAPES[method][2],
     )
+
+
+@pytest.mark.spec("SE-02-001")
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.parametrize("method", sorted(_SHAPES))
+def test_the_registry_labels_the_record_with_its_entry_type(
+    adapter, recipes, method
+):
+    """Each record's payload is labelled with the type its entry commits.
+
+    The CASE_MANAGER's own acts are registry entries too (ADR-0140, #4724
+    AC-1), so the semantic type an entry stores is the registry's label for
+    the activity the record built, never a name of its own.
+    """
+    snapshot = _snapshot(recipes[method], adapter)
+    assert registry_label(snapshot) == _SHAPES[method][2]
 
 
 @pytest.mark.spec("CLP-07-011")

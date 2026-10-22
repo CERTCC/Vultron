@@ -29,6 +29,7 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.ledger import ledger_entries
+from test.support.ledger_labels import label_mismatches
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
     register_rows,
@@ -324,16 +325,23 @@ class LedgerNetwork:
 def rebuild_every_network(networks: list[LedgerNetwork]) -> None:
     """Rebuild each network's case from its CASE_MANAGER's ledger (#4294 AC-5).
 
+    First, every entry the CASE_MANAGER holds must carry the registry's label
+    for its payload (ADR-0140, #4724 AC-3).
+
     A network with no entries has nothing to rebuild, and one whose test
     wrote the CASE_MANAGER's store outside the ledger (``bypass_ledger()``)
     cannot be; every other must equal the CASE_MANAGER's, rebuilt as
     ``BYSTANDER`` from the case as it stood before the first entry.
     """
     for net in networks:
+        held = ledger_entries(net.stores[MANAGER], net.case_id)
+        # Every entry is the registry's label for its payload (ADR-0140,
+        # #4724 AC-3), whether or not the network can be rebuilt.
+        mismatches = label_mismatches(held)
+        assert not mismatches, "\n".join(mismatches)
         seed = net.rebuild_seed
         if net.ledger_bypassed:
             continue
-        held = ledger_entries(net.stores[MANAGER], net.case_id)
         if seed is None:
             # No seed means no entry was committed; a ledger that holds one
             # anyway would skip the check silently.

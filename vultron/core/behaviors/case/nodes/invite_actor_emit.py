@@ -39,6 +39,7 @@ from vultron.core.behaviors.embargo.rsvp_stamp import (
 from vultron.core.behaviors.helpers import _EmitSingleActivityBase
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
 from vultron.core.models.activity_ids import derived_activity_id
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.enums.roles import serialize_roles
@@ -47,7 +48,7 @@ from vultron.enums.roles import serialize_roles
 INVITE_ID_KIND = "invite-actor-to-case"
 
 #: Ledger ``semantic_type`` of a stub Invite's entry.
-INVITE_SEMANTIC_TYPE = "invite_actor_to_case"
+INVITE_SEMANTIC_TYPE = MessageSemantics.INVITE_ACTOR_TO_CASE.value
 
 
 def build_stub_invite(

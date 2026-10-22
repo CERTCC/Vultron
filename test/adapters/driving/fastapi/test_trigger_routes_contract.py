@@ -161,7 +161,6 @@ _BODIES: dict[str, dict[str, Any]] = {
     "sync-log-entry": {
         "case_id": _CASE,
         "object_id": _CASE,
-        "semantic_type": "contract",
     },
     "set-stub-summary": {
         "case_id": _CASE,

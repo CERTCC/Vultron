@@ -100,8 +100,8 @@ def test_use_case_map_holds_exactly_the_handled_entries():
 @pytest.mark.spec("DR-02-002")
 def test_use_case_map_omits_an_entry_with_no_use_case(monkeypatch):
     """An unhandled entry is recognized, so it stays in the registry, but it
-    is not routed.  ``UNDO_INVITE_TO_EMBARGO_ON_CASE`` is unhandled, and one
-    more stands in so the test does not rest on it alone."""
+    is not routed.  The CASE_MANAGER-only types are unhandled, and one more
+    stands in so the test does not rest on them alone."""
     import dataclasses
 
     import vultron.semantic_registry as registry
@@ -124,6 +124,11 @@ def test_use_case_map_omits_an_entry_with_no_use_case(monkeypatch):
     assert set(ucm) == set(MessageSemantics) - {
         unhandled,
         MessageSemantics.UNDO_INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.CREATE_CASE_PARTICIPANT,
+        MessageSemantics.UPDATE_CASE_PARTICIPANT,
+        MessageSemantics.UPDATE_CASE_OWNER,
+        MessageSemantics.CREATE_EMBARGO_CONSENT,
+        MessageSemantics.UPDATE_EMBARGO_CONSENT,
     }
 
 

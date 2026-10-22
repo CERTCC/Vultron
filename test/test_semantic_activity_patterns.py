@@ -1170,3 +1170,55 @@ def test_refusal_notice_pattern_matches_the_notice_example():
 
     assert RefusalNoticePattern.match(notice)
     assert find_matching_semantics(notice) is MessageSemantics.REFUSAL_NOTICE
+
+
+# ---------------------------------------------------------------------------
+# VAM-03-007, VAM-05-014, VAM-05-015, VAM-06-004, VAM-06-005 — the
+# CASE_MANAGER's own acts are registry entries no use case handles (ADR-0140)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("VAM-03-007")
+@pytest.mark.spec("VAM-05-014")
+@pytest.mark.spec("VAM-05-015")
+@pytest.mark.spec("VAM-06-004")
+@pytest.mark.spec("VAM-06-005")
+@pytest.mark.parametrize(
+    ("module", "example", "semantics"),
+    [
+        ("case", "update_case", MessageSemantics.UPDATE_CASE_OWNER),
+        (
+            "participant",
+            "create_participant",
+            MessageSemantics.CREATE_CASE_PARTICIPANT,
+        ),
+        (
+            "participant",
+            "update_participant",
+            MessageSemantics.UPDATE_CASE_PARTICIPANT,
+        ),
+        (
+            "embargo",
+            "create_embargo_consent",
+            MessageSemantics.CREATE_EMBARGO_CONSENT,
+        ),
+        (
+            "embargo",
+            "update_embargo_consent",
+            MessageSemantics.UPDATE_EMBARGO_CONSENT,
+        ),
+    ],
+)
+def test_case_manager_acts_map_to_their_semantics(
+    module: str, example: str, semantics: MessageSemantics
+) -> None:
+    import importlib
+
+    from vultron.semantic_registry import lookup_entry
+
+    examples = importlib.import_module(
+        f"vultron.wire.as2.vocab.examples.{module}"
+    )
+
+    assert find_matching_semantics(getattr(examples, example)()) == semantics
+    assert not lookup_entry(semantics).handled
