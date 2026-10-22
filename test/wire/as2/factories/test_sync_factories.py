@@ -109,7 +109,6 @@ def test_reject_log_entry_object_is_entry(sample_log_entry):
 
 
 @pytest.mark.spec("SYNC-03-001")
-@pytest.mark.spec("SYNC-03-004")
 def test_reject_log_entry_context_is_set(sample_log_entry):
     """context carries the last accepted hash string (SYNC-03-001)."""
     result = reject_log_entry_activity(

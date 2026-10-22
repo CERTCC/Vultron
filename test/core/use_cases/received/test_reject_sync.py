@@ -126,7 +126,6 @@ class TestRejectLogEntryPattern:
         assert event.rejected_entry.case_id == CASE_URI
 
     @pytest.mark.spec("SYNC-03-001")
-    @pytest.mark.spec("SYNC-03-004")
     def test_last_accepted_hash_from_context(self, entry0):
         """last_accepted_hash is extracted from the context field."""
         from vultron.core.models.events.sync import RejectLogEntryReceivedEvent

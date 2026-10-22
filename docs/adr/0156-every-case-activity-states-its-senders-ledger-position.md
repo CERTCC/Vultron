@@ -106,6 +106,6 @@ The SYNC-18 requirements carry marker tests in `test/core/use_cases/received/tes
 ## More Information
 
 The idea is #5080.
-Issue #5098 adds `Read(CaseLedgerEntry)` for the quiet period, when a participant has nothing else to send; feeding received stamps into the same acknowledged position is planned there.
+Issue #5098 adds `Read(CaseLedgerEntry)` for the quiet period, when a participant has nothing else to send; feeding received stamps into the same acknowledged position, and replaying to a lagging sender, is #5110 (ADR-0155, SYNC-17-002 to SYNC-17-004).
 
 Generated spec requirements: `sync-ledger-replication.yaml` SYNC-18.
