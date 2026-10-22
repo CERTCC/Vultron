@@ -390,8 +390,8 @@ groups:
       spec_id: CM-21-002
     adr:
     - ADR-0140
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_050
 - id: VAM-04
   title: Actor Suggestion and Invitation Messages
   specs:
@@ -945,8 +945,9 @@ groups:
       spec_id: MSM-07-001
     adr:
     - ADR-0140
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_080
   - id: VAM-05-015
     priority: MUST
     kind: protocol
@@ -968,8 +969,9 @@ groups:
       spec_id: MSM-07-004
     adr:
     - ADR-0140
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_014
+    - story_2022_080
 - id: VAM-06
   title: Case Participant Management Messages
   specs:
@@ -1024,8 +1026,8 @@ groups:
       spec_id: VAM-01-011
     adr:
     - ADR-0140
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_013
   - id: VAM-06-005
     priority: MUST
     kind: protocol
@@ -1047,8 +1049,8 @@ groups:
       spec_id: CM-21-002
     adr:
     - ADR-0140
-    lint_suppress:
-    - missing_story_reference
+    stories:
+    - story_2022_050
 - id: VAM-07
   title: Note Management Messages
   specs:
