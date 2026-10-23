@@ -453,9 +453,8 @@ groups:
       asserts the ERROR record of a hash refusal;
       `test/core/use_cases/received/test_processing_fault_received.py::test_received_fault_is_logged_naming_its_sender_and_fault`
       asserts the WARNING record of a received fault;
-      `test/core/behaviors/sync/test_divergence_recovery.py::test_a_conflicting_copy_is_logged_at_error`
-      asserts the ERROR record of a conflicting copy, a strict `xfail` until #4797
-      judges a copy by its position; and `test/core/test_sync_helpers.py` confirms the
+      `test/core/behaviors/sync/test_divergence_recovery.py::test_a_copy_that_conflicts_with_the_chain_is_refused_at_error`
+      asserts the ERROR record of a conflicting copy; and `test/core/test_sync_helpers.py` confirms the
       two helpers over a ledger of canonical entries only.
     relationships:
     - rel_type: implements

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import assert_held_only_as_received, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -967,7 +968,7 @@ def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
         object_=as_EmbargoEvent(
             context=case_id, end_time=published + timedelta(days=90)
         ),
-        context=as_VulnerabilityCase(id_=case_id),
+        context=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id),
         actor="https://example.org/alice",
         published=published,
     )

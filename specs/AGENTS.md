@@ -128,6 +128,14 @@ that bite most often:
   If SR-11-003 fires on a new entry, the usual fix is a corrected `kind:`, not
   a suppression. MS-12-006's `protocol_kind_with_code_reference` is closed
   outright: no spec may carry it (MS-12-008).
+- **`rationale:`** — required on every new requirement: why it is necessary now,
+  the problem it prevents or the property it guarantees, never how it came
+  about (MS-10-012, MS-10-013). The schema still admits a missing one during
+  the backfill, so MS-10-014's PR-only growth guard
+  (`test/architecture/test_spec_rationale_guard.py`) fails a PR that adds a
+  requirement without one or drops one. `uv run spec-rationale missing`,
+  `history` and `adr-links` (`--file specs/<name>.yaml`) are the backfill
+  worklists.
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
   is a FATAL registry load error. A `MUST_NOT` is the MUST tier (MS-02-003), so
   it needs a `verification:` clause exactly as a `MUST` does (MS-10-003).
@@ -141,6 +149,8 @@ that bite most often:
   `lint_suppress: [must_without_verification]` no longer loads.
   `uv run spec-lint --list-unverified` names the marked IDs per kind.
 - **`rel_type:`** — one of the enumerated values; `related_to` is not among them.
+  Each type's meaning and upstream end is SR-13; record a link at one end only
+  (SR-13-012), or spec-lint fails on the loop or the double record.
 - **`references:`** — not a schema field, silently dropped. Use `adr:`.
 - **Item format is field presence, not a class you pick** (ADR-0101).
   `BehavioralSpec` requires at least one of `preconditions`, `steps`,

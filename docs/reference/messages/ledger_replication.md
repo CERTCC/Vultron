@@ -72,6 +72,10 @@ A participant verifies the chain on receipt and holds the `Announce` of any entr
 - **Factory:** `reject_log_entry_activity` in `vultron/wire/as2/factories/sync.py`.
 - **Example artifact:** [reject_case_ledger_entry.json](../examples/reject_case_ledger_entry.json).
 
+A participant that holds no entry has none to reject.
+After its case is replaced by a copy ahead of its chain, it sends a `Reject` with no `object`, an empty `context` and the case as its `target`, which asks for a replay from genesis (SYNC-16-007).
+A `Reject` with no `object` and a non-empty `context` is refused when it is parsed.
+
 Buffering takes priority over rejection (ADR-0037).
 A `Reject` is sent only for an entry genuinely missing from the chain, never for one that is merely out of order, so an out-of-order delivery does not start a reject-and-replay cycle.
 
@@ -93,6 +97,11 @@ Any `Announce(CaseLedgerEntry)` that arrives before the seed is held as a `HeldL
 - **Factory:** `announce_vulnerability_case_activity` in
   `vultron/wire/as2/factories/case.py`.
 - **Spec:** SYNC-09-001.
+
+Each `Announce(VulnerabilityCase)` carries the case with its `ledgerPosition`: the `logIndex` and `entryHash` of the last ledger entry its case file reflects (SYNC-16-005).
+A participant that already holds the case judges the copy by that position.
+A copy the participant is already past is skipped, a copy naming a different entry at an index the participant holds is refused, and any other copy replaces the case, position included (SYNC-16-006).
+After a replacement whose position is ahead of its chain, the participant sends `Reject(CaseLedgerEntry)` naming its own tail and stores each entry the copy already reflects as a no-op, without moving its case's position back (SYNC-16-007).
 
 The activity and its rendered example are documented under [Announce vulnerability case](case_management.md#announce-vulnerability-case).
 

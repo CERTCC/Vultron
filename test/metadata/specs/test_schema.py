@@ -14,12 +14,14 @@ from vultron.enums.roles import CVDRole
 from vultron.metadata.specs.registry import load_registry
 from vultron.metadata.specs.schema import (
     FOUNDATION_STANDARD_TAGS,
+    RELATION_DEFINITIONS,
     AdrStatus,
     BehavioralSpec,
     BehaviorStep,
     LintWarningCode,
     Postcondition,
     Precondition,
+    RelationEnd,
     Relationship,
     RelationType,
     RFC2119Priority,
@@ -740,6 +742,67 @@ def test_relationship_with_satisfies():
     rel = Relationship(rel_type=RelationType.SATISFIES, spec_id="VP-02-001")
     assert rel.rel_type == RelationType.SATISFIES
     assert rel.spec_id == "VP-02-001"
+
+
+# ---------------------------------------------------------------------------
+# RelationType definitions (SR-13-001..011, SR-13-016)
+# ---------------------------------------------------------------------------
+
+
+def _sr_13_definitions(registry) -> dict[str, str]:
+    """SR-13-001..011 statements keyed by the type each one defines."""
+    return {
+        spec.statement.split("`")[1]: " ".join(spec.statement.split())
+        for spec_id, spec in registry.all_specs.items()
+        if spec_id.startswith("SR-13-") and int(spec_id[-3:]) <= 11
+    }
+
+
+def test_every_relation_type_has_a_definition():
+    assert set(RELATION_DEFINITIONS) == set(RelationType)
+    for member in RelationType:
+        assert member.definition.startswith(
+            ("A `" + member.value, "An `" + member.value)
+        )
+
+
+def _end_named_by(statement: str) -> RelationEnd:
+    """The upstream end an SR-13 definition names in its closing clause."""
+    clause = statement.rsplit(";", 1)[1].strip()
+    if clause.startswith("B is the"):
+        return RelationEnd.TARGET
+    if clause.startswith("A is the"):
+        return RelationEnd.SOURCE
+    assert clause == "neither end is upstream.", clause
+    return RelationEnd.NEITHER
+
+
+@pytest.mark.spec_corpus
+@pytest.mark.spec("SR-13-016")
+def test_upstream_end_matches_the_end_sr_13_names(real_registry):
+    for value, statement in _sr_13_definitions(real_registry).items():
+        assert RelationType(value).upstream_end is _end_named_by(statement)
+
+
+@pytest.mark.spec_corpus
+@pytest.mark.spec("SR-13-016")
+def test_relation_definitions_match_sr_13(real_registry):
+    assert _sr_13_definitions(real_registry) == {
+        member.value: member.definition for member in RelationType
+    }
+
+
+@pytest.mark.spec("SR-13-016")
+def test_relation_type_docstring_lists_every_definition():
+    doc = " ".join((RelationType.__doc__ or "").split())
+    for member in RelationType:
+        assert f"``{member.value}``: {member.definition}" in doc
+
+
+def test_only_constrains_and_conflicts_leave_the_target_upstream_end():
+    assert {
+        m for m in RelationType if m.upstream_end is not RelationEnd.TARGET
+    } == {RelationType.CONSTRAINS, RelationType.CONFLICTS}
 
 
 # ---------------------------------------------------------------------------

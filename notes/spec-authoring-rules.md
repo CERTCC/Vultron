@@ -8,11 +8,13 @@ description: >
   that inline-object requirements are `project`, which HTTP status codes are
   `foundation` and which are `project`, splitting a spec that mixes
   kinds, what a kind change moves, and the scoping of MS-12-006;
-  the enum values spec-lint accepts for `kind`, `priority` and `rel_type`; `adr:`
+  the enum values spec-lint accepts for `kind`, `priority` and `rel_type`, and
+  where each relationship is recorded (SR-13); `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
   (MS-02-003/004); the `verification_debt` ratchet (MS-10-005..009); guards that
-  state a domain truth (MS-05-005); removed requirements (MS-09); audit passes
+  state a domain truth (MS-05-005); the rationale rule and its growth guard
+  (MS-10-012 to MS-10-015); removed requirements (MS-09); audit passes
   for retiring a name or splitting a requirement; and the CASE_MANAGER-versus-
   CaseActor naming discriminator.
 related_specs:
@@ -194,13 +196,21 @@ MS-02-002 prose writes "MUST NOT", but the enum uses underscores; `MUST NOT`
 
 ### Valid `rel_type` Values in Spec Relationships
 
-```text
-implements, supersedes, extends, depends_on, conflicts, refines,
-derives_from, verifies, part_of, constrains, satisfies
-```
+What each type means, and which end is upstream, is SR-13-001 through SR-13-011
+(`spec-dump --group SR-13`); do not keep a second copy here. Record a link once,
+on the end SR-13-012 names, never at both ends. A second copy written with an
+opposite verb closes a loop that spec-lint rejects (SR-13-014, SR-13-015).
+`spec-dump` and the docs "Related" column show only the links a requirement
+records. To find the links that name a requirement, filter
+`relation_graph.recorded_relationships()` on their target. To find what a change
+to it affects, walk its predecessors in `relation_graph.upstream_graph()`; that
+graph turns each `constrains` arc to point at its recorder and has no arc for
+`conflicts`. A narrower case is `refines` on the
+narrower requirement, never `constrains` on the general one (SR-13-013).
 
-`related_to` is **not** valid and fails at load. For a loose link, use `refines`
-with a `note:`, or omit the relationship.
+`related_to` is **not** valid and fails at load. For a loose link, omit the
+relationship: a `refines` that does not assert a narrower case misleads the
+graph walk "what does a change to this requirement affect?".
 
 ### Link an ADR With `adr:`, Not `references:`
 
@@ -348,6 +358,17 @@ against the old version, especially an example chosen for the old framing:
 VM-01-004's narrated amendment read as a standing endorsement of the divergence
 it described (#2982). History belongs in the ADR the `adr:` field names. Do not
 describe a verification test that does not exist.
+
+Every requirement carries a `rationale:` that states why it is necessary under
+current conditions, the problem it prevents or the property it guarantees
+(MS-10-012), and never narrates how it came about (MS-10-013). A rationale that
+restates the statement gives no reason. Write "a pinned count races every
+concurrent PR", not "changed from a ceiling to a guard in #4315". An issue cited
+as evidence for the reason is fine; an issue cited as the story is not.
+`uv run spec-rationale history` lists likely narration and `adr-links` lists
+requirements a live ADR names but `adr:` omits; both are advisory worklists with
+false positives (MS-10-015). Until the schema requires the field, MS-10-014's
+growth guard fails a PR that adds a requirement without one.
 
 ### A Guard States the Truth the Mistake Violates
 

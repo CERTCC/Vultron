@@ -24,6 +24,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -119,6 +120,7 @@ def test_wait_for_case_participants_succeeds_when_actors_present():
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {
+        "attributedTo": CASE_OWNER_ID,
         "type": "VulnerabilityCase",
         "id": CASE_ID,
         "actor_participant_index": {
@@ -141,6 +143,7 @@ def test_wait_for_case_participants_subset_check():
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {
+        "attributedTo": CASE_OWNER_ID,
         "type": "VulnerabilityCase",
         "id": CASE_ID,
         "actor_participant_index": {
@@ -162,6 +165,7 @@ def test_wait_for_case_participants_raises_on_timeout():
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     client.get.return_value = {
+        "attributedTo": CASE_OWNER_ID,
         "type": "VulnerabilityCase",
         "id": CASE_ID,
         "actor_participant_index": {ACTOR_A: "p-a"},
@@ -429,7 +433,9 @@ def _case_with_index(index: dict[str, str]):
         as_VulnerabilityCase,
     )
 
-    case = as_VulnerabilityCase(id_="urn:uuid:case-cap", name="Case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_="urn:uuid:case-cap", name="Case"
+    )
     case.actor_participant_index.update(index)
     return case
 
@@ -530,6 +536,7 @@ class TestCaseActorParticipantIdIn:
         client = MagicMock()
         client.dl_path.return_value = "/actors/x/datalayer/urn:uuid:case-cap"
         client.get.return_value = {
+            "attributedTo": CASE_OWNER_ID,
             "id": "urn:uuid:case-cap",
             "type": "VulnerabilityCase",
             "name": "Case",
@@ -615,7 +622,9 @@ def _archived_invite_entry(
     invite = rm_invite_to_case_activity(
         as_Service(id_=invitee_id),
         target=as_VulnerabilityCase(
-            id_=case_id, stub_summary="Security issue for test invite"
+            attributed_to=CASE_OWNER_ID,
+            id_=case_id,
+            stub_summary="Security issue for test invite",
         ),
         actor=_MANAGER,
         id_=_INVITE_ID,
@@ -939,6 +948,7 @@ def _case_client(em: EM, active_embargo_id: str | None) -> MagicMock:
     client.base_url = "http://vendor:7999"
     client.actor_id = ACTOR_B
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         embargo_register=register(active=active_embargo_id or "urn:embargo"),
         case_statuses=[CaseStatus(context=CASE_ID)],  # type: ignore[call-arg]
@@ -953,7 +963,9 @@ def _indexed_client(index: dict[str, str]) -> MagicMock:
     client = MagicMock()
     client.base_url = "http://vendor:7999"
     case = as_VulnerabilityCase(
-        id_=CASE_ID, pending_embargo_proposal_index=index
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        pending_embargo_proposal_index=index,
     )
     client.get.return_value = case.model_dump(
         mode="json", by_alias=True, exclude_none=True

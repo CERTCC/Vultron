@@ -30,6 +30,7 @@ from typing import Any, cast
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from test.support.rm_declaration import (
     ACTOR_ID,
@@ -260,7 +261,9 @@ def _run_tree(
         ),
         actor=ACTOR_ID,
         to=[executing_actor_id],
-        context=as_VulnerabilityCase(id_=CASE_ID, name="Issue 2235 Case"),
+        context=as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Issue 2235 Case"
+        ),
     )
     event = make_payload(activity)
     bridge = BTBridge(

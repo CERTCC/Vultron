@@ -18,6 +18,7 @@ Pins the pre-flight guard (CLP-10-003): only the CaseActor writes a
 
 from __future__ import annotations
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -120,7 +121,7 @@ def _make_close_case_event(
             CASE_ACTOR_ID to simulate the AutoCloseBranchNode path where the
             case-actor emits the Leave to itself.
     """
-    case_obj = as_VulnerabilityCase(id_=CASE_ID)
+    case_obj = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID)
     activity = VultronActivity(
         id_="https://example.org/activities/leave-case",
         type_="Leave",

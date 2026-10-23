@@ -18,6 +18,7 @@ Test the reporting workflow
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.received_activity_record import (
     ReceivedActivityRecord,
@@ -73,6 +74,7 @@ def coordinator():
 @pytest.fixture
 def case(report):
     return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         name="Test Vulnerability Case",
         vulnerability_reports=[report],
     )

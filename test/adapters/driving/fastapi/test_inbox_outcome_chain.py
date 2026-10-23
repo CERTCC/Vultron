@@ -26,12 +26,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import BaseModel
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
@@ -391,7 +393,9 @@ def test_real_handler_refusal_reaches_inbox_outcome(dl):
     )
 
     case = as_VulnerabilityCase(
-        id_="https://example.org/cases/c-chain-untrusted", name="untrusted"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/c-chain-untrusted",
+        name="untrusted",
     )
     announce = announce_vulnerability_case_activity(
         case, actor=_SENDER_ID, to=[_RECEIVER_ID], context=case.id_
@@ -470,7 +474,13 @@ def test_a_received_case_manager_act_is_recognized_and_unhandled(
         as_VulnerabilityCase,
     )
 
-    dl.create(as_VulnerabilityCase(id_=_MANAGER_ACT_CASE_ID, name="original"))
+    dl.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=_MANAGER_ACT_CASE_ID,
+            name="original",
+        )
+    )
     case_before = dl.read(_MANAGER_ACT_CASE_ID)
     activity = build().model_copy(
         update={"actor": _SENDER_ID, "to": [_RECEIVER_ID]}
@@ -594,7 +604,11 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
         as_VulnerabilityCase,
     )
 
-    dl.create(as_VulnerabilityCase(id_=_RETIRED_CASE_ID, name="unchanged"))
+    dl.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_RETIRED_CASE_ID, name="unchanged"
+        )
+    )
     case_before = dl.read(_RETIRED_CASE_ID)
     assert find_matching_semantics(activity) is MessageSemantics.UNKNOWN
     activity_body = activity.model_dump(
@@ -632,6 +646,7 @@ def _case_with(
         as_VulnerabilityCase,
     )
 
+    fields.setdefault("attributed_to", CASE_OWNER_ID)
     case = as_VulnerabilityCase(
         id_=case_id, name=name, case_participants=participants, **fields
     )
@@ -824,6 +839,9 @@ def _managed_case() -> Any:
         [manager, receiver],
         attributed_to=_VENDOR_ID,
         vulnerability_reports=[_LEGIT_REPORT_ID],
+        # One creation time, so every copy has the genesis hash the held
+        # case has, as the CASE_MANAGER's copies do (SYNC-16-006).
+        published=datetime(2026, 10, 1, tzinfo=UTC),
     )
 
 

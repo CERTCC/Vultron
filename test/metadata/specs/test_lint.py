@@ -108,6 +108,67 @@ def test_lint_dangling_relationship(tmp_path, capsys):
     assert "XX-99-999" in captured.err
 
 
+def _write_linked_pair(tmp_path, a_rel: str, b_rel: str) -> None:
+    """Two SHOULD requirements, each naming the other under the given types."""
+    write_yaml(
+        tmp_path,
+        spec_file_data(
+            [
+                (
+                    "TST-01-001",
+                    "SHOULD",
+                    "project",
+                    {
+                        "relationships": [
+                            {"rel_type": a_rel, "spec_id": "TST-01-002"}
+                        ]
+                    },
+                ),
+                (
+                    "TST-01-002",
+                    "SHOULD",
+                    "project",
+                    {
+                        "relationships": [
+                            {"rel_type": b_rel, "spec_id": "TST-01-001"}
+                        ]
+                    },
+                ),
+            ]
+        ),
+    )
+
+
+@pytest.mark.spec("SR-13-014")
+def test_lint_fails_on_a_relationship_loop(tmp_path, capsys):
+    _write_linked_pair(tmp_path, "depends_on", "depends_on")
+
+    result = lint(tmp_path)
+
+    assert result == 1
+    assert (
+        "Relationship loop among TST-01-001, TST-01-002"
+        in capsys.readouterr().err
+    )
+
+
+@pytest.mark.spec("SR-13-012")
+@pytest.mark.spec("SR-13-015")
+def test_lint_fails_on_a_link_recorded_at_both_ends(tmp_path, capsys):
+    # refines one way and constrains the other point the same way: no loop.
+    _write_linked_pair(tmp_path, "refines", "constrains")
+
+    result = lint(tmp_path)
+
+    err = capsys.readouterr().err
+    assert result == 1
+    assert "Relationship loop" not in err
+    assert (
+        "TST-01-001 and TST-01-002 each record a relationship naming the other"
+        in err
+    )
+
+
 def test_lint_prefix_mismatch(tmp_path, capsys):
     data = {
         "id": "TST",
@@ -1178,7 +1239,7 @@ def test_lint_phantom_path_parent_traversal_rejected(tmp_path, capsys):
 
 
 def test_lint_phantom_path_rationale_not_scanned(tmp_path):
-    """rationale narrates history and may cite paths that no longer exist."""
+    """rationale may name a removed path as the problem it prevents (MS-10-012)."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
     data["groups"][0]["specs"][0]["rationale"] = (
@@ -1645,7 +1706,7 @@ def test_lint_phantom_symbol_in_verification_is_hard_error(tmp_path, capsys):
 
 
 def test_lint_phantom_symbol_rationale_not_scanned(tmp_path):
-    """rationale narrates history and may name a removed symbol."""
+    """rationale may name a removed symbol as the problem it prevents."""
     _, spec_dir = _repo_with_specs(tmp_path)
     data = _minimal_spec()
     data["groups"][0]["specs"][0]["rationale"] = (

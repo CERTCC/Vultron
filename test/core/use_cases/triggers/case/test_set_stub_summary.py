@@ -26,6 +26,7 @@ Covers:
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -91,7 +92,9 @@ class TestSvcSetStubSummaryUseCase:
     @pytest.fixture(autouse=True)
     def setup(self):
         self.actor, self.dl = _make_actor_dl("Reporter")
-        self.case = as_VulnerabilityCase(name="Test Case")
+        self.case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Test Case"
+        )
         self.dl.create(self.case)
         yield
         self.dl.clear_all()

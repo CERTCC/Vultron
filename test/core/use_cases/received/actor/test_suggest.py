@@ -24,6 +24,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -55,7 +56,9 @@ def _case_ref(case_id: str) -> as_VulnerabilityCase:
     The CASE_MANAGER's receipt commit refuses a bare-string ``target``, so a
     test that reaches that commit must send what production sends.
     """
-    return as_VulnerabilityCase(id_=case_id, name="OfferActorTest")
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=case_id, name="OfferActorTest"
+    )
 
 
 class TestOfferActorToCaseReceivedUseCase:

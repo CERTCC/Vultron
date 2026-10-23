@@ -35,6 +35,7 @@ from test.conftest import seed_case_owner_participant
 from test.core.use_cases.received._archived_redelivery import (
     route_archived_redelivery,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import (
     activate,
     agree_to_active_embargo,
@@ -1839,7 +1840,11 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         )
 
         case_wire = _VC.model_validate(
-            {"id": case.id_, "name": case.name or "Test"}
+            {
+                "id": case.id_,
+                "name": case.name or "Test",
+                "attributed_to": case.attributed_to,
+            }
         )
         offer = offer_case_ownership_transfer_activity(
             case=case_wire,
@@ -2008,7 +2013,11 @@ class TestSvcAcceptCaseOwnershipTransferUseCase:
         case = _make_case_with_case_manager(dl, owner.id_, case_actor.id_)
         offer = offer_case_ownership_transfer_activity(
             case=as_VulnerabilityCase.model_validate(
-                {"id": case.id_, "name": case.name or "Test"}
+                {
+                    "attributed_to": CASE_OWNER_ID,
+                    "id": case.id_,
+                    "name": case.name or "Test",
+                }
             ),
             target=transferee.id_,
             actor=case_actor.id_,

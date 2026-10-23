@@ -1742,7 +1742,7 @@ groups:
       CallOutBackendFactory that returns an unconditional FAILURE as that default
       (RSH-07-004 verification).
     relationships:
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: BT-23-002
       note: >
         Carves out security-significant gates from the p>0.5 → AlwaysSucceed
@@ -1794,7 +1794,7 @@ groups:
       default, and fails if the capability declares output ports that the default
       does not write; the equivalent check covers the STOCHASTIC singletons.
     relationships:
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: BT-23-002
       note: >
         BT-23-002 names AlwaysSucceed by class; for a data-producing capability

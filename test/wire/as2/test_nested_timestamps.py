@@ -42,6 +42,7 @@ from typing import Any
 
 import pytest
 
+from test.support.case_owner import INBOUND_CASE_OWNERSHIP
 from vultron.core.models._helpers import absent_times_as_none
 from vultron.core.models.base import CoreObject
 from vultron.semantic_registry import extract_event
@@ -385,7 +386,11 @@ def test_nested_activity_without_published_parses_with_no_published():
             "id": "urn:uuid:invite-1",
             "actor": "https://example.org/actors/vendor",
             "object": {"type": "Organization", "id": ACTOR, "name": "Alice"},
-            "target": {"type": "VulnerabilityCase", "id": CASE_ID},
+            "target": {
+                **INBOUND_CASE_OWNERSHIP,
+                "type": "VulnerabilityCase",
+                "id": CASE_ID,
+            },
         },
         activity_type="Accept",
     )

@@ -66,7 +66,11 @@ def _coerce_em(v: object) -> EM:
     if isinstance(v, EM):
         return v
     if isinstance(v, str):
-        return EM[v]
+        # As for RM below: Pydantic absorbs only ValueError (#2964).
+        try:
+            return EM[v]
+        except KeyError:
+            raise ValueError(f"Unknown EM value: {v!r}") from None
     raise ValueError(f"Cannot coerce {v!r} to EM")
 
 
@@ -220,7 +224,7 @@ class EmDimension(_ScalarDimension):
 
     Frozen so that ``instance.state = EM.X`` raises ``ValidationError``.
     A status with a different EM is always built by construction or by
-    ``status.model_copy(update={"em": EmDimension(state=...)})``, never by
+    ``status.with_em(...)``, which also re-derives its label, never by
     mutation (SDO-03-006).
     """
 

@@ -40,6 +40,7 @@ from typing import cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.actor import VultronService
 from vultron.core.models.base import CoreObject
@@ -90,7 +91,9 @@ def seeded_case(
 ) -> VulnerabilityCase:
     """Case with participant stored in DL and registered on both surfaces."""
     dl.create(participant)
-    case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+    )
     case.add_participant(participant)
     dl.create(case)
     stored = dl.read(_CASE_ID)
@@ -121,7 +124,9 @@ class TestResolveCaseParticipantIdForActor:
         list has the correct entry so the ID should be resolved without error.
         """
         dl.create(participant)
-        case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+        )
         # Populate only case_participants; omit actor_participant_index entry.
         case.case_participants.append(_PARTICIPANT_ID)
         dl.create(case)
@@ -135,7 +140,9 @@ class TestResolveCaseParticipantIdForActor:
         self, dl: SqliteDataLayer, participant: CaseParticipant
     ) -> None:
         """Inline CaseParticipant object in case_participants is resolved."""
-        case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+        )
         # Store participant inline (not as a string ID) — simulates wire-layer
         # round-trips where objects arrive embedded rather than referenced.
         case.case_participants.append(participant)  # type: ignore[arg-type]
@@ -167,7 +174,9 @@ class TestResolveCaseParticipantIdForActor:
         exists but the authoritative list has no matching participant.  Any code
         that only populates the index (without case_participants) is in error.
         """
-        case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+        )
         # Stale index: actor mapped to a participant ID, but case_participants
         # is empty so there is no canonical entry to validate against.
         case.actor_participant_index[_ACTOR_ID] = _PARTICIPANT_ID
@@ -189,7 +198,9 @@ class TestResolveCaseParticipantIdForActor:
         same actor, but they disagree on which participant ID is authoritative.
         """
         dl.create(participant)
-        case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+        )
         # Canonical list has the correct participant.
         case.case_participants.append(_PARTICIPANT_ID)
         # Index deliberately maps to a *different* ID.
@@ -224,7 +235,9 @@ class TestResolveCaseParticipantIdForActor:
         )
         dl.create(p1)
         dl.create(p2)
-        case = VulnerabilityCase(id_=_CASE_ID, name="Test Case")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Test Case"
+        )
         case.case_participants.append(_PARTICIPANT_ID)
         case.case_participants.append(_ALT_PARTICIPANT_ID)
         dl.create(case)
@@ -293,7 +306,9 @@ class TestResolveCaseManagerId:
     ) -> None:
         """ID-only participant stored in DL: returns attributed_to actor ID."""
         cm_dl.create(cm_participant)
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="CM Test")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CM_CASE_ID, name="CM Test"
+        )
         case.case_participants.append(_CM_PARTICIPANT_ID)
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
@@ -307,7 +322,9 @@ class TestResolveCaseManagerId:
         cm_participant: CaseParticipant,
     ) -> None:
         """Inline participant object (bootstrap path): returns attributed_to."""
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="CM Inline Test")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CM_CASE_ID, name="CM Inline Test"
+        )
         case.case_participants.append(cm_participant)  # type: ignore[arg-type]
         result = resolve_case_manager_id(cast(VulnerabilityCase, case), cm_dl)
         assert result == _CM_ACTOR_ID
@@ -319,7 +336,9 @@ class TestResolveCaseManagerId:
     ) -> None:
         """No CASE_MANAGER participant: returns None."""
         cm_dl.create(vendor_participant)
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="No CM Test")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CM_CASE_ID, name="No CM Test"
+        )
         case.case_participants.append(_VENDOR_PARTICIPANT_ID)
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
@@ -332,7 +351,9 @@ class TestResolveCaseManagerId:
         cm_dl: SqliteDataLayer,
     ) -> None:
         """Empty case_participants: returns None."""
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Empty Test")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CM_CASE_ID, name="Empty Test"
+        )
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
         assert isinstance(stored, VulnerabilityCase)
@@ -348,7 +369,9 @@ class TestResolveCaseManagerId:
         """Multiple participants: returns CASE_MANAGER actor ID, skips others."""
         cm_dl.create(cm_participant)
         cm_dl.create(vendor_participant)
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Multi Test")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CM_CASE_ID, name="Multi Test"
+        )
         case.case_participants.append(_VENDOR_PARTICIPANT_ID)
         case.case_participants.append(_CM_PARTICIPANT_ID)
         cm_dl.create(case)
@@ -362,7 +385,11 @@ class TestResolveCaseManagerId:
         cm_dl: SqliteDataLayer,
     ) -> None:
         """ID-only reference with no DL record: skipped, returns None."""
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Missing DL Test")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=_CM_CASE_ID,
+            name="Missing DL Test",
+        )
         case.case_participants.append(_CM_PARTICIPANT_ID)  # not in DL
         cm_dl.create(case)
         stored = cm_dl.read(_CM_CASE_ID)
@@ -377,7 +404,11 @@ class TestResolveCaseManagerId:
     ) -> None:
         """Primary fast-path via actor_participant_index returns actor ID."""
         cm_dl.create(cm_participant)
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Index Fast-Path Test")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=_CM_CASE_ID,
+            name="Index Fast-Path Test",
+        )
         case.case_participants.append(_CM_PARTICIPANT_ID)
         case.actor_participant_index[_CM_ACTOR_ID] = _CM_PARTICIPANT_ID
         cm_dl.create(case)
@@ -430,7 +461,9 @@ class TestFindCaseActorId:
             )
         )
         cm_dl.create(cm_participant)
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Link Path")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CM_CASE_ID, name="Link Path"
+        )
         case.add_participant(cm_participant)
         cm_dl.create(case)
 
@@ -457,7 +490,11 @@ class TestFindCaseActorId:
         cm_dl.create(participant)
         # Present but context-less, exactly as ADR-0041 writes it.
         cm_dl.create(VultronService(id_=case_actor_id, name="CaseActor"))
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Role Is The Marker")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=_CM_CASE_ID,
+            name="Role Is The Marker",
+        )
         case.add_participant(participant)
         cm_dl.create(case)
 
@@ -481,7 +518,11 @@ class TestFindCaseActorId:
         making routing depend on a naming convention (CM-02-013).
         """
         cm_dl.create(cm_participant)
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Ordinary Manager")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=_CM_CASE_ID,
+            name="Ordinary Manager",
+        )
         case.add_participant(cm_participant)
         cm_dl.create(case)
 
@@ -507,7 +548,9 @@ class TestFindCaseActorId:
             case_roles=[CVDRole.CASE_MANAGER],
         )
         cm_dl.create(participant)
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Slugged")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CM_CASE_ID, name="Slugged"
+        )
         case.add_participant(participant)
         cm_dl.create(case)
 
@@ -529,7 +572,13 @@ class TestFindCaseActorId:
                 id_=service_id, name="Legacy CaseActor", context=_CM_CASE_ID
             )
         )
-        cm_dl.create(VulnerabilityCase(id_=_CM_CASE_ID, name="Legacy Path"))
+        cm_dl.create(
+            VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
+                id_=_CM_CASE_ID,
+                name="Legacy Path",
+            )
+        )
 
         assert _find_case_actor_id(cm_dl, _CM_CASE_ID) is None
 
@@ -552,7 +601,11 @@ class TestFindCaseActorId:
             )
         )
         cm_dl.create(vendor_participant)
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Unrelated Proposal")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=_CM_CASE_ID,
+            name="Unrelated Proposal",
+        )
         case.add_participant(vendor_participant)
         cm_dl.create(case)
 
@@ -563,7 +616,9 @@ class TestFindCaseActorId:
     ) -> None:
         """No completed link and no CASE_MANAGER participant → None."""
         cm_dl.create(vendor_participant)
-        case = VulnerabilityCase(id_=_CM_CASE_ID, name="Unresolvable")
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CM_CASE_ID, name="Unresolvable"
+        )
         case.add_participant(vendor_participant)
         cm_dl.create(case)
 

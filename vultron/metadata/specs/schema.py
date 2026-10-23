@@ -131,8 +131,27 @@ class AdrStatus(StrEnum):
     SUPERSEDED = "superseded"
 
 
+class RelationEnd(StrEnum):
+    """Which end of a relationship is the more general (upstream) requirement.
+
+    A relationship is recorded on its *source* requirement and names its
+    *target* (SR-13-012). Pointing every edge from its downstream end to its
+    upstream end is what lets the requirements graph answer "what does a change
+    to this requirement affect?" (SR-13-014).
+    """
+
+    TARGET = "target"
+    SOURCE = "source"
+    NEITHER = "neither"
+
+
 class RelationType(StrEnum):
-    """Relationship types between spec requirements (SR-02-004)."""
+    """Relationship types between spec requirements (SR-02-004).
+
+    The docstring's member list below is generated from
+    :data:`RELATION_DEFINITIONS`, which a test checks against SR-13-001
+    through SR-13-011, the one statement of what each type means.
+    """
 
     IMPLEMENTS = "implements"
     SUPERSEDES = "supersedes"
@@ -145,6 +164,91 @@ class RelationType(StrEnum):
     PART_OF = "part_of"
     CONSTRAINS = "constrains"
     SATISFIES = "satisfies"
+
+    @property
+    def definition(self) -> str:
+        """What a relationship of this type asserts (SR-13-001..011)."""
+        return RELATION_DEFINITIONS[self][0]
+
+    @property
+    def upstream_end(self) -> RelationEnd:
+        """The end that is the more general (upstream) requirement."""
+        return RELATION_DEFINITIONS[self][1]
+
+
+#: The meaning of each relationship type and which end is upstream. The text
+#: is SR-13-001 through SR-13-011 verbatim; ``test_schema.py`` asserts the two
+#: agree and that every member has an entry.
+RELATION_DEFINITIONS: dict[RelationType, tuple[str, RelationEnd]] = {
+    RelationType.IMPLEMENTS: (
+        "An `implements` relationship recorded on A naming B MUST mean that A "
+        "states the concrete mechanism by which B is met; B is the more "
+        "general requirement.",
+        RelationEnd.TARGET,
+    ),
+    RelationType.SUPERSEDES: (
+        "A `supersedes` relationship recorded on A naming B MUST mean that A "
+        "replaces B, wholly or in a case A names, so that where A applies B "
+        "no longer binds; B is the earlier, upstream requirement.",
+        RelationEnd.TARGET,
+    ),
+    RelationType.EXTENDS: (
+        "An `extends` relationship recorded on A naming B MUST mean that A adds "
+        "obligations to B without narrowing or changing what B already "
+        "requires; B is the more general requirement.",
+        RelationEnd.TARGET,
+    ),
+    RelationType.DEPENDS_ON: (
+        "A `depends_on` relationship recorded on A naming B MUST mean that A "
+        "cannot be met unless B is also met; B is the upstream requirement.",
+        RelationEnd.TARGET,
+    ),
+    RelationType.CONFLICTS: (
+        "A `conflicts` relationship recorded on A naming B MUST mean that A and "
+        "B cannot both be met as written; neither end is upstream.",
+        RelationEnd.NEITHER,
+    ),
+    RelationType.REFINES: (
+        "A `refines` relationship recorded on A naming B MUST mean that A "
+        "restates B for a narrower case or with more precision, so that "
+        "meeting A in that case meets B; B is the more general requirement.",
+        RelationEnd.TARGET,
+    ),
+    RelationType.DERIVES_FROM: (
+        "A `derives_from` relationship recorded on A naming B MUST mean that A "
+        "states a consequence that follows from B without being a narrower "
+        "case of B; B is the upstream requirement.",
+        RelationEnd.TARGET,
+    ),
+    RelationType.VERIFIES: (
+        "A `verifies` relationship recorded on A naming B MUST mean that A "
+        "states a check that confirms B is met; B is the upstream "
+        "requirement.",
+        RelationEnd.TARGET,
+    ),
+    RelationType.PART_OF: (
+        "A `part_of` relationship recorded on A naming B MUST mean that A is "
+        "one component of B, which is met only when all of its parts are met; "
+        "B is the more general requirement.",
+        RelationEnd.TARGET,
+    ),
+    RelationType.CONSTRAINS: (
+        "A `constrains` relationship recorded on A naming B MUST mean that A "
+        "bounds how B may be met without B being a narrower case of A; A is "
+        "the more general requirement.",
+        RelationEnd.SOURCE,
+    ),
+    RelationType.SATISFIES: (
+        "A `satisfies` relationship recorded on A naming B MUST mean that "
+        "meeting A is sufficient to meet B; B is the upstream requirement.",
+        RelationEnd.TARGET,
+    ),
+}
+
+RelationType.__doc__ = (RelationType.__doc__ or "") + "".join(
+    f"\n    ``{member.value}``: {member.definition}\n"
+    for member in RelationType
+)
 
 
 class TriggerType(StrEnum):

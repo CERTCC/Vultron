@@ -30,6 +30,7 @@ from typing import NamedTuple
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
@@ -92,7 +93,7 @@ def _make_base_case(
     case_manager_actor_id: str,
 ) -> as_VulnerabilityCase:
     """Return a case with one Case Manager participant; no vendor yet."""
-    case = as_VulnerabilityCase(name="Test Case")
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
     cm_participant = as_CaseParticipant(
         attributed_to=case_manager_actor_id,
         context=case.id_,

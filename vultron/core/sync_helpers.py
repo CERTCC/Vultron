@@ -4,18 +4,65 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from vultron.core.models._helpers import parse_published
+from pydantic import ValidationError
+
+from vultron.core.models._helpers import (
+    parse_published,
+    project_wire_snapshot_to_core,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.predicates.addressing import snapshot_actor_id
-from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.errors import (
+    VultronEntryRefusedError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def sorted_case_ledger_entries(
+    datalayer: CasePersistence, case_id: str
+) -> list[CaseLedgerEntry]:
+    """Return the case's canonical ledger entries, ascending by ``log_index``."""
+    entries = [
+        obj
+        for obj in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+    ]
+    entries.sort(key=lambda log_entry: log_entry.log_index)
+    return entries
+
+
+def case_status_from_snapshot(status_data: Any) -> CaseStatus:
+    """The ``CaseStatus`` an ``add_case_status_to_case`` entry carries inline.
+
+    Projected, not validated raw: the snapshot is AS2-shaped, and its
+    timestamps are the CASE_MANAGER's to carry (CLP-15-007).
+
+    Raises:
+        VultronValidationError: *status_data* is not an inline status with an
+            id, or is not a valid ``CaseStatus`` (ARCH-15-001).
+    """
+    if not isinstance(status_data, dict) or not status_data.get("id"):
+        raise VultronValidationError(
+            "add_case_status_to_case entry carries no inline CaseStatus"
+        )
+    try:
+        return CaseStatus.model_validate(
+            project_wire_snapshot_to_core(CaseStatus, status_data)
+        )
+    except ValidationError as exc:
+        raise VultronValidationError(
+            f"CaseStatus '{status_data['id']}' in the entry is malformed: {exc}"
+        ) from exc
 
 
 def _get_case_genesis_hash(case_id: str, dl: CasePersistence) -> str:
@@ -206,18 +253,40 @@ def store_ledger_entry(
     carries the case names the position before the entry, and no entry's hash
     depends on itself.
 
+    The position never moves back.  A replica whose case a copy seeded or
+    replaced ahead of its chain stores the entries at or before the copy's
+    position as idempotent no-ops (SYNC-16-007): the entry is stored and the
+    case stays at the copy's position, which already reflects it.  An entry
+    at the position's index with another hash is refused, not stored: the
+    chain would name one entry there and the case another.
+
     Returns:
         The case as stored, at its new position.
 
     Raises:
         VultronNotFoundError: *dl* holds no case for the entry; a ledger entry
             belongs to a stored case, whose genesis hash anchors it.
+        VultronEntryRefusedError: *entry* is at the index the case's position
+            names, with another hash (SYNC-16-007).
     """
     with dl.transaction():
         case = dl.read_case(entry.case_id)
         if case is None:
             raise VultronNotFoundError("VulnerabilityCase", entry.case_id)
+        held = case.ledger_position
+        if (
+            entry.log_index == held.log_index
+            and entry.entry_hash != held.entry_hash
+        ):
+            raise VultronEntryRefusedError(
+                f"ledger entry '{entry.id_}' is at index {entry.log_index}"
+                f" with hash {entry.entry_hash:.16}…, but case"
+                f" '{entry.case_id}' names {held.entry_hash:.16}… there: the"
+                " chains conflict (SYNC-16-007)"
+            )
         dl.save(entry)
+        if entry.log_index <= held.log_index:
+            return case
         case.ledger_position = LedgerPosition(
             log_index=entry.log_index, entry_hash=entry.entry_hash
         )

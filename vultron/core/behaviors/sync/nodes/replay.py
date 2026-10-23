@@ -63,6 +63,19 @@ from vultron.errors import (
 logger = logging.getLogger(__name__)
 
 
+def rejected_case_id(activity: Any, node_name: str) -> str:
+    """Return the case a ``Reject(CaseLedgerEntry)`` asks to have replayed.
+
+    The rejected entry's case, or the ``target`` of the Reject that names no
+    entry because its sender holds none (SYNC-16-007).  Raises
+    ``VultronError`` when the activity names neither (BT-HELPER-01).
+    """
+    case_id = getattr(activity, "rejected_case_id", None)
+    if isinstance(case_id, str) and case_id:
+        return case_id
+    return require_rejected_entry(activity, node_name).case_id
+
+
 def require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
     """Return the ``CaseLedgerEntry`` a ``Reject(CaseLedgerEntry)`` carries.
 
@@ -138,12 +151,12 @@ class FindCaseActorNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        entry = require_rejected_entry(self.activity, self.name)
-        self._set_output("case_id", entry.case_id)
+        case_id = rejected_case_id(self.activity, self.name)
+        self._set_output("case_id", case_id)
 
         # Regime 1 (ADR-0087): a peer is asking us to replay this case's log,
         # so the case must be here — its absence is an anomaly, not a branch.
-        case, failure = self._require_case(entry.case_id)
+        case, failure = self._require_case(case_id)
         if failure is not None:
             return failure
 
@@ -152,7 +165,7 @@ class FindCaseActorNode(DataLayerActionWithPorts):
             self.logger.warning(
                 "%s: no CASE_MANAGER participant for case '%s'",
                 self.name,
-                entry.case_id,
+                case_id,
             )
             return Status.FAILURE
 
@@ -167,9 +180,7 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
     }
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
-        "replay_entry": PortInformation(
-            data_type=CaseLedgerEntry, required=True
-        ),
+        "replay_case_id": PortInformation(data_type=str, required=True),
         "replay_peer_id": PortInformation(data_type=str, required=True),
         "replay_case_ledger_entries": PortInformation(
             data_type=object, required=True
@@ -180,7 +191,7 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             "activity": "/activity",
-            "replay_entry": "/replay_entry",
+            "replay_case_id": "/replay_case_id",
             "replay_peer_id": "/replay_peer_id",
             "replay_case_ledger_entries": "/replay_case_ledger_entries",
         }
@@ -194,7 +205,7 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         activity = self.activity
-        entry = require_rejected_entry(activity, self.name)
+        case_id = rejected_case_id(activity, self.name)
         peer_id = activity.actor_id
         if not peer_id:
             raise VultronError(
@@ -202,10 +213,10 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
             )
 
         entries = sorted_case_ledger_entries(
-            cast(CasePersistence, self.datalayer), entry.case_id
+            cast(CasePersistence, self.datalayer), case_id
         )
 
-        self._set_output("replay_entry", entry)
+        self._set_output("replay_case_id", case_id)
         self._set_output("replay_peer_id", peer_id)
         self._set_output("replay_case_ledger_entries", entries)
         return Status.SUCCESS
@@ -272,9 +283,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
         "case_actor_id": PortInformation(data_type=str, required=True),
-        "replay_entry": PortInformation(
-            data_type=CaseLedgerEntry, required=True
-        ),
+        "replay_case_id": PortInformation(data_type=str, required=True),
         "replay_peer_id": PortInformation(data_type=str, required=True),
         "replay_case_ledger_entries": PortInformation(
             data_type=object, required=True
@@ -287,7 +296,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             "case_actor_id": "/case_actor_id",
-            "replay_entry": "/replay_entry",
+            "replay_case_id": "/replay_case_id",
             "replay_peer_id": "/replay_peer_id",
             "replay_case_ledger_entries": "/replay_case_ledger_entries",
             "replay_from_index": "/replay_from_index",
@@ -297,7 +306,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
     def initialise(self) -> None:
         super().initialise()
         self.case_actor_id_bb: str = self.get_input("case_actor_id")
-        self.replay_entry = self.get_input("replay_entry")
+        self.replay_case_id: str = self.get_input("replay_case_id")
         self.replay_peer_id: str = self.get_input("replay_peer_id")
         self.replay_case_ledger_entries = self.get_input(
             "replay_case_ledger_entries"
@@ -319,7 +328,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
                 f"{self.name}: sync_port must be injected to replay entries"
             )
 
-        entry = cast(CaseLedgerEntry, self.replay_entry)
+        case_id = self.replay_case_id
         peer_id = cast(str, self.replay_peer_id)
         entries = cast(list[CaseLedgerEntry], self.replay_case_ledger_entries)
         from_index = cast(int, self.replay_from_index)
@@ -331,10 +340,10 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         # pause starts at that gap.
         try:
             withheld = peer_is_withheld(
-                datalayer, case_id=entry.case_id, peer_id=peer_id
+                datalayer, case_id=case_id, peer_id=peer_id
             )
             paused = withheld and peer_is_inactive_joined(
-                datalayer, case_id=entry.case_id, peer_id=peer_id
+                datalayer, case_id=case_id, peer_id=peer_id
             )
             # CM-23-004: a peer at RM.CLOSED is owed the entries that record
             # its own closure and nothing after them, so its replay stops at
@@ -344,7 +353,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
                 if withheld
                 else closed_peer_cutoff(
                     datalayer,
-                    case_id=entry.case_id,
+                    case_id=case_id,
                     peer_id=peer_id,
                     entries=entries,
                 )
@@ -357,7 +366,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             if paused:
                 record_embargo_pause(
                     datalayer,
-                    case_id=entry.case_id,
+                    case_id=case_id,
                     peer_id=peer_id,
                     from_index=from_index + 1,
                 )
@@ -366,7 +375,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
                 " '%s'; replay withheld (CM-10-004, CM-10-005)",
                 self.name,
                 peer_id,
-                entry.case_id,
+                case_id,
             )
             return Status.SUCCESS
         if cutoff is not None and cutoff <= from_index:
@@ -376,7 +385,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
                 " (CM-23-004)",
                 self.name,
                 peer_id,
-                entry.case_id,
+                case_id,
             )
             return Status.SUCCESS
 
@@ -387,7 +396,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         from_hash = replay_from_hash(entries, from_index)
         if not should_replay(
             cast(CasePersistence, self.datalayer),
-            case_id=entry.case_id,
+            case_id=case_id,
             peer_id=peer_id,
             from_hash=from_hash,
             log=self.logger,
@@ -413,14 +422,14 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         # index needs no resend either: the Reject reports a contiguous prefix
         # through from_index (SYNC-10-004), so the replica already holds every
         # entry withheld below it.
-        clear_embargo_pause(datalayer, case_id=entry.case_id, peer_id=peer_id)
+        clear_embargo_pause(datalayer, case_id=case_id, peer_id=peer_id)
 
         # Record the position only when entries actually went out; a
         # zero-entry replay must not start a cooldown (SYNC-15-003).
         if replayed:
             record_replay(
                 cast(CasePersistence, self.datalayer),
-                case_id=entry.case_id,
+                case_id=case_id,
                 peer_id=peer_id,
                 from_hash=from_hash,
             )
@@ -431,7 +440,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             self.name,
             replayed,
             peer_id,
-            entry.case_id,
+            case_id,
             skipped,
         )
         return Status.SUCCESS

@@ -4,6 +4,10 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import (
+    CASE_OWNER_ID,
+    CONSTRUCTED_CASE_OWNERSHIP,
+)
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -51,7 +55,10 @@ def _run(dl, node: py_trees.behaviour.Behaviour):
 def test_inline_participants_are_stored_as_their_own_records(dl):
     participant = _participant()
     case = as_VulnerabilityCase.model_construct(
-        id_=_CASE_ID, name="snapshot", case_participants=[participant]
+        **CONSTRUCTED_CASE_OWNERSHIP,
+        id_=_CASE_ID,
+        name="snapshot",
+        case_participants=[participant],
     )
 
     result = _run(dl, StoreEmbeddedParticipantsNode(case, _CASE_ID))
@@ -62,6 +69,7 @@ def test_inline_participants_are_stored_as_their_own_records(dl):
 
 def test_a_case_naming_an_unheld_embargo_is_refused(dl):
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=_CASE_ID,
         name="snapshot",
         embargo_register=register(active=f"{_CASE_ID}/embargo_events/unheld"),
@@ -75,7 +83,9 @@ def test_a_case_naming_an_unheld_embargo_is_refused(dl):
 
 
 def test_a_case_naming_no_embargo_passes(dl):
-    case = as_VulnerabilityCase(id_=_CASE_ID, name="snapshot")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="snapshot"
+    )
 
     result = _run(dl, HoldCarriedEmbargoNode(case, _CASE_ID))
 
@@ -93,7 +103,9 @@ def test_engage_tree_holds_the_snapshot_embargo_and_stores_no_records():
     participant's view of them is no entry a replica can copy (CLP-07-013,
     CM-23-016).
     """
-    case = as_VulnerabilityCase(id_=_CASE_ID, name="snapshot")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="snapshot"
+    )
 
     with_case = create_engage_case_tree(
         _CASE_ID,

@@ -28,6 +28,7 @@ from py_trees.behaviours import Failure
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import (
     hold_deferred,
     received_event,
@@ -206,7 +207,9 @@ def test_intake_writes_no_core_record_from_the_letter(scenario):
 
 @pytest.mark.spec("PCR-03-004")
 def test_inlined_case_does_not_become_a_replica(scenario):
-    case = VulnerabilityCase(id_=CASE_ID, name="not mine to seed")
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="not mine to seed"
+    )
     activity = VultronActivity(
         id_="https://example.org/activities/announce-1",
         type_="Announce",
@@ -436,7 +439,9 @@ def test_refused_participant_status_leaves_the_archive_readable():
         attributed_to=receiver,
     )
     dl.create(manager)
-    case = as_VulnerabilityCase(id_=case_id, name="Intake Test Case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=case_id, name="Intake Test Case"
+    )
     case.case_participants.append(manager.id_)
     case.actor_participant_index[receiver] = manager.id_
     dl.create(case)

@@ -29,6 +29,7 @@ from typing import Any, cast
 import pytest
 
 from test.support import ledger_rebuild
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import (
     assert_rebuilds_from_ledger,
@@ -146,6 +147,7 @@ def _terminated(cause: bool, reason: TerminationReason) -> VulnerabilityCase:
         }
     return VulnerabilityCase.model_validate(
         {
+            "attributed_to": CASE_OWNER_ID,
             "id_": "https://example.org/cases/rebuild-register",
             "name": "Register",
             "embargo_register": [
@@ -246,7 +248,9 @@ def test_a_case_status_no_entry_records_is_caught():
 def test_creation_records_stop_at_the_first_act():
     """Only the leading creation entries seed the store; acts are replayed."""
     case = VulnerabilityCase(
-        id_="https://example.org/cases/rebuild-seed", name="Seed"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/rebuild-seed",
+        name="Seed",
     )
     entries = [
         CaseLedgerEntry.model_construct(

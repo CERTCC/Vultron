@@ -26,6 +26,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
@@ -120,7 +121,9 @@ def case_with_participant(dl, actor):
     The participant is pre-seeded to RM.VALID so that engage/defer triggers
     can apply valid VALID → ACCEPTED / VALID → DEFERRED transitions.
     """
-    case_obj = as_VulnerabilityCase(name="TEST-CASE-001")
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-CASE-001"
+    )
     participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
@@ -143,7 +146,9 @@ def case_with_participant(dl, actor):
 @pytest.fixture
 def case_without_participant(dl):
     """Create a as_VulnerabilityCase with a Case Manager but no participant for the actor."""
-    case_obj = as_VulnerabilityCase(name="TEST-CASE-NO-PARTICIPANT")
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-CASE-NO-PARTICIPANT"
+    )
     dl.create(case_obj)
     _add_case_manager(case_obj, dl)
     return case_obj
@@ -429,7 +434,9 @@ def test_trigger_defer_case_leaves_the_participant_to_the_case_manager(
 @pytest.fixture
 def owner_case_under_embargo(dl, actor):
     """A case whose CASE_OWNER is *actor*, with an embargo in force."""
-    case_obj = as_VulnerabilityCase(name="TEST-CASE-OWNER-EMBARGOED")
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-CASE-OWNER-EMBARGOED"
+    )
     embargo = as_EmbargoEvent(
         id_=f"{case_obj.id_}/embargo_events/e1",
         context=case_obj.id_,
@@ -684,7 +691,9 @@ def short_id_env(report):
     store.create(actor_obj)
     store.create(report)
 
-    case_obj = as_VulnerabilityCase(name="TEST-CASE-SHORT-ID")
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-CASE-SHORT-ID"
+    )
     participant = as_CaseParticipant(
         attributed_to=actor_id,
         context=case_obj.id_,

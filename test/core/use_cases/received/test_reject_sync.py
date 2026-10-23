@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -260,7 +261,9 @@ def _seed_case(dl: SqliteDataLayer) -> None:
         attributed_to=PARTICIPANT_URI,
     )
     dl.create(peer)
-    case = as_VulnerabilityCase(id_=CASE_URI, name="Reject Sync Case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_URI, name="Reject Sync Case"
+    )
     case.case_participants.extend([manager.id_, peer.id_])
     case.actor_participant_index[CASE_ACTOR_URI] = manager.id_
     case.actor_participant_index[PARTICIPANT_URI] = peer.id_

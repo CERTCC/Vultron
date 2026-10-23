@@ -29,7 +29,6 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
     resolve_case_replica,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.participants.authority import resolve_case_manager_id
 from vultron.core.participants.recipients import (
@@ -96,7 +95,7 @@ class IntroduceCaseManagerToReporterNode(_EmitSingleActivityBase):
         """
         assert self.datalayer is not None
         assert self.actor_id is not None
-        if _as_id(case.attributed_to) != self.actor_id:
+        if case.attributed_to != self.actor_id:
             return "this actor is not the case owner"
         manager_id = resolve_case_manager_id(case, self.datalayer)
         if manager_id is None:

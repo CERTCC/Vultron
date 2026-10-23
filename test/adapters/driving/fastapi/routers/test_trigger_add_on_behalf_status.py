@@ -30,6 +30,7 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.trigger_results import recipient_ids
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
 from vultron.adapters.driving.fastapi.routers import (
@@ -78,7 +79,9 @@ def client(dl) -> Iterator[TestClient]:
 @pytest.fixture
 def managed_case(dl, actor) -> as_VulnerabilityCase:
     """A case the ``actor`` fixture manages; no vendor or deployer yet."""
-    case = as_VulnerabilityCase(name="On-Behalf Case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="On-Behalf Case"
+    )
     cm = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case.id_,

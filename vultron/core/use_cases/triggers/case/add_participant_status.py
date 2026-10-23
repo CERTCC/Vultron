@@ -37,8 +37,47 @@ from vultron.core.use_cases.triggers._helpers import (
 from vultron.core.use_cases.triggers.requests import (
     AddParticipantStatusTriggerRequest,
 )
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
+
+
+def vf_steps_to(
+    dl: CasePersistence, *, actor_id: str, case_id: str, target: CS_vf
+) -> list[CS_vf]:
+    """The VF steps *actor_id* still takes to reach *target*, in order.
+
+    Each step is one adjacent move on the ``vf → Vf → VF`` ladder, measured
+    from the actor's current ``vf`` in *dl*, so a step the actor has already
+    taken is not sent again as a no-change confirmation (#5125).  The list
+    never starts with ``vf``, the ladder's initial state, and is empty when
+    the actor is already at or past *target*.
+
+    An actor, case or participant record *dl* does not hold gets the whole
+    ladder: the trigger that sends the first step is the one that refuses it
+    and says why, as it does for any other request (ADR-0087).
+
+    Raises:
+        VultronValidationError: the actor's latest status is not core-shaped
+            (ARCH-15-001).
+    """
+    ladder = list(CS_vf)
+    current_vf: CS_vf | None = None
+    try:
+        actor = resolve_actor(actor_id, dl)
+        case = resolve_case(case_id, dl)
+    except VultronNotFoundError:
+        actor = case = None
+    participant_id = (
+        case.actor_participant_index.get(actor.id_)
+        if actor is not None and case is not None
+        else None
+    )
+    if participant_id is not None:
+        current_vf = resolve_participant_state_from_dl(dl, participant_id)[1]
+    # A participant with no ``vf`` has no step to leave; its first is ``Vf``.
+    start = ladder.index(current_vf if current_vf is not None else CS_vf.vf)
+    return ladder[start + 1 : ladder.index(target) + 1]
 
 
 class SvcAddParticipantStatusUseCase(SvcBTTriggerBase[StatusResult]):

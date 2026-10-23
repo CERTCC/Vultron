@@ -26,6 +26,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -169,7 +170,10 @@ class TestEmbargoMessagesForUnknownCaseAreRefused:
         )
         activity = factory(
             embargo,
-            target=as_VulnerabilityCase(id_="https://example.org/cases/nope"),
+            target=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
+                id_="https://example.org/cases/nope",
+            ),
             actor=_VENDOR,
             to=[_COORD],
         )
@@ -225,7 +229,9 @@ class TestFailedTeardownIsRefused:
 
         activity = remove_embargo_from_case_activity(
             embargo,
-            origin=as_VulnerabilityCase(id_=case.id_),
+            origin=as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=case.id_
+            ),
             actor=_VENDOR,
             to=[_COORD],
             reason=TerminationReason.EARLY,

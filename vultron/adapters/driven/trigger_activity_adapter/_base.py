@@ -218,7 +218,16 @@ def _carried_embargo(dl: CasePersistence, case: Any, case_id: str) -> Any:
 def _carried_list(
     dl: CasePersistence, case: Any, case_id: str, field_name: str
 ) -> list[Any] | None:
-    """*field_name*'s items with every resolvable bare id replaced by its object.
+    """*field_name*'s items, each carried as the record the store holds now.
+
+    A bare id is replaced by its object.  An item the case already holds
+    inline is replaced by the stored record of the same id too: an inline
+    snapshot is the object as it was when the case took it in, and a copy
+    must carry it as it is now, because a replica that judges the copy
+    current replaces its own participant records with what the copy carries
+    (SYNC-16-006, PCR-02-004).  A replica keeps a report it already holds
+    and stores one it lacks, so a report is carried as stored too.  An
+    inline item the store does not hold is carried as it is.
 
     Returns ``None`` when nothing changed, so the caller copies nothing.
     """
@@ -228,7 +237,10 @@ def _carried_list(
     carried: list[Any] = []
     changed = False
     for item in items:
-        stored = dl.read(item) if isinstance(item, str) and item else None
+        item_id = item if isinstance(item, str) else getattr(item, "id_", None)
+        stored = (
+            dl.read(item_id) if isinstance(item_id, str) and item_id else None
+        )
         if stored is None:
             if isinstance(item, str):
                 logger.warning(

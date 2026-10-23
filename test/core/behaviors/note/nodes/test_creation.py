@@ -18,6 +18,7 @@
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.note.nodes.creation import (
@@ -106,7 +107,11 @@ class TestCreateNoteNode:
 class TestAttachNoteFromResultNode:
     @pytest.mark.spec("CM-02-007")
     def test_attaches_note_id_from_result_out(self, bridge, dl):
-        dl.create(as_VulnerabilityCase(id_=CASE_ID, name="Test Case"))
+        dl.create(
+            as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Test Case"
+            )
+        )
         result_out = {"note_id": NOTE_ID}
         node = AttachNoteFromResultNode(case_id=CASE_ID, result_out=result_out)
         result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)

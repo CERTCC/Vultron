@@ -32,6 +32,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case import VulnerabilityCase
@@ -96,7 +97,7 @@ _CASE_ACTOR_URI = "https://example.org/actors/case-actor"
 
 @pytest.fixture
 def sample_case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(name="Test Case")
+    return as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
 
 
 @pytest.fixture
@@ -759,7 +760,9 @@ def test_reply_refuses_a_received_activity_that_is_not_an_invite(
     offer = recommend_actor_activity(
         sample_actor,
         target=as_VulnerabilityCase(
-            id_="https://example.org/cases/c1", name="Case"
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/c1",
+            name="Case",
         ),
         actor=_ACTOR_URI,
     )
@@ -1274,7 +1277,11 @@ def test_ownership_reply_embeds_the_offer_as_its_sender_sent_it(factory):
     """A received ownership Offer, parsed from its archived body, is
     validated into the Offer class the reply embeds, and embedded as the
     body that arrived: its answer deadline and ``cc`` included (ADR-0149)."""
-    case = as_VulnerabilityCase(id_="https://example.org/cases/c1", name="C")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/c1",
+        name="C",
+    )
     offer = offer_case_ownership_transfer_activity(
         case, target=_ACTOR_URI, actor=_ACTOR_URI, to=[_ACTOR_URI]
     )

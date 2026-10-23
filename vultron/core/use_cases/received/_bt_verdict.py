@@ -54,6 +54,7 @@ from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.core.behaviors.case.nodes.addressee import (
     ActivityAddressedToReceiverNode,
 )
+from vultron.core.behaviors.case.nodes.case_copy import CaseCopyNotStaleNode
 from vultron.core.behaviors.case.nodes.conditions import (
     CheckIsCaseManagerNode,
 )
@@ -351,6 +352,25 @@ def embargo_answer_repeat_verdict(
     if guard is not None and guard.is_repeat:
         return HandlerResult.skipped(
             guard.feedback_message or "embargo answer repeated"
+        )
+    return verdict
+
+
+def stale_case_copy_verdict(
+    tree: py_trees.behaviour.Behaviour | _HasRoot,
+    verdict: HandlerResult,
+) -> HandlerResult:
+    """Report a case copy the replica's chain is past as ``SKIPPED``.
+
+    :class:`~vultron.core.behaviors.case.nodes.case_copy.CaseCopyNotStaleNode`
+    fails with ``is_stale`` set when the replica already holds entries past
+    the copy's ledger position, so the case is left unchanged.  That is the
+    benign no-op of a late copy, not a refusal (SYNC-16-006, HP-01-003).
+    """
+    guard = find_node(tree, CaseCopyNotStaleNode)
+    if guard is not None and guard.failed_as_repeat:
+        return HandlerResult.skipped(
+            guard.feedback_message or "case copy is stale"
         )
     return verdict
 
@@ -791,6 +811,7 @@ def applied_or_raise(
 
 
 __all__ = [
+    "stale_case_copy_verdict",
     "addressee_refusal",
     "door_refusal",
     "applied_or_raise",

@@ -193,17 +193,6 @@ def with_genesis(
     )
 
 
-def without_owner(case: VulnerabilityCase) -> VulnerabilityCase:
-    """*case* as a record that lost its owner after construction.
-
-    A case without an owner has no ledger, so no position (CLP-08-002); the
-    two go together, so a test of an ownerless case drops both.
-    """
-    return case.model_copy(
-        update={"attributed_to": None, "ledger_position": None}
-    )
-
-
 def is_consent_row_update(
     entry: CaseLedgerEntry,
     state: EmbargoConsentState,

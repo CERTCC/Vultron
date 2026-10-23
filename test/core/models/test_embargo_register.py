@@ -417,6 +417,51 @@ def test_every_register_step_stamps_the_current_status() -> None:
         assert case.current_status.em.state is em
 
 
+def test_every_register_step_relabels_the_stamped_status() -> None:
+    """The stamped copy's label names its new EM, not the old one (#5124)."""
+    case = _case()
+    for step in [
+        lambda: propose(case, A),
+        lambda: activate(case, A),
+        lambda: propose(case, B),
+        lambda: reject(case, B),
+        lambda: terminate(case),
+    ]:
+        step()
+        status = case.current_status
+        assert status.name == f"{status.em.state.name} {status.pxa.state.name}"
+
+
+def test_construction_relabels_the_stamped_status() -> None:
+    case = _case(
+        embargo_register=[_entry(A, S.ACTIVE)],
+        case_statuses=[
+            CaseStatus(
+                context=CASE_ID,
+                attributed_to=OWNER,
+                em=EmDimension(state=EM.NONE),
+            )
+        ],
+    )
+    assert case.current_status.name == "ACTIVE pxa"
+
+
+def test_the_em_stamp_keeps_an_explicit_name() -> None:
+    """An explicit label wins, as it does at construction (CaseStatus._set_name)."""
+    case = _case(
+        embargo_register=[_entry(A, S.ACTIVE)],
+        case_statuses=[
+            CaseStatus(
+                context=CASE_ID,
+                attributed_to=OWNER,
+                name="chosen",
+                em=EmDimension(state=EM.NONE),
+            )
+        ],
+    )
+    assert case.current_status.name == "chosen"
+
+
 def test_an_appended_status_cannot_carry_another_em() -> None:
     case = _case()
     propose(case, A)

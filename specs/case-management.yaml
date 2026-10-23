@@ -1559,10 +1559,6 @@ groups:
       `VulnerabilityCase` directly.  The vendor stores the report and waits for
       `Create(VulnerabilityCase)` from the CASE_MANAGER.  CM-12-001 applies only in
       single-actor deployments where the vendor IS the CASE_MANAGER.
-    relationships:
-    - rel_type: supersedes
-      spec_id: CM-22-001
-      note: CM-22-001 (ADR-0041) is the authoritative replacement for multi-actor deployments
     stories:
     - story_2022_012
     - story_2022_038
@@ -1744,13 +1740,6 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CM-12-001
-    - rel_type: refines
-      spec_id: CM-12-002
-    - rel_type: refines
-      spec_id: CM-12-004
-    - rel_type: supersedes
-      spec_id: CM-22-001
-      note: CM-22-001 (ADR-0041) moves case creation to the CASE_MANAGER for multi-actor deployments
     stories:
     - story_2022_012
     - story_2022_046
@@ -3785,6 +3774,12 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CP-09-001
+    - rel_type: supersedes
+      spec_id: CM-12-001
+      note: In multi-actor deployments, where the CASE_MANAGER creates the case (ADR-0041)
+    - rel_type: supersedes
+      spec_id: CM-14-001
+      note: In multi-actor deployments, where the CASE_MANAGER creates the case (ADR-0041)
     adr:
     - ADR-0023
     - ADR-0041
@@ -5940,7 +5935,7 @@ groups:
     verification: >-
       A received-side test removes a signatory and asserts its consent rows are unchanged.
     relationships:
-    - rel_type: constrains
+    - rel_type: extends
       spec_id: CM-18-005
     adr:
     - ADR-0116
@@ -6268,7 +6263,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-10-005
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-14-010
     adr:
     - ADR-0125
@@ -6291,7 +6286,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: VP-10-005
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-14-010
     adr:
     - ADR-0125
@@ -6361,11 +6356,11 @@ groups:
     stories:
     - story_2022_104
     relationships:
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-14-001
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-14-011
-    - rel_type: constrains
+    - rel_type: supersedes
       spec_id: CM-14-012
     - rel_type: refines
       spec_id: CM-10-004
@@ -6498,7 +6493,7 @@ groups:
     stories:
     - story_2022_104
     relationships:
-    - rel_type: constrains
+    - rel_type: extends
       spec_id: CM-24-006
     adr:
     - ADR-0125

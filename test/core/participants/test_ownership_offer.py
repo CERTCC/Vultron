@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.ownership_offer import (
@@ -42,7 +43,11 @@ _T0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
 @pytest.fixture
 def dl() -> SqliteDataLayer:
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=_MANAGER)
-    store.create(as_VulnerabilityCase(id_=_CASE_ID, name="Ownership offer"))
+    store.create(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="Ownership offer"
+        )
+    )
     return store
 
 

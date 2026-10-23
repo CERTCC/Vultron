@@ -23,8 +23,9 @@ the port refused them until ARCH-25-004 (ADR-0099) moved them onto ``CoreObject`
 Later ``main`` changes were then regenerated in: ``CoreActorCollection`` was
 deleted (#3563), actors now derive an absent inbox/outbox from their id
 (#3616), a participant carries its ``joined`` fact (#4046), and a case's
-embargoes live in its ``embargoRegister`` (ADR-0122, #4290), and a consent row
-is an AS2 object of its own (ADR-0122, #4713).
+embargoes live in its ``embargoRegister`` (ADR-0122, #4290), a consent row
+is an AS2 object of its own (ADR-0122, #4713), and a case always names its
+owner, so it carries its seeded status and genesis hash (#5092).
 
 Two value classes are generated afresh on every construction by nested
 defaults and are normalised before comparison: minted ``urn:uuid:`` ids and

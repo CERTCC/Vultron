@@ -32,6 +32,10 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.services.case_copy import (
+    entry_conflicts_with_case_position,
+    entry_reflected_by_case_copy,
+)
 from vultron.core.sync_helpers import is_ledger_fresh_for_case
 from vultron.errors import VultronError
 
@@ -76,6 +80,100 @@ class CheckLedgerEntryAlreadyStoredNode(DataLayerConditionWithPorts):
             "%s: log entry '%s' already stored", self.name, entry.id_
         )
         return Status.SUCCESS
+
+
+class EntryReflectedByCaseCopyNode(DataLayerConditionWithPorts):
+    """Gate: the case copy this replica holds already reflects this entry.
+
+    ``SUCCESS`` for an entry at or before the case's stored ledger position,
+    which a copy that seeded or replaced the case put ahead of the chain
+    (SYNC-16-007,
+    :func:`~vultron.core.services.case_copy.entry_reflected_by_case_copy`):
+    its effects are already in the case file, so the tree stores it without
+    applying them again, an idempotent no-op rather than a refusal.  The
+    entry still extends the chain, which is checked before this runs, so the
+    chain catches up to the copy's position.  ``FAILURE`` for any other
+    entry, which is applied as usual.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        entry = _require_log_entry(self.activity, self.name)
+        if not entry_reflected_by_case_copy(entry, self.datalayer):
+            return Status.FAILURE
+        self.logger.info(
+            "%s: log entry '%s' (index %d) is already reflected in the case"
+            " copy that replaced case '%s'; storing it as a no-op"
+            " (SYNC-16-007)",
+            self.name,
+            entry.id_,
+            entry.log_index,
+            entry.case_id,
+        )
+        return Status.SUCCESS
+
+
+class CheckEntryAgreesWithCasePositionNode(DataLayerConditionWithPorts):
+    """Refuse an entry at the case's ledger position that names another hash.
+
+    ``FAILURE``, logged at ERROR, for an entry at the index the case's
+    stored ``ledger_position`` names whose hash differs: the chain and the
+    copy that set the position disagree, so the entry is neither stored as a
+    no-op, applied nor stored (SYNC-16-007,
+    :func:`~vultron.core.services.case_copy.entry_conflicts_with_case_position`).
+    ``SUCCESS`` for any other entry.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerConditionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        entry = _require_log_entry(self.activity, self.name)
+        if not entry_conflicts_with_case_position(entry, self.datalayer):
+            return Status.SUCCESS
+        self.logger.error(
+            "%s: refusing ledger entry '%s' (case '%s', log_index=%d) in"
+            " activity '%s' from actor '%s': the case's ledger position names"
+            " another entry at that index, so the chains conflict"
+            " (SYNC-16-007)",
+            self.name,
+            entry.id_,
+            entry.case_id,
+            entry.log_index,
+            getattr(self.activity, "activity_id", None),
+            getattr(self.activity, "actor_id", None),
+        )
+        return Status.FAILURE
 
 
 class CheckLedgerFreshnessNode(DataLayerConditionWithPorts):

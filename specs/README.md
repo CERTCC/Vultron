@@ -195,8 +195,8 @@ related requirements across files.
   enum value to its ActivityStreams 2.0 wire representation: activity type,
   object type, target/context constraints, and nested-pattern conventions
   (VAM-01 through VAM-09). Foundational for hexagonal-architecture wire
-  replaceability (ARCH-07-001). VAM items cross-reference MSM items via
-  `satisfies` relationships where protocol shorthands map to this spec.
+  replaceability (ARCH-07-001). MSM items record `derives_from` or
+  `depends_on` links to the VAM wire forms they name (SR-13-012).
 
 **Behavior Tree Integration** (optional for complex workflows):
 

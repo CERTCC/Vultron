@@ -41,7 +41,6 @@ Reads only the case file: no id is minted beyond the row's derived one, no
 clock is read and no store is read.
 """
 
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
     ConsentRowVerb,
@@ -105,10 +104,9 @@ def owner_agreement(
     when the owner's row already reads ``AGREED``, or the case file holds no
     record of the owner (ADR-0087).
     """
-    owner_id = _as_id(case_file.case.attributed_to)
-    if owner_id is None:
-        return None
-    return consent_row_move(case_file, owner_id, embargo_id, PEC_Trigger.AGREE)
+    return consent_row_move(
+        case_file, case_file.case.attributed_to, embargo_id, PEC_Trigger.AGREE
+    )
 
 
 def joiner_agreement(

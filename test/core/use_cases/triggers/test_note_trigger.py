@@ -31,6 +31,7 @@ Verifies that the add-note-to-case trigger:
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.trigger_results import activity_of, note_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -363,7 +364,9 @@ class TestSvcAddNoteToCaseUseCase:
 
     def test_raises_when_no_case_manager(self):
         """SvcAddNoteToCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
-        solo_case = as_VulnerabilityCase(name="No Manager Case")
+        solo_case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="No Manager Case"
+        )
         solo_case.actor_participant_index[self.vendor.id_] = (
             f"{solo_case.id_}/participants/vendor"
         )

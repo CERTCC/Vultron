@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_status import CaseStatus
@@ -94,6 +95,7 @@ class TestEmDimension:
     def test_case_register_step_still_stamps_frozen_status(self):
         """A register step re-stamps EM onto the frozen status (AC-3, ADR-0122)."""
         case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="urn:uuid:case-4375",
             case_statuses=[CaseStatus(context="urn:uuid:case-4375")],
         )

@@ -32,6 +32,7 @@ See also:
 """
 
 import logging
+from collections.abc import Callable
 
 from vultron.adapters.outbox_sealed_body import (
     requeue_if_sealed,
@@ -43,7 +44,11 @@ from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
+    genesis_replay_reject_activity,
     reject_log_entry_activity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Reject,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -107,27 +112,85 @@ class SyncActivityAdapter:
         the same id and body, which the receiver deduplicates (ID-04-005).  A
         different tail hash is a different rejection and gets its own id.
 
+        A backfill after a case copy (SYNC-16-007) names the chain's tail as
+        both *entry* and *tail_hash*, so its id keys on the tail, not on the
+        copy: the replay it asks for starts there whichever copy prompted
+        it, and the entries committed after that replay reach the replica by
+        fan-out.  The genesis-replay ``Reject`` has no entry to key on, so
+        :meth:`send_genesis_replay_reject` keys on the copy's position.
+
         Spec: SYNC-03-001.
         """
         reject_id = derived_activity_id(
             "reject-log-entry", actor_id, entry.id_, tail_hash, *sorted(to)
         )
+        self._queue_reject(
+            reject_id,
+            actor_id,
+            f"Reject(CaseLedgerEntry) for entry '{entry.id_}'",
+            lambda: reject_log_entry_activity(
+                entry=ledger_entry_to_wire(entry),
+                context=tail_hash,
+                actor=actor_id,
+                to=to,
+                id_=reject_id,
+            ),
+        )
+
+    def send_genesis_replay_reject(
+        self,
+        case_id: str,
+        copy_tail_hash: str,
+        actor_id: str,
+        to: list[str],
+    ) -> None:
+        """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
+
+        The activity id is derived from the case, the ledger position of the
+        copy that replaced it and the recipients, so a repeat for the same copy builds
+        no new activity and reuses the id (ID-04-004), while a request after
+        a later copy is its own; a sealed one no longer pending is queued
+        once more (ID-04-005).
+
+        Spec: SYNC-16-007.
+        """
+        reject_id = derived_activity_id(
+            "genesis-replay-reject",
+            actor_id,
+            case_id,
+            copy_tail_hash,
+            *sorted(to),
+        )
+        self._queue_reject(
+            reject_id,
+            actor_id,
+            f"genesis-replay Reject(CaseLedgerEntry) for case '{case_id}'",
+            lambda: genesis_replay_reject_activity(
+                case_id, actor=actor_id, to=to, id_=reject_id
+            ),
+        )
+
+    def _queue_reject(
+        self,
+        reject_id: str,
+        actor_id: str,
+        label: str,
+        build: Callable[[], as_Reject],
+    ) -> None:
+        """Build, store, seal and queue a Reject, unless it is already built.
+
+        A Reject already sealed under *reject_id* is re-queued instead, with
+        the same id and body, which the receiver deduplicates (ID-04-005).
+        """
         if requeue_if_sealed(self._dl, reject_id):
             logger.info(
-                "sync adapter: Reject(CaseLedgerEntry) '%s' for entry '%s'"
-                " was already built; not building it again",
+                "sync adapter: %s '%s' was already built; not building it"
+                " again",
+                label,
                 reject_id,
-                entry.id_,
             )
             return
-        wire_entry = ledger_entry_to_wire(entry)
-        reject = reject_log_entry_activity(
-            entry=wire_entry,
-            context=tail_hash,
-            actor=actor_id,
-            to=to,
-            id_=reject_id,
-        )
+        reject = build()
         self._dl.save(reject)
         seal_outbound_body(self._dl, reject)
         # ``self._dl`` selects the queue; *actor_id* is passed for the log label
@@ -136,9 +199,7 @@ class SyncActivityAdapter:
         # guard against under ADR-0073 — and it must not be read as doing so.
         add_activity_to_outbox(actor_id, reject.id_, self._dl)
         logger.info(
-            "sync adapter: queued Reject(CaseLedgerEntry) '%s' → %s",
-            reject.id_,
-            to,
+            "sync adapter: queued %s '%s' → %s", label, reject.id_, reject.to
         )
 
     def _pending_announce_index(self) -> dict[str, set[str]]:

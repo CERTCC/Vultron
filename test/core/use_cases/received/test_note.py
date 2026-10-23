@@ -22,6 +22,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_owner_participant,
     seed_case_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -523,6 +524,7 @@ class TestNoteUseCases:
             actor_id="https://example.org/actors/non-manager",
         )
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_n3_noop",
             name="Noop Case",
         )
@@ -774,7 +776,9 @@ class TestNoteUseCases:
             actor_id="https://example.org/actors/non-manager",
         )
         case = as_VulnerabilityCase(
-            id_="https://example.org/cases/never-stored", name="x"
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/never-stored",
+            name="x",
         )
         note = as_Note(id_="https://example.org/notes/note9", content="x")
         activity = add_note_to_case_activity(

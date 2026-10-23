@@ -16,6 +16,7 @@ import logging
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -56,7 +57,7 @@ def _addressed_activity(
         type_=type_,
         actor=sender_id,
         to=[receiver_id],
-        object_=VulnerabilityCase(id_=case_id),
+        object_=VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id),
         context=case_id,
     )
 
@@ -242,7 +243,9 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
         )
         dl.create(
             VulnerabilityCase(
-                id_=self._CASE_ID, case_participants=[self._PARTICIPANT_ID]
+                attributed_to=CASE_OWNER_ID,
+                id_=self._CASE_ID,
+                case_participants=[self._PARTICIPANT_ID],
             )
         )
         return dl
@@ -263,7 +266,9 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
                 context=self._CASE_ID,
             ),
         ]
-        case = VulnerabilityCase(id_=self._CASE_ID)
+        case = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
+        )
         object.__setattr__(case, "case_participants", participants)
         return case
 
@@ -322,7 +327,9 @@ class TestEngageCaseStoresNoEmbeddedParticipants:
         store_embedded_participants is idempotent on strings; no error and
         no false record is created (#573 does not regress bare-string path).
         """
-        case_str_participants = VulnerabilityCase(id_=self._CASE_ID)
+        case_str_participants = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
+        )
         object.__setattr__(
             case_str_participants, "case_participants", [self._PARTICIPANT_ID]
         )  # bare string
@@ -480,7 +487,9 @@ class TestEngageCaseLedgerCommit:
                     type_="Join",
                     actor=self._SENDER_ID,
                     to=[self._CASE_MANAGER_ID],
-                    object_=VulnerabilityCase(id_=self._CASE_ID),
+                    object_=VulnerabilityCase(
+                        attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
+                    ),
                     context=self._CASE_ID,
                 ),
             )
@@ -773,7 +782,9 @@ class TestDeferCaseLedgerCommit:
                     type_="Ignore",
                     actor=self._SENDER_ID,
                     to=[self._CASE_MANAGER_ID],
-                    object_=VulnerabilityCase(id_=self._CASE_ID),
+                    object_=VulnerabilityCase(
+                        attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
+                    ),
                     context=self._CASE_ID,
                 ),
             )
@@ -914,7 +925,9 @@ class TestRegistrySuppliesTheTriggeringActivity:
             as_VulnerabilityCase,
         )
 
-        return as_VulnerabilityCase(id_=self._CASE_ID)
+        return as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=self._CASE_ID
+        )
 
     @pytest.mark.parametrize(
         ("factory_name", "expected_semantics"),

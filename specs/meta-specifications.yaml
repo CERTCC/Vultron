@@ -246,14 +246,6 @@ groups:
       references.
     tags:
     - documentation
-  - id: MS-07-003
-    priority: SHOULD
-    kind: process
-    statement: Cross-references SHOULD be placed in both source and target requirements using the corresponding inverse relationship
-      for bidirectional traceability.
-    rationale: Bidirectional links enable impact analysis from either end.
-    tags:
-    - documentation
   - id: MS-07-004
     priority: MUST
     kind: process
@@ -402,7 +394,9 @@ groups:
   - id: MS-10-002
     priority: SHOULD
     kind: process
-    statement: Spec files SHOULD be traceable via stable IDs and bidirectional cross-references.
+    statement: >-
+      Spec files SHOULD be traceable via stable IDs and cross-references that the
+      requirements graph lets a reader follow from either end.
     rationale: Traceability supports change impact analysis.
     tags:
     - documentation
@@ -596,8 +590,11 @@ groups:
   - id: MS-10-004
     priority: SHOULD
     kind: process
-    statement: Spec entries SHOULD require only `id`, `priority`, and `statement` to be complete; optional fields (`rationale`,
-      `tags`, `relationships`) SHOULD be added only when they provide clear value, not by default.
+    statement: >-
+      Spec entries SHOULD require only `id`, `priority`, `kind`, `statement`, and
+      `rationale` (MS-10-012) to be complete; optional fields (`tags`,
+      `relationships`) SHOULD be added only when they provide clear value, not by
+      default.
     rationale: Requiring optional fields on every entry creates boilerplate that discourages keeping specs current.
     tags:
     - documentation
@@ -651,6 +648,107 @@ groups:
       spec_id: MS-10-009
     - rel_type: refines
       spec_id: SR-05-004
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-012
+    priority: MUST
+    kind: process
+    statement: >-
+      Every requirement MUST carry a `rationale:` that explains why the requirement
+      is necessary given current conditions: the problem it prevents or the property
+      it guarantees.
+    rationale: >-
+      A requirement with no written reason can only be obeyed or guessed at. When it
+      conflicts with another requirement, nobody can weigh the two, and when its
+      reason lapses, nobody can see that it should be retired. User stories give a
+      reason only where they exist (SR-11), so for most project and process
+      requirements the rationale is the only place the reason can live.
+    verification: >-
+      `test/architecture/test_spec_rationale_guard.py::test_no_pr_adds_a_requirement_without_a_rationale`
+      fails a pull request that adds a requirement with no rationale (MS-10-014), and
+      `test/metadata/specs/test_rationale.py::test_missing_rationale_lists_each_requirement_without_one`
+      covers the detector behind it and behind `spec-rationale missing`, which lists
+      the remainder the backfill clears.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-02-009
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-013
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A `rationale:` MUST NOT narrate how its requirement came about, such as its
+      prior wording, a reverted change, or the issues and pull requests behind it.
+      That history belongs in the decision record the `adr:` field cites, the
+      version-control log, or the project history.
+    rationale: >-
+      A narrated history answers what happened, not why the rule holds, and it reads
+      as a standing endorsement of the earlier state it describes. A reader then
+      has to reconstruct the current reason from the story, and the story goes
+      stale with every later edit, while a stated reason stays true for as long as
+      the requirement does.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-012
+    tags:
+    - documentation
+  - id: MS-10-014
+    priority: MUST
+    kind: process
+    statement: >-
+      Until the schema requires a `rationale:` on every requirement, a PR-only growth
+      guard MUST fail when a requirement has no rationale at the PR head but had one
+      at the merge base with the base branch, or did not exist there, and MUST list
+      each such requirement. A requirement already missing one at the merge base
+      MUST NOT fail the guard, and the guard MUST NOT compare against a committed
+      count or an exemption list.
+    rationale: >-
+      The corpus holds a backlog of requirements with no rationale, so a corpus-wide
+      check would fail every pull request until the backfill finishes. Checking only
+      what a branch adds keeps the backlog from growing while it is worked down, and
+      a per-item set has no shared number for concurrent pull requests to race on.
+    verification: >-
+      `test/architecture/test_spec_rationale_guard.py::test_no_pr_adds_a_requirement_without_a_rationale`
+      runs the guard on the live corpus, and the `test_rationale_*` tests in
+      `test/metadata/specs/test_growth_guard.py` cover a new requirement without a
+      rationale, a dropped rationale, an existing gap, a backfill, and a skipped run
+      with no base ref that logs its reason.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-10-012
+    - rel_type: refines
+      spec_id: SR-05-005
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-015
+    priority: SHOULD
+    kind: process
+    statement: >-
+      The project SHOULD provide two advisory reports, each filterable by spec file
+      and neither failing the build: requirements whose ID a live decision record's
+      body names while their `adr:` field does not cite that record, and rationales
+      that match patterns of history narration.
+    rationale: >-
+      A requirement a decision record names is often one that record motivates, so a
+      missing `adr:` link is a likely gap in the trace from rule to reason. History
+      narration is easy to recognize but has false positives, such as an issue cited
+      as evidence, so both lists are worklists for a person to judge rather than
+      gates. A per-file filter lets each backfill take its own share.
+    verification: >-
+      `test/metadata/specs/test_rationale.py` covers both reports, the per-file
+      filter, and the `spec-rationale` command line exiting 0.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-10-012
+    - rel_type: derives_from
+      spec_id: MS-10-013
+    - rel_type: derives_from
+      spec_id: MS-11-004
     tags:
     - documentation
     - tooling
@@ -941,7 +1039,7 @@ groups:
       for an added, removed and unchanged suppression, a relabel in and out, and the
       logged skip when no base ref is available.
     relationships:
-    - rel_type: constrains
+    - rel_type: depends_on
       spec_id: SR-11-003
       note: guards the suppression escape hatch SR-11-003 provides against growth
     - rel_type: depends_on
@@ -971,7 +1069,7 @@ groups:
     - rel_type: refines
       spec_id: MS-12-007
       note: closes MS-12-006's suppression code alongside the code MS-12-007 guards
-    - rel_type: constrains
+    - rel_type: depends_on
       spec_id: MS-12-006
       note: holds the suppression escape hatch MS-12-006 provides at no carrier
     adr:
@@ -1532,8 +1630,9 @@ groups:
       The single-underscore floor excludes the token shapes that are not symbols —
       RFC 2119 keywords, protocol shorthands, one-word state names. Resolution is
       textual and tree-wide rather than a binding lookup, preferring a false
-      negative over blocking a legitimate reference. `rationale` narrates history
-      and is excluded, as in MS-15-001.
+      negative over blocking a legitimate reference. `rationale` is excluded, as in
+      MS-15-001: the problem it names (MS-10-012) may be a removed symbol that
+      must not return.
     verification: >-
       `test_lint_phantom_symbol_is_hard_error` in `test/metadata/specs/test_lint.py`
       confirms a spec naming an absent symbol exits non-zero; the sibling

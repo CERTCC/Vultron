@@ -30,6 +30,7 @@ import pytest
 from pydantic import Field
 from sqlmodel import Session
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.datalayer_sqlite.hydration import (
     core_class_for_row_type,
@@ -85,6 +86,8 @@ def _make_instance(core_cls):
         )
     if core_cls is VulnerabilityRecord:
         return core_cls(name="CVE-2024-XXXX")
+    if core_cls is VulnerabilityCase:
+        return core_cls(attributed_to=CASE_OWNER_ID)
     return core_cls()
 
 
@@ -142,8 +145,8 @@ def test_read_returns_core_type(dl, core_cls):
 )
 def test_list_objects_returns_core_type(dl, core_cls):
     """dl.list_objects() returns core domain objects for CORE_VOCABULARY types."""
-    obj1 = core_cls()
-    obj2 = core_cls()
+    obj1 = _make_instance(core_cls)
+    obj2 = _make_instance(core_cls)
     dl.save(obj1)
     dl.save(obj2)
     results = dl.list_objects(core_cls.__name__)
@@ -156,7 +159,7 @@ def test_list_objects_returns_core_type(dl, core_cls):
 
 def test_read_preserves_core_object_id(dl):
     """Round-tripped core object retains its original id_."""
-    case = VulnerabilityCase()
+    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
     original_id = case.id_
     dl.save(case)
     result = dl.read(original_id)
@@ -170,7 +173,7 @@ def test_read_returns_core_type_for_core_entity(dl):
     After ARCH-25-003 (ADR-0099), as_VulnerabilityCase is an alias for VulnerabilityCase,
     so the distinction is between core class identity and wire wrapper identity.
     """
-    case = VulnerabilityCase()
+    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
     dl.save(case)
     result = dl.read(case.id_)
     assert result is not None
@@ -435,7 +438,7 @@ def test_type_value_index_is_reused_while_the_registry_is_unchanged():
 
 def test_core_entity_type_string_matches_class_name(dl):
     """Stored type_ string matches the core class name (required for CORE_VOCABULARY lookup)."""
-    case = VulnerabilityCase()
+    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
     dl.save(case)
     result = dl.read(case.id_)
     assert result is not None
@@ -485,7 +488,9 @@ def _mixed_spelling_case_row(case_id):
         participant_statuses=[status],
     )
     # Build the case without participants first, so we get snake_case at the top level.
-    case = as_VulnerabilityCase(id_=case_id, name="mixed")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=case_id, name="mixed"
+    )
     data = case.model_dump(mode="json")
     # Inject camelCase participant data to simulate a pre-ADR-0099 stored row.
     data["case_participants"] = [

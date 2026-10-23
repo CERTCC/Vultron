@@ -31,7 +31,6 @@ from vultron.core.behaviors.sync.nodes._helpers import (
     _extract_id_from_field,
     _LedgerEffectNode,
 )
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.wire_keys import wire_key
 
@@ -93,7 +92,7 @@ class ApplyOwnershipTransferFromLedgerNode(_LedgerEffectNode):
         if case is None:
             return Status.SUCCESS  # Regime 2 (ADR-0087): partial replica, skip
 
-        if _as_id(case.attributed_to) == new_owner_id:
+        if case.attributed_to == new_owner_id:
             self.logger.debug(
                 "%s: case '%s' already attributed to '%s' — idempotent no-op",
                 self.name,
@@ -102,7 +101,7 @@ class ApplyOwnershipTransferFromLedgerNode(_LedgerEffectNode):
             )
             return Status.SUCCESS
 
-        case.attributed_to = new_owner_id  # type: ignore[assignment]
+        case.attributed_to = new_owner_id
         self.datalayer.save_many(
             [case]
         )  # CM-21-004, BTND-06-008: attributed_to must use save_many

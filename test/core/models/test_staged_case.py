@@ -20,6 +20,7 @@ LST-02-001 through LST-05-003.
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose, terminate
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import (
@@ -88,7 +89,9 @@ class TestIncomingReport:
 
     def test_type_literal_unchanged(self):
         """IncomingReport shares type_='VulnerabilityCase' (LST-05-003)."""
-        ir = IncomingReport(vulnerability_reports=[_REPORT_ID])
+        ir = IncomingReport(
+            attributed_to=CASE_OWNER_ID, vulnerability_reports=[_REPORT_ID]
+        )
         assert ir.type_ == "VulnerabilityCase"
 
     def test_not_registered_separately_in_core_vocabulary(self):
@@ -96,37 +99,40 @@ class TestIncomingReport:
         assert "IncomingReport" not in CORE_VOCABULARY
 
     def test_valid_with_one_report_no_participants(self):
-        ir = IncomingReport(vulnerability_reports=[_REPORT_ID])
+        ir = IncomingReport(
+            attributed_to=CASE_OWNER_ID, vulnerability_reports=[_REPORT_ID]
+        )
         assert ir.vulnerability_reports == [_REPORT_ID]
         assert ir.case_participants == []
 
     def test_raises_when_no_reports(self):
         with pytest.raises(ValidationError, match="IncomingReport"):
-            IncomingReport()
+            IncomingReport(attributed_to=CASE_OWNER_ID)
 
     def test_raises_when_participants_present(self):
         p = CaseParticipant(id_="urn:uuid:p1")
         with pytest.raises(ValidationError, match="participants"):
             IncomingReport(
+                attributed_to=CASE_OWNER_ID,
                 vulnerability_reports=[_REPORT_ID],
                 case_participants=[p.id_],
             )
 
     def test_model_validate_from_vulnerability_case(self):
         """model_validate promotes a plain VulnerabilityCase (LST-05-001)."""
-        vc = VulnerabilityCase()
+        vc = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
         vc.vulnerability_reports.append(_REPORT_ID)
         # No participants yet: satisfies IncomingReport constraint
         ir = IncomingReport.model_validate(vc)
         assert isinstance(ir, IncomingReport)
 
     def test_model_validate_raises_on_missing_report(self):
-        vc = VulnerabilityCase()
+        vc = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
         with pytest.raises(ValidationError):
             IncomingReport.model_validate(vc)
 
     def test_model_validate_raises_when_participants_present(self):
-        vc = VulnerabilityCase()
+        vc = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
         vc.vulnerability_reports.append(_REPORT_ID)
         object.__setattr__(
             vc, "case_participants", _minimal_case_participants()
@@ -185,20 +191,19 @@ class TestCase:
             Case.model_validate(vc)
 
     def test_raises_when_no_case_statuses(self):
-        # Construct with no attributed_to so _init_case_statuses does not seed.
-        vc = VulnerabilityCase()
+        vc = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
         vc.vulnerability_reports.append(_REPORT_ID)
         object.__setattr__(
             vc, "case_participants", _minimal_case_participants()
         )
-        # case_statuses is empty (no attributed_to to trigger auto-seed)
-        assert vc.case_statuses == []
+        # Drop the status the owner seeded at construction.
+        object.__setattr__(vc, "case_statuses", [])
         with pytest.raises(ValidationError, match="materialized CaseStatus"):
             Case.model_validate(vc)
 
     def test_raises_when_case_statuses_contains_only_string_ids(self):
         """String-only case_statuses must not pass the Case invariant (LST-02-002)."""
-        vc = VulnerabilityCase()
+        vc = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
         vc.vulnerability_reports.append(_REPORT_ID)
         object.__setattr__(
             vc, "case_participants", _minimal_case_participants()

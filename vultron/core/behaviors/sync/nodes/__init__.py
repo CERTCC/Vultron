@@ -64,8 +64,10 @@ from vultron.core.behaviors.sync.nodes.chain import (
     UpdateReplicationStateNode,
 )
 from vultron.core.behaviors.sync.nodes.conditions import (
+    CheckEntryAgreesWithCasePositionNode,
     CheckLedgerEntryAlreadyStoredNode,
     CheckLedgerFreshnessNode,
+    EntryReflectedByCaseCopyNode,
     _require_log_entry,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
@@ -160,8 +162,10 @@ from vultron.core.behaviors.sync.nodes.stub_reply_effect import (
 
 __all__ = [
     # conditions
+    "CheckEntryAgreesWithCasePositionNode",
     "CheckLedgerEntryAlreadyStoredNode",
     "CheckLedgerFreshnessNode",
+    "EntryReflectedByCaseCopyNode",
     "IsRemoveEmbargoEventNode",
     "IsParticipantStatusEventNode",
     "IsAddNoteEventNode",

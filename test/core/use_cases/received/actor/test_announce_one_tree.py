@@ -20,9 +20,9 @@ in that tree, and the refused Announce is still archived (CLP-10-018).
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
 
 from test.conftest import TEST_ACTOR_ID
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.received_activity_record import (
@@ -44,13 +44,6 @@ _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _CASE_ID = "https://example.org/cases/case-one-tree"
 
 
-class _IdlessCase(BaseModel):
-    """A case-typed object whose id resolves to nothing."""
-
-    type_: str = "VulnerabilityCase"
-    id_: str | None = None
-
-
 @pytest.fixture()
 def dl() -> SqliteDataLayer:
     return SqliteDataLayer("sqlite:///:memory:", actor_id=TEST_ACTOR_ID)
@@ -58,7 +51,9 @@ def dl() -> SqliteDataLayer:
 
 @pytest.fixture()
 def event(make_payload) -> Any:
-    case = as_VulnerabilityCase(id_=_CASE_ID, name="One tree")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_ID, name="One tree"
+    )
     return make_payload(
         announce_vulnerability_case_activity(
             case, actor=_CASE_ACTOR_ID, context=_CASE_ID, to=[TEST_ACTOR_ID]
@@ -92,7 +87,12 @@ def _anchor(dl: SqliteDataLayer) -> None:
             "Announce object is not a VulnerabilityCase (VulnerabilityReport)",
         ),
         (
-            {"object_": _IdlessCase()},
+            # Only an unvalidated case can lack its id.
+            {
+                "object_": as_VulnerabilityCase.model_construct(
+                    attributed_to=CASE_OWNER_ID, id_=None
+                )
+            },
             "Announced case object has no id",
         ),
     ],

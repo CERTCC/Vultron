@@ -82,6 +82,14 @@ Every full-case announcement to a replica that already holds the case is an auth
 - Otherwise the replica replaces its case file with the copy, and if its chain falls short of the position it asks for the missing entries with the usual Reject.
   Each entry at or before the position, whether replayed or the held refused entry drained after the replacement, is already reflected in the copy and is stored as a no-op, so the chain catches up and the refused entry stops being refused.
 
+The replica's own position is the later of its chain's tail and its case's stored position, so a copy behind the one that last replaced the case is stale too.
+Storing an entry at or before the case's position leaves the position where it is: a case a copy put ahead of its chain is never moved back while the chain catches up.
+The same holds for a joining replica's first seed: the entries the backfill brings up to the copy's position are stored as no-ops, not applied over the seed.
+
+A replica whose chain stores no entry has no entry for the Reject to name.
+It sends a Reject that names none, with an empty last-accepted hash and the case as its target, and the CASE_MANAGER answers it as it answers any request for a replay from genesis.
+Waiting for the next fan-out instead would stall the replica on a quiet case.
+
 A copy taken at a position is the case as applying the ledger to that position leaves it (ADR-0124), so replacing and then backfilling leaves the replica exactly where seed-plus-replay would.
 
 ### Consequences
@@ -92,7 +100,9 @@ A copy taken at a position is the case as applying the ledger to that position l
 - Good, because a repeated divergence right after a repair shows that the CASE_MANAGER's case disagrees with its own ledger, which can be logged as the defect it is.
 - Bad, because the stored shape of `VulnerabilityCase` changes; a store written before the field existed is refused on load and must be reset, with no migration.
 - Bad, because a repair hides the bug that caused the divergence unless the fault is watched; the fault and the repair are logged for that reason.
-- Bad, because every apply step must treat an entry a newer copy is already past as a no-op, for every domain, not only the embargo register.
+- Neutral, because an entry the case's position already reflects is stored as a no-op by one gate ahead of every apply step, so no apply step needs its own test for it.
+- Bad, because a no-op entry still carries the records a copy names only by id, such as notes and statuses, and the replica must copy those from it or end short of seed-plus-replay.
+- Bad, because a `Reject(CaseLedgerEntry)` may now name no entry; the parser admits that only in the replay-from-genesis form.
 - Neutral, because the fault is not ledgered, so other participants never learn that one replica diverged; nothing they do depends on it.
 
 ## Validation
@@ -124,7 +134,7 @@ A copy taken at a position is the case as applying the ledger to that position l
 ## More Information
 
 Decided in the planning of Concern #4742 on 2026-10-16.
-Revised on 2026-10-22, in the review of PR #5076: the case stores its position rather than having a tail computed from the ledger and never stored.
+Revised on 2026-10-22, in the review of PR #5076: the case stores its position rather than having a tail computed from the ledger and never stored; the position never moves back, and a replica with an empty chain asks for a replay from genesis.
 Implementation: the stored position in #5091, the replica's rule in #4797, the fault in #4798, the CASE_MANAGER's repair in #4799.
 Whether ASK-07-008 should keep ledgering the other fault classes is Concern #4800.
 

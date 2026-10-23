@@ -28,6 +28,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import archive_received
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
@@ -147,7 +148,9 @@ def _stub_invite():
     return rm_invite_to_case_activity(
         as_Service(id_=INVITEE),
         target=as_VulnerabilityCase(
-            id_=CASE_ID, stub_summary="Security issue for test invite"
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            stub_summary="Security issue for test invite",
         ),
         actor=MANAGER,
         id_="http://example.com/activities/stub-invite-1",
@@ -313,7 +316,7 @@ def test_find_case_for_offer_reads_the_report_from_the_received_offer(
 ):
     offer = _report_offer()
     client = _route_client(_receive(offer, ingress_row=ingress_row))
-    case = as_VulnerabilityCase(id_=CASE_ID)
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID)
 
     with patch.object(
         workflow, "find_case_by_report_id", return_value=case

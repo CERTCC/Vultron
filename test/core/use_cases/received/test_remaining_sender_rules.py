@@ -35,6 +35,7 @@ from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
 from test.support.ledger import ledger_entries
 from test.support.received import received_event
@@ -241,7 +242,9 @@ class _World:
 
     def leave_from(self, sender_id: str, suffix: str = "1") -> HandlerResult:
         activity = rm_close_case_activity(
-            as_VulnerabilityCase(id_=self.case_id),
+            as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=self.case_id
+            ),
             actor=sender_id,
             # Addressed to the manager and, at a replica, to the replica too.
             to=list(dict.fromkeys([self.manager.id_, self.receiver_id])),
