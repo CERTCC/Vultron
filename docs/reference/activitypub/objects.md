@@ -154,7 +154,7 @@ print(json2md(populated_case()))
 ### CaseStatus
 
 A `CaseStatus` object is used to represent the participant-agnostic status of a `VulnerabilityCase` object.
-It is canonical: it carries what the case asserts, and only the [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) writes it ([§5.4.1 Single-Writer Authority](../vultron-spec/layers.md#541-single-writer-authority)).
+It is canonical: it carries what the case asserts, and only the [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) writes it ([§10.1 Single-Writer Authority](../vultron-spec/interactions.md#101-single-writer-authority)).
 The semantics of the `CaseStatus` object are described in the [Case Model](../../topics/case_lifecycle/case_model.md) section.
 The distinction between *participant-agnostic* and *participant-specific* status is described in the
 [Global vs Local](../../topics/process_models/model_interactions/index.md) section.
@@ -200,8 +200,8 @@ print(json2md(participant_status()))
     The `CaseStatus` inside a `ParticipantStatus` lets a participant state what it believes the case as a whole has reached, without that belief becoming the case's state.
     For example, a vendor might observe that an exploit has been released while the case still records the vulnerability as unexploited.
     The vendor includes a `CaseStatus` in its `ParticipantStatus` showing _Exploit Public_.
-    The [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) then decides whether to adopt the claim, by default with the Case Owner's authorization, and if it does it writes the canonical `CaseStatus` on the `VulnerabilityCase` with `pxaState` including _X_ ([§10.3 Status Adoption: The Two-Seam Model](../vultron-spec/interactions.md#103-status-adoption-the-two-seam-model), [§12.4.4 Case Owner Authority](../vultron-spec/conformance.md#1244-case-owner-authority)).
-    No other participant writes the canonical `CaseStatus` ([§5.4.1 Single-Writer Authority](../vultron-spec/layers.md#541-single-writer-authority)).
+    The [CASE_MANAGER](../../topics/case_lifecycle/case_manager_and_ledger.md) then decides whether to adopt the claim, by default with the Case Owner's authorization, and if it does it writes the canonical `CaseStatus` on the `VulnerabilityCase` with `pxaState` including _X_ ([§11.3 Status Adoption: The Two-Seam Model](../vultron-spec/interactions.md#113-status-adoption-the-two-seam-model), [§13.4.4 Case Owner Authority](../vultron-spec/conformance.md#1344-case-owner-authority)).
+    No other participant writes the canonical `CaseStatus` ([§10.1 Single-Writer Authority](../vultron-spec/interactions.md#101-single-writer-authority)).
 
 ### EmbargoEvent
 

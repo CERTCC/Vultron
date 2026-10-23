@@ -61,9 +61,9 @@ arrive with their host fragment.
 | `introduction.md` | Introduction and Overview | Abstract, §1–§3 | `_full-page-tip.md`, `_abstract.md`, `_introduction.md`, `_terminology.md`, `_protocol-overview.md` |
 | `layers.md` | Protocol Layers | §4–§5 | `_full-page-tip.md`, `_semantic-layer.md`, `_syntactic-layer.md` |
 | `tracking-models.md` | Case Tracking Models | §6–§9 | `_full-page-tip.md`, `_rm-state-machine.md`, `_em-state-machine.md`, `_cs-dimensions.md`, `_pec-state-machine.md` |
-| `interactions.md` | Interactions and Lifecycle | §10–§11 | `_full-page-tip.md`, `_model-interactions.md`, `_participant-lifecycle.md` |
-| `conformance.md` | Conformance | §12 Conformance | `_full-page-tip.md`, `_conformance/_intro.md`, `_conformance/_capability-sets.md`, `_conformance/_role-taxonomy.md`, `_conformance/_role-requirements.md`, `_conformance/_conformance-testing.md` |
-| `considerations.md` | Considerations and References | §13–§15 | `_full-page-tip.md`, `_iana.md`, `_security.md`, `_references.md` |
+| `interactions.md` | Coordination, Interactions, and Lifecycle | §10–§12 | `_full-page-tip.md`, `_case-coordination.md`, `_model-interactions.md`, `_participant-lifecycle.md` |
+| `conformance.md` | Conformance | §13 Conformance | `_full-page-tip.md`, `_conformance/_intro.md`, `_conformance/_capability-sets.md`, `_conformance/_role-taxonomy.md`, `_conformance/_role-requirements.md`, `_conformance/_conformance-testing.md` |
+| `considerations.md` | Considerations and References | §14–§16 | `_full-page-tip.md`, `_iana.md`, `_security.md`, `_references.md` |
 | `annex-a-single-vendor.md` | Annex A Worked Example: Single-Vendor CVD | Annex A | `_full-page-tip.md`, `_annex-a.md` |
 | `annex-b-multi-party.md` | Annex B Worked Example: Multi-Party CVD | Annex B | `_full-page-tip.md`, `_annex-b.md` |
 | `annex-c-notation.md` | Annex C Notation Reference | Annex C | `_full-page-tip.md`, `_annex-c.md` |
@@ -84,7 +84,7 @@ links every body page, every annex page, `open-questions.md` and `full.md`, and
 
 `full.md` includes every section fragment in document order: the sequence the
 body pages, the annex pages and `open-questions.md` give when read in nav order,
-with the annexes nested under §16 Informative Annexes, which `_annexes-intro.md`
+with the annexes nested under §17 Informative Annexes, which `_annexes-intro.md`
 supplies. It exists for readers who want the whole document on one page, to read
 through or print. It is listed in `not_in_nav` and sets `search: exclude: true`
 in its frontmatter, so search results always land on the page that owns a
@@ -118,15 +118,15 @@ headings inside the fragments keep theirs.
 ## Annex Fragments
 
 Each annex is its own fragment, `_annex-a.md` through `_annex-f.md`. Annex G
-lives at `_conformance/_capability-shapes.md`, beside the §12 Conformance
-fragments: it carries the informative account of capability shapes, and §12.6
+lives at `_conformance/_capability-shapes.md`, beside the §13 Conformance
+fragments: it carries the informative account of capability shapes, and §13.6
 Capability Shapes keeps the short normative text with its one conditional MUST.
 
 On an annex page the annex heading is the page's top section (`##`). `full.md`
-nests the annexes under §16 Informative Annexes by including each annex fragment
+nests the annexes under §17 Informative Annexes by including each annex fragment
 with a `heading-offset`.
 
-`_annexes-intro.md` holds the §16 Informative Annexes heading and its paragraph
+`_annexes-intro.md` holds the §17 Informative Annexes heading and its paragraph
 stating that no annex is normative and that a normative section governs where
 the two appear to disagree. Only `full.md` includes it, so it is the one
 fragment that renders on a single page. An annex page does not need it: the
@@ -146,7 +146,7 @@ they still exist.
 
 ## Fragment Kinds
 
-**§12 Conformance** is split into per-subsection files under `_conformance/`
+**§13 Conformance** is split into per-subsection files under `_conformance/`
 because it is the longest section and its subsections are independently
 authorable. Annex G lives there too (see "Annex Fragments").
 
@@ -169,7 +169,7 @@ tables and the four-dimensions note. It is covered by
 
 ## File Naming
 
-- Section fragments: `_<semantic-slug>.md`, with no number. §12 Conformance
+- Section fragments: `_<semantic-slug>.md`, with no number. §13 Conformance
   subsections: `_conformance/_<semantic-slug>.md`.
 - Annex fragments: `_annex-<letter>.md`.
 - Open-question fragments: `_oq-<slug>.md`. Shared includes: `includes/<slug>.md`.
@@ -264,9 +264,14 @@ Keep the current order; each alternative was measured and is worse:
 - Moving §9 Participant Embargo Consent (PEC) State Machine ahead of §7 Embargo
   Management (EM) State Machine creates a definitional cycle, because PEC's
   states are defined by EM triggers.
-- §12 Conformance before the back matter is correct per RFC 7322: conformance
-  is a body section. §13 IANA and Namespace Considerations precedes §14 Security
-  Considerations, and §15 References closes the body.
+- §10 Case Coordination stays a normative section of its own, ahead of §11 Model
+  Interactions and Cascade Rules: the CASE_MANAGER is a protocol role every case
+  has, so its duties are protocol, stated about the role. The dedicated Case
+  Actor appears only in an informative note, because it is one way to hold the
+  role, not the protocol's (ADR-0158).
+- §13 Conformance before the back matter is correct per RFC 7322: conformance
+  is a body section. §14 IANA and Namespace Considerations precedes §15 Security
+  Considerations, and §16 References closes the body.
 
 ---
 
@@ -280,7 +285,7 @@ and the specification renders them in two forms:
   the requirements a passage discusses, rendered by ID in the catalog's row
   format. The ID cell links to the catalog row. A callout naming an ID of any
   other kind fails the build (DF-12-003).
-- **The Requirements Catalog**, a body section after §12 Conformance: every
+- **The Requirements Catalog**, a body section after §13 Conformance: every
   requirement of the two tiers, once, one subsection per requirement file,
   files grouped onto themed pages, `foundation` rows on a page of their own
   (DF-12-001). The catalog row is the requirement's only anchor, apart from its
@@ -309,6 +314,12 @@ Rules for the narrative around them:
 - **Placement is one table on the docs side** (DF-12-005). A new requirement
   file holding either tier fails the check until it is placed on a catalog
   page; the requirement files carry no placement field.
+- **A message rule is stated on its occasion**: a situation in a case that a
+  sender conveys with a particular wire activity. A two-letter protocol
+  shorthand is a cross-reference tag and the vocabulary of the state machine
+  transition tables, never the unit a rule is stated on, because the message
+  reference already documents occasions and two message units would drift
+  (ADR-0158).
 
 ---
 

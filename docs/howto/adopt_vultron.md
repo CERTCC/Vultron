@@ -54,7 +54,7 @@ Answer two questions about the cases in your list.
 2. Did you run the case on behalf of others, keeping its record and admitting participants?
    If so, you were acting as its [**Case Manager**](../topics/case_lifecycle/case_manager_and_ledger.md).
 
-The answers pick the **capability sets** the system you run must provide ([§12.2 Capability Sets](../reference/vultron-spec/conformance.md#122-capability-sets)).
+The answers pick the **capability sets** the system you run must provide ([§13.2 Capability Sets](../reference/vultron-spec/conformance.md#132-capability-sets)).
 
 | Your answer | Capability sets you need |
 |---|---|
@@ -63,7 +63,7 @@ The answers pick the **capability sets** the system you run must provide ([§12.
 | You also run cases for others | Case Observer + Case Decision + Case Hosting |
 
 Every participant needs Case Observer; there is no smaller way to take part.
-Write the result together with your role profile as a **conformance claim**, in the form the specification uses ([§12.1 Conformance Model Overview](../reference/vultron-spec/conformance.md#121-conformance-model-overview)).
+Write the result together with your role profile as a **conformance claim**, in the form the specification uses ([§13.1 Conformance Model Overview](../reference/vultron-spec/conformance.md#131-conformance-model-overview)).
 `Case Observer / Vendor` says a vendor's system takes part in cases run by others.
 `Case Observer + Case Decision + Case Hosting / Coordinator + CNA` says a coordinator's system opens cases, decides for them, runs them, and assigns CVE IDs.
 
@@ -171,4 +171,4 @@ Vultron is a protocol, not a product, so the last step is to obtain software tha
 - [Embargo Principles](../topics/process_models/em/principles.md) — the norms your embargo rules should follow
 - [ISO Crosswalk](../reference/iso_crosswalks/index.md) — where each step lands in ISO/IEC 29147, 30111, and TR 5895
 - [Interactions Between the Vultron Protocol and SSVC](../reference/ssvc_crosswalk.md) — where a prioritization decision enters a case
-- [Vultron Protocol Specification, §12 Conformance](../reference/vultron-spec/conformance.md#12-conformance-n) — the normative definition of capability sets and conformance claims
+- [Vultron Protocol Specification, §13 Conformance](../reference/vultron-spec/conformance.md#13-conformance-n) — the normative definition of capability sets and conformance claims

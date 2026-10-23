@@ -21,7 +21,7 @@ Where this page and any of those disagree, the specification wins.
 
 ## State Machines at a Glance
 
-Every Participant tracks five state machines ([§12.2 Capability Sets](vultron-spec/conformance.md#122-capability-sets)).
+Every Participant tracks five state machines ([§13.2 Capability Sets](vultron-spec/conformance.md#132-capability-sets)).
 Two of them, the vendor fix path (VFD) and the public state (PXA), together make up the Case State (CS), which the formal protocol pages write as one six-letter string.
 
 | State Machine | Scope | States | Initial | Terminal |

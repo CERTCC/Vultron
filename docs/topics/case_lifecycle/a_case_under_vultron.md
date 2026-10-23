@@ -40,7 +40,7 @@ Roles are not exclusive.
 A vendor that finds a vulnerability in its own product is both Reporter and Vendor.
 Roles also belong to the case, not to your organization: you may be the Reporter in one case and a Vendor in the next.
 Vultron records who holds which role, so every participant reads the same answer.
-Roles are assigned through the case, never claimed: you do not become a Coordinator by saying so ([§11.1 Role Assignment](../../reference/vultron-spec/interactions.md#111-role-assignment-n)).
+Roles are assigned through the case, never claimed: you do not become a Coordinator by saying so ([§12.1 Role Assignment](../../reference/vultron-spec/interactions.md#121-role-assignment-n)).
 
 ---
 
@@ -56,7 +56,7 @@ Ownership can move: a vendor that opened a case can hand it to a coordinator, an
 The **Case Manager** keeps the case's authoritative history and passes case messages between participants, acting on the Case Owner's behalf ([The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md)).
 It is the one participant that writes the shared record of the case.
 Every other participant holds a copy of that record, and the Case Manager sends each admitted change to all of them.
-In practice the Case Owner's own system usually holds this role, and the owner may delegate it, for example to a coordinator that hosts cases for others ([§11.1 Role Assignment](../../reference/vultron-spec/interactions.md#111-role-assignment-n)).
+In practice the Case Owner's own system usually holds this role, and the owner may delegate it, for example to a coordinator that hosts cases for others ([§12.1 Role Assignment](../../reference/vultron-spec/interactions.md#121-role-assignment-n)).
 
 The practical consequence is the one that matters to a practitioner: there is exactly one history of what happened in the case, and everyone in the case holds the same copy of it.
 No participant reconciles competing versions, and nobody edits the record directly, not even the organization that opened the case.
@@ -89,7 +89,7 @@ The one exception is a proposal, such as an embargo invitation, which asks for a
 
 Two things stay as they are today.
 You still talk to your partners by mail, phone, or a shared channel; the protocol carries only the traffic that changes the case ([§3.2 What a Deployment Looks Like](../../reference/vultron-spec/introduction.md#32-what-a-deployment-looks-like)).
-And you see nothing of a case you have not joined: an invitation carries a minimal description of the case, and the vulnerability detail follows only after you accept ([§11.2 Invitation and Acceptance](../../reference/vultron-spec/interactions.md#112-invitation-and-acceptance-n)).
+And you see nothing of a case you have not joined: an invitation carries a minimal description of the case, and the vulnerability detail follows only after you accept ([§12.2 Invitation and Acceptance](../../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
 
 ---
 
@@ -119,7 +119,7 @@ A case has at most one embargo at a time, and its state belongs to the case as a
 Whether *you* have agreed to the current terms is a separate question, recorded per participant as [embargo consent](../behavior_logic/use-cases/embargo-lifecycle.md), because a participant that joined late or declined is in the case without being bound ([§9 Participant Embargo Consent (PEC) State Machine](../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
 
 An embargo invitation reaches you in one of two ways.
-If you are invited to a case that already has an embargo, the invitation states the terms you would be agreeing to, and accepting it both seats you in the case and records your consent ([§11.2 Invitation and Acceptance](../../reference/vultron-spec/interactions.md#112-invitation-and-acceptance-n)).
+If you are invited to a case that already has an embargo, the invitation states the terms you would be agreeing to, and accepting it both seats you in the case and records your consent ([§12.2 Invitation and Acceptance](../../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
 If you are already in a case and a participant proposes an embargo or a change to one, you receive the proposed terms and are asked to answer.
 
 In either form, the invitation asks for one decision, and the table below shows what follows from each answer.

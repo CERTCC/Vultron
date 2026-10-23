@@ -35,6 +35,8 @@ The [parts and annexes](index.md#parts) publish the same text one part per page,
 
 {% include-markdown "./_pec-state-machine.md" %}
 
+{% include-markdown "./_case-coordination.md" %}
+
 {% include-markdown "./_model-interactions.md" %}
 
 {% include-markdown "./_participant-lifecycle.md" %}

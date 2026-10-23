@@ -169,7 +169,7 @@ def _anchor_fault(text: str, anchor: str) -> str | None:
     """Return why *text* disagrees with the numbered *anchor*, or ``None``.
 
     The cited number must open the anchor's slug and the cited name must
-    start with the rest of it, so "§1.2 Foo" is refused at ``#12-conformance``
+    start with the rest of it, so "§1.3 Foo" is refused at ``#13-conformance``
     although the dot-free digits agree. An anchor on an unnumbered heading
     is not compared.
     """
@@ -207,7 +207,7 @@ def citation_faults(links: list[SpecLink]) -> list[CitationFault]:
     A link is at fault when its text cites a number without the section name
     ("§6", "§9 of the specification", "Vultron Protocol Specification §8"), or
     when the section it cites is not the one its anchor names ("§4.8" pointing
-    at ``#47-...``, or "§1.2 Foo" pointing at ``#12-conformance``).
+    at ``#47-...``, or "§1.3 Foo" pointing at ``#13-conformance``).
     """
     faults: list[CitationFault] = []
     for link in links:

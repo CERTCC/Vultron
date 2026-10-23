@@ -1,6 +1,6 @@
-## 14. Security Considerations [N/I]
+## 15. Security Considerations [N/I]
 
-### 14.1 Trust Model
+### 15.1 Trust Model
 
 **Actor identity.** The protocol uses actor URIs as process identifiers. An
 actor URI is the identity anchor for all messages sent by that actor, and for
@@ -14,19 +14,17 @@ verification mechanism. The reference implementation anticipates HTTP Signatures
 future version of this specification is expected to normatively require HTTP
 Signatures at the transport layer.
 
-**Case bootstrap as the trust establishment mechanism.** The
-`Create(VulnerabilityCase)` message signed by the originating actor is the
-trust root for a case. Late joiners receive a case snapshot and prior ledger
-entries from the CASE_MANAGER. A late joiner trusts the CASE_MANAGER's delivery
-because it trusts the `Create` message that introduced the CASE_MANAGER. This
-chain is the minimal trust model; cryptographic ledger integrity (hash-chaining)
-provides tamper detection.
+**Case bootstrap as the trust establishment mechanism.**
+The `Create(VulnerabilityCase)` message that the report receiver sends to the reporter as itself is the trust root for a case ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
+Late joiners receive a case snapshot and prior ledger entries from the CASE_MANAGER.
+A late joiner trusts the CASE_MANAGER's delivery because it trusts the invitation that named the CASE_MANAGER.
+This chain is the minimal trust model; cryptographic ledger integrity (hash-chaining) provides tamper detection.
 
 !!! info "See also"
     - [§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics) (trust and bootstrap semantics)
     - [§5.4 Addressing and Channels](layers.md#54-addressing-and-channels) (addressing and channels)
 
-### 14.2 Embargo Integrity
+### 15.2 Embargo Integrity
 
 **Protocol adherence.** An active embargo is an agreement, not a technical
 enforcement. The protocol provides the signaling infrastructure — Participant Embargo Consent (PEC) state
@@ -36,7 +34,7 @@ outside the protocol.
 
 **Defection.** If a participant discloses publicly while an embargo is `ACTIVE`,
 the `CP` (public awareness) message will trigger the embargo teardown cascade
-([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)). The teardown is a state machine consequence, not a penalty mechanism.
+([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)). The teardown is a state machine consequence, not a penalty mechanism.
 The protocol has no built-in penalty for defection; enforcement is an
 out-of-band organizational matter.
 
@@ -44,7 +42,7 @@ out-of-band organizational matter.
 While an embargo is in force, a participant that is not a signatory to it, because its consent row for that embargo is not `AGREED`, does not receive full case details.
 This is the primary technical lever the protocol provides against inadvertent over-disclosure to non-consenting parties.
 
-### 14.3 Replay and Idempotency
+### 15.3 Replay and Idempotency
 
 **Message deduplication.** Each ActivityStreams Activity carries a unique `id`.
 Implementations MUST deduplicate inbound messages by `id` before processing
@@ -55,7 +53,7 @@ hash-chained. A re-delivered `Announce(CaseLedgerEntry)` with a known entry
 hash MUST be treated as a no-op. The ledger NAK path (`Reject(CaseLedgerEntry)`)
 and gap-fill replay provide recovery from missed entries.
 
-### 14.4 Confidentiality
+### 15.4 Confidentiality
 
 **In-transit protection.** The protocol does not currently mandate a specific
 in-transit encryption mechanism. Transport Layer Security (TLS) is the expected transport protection for

@@ -28,7 +28,7 @@ Four fields are required on every Activity:
 | `type` | The Activity type — the verb, such as `Offer` or `Announce` |
 | `actor` | The Uniform Resource Identifier (URI) of the actor that performed the action |
 | `object` | The thing acted on, inline or by reference ([§5.5 Serialization](layers.md#55-serialization)) |
-| `id` | A URI uniquely identifying this Activity, used for deduplication ([§14.3 Replay and Idempotency](considerations.md#143-replay-and-idempotency)) |
+| `id` | A URI uniquely identifying this Activity, used for deduplication ([§15.3 Replay and Idempotency](considerations.md#153-replay-and-idempotency)) |
 
 Vultron's own types are declared in the vocabulary namespace
 `https://certcc.github.io/Vultron/ns`.
@@ -75,24 +75,7 @@ classDiagram
 | `EmbargoEvent` | An embargo's terms — proposed, accepted, revised or terminated. A subtype of the ActivityStreams `Event` type, which is why embargo messages appear on the wire as invitations to an event rather than under an embargo-specific verb |
 | `CaseLedgerEntry` | One entry in the canonical case ledger ([§2.3 Protocol Objects and Messages](introduction.md#23-protocol-objects-and-messages)) |
 | `CaseProposal` | A request that some actor create and manage a case. Used when the requesting actor does not intend to manage the case itself; the actor that accepts becomes the case's creator |
-| `CaseStatus` / `ParticipantStatus` | Status records — see below |
-
-**Status records: claim versus canonical.** These two are the most easily confused
-types in the protocol, and the difference is one of authority rather than content.
-
-- A `ParticipantStatus` is a **claim**. It carries what one participant reports
-  about its own state, or observes about the world. Any participant may write one,
-  and writing one does not change what the case asserts.
-- A `CaseStatus` is **canonical**. It carries what the case asserts: its embargo
-  state and what is publicly known. Only the CASE_MANAGER writes it
-  ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
-
-A claim becomes canonical only when the CASE_MANAGER adopts it, and adoption is an
-authorization decision with a named default rather than an automatic consequence of
-receipt ([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)). An
-implementation MUST NOT substitute one type for the other: a participant that
-emits `CaseStatus` is asserting authority it does not hold, and a CASE_MANAGER that
-treats an inbound `ParticipantStatus` as canonical has skipped the decision.
+| `CaseStatus` / `ParticipantStatus` | Status records: a `ParticipantStatus` is one participant's claim, and a `CaseStatus` is the case's canonical status, which only the CASE_MANAGER writes ([§10.5 Claims and Canonical Status](interactions.md#105-claims-and-canonical-status)) |
 
 !!! note "Informative: which types have core models"
     `CaseProposal` and the fault object of
@@ -144,7 +127,7 @@ loses a round-trip in which the Case Owner decides:
   actor.
 
 Both paths end in an `Accept` of an `Invite`
-([§11.2 Invitation and Acceptance](interactions.md#112-invitation-and-acceptance-n)).
+([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)).
 That `Accept` joins the case; it is not RV. A participant that joined this way never saw the
 report offer, so it judges the case by answering a second `Invite` that has the case itself
 as its target, the full-case `Invite`, and that reply is RV, RI or RC
@@ -167,81 +150,9 @@ it sends them. An actor's URI is its identity for every purpose in the protocol:
 there is no separate registry, and no name or hosting location carries authority
 ([§2.2 Roles](introduction.md#22-roles)).
 
-Delivery is therefore inbox to inbox. Which inbox a message may go to, however, is
-constrained — and that constraint is the subject of the next two subsections.
-
-#### 5.4.1 Single-Writer Authority
-
-The participant holding the `CASE_MANAGER` role is the **only** entity authorized to
-write the case's shared state: the PXA axis, the embargo state, the embargo record,
-and the case ledger. No participant and no handler may write shared case state
-directly; every such change MUST be made by the CASE_MANAGER.
-
-The participant-specific axes — report management and VFD — are owned by each
-participant's own `CaseParticipant` record and are explicitly **not** subject to
-this restriction. A participant is the authority on its own report management and
-VFD state.
-
-This rule exists to make concurrent claims resolvable. Two participants may report
-contradictory observations about the world at the same moment; with one writer,
-the case has one answer, and the decision about which claim becomes that answer is
-explicit ([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)) rather than a
-race. The routing rule below follows from it.
-
-#### 5.4.2 Routing Topology
-
-Once a case exists, every case-scoped message follows this path:
-
-```text
-Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) → all Participants
-```
-
-- A participant MUST address case-scoped Activities to the CASE_MANAGER.
-- The CASE_MANAGER MUST record a case-scoped message in the case ledger before
-  sending it on to the other participants.
-- `Announce` of a `CaseLedgerEntry` is the **only** mechanism by which a
-  participant learns of an admitted change to shared case state.
-
-There are exactly **two** exceptions, both confined to case bootstrap, both
-occurring before a CASE_MANAGER exists to route through
-([§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics)):
-
-1. **Pre-case report submission** — the reporter sends the report directly to the
-   vendor. No case exists, and therefore no case actor service has provisioned an
-   actor to hold the `CASE_MANAGER` role.
-2. **Case creation handshake** — the receiving party sends the case-creation
-   message back to the reporter as itself, introducing the actor that holds the role.
-   When that actor is not the receiving party, its first message to the reporter
-   is a later sync, which the reporter holds if it arrives before the introduction.
-
-!!! warning "This is a routing rule, not a prohibition on talking"
-    The rule above scopes **Vultron protocol messages about a case**. It does not
-    say that participants may not communicate with each other, and the protocol has
-    no way to enforce such a thing. Participants routinely talk directly — by mail,
-    by phone, in a shared channel — and that is outside the protocol's scope.
-
-    What the rule means is narrower: a case-scoped Vultron Activity delivered
-    directly from one participant to another is not part of the protocol, and a
-    receiving implementation has no obligation to apply it. Case state changes
-    through the ledger or not at all.
-
-!!! note "Informative: why route through one writer"
-    Routing through a single writer avoids the coordination cost of agreeing an
-    order among peers, while still leaving each participant its own replica and its
-    own view. The cost is that the CASE_MANAGER is a single point of coordination
-    authority for the case, and its availability bounds how fast that case can
-    progress.
-
-    This is scoped per case. The role is held for one case at a time, different
-    cases may be managed by different actors, and the role is transferable
-    ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)). The current reference
-    implementation goes further than the protocol requires and provisions a
-    dedicated service actor per case.
-
-    The protocol deliberately leaves more decentralized realizations open — a
-    ledger shared among peers, for instance, which would remove the single point of
-    authority at the cost of needing agreement on ordering. This version does not
-    specify one, and no implementation of one exists.
+Delivery is therefore inbox to inbox.
+Which inbox a message may go to, however, is constrained.
+Who may write a case's shared state, and the routing that follows from it, are specified at [§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority) and [§10.2 Routing Topology](interactions.md#102-routing-topology).
 
 ### 5.5 Serialization
 
@@ -277,10 +188,7 @@ As ActivityStreams 2.0 allows, an Activity MAY carry an object inline or name it
 An actor that names by reference an object its recipient cannot be expected to hold MUST use a reference the recipient can dereference ([AKM-02-002](../specs/protocol.md#akm-02-002), [§4.7 Knowledge Model and Actor Isolation](layers.md#47-knowledge-model-and-actor-isolation)).
 A production implementation MUST be able to fetch an object named by a URI it holds no record of ([AKM-05-004](../specs/protocol.md#akm-05-004)).
 
-A case ledger entry records the asserted activity as it was sent.
-Its payload snapshot is the received body of an activity the Case Manager received, or the body it delivered for one it sent itself ([CLP-07-011](../specs/protocol.md#clp-07-011)).
-Each nested object stays as the asserting activity carried it: inline where its sender inlined it, by reference where its sender named an object every replica already holds ([CLP-07-006](../specs/protocol.md#clp-07-006)).
-The Case Manager never fills a reference in, because the entry hash covers the snapshot and nothing outside it, so a filled-in snapshot would record the Case Manager's reconstruction rather than what was sent.
+How a case ledger entry records the objects of the activity it records is specified at [§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery).
 
 !!! note "The reference implementation inlines every object"
     The reference implementation does not yet dereference, so it carries every object inline and refuses a bare URI where it needs the object ([AKM-03-003](../specs/project.md#akm-03-003)).
@@ -289,7 +197,7 @@ The Case Manager never fills a reference in, because the entry hash covers the s
 !!! note "Provisional namespace URI"
     The namespace is currently hosted on GitHub Pages. A permanent URI may be
     registered in a future version
-    ([§13 IANA and Namespace Considerations](considerations.md#13-iana-and-namespace-considerations-i)).
+    ([§14 IANA and Namespace Considerations](considerations.md#14-iana-and-namespace-considerations-i)).
 
 ### 5.6 Transport Layer [N/I]
 
@@ -308,7 +216,7 @@ This is the transport an implementation MUST provide.
 - Each actor exposes an inbox endpoint that accepts inbound Activities.
 - An outbound Activity is delivered by HTTP POST to the recipient's inbox.
 - Authentication and authorization requirements are at
-  [§14 Security Considerations](considerations.md#14-security-considerations-ni).
+  [§15 Security Considerations](considerations.md#15-security-considerations-ni).
 
 {% include-markdown "./_oq-transport-status-codes.md" %}
 
@@ -326,7 +234,7 @@ the anticipated mechanism, consistent with its use alongside ActivityPub in
 federated systems. This version does not specify participant discovery.
 
 !!! note "Transport is not routing"
-    The routing rule of [§5.4.2 Routing Topology](layers.md#542-routing-topology) is a protocol rule
+    The routing rule of [§10.2 Routing Topology](interactions.md#102-routing-topology) is a protocol rule
     and applies regardless of which transport carries the messages. The transport
     is responsible for getting a message to an inbox. The protocol is responsible
     for which inbox it may go to.
@@ -351,22 +259,8 @@ types of [§5.2 Object Types](layers.md#52-object-types).
 | `EA`, `EC` | `Accept` of that `Invite` |
 | `ER`, `EJ` | `Reject` of that `Invite` |
 | `ET` | `Remove` of the `EmbargoEvent` |
-| `CV`–`CA` | `Add` of a status record to the case — see below |
+| `CV`–`CA` | `Add` of a status record to the case; which record depends on the sender ([§10.5 Claims and Canonical Status](interactions.md#105-claims-and-canonical-status)) |
 | `RE`, `EE`, `CE`, `EK`, `CK` | *none* ([§4.6 Error and Acknowledgment Messages](layers.md#46-error-and-acknowledgment-messages)) |
-
-**The status messages depend on who is sending.** The six case state shorthands do
-not have one wire form; they have two, and which applies is determined by the
-sender's authority:
-
-- A **participant** reporting its own VFD progress, or an observation about the
-  world, sends `Add` of a **`ParticipantStatus`**. This is a claim.
-- The **CASE_MANAGER**, having adopted a claim, sends `Add` of a **`CaseStatus`**
-  targeting the case. This is the canonical write.
-
-A participant MUST NOT send `Add` of a `CaseStatus`
-([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)). An implementation that maps all
-six shorthands to `CaseStatus` regardless of sender will have participants
-asserting authority they do not hold.
 
 **Two collision classes exist.** In both, the wire form alone is insufficient and an
 implementation MUST use additional information to disambiguate:
