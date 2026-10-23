@@ -951,10 +951,10 @@ groups:
       in `proposerCaseRoles` (CP-01-011). The CASE_MANAGER MUST NOT take them from its own
       configuration.
     rationale: >-
-      Explicit role configuration is the only reliable source; a report receiver
-      may be a coordinator rather than a vendor, so role inference is unsound. The
-      configuration is the receiver's, and the CASE_MANAGER may run in another
-      container, so its own configuration says nothing about the receiver (ADR-0133).
+      Only the report receiver knows the roles it holds; a report receiver may be a
+      coordinator rather than a vendor, so role inference is unsound. The CASE_MANAGER is
+      a different actor and may run elsewhere, so nothing it holds of its own says
+      anything about the receiver (ADR-0133).
     verification: Unit tests `test_vendor_proposal_yields_vendor_role`, `test_coordinator_proposal_does_not_yield_vendor_role`
       and `test_case_actor_config_does_not_supply_owner_roles` in
       `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the roles come from the proposal.

@@ -18,7 +18,8 @@
 The chain this pins:
 
 1. the receiver copies its ``ActorConfig.default_case_roles`` onto the
-   ``as_CaseProposal`` it sends, as ``proposerCaseRoles`` (CP-01-011);
+   ``as_CaseProposal`` it sends, as ``proposerCaseRoles`` (CP-01-011,
+   CP-01-013);
 2. the field survives the wire, and a claim to ``CASE_MANAGER`` is refused
    when the proposal is parsed (CP-01-012);
 3. the extractor hands the roles to the CaseActor's use case on the event.

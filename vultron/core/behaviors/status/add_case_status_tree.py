@@ -24,7 +24,7 @@ A replica writes no case state on receipt: it takes the CASE_MANAGER's
 status from the ``Announce(CaseLedgerEntry)`` fan-out (RSH-08-003,
 PCR-03-001).  The CASE_MANAGER's own status writes, including a
 participant's adopted P, X or A, are in ``add_participant_status_tree`` and
-the embargo trees (RSH-01-003, RSH-04-004).
+the embargo trees (RSH-01-003, RSH-04-006).
 
     AddCaseStatusToCaseBT (Sequence)
     ├─ <intake, post-close guard, sender guard, clock decisions>  # factory

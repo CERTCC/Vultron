@@ -258,6 +258,20 @@ def test_enclosing_field_alias_carries_the_bare_state_on_the_wire():
     assert (case["emState"], case["pxaState"]) == ("NONE", "pxa")
 
 
+@pytest.mark.spec("SM-08-001")
+def test_vendor_and_deployer_states_travel_as_bare_labels():
+    """The VF and D dimensions reach the wire as bare labels, as RM does."""
+    participant = ParticipantStatus(
+        id_="urn:uuid:ps-wire-vfd",
+        context="urn:case:1",
+        cvd_role=[CVDRole.VENDOR, CVDRole.DEPLOYER],
+        vf=VfDimension(state=CS_vf.Vf),
+        d=DDimension(state=CS_d.D),
+    ).model_dump(mode="json", by_alias=True)
+
+    assert (participant["vfState"], participant["dState"]) == ("Vf", "D")
+
+
 class TestStatePersistsThroughTheNormalisationRoundTrip:
     """Regression for the silent state loss the spike uncovered.
 

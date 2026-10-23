@@ -1,9 +1,10 @@
-"""The DataLayer stores state values as their string value (SM-08-003).
+"""The DataLayer stores state values as their bare labels (SM-08-003).
 
 A stored ``ParticipantStatus`` or ``CaseStatus`` row must carry each state as
-the same string value the wire form uses (``"ACCEPTED"``, ``"NONE"``,
-``"pxa"``), never a Python enum name such as ``"RM.ACCEPTED"`` or an integer,
-so a row written by one process is read back as the same state by any other.
+the same bare label the wire form uses (``"ACCEPTED"``, ``"Vf"``, ``"D"``,
+``"NONE"``, ``"pxa"``), never a qualified form such as ``"RM.ACCEPTED"`` or an
+integer, so a row written by one process is read back as the same state by any
+other.
 The row keys are the model's field names (``rm``, ``em``, ``pxa``), not the
 wire aliases.
 """
@@ -28,9 +29,11 @@ import pytest
 
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.case_status import CaseStatus
-from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.dimensions import DDimension, RmDimension, VfDimension
 from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.cs import CS_d, CS_vf
 from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
 
 pytestmark = pytest.mark.spec("SM-08-003")
 
@@ -52,23 +55,26 @@ def _stored(dl: SqliteDataLayer, type_: str, id_: str) -> dict[str, Any]:
     return row
 
 
-def test_a_participant_status_row_stores_rm_as_its_string_value(
+def test_a_participant_status_row_stores_rm_vf_and_d_as_bare_labels(
     dl: SqliteDataLayer,
 ):
     status = ParticipantStatus(
         id_="urn:uuid:ps-stored",
         context="urn:case:1",
+        cvd_role=[CVDRole.VENDOR, CVDRole.DEPLOYER],
         rm=RmDimension(state=RM.ACCEPTED),
+        vf=VfDimension(state=CS_vf.Vf),
+        d=DDimension(state=CS_d.D),
     )
     dl.save(status)
 
     row = _stored(dl, "ParticipantStatus", status.id_)
 
-    assert row["rm"] == "ACCEPTED"
-    assert type(row["rm"]) is str
+    assert (row["rm"], row["vf"], row["d"]) == ("ACCEPTED", "Vf", "D")
+    assert all(type(row[k]) is str for k in ("rm", "vf", "d"))
 
 
-def test_a_case_status_row_stores_em_and_pxa_as_their_string_values(
+def test_a_case_status_row_stores_em_and_pxa_as_bare_labels(
     dl: SqliteDataLayer,
 ):
     status = CaseStatus(id_="urn:uuid:cs-stored", context="urn:case:1")

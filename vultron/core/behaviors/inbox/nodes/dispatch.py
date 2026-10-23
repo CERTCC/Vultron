@@ -145,7 +145,7 @@ class DispatchNode(_InboxNodeWithPorts):
     def _answer_with_internal_error_fault(
         self, dispatch: DispatchAdapter, event: VultronEvent
     ) -> None:
-        """Answer the sender of a raised dispatch with a fault (ASK-07-010).
+        """Answer the sender of a raised dispatch with a fault (ASK-07-011).
 
         The dispatch has returned by raising, so any transaction the act
         opened has closed: an act that runs as one act has rolled back, and

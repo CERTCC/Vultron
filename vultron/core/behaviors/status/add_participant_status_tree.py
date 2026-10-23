@@ -202,7 +202,7 @@ def add_participant_status_tree(
     When the gate passes, ``EmitCaseStatusUpdateNode`` writes the post-adoption
     CaseStatus, adding every P, X or A latch the report sets and clearing
     none, directly to the case ledger and fans it out to participants
-    (RSH-01-003, RSH-04-004).  A ``FailureIsSuccess``-wrapped
+    (RSH-01-003, RSH-04-006).  A ``FailureIsSuccess``-wrapped
     ``TeardownEffects`` Sequence then attempts embargo teardown: the
     ``EmbargoTeardownAuthorizationGate`` call-out gates execution, and
     ``ThreatTerminationBranchNode`` fires when the received CaseStatus has

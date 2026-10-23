@@ -61,19 +61,15 @@ groups:
       the `CaseStatus` the sender's `ParticipantStatus` embeds sets, and MUST
       NOT clear one the case already sets.
     rationale: >
-      The CASE_MANAGER is the authority for its own canonical state changes, so
-      routing its adoption back through its own inbox adds a hop and a second
-      adjudication to a write it has already authorized (RSH-04-004). It is the
-      only path by which a participant's P, X or A reaches the case status
-      (RSH-04-005), so a write that re-snapshots the case's PXA adopts nothing
-      (#4956).
+      Adoption is the only path by which a participant's P, X or A reaches the
+      case status (RSH-04-005), so a record that re-snapshots the case's PXA
+      adopts nothing, and one that clears a latch the case set would undo
+      another participant's report (#4956).
     verification: >-
       Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
-      confirm that when `StatusAdoptionGate` passes `EmitCaseStatusUpdateNode`
-      appends the post-adoption `CaseStatus` to the case, adding each P, X or A
-      the report newly sets and clearing none, read from the stored status by
-      id at tick, and that a refused adoption leaves the case's PXA state
-      unchanged.
+      confirm that an adopted status records the post-adoption `CaseStatus`,
+      adding each P, X or A the report newly sets and clearing none, and that a
+      refused adoption leaves the case's PXA state unchanged.
     adr:
     - ADR-0046
     - ADR-0108
@@ -158,9 +154,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      Embargo teardown MUST be triggered when the canonical CaseStatus carries
-      CS.P (public awareness), CS.X (exploit public), or CS.A (attacks
-      observed).
+      The CASE_MANAGER MUST trigger embargo teardown when the canonical
+      CaseStatus carries CS.P (public awareness), CS.X (exploit public), or CS.A
+      (attacks observed).
     rationale: >
       All three flags signal a breach of the conditions that justify an active
       embargo. Covering only CS.P (as the prior `PublicDisclosureBranchNode`
@@ -339,29 +335,18 @@ groups:
       is measured against the ledger, not the case's current status, which
       already carries the register's EM (ADR-0122).
     rationale: >
-      The inbox seam handles a received `Add(CaseStatus)`, which only the
-      CASE_MANAGER sends, and only to a participant replica, which writes
-      nothing on receipt (RSH-04-005, RSH-08-003). The CASE_MANAGER writing its own
-      EM/PXA transition is an authoritative state change, not a received
-      message. Routing through
-      the inbox loopback (as `EmitAddCaseStatusToSelfNode` does) inverts
-      causality: the ledger write should precede the announce, not be triggered
-      by a self-addressed inbox message. DRY: one shared node, not N inline
-      patches per BT tree factory.
+      The CASE_MANAGER's own EM or PXA transition is an authoritative state
+      change, not a received message: a received `Add(CaseStatus)` is admitted
+      only from the CASE_MANAGER at a participant replica (RSH-04-005,
+      RSH-08-003), so judging its own change as one would apply a rule meant for
+      others. Replicas learn of the change only from the announced entry, and an
+      entry that repeats the last committed `CaseStatus` would hand every replica
+      a duplicate that records no change.
     verification: >-
       `test/core/behaviors/status/nodes/test_case_status.py` shows an unchanged snapshot
       is neither committed nor written and an EM change after a commit is committed; the
       demo and CI ledger invariant checks find no `CaseStatus` entry equal to the one
       before it (`test/support/ledger_status_repeats.py`).
-    note: >
-      Implemented in ISSUE-2175 (`EmitCaseStatusUpdateNode`). The inbound
-      adoption path was refactored onto the same node in ISSUE-2176 (RSH-01-003),
-      and the former `EmitAddCaseStatusToSelfNode` inbox-loopback kludge has
-      since been removed (ADR-0108). The received embargo-relay trees
-      (proposal, Invite, Accept, Reject) need no `EmitCaseStatusUpdateNode`:
-      their committed entries are replayed by the relay apply nodes
-      (RSH-04-002, EP-09-007, ADR-0113).
-
     stories:
     - story_2022_045
     - story_2022_088
@@ -383,6 +368,14 @@ groups:
       copy of the commit and announce. A self-addressed message would make the
       announce trigger the ledger write instead of follow it, and would put an
       already authorized write through a second adjudication.
+    note: >
+      Implemented in ISSUE-2175 (`EmitCaseStatusUpdateNode`). The inbound
+      adoption path was refactored onto the same node in ISSUE-2176 (RSH-01-003),
+      and the former `EmitAddCaseStatusToSelfNode` inbox-loopback kludge has
+      since been removed (ADR-0108). The received embargo-relay trees
+      (proposal, Invite, Accept, Reject) need no `EmitCaseStatusUpdateNode`:
+      their committed entries are replayed by the relay apply nodes
+      (RSH-04-002, EP-09-007, ADR-0113).
     verification: >-
       `test/core/behaviors/status/test_add_participant_status_bt.py::TestAddParticipantStatusTree::test_emit_node_present_rsh_01_001`
       confirms the tree holds `EmitCaseStatusUpdateNode` and no
