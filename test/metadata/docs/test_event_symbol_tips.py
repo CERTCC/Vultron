@@ -14,9 +14,10 @@
 
 ``docs/javascripts/mathjax.js`` defines one MathJax macro per case event (for
 example ``\\evF``), which renders the event's bold letter with a ``\\texttip``.
-Each tip begins with the event's short name. The short names are owned by the
-event legend (``_case_events.md``) and, for the split events, by the split table
-on the desiderata page. These tests keep the three in step, fail on a macro a
+Each tip reads "<short name>: <meaning>". The event legend
+(``_case_events.md``) owns both halves for its events; the split table on the
+desiderata page owns the short names of the split events and must agree with the
+legend wherever the two overlap. These tests keep them in step, fail on a macro a
 page uses but nothing defines, and keep the pages that adopted the macros from
 falling back to bare ``\\mathbf`` event letters.
 """
@@ -44,6 +45,7 @@ ADOPTED = [
     DOCS / "topics" / "measuring_cvd" / "open_questions.md",
     DOCS / "howto" / "measure_your_cvd_program.md",
     DOCS / "includes" / "twelve_desiderata.md",
+    DOCS / "topics" / "background" / "cvd_success.md",
 ]
 
 _MACRO = re.compile(
@@ -51,7 +53,7 @@ _MACRO = re.compile(
     re.MULTILINE,
 )
 _LEGEND_ROW = re.compile(
-    r"^\| \$\\(?P<name>ev[A-Za-z]+)(?:_\w)?\$ \| [^|]*\((?P<short>[^)]+)\) \|",
+    r"^\| \$\\(?P<name>ev[A-Za-z]+)(?:_\w)?\$ \| (?P<event>[^|(]+?) \((?P<short>[^)]+)\) \|",
     re.M,
 )
 _SPLIT_ROW = re.compile(
@@ -69,16 +71,49 @@ def _macros() -> dict[str, str]:
     return found
 
 
-def _short_names() -> dict[str, str]:
+#: How the legend names a subscripted owner, and how a tip names it.
+_OWNERS = {
+    "Participant $i$": "a participant",
+    "Vendor $i$": "a vendor",
+    "Deployer $k$": "a deployer",
+}
+
+
+def _legend_rows() -> dict[str, tuple[str, str]]:
+    """Map each legend macro to its (short name, meaning as a tip writes it)."""
+    rows = {}
+    for m in _LEGEND_ROW.finditer(LEGEND.read_text()):
+        event = m["event"]
+        for owner, generic in _OWNERS.items():
+            event = event.replace(owner, generic)
+        rows[m["name"]] = (m["short"], event[0].lower() + event[1:])
+    assert rows, f"no event rows found in {LEGEND}"
+    return rows
+
+
+def _split_names() -> dict[str, str]:
     names = {
-        m["name"]: m["short"] for m in _LEGEND_ROW.finditer(LEGEND.read_text())
-    }
-    names.update(
-        (m["name"], m["short"].lower())
+        m["name"]: m["short"].lower()
         for m in _SPLIT_ROW.finditer(SPLITS.read_text())
-    )
-    assert names, "no event short names found in the legend or the split table"
+    }
+    assert names, f"no split-table rows found in {SPLITS}"
     return names
+
+
+def _short_names() -> dict[str, str]:
+    # The legend owns its events' names; the split table only adds new ones.
+    legend = {name: short for name, (short, _) in _legend_rows().items()}
+    return {**_split_names(), **legend}
+
+
+def test_split_table_agrees_with_the_legend_where_they_overlap():
+    legend = _short_names()
+    disagree = {
+        name: (short, legend[name])
+        for name, short in _split_names().items()
+        if name in _legend_rows() and short != legend[name]
+    }
+    assert not disagree, disagree
 
 
 def test_every_macro_has_a_short_name_and_every_short_name_a_macro():
@@ -89,6 +124,12 @@ def test_every_macro_has_a_short_name_and_every_short_name_a_macro():
 def test_tip_starts_with_the_events_short_name(name: str):
     tip = _macros()[name]
     assert tip.startswith(f"{_short_names()[name]}: "), (name, tip)
+
+
+@pytest.mark.parametrize("name", sorted(_legend_rows()))
+def test_legend_event_tip_matches_the_legend_row(name: str):
+    short, meaning = _legend_rows()[name]
+    assert _macros()[name] == f"{short}: {meaning}", name
 
 
 def test_every_macro_a_page_uses_is_defined():

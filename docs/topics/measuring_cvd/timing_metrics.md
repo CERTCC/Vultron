@@ -88,6 +88,7 @@ Five shapes cover the proposed metrics.
 ## Intake and triage
 
 These intervals measure how fast a report becomes a case and a commitment.
+They are per-participant, because Report Management (RM) is per-participant.
 
 !!! note "Invitees and their two Invites"
 
@@ -95,7 +96,6 @@ These intervals measure how fast a report becomes a case and a commitment.
     The case first sends the Invitee a Stub Invite, which asks the Invitee to join and carries only a summary of the case.
     After the Invitee joins, the case sends a Full-Case Invite, which carries the full case and asks the Invitee to judge the report (CM-11-011).
     The [Glossary](../../reference/glossary.md#messaging-and-protocol) defines both Invites.
-They are per-participant, because Report Management (RM) is per-participant.
 
 | Metric | Definition |
 |---|---|

@@ -156,10 +156,10 @@ Taken together, these twelve ordering preferences are the minimum set of outcome
 
 |          $a \prec b$          |      $a \prec b$       |      $a \prec b$       |
 |:-----------------------------:|:-----------------------------:|:-----------------------------:|
-| $\mathbf{V} \prec \mathbf{P}$ | $\mathbf{F} \prec \mathbf{P}$ | $\mathbf{D} \prec \mathbf{P}$ |
-| $\mathbf{V} \prec \mathbf{X}$ | $\mathbf{F} \prec \mathbf{X}$ | $\mathbf{D} \prec \mathbf{X}$ |
-| $\mathbf{V} \prec \mathbf{A}$ | $\mathbf{F} \prec \mathbf{A}$ | $\mathbf{D} \prec \mathbf{A}$ |
-| $\mathbf{P} \prec \mathbf{X}$ | $\mathbf{P} \prec \mathbf{A}$ | $\mathbf{X} \prec \mathbf{A}$ |
+| $\evV \prec \evP$ | $\evF \prec \evP$ | $\evD \prec \evP$ |
+| $\evV \prec \evX$ | $\evF \prec \evX$ | $\evD \prec \evX$ |
+| $\evV \prec \evA$ | $\evF \prec \evA$ | $\evD \prec \evA$ |
+| $\evP \prec \evX$ | $\evP \prec \evA$ | $\evX \prec \evA$ |
 
 ---
 

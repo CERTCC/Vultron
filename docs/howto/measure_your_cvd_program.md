@@ -184,14 +184,14 @@ A high median with a wide spread means a few Vendors are being left behind, whic
 
 ## Further reading
 
+- [Measuring CVD Foundations](../topics/measuring_cvd/foundations/index.md) — the derivation behind every number in this guide.
+- [Discriminating Skill and Luck in Observations](../topics/measuring_cvd/discriminating_skill_and_luck.md) — the skill coefficient and the model that yields it.
+- [Benchmarking CVD](../topics/measuring_cvd/benchmarking.md) — why zero is a low bar, and how sector observations become benchmarks.
+- [CVD Roles and Their Influence](../topics/other_uses/roles_influence.md) — how vendors, system owners, coordinators, and governments rank the preferences differently.
+
 !!! tip "Going further"
 
     The score in this guide uses the six events and twelve preferences of the original research.
     [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md) proposes more preferences, about report handling, embargoes, and joining.
     [Timing Metrics Within a Case](../topics/measuring_cvd/timing_metrics.md) proposes measures of the intervals between events.
     Both pages are draft research, and neither page has a published baseline yet.
-
-- [Measuring CVD Foundations](../topics/measuring_cvd/foundations/index.md) — the derivation behind every number in this guide.
-- [Discriminating Skill and Luck in Observations](../topics/measuring_cvd/discriminating_skill_and_luck.md) — the skill coefficient and the model that yields it.
-- [Benchmarking CVD](../topics/measuring_cvd/benchmarking.md) — why zero is a low bar, and how sector observations become benchmarks.
-- [CVD Roles and Their Influence](../topics/other_uses/roles_influence.md) — how vendors, system owners, coordinators, and governments rank the preferences differently.
