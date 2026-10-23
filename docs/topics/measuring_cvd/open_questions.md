@@ -20,12 +20,12 @@ The questions use the six Case State (CS) events of the [Foundations](foundation
 
 | Event | Meaning |
 |---|---|
-| $\mathbf{V}$ | The vendor is aware of the vul |
-| $\mathbf{F}$ | The fix is ready |
-| $\mathbf{D}$ | The fix is deployed |
-| $\mathbf{P}$ | The public is aware of the vul |
-| $\mathbf{X}$ | An exploit is public |
-| $\mathbf{A}$ | Attacks are observed |
+| $\evV$ | The vendor is aware of the vul |
+| $\evF$ | The fix is ready |
+| $\evD$ | The fix is deployed |
+| $\evP$ | The public is aware of the vul |
+| $\evX$ | An exploit is public |
+| $\evA$ | Attacks are observed |
 
 [What a Case Records](what_a_case_records.md) describes how a Vultron case records each of these six events.
 
@@ -43,18 +43,18 @@ The questions also use these terms from the Foundations:
 ## When is a fix deployed?
 
 The Foundations model treats each event as one point in time.
-Fix deployment ($\mathbf{D}$) is not one point in time.
+Fix deployment ($\evD$) is not one point in time.
 Each vulnerable system has its own deployment state, and the fix reaches the systems over a period of time.
-Thus a deployer needs a threshold at which it counts fix deployment ($\mathbf{D}$) as complete.
+Thus a deployer needs a threshold at which it counts $\evD$ as complete.
 
 Vulnerability management practice already has this question: when is a fix deployed across an enterprise?
 Many organizations use a fixed percentage as a Service Level Expectation (SLE).
 For example, an SLE can require a fix on 80% of known vulnerable systems within a set time.
 Other organizations set a threshold for each risk group, such as end-user systems, servers, and network infrastructure.
-These organizations then mark fix deployment ($\mathbf{D}$) when each risk group reaches its threshold.
+These organizations then mark $\evD$ when each risk group reaches its threshold.
 The Foundations model permits each of these thresholds, and does not choose one.
 
-Settled: in a Vultron case, each deployer has its own fix deployment ($\mathbf{D}$), so the case records the deployment of each deployer separately ([What a Case Records](what_a_case_records.md#per-case-and-per-participant-state)).
+Settled: in a Vultron case, each deployer has its own $\evD$, so the case records the deployment of each deployer separately ([What a Case Records](what_a_case_records.md#per-case-and-per-participant-state)).
 
 ---
 
@@ -68,18 +68,18 @@ For example, many people think that a public exploit makes attacks more likely.
 The Foundations model lets you test this belief.
 The test asks whether attacks are more probable in cases where an exploit is public than in cases where no exploit is public.
 In the notation of the Foundations, $\mathcal{Q}_X$ is the set of case states with a public exploit, and $\mathcal{Q}_x$ is the set without one.
-The test is whether $p(\mathbf{A} \mid q \in \mathcal{Q}_X) > p(\mathbf{A} \mid q \in \mathcal{Q}_x)$ is true over a set of cases.
+The test is whether $p(\evA \mid q \in \mathcal{Q}_X) > p(\evA \mid q \in \mathcal{Q}_x)$ is true over a set of cases.
 
 Other beliefs have the same form.
 One belief is that attacks increase when the vul is public before the fix is ready.
 In the formula below, $fP$ is the set of states where the fix is not ready and the vul is public.
 $FP$ is the set of states where the fix is ready and the vul is public:
 
-$$p(\mathbf{A} \mid q \in fP) > p(\mathbf{A} \mid q \in FP)$$
+$$p(\evA \mid q \in fP) > p(\evA \mid q \in FP)$$
 
 Another belief is that vendor notification before public awareness makes deployment before attacks more likely:
 
-$$p(\mathbf{D} \prec \mathbf{A} \mid \mathbf{V} \prec \mathbf{P}) > p(\mathbf{D} \prec \mathbf{A} \mid \mathbf{P} \prec \mathbf{V})$$
+$$p(\evD \prec \evA \mid \evV \prec \evP) > p(\evD \prec \evA \mid \evP \prec \evV)$$
 
 Researchers could ask these questions before the Foundations model existed.
 The model adds a short statement of each question in terms of the six events.
@@ -101,9 +101,9 @@ The open preferences are these three pairs:
 
 | Is it better that… | …or that… |
 |---|---|
-| The fix is ready before an exploit is public ($\mathbf{F} \prec \mathbf{X}$) | The vendor is aware before the public is aware ($\mathbf{V} \prec \mathbf{P}$) |
-| The public is aware before an exploit is public ($\mathbf{P} \prec \mathbf{X}$) | An exploit is public before attacks are observed ($\mathbf{X} \prec \mathbf{A}$) |
-| The public is aware before attacks are observed ($\mathbf{P} \prec \mathbf{A}$) | The vendor is aware before an exploit is public ($\mathbf{V} \prec \mathbf{X}$) |
+| The fix is ready before an exploit is public ($\evF \prec \evX$) | The vendor is aware before the public is aware ($\evV \prec \evP$) |
+| The public is aware before an exploit is public ($\evP \prec \evX$) | An exploit is public before attacks are observed ($\evX \prec \evA$) |
+| The public is aware before attacks are observed ($\evP \prec \evA$) | The vendor is aware before an exploit is public ($\evV \prec \evX$) |
 
 We look forward to the "would you rather" discussions that these pairs start.
 
@@ -112,25 +112,25 @@ We look forward to the "would you rather" discussions that these pairs start.
 ## What timing should a case meet?
 
 The CS model records the order of events, and does not record time.
-Consider two cases where fix readiness ($\mathbf{F}$) occurs before observed attacks ($\mathbf{A}$).
-In one case, the interval from fix readiness ($\mathbf{F}$) to observed attacks ($\mathbf{A}$) is one week.
+Consider two cases where fix readiness ($\evF$) occurs before observed attacks ($\evA$).
+In one case, the interval from $\evF$ to $\evA$ is one week.
 In the other case, the interval is three months.
 These two cases are very different, but the CS model gives them the same score.
 
 Organizations can set time limits as well as orders.
 For example, an organization can set an SLE for each of these intervals:
 
-- vendor awareness ($\mathbf{V}$) to fix readiness ($\mathbf{F}$)
-- fix readiness ($\mathbf{F}$) to fix deployment ($\mathbf{D}$)
-- fix readiness ($\mathbf{F}$) to observed attacks ($\mathbf{A}$)
+- vendor awareness ($\evV$) to $\evF$
+- $\evF$ to $\evD$
+- $\evF$ to $\evA$
 
 Which SLEs a program should use, and at what values, is an open question.
 
-Over many cases, the interval from fix readiness ($\mathbf{F}$) to observed attacks ($\mathbf{A}$) sets the response time that a deployer must meet.
-Deployers and vendors do not choose when attacks occur, so the interval from fix readiness ($\mathbf{F}$) to observed attacks ($\mathbf{A}$) is largely random.
+Over many cases, the interval from $\evF$ to $\evA$ sets the response time that a deployer must meet.
+Deployers and vendors do not choose when attacks occur, so the interval from $\evF$ to $\evA$ is largely random.
 Consider a deployer that usually takes longer to deploy a fix than attackers take to attack.
-In other words, its interval from fix readiness ($\mathbf{F}$) to fix deployment ($\mathbf{D}$) is usually longer than the interval from fix readiness ($\mathbf{F}$) to observed attacks ($\mathbf{A}$).
-That deployer usually fails to achieve fix deployment before observed attacks ($\mathbf{D} \prec \mathbf{A}$), and its vulnerability management is not effective.
+In other words, its interval from $\evF$ to $\evD$ is usually longer than the interval from $\evF$ to $\evA$.
+That deployer usually fails to achieve $\evD \prec \evA$, and its vulnerability management is not effective.
 
 Timing data has its own gaps.
 The CASE_MANAGER stamps some events when it next handles the case, not when the events occurred.
@@ -175,7 +175,7 @@ Other CVD practitioners are then compared against that baseline.
 
 Data of this kind could also support causal research on the order of events, and help to find effective interventions.
 For example, consider a vendor that is slow to make a fix.
-In that case, a public exploit before the fix ($\mathbf{X} \prec \mathbf{F}$) can perhaps make deployment before attacks ($\mathbf{D} \prec \mathbf{A}$) more likely.
+In that case, a public exploit before the fix ($\evX \prec \evF$) can perhaps make deployment before attacks ($\evD \prec \evA$) more likely.
 It is an open question whether to compare a team against chance or against other teams.
 
 To answer these questions, researchers need event times from many cases, many kinds of participants, and many vuls.

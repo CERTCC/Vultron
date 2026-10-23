@@ -24,9 +24,10 @@ The result tells you which outcomes your program achieves more often than chance
 - You have a record of closed or long-running cases with dates for at least some of those events.
 - You can compute a ratio and a difference in a spreadsheet.
 
-The six events, with the letter the rest of this guide uses for each, are Vendor Awareness (**V**), Fix Ready (**F**), Fix Deployed (**D**), Public Awareness (**P**), Exploit Public (**X**), and Attacks Observed (**A**).
+The six events, with the symbol the rest of this guide uses for each, are Vendor Awareness ($\evV$), Fix Ready ($\evF$), Fix Deployed ($\evD$), Public Awareness ($\evP$), Exploit Public ($\evX$), and Attacks Observed ($\evA$).
 The [Case State (CS) model](../topics/process_models/cs/index.md) defines these six events.
-The notation **a** $\prec$ **b** means that event **a** occurs before event **b**.
+The notation $a \prec b$ means that event $a$ occurs before event $b$.
+Hover over a symbol to see the name of its event.
 
 ---
 
@@ -37,23 +38,23 @@ The table below lists the twelve preferences and the records each one needs.
 
 | Preference | Needs dates for | Usually available to |
 |---|---|---|
-| Vendor Awareness before Public Awareness (**V** $\prec$ **P**) | Vendor notification, publication | Coordinators, Reporters |
-| Vendor Awareness before Exploit Public (**V** $\prec$ **X**) | Vendor notification, first public exploit | Coordinators, Reporters |
-| Vendor Awareness before Attacks Observed (**V** $\prec$ **A**) | Vendor notification, first observed attack | Coordinators, Reporters |
-| Fix Ready before Public Awareness (**F** $\prec$ **P**) | Fix ready, publication | Vendors, Coordinators |
-| Fix Ready before Exploit Public (**F** $\prec$ **X**) | Fix ready, first public exploit | Vendors, Coordinators |
-| Fix Ready before Attacks Observed (**F** $\prec$ **A**) | Fix ready, first observed attack | Vendors, Coordinators |
-| Fix Deployed before Public Awareness (**D** $\prec$ **P**) | Fix deployed, publication | Deployers, and Vendors that deploy their own fixes |
-| Fix Deployed before Exploit Public (**D** $\prec$ **X**) | Fix deployed, first public exploit | Deployers, and Vendors that deploy their own fixes |
-| Fix Deployed before Attacks Observed (**D** $\prec$ **A**) | Fix deployed, first observed attack | Deployers, and Vendors that deploy their own fixes |
-| Public Awareness before Exploit Public (**P** $\prec$ **X**) | Publication, first public exploit | Anyone who tracks exploit publication |
-| Public Awareness before Attacks Observed (**P** $\prec$ **A**) | Publication, first observed attack | Anyone who tracks attacks |
-| Exploit Public before Attacks Observed (**X** $\prec$ **A**) | First public exploit, first observed attack | Anyone who tracks both |
+| Vendor Awareness before Public Awareness ($\evV \prec \evP$) | Vendor notification, publication | Coordinators, Reporters |
+| Vendor Awareness before Exploit Public ($\evV \prec \evX$) | Vendor notification, first public exploit | Coordinators, Reporters |
+| Vendor Awareness before Attacks Observed ($\evV \prec \evA$) | Vendor notification, first observed attack | Coordinators, Reporters |
+| Fix Ready before Public Awareness ($\evF \prec \evP$) | Fix ready, publication | Vendors, Coordinators |
+| Fix Ready before Exploit Public ($\evF \prec \evX$) | Fix ready, first public exploit | Vendors, Coordinators |
+| Fix Ready before Attacks Observed ($\evF \prec \evA$) | Fix ready, first observed attack | Vendors, Coordinators |
+| Fix Deployed before Public Awareness ($\evD \prec \evP$) | Fix deployed, publication | Deployers, and Vendors that deploy their own fixes |
+| Fix Deployed before Exploit Public ($\evD \prec \evX$) | Fix deployed, first public exploit | Deployers, and Vendors that deploy their own fixes |
+| Fix Deployed before Attacks Observed ($\evD \prec \evA$) | Fix deployed, first observed attack | Deployers, and Vendors that deploy their own fixes |
+| Public Awareness before Exploit Public ($\evP \prec \evX$) | Publication, first public exploit | Anyone who tracks exploit publication |
+| Public Awareness before Attacks Observed ($\evP \prec \evA$) | Publication, first observed attack | Anyone who tracks attacks |
+| Exploit Public before Attacks Observed ($\evX \prec \evA$) | First public exploit, first observed attack | Anyone who tracks both |
 
-If you are a Vendor, start with Fix Ready before Public Awareness (**F** $\prec$ **P**) and Fix Ready before Attacks Observed (**F** $\prec$ **A**).
+If you are a Vendor, start with $\evF \prec \evP$ and $\evF \prec \evA$.
 Those two are what the [published proof of concept](../topics/measuring_cvd/observing_skill.md) measured for Microsoft, so you have a comparison.
-If you are a Coordinator, add the three Vendor Awareness (**V**) preferences, because notifying Vendors is the event you cause.
-If your program does not deploy fixes, and no Deployer in your cases reports deployment, leave out the preferences with Fix Deployed (**D**).
+If you are a Coordinator, add the three $\evV$ preferences, because notifying Vendors is the event you cause.
+If your program does not deploy fixes, and no Deployer in your cases reports deployment, leave out the preferences with $\evD$.
 The reason is that only the Deployer usually knows the date of a deployment.
 
 ---
@@ -66,7 +67,7 @@ Then, for each preference **a** $\prec$ **b**, record whether **a** happened bef
 Apply two rules when you record:
 
 - An event that has not been observed counts as later than every event that has.
-  A case with a fix ready and no public exploit satisfies Fix Ready before Exploit Public (**F** $\prec$ **X**).
+  A case with a fix ready and no public exploit satisfies $\evF \prec \evX$.
 - If the two events happened on the same day and you cannot order them, exclude that case from that preference rather than guess.
 
 !!! info "If your cases run on Vultron"
@@ -79,7 +80,7 @@ Apply two rules when you record:
     Treat the dates of these events as approximate.
 
 Re-score a case when a later event arrives.
-A case that satisfied Fix Ready before Attacks Observed (**F** $\prec$ **A**) when it closed stops satisfying it if an attack is observed later, so the score of a program is a moving figure and not a closing report.
+A case that satisfied $\evF \prec \evA$ when it closed stops satisfying it if an attack is observed later, so the score of a program is a moving figure and not a closing report.
 
 ---
 
@@ -88,7 +89,7 @@ A case that satisfied Fix Ready before Attacks Observed (**F** $\prec$ **A**) wh
 For each preference, divide the number of cases in which it held by the number of cases you scored for it.
 Call the result $f_d^{obs}$, the observed frequency of preference $d$.
 
-If you scored 40 cases for Fix Ready before Public Awareness (**F** $\prec$ **P**) and the fix was ready before publication in 36 of them, then $f_{\mathbf{F} \prec \mathbf{P}}^{obs} = 36 / 40 = 0.90$.
+If you scored 40 cases for $\evF \prec \evP$ and the fix was ready before publication in 36 of them, then $f_{\evF \prec \evP}^{obs} = 36 / 40 = 0.90$.
 
 ---
 
@@ -100,7 +101,7 @@ Read it from the table below at the row of the first event and the column of the
 
 {% include-markdown "../includes/tab_exp_freq.md" %}
 
-For Fix Ready before Public Awareness (**F** $\prec$ **P**) the baseline is 0.111: a fix would be ready before publication in about one uncoordinated case in nine.
+For $\evF \prec \evP$ the baseline is 0.111: a fix would be ready before publication in about one uncoordinated case in nine.
 [Reasoning over Possible Histories](../topics/measuring_cvd/reasoning_over_histories.md) shows where the numbers come from.
 
 ---
@@ -116,7 +117,7 @@ $$
 The coefficient $\alpha_d$ is the share of your observed success that chance does not explain.
 It is 1 when the preference holds in every case, 0 when it holds exactly as often as chance predicts, and negative when it holds less often than chance.
 
-Continuing the example, $\alpha_{\mathbf{F} \prec \mathbf{P}} = (0.90 - 0.111) / (1 - 0.111) = 0.89$.
+Continuing the example, $\alpha_{\evF \prec \evP} = (0.90 - 0.111) / (1 - 0.111) = 0.89$.
 
 ---
 
@@ -132,7 +133,7 @@ Use the following reading of $\alpha_d$, which follows [Benchmarking CVD](../top
 | Below 0 | The ordering holds less often than an uncoordinated process would produce; look for a structural cause |
 
 Two sector figures give you something to compare against.
-From published exploit and attack data, the research derives benchmarks of about 0.94 for Fix Deployed before Attacks Observed (**D** $\prec$ **A**) and about 0.81 for Fix Deployed before Exploit Public (**D** $\prec$ **X**), and a program at or above them is doing as well as the ecosystem at large.
+From published exploit and attack data, the research derives benchmarks of about 0.94 for $\evD \prec \evA$ and about 0.81 for $\evD \prec \evX$, and a program at or above them is doing as well as the ecosystem at large.
 Track each $\alpha_d$ over time, both per period and cumulatively, as [Observing CVD in the Wild](../topics/measuring_cvd/observing_skill.md) does, because a single period with few cases swings widely.
 
 ---
@@ -144,10 +145,10 @@ Each preference is protected by a coordination decision, so a low $\alpha_d$ poi
 
 | Low score on | Decision to revisit |
 |---|---|
-| Vendor Awareness before Public Awareness (**V** $\prec$ **P**), Vendor Awareness before Exploit Public (**V** $\prec$ **X**), Vendor Awareness before Attacks Observed (**V** $\prec$ **A**) | Notify Vendors earlier, and notify the upstream Vendors whose components the affected products contain |
-| Fix Ready before Public Awareness (**F** $\prec$ **P**), Fix Deployed before Public Awareness (**D** $\prec$ **P**) | Propose an embargo at case creation, and hold publication until the fix is ready; see [Embargo Principles](../topics/process_models/em/principles.md) |
-| Fix Ready before Exploit Public (**F** $\prec$ **X**), Fix Ready before Attacks Observed (**F** $\prec$ **A**), Fix Deployed before Exploit Public (**D** $\prec$ **X**), Fix Deployed before Attacks Observed (**D** $\prec$ **A**) | Shorten the time from Vendor Awareness to Fix Ready; an embargo cannot protect these, because adversaries are not bound by it |
-| Public Awareness before Exploit Public (**P** $\prec$ **X**), Public Awareness before Attacks Observed (**P** $\prec$ **A**) | Publish when exit criteria are met instead of waiting for every Vendor; see [Early Termination](../topics/process_models/em/early_termination.md) |
+| $\evV \prec \evP$, $\evV \prec \evX$, $\evV \prec \evA$ | Notify Vendors earlier, and notify the upstream Vendors whose components the affected products contain |
+| $\evF \prec \evP$, $\evD \prec \evP$ | Propose an embargo at case creation, and hold publication until the fix is ready; see [Embargo Principles](../topics/process_models/em/principles.md) |
+| $\evF \prec \evX$, $\evF \prec \evA$, $\evD \prec \evX$, $\evD \prec \evA$ | Shorten the time from Vendor Awareness to Fix Ready; an embargo cannot protect these, because adversaries are not bound by it |
+| $\evP \prec \evX$, $\evP \prec \evA$ | Publish when exit criteria are met instead of waiting for every Vendor; see [Early Termination](../topics/process_models/em/early_termination.md) |
 
 For a case still in progress, the [Recommended Action Rules for CVD](../topics/other_uses/action_rules.md) list what each role can do from the case's current state and which event the action causes.
 
@@ -156,10 +157,10 @@ For a case still in progress, the [Recommended Action Rules for CVD](../topics/o
 ## If you coordinate multi-vendor cases
 
 A case with more than one affected Vendor is a Multi-Party Coordinated Vulnerability Disclosure (MPCVD) case.
-Score the Vendor Awareness (**V**) and Fix Ready (**F**) preferences once for each affected Vendor, because each Vendor has its own fix path.
-Score the Fix Deployed (**D**) preferences once for each Deployer, because each Deployer has its own deployment.
-Compare each Vendor score and each Deployer score against the one Public Awareness (**P**), Exploit Public (**X**), and Attacks Observed (**A**) of the case.
-All participants in the case share the same Public Awareness (**P**), Exploit Public (**X**), and Attacks Observed (**A**).
+Score the $\evV$ and $\evF$ preferences once for each affected Vendor, because each Vendor has its own fix path.
+Score the $\evD$ preferences once for each Deployer, because each Deployer has its own deployment.
+Compare each Vendor score and each Deployer score against the one $\evP$, $\evX$, and $\evA$ of the case.
+All participants in the case share the same $\evP$, $\evX$, and $\evA$.
 Do not link a Deployer to one Vendor, unless your records show which fix the Deployer deployed.
 A Vultron case does not record this link.
 Then report the median $\alpha_d$ across the Vendors and the spread of the Vendor scores.

@@ -25,7 +25,7 @@ The page uses the events and symbols of [What a Case Records](./what_a_case_reco
 
 {% include-markdown "./_case_events.md" %}
 
-The page also uses participant publication ($\mathbf{P_u}$), the public awareness that comes from a coordinated publication by a participant ([Desiderata from the Process Models](./process_model_desiderata.md#splitting-events-by-cause)).
+The page also uses participant publication ($\evPu$), the public awareness that comes from a coordinated publication by a participant ([Desiderata from the Process Models](./process_model_desiderata.md#splitting-events-by-cause)).
 
 Each metric on this page is about the case, or about one participant.
 Some events belong to the case and occur at most once in the case.
@@ -40,7 +40,7 @@ These events are report handling, fix readiness, deployment, and embargo consent
 
 [Open Questions](./open_questions.md#what-timing-should-a-case-meet) names the gap this page addresses: the Case State (CS) model has a sense of order and no sense of time.
 The measures of the [Foundations](foundations/index.md) count only whether each desideratum held in a case.
-Consider two cases where fix readiness occurs before public awareness ($\mathbf{F} \prec \mathbf{P}$).
+Consider two cases where fix readiness occurs before public awareness ($\evF \prec \evP$).
 In one case, defenders had a month of warning, and in the other case, one minute.
 The measures of the Foundations give the two cases the same score.
 
@@ -77,10 +77,10 @@ Five shapes cover the proposed metrics.
 
 | Shape | Definition | Example |
 |---|---|---|
-| Interval | Time from one event to another | Time from awareness of vendor $i$ ($\mathbf{V}_i$) to fix readiness of vendor $i$ ($\mathbf{F}_i$) |
-| Margin | A signed interval for an ordering desideratum | The margin of fix readiness before public awareness ($m(\mathbf{F} \prec \mathbf{P})$) |
+| Interval | Time from one event to another | Time from awareness of vendor $i$ ($\evV_i$) to $\evF_i$ |
+| Margin | A signed interval for an ordering desideratum | $m(\evF \prec \evP)$ |
 | Dwell time | Total time the case spends in a state | Time with an embargo revision open |
-| Spread | Time between the first and the last participant to reach the same event | Fix readiness of the first vendor ($\mathbf{F}$) to fix readiness of the last vendor ($\mathbf{F}$) |
+| Spread | Time between the first and the last participant to reach the same event | Fix readiness of the first vendor ($\evF$) to fix readiness of the last vendor ($\evF$) |
 | Count or rate | How often something happens in one case | Embargo Invites that end in a pocket veto |
 
 ---
@@ -99,15 +99,15 @@ They are per-participant, because Report Management (RM) is per-participant.
 
 | Metric | Definition |
 |---|---|
-| Time to validate | Report receipt by participant $i$ ($\mathbf{R}_i$) to report validation by participant $i$ ($\mathbf{Va}_i$) |
-| Time to accept | Report validation by participant $i$ ($\mathbf{Va}_i$) to report acceptance by participant $i$ ($\mathbf{Ac}_i$) |
-| Time to join, for an Invitee | Its Stub Invite to joining by participant $i$ ($\mathbf{J}_i$) |
-| Time to judge, for an Invitee | Its Full-Case Invite to its answer, which is report validation by participant $i$ ($\mathbf{Va}_i$) when it accepts (CM-11-011) |
+| Time to validate | Report receipt by participant $i$ ($\evR_i$) to report validation by participant $i$ ($\evVa_i$) |
+| Time to accept | $\evVa_i$ to report acceptance by participant $i$ ($\evAc_i$) |
+| Time to join, for an Invitee | Its Stub Invite to joining by participant $i$ ($\evJ_i$) |
+| Time to judge, for an Invitee | Its Full-Case Invite to its answer, which is $\evVa_i$ when it accepts (CM-11-011) |
 
-For an Invitee $i$, report receipt ($\mathbf{R}_i$) and joining ($\mathbf{J}_i$) are the same event.
+For an Invitee $i$, $\evR_i$ and $\evJ_i$ are the same event.
 The reason is that acceptance of the Stub Invite puts the Invitee at RM Received (CM-11-001).
 For an Invitee, then, time to validate is time to judge plus the wait between joining and receiving the Full-Case Invite.
-The case owner's report receipt ($\mathbf{R}$) and the reporter's report acceptance ($\mathbf{Ac}$) are set when the case is created.
+The case owner's $\evR$ and the reporter's $\evAc$ are set when the case is created.
 Thus neither event has a measurable time ([What a Case Records](./what_a_case_records.md#statuses-seated-at-case-creation)).
 
 ---
@@ -132,11 +132,11 @@ Embargo Management (EM) is per-case, and Participant Embargo Consent (PEC) is pe
 
 | Metric | Definition |
 |---|---|
-| Time to embargo | Case creation to the embargo start ($\mathbf{E}$), usually zero because a case starts with an active embargo |
+| Time to embargo | Case creation to the embargo start ($\evE$), usually zero because a case starts with an active embargo |
 | Decision latency | A proposal to the case owner's decision on it |
 | Revision count and time in Revise | How many revisions were proposed, and the dwell time in EM Revise |
-| Planned and actual length | The embargo's end time minus the time of the embargo start ($t(\mathbf{E})$), against the time of the embargo exit ($t(\mathbf{E_x})$) minus the time of the embargo start ($t(\mathbf{E})$) |
-| Time left at exit | The embargo's end time minus the time of the embargo exit ($t(\mathbf{E_x})$); zero when the end time was reached |
+| Planned and actual length | The embargo's end time minus $t(\evE)$, against the time of the embargo exit ($t(\evEx)$) minus $t(\evE)$ |
+| Time left at exit | The embargo's end time minus $t(\evEx)$; zero when the end time was reached |
 | Exit cause | Whether the end time was reached, or the embargo ended early, and for an early end its recorded cause |
 | Response latency | Each participant's time from an embargo Invite to its answer |
 | Pocket-veto rate | The share of embargo Invites that move to `TIMED_OUT` at their RSVP deadline, not counting Invites that time out because the case owner closes the case |
@@ -154,15 +154,15 @@ The time left at exit of such an embargo is the cost of the threat.
 
 | Metric | Definition |
 |---|---|
-| Time to fix | Awareness of vendor $i$ ($\mathbf{V}_i$) to fix readiness of vendor $i$ ($\mathbf{F}_i$), per vendor |
-| Time to deploy | Fix readiness of the first vendor ($\mathbf{F}$) to fix deployment by deployer $k$ ($\mathbf{D}_k$), per deployer |
-| Notification spread | Awareness of the first vendor ($\mathbf{V}$) to awareness of the last vendor ($\mathbf{V}$) |
-| Fix spread | Fix readiness of the first vendor ($\mathbf{F}$) to fix readiness of the last vendor ($\mathbf{F}$) |
-| Trailing-vendor gap | Fix readiness of the last vendor ($\mathbf{F}$) to the embargo exit ($\mathbf{E_x}$); negative when the embargo ended before every fix was ready |
+| Time to fix | $\evV_i$ to $\evF_i$, per vendor |
+| Time to deploy | Fix readiness of the first vendor ($\evF$) to fix deployment by deployer $k$ ($\evD_k$), per deployer |
+| Notification spread | Awareness of the first vendor ($\evV$) to awareness of the last vendor ($\evV$) |
+| Fix spread | Fix readiness of the first vendor ($\evF$) to fix readiness of the last vendor ($\evF$) |
+| Trailing-vendor gap | Fix readiness of the last vendor ($\evF$) to $\evEx$; negative when the embargo ended before every fix was ready |
 
-Time to deploy starts at the first fix readiness ($\mathbf{F}$) of any vendor in the case.
+Time to deploy starts at the first $\evF$ of any vendor in the case.
 The reason is the protocol rule for deployment (CSB-15-004).
-A deployer that is not also a vendor can move to fix deployment ($\mathbf{D}$) after any vendor has a fix ready.
+A deployer that is not also a vendor can move to $\evD$ after any vendor has a fix ready.
 The case does not record which vendor made the fix that a deployer deployed.
 Thus the case cannot give a time to deploy for each vendor.
 
@@ -181,11 +181,11 @@ These are the margins most directly tied to defender outcomes.
 
 | Margin | What a positive value measures |
 |---|---|
-| The margin of fix readiness before public awareness ($m(\mathbf{F} \prec \mathbf{P})$) | Lead time between a fix being ready and the vul being public |
-| The margin of fix deployment before public awareness ($m(\mathbf{D} \prec \mathbf{P})$) | Lead time between deployment and the vul being public |
-| The margin of the embargo exit before a participant publication ($m(\mathbf{E_x} \prec \mathbf{P_u})$) | Time a participant waited after the embargo before publishing |
-| The margin of public awareness before a public exploit ($m(\mathbf{P} \prec \mathbf{X})$) | Time between the vul being public and an exploit being public |
-| The margin of a public exploit before observed attacks ($m(\mathbf{X} \prec \mathbf{A})$) | Time between a public exploit and observed attacks |
+| $m(\evF \prec \evP)$ | Lead time between a fix being ready and the vul being public |
+| $m(\evD \prec \evP)$ | Lead time between deployment and the vul being public |
+| $m(\evEx \prec \evPu)$ | Time a participant waited after the embargo before publishing |
+| $m(\evP \prec \evX)$ | Time between the vul being public and an exploit being public |
+| $m(\evX \prec \evA)$ | Time between a public exploit and observed attacks |
 
 ---
 
@@ -196,13 +196,13 @@ Exposure metrics are dwell times in those states.
 
 | Metric | Definition |
 |---|---|
-| Public exposure | Time during which public awareness ($\mathbf{P}$) holds and fix deployment ($\mathbf{D}$) does not, per deployer |
-| Exploit exposure | Time during which a public exploit ($\mathbf{X}$) holds and fix deployment ($\mathbf{D}$) does not, per deployer |
-| Unfixed exposure | Time during which public awareness ($\mathbf{P}$) holds and fix readiness ($\mathbf{F}$) does not, per vendor |
+| Public exposure | Time during which $\evP$ holds and $\evD$ does not, per deployer |
+| Exploit exposure | Time during which $\evX$ holds and $\evD$ does not, per deployer |
+| Unfixed exposure | Time during which $\evP$ holds and $\evF$ does not, per vendor |
 
 [Open Questions](./open_questions.md#what-timing-should-a-case-meet) proposes a test of the vulnerability management of a deployer.
-The test compares two intervals that start at fix readiness ($\mathbf{F}$).
-The interval to fix deployment ($\mathbf{D}$) should be shorter than the interval to observed attacks ($\mathbf{A}$).
+The test compares two intervals that start at $\evF$.
+The interval to $\evD$ should be shorter than the interval to $\evA$.
 Exploit exposure measures a related race as a duration: the time during which an exploit is public and the deployer has not deployed the fix.
 
 ---
@@ -212,7 +212,7 @@ Exploit exposure measures a related race as a duration: the time during which an
 | Metric | Definition |
 |---|---|
 | Case duration | Case creation to the case being fully closed |
-| Time open after disclosure | Public awareness ($\mathbf{P}$) to the case being fully closed |
+| Time open after disclosure | $\evP$ to the case being fully closed |
 | Embargo Invites timed out at close | Embargo Invites still awaiting a reply that the owner's close moves to `TIMED_OUT` (CM-23-014) |
 | Ownership transfer latency | An offer to transfer case ownership to its acceptance, rejection, withdrawal, or expiry |
 
@@ -251,7 +251,7 @@ A metric that uses an event with a data gap has the same gap.
 
 ## Intervals to events that have not happened
 
-Many cases never see a public exploit ($\mathbf{X}$) or observed attacks ($\mathbf{A}$), and an open case has not yet closed.
+Many cases never see $\evX$ or $\evA$, and an open case has not yet closed.
 An interval that ends at an event that has not occurred is **censored**.
 A censored interval is not missing: the interval is at least as long as the case has run.
 Treating censored intervals as missing biases every average toward the cases that finished.
@@ -262,7 +262,7 @@ Across cases, censored intervals call for survival-analysis methods, such as a K
 ## Relation to service level expectations
 
 [Open Questions](./open_questions.md#what-timing-should-a-case-meet) and [Policy Formalization](../other_uses/policy_formalization.md) describe Service Level Expectations (SLEs).
-An SLE is a timer that starts and stops on transitions, such as a limit on the time from vendor awareness ($\mathbf{V}$) to fix readiness ($\mathbf{F}$).
+An SLE is a timer that starts and stops on transitions, such as a limit on the time from $\evV$ to $\evF$.
 An SLE is a threshold on one of the intervals above.
 Defining the intervals first lets an SLE be stated as a number against a metric that already has a definition.
 It also lets a program report the distribution of an interval across its cases, rather than only how often it met a threshold.
@@ -278,10 +278,10 @@ The table below shows how each group of metrics changes in a two-party case.
 | Metrics | In a two-party case |
 |---|---|
 | Intake and triage for the vendor, all embargo metrics, time to fix, closure, process health | No change |
-| Disclosure margins without fix deployment ($\mathbf{D}$) | No change |
+| Disclosure margins without $\evD$ | No change |
 | Notification spread, fix spread | Always zero, because the case has one vendor |
-| Trailing-vendor gap | The interval from the fix readiness ($\mathbf{F}$) of the one vendor to the embargo exit ($\mathbf{E_x}$) |
-| Time to deploy, margins with fix deployment ($\mathbf{D}$), public exposure, exploit exposure | Not available, unless the vendor also has the Deployer role |
+| Trailing-vendor gap | The interval from the $\evF$ of the one vendor to $\evEx$ |
+| Time to deploy, margins with $\evD$, public exposure, exploit exposure | Not available, unless the vendor also has the Deployer role |
 
 The deployment metrics need a participant with a deployment state.
 A vendor has a deployment state only when the vendor also has the Deployer role (SDO-03-002).
@@ -295,8 +295,8 @@ A vendor has a deployment state only when the vendor also has the Deployer role 
 | Intake and triage | Time to validate, accept, judge, join |
 | Embargo | Decision latency, revisions, planned and actual length, time left at exit, exit cause, response latency, pocket-veto rate |
 | Fix and deployment | Time to fix and deploy; notification spread, fix spread, trailing-vendor gap |
-| Disclosure margins | The margin of fix readiness before public awareness ($m(\mathbf{F} \prec \mathbf{P})$), the margin of fix deployment before public awareness ($m(\mathbf{D} \prec \mathbf{P})$), the margin of public awareness before a public exploit ($m(\mathbf{P} \prec \mathbf{X})$), and the margin of every other desideratum |
-| Exposure | Time with public awareness ($\mathbf{P}$) or a public exploit ($\mathbf{X}$) and no fix deployment ($\mathbf{D}$) |
+| Disclosure margins | $m(\evF \prec \evP)$, $m(\evD \prec \evP)$, $m(\evP \prec \evX)$, and the margin of every other desideratum |
+| Exposure | Time with $\evP$ or $\evX$ and no $\evD$ |
 | Closure | Case duration, time open after disclosure, embargo Invites timed out at close, transfer latency |
 | Process health | Gap rate, regressions, refusals, replays, clock skew |
 

@@ -64,13 +64,13 @@ A participant that is both a vendor and a deployer holds a fix path and a deploy
 A reporter, a coordinator, or an observer holds only an RM state and consent rows.
 
 The kind of state controls how many times an event can occur in one case.
-Public awareness ($\mathbf{P}$) is participant-agnostic, so public awareness ($\mathbf{P}$) occurs at most once in a case.
-Fix readiness ($\mathbf{F}$) is participant-specific, so fix readiness ($\mathbf{F}$) can occur once for each vendor.
-A case with ten vendors can have ten fix readiness ($\mathbf{F}$) events.
+Public awareness ($\evP$) is participant-agnostic, so $\evP$ occurs at most once in a case.
+Fix readiness ($\evF$) is participant-specific, so $\evF$ can occur once for each vendor.
+A case with ten vendors can have ten $\evF$ events.
 
 The [Foundations](foundations/index.md) model gives each case six events, and each event occurs once.
-That assumption is correct for the participant-agnostic events public awareness ($\mathbf{P}$), a public exploit ($\mathbf{X}$), and observed attacks ($\mathbf{A}$).
-That assumption is not correct for the participant-specific events vendor awareness ($\mathbf{V}$), fix readiness ($\mathbf{F}$), and fix deployment ($\mathbf{D}$).
+That assumption is correct for the participant-agnostic events $\evP$, a public exploit ($\evX$), and observed attacks ($\evA$).
+That assumption is not correct for the participant-specific events vendor awareness ($\evV$), $\evF$, and fix deployment ($\evD$).
 These events can occur more than once in a case with more than one vendor or deployer.
 
 The case does not link a deployer to a vendor.
@@ -162,9 +162,9 @@ The creation sequence puts the case owner at RM Received (CM-14-009), and puts t
 The CASE_MANAGER commits these two statuses during the creation sequence.
 Thus the commit stamps of these two statuses show the creation time, not the time of each event.
 
-For the case owner, the time of report receipt ($\mathbf{R}$) is the creation time.
+For the case owner, the time of report receipt ($\evR$) is the creation time.
 The time that the case owner actually received the report stays with the case owner, outside the case ledger.
-For the reporter, report acceptance ($\mathbf{Ac}$) is not a decision, so report acceptance ($\mathbf{Ac}$) has no interval to measure.
+For the reporter, report acceptance ($\evAc$) is not a decision, so $\evAc$ has no interval to measure.
 The later validation and acceptance by the case owner are separate entries.
 Thus the time from case creation to the validation and acceptance by the case owner is measurable.
 
@@ -210,7 +210,7 @@ The PXA state of the case changes only when the CASE_MANAGER adopts the report.
 To adopt the report, the CASE_MANAGER commits its own `Add(CaseStatus)`.
 Both times on the `Add(CaseStatus)` entry come from the CASE_MANAGER's clock at adoption.
 
-Thus the case-level time of public awareness ($\mathbf{P}$), a public exploit ($\mathbf{X}$), or observed attacks ($\mathbf{A}$) is the time that the CASE_MANAGER adopted the report.
+Thus the case-level time of $\evP$, $\evX$, or $\evA$ is the time that the CASE_MANAGER adopted the report.
 The case-level time is not the time that a participant first reported the event.
 The first report is in the status entries of the participants.
 These status entries come before the `Add(CaseStatus)` entry in the ledger.
@@ -220,8 +220,8 @@ These status entries come before the `Add(CaseStatus)` entry in the ledger.
 Some events are protocol acts, for example an acceptance, an embargo step, or a join.
 For a protocol act, the event and its commit occur at almost the same time.
 
-A public exploit ($\mathbf{X}$) and attacks ($\mathbf{A}$) occur outside the protocol.
-A participant can report a public exploit ($\mathbf{X}$) or observed attacks ($\mathbf{A}$) a long time after the event.
+The events $\evX$ and $\evA$ occur outside the protocol.
+A participant can report $\evX$ or $\evA$ a long time after the event.
 The record does not show the length of this delay.
 
 ### Refusals and replays are not on the ledger
@@ -286,11 +286,11 @@ The participant-specific state of a two-party case has two copies:
 - The reporter holds an RM state and consent rows.
 - The vendor holds an RM state, a fix path, and consent rows.
 
-In a two-party case, vendor awareness ($\mathbf{V}$) and fix readiness ($\mathbf{F}$) each occur at most once, because the case has one vendor.
+In a two-party case, $\evV$ and $\evF$ each occur at most once, because the case has one vendor.
 Thus the six-event model of the [Foundations](foundations/index.md) is almost correct for a two-party case.
 
-Deployment ($\mathbf{D}$) is the exception.
-The case records fix deployment ($\mathbf{D}$) only in one of two conditions:
+Deployment ($\evD$) is the exception.
+The case records $\evD$ only in one of two conditions:
 
 - The vendor also has the Deployer role.
 - A deployer joins the case. The case then has three participants and is no longer a two-party case.
