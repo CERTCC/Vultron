@@ -30,7 +30,7 @@ CSAF 2.0 recorded the parties in a disclosure with a short `involvements` list o
 CSAF 2.1 replaces that list with one `document.involvement` object: a list of entities, optional entity groups, and a timeline of actions between the entities.
 
 The TC started this change from Vultron.
-The issue that opened the work, [oasis-tcs/csaf#1486](https://github.com/oasis-tcs/csaf/issues/1486){:target="_blank"}, says: "As a starting point, we can use Vultron."
+The issue that opened the work, [oasis-tcs/csaf#1486](https://github.com/oasis-tcs/csaf/issues/1486){:target="_blank"}, says: "As a starting point, we can use Vultron".
 The [TC meeting of 29 July 2026](https://github.com/oasis-tcs/csaf/blob/29b1e27aa126b820cbd6eee1830ca27ef02793d1/meeting_minutes/2026/2026-07-29.md){:target="_blank"} recorded the approach: study the Vultron project and its states, then design the involvement model from the start.
 Because the TC used Vultron as an input, many concepts on the two sides are close, and a crosswalk can show where they agree and where they do not.
 
@@ -42,8 +42,8 @@ CSAF and Vultron work at different levels of abstraction.
 CSAF records what happened in a disclosure.
 Vultron controls how a disclosure proceeds.
 
-The design proposal for the CSAF 2.1 involvement model states this difference itself.
-Its appendix "Comparison with Vultron" ([comment on #1486, 14 August 2026](https://github.com/oasis-tcs/csaf/issues/1486#issuecomment-5291835024){:target="_blank"}) says:
+A design proposal for the CSAF 2.1 involvement model, by a TC member, states this difference itself.
+Its informative appendix "Comparison with Vultron" ([comment on #1486, 14 August 2026](https://github.com/oasis-tcs/csaf/issues/1486#issuecomment-5291835024){:target="_blank"}) says:
 
 > The CSAF involvement model has a different purpose.
 > It is a **documentation model**: it records interactions that were observed to occur, so that a reader of an advisory can reconstruct who coordinated with whom about what.
@@ -62,7 +62,8 @@ The difference explains most of the gaps on the other pages, and it tells which 
 
 A CSAF document can relate to a Vultron case in three ways.
 It can replace the case, it can travel inside the case, or the case can produce it.
-Vultron uses the second and the third relation, and it does not use the first.
+Vultron uses the second today, because it carries a CSAF document in a report without reading it.
+Vultron plans the third, and it does not use the first.
 
 ### A CSAF document does not replace the case
 
@@ -71,12 +72,12 @@ The reasons come from the CSAF design.
 
 | CSAF property | Consequence for a case of record |
 |---|---|
-| The action `status` is "descriptive and observational", with no state machine. | CSAF cannot hold the rules that decide which change is permitted. |
+| The action `status` has no state machine. The design proposal calls it "descriptive and observational", and the draft gives only an informative common order for a `notification`. | CSAF cannot hold the rules that decide which change is permitted. |
 | The involvement timeline holds selected events. | A case of record holds all events. |
 | One issuing party publishes each document. | A case has many participants, and each one writes to it through the [Case Manager](../glossary.md#cvd-roles-and-participants). |
-| Entity, vulnerability, and action identifiers are local to one document. | A case needs identifiers that stay the same in all messages. |
+| Entity identifiers, action identifiers, and the `dl_vuln_id` of a vulnerability are local to one document. | A case needs identifiers that stay the same in all messages. |
 | CSAF has no rule to merge documents from different issuing parties. | A case combines the contributions of all participants. |
-| CSAF has no concept of who can change the document. | Vultron gives that authority to the Case Owner and the Case Manager. |
+| Only the issuing party revises a CSAF document. A different party that changes it issues a new document (CSAF Modifier). | A case has shared authority to change it, which Vultron gives to the Case Owner and the Case Manager. |
 
 For a small case between two parties, an exchange of CSAF documents can be sufficient without Vultron.
 Vultron becomes necessary when more parties, an embargo, or a disagreement make the rules for change important.
@@ -101,13 +102,13 @@ The [concept mapping](concept_mapping.md#content-objects) gives them as "Vultron
 
 ### A case can produce a CSAF document
 
-A Vultron participant can produce a CSAF document from its copy of the case.
+A Vultron participant could produce a CSAF document from its copy of the case.
 This crosswalk calls such a document a **projection**.
 A projection can occur at two times:
 
 | Time | Example | Use |
 |---|---|---|
-| At publication | A CSAF Security Advisory or a CSAF Vulnerability Exploitability eXchange (VEX) document | The public record of the vulnerability. The [publication pipeline](../../adr/0030-publish-leaf-draft-review-submit-pipeline.md) (ADR-0030) already names CSAF as one output format. |
+| At publication | A CSAF Security Advisory or a CSAF Vulnerability Exploitability eXchange (VEX) document | The public record of the vulnerability. The [publication pipeline](../../adr/0030-publish-leaf-draft-review-submit-pipeline.md) (ADR-0030) defines a draft, review, and submit pipeline for advisory artifacts, and a CSAF document can be one output of its draft step. |
 | During coordination | A CSAF Vulnerability Report for a party that does not use Vultron | A bridge to a vendor, a national Computer Security Incident Response Team (CSIRT), or a reporting authority outside the case. |
 
 A projection during coordination copies embargoed information out of the protocol.
@@ -115,6 +116,7 @@ For this reason, a projection SHOULD NOT include information that the recipient 
 Each projection also states the ledger position that it shows, because the case continues to change after the projection.
 The `involvement` timeline of a projection is a filtered view of the case ledger.
 That agrees with the CSAF design, in which the issuing party selects the events that its audience needs.
+These rules are proposals for Vultron, not current requirements.
 Issue [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} tracks the work to produce projections.
 
 ---
@@ -123,7 +125,8 @@ Issue [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} t
 
 Vultron has no TLP labels.
 It controls who sees what through the participants that are entitled to the case and through the embargo.
-TLP becomes necessary only when information goes out of Vultron, which occurs in a projection.
+This crosswalk takes the position that TLP becomes necessary only when information goes out of Vultron, which occurs in a projection.
+Concern [#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"} tracks that position, and Idea [#2564](https://github.com/CERTCC/Vultron/issues/2564){:target="_blank"} asks whether Vultron messages could carry TLP fields.
 
 For this reason, a TLP label belongs to one projection.
 Its value depends on the content of the projection, on the recipient, and on the case state.
@@ -133,7 +136,7 @@ For example, an observer can receive a projection marked `TLP:RED`, a coordinato
 | TLP label | Fit for a projection |
 |---|---|
 | `TLP:AMBER+STRICT` | The usual fit before public disclosure. The recipient can share only inside its own organization. |
-| `TLP:AMBER` | Fits only when the recipient can share with others at its own discretion. That sharing occurs outside the case, so Vultron cannot record it. The Vultron way to add a party is the [suggest-actor-to-case flow](../glossary.md#messaging-and-protocol). CSAF explains its `TLP:AMBER` default as sharing "on a need-to-know basis within the vendor's or coordinator's organization and, where appropriate, their clients". |
+| `TLP:AMBER` | Fits only when the recipient can also share with its clients on a need-to-know basis. That sharing occurs outside the case, so Vultron cannot record it. One Vultron way to add a party is the [suggest-actor-to-case flow](../glossary.md#messaging-and-protocol). The CSAF Vulnerability Report profile recommends `TLP:AMBER` "to promote sharing on a need-to-know basis within the vendor's or coordinator's organization and, where appropriate, their clients". The default label of CSAF is `CLEAR`. |
 | `TLP:RED` | Fits only an observer. A `TLP:RED` recipient cannot tell its own team to act on the information. |
 | `TLP:CLEAR` | Fits a projection with the content of a public advisory, after the vulnerability is known to be public. |
 
@@ -207,7 +210,7 @@ The links go to the detailed rows.
 <tr markdown="1">
 <td markdown="span">[Distribution and tracking](concept_mapping.md#distribution-and-tracking)</td>
 <td markdown="span">Divergent</td>
-<td markdown="span">No change proposed. Vultron derives a TLP label for each projection. The way TLP could appear inside Vultron is an open concern ([#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"}).</td>
+<td markdown="span">No change proposed. A projection would derive its own TLP label. The way TLP could appear inside Vultron is an open concern ([#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"}).</td>
 </tr>
 </tbody>
 </table>

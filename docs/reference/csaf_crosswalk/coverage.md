@@ -42,7 +42,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <tr markdown="1">
 <td markdown="span">[Case Owner](../glossary.md#cvd-roles-and-participants) and [Case Manager](../glossary.md#cvd-roles-and-participants)</td>
 <td markdown="span">The Case Owner makes the case decisions. The Case Manager is the one writer of the case, and it keeps the [case ledger](../../topics/case_lifecycle/case_manager_and_ledger.md).</td>
-<td markdown="span">A CSAF document has one issuing party and no concept of who can change it.</td>
+<td markdown="span">A CSAF document has one issuing party, and only that party revises it.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[Ledger admission](../../topics/case_lifecycle/case_manager_and_ledger.md#only-admitted-entries)</td>
@@ -51,7 +51,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 </tr>
 <tr markdown="1">
 <td markdown="span">Entitlement to case content, with [Active and Inert Participants](../glossary.md#cvd-roles-and-participants)</td>
-<td markdown="span">Only an entitled participant receives the case content. An invitee becomes entitled when it joins.</td>
+<td markdown="span">Only an entitled participant receives the case content. An invitee becomes entitled when it joins and, while an embargo is active, agrees to that embargo (CM-10-004).</td>
 <td markdown="span">CSAF controls distribution of each document with a Traffic Light Protocol (TLP) label, not with entitlement.</td>
 </tr>
 <tr markdown="1">
@@ -81,7 +81,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <tr markdown="1">
 <td markdown="span">Transitions and guards of the Report Management (RM), Embargo Management (EM), and Case State (CS) state machines ([§6 Report Management (RM) State Machine](../vultron-spec/tracking-models.md#6-report-management-rm-state-machine-n), [§7 Embargo Management (EM) State Machine](../vultron-spec/tracking-models.md#7-embargo-management-em-state-machine-n), [§8 Case State (CS) Dimensions](../vultron-spec/tracking-models.md#8-case-state-cs-dimensions-n))</td>
 <td markdown="span">The state machines say which change is permitted from each state.</td>
-<td markdown="span">CSAF action status is "descriptive and observational", and CSAF enforces no order between status values.</td>
+<td markdown="span">CSAF enforces no order between action status values. The draft gives only an informative common order for a `notification`, and the design proposal calls the status "descriptive and observational".</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[Model interactions and cascade rules](../vultron-spec/interactions.md#10-model-interactions-and-cascade-rules-n)</td>
@@ -90,7 +90,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 </tr>
 <tr markdown="1">
 <td markdown="span">Two times for each event: the time that the sender claims, and the commit time of the Case Manager</td>
-<td markdown="span">Vultron keeps the claim and the record apart.</td>
+<td markdown="span">Vultron keeps the claim and the record apart (CLP-14-002, CLP-15-005).</td>
 <td markdown="span">CSAF has one `date` for each action.</td>
 </tr>
 </tbody>
@@ -110,7 +110,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <tr markdown="1">
 <td markdown="span">Versions in the [embargo register](../../topics/process_models/em/index.md#the-embargo-register)</td>
 <td markdown="span">The register keeps each proposed, revised, and ended embargo.</td>
-<td markdown="span">**Proposal.** A CSAF document holds one disclosure date for each vulnerability, so earlier versions are lost. See [proposal 1](proposals.md#1-an-embargo-action-carries-its-own-end-date).</td>
+<td markdown="span">**Proposal.** A CSAF document holds one disclosure date for each vulnerability, so the dates of earlier versions are lost. See [proposal 1](proposals.md#1-an-embargo-action-carries-its-own-end-date).</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Early termination of an embargo ([Early Termination](../../topics/process_models/em/early_termination.md))</td>
@@ -158,7 +158,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 </tr>
 <tr markdown="1">
 <td markdown="span">Parent, child, and sibling cases: split and merge ([Case Splitting and Merging](../../topics/process_models/em/split_merge.md))</td>
-<td markdown="span">A case can divide into child cases or join a different case.</td>
+<td markdown="span">The protocol defines how a case divides into child cases or joins a different case ([ADR-0105](../../adr/0105-case-merge-freeze-and-redirect-by-owner-consent.md), and [ADR-0125](../../adr/0125-case-split-child-case-inherits-the-embargo-only.md), which is proposed). The implementation is planned ([#3702](https://github.com/CERTCC/Vultron/issues/3702){:target="_blank"}, [#4242](https://github.com/CERTCC/Vultron/issues/4242){:target="_blank"}).</td>
 <td markdown="span">CSAF documents can refer to other documents, but CSAF has no concept of a split or a merge.</td>
 </tr>
 <tr markdown="1">
@@ -279,7 +279,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 </tr>
 <tr markdown="1">
 <td markdown="span">Action status `planned` and `attempted`</td>
-<td markdown="span">Records an intended action, and an action that did not reach its recipient.</td>
+<td markdown="span">`attempted` records an action that did not reach its recipient. The draft gives `planned` the same definition as `outstanding`: a party waits for the action.</td>
 <td markdown="span">Vultron records completed acts only. A failed delivery is a fact about the outbox, not about the case.</td>
 </tr>
 </tbody>
@@ -297,7 +297,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 </thead>
 <tbody markdown="1">
 <tr markdown="1">
-<td markdown="span">Profiles: Security Advisory, VEX, Informational Advisory, Security Incident Response, Vulnerability Report, Withdrawn, and Superseded</td>
+<td markdown="span">Profiles: CSAF Base, Security Incident Response, Informational Advisory, Security Advisory, VEX, Deprecated Security Advisory, Withdrawn, Superseded, and Vulnerability Report</td>
 <td markdown="span">Each profile sets the required fields for one type of document.</td>
 <td markdown="span">Vultron has no document types. A projection selects a profile.</td>
 </tr>

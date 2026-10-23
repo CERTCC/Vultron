@@ -46,7 +46,7 @@ The two directions can differ: a mapping can be fixed in one direction and need 
 
 A projection is a CSAF document that a participant produces from its copy of a case, as the [overview](overview.md#a-case-can-produce-a-csaf-document) explains.
 "Vultron → CSAF" is the direction of a projection.
-"CSAF → Vultron" is the direction of a CSAF document that arrives inside a case, and Vultron reads such content as claims ([overview](overview.md#a-csaf-document-can-travel-inside-a-case)).
+"CSAF → Vultron" is the direction of a CSAF document that arrives inside a case, and Vultron could read such content as claims ([overview](overview.md#a-csaf-document-can-travel-inside-a-case), [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"}).
 
 ---
 
@@ -106,7 +106,7 @@ CSAF states that "the `category` does not control the role": an entity can act i
 <td markdown="span">One to one</td>
 <td markdown="span">Interpretive</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">No change proposed: both models put finder and reporter into one role, with opposite names. Vultron retired its `FINDER` role, and the finder is report metadata ([ADR-0078](../../adr/0078-retire-finder-role.md)). A projection gives `discoverer` to a `REPORTER` only when the report metadata names that participant as the finder. A coordinator that sends the report of a different party is not the discoverer, so it gets the category of its other roles, or `other`.</td>
+<td markdown="span">No change proposed: both models put finder and reporter into one role, with opposite names. Vultron retired its `FINDER` role, and the report content or a case note names the finder ([ADR-0078](../../adr/0078-retire-finder-role.md)). Vultron has no structured field for the finder. A projection gives `discoverer` to a `REPORTER` only when the report content or a case note names that participant as the finder. A coordinator that sends the report of a different party is not the discoverer, so it gets the category of its other roles, or `other`.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`DEPLOYER`</td>
@@ -171,7 +171,7 @@ CSAF states that "the `category` does not control the role": an entity can act i
 
 ## Events and timeline
 
-A Vultron case records each completed act as a [case ledger entry](../../topics/case_lifecycle/case_manager_and_ledger.md) ([ADR-0119](../../adr/0119-case-ledger-records-completed-acts.md)).
+A Vultron case records each completed act as one or more [case ledger entries](../../topics/case_lifecycle/case_manager_and_ledger.md) ([ADR-0119](../../adr/0119-case-ledger-records-completed-acts.md)).
 The payload of each entry is an ActivityStreams 2.0 (AS2) activity ([ADR-0124](../../adr/0124-case-is-a-projection-of-its-ledger.md)).
 A CSAF action is one event in the `document.involvement.actions[]` timeline.
 The two have the same shape: an actor, recipients, a time, a type, and an optional link to earlier events.
@@ -229,12 +229,12 @@ The two have the same shape: an actor, recipients, a time, a type, and an option
 <td markdown="span">No change proposed: a projection mints one `action_id` for each activity that it includes.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">Two times: the `published` time that the sender claims, and the commit time of the Case Manager (CLP-15-003, CLP-15-005)</td>
+<td markdown="span">Two times: the `published` time that the sender claims, and the commit time of the Case Manager (CLP-14-002, CLP-15-005)</td>
 <td markdown="span">`date`, one time</td>
 <td markdown="span">Many to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">No change proposed: one time is sufficient for a documentation model. A projection uses the claimed `published` time, because that is the time when the act occurred.</td>
+<td markdown="span">No change proposed: one time is sufficient for a documentation model. A projection uses the claimed `published` time, because that is the time that the sender gives for the act (CLP-15-004).</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Semantic type of the activity</td>
@@ -250,7 +250,7 @@ The two have the same shape: an actor, recipients, a time, a type, and an option
 <td markdown="span">One to many</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">No change proposed: a projection leaves out `dl_vuln_ids`, and the action then applies to all vulnerabilities in the document (test 6.2.56.4). An act on one vulnerability only is an argument to split the case ([ADR-0125](../../adr/0125-case-split-child-case-inherits-the-embargo-only.md)).</td>
+<td markdown="span">No change proposed: a projection leaves out `dl_vuln_ids`, and the action then applies to all vulnerabilities in the document (test 6.2.56.4). An act on one vulnerability only is an argument to split the case ([ADR-0125](../../adr/0125-case-split-child-case-inherits-the-embargo-only.md), proposed).</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">State at a ledger position, for example an invitation with no answer</td>
@@ -258,7 +258,7 @@ The two have the same shape: an actor, recipients, a time, a type, and an option
 <td markdown="span">One to many</td>
 <td markdown="span">Derived</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">No change proposed: different purpose. A ledger entry records a completed act, so each entry becomes a `completed` action. A projection derives `outstanding`, `deferred`, and `discontinued` from the state at its ledger position. It does not make `attempted`, because a failed delivery is a fact about the outbox, not about the case. It does not make `planned`, because Vultron does not record intentions.</td>
+<td markdown="span">No change proposed: different purpose. A ledger entry records a completed act, so the entry of each act becomes a `completed` action. The follow-on entries that an act causes (CLP-07-013) go into that action. A projection derives `outstanding`, `deferred`, and `discontinued` from the state at its ledger position. It does not make `attempted`, because a failed delivery is a fact about the outbox, not about the case. It does not make `planned`, because Vultron does not record intentions.</td>
 </tr>
 </tbody>
 </table>
@@ -276,7 +276,7 @@ Most differences in this section are a change of tense, not a disagreement.
 The [Report Management (RM) states](../../topics/process_models/rm/index.md#rm-states) belong to one participant ([§6 Report Management (RM) State Machine](../vultron-spec/tracking-models.md#6-report-management-rm-state-machine-n)).
 In the CSAF rows below, that participant is the actor.
 The CSAF design proposal notes a difference in perspective for `deferred`: CSAF records that an actor chose not to act, and RM `DEFERRED` records that a participant put a valid report aside ([#1486, Appendix A.2](https://github.com/oasis-tcs/csaf/issues/1486#issuecomment-5291835024){:target="_blank"}).
-The two agree when the participant is the actor of the deferred action.
+In the reading of this crosswalk, the two agree when the participant is the actor of the deferred action.
 
 <table markdown="1">
 <thead markdown="1">
@@ -304,7 +304,7 @@ The two agree when the participant is the actor of the deferred action.
 <td markdown="span">No match</td>
 <td markdown="span">None</td>
 <td markdown="span">None</td>
-<td markdown="span">No change proposed: no report exists yet, so there is no event to record.</td>
+<td markdown="span">No change proposed: the participant has not received the report, so there is no event to record.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">RM `RECEIVED`</td>
@@ -312,7 +312,7 @@ The two agree when the participant is the actor of the deferred action.
 <td markdown="span">One to one</td>
 <td markdown="span">Derived</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">No change proposed: a change of tense.</td>
+<td markdown="span">No change proposed: a change of tense. The design discussion records receipt as a `confirmation` instead, which "received or accepted" the action that it refers to ([#1486, 6 October 2026](https://github.com/oasis-tcs/csaf/issues/1486#issuecomment-6016287102){:target="_blank"}). The RM `ACCEPTED` row discusses that value.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">RM `VALID`, RM `INVALID`</td>
@@ -363,7 +363,7 @@ The two agree when the participant is the actor of the deferred action.
 
 Vultron Embargo Management (EM) keeps each embargo in the case's [embargo register](../../topics/process_models/em/index.md#the-embargo-register), one entry for each version ([§7.1.1 The Embargo Register](../vultron-spec/tracking-models.md#711-the-embargo-register)).
 Each participant gives its own [embargo consent](../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) to each version ([ADR-0122](../../adr/0122-per-embargo-participant-consent.md)).
-The case has one embargo end time.
+The active embargo has one end time.
 CSAF records an embargo as an `embargo` action: "the actor and the receiving entities agree to not disclose the information before the intended disclosure date."
 The date is not on the action: "The agreed date is the `disclosure_date` of each vulnerability that `dl_vuln_ids` names."
 Vultron also keeps the end of an embargo apart from publication ([Embargo Termination is Not the Same as Publication](../../topics/process_models/em/principles.md#embargo-termination-is-not-the-same-as-publication)), and CSAF uses one date for both.
@@ -512,11 +512,11 @@ The [SSVC crosswalk](../ssvc_crosswalk.md#exploitation) gives the mapping betwee
 </tr>
 <tr markdown="1">
 <td markdown="span">Exploit Public (X) and Attacks Observed (A), together</td>
-<td markdown="span">SSVC Exploitation value in `vulnerabilities[].metrics`: *None* for xa, *PoC* (proof of concept) for Xa, *Active* for A</td>
+<td markdown="span">SSVC Exploitation value in `vulnerabilities[].metrics`: *None* for xa, *PoC* (public proof of concept) for Xa, *Active* for A</td>
 <td markdown="span">Many to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Derived</td>
-<td markdown="span">No change proposed. The value *Active* gives A but does not tell whether an exploit is public, so the reverse mapping leaves X unknown. The CSAF Vulnerability Report profile asks the issuing party to give exploitation with this value.</td>
+<td markdown="span">No change proposed. The value *Active* gives A but does not tell whether an exploit is public, so the reverse mapping leaves X unknown. When the issuing party is aware of active exploitation, the CSAF Vulnerability Report profile says that it SHOULD give it with this metric, as `Active` or `PoC`.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Exploit Public (X)</td>
@@ -595,7 +595,7 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">Many to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">No change proposed: a projection puts the tag of a reference in its `summary`, because CSAF has no field for it.</td>
+<td markdown="span">Vultron could add a list of references to the case, which CM-05-004 allows. `CaseReference` exists, but `VulnerabilityCase` has no field for it yet, which is the same gap as vulnerability records ([#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"}). A projection puts the tag of a reference in its `summary`, because CSAF has no field for it.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Note, with no category</td>
@@ -649,7 +649,7 @@ Vultron controls who sees the case through entitlement and the embargo, and the 
 <td markdown="span">One to one</td>
 <td markdown="span">Derived</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">No change proposed. For a multi-party disclosure, CSAF advises "to use one ID per case". A projection derives one stable sharing group ID from the case identifier.</td>
+<td markdown="span">No change proposed. For a multi-party disclosure, CSAF advises "to use one ID per case". A projection mints one UUID version 4 for each case and uses it again, because CSAF requires a version 4 UUID for a closed sharing group.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Projecting participant</td>

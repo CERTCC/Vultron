@@ -49,7 +49,8 @@ When an embargo is revised, the draft says that the issuing party "SHOULD produc
 The new date replaces the old date.
 
 **Consequences.**
-The timeline cannot show that an embargo date moved, or who agreed to each date.
+A revised embargo can be a new `embargo` action that refers to the earlier action, and a `confirmation` that refers to each version shows who agreed to it.
+But the timeline cannot show the date that each earlier version set, because only one `disclosure_date` remains.
 That history is often the most important part of a disputed disclosure.
 The `disclosure_date` also has two meanings before disclosure and after disclosure: the intended end of the embargo, and the time of the public disclosure.
 An embargo can end without a disclosure, and a disclosure can occur before the embargo date, so one field cannot always hold both facts.
@@ -60,6 +61,11 @@ A revised embargo then becomes a new `embargo` action that refers to the earlier
 The `disclosure_date` of each vulnerability keeps its meaning as the date of public disclosure.
 A `confirmation` or `dispute` that refers to one `embargo` action then records agreement to that date only.
 
+The design discussion considered a date on the action and rejected it: "An `expiry_date` on the action would hold a copy of `disclosure_date`, and two fields that hold one date can disagree" ([#1486, 6 October 2026](https://github.com/oasis-tcs/csaf/issues/1486#issuecomment-6016287102){:target="_blank"}).
+This proposal does not make a copy.
+The action holds the agreed end date of one embargo version, and the `disclosure_date` holds only the date of public disclosure.
+The two dates are different facts, and they can be different when an embargo ends without a disclosure or a disclosure occurs before the embargo date.
+
 **Benefit.**
 The change records each embargo version in the timeline.
 The design proposal for the involvement model describes that timeline as "an auditable timeline of the coordination effort" ([#1486, 14 August 2026](https://github.com/oasis-tcs/csaf/issues/1486#issuecomment-5291835024){:target="_blank"}).
@@ -67,7 +73,7 @@ The change also helps a multiplier to copy the involvement list to a different d
 The TC discussion gives that as "one goal of the rework" ([#1486, 25 August 2026](https://github.com/oasis-tcs/csaf/issues/1486#issuecomment-5413838430){:target="_blank"}).
 
 **If nothing changes.**
-A projection from Vultron shows only the current embargo version.
+A projection from Vultron can show each embargo version as an action, but only the current version has a date that a tool can read.
 Earlier dates appear only in the `summary` text of the `embargo` actions, where a tool cannot read them.
 
 ### 2. An embargo can end before its date
@@ -83,7 +89,8 @@ A reader of the timeline cannot tell an embargo that ran to its date from one th
 
 **Proposed change.**
 CSAF could state how a document records the early end of an embargo.
-One way that needs no change to the schema is a rule: an `embargo` action with status `discontinued` means that the embargo ended before its date.
+One way that needs no change to the schema is the status lifecycle from the design discussion: "`planned` for an agreement that starts later, `in_progress` while it is in force, `completed` when it ran to its date, and `discontinued` when it ended early" ([#1486, 6 October 2026](https://github.com/oasis-tcs/csaf/issues/1486#issuecomment-6016287102){:target="_blank"}).
+CSD04 does not include that lifecycle, and CSAF could add it to the normative text.
 The draft already defines `discontinued` as an action that "started the work and then stopped it before it was complete."
 A second way is a new action that refers to the `embargo` action and records the end, with its date and the party that ended it.
 

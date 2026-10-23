@@ -24,7 +24,7 @@ The [overview](overview.md), the [concept mapping](concept_mapping.md), the [cov
 
 CSAF and Vultron work at different levels of abstraction.
 CSAF records what happened in a disclosure, and Vultron controls how a disclosure proceeds.
-The design discussion of the CSAF Technical Committee (TC) states the same difference: the CSAF involvement model is "a documentation model".
+A design proposal for the CSAF involvement model, by a member of the CSAF Technical Committee (TC), states the same difference in an informative appendix: the CSAF involvement model is "a documentation model".
 For this reason, most gaps are not defects on either side.
 They are the result of the different purposes.
 
@@ -38,15 +38,15 @@ The comparison gives three relations between a CSAF document and a Vultron case:
 | Relation | Conclusion |
 |---|---|
 | Replacement | A CSAF document is not the case of record. It holds selected events, has one issuing party, and has no rules for change. |
-| Nested content | A CSAF document can travel inside a case as the content of a report, and Vultron can read its process fields as claims by the sender. |
-| Projection | A participant can produce a CSAF document from its copy of the case, at publication and during coordination. |
+| Nested content | A CSAF document can travel inside a case as the content of a report, and Vultron could read its process fields as claims by the sender. |
+| Projection | A participant could produce a CSAF document from its copy of the case, at publication and during coordination. |
 
 ---
 
 ## Where each side can improve
 
 The largest gap on the CSAF side is the embargo.
-A CSAF document cannot show that an embargo date moved, and it cannot record an early end of an embargo.
+A CSAF document cannot show the date that each earlier version of an embargo set, and the draft does not say how to record an early end of an embargo.
 The [proposals](proposals.md) page gives two changes that would close this gap.
 
 The largest gap on the Vultron side is depth in the object model.
