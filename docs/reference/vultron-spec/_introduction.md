@@ -70,7 +70,7 @@ assembled from the messages it has received. A participant is the authority on i
 own report and fix status. What the case as a whole asserts — its embargo state
 and what is publicly known — has a single writer, the participant holding the
 Case Manager role, so that concurrent claims resolve to one answer
-([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
+([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
 **Coordination is scoped to a case, not to a system.** The Case Manager role is
 held per case, and different cases may be managed by different actors. The
@@ -91,7 +91,7 @@ require, within a case, that shared state have one writer.
 
     The protocol leaves more distributed realizations open — a shared ledger
     among peers, for instance — and this version does not specify one
-    ([§5.4.2 Routing Topology](layers.md#542-routing-topology)).
+    ([§10.2 Routing Topology](interactions.md#102-routing-topology)).
 
 **Asynchronous, message-driven coordination.** Participants announce their own
 transitions rather than being polled, and no exchange requires two parties to be

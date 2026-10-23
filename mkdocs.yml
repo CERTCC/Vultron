@@ -108,7 +108,7 @@ nav:
       - Introduction and Overview: 'reference/vultron-spec/introduction.md'
       - Protocol Layers: 'reference/vultron-spec/layers.md'
       - Case Tracking Models: 'reference/vultron-spec/tracking-models.md'
-      - Interactions and Lifecycle: 'reference/vultron-spec/interactions.md'
+      - Coordination, Interactions, and Lifecycle: 'reference/vultron-spec/interactions.md'
       - Conformance: 'reference/vultron-spec/conformance.md'
       - Considerations and References: 'reference/vultron-spec/considerations.md'
       - Annexes:

@@ -4,7 +4,7 @@ An embargo is an agreement among the participants of a case not to disclose the 
 Embargo Management tracks the progress of that agreement for the case as a whole: whether one has been proposed, whether it is in force, whether it is being renegotiated, and whether it has ended.
 
 There is exactly one embargo state per case.
-It is shared case state, so only the CASE_MANAGER writes it ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
+It is shared case state, so only the CASE_MANAGER writes it ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 The CASE_MANAGER does not set it directly either: it changes the case's **embargo register**, and the EM state is computed from the register ([§7.1.2 Deriving EM from the Register](tracking-models.md#712-deriving-em-from-the-register)).
 Whether each individual participant has agreed to the current terms is a separate question, tracked per participant and per embargo by embargo consent ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
 

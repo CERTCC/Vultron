@@ -8,7 +8,7 @@ states that decision moves through and the transitions between them.
 !!! note "Behavioral Layer — §6 through §12"
     [§6 Report Management (RM) State Machine](tracking-models.md#6-report-management-rm-state-machine-n) through [§12 Participant Lifecycle Within a Case](interactions.md#12-participant-lifecycle-within-a-case-n) together specify the five state machines of the Vultron protocol:
     **RM** ([§6 Report Management (RM) State Machine](tracking-models.md#6-report-management-rm-state-machine-n)), **EM** ([§7 Embargo Management (EM) State Machine](tracking-models.md#7-embargo-management-em-state-machine-n)), **VFD and PXA** ([§8 Case State (CS) Dimensions](tracking-models.md#8-case-state-cs-dimensions-n), together the CS dimension),
-    and **PEC** ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)). Model interactions and cascade rules are in [§11 Model Interactions and Cascade Rules](interactions.md#11-model-interactions-and-cascade-rules-n); the
+    and **PEC** ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)). How the CASE_MANAGER coordinates a case is in [§10 Case Coordination](interactions.md#10-case-coordination-n). Model interactions and cascade rules are in [§11 Model Interactions and Cascade Rules](interactions.md#11-model-interactions-and-cascade-rules-n); the
     participant lifecycle is in [§12 Participant Lifecycle Within a Case](interactions.md#12-participant-lifecycle-within-a-case-n).
 
     **On scope: PEC.** The Participant Embargo Consent machine was not part of
@@ -84,7 +84,7 @@ Three consequences are worth stating, because each is a plausible assumption tha
 ### 6.3 Per-Participant RM Tracking
 
 Each participant tracks its own RM state independently; a participant is the
-authority on its own RM state ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
+authority on its own RM state ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
 Received is the entry state for a participant joining a case, reached by several paths:
 

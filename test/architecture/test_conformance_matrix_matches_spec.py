@@ -102,11 +102,11 @@ def spec_capability_sets() -> tuple[str, ...]:
 def spec_roles() -> tuple[str, ...]:
     text = ROLE_TAXONOMY_FRAGMENT.read_text(encoding="utf-8")
     process = _table_under(
-        text, "12.3.1 Process Roles", ROLE_TAXONOMY_FRAGMENT
+        text, "13.3.1 Process Roles", ROLE_TAXONOMY_FRAGMENT
     )
     authority = _table_under(
         text,
-        "12.3.2 Protocol Coordination Roles (protocol authority)",
+        "13.3.2 Protocol Coordination Roles (protocol authority)",
         ROLE_TAXONOMY_FRAGMENT,
     )
     roles = tuple(

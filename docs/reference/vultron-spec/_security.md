@@ -24,6 +24,7 @@ provides tamper detection.
 
 !!! info "See also"
     - [§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics) (trust and bootstrap semantics)
+    - [§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root) (the case-creation message as the trust root)
     - [§5.4 Addressing and Channels](layers.md#54-addressing-and-channels) (addressing and channels)
 
 ### 15.2 Embargo Integrity

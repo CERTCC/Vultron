@@ -48,7 +48,7 @@ state and notify others of its own transitions.
   transitions
 - MUST participate in embargo negotiation: responding to `Invite(EmbargoEvent)`, and
   recording consent or refusal via PEC
-- MUST route all case-scoped messages through the CASE_MANAGER ([§5.4.2 Routing Topology](../layers.md#542-routing-topology))
+- MUST route all case-scoped messages through the CASE_MANAGER ([§10.2 Routing Topology](../interactions.md#102-routing-topology))
 - MAY report PXA observations; no VFD drive obligations unless a role extension
   set adds them
 
@@ -95,7 +95,7 @@ It is separable from the Case Decision capability set.
 
 - Case Observer capability set, plus:
 - MUST hold the **CASE_MANAGER** role for each case it hosts, and therefore MUST implement the
-  single-writer authority rules of [§5.4.1 Single-Writer Authority](../layers.md#541-single-writer-authority)
+  single-writer authority rules of [§10.1 Single-Writer Authority](../interactions.md#101-single-writer-authority)
 - MUST maintain the authoritative canonical case ledger and replicate it to
   participants via `Announce(CaseLedgerEntry)`
 - MUST implement multi-party case management: participant invitation,

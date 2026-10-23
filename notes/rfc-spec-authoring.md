@@ -61,7 +61,7 @@ arrive with their host fragment.
 | `introduction.md` | Introduction and Overview | Abstract, §1–§3 | `_full-page-tip.md`, `_abstract.md`, `_introduction.md`, `_terminology.md`, `_protocol-overview.md` |
 | `layers.md` | Protocol Layers | §4–§5 | `_full-page-tip.md`, `_semantic-layer.md`, `_syntactic-layer.md` |
 | `tracking-models.md` | Case Tracking Models | §6–§9 | `_full-page-tip.md`, `_rm-state-machine.md`, `_em-state-machine.md`, `_cs-dimensions.md`, `_pec-state-machine.md` |
-| `interactions.md` | Interactions and Lifecycle | §11–§12 | `_full-page-tip.md`, `_model-interactions.md`, `_participant-lifecycle.md` |
+| `interactions.md` | Coordination, Interactions, and Lifecycle | §10–§12 | `_full-page-tip.md`, `_case-coordination.md`, `_model-interactions.md`, `_participant-lifecycle.md` |
 | `conformance.md` | Conformance | §13 Conformance | `_full-page-tip.md`, `_conformance/_intro.md`, `_conformance/_capability-sets.md`, `_conformance/_role-taxonomy.md`, `_conformance/_role-requirements.md`, `_conformance/_conformance-testing.md` |
 | `considerations.md` | Considerations and References | §14–§16 | `_full-page-tip.md`, `_iana.md`, `_security.md`, `_references.md` |
 | `annex-a-single-vendor.md` | Annex A Worked Example: Single-Vendor CVD | Annex A | `_full-page-tip.md`, `_annex-a.md` |
@@ -264,6 +264,14 @@ Keep the current order; each alternative was measured and is worse:
 - Moving §9 Participant Embargo Consent (PEC) State Machine ahead of §7 Embargo
   Management (EM) State Machine creates a definitional cycle, because PEC's
   states are defined by EM triggers.
+- §10 Case Coordination stays a normative section of its own, ahead of §11 Model
+  Interactions and Cascade Rules: the CASE_MANAGER is a protocol role every case
+  has, so its duties are protocol, stated about the role. The dedicated Case
+  Actor appears only in an informative note, because it is one way to hold the
+  role, not the protocol's (ADR-0158).
+- A normative statement about a message is about an occasion; a two-letter
+  protocol shorthand is a cross-reference tag and the vocabulary of the §6–§9
+  transition tables, not the unit a rule is stated on (ADR-0158).
 - §13 Conformance before the back matter is correct per RFC 7322: conformance
   is a body section. §14 IANA and Namespace Considerations precedes §15 Security
   Considerations, and §16 References closes the body.

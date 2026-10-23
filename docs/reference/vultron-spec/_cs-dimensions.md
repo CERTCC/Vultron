@@ -41,7 +41,7 @@ and is specified at
 
 PXA records the state of the world, not the state of any participant. There is one
 PXA value for the case, it is shared case state, and only the CASE_MANAGER writes
-it ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
+it ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
 Unlike VFD, the three axes are independent: any combination can occur, in any
 order.

@@ -107,7 +107,7 @@ A participant that holds both a Vendor role and the Case Owner role may do every
 Once a case exists, a participant addresses every case-scoped message to the CASE_MANAGER and to nobody else ([PCR-08-001](../../reference/specs/protocol.md#pcr-08-001)).
 That covers notes, status updates, embargo proposals, and every other message about the case.
 The CASE_MANAGER judges it, records the outcome in the ledger, and sends the new ledger entry to every active participant.
-That fan-out is the only way a participant learns of an admitted change ([PCR-08-003](../../reference/specs/protocol.md#pcr-08-003), [§5.4.2 Routing Topology](../../reference/vultron-spec/layers.md#542-routing-topology)).
+That fan-out is the only way a participant learns of an admitted change ([PCR-08-003](../../reference/specs/protocol.md#pcr-08-003), [§10.2 Routing Topology](../../reference/vultron-spec/interactions.md#102-routing-topology)).
 
 ```mermaid
 ---
@@ -493,6 +493,6 @@ When that case is to be closed, it closes through the same close path as any oth
 - [Ownership Transfer](ownership_transfer.md) — how the `CASE_OWNER` role moves to another participant
 - [Case Ledger Synchronization](case_ledger_sync.md) — how a replica orders entries and catches up on missed ones
 - [The Case Model](case_model.md) — the objects a case is made of and the roles participants hold
-- [§4.5 Trust and Bootstrap Semantics](../../reference/vultron-spec/layers.md#45-trust-and-bootstrap-semantics) — the normative statement of the trust root
-- [§5.4.2 Routing Topology](../../reference/vultron-spec/layers.md#542-routing-topology) — the normative routing rule and its two exceptions
+- [§10.3 Case Bootstrap and the Trust Root](../../reference/vultron-spec/interactions.md#103-case-bootstrap-and-the-trust-root) — the normative statement of the trust root
+- [§10.2 Routing Topology](../../reference/vultron-spec/interactions.md#102-routing-topology) — the normative routing rule and its two exceptions
 - [Protocol specifications](../../reference/specs/protocol.md) — the requirements behind this page, including CBT, PCR, PRM, and CM-23

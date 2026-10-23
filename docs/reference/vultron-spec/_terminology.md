@@ -66,7 +66,7 @@ itself:
 | Role | Definition |
 |---|---|
 | **Case Owner** | The party whose disclosure decision the case exists to serve. It decides who is admitted, which roles they hold, and whether embargo terms are accepted or torn down. Case ownership is never delegated, though it may be transferred ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)). |
-| **Case Manager** | The participant that writes the canonical case ledger and relays case-scoped messages, acting on the Case Owner's behalf. It is the case's single-writer authority ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)). The Case Owner may delegate this role. |
+| **Case Manager** | The participant that writes the canonical case ledger and relays case-scoped messages, acting on the Case Owner's behalf. It is the case's single-writer authority ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)). The Case Owner may delegate this role. |
 
 !!! note "The Observer role and the Case Observer capability set"
     *Observer* is a process role (defined above). The minimum conformance
@@ -113,7 +113,7 @@ participants.
 | **`CaseLedgerEntry`** | One entry in the case ledger. Each entry records one admitted change, carries a timestamp assigned by the CASE_MANAGER, and is hash-chained to its predecessor so a participant can tell whether it holds the entries in order and without gaps. |
 | **`ParticipantStatus`** | A participant's report about its own state, or its observation about the world. A `ParticipantStatus` is a **claim**: any participant may write one, and writing one does not change the case's state ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)). |
 | **`CaseStatus`** | The case's shared state — its embargo state and what is publicly known. A `CaseStatus` is **canonical**: only the CASE_MANAGER writes it, and it changes only when a claim is adopted ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)). |
-| **Channel** | The path a message travels. In Vultron the delivery path is inbox to inbox, and case-scoped messages route through the CASE_MANAGER ([§5.4.2 Routing Topology](layers.md#542-routing-topology)). |
+| **Channel** | The path a message travels. In Vultron the delivery path is inbox to inbox, and case-scoped messages route through the CASE_MANAGER ([§10.2 Routing Topology](interactions.md#102-routing-topology)). |
 
 ### 2.4 State, Embargo and Disclosure
 

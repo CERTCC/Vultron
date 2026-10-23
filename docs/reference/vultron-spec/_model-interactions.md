@@ -115,7 +115,7 @@ claim as truth" are separate decisions with separate authority.
 A participant reports an observation by sending `Add(ParticipantStatus)` to the
 CASE_MANAGER. A participant does not send `Add(CaseStatus)`: writing canonical
 case status is reserved to the CASE_MANAGER
-([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
+([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
 The CASE_MANAGER records the claim in the case ledger first, and then decides
 whether to adopt it as canonical:

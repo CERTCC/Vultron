@@ -23,7 +23,7 @@ State divides into two kinds, and the distinction runs through the whole
 specification. **Participant-specific state** belongs to one participant, which
 is the authority on its own value. **Shared case state** has one value for the
 entire case, and only the participant holding the `CASE_MANAGER` role writes it
-([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)); it replicates each admitted
+([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)); it replicates each admitted
 change to every participant as `Announce(CaseLedgerEntry)`.
 
 {% include-markdown "./includes/_state-ownership-table.md" %}
@@ -69,12 +69,12 @@ Two things this is **not**:
   sees every case.
 - It is not a registry. Nothing looks up authority in a directory; authority
   follows the role recorded on the case
-  ([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
+  ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
 Participants also talk to each other outside the protocol — by mail, by phone, in a
 shared channel. That is normal and out of scope. What routes through the
 CASE_MANAGER is the case's *protocol* traffic, because that is what changes case
-state ([§5.4.2 Routing Topology](layers.md#542-routing-topology)).
+state ([§10.2 Routing Topology](interactions.md#102-routing-topology)).
 
 !!! note "Messages describe what has happened"
     A Vultron message states that something has already occurred. It is not an
