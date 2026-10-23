@@ -17,6 +17,7 @@ It is for readers who know one of the two models and want to know how the other 
 These readers include members of the CSAF Technical Committee (TC) of the Organization for the Advancement of Structured Information Standards (OASIS).
 It describes three relations between a CSAF document and a Vultron [case](../glossary.md#core-cvd-concepts), and it gives a summary of each area where the two models meet.
 Three other pages give the detail: the [concept mapping](concept_mapping.md), the [coverage differences](coverage.md), and the [proposals](proposals.md).
+The [conclusions](conclusion.md) page gives the result and the follow-up work.
 
 {% include-markdown "./_csaf_version.md" %}
 
@@ -96,7 +97,7 @@ This crosswalk proposes three rules for those fields:
 For example, a `disclosure_date` in a received report can cause an embargo proposal with that date.
 The proposal then goes through the normal embargo process, and the case ledger records the result.
 These rules are proposals for Vultron, not current requirements.
-The [concept mapping](concept_mapping.md#content-objects) gives them as "Vultron could" rows.
+The [concept mapping](concept_mapping.md#content-objects) gives them as "Vultron could" rows, and issue [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} tracks them.
 
 ### A case can produce a CSAF document
 
@@ -114,6 +115,7 @@ For this reason, a projection SHOULD NOT include information that the recipient 
 Each projection also states the ledger position that it shows, because the case continues to change after the projection.
 The `involvement` timeline of a projection is a filtered view of the case ledger.
 That agrees with the CSAF design, in which the issuing party selects the events that its audience needs.
+Issue [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} tracks the work to produce projections.
 
 ---
 
@@ -152,7 +154,7 @@ A more detailed projection of the same case can need a stricter label at the sam
 When a received CSAF document has a label that is stricter than the Vultron entitlement rules, Vultron cannot enforce that label.
 For example, a `TLP:RED` document can arrive in a case with five participants.
 Only the policy of the receiving participant can obey the label.
-This is a known limit.
+This is a known limit, and concern [#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"} tracks it.
 
 ---
 
@@ -200,12 +202,12 @@ The links go to the detailed rows.
 <tr markdown="1">
 <td markdown="span">[Content objects](concept_mapping.md#content-objects)</td>
 <td markdown="span">Close</td>
-<td markdown="span">Vultron could add vulnerability records to the case, with CSAF or Common Vulnerabilities and Exposures (CVE) content. Vultron could read process fields in a received CSAF document as claims.</td>
+<td markdown="span">Vultron could add vulnerability records to the case, with CSAF or Common Vulnerabilities and Exposures (CVE) content. Vultron could read process fields in a received CSAF document as claims. See [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} and [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"}.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[Distribution and tracking](concept_mapping.md#distribution-and-tracking)</td>
 <td markdown="span">Divergent</td>
-<td markdown="span">No change proposed. Vultron derives a TLP label for each projection. The way TLP could appear inside Vultron is an open concern.</td>
+<td markdown="span">No change proposed. Vultron derives a TLP label for each projection. The way TLP could appear inside Vultron is an open concern ([#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"}).</td>
 </tr>
 </tbody>
 </table>
@@ -221,3 +223,4 @@ The [coverage differences](coverage.md) page lists the concepts that only one of
 - [Proposals](proposals.md) — the changes that CSAF and Vultron could make, each with its cost if nothing changes.
 - [Standards Crosswalks](../iso_crosswalks/index.md) — the other crosswalks of Vultron against related standards.
 - [oasis-tcs/csaf#1486](https://github.com/oasis-tcs/csaf/issues/1486){:target="_blank"} — the TC issue for the CSAF 2.1 involvement model.
+- [Conclusions](conclusion.md) — what the comparison shows, and the issues that track the follow-up work.

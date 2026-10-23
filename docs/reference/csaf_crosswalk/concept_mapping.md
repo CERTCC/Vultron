@@ -492,7 +492,7 @@ The [SSVC crosswalk](../ssvc_crosswalk.md#exploitation) gives the mapping betwee
 <td markdown="span">One to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">No change proposed. Details of the fix go in `vulnerabilities[].remediations`, which Vultron does not model.</td>
+<td markdown="span">No change proposed for the mapping. Details of the fix go in `vulnerabilities[].remediations`, which Vultron does not model. CSAF records a fix for each product, and Vultron records F once for each participant. Concern [#5140](https://github.com/CERTCC/Vultron/issues/5140){:target="_blank"} asks whether Vultron could track F for each vendor and product.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Fix Deployed (D)</td>
@@ -500,7 +500,7 @@ The [SSVC crosswalk](../ssvc_crosswalk.md#exploitation) gives the mapping betwee
 <td markdown="span">One to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">No change proposed.</td>
+<td markdown="span">No change proposed for the mapping. Concern [#5140](https://github.com/CERTCC/Vultron/issues/5140){:target="_blank"} asks whether Vultron could track D for each vendor, product, and deployer.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Public Awareness (P)</td>
@@ -571,7 +571,7 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">One to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">Vultron could identify CSAF content by its `mediaType`, and it could read the process fields of that content as claims by the sender. A claim changes the case only through a Vultron activity, which can be automatic. If nothing changes, Vultron carries a CSAF report without reading it, and a proposed disclosure date in the report has no effect.</td>
+<td markdown="span">Vultron could identify CSAF content by its `mediaType`, and it could read the process fields of that content as claims by the sender. A claim changes the case only through a Vultron activity, which can be automatic. If nothing changes, Vultron carries a CSAF report without reading it, and a proposed disclosure date in the report has no effect. Issue [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} tracks this change.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`VulnerabilityRecord` on a case</td>
@@ -579,7 +579,7 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">Many to one</td>
 <td markdown="span">Interpretive</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">Vultron could add a list of vulnerability records to the case, which CM-05-003 already expects. Vultron could also let a `VulnerabilityRecord` carry a CSAF document or a CVE record as its content, with a `mediaType` that identifies the format. The record keeps the identifiers that Vultron uses, and Vultron reads the content as claims. A CSAF document for one vulnerability must also define the products that it refers to (mandatory test 6.1.1, Missing Definition of Product ID), so this change could include a CSAF profile for one vulnerability, without `involvement`, because the case holds the coordination history. If nothing changes, a projection finds the vulnerabilities only in the text of the reports, and it cannot set `dl_vuln_ids` reliably.</td>
+<td markdown="span">Vultron could add a list of vulnerability records to the case, which CM-05-003 already expects. Vultron could also let a `VulnerabilityRecord` carry a CSAF document or a CVE record as its content, with a `mediaType` that identifies the format. The record keeps the identifiers that Vultron uses, and Vultron reads the content as claims. A CSAF document for one vulnerability must also define the products that it refers to (mandatory test 6.1.1, Missing Definition of Product ID), so this change could include a CSAF profile for one vulnerability, without `involvement`, because the case holds the coordination history. If nothing changes, a projection finds the vulnerabilities only in the text of the reports, and it cannot set `dl_vuln_ids` reliably. Issue [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} tracks this change.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`VulnerabilityRecord` `name` and `aliases`</td>
@@ -641,7 +641,7 @@ Vultron controls who sees the case through entitlement and the embargo, and the 
 <td markdown="span">Many to one</td>
 <td markdown="span">Derived</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">No change proposed: a projection derives its TLP label from its content, its recipient, and the case state, as the [overview](overview.md#tlp-marks-a-projection-not-a-case) explains. The way TLP could appear in Vultron data and logic is an open concern. If nothing changes, Vultron cannot enforce a received label that is stricter than its own entitlement rules.</td>
+<td markdown="span">No change proposed: a projection derives its TLP label from its content, its recipient, and the case state, as the [overview](overview.md#tlp-marks-a-projection-not-a-case) explains. The way TLP could appear in Vultron data and logic is an open concern ([#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"}). If nothing changes, Vultron cannot enforce a received label that is stricter than its own entitlement rules.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Case</td>
@@ -689,3 +689,9 @@ Vultron controls who sees the case through entitlement and the embargo, and the 
 | Tense | Vultron state names tell what already occurred, and CSAF status values tell what occurs now. |
 | Selection | A projection filters the case ledger, and the CSAF timeline holds the events that the issuing party selects. |
 | Facts about the vulnerability | Both models keep exploit availability and public status in the vulnerability data, not in the timeline of events. |
+
+## Further reading
+
+- [CSAF 2.1 and Vultron](overview.md) — how a CSAF document relates to a Vultron case.
+- [Proposals](proposals.md) — the changes CSAF and Vultron could make, with their reasons.
+- [Conclusions](conclusion.md) — what the comparison shows, and the issues that track the follow-up work.

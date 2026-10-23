@@ -29,6 +29,7 @@ The CSAF 2.1 crosswalk maps concepts instead of clauses, because CSAF is a docum
 - **CSAF 2.1 Crosswalk**
     - [CSAF 2.1 and Vultron](../csaf_crosswalk/overview.md) — How the Common Security Advisory Framework (CSAF) 2.1 draft relates to a Vultron case, and a summary of where the two models are the same, close, or different.
     - [Proposals](../csaf_crosswalk/proposals.md) — Changes that the Common Security Advisory Framework (CSAF) 2.1 draft and the Vultron Protocol could make, each with its reason and its cost if nothing changes.
+    - [Conclusions](../csaf_crosswalk/conclusion.md) — What the comparison of the Common Security Advisory Framework (CSAF) 2.1 draft with Vultron shows, and the follow-up work it opens on each side.
     - [Concept Mapping](../csaf_crosswalk/concept_mapping.md) — Each Vultron concept with its counterpart in the Common Security Advisory Framework (CSAF) 2.1 draft, the granularity of the match, and the type of mapping in each direction.
     - [Coverage Differences](../csaf_crosswalk/coverage.md) — Concepts that Vultron has and the Common Security Advisory Framework (CSAF) 2.1 draft does not, and concepts that CSAF has and Vultron does not.
 - [SSVC Crosswalk](../ssvc_crosswalk.md) — A crosswalk of the Vultron Protocol against Stakeholder-Specific Vulnerability Categorization (SSVC).

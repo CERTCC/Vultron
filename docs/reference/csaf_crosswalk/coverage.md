@@ -191,7 +191,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <tr markdown="1">
 <td markdown="span">`vulnerabilities[].product_status`, with lists such as `known_affected`, `known_not_affected`, `fixed`, `under_investigation`, `recommended`, and `unknown`</td>
 <td markdown="span">Gives the status of each product for each vulnerability.</td>
-<td markdown="span">Vultron tracks whether a fix is ready (F) and deployed (D) for the case, not for each product.</td>
+<td markdown="span">Vultron tracks whether a fix is ready (F) and deployed (D) once for each participant, not for each product. Concern [#5140](https://github.com/CERTCC/Vultron/issues/5140){:target="_blank"} asks whether Vultron could track F for each vendor and product, and D for each vendor, product, and deployer.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`vulnerabilities[].remediations[]`, with categories such as `vendor_fix`, `workaround`, `mitigation`, `no_fix_planned`, and `optional_patch`</td>
@@ -220,7 +220,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <tr markdown="1">
 <td markdown="span">`vulnerabilities[]` as a structured object</td>
 <td markdown="span">Holds identifiers, dates, notes, references, metrics, threats, and product status for each vulnerability.</td>
-<td markdown="span">**Vultron could** add vulnerability records to the case, with CSAF or Common Vulnerabilities and Exposures (CVE) content. The Vultron object model has not yet reached this depth, and this gap is recognized. See the [concept mapping](concept_mapping.md#content-objects).</td>
+<td markdown="span">**Vultron could** add vulnerability records to the case, with CSAF or Common Vulnerabilities and Exposures (CVE) content. The Vultron object model has not yet reached this depth, and this gap is recognized. See the [concept mapping](concept_mapping.md#content-objects). Issue [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} tracks this change.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`vulnerabilities[].metrics[]`: Common Vulnerability Scoring System (CVSS), Exploit Prediction Scoring System (EPSS), Stakeholder-Specific Vulnerability Categorization (SSVC), and qualitative severity</td>
@@ -240,7 +240,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <tr markdown="1">
 <td markdown="span">`document.acknowledgments` and `vulnerabilities[].acknowledgments`</td>
 <td markdown="span">Names the people and organizations that receive public credit. In the Vulnerability Report profile, no acknowledgments means that the discoverer does not want public credit.</td>
-<td markdown="span">Undecided: Vultron could record which participants want public credit. CSAF acknowledgments are not linked to involvement entities.</td>
+<td markdown="span">Undecided: Vultron could record which participants want public credit ([#5135](https://github.com/CERTCC/Vultron/issues/5135){:target="_blank"}). CSAF acknowledgments are not linked to involvement entities.</td>
 </tr>
 </tbody>
 </table>
@@ -303,7 +303,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <tr markdown="1">
 <td markdown="span">TLP labels on each document</td>
 <td markdown="span">Tells the recipient how far it can share the document.</td>
-<td markdown="span">Vultron has no labels. The way TLP could appear in Vultron data and logic is an open concern. See the [overview](overview.md#tlp-marks-a-projection-not-a-case).</td>
+<td markdown="span">Vultron has no labels. The way TLP could appear in Vultron data and logic is an open concern ([#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"}). See the [overview](overview.md#tlp-marks-a-projection-not-a-case).</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Document language and translations</td>
@@ -322,3 +322,9 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 </tr>
 </tbody>
 </table>
+
+## Further reading
+
+- [CSAF 2.1 and Vultron](overview.md) — how a CSAF document relates to a Vultron case.
+- [Proposals](proposals.md) — the changes CSAF and Vultron could make, with their reasons.
+- [Conclusions](conclusion.md) — what the comparison shows, and the issues that track the follow-up work.
