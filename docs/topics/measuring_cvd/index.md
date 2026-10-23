@@ -57,3 +57,7 @@ That discussion is on [CVD Roles and Their Influence](../other_uses/roles_influe
 The discussion is in Other Uses because it is about who uses the model, not about measurement.
 A CVD program owner can measure their own cases without the derivation.
 [How to Measure Your CVD Program](../../howto/measure_your_cvd_program.md) gives the steps.
+
+## Where to start
+
+Start with [What a Case Records](what_a_case_records.md), which describes the record that every main page in this section uses.
