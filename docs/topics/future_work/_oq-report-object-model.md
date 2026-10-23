@@ -5,6 +5,7 @@
     A Case exists only after a recipient accepts that `Offer`.
     Two Report formats are possible: plain text and JavaScript Object Notation (JSON) in the Common Security Advisory Framework (CSAF) format.
     The project has not specified either format, and more formats can follow.
+    The [CSAF 2.1 crosswalk](../../reference/csaf_crosswalk/concept_mapping.md#content-objects) compares the two object models, and Idea [#5131](https://github.com/CERTCC/Vultron/issues/5131) tracks how Vultron reads CSAF content in a Report.
 
     The condition occurs when the same Report goes to more than one recipient.
     Each recipient can accept the Report and make its own Case from it.

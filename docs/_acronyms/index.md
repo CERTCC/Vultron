@@ -237,6 +237,7 @@ sense the docs actually use.
 *[STARTTLS]: Start Transport Layer Security, a protocol extension for upgrading a plaintext connection to a secure connection
 *[StartTLS]: Start Transport Layer Security, a protocol extension for upgrading a plaintext connection to a secure connection
 
+*[TC]: Technical Committee, as in the OASIS CSAF Technical Committee
 *[TCP]: Transmission Control Protocol
 *[TF-IDF]: Term Frequency-Inverse Document Frequency
 *[TLP]: Traffic Light Protocol
@@ -263,6 +264,7 @@ sense the docs actually use.
 *[VDP]: Vulnerability Disclosure Program
 *[VDPs]: Vulnerability Disclosure Programs
 *[VEP]: Vulnerability Equities Process
+*[VEX]: Vulnerability Exploitability eXchange
 *[VFD]: Vendor aware, Fix ready, fix Deployed — the vendor-path case state dimensions
 *[VINCE]: Vulnerability Information and Coordination Environment
 *[VM]: Vulnerability Management
