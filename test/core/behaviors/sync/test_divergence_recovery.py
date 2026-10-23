@@ -381,7 +381,7 @@ def test_a_copy_the_chain_is_past_is_skipped() -> None:
     assert _case_name(dl) == "replica case"
 
 
-@pytest.mark.spec("SYNC-16-006")
+@pytest.mark.spec("SYNC-16-006", "CLP-04-008")
 def test_a_copy_that_conflicts_with_the_chain_is_refused_at_error(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

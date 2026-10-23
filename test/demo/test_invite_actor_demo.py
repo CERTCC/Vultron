@@ -35,6 +35,7 @@ def demo_env(client):
     [demo.demo_invite_actor_accept, demo.demo_invite_actor_reject],
     ids=["invite_accept", "invite_reject"],
 )
+@pytest.mark.spec("PCR-08-009")
 def test_demo(demo_env, demo_fn, caplog):
     """
     Tests that the invite_actor demo workflows complete successfully.

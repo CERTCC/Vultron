@@ -364,7 +364,7 @@ class EmitCDActivity(_EmitParticipantStatusActivityBase):
     :class:`TransitionCStoFixDeployed` and queues the resulting activity ID
     via ``outbox_append``.
 
-    Per ADR-0021 CLP-10-001: trigger trees MUST address fix-deployment
+    Per ADR-0021 CLP-10-027: trigger trees MUST address fix-deployment
     activities to the Case Actor (CASE_MANAGER) so the CaseActor can commit
     a canonical ledger entry.
 

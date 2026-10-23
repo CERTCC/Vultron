@@ -202,20 +202,22 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >-
-      A participant actor MUST NOT create a local case replica from an `Announce(VulnerabilityCase)`
-      message unless prior trust for that case has been established: either (a) the actor has
-      already processed a `Create(VulnerabilityCase)` from the report receiver that introduced the
-      CASE_MANAGER identity, or (b) the actor has completed an `InviteActorToCase`/`AcceptInviteToCase`
-      exchange that records a pending-expectation for that case. Accepting any `Announce(VulnerabilityCase)`
-      from an unauthenticated or unexpected sender as a bootstrap signal is not permitted.
-      For path (b), the pending-expectation record MUST be created only when the Invite's
-      `object` is the receiving actor; the record MUST bind to the Invite's `actor` id (the
-      named CaseActor), not to the transport-level delivering sender; and a later
-      Invite for the same case naming a different CaseActor MUST replace the anchor
-      while the receiver has not accepted the Invite that set it, and MUST be refused,
-      leaving the anchor unchanged, once the receiver has accepted that Invite.
-      Whether the named CaseActor is genuine cannot be verified without actor identity
-      and signatures (#2841); this requirement records the structural rules that apply
+      A participant actor MUST NOT create a local case replica from an
+      `Announce(VulnerabilityCase)` message unless prior trust for that case has been
+      established: either (a) the actor has already processed a
+      `Create(VulnerabilityCase)` from the report receiver that introduced the
+      CASE_MANAGER identity, or (b) the actor has completed an `InviteActorToCase`
+      exchange (the Invite and its `Accept`) that records a pending-expectation for that
+      case. Accepting any `Announce(VulnerabilityCase)` from an unauthenticated or
+      unexpected sender as a bootstrap signal is not permitted. For path (b), the
+      pending-expectation record MUST be created only when the Invite's `object` is the
+      receiving actor; the record MUST bind to the Invite's `actor` id (the named
+      CASE_MANAGER), not to the transport-level delivering sender; and a later Invite
+      for the same case naming a different CASE_MANAGER MUST replace the anchor while
+      the receiver has not accepted the Invite that set it, and MUST be refused, leaving
+      the anchor unchanged, once the receiver has accepted that Invite. Whether the
+      named CASE_MANAGER is genuine cannot be verified without actor identity and
+      signatures (#2841); this requirement records the structural rules that apply
       before that verification is available.
     rationale: >-
       An `Announce(VulnerabilityCase)` roster is supplied by the sender; a fabricated case
@@ -290,9 +292,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `context` field of an ActivityStreams activity is the canonical mechanism for routing
-      a case-scoped message to the correct local case replica handler within a participant
-      actor.
+      The `context` field of an ActivityStreams activity is the canonical mechanism by
+      which a participant actor identifies the local case replica a case-scoped message
+      belongs to.
     verification: >-
       Inspection of `vultron/core/models/activity.py` confirms the `context`
       field is present on case-scoped activities, and a unit test confirms the
@@ -330,8 +332,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Each actor's DataLayer MUST maintain a mapping from `VulnerabilityReport.id_` to `VulnerabilityCase.id_`
-      for reports the actor has submitted.
+      Each actor MUST keep, for each report it has submitted, a link from the report's
+      id to the id of the case created for it.
     verification: >-
       Inspection of `vultron/core/models/report_case_link.py` confirms that
       `ReportCaseLink` persists the report-to-case mapping in the DataLayer,
@@ -499,13 +501,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `CaseLedgerEntry + broadcast` cascade MUST fire automatically as a consequence
-      of the CASE_MANAGER processing any accepted participant message, not only via explicit
-      demo endpoint invocation.
+      The `CaseLedgerEntry` commit and `Announce(CaseLedgerEntry)` broadcast
+      (PCR-08-003) MUST follow automatically from the CASE_MANAGER processing any
+      accepted participant message, without any further request or operator action.
     verification: >-
-      Integration tests in `test/demo/test_sync_ledger_replication.py` confirm
-      the cascade fires without any explicit demo-endpoint invocation whenever
-      the CASE_MANAGER processes an accepted participant message.
+      `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_commits_log_entry_when_sync_port_provided`
+      confirms the CASE_MANAGER commits the entry as part of processing a received
+      `Add(Note)`, with no further request.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-003
@@ -516,16 +518,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Trigger use cases and their supporting BTs that cause a participant to send a case-scoped
-      message MUST resolve the CASE_MANAGER's actor ID from the case's participant list (the
-      participant with `CVDRole.CASE_MANAGER`) and use that ID as the sole `to:` recipient.
-      Any helper that returns all participants (e.g. the roster index) MUST NOT be used as
-      the sole source of recipients for outbound participant activities.
+      A participant sending a case-scoped message MUST take its recipient from its
+      replica of the case: the participant holding the `CASE_MANAGER` role, as the
+      message's sole `to:` recipient. The case's full participant list MUST NOT serve as
+      the recipients of such a message.
     verification: >-
-      A unit test confirms that case-scoped trigger BT emit nodes resolve
-      `CVDRole.CASE_MANAGER` from the participant list and set that ID as the
-      sole `to:` recipient, and that a roster-wide list is not permitted as
-      the recipient source.
+      `test/core/use_cases/triggers/case/test_add_object.py::TestSvcAddObjectToCaseUseCase::test_add_object_to_case_addresses_case_manager_alone`
+      and
+      `test/core/use_cases/triggers/case/test_add_report.py::TestSvcAddReportToCaseUseCase::test_add_report_to_case_addresses_case_manager_alone`
+      assert the queued activity's sole `to:` recipient is the CASE_MANAGER.
     stories:
     - story_2022_046
     - story_2022_039
@@ -543,14 +544,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      `RmInviteToCaseActivity` MUST be sent with `actor` set to the CASE_MANAGER's ID, not
-      the case owner's ID. The case owner triggers the invite action, but the CASE_MANAGER
-      MUST be the ActivityStreams actor performing the send. Optionally, `attributedTo` on
-      the activity MAY carry the case owner's ID to record who initiated the invitation.
+      An `Invite` that invites an actor to a case (`InviteActorToCase`) MUST be sent
+      with `actor` set to the CASE_MANAGER's ID, not the case owner's ID. The case owner
+      triggers the invite action, but the CASE_MANAGER MUST be the ActivityStreams actor
+      performing the send. Optionally, `attributedTo` on the activity MAY carry the case
+      owner's ID to record who initiated the invitation.
     verification: >-
-      Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      `RmInviteToCaseActivity` carries `actor` equal to the CASE_MANAGER's ID,
-      not the case owner's ID.
+      `test/demo/test_remote_case_actor_invite.py::TestOwnerInviteThroughARemoteCaseActor`
+      confirms the case owner's trigger sends its own request and the CASE_MANAGER, on
+      another container, is the `actor` of the `Invite`, not the case owner.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
@@ -561,13 +563,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The invitee's `RmAcceptInviteToCaseActivity` MUST be addressed to the CASE_MANAGER
-      (not the case owner). The CASE_MANAGER is the authoritative recipient and processor of
-      all case-management handshake messages after case creation.
+      The invitee's `Accept` of that Invite (PCR-08-007) MUST be addressed to the
+      CASE_MANAGER (not the case owner). The CASE_MANAGER is the authoritative recipient
+      and processor of all case-management handshake messages after case creation.
     verification: >-
-      Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      the invitee's accept-invite response is addressed `to` the CASE_MANAGER
-      rather than the case owner.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcAcceptCaseInviteUseCase::test_accept_addresses_case_manager_not_case_owner`
+      confirms that, for a case another actor owns, the invitee's `Accept` is
+      addressed `to` the `Invite`'s actor, the CASE_MANAGER, alone, and not to
+      the case owner.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
@@ -578,14 +581,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The CASE_MANAGER MUST process an invitee's replies and record their effect in its
-      own DataLayer: a reply to the stub Invite as CM-11-001 and CM-11-007 require, and
-      a reply to the full-case Invite as CM-11-011 requires.
+      The CASE_MANAGER MUST process an invitee's replies and record their effect on its
+      own copy of the case: a reply to the stub Invite as CM-11-001 and CM-11-007
+      require, and a reply to the full-case Invite as CM-11-011 requires.
     verification: >-
-      Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      after the invitee sends `RmAcceptInviteToCaseActivity`, the CASE_MANAGER's
-      DataLayer records the invitee's RM state as RECEIVED, and that each
-      full-case Invite reply moves it as CM-11-011 states.
+      `test/demo/test_invite_actor_demo.py::test_demo` runs the invite demo, whose
+      checks confirm that after the invitee's reply the CASE_MANAGER's store records the
+      invitee's RM state as CM-11-011 states and lists the invitee as a case
+      participant.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001
@@ -633,7 +636,7 @@ groups:
       spec_id: PCR-08-010
   - id: PCR-08-011
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       An emit node in a case-scoped trigger BT MUST resolve the CASE_MANAGER
       recipient before enqueueing the activity.
@@ -686,6 +689,29 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: PCR-08-011
+  - id: PCR-08-018
+    priority: MUST
+    kind: project
+    statement: >-
+      Trigger use cases and their supporting BTs that cause a participant to send a
+      case-scoped message MUST resolve the CASE_MANAGER's actor ID from the case's
+      participant list (the participant with `CVDRole.CASE_MANAGER`) and use that ID as
+      the sole `to:` recipient (PCR-08-005). Any helper that returns all participants
+      (e.g. the roster index) MUST NOT be used as the sole source of recipients for
+      outbound participant activities.
+    rationale: >-
+      A participant messages only the CASE_MANAGER (PCR-08-005). A roster-wide recipient
+      list sends case messages to actors that are not entitled to them, and those actors
+      act on messages that the CASE_MANAGER never committed.
+    verification: >-
+      `test/core/use_cases/triggers/case/test_add_object.py::TestSvcAddObjectToCaseUseCase::test_add_object_to_case_addresses_case_manager_alone`
+      and
+      `test/core/use_cases/triggers/case/test_add_report.py::TestSvcAddReportToCaseUseCase::test_add_report_to_case_addresses_case_manager_alone`
+      seed a case with other participants and confirm the trigger use case resolves the
+      participant holding `CVDRole.CASE_MANAGER` as the sole `to:` recipient.
+    relationships:
+    - rel_type: implements
+      spec_id: PCR-08-005
   - id: PCR-08-012
     priority: MUST
     kind: protocol

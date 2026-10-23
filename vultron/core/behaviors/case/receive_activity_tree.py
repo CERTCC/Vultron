@@ -1110,7 +1110,7 @@ def create_receive_activity_tree(
             case, come without a ``sender_rule`` or with a
             ``post_close_exemption``, or hold the received activity's commit
             (CLP-10-025), or a ``one_act_exemption`` is unregistered or
-            exempts a tree that commits to no case (CLP-07-015).
+            exempts a tree that commits to no case (CLP-07-016).
 
     Per ``specs/case-ledger-processing.yaml`` CLP-02-005, CLP-05-001,
     CLP-07-015,

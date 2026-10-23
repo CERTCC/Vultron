@@ -306,6 +306,7 @@ def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CBT-03-006")
 def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
     """AC-6: Expired pre-bootstrap queue is dropped with a WARNING.
 

@@ -350,7 +350,7 @@ class TestSvcInviteActorToCaseUseCase:
         )
         assert "cc" not in activity
 
-    @pytest.mark.spec("CM-24-004")
+    @pytest.mark.spec("CM-24-004", "CLP-10-027")
     def test_invite_is_queued_in_the_owners_outbox_only(self):
         """The Offer leaves from the owner's outbox; nothing is queued as the
         CASE_MANAGER and nothing is committed by the owner."""
@@ -1109,6 +1109,7 @@ class TestSvcSuggestActorToCaseUseCase:
 class TestSvcAcceptCaseInviteUseCase:
     """Tests for the accept-case-invite trigger use case."""
 
+    @pytest.mark.spec("PCR-08-008")
     def test_accept_creates_activity(self):
         """The Invite is read from intake's archive: a stub Invite precedes its
         case, so the inbox never defers it (PCR-06-005)."""
@@ -1146,6 +1147,42 @@ class TestSvcAcceptCaseInviteUseCase:
         assert activity_of(result)["actor"] == invitee.id_
         assert activity_of(result)["inReplyTo"] == invite.id_
         assert activity_of(result).get("to") == [inviter.id_]
+
+    @pytest.mark.spec("PCR-08-008")
+    def test_accept_addresses_case_manager_not_case_owner(self):
+        """The Accept goes to the Invite's actor, the CASE_MANAGER, even when
+        another actor owns the case (PCR-08-008)."""
+        owner, _ = _make_actor_dl("Vendor")
+        case_manager, _ = _make_actor_dl("CaseActor")
+        invitee, dl_invitee = _make_actor_dl("Finder")
+
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=case_stub(case.id_),
+            actor=case_manager.id_,
+            to=[invitee.id_],
+        )
+        dl_invitee.create(case_manager)
+        archive_received(dl_invitee, invite)
+
+        request = AcceptCaseInviteTriggerRequest(
+            actor_id=invitee.id_,
+            invite_id=invite.id_,
+        )
+        result = SvcAcceptCaseInviteUseCase(
+            dl_invitee,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        addressed = activity_of(result).get("to") or []
+        assert addressed == [case_manager.id_]
+        assert owner.id_ not in addressed
 
     def test_accept_raises_when_invite_missing(self):
         _, dl = _make_actor_dl("Finder")
@@ -1622,7 +1659,7 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
                 end_time=end_time if aware else end_time.replace(tzinfo=None),
             )
 
-    @pytest.mark.spec("CM-24-004")
+    @pytest.mark.spec("CM-24-004", "CLP-10-027")
     def test_offer_is_queued_in_the_owners_outbox_only(self):
         """The proposal is stored and queued in the owner's store; nothing is
         queued as the CASE_MANAGER and the owner commits no ledger entry."""

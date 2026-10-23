@@ -32,7 +32,7 @@ Context: the case is created at RM.RECEIVED (when the Offer(Report) arrives),
 so a case with a CASE_MANAGER participant already exists by the time
 ``validate-report`` is triggered (ADR-0015).
 
-Spec refs: ADR-0021, CLP-10-001, CLP-10-002, CLP-10-003.
+Spec refs: ADR-0021, CLP-10-001, CLP-10-027, CLP-10-002, CLP-10-003.
 """
 
 from __future__ import annotations
@@ -248,10 +248,11 @@ def _configure_case_actor_url(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("CLP-10-027")
 class TestTriggerEmitsToCaseActorOutbox:
     """validate-report trigger routes the activity to the CaseActor's outbox.
 
-    Per CLP-10-001: when a case already exists with a CASE_MANAGER, the
+    Per CLP-10-027: when a case already exists with a CASE_MANAGER, the
     trigger BT MUST address the outbound RmValidateReportActivity to the
     case_manager_id rather than back to the sender or the finder.
     """
@@ -281,7 +282,7 @@ class TestTriggerEmitsToCaseActorOutbox:
     def test_emit_addressed_to_case_actor_id(self):
         """Emitted RmValidateReportActivity has ``to=[case_actor_id]``.
 
-        Per CLP-10-001: the trigger tree MUST emit to the CaseActor so the
+        Per CLP-10-027: the trigger tree MUST emit to the CaseActor so the
         CaseActor can execute the guarded commit.
         """
         from vultron.core.use_cases._helpers import outbox_ids

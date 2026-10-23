@@ -141,7 +141,7 @@ def create_validate_report_subtree(
             serialised emitted activity on success (DL-06-001, AC-1).
         emit: When ``True``, ``ValidationActions`` ends with a
             ``Read(Offer(Report))``-style emit to the Case Actor so its inbox
-            can write the canonical ledger entry (ADR-0021 CLP-10-001).  Pass
+            can write the canonical ledger entry (ADR-0021 CLP-10-027).  Pass
             ``False`` on the received side: the activity being handled *is* that
             message, and re-emitting it would loop.
         name: Root node name.
@@ -242,7 +242,7 @@ def create_validate_report_tree(
     Thin wrapper over :func:`create_validate_report_subtree` with ``emit=True``:
     the operator triggered this, so the ``validate-report`` activity must be
     sent to the Case Actor (CASE_MANAGER participant) whose inbox executes the
-    guarded commit (ADR-0021 CLP-10-001, CLP-10-002, CLP-10-003).
+    guarded commit (ADR-0021 CLP-10-027, CLP-10-002, CLP-10-003).
 
     Checks the move and sends; it writes nothing of its own.  The
     CASE_MANAGER records the move when it accepts the validation and commits

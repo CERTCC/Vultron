@@ -776,6 +776,33 @@ groups:
       occasion section states its entry's status, linked to the definitions on
       `docs/reference/messages/index.md`, and that the page defines every
       `MappingStatus` value.
+  - id: MSM-06-004
+    priority: MUST
+    kind: process
+    statement: The Protocol Quick Reference's "Message Types at a Glance" section MUST
+      include the whole occasion table and a table of the formal message set, both as
+      committed fragments generated from `SEMANTIC_REGISTRY` (MSM-06-001), and MUST
+      carry no hand-written table. The formal table MUST list each shorthand with the
+      wire activities whose occasions carry it, or state that it has none.
+    rationale: The section's hand-written table gave an emit trigger and a response for
+      every shorthand, including the seven that faults and hash-chain acknowledgment
+      replace on the wire, and no check compared it with the registry. ADR-0128 kept
+      that table beside a link to the occasion table, which then gave a second, ungated
+      answer to what is sent when.
+    verification: >-
+      `test_quick_reference_includes_the_generated_message_tables` in
+      `test/metadata/test_msm_occasions.py` asserts that the section of
+      `docs/reference/quick_reference.md` includes `lookup.md` and `shorthands.md`
+      from the fragment directory and holds no table row of its own, and
+      `test_shorthand_table_lists_every_shorthand_with_its_carriers` asserts one
+      row per `ProtocolShorthand` linking exactly the sections of the occasions
+      that carry it, once per wire activity, or its family page's section on
+      shorthands with no wire activity.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MSM-06-001
+    adr:
+    - ADR-0128
 - id: MSM-07
   title: Participant Embargo Consent (PEC) State Machine Coupling to EM Wire Activities
   description: >-
