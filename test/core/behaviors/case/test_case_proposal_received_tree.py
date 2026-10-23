@@ -1470,7 +1470,7 @@ class TestADR0041EmbargoInit:
         assert isinstance(case, VulnerabilityCase)
         # The actor default applies with no sender proposal: ACTIVE, never
         # PROPOSED (EP-04-001).
-        assert case.current_status.em.state == EM.ACTIVE
+        assert case.em_state == EM.ACTIVE
         assert case.active_embargo_id is not None
         embargo = dl.read(case.active_embargo_id)
         assert isinstance(embargo, EmbargoEvent)

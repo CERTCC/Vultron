@@ -91,8 +91,11 @@ def test_initialization_is_logged_at_info(
             case_id=case.id_, embargo=embargo, actor_id=owner.id_
         )
 
+    # The creation service's own record, not the consent move it also logs.
     assert any(
-        record.levelno == logging.INFO
+        record.name == "vultron.core.services.embargo_lifecycle.creation"
+        and record.levelno == logging.INFO
+        and "initialized creation-time embargo" in record.getMessage()
         and embargo.id_ in record.getMessage()
         and case.id_ in record.getMessage()
         for record in caplog.records

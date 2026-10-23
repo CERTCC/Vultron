@@ -237,7 +237,8 @@ groups:
     verification: >-
       `test/core/services/embargo_lifecycle/test_creation.py`
       (`test_initialization_is_logged_at_info`) confirms that initializing the
-      creation-time embargo logs an INFO record naming the embargo and the case.
+      creation-time embargo, the path that applies the default duration, logs the
+      creation service's INFO record naming the embargo and the case.
     relationships:
     - rel_type: implements
       spec_id: DUR-07-003

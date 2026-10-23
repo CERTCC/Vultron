@@ -263,6 +263,7 @@ def test_each_reason_call_out_is_followed_by_its_cause(index, kind):
 
 
 @pytest.mark.spec("EMB-14-002")
+@pytest.mark.spec("EMB-14-004")
 def test_child_2_is_authorize_selector():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
@@ -304,6 +305,7 @@ def test_authorize_second_child_deterministic_is_always_fail():
 
 
 @pytest.mark.spec("EMB-14-002")
+@pytest.mark.spec("EMB-14-004")
 def test_authorize_first_child_stochastic_is_policy_guard():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID,
@@ -316,6 +318,7 @@ def test_authorize_first_child_stochastic_is_policy_guard():
 
 
 @pytest.mark.spec("EMB-14-003")
+@pytest.mark.spec("EMB-14-004")
 def test_authorize_second_child_stochastic_is_override():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID,
@@ -332,6 +335,7 @@ def test_authorize_second_child_stochastic_is_override():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("EMB-14-004")
 def test_child_3_on_embargo_exit_deterministic_is_always_succeed():
     """OnEmbargoExit (p=1.0) → AlwaysSucceed in DETERMINISTIC bundle."""
     tree = create_terminate_active_embargo_tree(
@@ -618,6 +622,7 @@ def test_fix_ready_with_no_fix_ready_vendor_tries_the_next_reason():
 
 
 @pytest.mark.spec("EMB-14-001")
+@pytest.mark.spec("EMB-14-004")
 def test_no_reason_ends_nothing():
     world = _World()
 

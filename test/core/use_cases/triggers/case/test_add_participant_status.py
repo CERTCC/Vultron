@@ -1084,7 +1084,7 @@ class TestCreateParticipantStatusNode:
 
     @pytest.mark.spec("CSB-16-003")
     def test_invalid_vf_jump_blocked_at_write_node(self):
-        """CSB-16-001: illegal multi-step VF jump is rejected at the write boundary.
+        """CSB-16-003: illegal multi-step VF jump is rejected at the write boundary.
 
         vf → VF skips Vf; CreateParticipantStatusNode must return FAILURE
         without writing, independent of upstream guard coverage (AC-4).
@@ -1104,7 +1104,7 @@ class TestCreateParticipantStatusNode:
 
     @pytest.mark.spec("CSB-16-003")
     def test_same_state_vf_write_allowed_at_write_node(self):
-        """CSB-16-001: same-state VF write (no actual transition) is allowed.
+        """CSB-16-003: same-state VF write (no actual transition) is allowed.
 
         Uses CS_vf.Vf because VENDOR participants cannot hold CS_vf.vf
         (Vendor-implies-V, PRM-06-002, ADR-0121).

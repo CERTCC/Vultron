@@ -464,6 +464,7 @@ def test_the_notice_of_a_refused_accept_closes_the_accepters_ask():
 @pytest.mark.spec("EMB-02-002")
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("EP-09-014")
 def test_the_case_managers_er_to_an_accept_closes_the_accepters_ask():
     """The ER reaches the participant and closes its pending Accept."""
     net = _net("pxa-er-read")

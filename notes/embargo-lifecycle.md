@@ -188,7 +188,7 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 ## TransitionMode and the P/X/A Guards
 
 - **`STRICT`** raises on a refused step and enforces the P/X/A guards. Only a
-  trigger's CASE_MANAGER arm runs it (EP-09-008).
+  trigger's CASE_MANAGER arm runs it (EP-09-014).
 - **`OBSERVED`** follows the CASE_MANAGER's committed assertion. Only the
   paused replica's CM-31-010 notice path still runs it
   (`ending_notice_replica.py`, outside the ledger): it skips the P/X/A

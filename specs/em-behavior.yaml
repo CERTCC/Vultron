@@ -1550,19 +1550,22 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      An actor that ends an active embargo early for a reason it chose — a deployed
-      fix, a ready fix, or another reason — MUST record that reason as the
-      termination's cause, `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively
-      (EMB-13-004), never as an `EARLY` termination with no cause.
+      An actor that ends an active embargo early of its own accord MUST name its reason
+      — a deployed fix, a ready fix, or another reason — and with no reason MUST NOT end
+      it. It MUST record the reason as the termination's cause, `FIX_DEPLOYED`,
+      `FIX_READY` or `OTHER` respectively (EMB-13-004), never as an `EARLY` termination
+      with no cause.
     rationale: >-
       Voluntary termination requires an auditable reason. Recording the chosen reason
       as the cause carries it to every participant through the termination's ledger
       entry, where a cause-less `EARLY` termination would tell them only that the
       embargo ended.
     verification: >-
-      Tests in `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py`
-      run the termination once per reason and assert the `TERMINATED` entry's cause is
-      `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively.
+      Tests in `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py` run
+      the termination once per reason and assert the `TERMINATED` entry's cause is
+      `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively, and
+      `test_no_reason_ends_nothing` asserts that with no reason the embargo stays
+      active.
     testable: true
     preconditions:
     - em_state:
@@ -1604,10 +1607,16 @@ groups:
       Evaluator call-out points gives actors a clear interface (three buttons) and lets
       policy-rule backends be injected per ADR-0025.
     verification: >-
-      `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py`
-      (`test_child_1_is_reason_selector`, `test_reason_selector_has_three_children`)
-      confirms the tree's second child is a Selector of the three reason call-out
-      points.
+      `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py` confirms the
+      tree's second child is a Selector of the three reason call-out points
+      (`test_child_1_is_reason_selector`, `test_reason_selector_has_three_children`),
+      its third the policy guard with the override beside it
+      (`test_child_2_is_authorize_selector`,
+      `test_authorize_first_child_stochastic_is_policy_guard`,
+      `test_authorize_second_child_stochastic_is_override`), and its fourth the
+      OnEmbargoExit actuator
+      (`test_child_3_on_embargo_exit_deterministic_is_always_succeed`), and that with no
+      reason the tree ends nothing (`test_no_reason_ends_nothing`).
     relationships:
     - rel_type: implements
       spec_id: EMB-14-001

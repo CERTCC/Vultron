@@ -473,8 +473,7 @@ groups:
       SHALL exist in this case. See ADR-0096.
     verification: >-
       A unit test asserts that a case created with no `EmbargoPolicy` in the store and no
-      sender proposal reaches `EM.ACTIVE` at the protocol default, and that a protocol
-      default outside [72 hours, 5 days] is refused.
+      sender proposal reaches `EM.ACTIVE` at the protocol default.
     adr:
     - ADR-0096
     stories:
@@ -917,9 +916,9 @@ groups:
     kind: protocol
     statement: >-
       A minimum RSVP window MUST be enforced. An inviting actor MUST NOT send an
-      `Invite(EmbargoEvent)` whose `Invite.end_time` is less than the minimum after
-      the invitation's `published` timestamp. The minimum is a window that SHOULD be
-      72 hours **or the time remaining in the embargo, whichever is shorter**.
+      `Invite(EmbargoEvent)` whose `Invite.end_time` is less than the minimum after the
+      invitation's `published` timestamp. The minimum is the lesser of a window, which
+      SHOULD be 72 hours, and **the time remaining in the embargo**.
     rationale: >-
       An unbounded-downward deadline weaponises the mechanism: a one-minute RSVP
       window formally invites a participant while guaranteeing they cannot
@@ -933,9 +932,9 @@ groups:
       contradict EP-07-006.
     verification: >-
       A unit test confirms that the outbound invite builder raises a validation error
-      when the supplied `end_time` is less than `published` plus the configured
-      minimum window, and that for an embargo whose remaining duration is shorter
-      than that window the remaining duration is used as the minimum instead.
+      when the supplied `end_time` is less than `published` plus the minimum window, and
+      that for an embargo whose remaining duration is shorter than that window the
+      remaining duration is used as the minimum instead.
     relationships:
     - rel_type: refines
       spec_id: EP-07-006
@@ -1600,23 +1599,18 @@ groups:
       case never moved (#3918). The manager is the one writer of shared case state
       (ADR-0108); a participant's replica of it comes from the ledger like everyone else's.
     note: >-
-      Participant self-status (RM, `Add(ParticipantStatus)`) is the participant's own claim
-      and keeps its local write (RSH-06-001). The role gate covers the owner that still holds
-      the manager role after creation (CM-24-006): it writes canonically until it delegates.
-
-      Same ordering constraint as RSH-08-004: the replay nodes of EP-09-007 MUST exist before
-      the trigger-side write is gated, or a non-manager's replica never moves. The
-      pending-assertion store is the ephemeral half of the outstanding-ask register
-      (ASK-04-007) and never holds case state (CLP-06-002).
+      Participant self-status (RM, `Add(ParticipantStatus)`) is the participant's own
+      claim and keeps its local write (RSH-06-001). The rule covers the owner that still
+      holds the CASE_MANAGER role after creation (CM-24-006): it writes canonically
+      until it delegates.
     verification: >-
-      A test runs `propose_embargo_trigger_bt` as a participant that does not hold the
-      CASE_MANAGER role and asserts its case is still at `EM.NONE`, the Invite is queued to
-      the CASE_MANAGER, the pending-assertion store holds the activity, and no
-      `Add(CaseStatus)` was queued; a second runs it as the role holder and asserts
-      `EM.PROPOSED`. Until the implementation lands the tests are strict `xfail`s naming
-      their tracking issue. `test/core/use_cases/received/test_embargo_refusal_notice.py`
-      asserts that the CASE_MANAGER's ER to a participant's `Accept` passes the
-      participant's sender guard and closes its pending `Accept`.
+      `test/core/use_cases/triggers/embargo/test_trigger_write_gate.py`
+      (`test_non_manager_trigger_asks_and_writes_no_em_state`) confirms a participant
+      without the CASE_MANAGER role leaves its case at `EM.NONE`, sends its Invite to
+      the CASE_MANAGER and declares no EM state, and
+      `test/core/use_cases/received/test_embargo_refusal_notice.py` asserts that the
+      CASE_MANAGER's ER to a participant's `Accept` passes the participant's sender
+      guard.
     relationships:
     - rel_type: depends_on
       spec_id: EP-09-007
@@ -1646,6 +1640,11 @@ groups:
       tracks the ask it sent; split from EP-09-008 so that item states only what other
       participants observe (MS-12-010). The role gate and the pending-assertion store
       are this codebase's mechanism, and no other participant sees either.
+    note: >-
+      Same ordering constraint as RSH-08-004: the replay nodes of EP-09-007 MUST exist
+      before the trigger-side write is gated, or a non-manager's replica never moves.
+      The pending-assertion store is the ephemeral half of the outstanding-ask register
+      (ASK-04-007) and never holds case state (CLP-06-002).
     verification: >-
       `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`
       (`test_every_lifecycle_write_is_case_manager_gated`) confirms every trigger-side
@@ -1654,8 +1653,10 @@ groups:
       (`test_non_manager_trigger_asks_and_writes_no_em_state`) confirms a non-manager's
       proposal is recorded in the pending-assertion store; and
       `test/core/use_cases/received/test_pending_refusal.py`
-      (`test_case_managers_reject_closes_the_pending_proposal`) confirms the
-      CASE_MANAGER's `Reject` closes it.
+      (`test_case_managers_reject_closes_the_pending_proposal`) and
+      `test/core/use_cases/received/test_embargo_refusal_notice.py`
+      (`test_the_case_managers_er_to_an_accept_closes_the_accepters_ask`) confirm the
+      CASE_MANAGER's `Reject` and its ER close the pending entry.
     relationships:
     - rel_type: implements
       spec_id: EP-09-008
@@ -1778,10 +1779,9 @@ groups:
     rationale: >-
       Activation takes a proposal out of the record of open proposals (EP-08-003), so a
       participant relayed the proposal (EP-09-011) that had not answered when it was
-      activated, or whose reply deadline has since passed (EMB-17), can no longer name
-      it there. The receive side already honours the answer (MSM-07-003, EMB-17-002). A
-      no-name call never falls back to the embargo in force, because answering an
-      embargo is an intentional act.
+      activated, or whose reply deadline has since passed (EMB-17), can no longer answer
+      it as an open proposal. The receive side already honours the answer (MSM-07-003,
+      EMB-17-002).
     note: >-
       Answering the embargo in force goes through the relayed `Invite(EmbargoEvent)`
       (ADR-0122), not the full-case Invite, whose replies move only the RM state
@@ -1789,14 +1789,13 @@ groups:
       stub Invite (CM-11-006) holds no `Invite(EmbargoEvent)` to name; accepting the
       stub makes it `AGREED` (CM-11-001), so it needs no trigger. Withdrawing from the
       embargo in force from an `AGREED` row is not an answer and has its own trigger
-      (EP-09-013).
+      (EP-09-013, EP-09-016).
     verification: >-
-      Trigger tests under `test/core/use_cases/triggers/embargo/` answer the embargo in
-      force by Invite id with an `INVITED` row and with a `TIMED_OUT` row (accept and
-      reject), and assert the not-found error for an `AGREED` row, a `DECLINED` row,
-      and an unknown Invite id. A no-name call when no proposal is open raises the
-      not-found error even though the participant holds an `INVITED` row and the
-      received Invite for the embargo in force, so a fallback would fail the test.
+      `test/core/use_cases/triggers/embargo/test_answer_in_force.py`
+      (`test_answers_the_embargo_in_force_by_invite_id`) answers the embargo in force by
+      Invite id with an `INVITED` row and with a `TIMED_OUT` row (accept and reject),
+      and `test_a_row_with_nothing_to_answer_is_not_found` refuses an answer from an
+      `AGREED` or `DECLINED` row.
     relationships:
     - rel_type: constrains
       spec_id: EP-08-002
@@ -1822,7 +1821,8 @@ groups:
       How this codebase's triggers find the Invite a participant answers; split from
       EP-09-012 so that item states only the answer other participants observe
       (MS-12-010). The record a trigger reads and the error it raises are this
-      codebase's mechanism.
+      codebase's mechanism. A no-name call never falls back to the embargo in force,
+      because answering an embargo is an intentional act.
     verification: >-
       `test/core/use_cases/triggers/embargo/test_answer_in_force.py` answers by Invite
       id from the participant's received Invite, asserts the not-found error for an
@@ -1848,9 +1848,8 @@ groups:
       VP-13-017 lets a participant end its own compliance at any time, and VP-13-008
       asks that it say so. A signatory made by seeding (CM-14-005) or by joining
       (CM-11-001) holds no `Invite(EmbargoEvent)` for the embargo in force, but every
-      participant holds the embargo itself. Keeping withdrawal out of the reject trigger
-      means a no-name reject still refuses an open proposal (EP-08-002) and never
-      withdraws a signatory.
+      participant holds the embargo itself, so a withdrawal names the embargo, not an
+      Invite.
     verification: >-
       Trigger tests under `test/core/use_cases/triggers/embargo/` withdraw a signatory
       with an `AGREED` row on the embargo in force, including one seeded with no
@@ -1880,12 +1879,15 @@ groups:
       How this codebase exposes withdrawal to a participant's operator; split from
       EP-09-013 so that item states only the `Leave` other participants observe
       (MS-12-010). Which trigger sends it, and how a refused call is reported, are this
-      codebase's mechanism.
+      codebase's mechanism. Keeping withdrawal out of the reject trigger means a no-name
+      reject still refuses an open proposal (EP-08-002) and never withdraws a signatory.
     verification: >-
       `test/core/use_cases/triggers/embargo/test_withdraw.py` confirms the trigger
       exists (`test_a_withdraw_embargo_trigger_exists`), refuses with no embargo in
-      force (`test_withdrawal_with_no_embargo_in_force_is_refused`), and that a no-name
-      reject never withdraws
+      force, from a row that is not `AGREED`, and for the case owner
+      (`test_withdrawal_with_no_embargo_in_force_is_refused`,
+      `test_withdrawal_from_a_row_that_is_not_agreed_is_refused`,
+      `test_the_case_owner_cannot_withdraw`), and that a no-name reject never withdraws
       (`test_a_no_name_reject_refuses_the_revision_and_never_withdraws`).
     relationships:
     - rel_type: implements

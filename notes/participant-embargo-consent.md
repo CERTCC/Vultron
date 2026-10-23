@@ -445,7 +445,7 @@ participant out of accepting.
 
 ---
 
-## Answering the Embargo in Force (EP-09-012)
+## Answering the Embargo in Force (EP-09-012, EP-09-015)
 
 Activation takes a proposal out of `pending_embargo_proposal_index` (EP-08-003),
 so the accept and reject triggers cannot reach the embargo in force through it.

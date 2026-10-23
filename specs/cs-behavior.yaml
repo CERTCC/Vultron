@@ -1821,14 +1821,10 @@ groups:
       participant-specific and distinct from the P event (public awareness), so a report
       of P MUST NOT also advance the d dimension.
     rationale: >-
-      Conflating P and D transitions (as notify-published did by setting both
-      d.state=D and pxa_state=Pxa) causes non-deployer actors (Finders,
-      Reporters, Coordinators) to incorrectly acquire deployment state when they
-      announce public disclosure. Under the structural VFD split (Concern #2595),
-      the d dimension is None for non-DEPLOYER participants, making this invariant
-      structural rather than a guard check. The pxa (P event) is participant-agnostic;
-      the D event is only valid for DEPLOYER-role actors who have separately completed
-      deployment.
+      Conflating P and D transitions causes non-deployer actors (Finders, Reporters,
+      Coordinators) to incorrectly acquire deployment state when they announce public
+      disclosure. The P event is participant-agnostic; the D event is valid only for a
+      DEPLOYER participant that has separately completed deployment (CSB-15-002).
     verification: >-
       Integration tests in `test/demo/` confirm that notify-published sets only
       pxa_state=Pxa in the ParticipantStatus record and leaves the vf and d
@@ -1864,23 +1860,18 @@ groups:
       state of its own and is at d before the transition; the transition moves it to D,
       recording deployment of a fix another participant produced.
     rationale: >-
-      Under the structural VFD split (Concern #2595), a DEPLOYER-only participant
-      has vf=None (structural absence) and d=DDimension (deployer path only). The
-      causal gate — requiring at least one VENDOR participant to have vf.state=VF —
-      captures the real-world dependency: a Deployer can only apply a fix that
-      exists. The previous model required checking the DEPLOYER-only participant''s
-      own vfd_state, which was permanently stuck at vfd because V and F transitions
-      did not apply. The split resolves this cleanly: the deployer''s d dimension
-      starts at CS_d.d and advances to CS_d.D when the causal gate passes; the vf
-      dimension is structurally absent throughout.
-      Note: this constraint is generic — "some VENDOR must be at VF" — because the
-      system does not yet track which specific vendor a given deployer depends on.
-      Finer-grained vendor-deployer dependency tracking is a separate Concern.
+      Under the VFD split (Concern #2595), a DEPLOYER-only participant has a deployer
+      path and no vendor path. The causal gate — requiring at least one VENDOR
+      participant to be at F — captures the real-world dependency: a Deployer can only
+      apply a fix that exists. The deployer's d dimension starts at d and advances to D
+      when the causal gate passes. The constraint is generic — "some VENDOR must be at
+      F" — because the protocol does not yet track which specific vendor a given
+      deployer depends on; finer-grained vendor-deployer dependency tracking is a
+      separate Concern.
     verification: >-
-      Integration tests confirm that the fix-deployed trigger returns FAILURE for a
-      DEPLOYER-only actor when no VENDOR participant in the case has vf.state=VF
-      (causal gate not satisfied), and advances d.state=D for a DEPLOYER-only actor
-      when at least one VENDOR participant has vf.state=VF.
+      Integration tests confirm that the fix-deployed trigger refuses a DEPLOYER-only
+      actor when no VENDOR participant in the case is at F (causal gate not satisfied),
+      and advances its d state to D when at least one VENDOR participant is at F.
     testable: true
     preconditions:
     - description: >-
@@ -1943,9 +1934,11 @@ groups:
       writes: a receiver applies a weaker forward-only check to a peer's status, because
       a peer may advance several steps between messages.
     verification: >-
-      Unit tests confirm that vf-write and d-write boundaries each return
-      Status.FAILURE for illegal jumps and that no ParticipantStatus record is
-      persisted for an invalid transition on either dimension.
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_ac1_invalid_vf_jump_raises_and_persists_nothing`) confirms an illegal vf
+      jump is refused with no status recorded, and
+      `test/bt/test_case_states/test_transitions.py` exercises the permitted vf and d
+      transitions.
     testable: true
     preconditions:
     - description: >-

@@ -229,6 +229,7 @@ def test_withdrawal_with_no_embargo_in_force_is_refused(
 
 
 @pytest.mark.spec("EP-09-013")
+@pytest.mark.spec("EP-09-016")
 @pytest.mark.parametrize("row", [ECS.INVITED, ECS.TIMED_OUT, ECS.DECLINED])
 def test_withdrawal_from_a_row_that_is_not_agreed_is_refused(
     finder_actor_and_dl: tuple[as_Service, SqliteDataLayer], row: ECS
@@ -246,6 +247,7 @@ def test_withdrawal_from_a_row_that_is_not_agreed_is_refused(
 
 @pytest.mark.spec("EP-09-013")
 @pytest.mark.spec("CM-02-005")
+@pytest.mark.spec("EP-09-016")
 def test_the_case_owner_cannot_withdraw(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

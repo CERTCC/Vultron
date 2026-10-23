@@ -236,7 +236,7 @@ Its default is to accept (EMB-15-001, EMB-15-005) — the protocol's position is
 All three default to *no*, and the defaults are ordered.
 A fix being deployed is a more plausible reason to exit than a fix merely being ready, and "some other reason" is the least plausible of all.
 An implementer reading only the code sees three similar nodes; the probabilities are where the editorial judgment is recorded.
-When an Evaluator says *yes*, the node after it records the termination's cause: `FIX_DEPLOYED`, `FIX_READY` with the Vendors whose fix is ready, or `OTHER` (EMB-14-001).
+When an Evaluator says *yes*, the node after it records the termination's cause: `FIX_DEPLOYED`, `FIX_READY` with the Vendors whose fix is ready, or `OTHER` (EMB-14-001, EMB-14-004).
 When no Vendor's fix is ready, the `FIX_READY` branch fails and the next reason is tried.
 The termination message and the ended embargo's register entry record that cause.
 
@@ -253,7 +253,7 @@ They are notification and integration hooks that fire after the transition and c
     when it wires nothing (BT-23-001). None of them is a protocol obligation to
     accept. The one place the protocol *does* mandate an answer is the
     public/exploit/attacks condition, and that is enforced independently of any
-    call-out outcome (EMB-15-004).
+    call-out outcome (EMB-15-004, EMB-15-008).
 
 ---
 
@@ -270,7 +270,7 @@ The case manager stamps `Invite.end_time` on every invitation it relays.
 It then records the invitee's `INVITED` consent row, deadline included, as its own ledger entry right after the Invite's, and every replica copies that row from the entry (CM-28-012, CM-28-013).
 A Participant that receives an invitation derives no deadline of its own.
 
-There is a floor. An inviting actor must not send a window shorter than the configured minimum, defaulting to 72 hours (EP-07-002).
+There is a floor. An inviting actor must not send a window shorter than the minimum, which defaults to 72 hours (EP-07-002) and is configurable (EP-07-008).
 The case manager, as the actor that stamps the relayed invitation, clamps a too-short window up to the minimum and logs the clamp; it does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).
 Refusing a too-short invitation would punish the invitee for the inviter's error.
 
