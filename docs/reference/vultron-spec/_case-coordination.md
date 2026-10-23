@@ -3,7 +3,7 @@
 Every case has a Case Manager.
 The Case Manager is a protocol **role**, `CASE_MANAGER`, and a participant holds it from case creation onward ([CM-24-006](../specs/protocol.md#cm-24-006)).
 The participant that holds it may be the actor that created the case, or an actor that the case's creator delegated case maintenance to.
-Authority follows the role and never the actor's name, URI or hosting location ([§2.2 Roles](introduction.md#22-roles)), so this section names the authority *the CASE_MANAGER*: whichever participant holds the role for the case.
+Authority follows the role and never the actor's name, Uniform Resource Identifier (URI) or hosting location ([§2.2 Roles](introduction.md#22-roles)), so this section names the authority *the CASE_MANAGER*: whichever participant holds the role for the case.
 
 This section specifies what the CASE_MANAGER does for its case.
 It is the only writer of the case's shared state ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)), and every case-scoped message passes through it ([§10.2 Routing Topology](interactions.md#102-routing-topology)).
@@ -22,10 +22,10 @@ How a participant joins a case, changes role in it and leaves it is at [§12 Par
 
 ### 10.1 Single-Writer Authority
 
-The participant holding the `CASE_MANAGER` role is the **only** entity authorized to write the case's shared state: the PXA axis, the embargo state, the embargo record, and the case ledger.
+The participant holding the `CASE_MANAGER` role is the **only** entity authorized to write the case's shared state: the Public aware, eXploit public, Attacks observed (PXA) axis, the embargo state, the embargo record, and the case ledger.
 No participant and no handler may write shared case state directly; every such change MUST be made by the CASE_MANAGER ([VP-17-001](../specs/protocol.md#vp-17-001)).
 
-The participant-specific axes — report management and VFD — are owned by each participant's own `CaseParticipant` record and are explicitly **not** subject to this restriction.
+The participant-specific axes — report management and Vendor aware, Fix ready, fix Deployed (VFD) — are owned by each participant's own `CaseParticipant` record and are explicitly **not** subject to this restriction.
 A participant is the authority on its own report management and VFD state.
 
 This rule exists to make concurrent claims resolvable.
@@ -52,7 +52,7 @@ There are exactly **two** exceptions, both confined to case bootstrap, both occu
 2. **Case creation handshake** — the receiving party sends the case-creation message back to the reporter as itself, introducing the actor that holds the role ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
    When that actor is not the receiving party, its first message to the reporter is a later sync, which the reporter holds if it arrives before the introduction ([CBT-01-010](../specs/protocol.md#cbt-01-010)).
 
-The report acknowledgment `RK` falls outside this rule rather than adding a bootstrap exception.
+The report acknowledgment, `RK`, falls outside this rule rather than adding a bootstrap exception.
 It answers the reporter's original report offer, outside the case, so it goes to the reporter directly, never to the CASE_MANAGER ([PCR-08-001](../specs/protocol.md#pcr-08-001)).
 
 !!! warning "This is a routing rule, not a prohibition on talking"
