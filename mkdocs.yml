@@ -132,6 +132,11 @@ nav:
       - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'
       - ISO 5895: 'reference/iso_crosswalks/iso_5895_2022.md'
       - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
+      - CSAF 2.1 Crosswalk:
+        - CSAF 2.1 and Vultron: 'reference/csaf_crosswalk/overview.md'
+        - Proposals: 'reference/csaf_crosswalk/proposals.md'
+        - Concept Mapping: 'reference/csaf_crosswalk/concept_mapping.md'
+        - Coverage Differences: 'reference/csaf_crosswalk/coverage.md'
     - Concept Taxonomy: 'reference/vultron-taxonomy.md'
     - Vultron AS Objects: 'reference/activitypub/objects.md'
     - rv Demo Protocol: 'reference/rv-demo-protocol.md'
