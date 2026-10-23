@@ -17,7 +17,7 @@ The preferences come from the 2021 report [A State-Based Model for Multi-Party C
 
 !!! info inline end "Formalism development in Measuring CVD"
 
-    The [Measuring CVD](../measuring_cvd/index.md) section of this documentation, based on the same report, develops these preferences formally.
+    The [Measuring CVD](../measuring_cvd/index.md) section of this documentation develops these preferences formally in its Foundations, based on the same report, and extends them to what a Vultron case records.
 
 ---
 
@@ -46,20 +46,7 @@ Preferences closer to the top of the list are indicators of CVD skill.
 
     The symbol $\prec$ is read as *precedes*.
 
-| Ordering Preference | Notation |
-| :--- | :--- |
-| Fix Deployed Before Public Awareness | **D** $\prec$ **P** |
-| Fix Ready Before Public Awareness | **F** $\prec$ **P** |
-| Fix Deployed Before Exploit Public | **D** $\prec$ **X** |
-| Fix Deployed Before Attacks Observed | **D** $\prec$ **A** |
-| Fix Ready Before Exploit Public | **F** $\prec$ **X** |
-| Vendor Awareness Before Public Awareness | **V** $\prec$ **P** |
-| Fix Ready Before Attacks Observed | **F** $\prec$ **A** |
-| Public Awareness Before Exploit Public | **P** $\prec$ **X** |
-| Exploit Public Before Attacks Observed | **X** $\prec$ **A** |
-| Public Awareness Before Attacks Observed | **P** $\prec$ **A** |
-| Vendor Awareness Before Exploit Public | **V** $\prec$ **X** |
-| Vendor Awareness Before Attacks Observed | **V** $\prec$ **A** |
+{% include-markdown "../../includes/twelve_desiderata.md" %}
 
 The sections below explain each preference in the same order.
 
@@ -169,10 +156,10 @@ Taken together, these twelve ordering preferences are the minimum set of outcome
 
 |          $a \prec b$          |      $a \prec b$       |      $a \prec b$       |
 |:-----------------------------:|:-----------------------------:|:-----------------------------:|
-| $\mathbf{V} \prec \mathbf{P}$ | $\mathbf{F} \prec \mathbf{P}$ | $\mathbf{D} \prec \mathbf{P}$ |
-| $\mathbf{V} \prec \mathbf{X}$ | $\mathbf{F} \prec \mathbf{X}$ | $\mathbf{D} \prec \mathbf{X}$ |
-| $\mathbf{V} \prec \mathbf{A}$ | $\mathbf{F} \prec \mathbf{A}$ | $\mathbf{D} \prec \mathbf{A}$ |
-| $\mathbf{P} \prec \mathbf{X}$ | $\mathbf{P} \prec \mathbf{A}$ | $\mathbf{X} \prec \mathbf{A}$ |
+| $\evV \prec \evP$ | $\evF \prec \evP$ | $\evD \prec \evP$ |
+| $\evV \prec \evX$ | $\evF \prec \evX$ | $\evD \prec \evX$ |
+| $\evV \prec \evA$ | $\evF \prec \evA$ | $\evD \prec \evA$ |
+| $\evP \prec \evX$ | $\evP \prec \evA$ | $\evX \prec \evA$ |
 
 ---
 

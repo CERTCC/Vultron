@@ -7,40 +7,57 @@ contents: generated
 
 # Measuring CVD
 
-Coordinated Vulnerability Disclosure (CVD) is the consensus response to the persistent fact of vulnerable software, yet few performance indicators have been proposed to measure how well it works at the broadest scales.
-This section fills that gap.
-It derives every possible history a CVD case can have from the [Case State (CS) model](../process_models/cs/index.md), orders those histories by a set of desired outcomes, computes how often each outcome would occur by chance, and turns the difference between chance and observation into a measure of skill.
-The pages are research material for people who study the CVD process, and none of them is normative.
+Coordinated Vulnerability Disclosure (CVD) is the accepted response to vulnerable software.
+But few measures exist to show how well CVD works.
+This section describes what a Vultron case records.
+The section then shows how to turn that record into desiderata and metrics.
+Desiderata are the orders of events that a case should achieve, and metrics are measurements on cases.
+The pages are research material for people who study the CVD process, and no page in this section is normative.
 
-The section is derived from the report [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771){:target="_blank"} by Allen Householder and Jonathan Spring.
-The twelve desired outcomes it measures against are stated in plain terms on [What Does *Success* Mean in CVD?](../background/cvd_success.md), which is the place to start if the state notation is new to you.
-Two pages go beyond the report: [Desiderata from the Process Models](process_model_desiderata.md) proposes further orderings drawn from the protocol's report, embargo, and multi-party models, and [Timing Metrics Within a Case](timing_metrics.md) proposes measuring the time between events, not only their order.
+Vultron has modeled Multi-Party CVD (MPCVD) from the start.
+MPCVD is the general case.
+Two-party CVD, with one reporter and one vendor, is a special case of the same model.
+The original model used some simple assumptions.
+The removal of these assumptions is continuous improvement, not a late addition.
+
+Every main page in this section uses the difference between two kinds of state:
+
+- **Participant-agnostic state** belongs to the case. The case has one copy. Examples are the public state of the vul and the embargo state of the case. An event in participant-agnostic state, such as public awareness, occurs at most once in a case.
+- **Participant-specific state** belongs to one participant. Each participant has its own copy. Examples are the fix state of each vendor and the deployment state of each deployer. An event in participant-specific state, such as fix readiness, can occur once for each participant.
+
+Each main page tells how its measures change in a two-party case.
+A measure can stay the same, become simpler, or not apply.
+
+The [Foundations](foundations/index.md) group keeps the first-principles model from the report [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771){:target="_blank"} by Allen Householder and Jonathan Spring.
+The Foundations model finds every possible history of a case with six events.
+The model then ranks the histories by twelve desired outcomes.
+Last, the model compares the observed histories against chance, and uses the difference as a measure of skill.
+[What Does *Success* Mean in CVD?](../background/cvd_success.md) gives the twelve outcomes in plain words.
+Start with that page if the state notation is new to you.
 
 ## Pages in this section
 
-The pages build on one another in the order shown.
-The first four construct the model, the next two measure against it, and the remaining pages apply the measure, extend the model, or discuss its limits.
+The main pages come first, in the order in which each page builds on the page before it.
+The Foundations group comes after the main pages.
 
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
-- [Possible Histories](possible_histories.md) — The 70 histories a case can have, derived from the six CS events and their ordering constraints.
-- [Desirable Histories](desirable_histories.md) — The twelve desired orderings and the partial order they induce over the histories.
-- [Random Walks](random_walk.md) — A baseline in which every allowed transition is equally likely, from the principle of indifference.
-- [Reasoning Over Histories](reasoning_over_histories.md) — How often each history and each desired ordering occurs under that baseline.
-- [Discriminating Skill from Luck](discriminating_skill_and_luck.md) — The skill coefficient, which normalizes an observed frequency against the baseline.
-- [Observing Skill](observing_skill.md) — The skill coefficient applied to Microsoft security updates and to commodity exploit data.
-- [Benchmarking CVD](benchmarking.md) — What a reasonable benchmark for the skill coefficient is, and why the naive benchmark of zero is a low bar.
-- [Benchmarking MPCVD](benchmarking_mpcvd.md) — Extending the measure to a case in which every affected vendor and product has its own history.
+- [What a Case Records](what_a_case_records.md) — The events that a Vultron case records, which events belong to the case or to one participant, the two times on each entry, and the data gaps.
 - [Desiderata from the Process Models](process_model_desiderata.md) — Ordering preferences beyond the original twelve, distilled from the report, embargo, consent, and multi-party process models.
 - [Timing Metrics Within a Case](timing_metrics.md) — Intervals, dwell times, margins, and spreads that the case ledger's timestamps make measurable within one case.
-- [Reward Functions](reward_functions.md) — Criteria for reward functions over Report Management and Embargo Management histories, and the simulation work they would enable.
-- [State Space Size](state_space_size.md) — How large the Vultron protocol state space is for each participant role and for a whole case, and why coordination keeps it tractable.
-- [CS Model Limitations](../process_models/cs/cs_model_limitations.md) — Research discussion of what the model leaves out, including transition probabilities and the ordering of case histories.
+- [Open Questions](open_questions.md) — What measuring CVD still leaves open, from transition probabilities and the order of histories to fairness across vendors.
+- [Foundations](foundations/index.md) — The first-principles model of the original research: six events, the histories they allow, and a skill measure against chance.
 
 <!-- END GENERATED SECTION CONTENTS -->
 
 ## Where the section connects
 
-The report closes with reflections on how vendors, system owners, coordinators, and governments could each use these indicators.
-Those reflections are on [CVD Roles and Their Influence](../other_uses/roles_influence.md), in the [Other Uses](../other_uses/index.md) section, because they are about who acts on the model rather than about measuring it.
-A CVD program owner who wants to apply the measure to their own cases, without the derivation, can follow [How to Measure Your CVD Program](../../howto/measure_your_cvd_program.md).
+At its end, the report discusses how vendors, system owners, coordinators, and governments can use these measures.
+That discussion is on [CVD Roles and Their Influence](../other_uses/roles_influence.md), in the [Other Uses](../other_uses/index.md) section.
+The discussion is in Other Uses because it is about who uses the model, not about measurement.
+A CVD program owner can measure their own cases without the derivation.
+[How to Measure Your CVD Program](../../howto/measure_your_cvd_program.md) gives the steps.
+
+## Where to start
+
+Start with [What a Case Records](what_a_case_records.md), which describes the record that every main page in this section uses.

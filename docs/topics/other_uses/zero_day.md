@@ -11,7 +11,7 @@ description: >
 {% include-markdown "../../includes/not_normative.md" %}
 
 Some terms surrounding Coordinated Vulnerability Disclosure (CVD) and Vulnerability Management (VM) have been ambiguously defined in common usage.
-One benefit of the definition of events, states, and possible CVD histories presented in [Measuring CVD](../measuring_cvd/index.md) is an opportunity to clarify definitions of related terms.
+One benefit of the definition of events, states, and possible CVD histories presented in the [Measuring CVD Foundations](../measuring_cvd/foundations/index.md) is an opportunity to clarify definitions of related terms.
 On this page we use the [Case State model](../process_models/cs/index.md) to formally define their meaning.
 
 ## Zero Day

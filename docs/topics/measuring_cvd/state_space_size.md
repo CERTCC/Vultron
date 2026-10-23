@@ -11,6 +11,17 @@ The [States](../../reference/formal_protocol/states.md) reference page defines e
 This page asks a different question: how many of those states can a participant actually occupy, and how large does the state space of a whole Multi-Party Coordinated Vulnerability Disclosure (MPCVD) case become?
 The answers explain why a protocol that coordinates participants matters: left uncoordinated, even a modest case has more possible states than anyone could reason about.
 
+The triple $(q^{rm}, q^{em}, q^{cs})$ is how the formal model describes one participant.
+In the protocol today, some parts of the triple belong to the case, not to the participant:
+
+- The EM state and the public part of the CS state (PXA) are participant-agnostic. The case holds one copy of each. The case derives its EM state from its embargo register (ADR-0122).
+- The RM state, the vendor fix path (VF), and the deployment state (D) are participant-specific. Each participant holds its own copy (SDO-03-002, ADR-0075).
+
+Each participant also holds one Participant Embargo Consent (PEC) row for every embargo in the register (CM-18-001).
+The triple does not include PEC.
+The counts for each participant role below use the formal model.
+[A Lower Bound on the MPCVD State Space](#a-lower-bound-on-the-mpcvd-state-space) uses the difference between case state and participant state.
+
 ## Counting every combination
 
 Taking the Cartesian product of the three state sets at face value, one might conclude that a total of 1,400 states is possible for each participant.
@@ -43,7 +54,8 @@ Once those combinations are removed, each participant must be in one of 352 poss
     \end{split}$$
 
 The role a participant plays narrows this further, as the following sections show.
-"Finder" is used below in its everyday sense of whoever discovered the vulnerability; the protocol's roles are listed in the [Vultron specification](../../reference/vultron-spec/introduction.md#22-roles), where a finder takes part as a Reporter.
+The roles below are the roles of the protocol, and the [Vultron specification](../../reference/vultron-spec/introduction.md#22-roles) lists them.
+The person or organization that discovered the vulnerability takes part as a Reporter (ADR-0078).
 
 ## Vendors (Fix Suppliers)
 
@@ -54,6 +66,8 @@ As a Vendor has a report in $Received$, it is, by definition, at least in the $V
 
 Vendors create fixes only when they are in the $Accepted$ RM state.
 Because the $Received$, $Invalid$, and $Valid$ states come strictly *before* the $Accepted$ state in the RM DFA, there is no way for the Vendor to be in either $VFd$ or $VFD$ while in any of those states.
+The protocol now also permits fix readiness from $Deferred$ or $Closed$ (CSB-18-001).
+The counts on this page keep the original assumption.
 
 ???+ note "Vendor CS States When RM is in *Received*, *Invalid*, or *Valid*"
 
@@ -405,7 +419,7 @@ Thus, Non-Vendor Deployers can be expected to be in 1 of 100 possible states, as
 ## Non-Vendor, Non-Deployer Participants
 
 Finally, CVD cases often involve Participants who are neither Vendors nor Deployers.
-Specifically, Finder/Reporters fall into this category, as do Coordinators.
+Specifically, Reporters fall into this category, as do Coordinators.
 Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}, could be included here as well.
 Because they do not participate directly in the Vendor fix path, these Non-Vendor, Non-Deployer CVD Participants fall into the $\varnothing$ case substate that the [generic Participant state space](../../reference/formal_protocol/states.md) adds for them.
 Their state model is shown below.
@@ -490,7 +504,7 @@ Their state model is shown below.
         (C,*,*) \\
         \end{cases}$$
 
-Non-Vendor Non-Deployer CVD Participants (Finder/Reporters, Coordinators, etc.) will be in 1 of 72 states, as calculated below.
+Non-Vendor Non-Deployer CVD Participants (Reporters, Coordinators, and others) will be in 1 of 72 states, as calculated below.
 
 !!! note "Non-Vendor, Non-Deployer Participant State Space Size"
 
@@ -500,13 +514,14 @@ Non-Vendor Non-Deployer CVD Participants (Finder/Reporters, Coordinators, etc.) 
             = & 72 \\    
         \end{split}$$
 
-### Finder-Reporters
+### Reporters
 
-As discussed in [RM Interactions](../process_models/rm/rm_interactions.md#the-secret-lives-of-finders), the early Finder states are largely hidden from view from other CVD Participants unless they choose to engage in the CVD process in the first place.
-Therefore, for a CVD protocol, Finder states matter only once they have reached RM $Accepted$.
-Coincidentally, this is also a convenient way to mark the transition from Finder to Reporter.
+[RM Interactions](../process_models/rm/rm_interactions.md#the-secret-lives-of-finders) describes the RM states of the discoverer of a vulnerability before the discoverer reports it.
+Other CVD Participants cannot see these RM states, unless the discoverer reports the vulnerability.
+Thus, for a CVD protocol, the states of a Reporter matter only after the Reporter reaches RM $Accepted$.
+The protocol puts the Reporter at RM $Accepted$ when the case is created (CM-14-012).
 
-!!! note "Finder-Reporter State Space"
+!!! note "Reporter State Space"
 
     $$  S_{i_{Reporter}} = 
         \begin{cases}
@@ -583,9 +598,9 @@ Coincidentally, this is also a convenient way to mark the transition from Finder
         (C,*,*) \\
         \end{cases}$$
 
-Thus, for all practical purposes, the hidden states above can be ignored: Finders who go on to become Reporters have only 29 possible states during a CVD case.
+Thus, for all practical purposes, the hidden states above can be ignored: Reporters have only 29 possible states during a CVD case.
 
-!!! note "Finder-Reporter State Space Size"
+!!! note "Reporter State Space Size"
     $$  \begin{split}
             |S_{i_{Reporter}}| = & \big(2 \cdot 5 \cdot (1 \cdot 1 \cdot 1 \cdot 2)\big) + \big(2 \cdot 1 \cdot (1 \cdot 1 \cdot 2 \cdot 2)\big) + 1 \\
             % = & 20 + 8 + 1 \\
@@ -604,16 +619,18 @@ Generically, the state space for $N$ Participants takes the form given at right.
 The upper bound on the MPCVD state space is $352^N \approx 10^{2.55N}$.
 However, because of the Role-specific limits just described, this overcounts the possible states significantly.
 A tighter bound is possible.
-Ignoring transient states while Participants converge on a consistent view of the global state of a case drastically reduces the state space for an MPCVD case.
-Why?
-There are two reasons:
+Some state belongs to the case, and the case holds one copy of that state.
+If the count includes that state once, not once for each Participant, the state space of an MPCVD case becomes much smaller.
+Two parts of the state belong to the case, not to a Participant:
 
-1. Because they represent facts about the outside world, the eight $\cdot\cdot\cdot pxa \rightarrow \cdot\cdot\cdot PXA$ CS substates are global to the case, not to individual Participants.
-    This means all Participants should rapidly converge to the same substate.
+1. Because they represent facts about the outside world, the eight $\cdot\cdot\cdot pxa \rightarrow \cdot\cdot\cdot PXA$ CS substates are participant-agnostic.
+    The case holds one PXA state.
+    Only the CASE_MANAGER writes the PXA state of the case, when it adopts a report from a Participant (RSH-04-001, RSH-04-003).
 
-2. Similarly, the five EM states are also global to the case and should converge rapidly.
+2. The five EM states are also participant-agnostic.
+    The case derives one EM state from its embargo register (ADR-0122).
 
-Given these two observations, those Participant-agnostic terms can be pulled out of the state calculations for individual Participants,
+Those Participant-agnostic terms can therefore be pulled out of the state calculations for individual Participants,
 
 !!! note "MPCVD State Space With Participant-Agnostic Terms Factored Separately"
 
@@ -637,6 +654,12 @@ which leaves
             Others = 2 + 5  = 7 \\
         \end{cases}$$
 
+These counts do not include embargo consent.
+Each Participant holds one PEC row for every entry in the embargo register of the case.
+Each PEC row is in one of five states (CM-18-001).
+If the register holds $e$ embargoes, the PEC rows can multiply the state space of each Participant by up to $5^e$.
+This lower bound does not include that factor.
+
 So the state space looks like
 
 !!! note "MPCVD State Space Size Formula"
@@ -654,7 +677,7 @@ So the state space looks like
 
 With these values in mind:
 
-- A two-party (Finder-Vendor) case might have a lower bound state space of $40 \times 3 \times 16 = 1,920$ states.
+- A two-party (Reporter-Vendor) case might have a lower bound state space of $40 \times 3 \times 16 = 1,920$ states.
 
 - A case like Meltdown/Spectre (with six Vendors and no Coordinators) might have $40 \times 3 \times 16^{6} \approx 10^{9}$ states.
 
