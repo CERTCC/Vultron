@@ -17,13 +17,27 @@ and public disclosure is timed to minimize harm.
 
 **Multi-Party CVD (MPCVD)**:
 CVD involving more than two parties — typically a finder/reporter, a coordinator, and multiple
-affected vendors.
-*Avoid*: coordinated disclosure (too generic when multiple vendors are involved)
+affected vendors. Vultron models MPCVD as the general case; two-party CVD (one reporter,
+one vendor) is the special case of that model, not a separate one.
+*Avoid*: coordinated disclosure (too generic when multiple vendors are involved);
+degenerate case (for two-party CVD — say special case)
 
 **Case**:
 The unit of coordination in Vultron. A case captures all state and history for one MPCVD
 engagement: participants, embargo status, report management state, and the canonical ledger.
 *Avoid*: ticket, report (a report is what initiates a case, not the case itself)
+
+**Participant-Specific State**:
+State that each participant in a case holds for itself: its report management status,
+whether it as a vendor knows of the vul and has a fix ready, whether it as a deployer
+has deployed the fix, and its consent to each embargo.
+*Avoid*: per-vendor state (deployers and other roles hold it too)
+
+**Participant-Agnostic State**:
+State that belongs to the case as a whole and is the same for every participant: whether
+the vul is public, whether an exploit is public, whether attacks have been observed, and
+the case's embargo status.
+*Avoid*: global state, shared state (the case, not the system, is the scope)
 
 **Actor**: A participant in the Vultron protocol — a person, organization, or automated
 service that sends and receives protocol messages. Actors have persistent identities

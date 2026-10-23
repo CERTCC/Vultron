@@ -263,6 +263,7 @@ sense the docs actually use.
 *[VDP]: Vulnerability Disclosure Program
 *[VDPs]: Vulnerability Disclosure Programs
 *[VEP]: Vulnerability Equities Process
+*[VF]: Vendor aware, Fix ready — the vendor fix path dimensions
 *[VFD]: Vendor aware, Fix ready, fix Deployed — the vendor-path case state dimensions
 *[VINCE]: Vulnerability Information and Coordination Environment
 *[VM]: Vulnerability Management

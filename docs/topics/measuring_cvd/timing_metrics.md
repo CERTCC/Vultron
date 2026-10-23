@@ -16,13 +16,18 @@ The case ledger records when each event was committed, which makes intervals, du
 The page is a draft research proposal for people who study the CVD process; none of it is normative, and no code computes these metrics today.
 
 The page assumes the events and desiderata of [Desirable Histories](./desirable_histories.md) and of [Desiderata from the Process Models](./process_model_desiderata.md), which adds report, embargo, consent, and joining events to the original six.
-It uses the notation of that page: $\mathbf{V}_i$, $\mathbf{F}_i$, and $\mathbf{D}_i$ for vendor $i$'s awareness, fix readiness, and deployment; $\mathbf{P}$, $\mathbf{X}$, and $\mathbf{A}$ for public awareness, a public exploit, and observed attacks; $\mathbf{E}$ and $\mathbf{E_x}$ for an embargo coming into force and ending.
+It uses the notation of that page: $\mathbf{V}_i$ and $\mathbf{F}_i$ for vendor $i$'s awareness and fix readiness; $\mathbf{D}_k$ for deployer $k$'s deployment; $\mathbf{P}$, $\mathbf{X}$, and $\mathbf{A}$ for public awareness, a public exploit, and observed attacks; $\mathbf{E}$ and $\mathbf{E_x}$ for an embargo coming into force and ending.
+
+Every metric below is either about the case or about one participant, because a case holds both kinds of state.
+Public awareness, a public exploit, observed attacks, and the embargo belong to the case, and each happens once in it.
+Report handling, fix readiness, deployment, and embargo consent belong to each participant, and each can happen once per participant.
+[What a Case Records](./what_a_case_records.md) sets out that split, the ledger that stamps each change, and the gaps in what it stamps.
 
 ---
 
 ## Ordering is the sign of an interval
 
-[CS Model Limitations](../process_models/cs/cs_model_limitations.md) names the gap this page addresses: the Case State (CS) model has a sense of order and no sense of time.
+[Open Questions](./open_questions.md#what-timing-should-a-case-meet) names the gap this page addresses: the Case State (CS) model has a sense of order and no sense of time.
 Two cases can both satisfy $\mathbf{F} \prec \mathbf{P}$, one with a month of warning for defenders and one with a minute.
 The ordering measure scores them the same.
 
@@ -37,21 +42,12 @@ The ordering measure keeps only the sign of $m$, so every timing metric below re
 
 ---
 
-## What the ledger records
+## Which clock to use
 
-The [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) writes one case ledger entry for each admitted change to the case.
-Every report-management status, embargo step, consent change, participant status, and case status is its own entry.
-The ledger is therefore a time-ordered history of the case, and it is the data source for nearly every metric on this page; the [data gaps](#data-gaps) section names the exceptions.
+The [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) writes one case ledger entry for each change it admits to the case, so the ledger is a time-ordered history of the case and the data source for nearly every metric on this page.
+Each entry carries two clocks: the CASE_MANAGER's commit stamp, and the time the asserting participant claimed for its activity ([What a Case Records](./what_a_case_records.md#two-clocks)).
 
-Each entry carries two kinds of order and two clocks.
-
-| Field | Meaning | Use for metrics |
-|---|---|---|
-| Log index | The entry's position in the hash chain | The authoritative causal order (CLP-14-001) |
-| Commit stamp | The CASE_MANAGER's own clock at commit time (CLP-14-002, CM-02-009) | One clock for the whole case; the default for intervals |
-| Claimed time | The time the asserting participant put on its activity | Each participant's own clock, required to be monotonic only across a participant's causally related activities (CLP-15-003), and recorded as received even when it is not (CLP-15-005) |
-
-The commit stamp is the safer default.
+The commit stamp is the safer default for intervals.
 It comes from one clock, so intervals between any two entries are comparable.
 It records when the CASE_MANAGER learned of an event, which can be later than when the event happened.
 The claimed time is closer to the event, but two participants' clocks can disagree.
@@ -87,7 +83,7 @@ They are per-participant, because Report Management (RM) is per-participant.
 
 An Invitee's $\mathbf{R}_i$ is its $\mathbf{J}_i$, because accepting the Stub Invite leaves it at RM Received (CM-11-001).
 For an Invitee, then, time to validate is time to judge plus the wait between joining and receiving the Full-Case Invite.
-The case owner's $\mathbf{R}$ and the reporter's $\mathbf{Ac}$ are seated when the case is created, so neither has a measurable time; the [data gaps](#data-gaps) section explains why.
+The case owner's $\mathbf{R}$ and the reporter's $\mathbf{Ac}$ are seated when the case is created, so neither has a measurable time ([What a Case Records](./what_a_case_records.md#data-gaps)).
 
 ---
 
@@ -119,10 +115,13 @@ An embargo that ends early because of a threat signal has a margin of about zero
 | Metric | Definition |
 |---|---|
 | Time to fix | $\mathbf{V}_i$ to $\mathbf{F}_i$, per vendor |
-| Time to deploy | $\mathbf{F}_i$ to $\mathbf{D}_k$, per vendor and deployer |
+| Time to deploy | The first vendor's $\mathbf{F}$ to $\mathbf{D}_k$, per deployer |
 | Notification spread | First vendor's $\mathbf{V}$ to last vendor's $\mathbf{V}$ |
 | Fix spread | First vendor's $\mathbf{F}$ to last vendor's $\mathbf{F}$ |
 | Trailing-vendor gap | Last vendor's $\mathbf{F}$ to $\mathbf{E_x}$; negative when the embargo ended before every fix was ready |
+
+Time to deploy starts at the first vendor's $\mathbf{F}$ because that is the event the protocol gates deployment on: a deployer may move to $\mathbf{D}$ once any vendor in the case has a fix ready (CSB-15-004).
+The case records no link from a deployer to the vendor whose fix it deployed, so a per-vendor time to deploy is not measurable from the case.
 
 The spreads are Multi-Party CVD (MPCVD) measures with no counterpart in the single-vendor model.
 [Benchmarking MPCVD](./benchmarking_mpcvd.md) aggregates per-vendor outcomes and leaves open how.
@@ -156,7 +155,7 @@ Exposure metrics are dwell times in those states.
 | Exploit exposure | Time during which $\mathbf{X}$ holds and $\mathbf{D}$ does not, per deployer |
 | Unfixed exposure | Time during which $\mathbf{P}$ holds and $\mathbf{F}$ does not, per vendor |
 
-CS Model Limitations proposes that a vulnerability management process is effective when the lag from $\mathbf{F}$ to $\mathbf{D}$ is shorter than the lag from $\mathbf{F}$ to $\mathbf{A}$.
+[Open Questions](./open_questions.md#what-timing-should-a-case-meet) proposes that a deployer's vulnerability management is effective when the lag from $\mathbf{F}$ to $\mathbf{D}$ is shorter than the lag from $\mathbf{F}$ to $\mathbf{A}$.
 Exploit exposure measures the same race as a duration.
 
 ---
@@ -191,39 +190,15 @@ A large clock skew for one participant means its claimed times cannot be trusted
 
 ---
 
-## Data gaps
+## Gaps in the data
 
 Most of the metrics above can be computed from the case ledger as it is.
-Five gaps limit them.
+Some cannot, because the event is stamped late, stamped with the creation time, or not ledgered at all.
+[What a Case Records](./what_a_case_records.md#data-gaps) lists those gaps, and each metric that depends on one inherits it.
 
-### Statuses seated at case creation
+---
 
-The case owner creates the case on receiving the report, and the creation sequence seats it at RM Received (CM-14-009) and the reporter at RM Accepted (CM-14-012).
-Those statuses are committed in the creation sequence, so their commit stamps carry the creation time, not the time of the event.
-The case owner's $\mathbf{R}$ is the creation time, and the report's own received time lives with the case owner, outside the case ledger.
-The reporter's $\mathbf{Ac}$ is not a decision at all, so it has no interval to measure.
-The case owner's later validation and acceptance are entries of their own, so its time to validate and time to accept are measurable from the creation time.
-
-### Refusals and replays are not on the ledger
-
-A refusal notice and a replica's request for a replay are about the ledger, not about the case, so neither is ledgered (CLP-02-012, CLP-02-013).
-The refusal count and the replay count need the CASE_MANAGER's own logs or its outbox, not the case ledger.
-
-### Commit time is not occurrence time
-
-A commit stamp records when the CASE_MANAGER learned of an event.
-For protocol acts, such as an acceptance, an embargo step, or a join, the two are close.
-For $\mathbf{X}$ and $\mathbf{A}$, which happen outside the protocol, the lag between occurrence and the participant's report of it can be long and is not measured.
-[CS Model Limitations](../process_models/cs/cs_model_limitations.md) discusses the observability of these events; it applies to their times as much as to their order.
-
-### Embargo records carry no times of their own
-
-An entry in the embargo register and a participant's consent row hold a status, and no time of the step that set it.
-They do carry times about the embargo: an embargo's end time, and an Invite's RSVP deadline.
-Their timing comes only from the ledger entries that recorded each step.
-Every embargo metric therefore needs a join from the register and the consent rows back to the ledger.
-
-### Intervals to events that have not happened
+## Intervals to events that have not happened
 
 Many cases never see $\mathbf{X}$ or $\mathbf{A}$, and an open case has not yet closed.
 An interval that ends at an event that has not happened is **censored**: it is known to be at least as long as the case has run, not missing.
@@ -234,10 +209,20 @@ Across cases, censored intervals call for survival-analysis methods, such as a K
 
 ## Relation to service level expectations
 
-[CS Model Limitations](../process_models/cs/cs_model_limitations.md) and [Policy Formalization](../other_uses/policy_formalization.md) sketch Service Level Expectations (SLEs): timers that start and stop on transitions, such as a bound on the time from $\mathbf{V}$ to $\mathbf{F}$.
+[Open Questions](./open_questions.md#what-timing-should-a-case-meet) and [Policy Formalization](../other_uses/policy_formalization.md) sketch Service Level Expectations (SLEs): timers that start and stop on transitions, such as a bound on the time from $\mathbf{V}$ to $\mathbf{F}$.
 An SLE is a threshold on one of the intervals above.
 Defining the intervals first lets an SLE be stated as a number against a metric that already has a definition.
 It also lets a program report the distribution of an interval across its cases, rather than only how often it met a threshold.
+
+---
+
+## In a two-party case
+
+A two-party case, with one reporter and one vendor, is the special case of the same model, not a separate one.
+Most metrics carry over unchanged: the vendor's intake and triage intervals, every embargo metric, time to fix, the disclosure margins, closure, and process health.
+The spreads collapse: with one vendor, notification spread and fix spread are zero, and the trailing-vendor gap is the time from the vendor's own $\mathbf{F}$ to $\mathbf{E_x}$.
+The deployment metrics disappear unless some participant holds the deployer role.
+Time to deploy, the $\mathbf{D}$ margins, and public and exploit exposure all need a participant with a deployment state, and a vendor has one only when it is also a deployer (SDO-03-002).
 
 ---
 
@@ -257,5 +242,6 @@ It also lets a program report the distribution of an interval across its cases, 
 
 - [Desiderata from the Process Models](./process_model_desiderata.md) — the extended events and orderings whose margins this page measures.
 - [Desirable Histories](./desirable_histories.md) — the original twelve desiderata.
-- [CS Model Limitations](../process_models/cs/cs_model_limitations.md) — the ordering-versus-timing limitation and the first sketch of service level expectations.
+- [What a Case Records](./what_a_case_records.md) — the per-case and per-participant split, the two clocks, and the data gaps.
+- [Open Questions](./open_questions.md) — the ordering-versus-timing limitation and the first sketch of service level expectations.
 - [The CASE_MANAGER and the Case Ledger](../case_lifecycle/case_manager_and_ledger.md) — the ledger that supplies every timestamp.

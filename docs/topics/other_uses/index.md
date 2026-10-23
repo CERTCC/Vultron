@@ -10,7 +10,7 @@ contents: generated
 This section collects applications of the Vultron [Case State (CS) model](../process_models/cs/index.md) beyond coordinating a single case.
 Each page takes the model's six events and 32 states as given and puts them to a different use: describing who can cause which event, formalizing a policy, defining a contested term, or recommending an action.
 The pages are research material and are not normative.
-They build on the notation of [Measuring CVD](../measuring_cvd/index.md), which is the place to start if the state shorthand is new to you.
+They build on the notation of the [Measuring CVD Foundations](../measuring_cvd/foundations/index.md), which is the place to start if the state shorthand is new to you.
 
 ## Pages in this section
 

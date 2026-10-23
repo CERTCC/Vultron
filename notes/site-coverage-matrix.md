@@ -30,9 +30,9 @@ types is counted in both of their rows.
 |---|---:|---:|---:|---:|---:|
 | `cvd-practitioner` | 1 | 16 | 19 | 2 | 0 |
 | `platform-developer` | 1 | 11 | 43 | 68 | 0 |
-| `process-researcher` | 1 | 7 | 1 | 13 | 16 |
+| `process-researcher` | 1 | 7 | 1 | 14 | 17 |
 | `project-contributor` | 1 | 1 | 19 | 13 | 0 |
 | `ALL` | 9 | 2 | 0 | 0 | 0 |
 
-Reader-facing pages that declare both keys: 177.
+Reader-facing pages that declare both keys: 179.
 Working-record pages carry no level (DF-11-012) and are not counted.

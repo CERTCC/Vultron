@@ -42,9 +42,9 @@ The table below lists the twelve preferences and the records each one needs.
 | **F** $\prec$ **P** | Fix ready, publication | Vendors, Coordinators |
 | **F** $\prec$ **X** | Fix ready, first public exploit | Vendors, Coordinators |
 | **F** $\prec$ **A** | Fix ready, first observed attack | Vendors, Coordinators |
-| **D** $\prec$ **P** | Fix deployed, publication | Vendors that deploy their own fixes |
-| **D** $\prec$ **X** | Fix deployed, first public exploit | Vendors that deploy their own fixes |
-| **D** $\prec$ **A** | Fix deployed, first observed attack | Vendors that deploy their own fixes |
+| **D** $\prec$ **P** | Fix deployed, publication | Deployers, and Vendors that deploy their own fixes |
+| **D** $\prec$ **X** | Fix deployed, first public exploit | Deployers, and Vendors that deploy their own fixes |
+| **D** $\prec$ **A** | Fix deployed, first observed attack | Deployers, and Vendors that deploy their own fixes |
 | **P** $\prec$ **X** | Publication, first public exploit | Anyone who tracks exploit publication |
 | **P** $\prec$ **A** | Publication, first observed attack | Anyone who tracks attacks |
 | **X** $\prec$ **A** | First public exploit, first observed attack | Anyone who tracks both |
@@ -52,7 +52,7 @@ The table below lists the twelve preferences and the records each one needs.
 If you are a Vendor, start with **F** $\prec$ **P** and **F** $\prec$ **A**.
 Those two are what the [published proof of concept](../topics/measuring_cvd/observing_skill.md) measured for Microsoft, so you have a comparison.
 If you are a Coordinator, add the three **V** preferences, because notifying Vendors is the event you cause.
-Leave out any preference involving **D** unless your program deploys fixes itself, because the date a Deployer applied a fix is rarely known to anyone else.
+Leave out any preference involving **D** unless your program deploys fixes itself or your cases include Deployers that report it, because the date a Deployer applied a fix is rarely known to anyone else.
 
 ---
 
@@ -66,6 +66,13 @@ Apply two rules when you record:
 - An event that has not been observed counts as later than every event that has.
   A case with a fix ready and no public exploit satisfies **F** $\prec$ **X**.
 - If the two events happened on the same day and you cannot order them, exclude that case from that preference rather than guess.
+
+!!! info "If your cases run on Vultron"
+
+    A Vultron case already records these dates.
+    The case ledger stamps every change to the case, including each participant's fix and deployment and the case's public awareness, exploit, and attack status ([What a Case Records](../topics/measuring_cvd/what_a_case_records.md)).
+    Read each event's date from its ledger entry rather than from a separate record.
+    The same page lists the events whose stamp is later than the event, which you should treat as approximate.
 
 Re-score a case when a later event arrives.
 A case that satisfied **F** $\prec$ **A** when it closed stops satisfying it if an attack is observed later, so the score of a program is a moving figure and not a closing report.
@@ -145,8 +152,11 @@ For a case still in progress, the [Recommended Action Rules for CVD](../topics/o
 ## If you coordinate multi-vendor cases
 
 A case with more than one affected Vendor is a Multi-Party Coordinated Vulnerability Disclosure (MPCVD) case.
-Score each affected Vendor and product in it as its own case, because each has its own fix path.
-Then report the median $\alpha_d$ across them together with its spread.
+Score the **V** and **F** preferences once for each affected Vendor, because each Vendor has its own fix path.
+Score the **D** preferences once for each Deployer, because each Deployer has its own deployment.
+Compare each against the case's one **P**, **X**, and **A**, which every participant in the case shares.
+Do not pair a Deployer with one Vendor unless your records say whose fix it deployed; a Vultron case does not record that link.
+Then report the median $\alpha_d$ across the Vendors, and across the Deployers, together with each spread.
 A high median with a low spread means most Vendors in your cases reached acceptable outcomes.
 A high median with a wide spread means a few Vendors are being left behind, which is the fairness problem [Measuring and Benchmarking MPCVD](../topics/measuring_cvd/benchmarking_mpcvd.md) discusses.
 
@@ -156,6 +166,7 @@ A high median with a wide spread means a few Vendors are being left behind, whic
 
 - It measures the order of events, not the time between them.
   A fix ready one day before publication and one year before publication score the same.
+  [Timing Metrics Within a Case](../topics/measuring_cvd/timing_metrics.md) proposes measures of the time between events.
 - The baseline assumes every allowed transition is equally likely.
   Real-world event probabilities depend on history, so treat $\alpha_d$ as a comparison against a stated baseline and not as a probability.
 - It does not distinguish your program's skill from your Reporters' skill, your Vendors' skill, or an adversary's inattention.
@@ -164,6 +175,12 @@ A high median with a wide spread means a few Vendors are being left behind, whic
 ---
 
 ## Further reading
+
+!!! tip "Going further"
+
+    The score in this guide uses the six events and twelve preferences of the original research.
+    [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md) proposes further preferences over report handling, embargoes, and joining, and [Timing Metrics Within a Case](../topics/measuring_cvd/timing_metrics.md) proposes intervals between events.
+    Both are draft research, with no published baseline to compare against yet.
 
 - [Measuring CVD](../topics/measuring_cvd/index.md) — the derivation behind every number in this guide.
 - [Discriminating Skill and Luck in Observations](../topics/measuring_cvd/discriminating_skill_and_luck.md) — the skill coefficient and the model that yields it.

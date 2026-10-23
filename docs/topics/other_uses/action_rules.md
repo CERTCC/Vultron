@@ -108,3 +108,18 @@ We define a set of such rules in the table below.
     [Vultron Process Models](../process_models/index.md)
     and
     [Behavior Logic](../behavior_logic/index.md).
+
+## Action rules are not algorithms
+
+The CVD action rules are not an algorithm.
+We do not propose them as a set of actions required in every CVD case.
+Following Atul Gawande's lead, we offer them as a way to generate CVD checklists:
+
+!!! quote "Atul Gawande in [The Checklist Manifesto](https://atulgawande.com/book/the-checklist-manifesto/){:target="_blank"}"
+
+    Good checklists, on the other hand are precise. They are efficient, to
+    the point, and easy to use even in the most difficult situations. They
+    do not try to spell out everything--a checklist cannot fly a plane.
+    Instead, they provide reminders of only the most critical and
+    important steps--the ones that even the highly skilled professional
+    using them could miss. Good checklists are, above all, practical

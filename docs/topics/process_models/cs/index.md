@@ -29,7 +29,7 @@ The pages in this section present the resulting model of 32 states and their tra
 ## Pages in this section
 
 The first page defines the model's states, and the second builds on it with the transitions between them.
-The research discussion of the model's limits, [CS Model Limitations](cs_model_limitations.md), draws on [Measuring CVD](../../measuring_cvd/index.md) and sits in that section.
+The research discussion of what the model leaves open, [Open Questions](../../measuring_cvd/open_questions.md), sits in [Measuring CVD](../../measuring_cvd/index.md).
 
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 

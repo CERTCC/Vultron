@@ -17,7 +17,7 @@ The preferences come from the 2021 report [A State-Based Model for Multi-Party C
 
 !!! info inline end "Formalism development in Measuring CVD"
 
-    The [Measuring CVD](../measuring_cvd/index.md) section of this documentation, based on the same report, develops these preferences formally.
+    The [Measuring CVD](../measuring_cvd/index.md) section of this documentation develops these preferences formally in its Foundations, based on the same report, and extends them to what a Vultron case records.
 
 ---
 

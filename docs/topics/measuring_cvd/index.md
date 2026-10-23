@@ -7,35 +7,34 @@ contents: generated
 
 # Measuring CVD
 
-Coordinated Vulnerability Disclosure (CVD) is the consensus response to the persistent fact of vulnerable software, yet few performance indicators have been proposed to measure how well it works at the broadest scales.
-This section fills that gap.
-It derives every possible history a CVD case can have from the [Case State (CS) model](../process_models/cs/index.md), orders those histories by a set of desired outcomes, computes how often each outcome would occur by chance, and turns the difference between chance and observation into a measure of skill.
+Coordinated Vulnerability Disclosure (CVD) is the consensus response to the persistent fact of vulnerable software, yet few performance indicators have been proposed to measure how well it works.
+This section describes what a Vultron case records, and how that record becomes desiderata, the orderings a case should achieve, and metrics on cases.
 The pages are research material for people who study the CVD process, and none of them is normative.
 
-The section is derived from the report [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771){:target="_blank"} by Allen Householder and Jonathan Spring.
-The twelve desired outcomes it measures against are stated in plain terms on [What Does *Success* Mean in CVD?](../background/cvd_success.md), which is the place to start if the state notation is new to you.
-Two pages go beyond the report: [Desiderata from the Process Models](process_model_desiderata.md) proposes further orderings drawn from the protocol's report, embargo, and multi-party models, and [Timing Metrics Within a Case](timing_metrics.md) proposes measuring the time between events, not only their order.
+Vultron has modeled Multi-Party CVD (MPCVD) from the start.
+MPCVD is the general case, and two-party CVD, with one reporter and one vendor, is a special case of the same model.
+The original model made simplifying assumptions, and relaxing them is ongoing refinement, not a late addition.
+
+Every page in the main part of this section builds on one split.
+**Participant-agnostic state**, such as whether the vul is public and the case's embargo, belongs to the case and happens once in it.
+**Participant-specific state**, such as each vendor's fix and each deployer's deployment, belongs to one participant and can happen once for each.
+Each page notes how its measures carry over to the two-party case, collapse in it, or disappear.
+
+The [Foundations](foundations/index.md) group keeps the first-principles derivation from the report [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771){:target="_blank"} by Allen Householder and Jonathan Spring.
+It derives every possible history of a six-event case, orders those histories by twelve desired outcomes, and turns the difference between chance and observation into a measure of skill.
+The twelve outcomes are stated in plain terms on [What Does *Success* Mean in CVD?](../background/cvd_success.md), which is the place to start if the state notation is new to you.
 
 ## Pages in this section
 
-The pages build on one another in the order shown.
-The first four construct the model, the next two measure against it, and the remaining pages apply the measure, extend the model, or discuss its limits.
+The main pages come first, in the order they build on one another, and the Foundations group follows.
 
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
-- [Possible Histories](possible_histories.md) — The 70 histories a case can have, derived from the six CS events and their ordering constraints.
-- [Desirable Histories](desirable_histories.md) — The twelve desired orderings and the partial order they induce over the histories.
-- [Random Walks](random_walk.md) — A baseline in which every allowed transition is equally likely, from the principle of indifference.
-- [Reasoning Over Histories](reasoning_over_histories.md) — How often each history and each desired ordering occurs under that baseline.
-- [Discriminating Skill from Luck](discriminating_skill_and_luck.md) — The skill coefficient, which normalizes an observed frequency against the baseline.
-- [Observing Skill](observing_skill.md) — The skill coefficient applied to Microsoft security updates and to commodity exploit data.
-- [Benchmarking CVD](benchmarking.md) — What a reasonable benchmark for the skill coefficient is, and why the naive benchmark of zero is a low bar.
-- [Benchmarking MPCVD](benchmarking_mpcvd.md) — Extending the measure to a case in which every affected vendor and product has its own history.
+- [What a Case Records](what_a_case_records.md) — The events a Vultron case records, whether each belongs to the case or to one participant, the two clocks on each record, and the gaps.
 - [Desiderata from the Process Models](process_model_desiderata.md) — Ordering preferences beyond the original twelve, distilled from the report, embargo, consent, and multi-party process models.
 - [Timing Metrics Within a Case](timing_metrics.md) — Intervals, dwell times, margins, and spreads that the case ledger's timestamps make measurable within one case.
-- [Reward Functions](reward_functions.md) — Criteria for reward functions over Report Management and Embargo Management histories, and the simulation work they would enable.
-- [State Space Size](state_space_size.md) — How large the Vultron protocol state space is for each participant role and for a whole case, and why coordination keeps it tractable.
-- [CS Model Limitations](../process_models/cs/cs_model_limitations.md) — Research discussion of what the model leaves out, including transition probabilities and the ordering of case histories.
+- [Open Questions](open_questions.md) — What measuring CVD still leaves open, from transition probabilities and the order of histories to fairness across vendors.
+- [Foundations](foundations/index.md) — The first-principles model of the original research: six events, the histories they allow, and a skill measure against chance.
 
 <!-- END GENERATED SECTION CONTENTS -->
 
