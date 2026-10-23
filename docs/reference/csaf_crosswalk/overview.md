@@ -65,7 +65,7 @@ A CSAF document can relate to a Vultron case in three ways:
 | Relation | In Vultron |
 |---|---|
 | [A CSAF document replaces the case](#a-csaf-document-does-not-replace-the-case) | Not used. |
-| [A CSAF document travels inside the case](#a-csaf-document-can-travel-inside-a-case) | Used today. A report can carry a CSAF document, and Vultron carries it without reading it. |
+| [A CSAF document travels inside the case](#a-csaf-document-can-travel-inside-a-case) | Used today. A report can carry a CSAF document, and a participant can read it and use it. The participant reads the content as claims by the sender, and the content changes the case only through Vultron's own activities. |
 | [The case produces a CSAF document](#a-case-can-produce-a-csaf-document) | Planned. |
 
 ### A CSAF document does not replace the case

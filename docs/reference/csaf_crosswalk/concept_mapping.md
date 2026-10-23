@@ -571,7 +571,7 @@ A CSAF document holds its vulnerabilities in `vulnerabilities[]`, each with iden
 <td markdown="span">One to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">Vultron could identify CSAF content by its `mediaType`, and it could read the process fields of that content as claims by the sender. A claim changes the case only through a Vultron activity, which can be automatic. If nothing changes, Vultron carries a CSAF report without reading it, and a proposed disclosure date in the report has no effect. Issue [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} tracks this change.</td>
+<td markdown="span">Vultron could identify CSAF content by its `mediaType`, and it could read the process fields of that content as claims by the sender. A claim changes the case only through a Vultron activity, which can be automatic. If nothing changes, an implementation can still read and use the CSAF content, but the protocol does not say how a claim in it, such as a proposed disclosure date, becomes a Vultron activity. Issue [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} tracks this change.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">`VulnerabilityRecord` on a case</td>
