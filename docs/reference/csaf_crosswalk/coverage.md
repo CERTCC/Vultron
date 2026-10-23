@@ -20,6 +20,7 @@ The [concept mapping](concept_mapping.md) gives the concepts that both models ha
 Most items on this page need no change.
 They come from the different purposes of the two models: CSAF records a disclosure, and Vultron controls how it proceeds.
 An item that is also a proposal has a **Proposal** mark, and the [proposals](proposals.md) page gives it in full.
+An item that Vultron could change has a **Vultron could** mark, and the [conclusions](conclusion.md) page links the issue that tracks it.
 A gap in the Vultron object model is not always a design choice.
 Some areas of the Vultron object model are not yet defined in detail, and an item says so when that is the reason.
 
@@ -326,5 +327,6 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 ## Further reading
 
 - [CSAF 2.1 and Vultron](overview.md) — how a CSAF document relates to a Vultron case.
-- [Proposals](proposals.md) — the changes CSAF and Vultron could make, with their reasons.
+- [Proposals](proposals.md) — the changes that CSAF and Vultron could make, each with its reason and its cost if nothing changes.
 - [Conclusions](conclusion.md) — what the comparison shows, and the issues that track the follow-up work.
+- [Concept mapping](concept_mapping.md) — each Vultron concept, its CSAF counterpart, and the type of mapping in each direction.

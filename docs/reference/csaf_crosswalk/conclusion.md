@@ -121,7 +121,7 @@ Concern [#5140](https://github.com/CERTCC/Vultron/issues/5140){:target="_blank"}
 ## Further reading
 
 - [CSAF 2.1 and Vultron](overview.md) — how a CSAF document relates to a Vultron case.
-- [Proposals](proposals.md) — the changes CSAF could make, with their reasons.
-- [Concept mapping](concept_mapping.md) — each concept on the two sides, with the type of mapping in each direction.
+- [Proposals](proposals.md) — the changes that CSAF and Vultron could make, each with its reason and its cost if nothing changes.
+- [Concept mapping](concept_mapping.md) — each Vultron concept, its CSAF counterpart, and the type of mapping in each direction.
 - [Coverage differences](coverage.md) — concepts that only one of the two models has.
 - [Epic #5130](https://github.com/CERTCC/Vultron/issues/5130){:target="_blank"} — the follow-up work on the Vultron side.

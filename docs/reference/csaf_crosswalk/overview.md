@@ -182,7 +182,7 @@ The links go to the detailed rows.
 <tr markdown="1">
 <td markdown="span">[Events and timeline](concept_mapping.md#events-and-timeline)</td>
 <td markdown="span">Close</td>
-<td markdown="span">No change proposed. A CSAF action has the same shape as an ActivityStreams activity: an actor, recipients, a time, and a referenced earlier event. Undecided: CSAF could let an entity carry an identifier that stays the same in different documents.</td>
+<td markdown="span">No change proposed. A CSAF action has the same shape as an ActivityStreams activity: an actor, recipients, a time, a type, and a referenced earlier event. Undecided: CSAF could let an entity carry an identifier that stays the same in different documents.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[Report management](concept_mapping.md#report-management)</td>
@@ -218,9 +218,9 @@ The [coverage differences](coverage.md) page lists the concepts that only one of
 
 ## Further reading
 
+- [Proposals](proposals.md) — the changes that CSAF and Vultron could make, each with its reason and its cost if nothing changes.
+- [Conclusions](conclusion.md) — what the comparison shows, and the issues that track the follow-up work.
 - [Concept mapping](concept_mapping.md) — each Vultron concept, its CSAF counterpart, and the type of mapping in each direction.
-- [Coverage differences](coverage.md) — concepts that Vultron has and CSAF does not, and the reverse.
-- [Proposals](proposals.md) — the changes that CSAF and Vultron could make, each with its cost if nothing changes.
+- [Coverage differences](coverage.md) — concepts that only one of the two models has.
 - [Standards Crosswalks](../iso_crosswalks/index.md) — the other crosswalks of Vultron against related standards.
 - [oasis-tcs/csaf#1486](https://github.com/oasis-tcs/csaf/issues/1486){:target="_blank"} — the TC issue for the CSAF 2.1 involvement model.
-- [Conclusions](conclusion.md) — what the comparison shows, and the issues that track the follow-up work.

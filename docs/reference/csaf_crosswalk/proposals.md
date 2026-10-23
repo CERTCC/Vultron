@@ -116,7 +116,7 @@ The Vultron project tracks each of them as a separate item for planning, under E
 |---|---|---|
 | [#5131](https://github.com/CERTCC/Vultron/issues/5131){:target="_blank"} | Vultron could identify CSAF content in a report by its `mediaType`, and read the process fields of that content as claims by the sender. A claim then changes the case only through a Vultron activity. | CSAF 2.1 has a Vulnerability Report profile for exchange during coordination, so CSAF reports will arrive inside cases. |
 | [#5132](https://github.com/CERTCC/Vultron/issues/5132){:target="_blank"} | Vultron could add a list of vulnerability records to the case, and let a record carry a CSAF document or a Common Vulnerabilities and Exposures (CVE) record as its content. This could include a CSAF profile for one vulnerability without `involvement`. | The Vultron specification already expects vulnerability records on a case (CM-05-003), and the object model has not yet reached this depth. A projection needs the records to set `dl_vuln_ids`. |
-| [#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"} | Vultron could define how a Traffic Light Protocol (TLP) label appears in its data and logic, and how granular a label is. | Vultron has no labels today. A projection needs a label, and a received document can carry one. |
+| [#5133](https://github.com/CERTCC/Vultron/issues/5133){:target="_blank"} | Vultron could define how a Traffic Light Protocol (TLP) label appears in its data and logic, and how granular a label is. This item is a concern. | Vultron has no labels today. A projection needs a label, and a received document can carry one. |
 | [#5134](https://github.com/CERTCC/Vultron/issues/5134){:target="_blank"} | Vultron could produce a CSAF document from the copy of a case that a participant keeps, at publication and during coordination. | A party outside Vultron, such as a vendor or a reporting authority, can then receive the case information in CSAF. |
 | [#5140](https://github.com/CERTCC/Vultron/issues/5140){:target="_blank"} | Vultron could track Fix Readiness (F) for each vendor and product, and Fix Deployed (D) for each vendor, product, and deployer. This item is a concern. | CSAF records status for each product, and Vultron records the fix path once for each participant. |
 | [#5135](https://github.com/CERTCC/Vultron/issues/5135){:target="_blank"} | Vultron could record which participants want public credit. This item is undecided. | CSAF acknowledgments carry this information, and Vultron has no counterpart. |
@@ -126,7 +126,7 @@ The Vultron project tracks each of them as a separate item for planning, under E
 ## Further reading
 
 - [CSAF 2.1 and Vultron](overview.md) — how a CSAF document relates to a Vultron case.
-- [Concept mapping](concept_mapping.md) — each concept on the two sides, with the type of mapping in each direction.
+- [Conclusions](conclusion.md) — what the comparison shows, and the issues that track the follow-up work.
+- [Concept mapping](concept_mapping.md) — each Vultron concept, its CSAF counterpart, and the type of mapping in each direction.
 - [Coverage differences](coverage.md) — concepts that only one of the two models has.
 - [oasis-tcs/csaf#1486](https://github.com/oasis-tcs/csaf/issues/1486){:target="_blank"} — the TC issue for the CSAF 2.1 involvement model.
-- [Conclusions](conclusion.md) — what the comparison shows, and the issues that track the follow-up work.

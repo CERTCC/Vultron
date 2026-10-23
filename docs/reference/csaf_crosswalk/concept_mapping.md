@@ -102,7 +102,7 @@ CSAF states that "the `category` does not control the role": an entity can act i
 </tr>
 <tr markdown="1">
 <td markdown="span">`REPORTER`</td>
-<td markdown="span">`discoverer` ("It is assume that the discoverer also reports vulnerabilities.")</td>
+<td markdown="span">`discoverer` ("It is assume [sic] that the discoverer also reports vulnerabilities.")</td>
 <td markdown="span">One to one</td>
 <td markdown="span">Interpretive</td>
 <td markdown="span">Mechanical</td>
@@ -229,7 +229,7 @@ The two have the same shape: an actor, recipients, a time, a type, and an option
 <td markdown="span">No change proposed: a projection mints one `action_id` for each activity that it includes.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">Two times: the `published` time that the sender claims, and the commit time of the Case Manager (CLP-15-003)</td>
+<td markdown="span">Two times: the `published` time that the sender claims, and the commit time of the Case Manager (CLP-15-003, CLP-15-005)</td>
 <td markdown="span">`date`, one time</td>
 <td markdown="span">Many to one</td>
 <td markdown="span">Mechanical</td>
@@ -325,7 +325,7 @@ The two agree when the participant is the actor of the deferred action.
 <tr markdown="1">
 <td markdown="span">RM `ACCEPTED`</td>
 <td markdown="span">`confirmation`, `completed`, which refers to the `notification`</td>
-<td markdown="span">Many to one</td>
+<td markdown="span">One to one</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Interpretive</td>
 <td markdown="span">Undecided: a CSAF `confirmation` means that the actor "received or accepted" the action. Vultron keeps receipt and acceptance as two facts. CSAF could make the two meanings different. If nothing changes, a projection writes in `summary` which of the two a `confirmation` records.</td>
@@ -513,9 +513,9 @@ The [SSVC crosswalk](../ssvc_crosswalk.md#exploitation) gives the mapping betwee
 <tr markdown="1">
 <td markdown="span">Exploit Public (X) and Attacks Observed (A), together</td>
 <td markdown="span">SSVC Exploitation value in `vulnerabilities[].metrics`: *None* for xa, *PoC* (proof of concept) for Xa, *Active* for A</td>
-<td markdown="span">One to one</td>
+<td markdown="span">Many to one</td>
 <td markdown="span">Mechanical</td>
-<td markdown="span">Mechanical</td>
+<td markdown="span">Derived</td>
 <td markdown="span">No change proposed. The value *Active* gives A but does not tell whether an exploit is public, so the reverse mapping leaves X unknown. The CSAF Vulnerability Report profile asks the issuing party to give exploitation with this value.</td>
 </tr>
 <tr markdown="1">
@@ -693,5 +693,6 @@ Vultron controls who sees the case through entitlement and the embargo, and the 
 ## Further reading
 
 - [CSAF 2.1 and Vultron](overview.md) — how a CSAF document relates to a Vultron case.
-- [Proposals](proposals.md) — the changes CSAF and Vultron could make, with their reasons.
+- [Proposals](proposals.md) — the changes that CSAF and Vultron could make, each with its reason and its cost if nothing changes.
 - [Conclusions](conclusion.md) — what the comparison shows, and the issues that track the follow-up work.
+- [Coverage differences](coverage.md) — concepts that only one of the two models has.

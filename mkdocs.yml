@@ -135,9 +135,9 @@ nav:
       - CSAF 2.1 Crosswalk:
         - CSAF 2.1 and Vultron: 'reference/csaf_crosswalk/overview.md'
         - Proposals: 'reference/csaf_crosswalk/proposals.md'
+        - Conclusions: 'reference/csaf_crosswalk/conclusion.md'
         - Concept Mapping: 'reference/csaf_crosswalk/concept_mapping.md'
         - Coverage Differences: 'reference/csaf_crosswalk/coverage.md'
-        - Conclusions: 'reference/csaf_crosswalk/conclusion.md'
     - Concept Taxonomy: 'reference/vultron-taxonomy.md'
     - Vultron AS Objects: 'reference/activitypub/objects.md'
     - rv Demo Protocol: 'reference/rv-demo-protocol.md'
