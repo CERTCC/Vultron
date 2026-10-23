@@ -377,8 +377,10 @@ second copy (CLP-07-013). Order:
    ADR-0157), actor CASE_MANAGER
 2. `create_embargo_event` — `Create(EmbargoEvent)` in full, once per embargo
    the register names (the default embargo, and a contested creation's losing
-   terms), actor CASE_MANAGER. The genesis names them by id, so without it a
-   replica rebuilt from the ledger lacks the end time (#5122, VAM-05-016)
+   terms), actor CASE_MANAGER. The genesis carries only the active embargo
+   inline, and a replica copies each record from its own entry (ADR-0124), so
+   without it a replica rebuilt from the ledger lacks the end time (#5122,
+   VAM-05-016)
 3. `add_report_to_case` — actor CASE_MANAGER
 4. per seated record, `create_case_participant` — `Create(CaseParticipant)`
    carrying the record as created (roles, consent rows, its first status), then

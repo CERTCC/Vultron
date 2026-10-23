@@ -91,8 +91,11 @@ class _CasesMixin:
         """Create and persist a ``Create(as_VulnerabilityCase)`` activity.
 
         ``context`` is the case, as for the proposal path's ``Create``
-        (ADR-0045): the creator commits this same activity as the case's
-        genesis entry (CLP-07-007, CLP-07-011).
+        (ADR-0045): the create-case trigger commits this same activity as the
+        case's genesis entry (CLP-07-007, CLP-07-011).  The report receiver's
+        introduction of the case to its reporter is built here too, so it
+        names its case the same way, and ``case_is_announced`` counts every
+        ``Create`` built here as an announcement of its case.
         """
         case = _case_for_wire(self._dl, case_id)
         extra = _addressing(actor, to, id_)

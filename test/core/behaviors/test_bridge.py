@@ -190,6 +190,23 @@ class WriteRMAnomaly(py_trees.behaviour.Behaviour):
         return Status.SUCCESS
 
 
+class WriteGenesisCreateId(py_trees.behaviour.Behaviour):
+    """Write ``create_case_activity_id`` and SUCCEED.
+
+    Stands in for the node that builds a case's ``Create(VulnerabilityCase)``
+    and publishes its id for the genesis commit (CLP-07-011).
+    """
+
+    def __init__(self, name: str = "WriteGenesisCreateId"):
+        super().__init__(name=name)
+
+    def update(self) -> Status:
+        py_trees.blackboard.Blackboard.storage["/create_case_activity_id"] = (
+            "https://example.org/activities/create-case-written-this-run"
+        )
+        return Status.SUCCESS
+
+
 class RecordManagedKeyDuringTick(py_trees.behaviour.Behaviour):
     """Record what ``/<key>`` holds while the tree is still ticking.
 
@@ -1691,6 +1708,7 @@ class TestNestedExecutionKeyIsolation:
             "is_leader",
             "wire_render_port",
             "rm_transition_anomaly",
+            "create_case_activity_id",
             "actor_id",
         ],
     )
@@ -1702,8 +1720,8 @@ class TestNestedExecutionKeyIsolation:
         Each parametrization has to be *load-bearing*: unless the sentinel is
         displaced while the tree ticks, the post-run assertion passes whether or
         not the key is in ``managed_keys`` at all.  Under a bare
-        ``BTBridge(datalayer=...)`` running ``AlwaysSucceed``, five of these
-        seven are inert, each for its own reason:
+        ``BTBridge(datalayer=...)`` running ``AlwaysSucceed``, six of these
+        eight are inert, each for its own reason:
 
         - ``is_leader`` — ``setup_tree`` writes it only when the caller passed an
           explicit guard (``_is_leader_explicit``), so a default bridge never
@@ -1713,8 +1731,8 @@ class TestNestedExecutionKeyIsolation:
           the process-global blackboard, and ``port_for_store`` returns an
           object that does not opt in unchanged.  ``setup_tree`` then writes
           *the sentinel itself* back, so pre-value == post-value.
-        - ``rm_transition_anomaly`` — no node in ``AlwaysSucceed``
-          writes it.
+        - ``rm_transition_anomaly`` and ``create_case_activity_id`` — no node
+          in ``AlwaysSucceed`` writes them.
 
         So this builds a bridge with distinct injected ports and an explicit
         leadership guard, and asserts on the mid-tick value first.  That
@@ -1747,6 +1765,10 @@ class TestNestedExecutionKeyIsolation:
             # The only key here that no bridge-injected value covers: a node
             # has to write it, the way the received RM guards do (#3101).
             children.append(WriteRMAnomaly())
+        elif key == "create_case_activity_id":
+            # Node-written too: only the node that builds the case's Create
+            # publishes it (CLP-07-011).
+            children.append(WriteGenesisCreateId())
         children.append(RecordManagedKeyDuringTick(key, observed))
         tree = py_trees.composites.Sequence(
             name="ObserveManagedKey", memory=False, children=children

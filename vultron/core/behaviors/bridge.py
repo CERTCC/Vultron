@@ -736,6 +736,14 @@ class BTBridge:
                 # readers the previous execution's value, and the relay would
                 # send an Invite no registration in this act asked for.
                 "creation_time_revision_candidate",
+                # Published by the node that builds a case's
+                # Create(VulnerabilityCase), read by
+                # CommitNativeLedgerEntriesNode as the genesis entry
+                # (CLP-07-011).  The writer ticks only when this act builds
+                # the Create, so a creation that built none must see no id,
+                # not the previous execution's, or it would commit another
+                # case's Create as its genesis.
+                "create_case_activity_id",
                 # Published by the RM adjudication guards
                 # (CheckParticipantStatusAcceptableNode,
                 # AdjudicateRMDeclarationNode), read by EmitRMGapNoteNode.

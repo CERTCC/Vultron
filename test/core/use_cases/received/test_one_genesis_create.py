@@ -19,6 +19,7 @@ The proposer seeds its replica from that same body, so the activity it holds
 and the one every replica's ledger records are one.
 """
 
+import json
 from typing import Any, cast
 
 import pytest
@@ -79,7 +80,10 @@ def test_the_delivered_create_is_the_genesis_entry(make_payload):
     genesis = ledger_entries(dl, case.id_)[0]
 
     assert genesis.semantic_type == "create_case"
-    assert _sent_create(dl, case.id_) == genesis.payload_snapshot
+    sent = _sent_create(dl, case.id_)
+    assert sent == genesis.payload_snapshot
+    # Key order too, at every depth: the snapshot is the body, not a re-render.
+    assert json.dumps(sent) == json.dumps(genesis.payload_snapshot)
     # The CASE_MANAGER sends it once: one Create of the case is stored.
     assert len(dl.list_objects("Create")) == 1
 

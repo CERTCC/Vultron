@@ -308,6 +308,13 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             return Status.FAILURE
         if announced is None:
             return None
+        # Already built under the derived id: that Create is still the one
+        # the genesis entry records, should it not be committed yet
+        # (CLP-07-011).
+        self._set_output(
+            "create_case_activity_id",
+            create_case_activity_id(self._proposal_id),
+        )
         logger.info(
             "%s: Create(VulnerabilityCase) of case '%s' for proposal '%s' was"
             " already queued — not announcing the case again (CP-05-005)",

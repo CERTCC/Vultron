@@ -22,15 +22,16 @@ stored as an activity: the ledger fan-out is its delivery (see
 ``_base._seal_record``).  The genesis entry is the exception: it is the
 ``Create(VulnerabilityCase)`` the creation already built and queued, so the
 case's creation is one activity, delivered and ledgered (CLP-07-011).  Each
-id is derived from the CASE_MANAGER and what
-changed, so a re-run builds nothing new and hands back the body the first run
-sealed (ID-04-004), which is what lets the commit boundary recognise the retry
-as the entry it already holds.
+id is derived from the CASE_MANAGER and what changed, so a re-run builds
+nothing new and hands back the body the first run sealed (ID-04-004), which
+is what lets the commit boundary recognise the retry as the entry it already
+holds.
 
 Each object is carried as the CASE_MANAGER holds it: the participant or status
-the caller has just written, or the case as stored.  A replica stores what the
-entry carries (ADR-0124).  The demo verb's ``Announce`` is the exception: an
-announced case carries its participants and reports inline (AKM-02-004).
+the caller has just written.  A replica stores what the entry carries
+(ADR-0124).  Two snapshots carry a case with its participants and reports
+inline: the genesis ``Create``, built for its first participant (and also
+carrying its active embargo), and the demo verb's ``Announce`` (AKM-02-004).
 """
 
 import logging

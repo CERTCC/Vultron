@@ -49,6 +49,7 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.errors import VultronNotFoundError
 
 VENDOR_ID = "https://example.org/actors/vendor"
 EMBARGO_ID = "https://example.org/embargoes/urn:uuid:embargo-1"
@@ -284,7 +285,7 @@ def test_the_record_is_the_case_managers_own_activity(
     assert "to" not in snapshot, "the ledger fan-out delivers it"
 
 
-@pytest.mark.spec("CLP-07")
+@pytest.mark.spec("CLP-07-011")
 @pytest.mark.spec("CLP-12-002")
 @pytest.mark.parametrize("method", sorted(_SHAPES))
 def test_the_record_passes_the_canonical_guard(adapter, recipes, method):
@@ -399,10 +400,9 @@ def test_the_genesis_record_is_the_built_create(adapter, case):
     assert VulnerabilityCase.model_validate(obj).id_ == case.id_
 
 
+@pytest.mark.spec("CLP-07-011")
 def test_a_genesis_record_with_nothing_built_raises(adapter, case):
     """No sealed ``Create`` under the id: the genesis has nothing to record."""
-    from vultron.errors import VultronNotFoundError
-
     with pytest.raises(VultronNotFoundError):
         adapter.record_case_created(create_activity_id=GENESIS_ID)
 

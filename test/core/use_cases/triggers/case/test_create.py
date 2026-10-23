@@ -21,6 +21,7 @@ verifying state mutation, outbox effect, and error handling.
 Spec: specs/triggerable-behaviors.yaml TRIG-09.
 """
 
+import json
 import re
 
 import pytest
@@ -45,6 +46,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -624,9 +626,7 @@ class TestCreateCaseTriggerLedger:
     @pytest.mark.spec("CLP-02-013")
     def test_the_sent_create_is_the_genesis_entry(self):
         """One activity, delivered and ledgered (ADR-0157): the ``Create`` the
-        outbox delivers is the genesis entry's snapshot, byte for byte."""
-        from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-
+        outbox delivers is the genesis entry's snapshot, key order included."""
         case = self._create(to=[_RECIPIENT])
 
         genesis = ledger_entries(self.dl, case.id_)[0]
@@ -635,8 +635,11 @@ class TestCreateCaseTriggerLedger:
             for item in self.dl.outbox_list()
             if getattr(self.dl.read(item), "type_", None) == "Create"
         ]
+        body = read_sealed_body_dict(self.dl, sent)
         assert genesis.semantic_type == "create_case"
-        assert read_sealed_body_dict(self.dl, sent) == genesis.payload_snapshot
+        assert body == genesis.payload_snapshot
+        # Key order too, at every depth: the snapshot is the body sent.
+        assert json.dumps(body) == json.dumps(genesis.payload_snapshot)
 
     @pytest.mark.spec("SYNC-16-005")
     def test_the_case_names_the_tail_its_creation_entries_left(self):

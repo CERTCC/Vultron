@@ -939,8 +939,9 @@ groups:
       entries (CLP-07-013). No received use case handles it
       (SE-05-002, ADR-0140): a replica stores the embargo from the entry.
     rationale: >-
-      The genesis entry names the case's embargoes by id, and no other entry carries
-      a creation-time embargo until it is removed, so a replica built from the ledger
+      The genesis entry carries only the case's active embargo inline, and a replica
+      copies each record from its own entry (ADR-0124); no other entry carries a
+      creation-time embargo until it is removed, so a replica built from the ledger
       alone could not read the end time its embargo decisions need (#5122). An
       entry's semantic type is the registry's label for its payload (ADR-0140).
     verification: >-
