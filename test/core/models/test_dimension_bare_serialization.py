@@ -236,6 +236,7 @@ def test_core_participant_status_as2_output_matches_wire(
     assert payload(core) == payload(wire)
 
 
+@pytest.mark.spec("SM-08-001")
 def test_enclosing_field_alias_carries_the_bare_state_on_the_wire():
     """The AS2 wire form is pinned to literals, not to the wire class.
 

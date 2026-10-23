@@ -25,7 +25,7 @@ after ``AppendParticipantStatusNode`` records the raw peer update, a
 should adopt the status, then ``EmitCaseStatusUpdateNode`` writes the
 post-adoption CaseStatus, adding every P, X or A latch the sender reported and
 clearing none, directly to the case ledger without routing through the inbox
-seam (RSH-01-003, RSH-04-004).  The embargo teardown and the CSB-18 diagnostic follow it
+seam (RSH-01-003, RSH-04-006).  The embargo teardown and the CSB-18 diagnostic follow it
 (RSH-01-004).  This tree is the only received path by which a participant's
 P, X or A report reaches the case status: ``Add(CaseStatus)`` is the
 CASE_MANAGER's alone (RSH-04-001, RSH-04-005).

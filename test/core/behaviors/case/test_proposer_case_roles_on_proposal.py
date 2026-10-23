@@ -82,6 +82,7 @@ def _proposal(**kwargs) -> as_CaseProposal:
 
 
 @pytest.mark.spec("CP-01-011")
+@pytest.mark.spec("CP-01-013")
 class TestReceiverStatesItsRoles:
     """Sender side: the proposal carries the sender's own default roles."""
 

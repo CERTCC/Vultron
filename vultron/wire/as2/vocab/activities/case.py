@@ -446,7 +446,7 @@ def _check_ledger_position_content(activity: Any, what: str) -> None:
     """Require *activity*'s ``content`` to be a ledger position's JSON dump.
 
     The position travels in the standard AS2 ``content`` slot as the
-    ``LedgerPosition`` model's own JSON dump (VAM-04-011..014), so a missing,
+    ``LedgerPosition`` model's own JSON dump (VAM-04-019), so a missing,
     blank or non-parsing ``content`` is not a full-case message.
     """
     content = activity.content

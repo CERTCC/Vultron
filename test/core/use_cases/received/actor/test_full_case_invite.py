@@ -319,6 +319,7 @@ def test_replies_to_the_full_case_invite_are_distinct_semantics(
 
 
 @pytest.mark.spec("VAM-04-012")
+@pytest.mark.spec("VAM-04-019")
 def test_a_reply_with_unparseable_content_is_refused_at_the_edge(
     joining_case,  # noqa: F811
 ) -> None:

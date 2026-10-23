@@ -178,7 +178,7 @@ class EmitCaseStatusUpdateNode(DataLayerActionWithPorts, StateWriteCapable):
     5. FanOutLogEntryNode (inside the commit tree) announces to participants
        when a ``sync_port`` is available on the blackboard.
 
-    MUST NOT route through the inbox seam (RSH-04-004).
+    MUST NOT route through the inbox seam (RSH-04-006).
     Per RSH-04-002 (EM mutations) and RSH-04-003 (PXA mutations).
 
     Args:

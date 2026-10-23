@@ -14,7 +14,7 @@ groups:
   specs:
   - id: PRM-01-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'CaseParticipant MUST expose a read-only `roles` property that returns `list[CVDRole]`, providing a stable
       public interface for iterating a participant''s current roles without directly accessing the `case_roles` field.'
     rationale: 'A named property decouples callers from the internal storage field, enabling future changes to how roles are
@@ -30,7 +30,7 @@ groups:
     - story_2022_063
   - id: PRM-01-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'CaseParticipant MUST expose a `has_role(role: CVDRole) -> bool` method that returns True when the participant
       holds the given role, False otherwise.'
     rationale: 'Provides a clear, named predicate for role-presence checks rather than requiring callers to write `role in
@@ -59,7 +59,7 @@ groups:
   specs:
   - id: PRM-02-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'CaseParticipant MUST expose an `add_role(role: CVDRole, raise_when_present: bool = False) -> None` method
       that adds a role to the participant''s role set.'
     rationale: 'A named method provides a single place to enforce invariants (e.g. deduplication, logging) whenever a role
@@ -74,7 +74,7 @@ groups:
     - story_2022_063
   - id: PRM-02-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`add_role()` MUST be idempotent: calling it with a role that the participant already holds MUST NOT raise
       an error unless `raise_when_present=True`; it SHOULD log an INFO-level message when the duplicate add is silently ignored.'
     rationale: 'Idempotent add is safe for concurrent or repeated processing. Logging the skip makes duplicate adds visible
@@ -101,7 +101,7 @@ groups:
     - protocol
   - id: PRM-02-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'CaseParticipant MUST expose a `remove_role(role: CVDRole, raise_when_missing: bool = False) -> None` method
       that removes a role from the participant''s role set.'
     rationale: 'A named method provides a single place to enforce invariants whenever a role is removed.'
@@ -116,7 +116,7 @@ groups:
     - story_2022_066
   - id: PRM-02-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: '`remove_role()` MUST be idempotent: calling it with a role that the participant does not hold MUST NOT raise
       an error unless `raise_when_missing=True`; it SHOULD log an INFO-level message when the missing remove is silently ignored.'
     rationale: 'Idempotent remove is safe for repeated processing. Logging the skip makes spurious removes visible for debugging.'
@@ -212,7 +212,7 @@ groups:
     - wire-format
   - id: PRM-04-002
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       Wire-layer `model_validator` methods in `CaseParticipant` subclasses (e.g.
       `ReporterParticipant`, `VendorParticipant`) that initialise `case_roles` SHOULD
@@ -328,7 +328,7 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A Case Manager or Case Owner MAY assert ``v→V`` (``CS_vf.Vf``) on behalf
+      A Case Manager or Case Owner MAY assert ``v→V`` (``Vf``) on behalf
       of a Vendor-role participant when the notification or invite is evidenced
       (any vendor acknowledgement — including ``Read(Invite(stub))`` —
       suffices).  The target MUST already be a participant in the case —
@@ -355,7 +355,7 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      A Case Manager or Case Owner MAY assert ``d→D`` (``CS_d.D``) on behalf
+      A Case Manager or Case Owner MAY assert ``d→D`` (``D``) on behalf
       of a Deployer-role participant under the same externally-evidenced
       pattern (a MAY, expected to be rare — for example, a deployer that joined
       and has since gone quiet; deployment is normally self-reported by the

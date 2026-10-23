@@ -69,7 +69,7 @@ def answers_with_internal_error_fault(event: VultronEvent) -> bool:
     Every received activity is, except a ``Create(ProcessingFault)``: a
     fault answered with a fault would let two peers that fail alike answer
     each other without end, each fault's derived id naming the one before
-    (ASK-07-010).
+    (ASK-07-011).
     """
     return event.semantic_type is not MessageSemantics.CREATE_PROCESSING_FAULT
 

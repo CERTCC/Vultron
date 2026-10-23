@@ -1191,6 +1191,7 @@ class TestAddParticipantStatusTree:
     @pytest.mark.spec("RSH-01-001")
     @pytest.mark.spec("RSH-01-002")
     @pytest.mark.spec("RSH-04-004")
+    @pytest.mark.spec("RSH-04-006")
     def test_emit_node_present_rsh_01_001(
         self,
         populated_dl,

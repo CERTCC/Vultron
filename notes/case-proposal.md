@@ -169,7 +169,8 @@ identity `http://case-actor:7999/api/v2/actors/case-actor`.
 - **Read the CaseActor's state through its own client**, never a participant's
   replica: some participant RM transitions are applied without a ledger entry,
   so a replica can lag them indefinitely (DEMOMA-06-005).
-- **Facts about the proposer travel on the proposal** (ADR-0133, CP-01-011):
+- **Facts about the proposer travel on the proposal** (ADR-0133, CP-01-011,
+  CP-01-013):
   the receiver copies its roles onto `proposerCaseRoles`, the CaseActor seats it
   with those plus `CASE_OWNER`, and the parse edge refuses a `CASE_MANAGER`
   claim (CP-01-012). No CaseActor config or store holds a proposer's facts.

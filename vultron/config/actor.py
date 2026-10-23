@@ -97,7 +97,7 @@ class ActorConfig(BaseModel):
         case_actor_service_url: Base URL of the dedicated CaseActor service
             (e.g. ``http://case-actor:7999/api/v2``).  The CaseActor's identity is
             ``{this}/actors/case-actor`` — one per container, no per-case slug
-            (CP-04-003, #1872).  Required for any actor whose BT may run the
+            (CP-04-005, #1872).  Required for any actor whose BT may run the
             ``engage-case`` path.  When ``None``, the nodes that need it return
             ``FAILURE`` with a clear error rather than guessing a base URL, since
             a guessed identity is one no container hosts (CP-08-001, CP-08-002).
@@ -130,7 +130,7 @@ class ActorConfig(BaseModel):
             "(e.g. http://case-actor:7999/api/v2). The CaseActor identity is "
             "{this}/actors/case-actor. Required for actors that create cases; "
             "absence makes the proposal-sending nodes fail rather than guess "
-            "(CP-08-001, CP-04-003)."
+            "(CP-08-001, CP-04-005)."
         ),
     )
 
