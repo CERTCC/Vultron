@@ -125,9 +125,10 @@ also defines **Message Type** and **Protocol Shorthand** for the formal message 
 
 **Wire activity**:
 An ActivityStreams 2.0 (AS2) activity of a given shape, such as
-`Offer(VulnerabilityReport)`, written with the literal AS2 type names a sender puts on
-the wire. Parentheses hold an activity's object; brackets after it name other fields
-that tell occasions apart — `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`.
+`Offer(VulnerabilityReport)`, written with the `type` values a sender puts on the
+wire, AS2 or Vultron extension (such as `EmbargoEvent`). Parentheses hold an
+activity's object; brackets after it name other fields that tell occasions apart —
+`Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`.
 *Avoid*: message type (that is the formal message set); AS2 shorthand (a protocol
 shorthand is the two-letter code)
 

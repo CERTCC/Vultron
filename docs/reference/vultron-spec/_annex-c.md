@@ -18,7 +18,7 @@ This specification and the documentation write one as `Verb(Object)[field=Value]
   A value is the type the field holds, or a literal value such as a state name.
   Written without its brackets, as `Invite(EmbargoEvent)`, an activity names every occasion of that shape.
   A field that tells no occasions apart is described in the surrounding text, not in the notation.
-- **Type names.** Each name is the `type` value the sender puts on the wire, never the name of a class in an implementation.
+- **Type names.** Each name is the `type` value the sender puts on the wire, AS2 or Vultron extension (such as `EmbargoEvent`), never the name of a class in an implementation.
   An embargo is sent with `type` `EmbargoEvent`, so the notation writes `Invite(EmbargoEvent)`, `Remove(EmbargoEvent)` and `Create(EmbargoEvent)`.
 - **No addressing.** The notation describes the activity's shape, not where it goes.
   Recipients, roles and the sender are never written in it; an occasion table gives them in its "Send to" and "Sent by" columns ([Message Types](../messages/index.md)).
