@@ -699,6 +699,10 @@ groups:
       the sole `to:` recipient (PCR-08-005). Any helper that returns all participants
       (e.g. the roster index) MUST NOT be used as the sole source of recipients for
       outbound participant activities.
+    rationale: >-
+      A participant messages only the CASE_MANAGER (PCR-08-005). A roster-wide recipient
+      list sends case messages to actors that are not entitled to them, and those actors
+      act on messages that the CASE_MANAGER never committed.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_object.py::TestSvcAddObjectToCaseUseCase::test_add_object_to_case_addresses_case_manager_alone`
       and

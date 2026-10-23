@@ -448,14 +448,21 @@ groups:
       failure to apply a `CaseLedgerEntry` (SYNC-16-002). Its freshness-gate and
       tail-reconstruction helpers (`is_ledger_fresh_for_case`, `reconstruct_tail_hash`)
       read the ledger directly and apply no disposition filter.
+    rationale: >-
+      A refusal leaves no ledger entry (CLP-04-007), so the log is the only record that
+      it happened. A hash refusal or a conflicting case copy means a replica and the
+      CASE_MANAGER disagree, which needs an operator, so it is logged at ERROR. The
+      freshness and tail helpers must read the ledger as stored, because a filter there
+      could hide an entry the chain depends on.
     verification: >-
       `test/core/behaviors/sync/test_announce_tree.py::test_replica_refuses_entry_whose_hash_does_not_match_content`
       asserts the ERROR record of a hash refusal;
       `test/core/use_cases/received/test_processing_fault_received.py::test_received_fault_is_logged_naming_its_sender_and_fault`
       asserts the WARNING record of a received fault;
       `test/core/behaviors/sync/test_divergence_recovery.py::test_a_copy_that_conflicts_with_the_chain_is_refused_at_error`
-      asserts the ERROR record of a conflicting copy; and `test/core/test_sync_helpers.py` confirms the
-      two helpers over a ledger of canonical entries only.
+      asserts the ERROR record of a conflicting copy; and
+      `test/core/test_sync_helpers.py` confirms the two helpers over a ledger of
+      canonical entries only.
     relationships:
     - rel_type: implements
       spec_id: CLP-04-007
@@ -2066,6 +2073,11 @@ groups:
       emit from the CASE_MANAGER's own store and commit the canonical entry in the
       emitting tree (CLP-10-013). A participant whose container does not host the
       CASE_MANAGER MUST NOT execute a tree locally as the CASE_MANAGER (CM-24-004).
+    rationale: >-
+      The CASE_MANAGER is the only writer of the case ledger, so an assertion that never
+      reaches it is never committed and the act is lost. Running a tree as the
+      CASE_MANAGER in a container that does not host it would write canonical state into
+      a store no replica reads.
     verification: >-
       `test/core/use_cases/test_validate_report_ledger_routing.py::TestTriggerEmitsToCaseActorOutbox::test_emit_addressed_to_case_actor_id`
       asserts a trigger tree addresses its outbound activity to `case_manager_id`;
@@ -2162,6 +2174,10 @@ groups:
       This codebase MUST answer whether a request/reply pair has been authorized
       (CLP-11-001) through `CasePersistence.find_protocol_pair()`, which queries the
       case ledger.
+    rationale: >-
+      One query over the case ledger gives every caller the same answer to whether a
+      request was already answered. Separate checks over other stored records can
+      disagree with the ledger and with each other.
     verification: >-
       `test/adapters/driven/datalayer_sqlite/test_find_protocol_pair.py` confirms that
       `find_protocol_pair()` answers from the `CaseLedgerEntry` log.

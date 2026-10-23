@@ -378,6 +378,10 @@ groups:
       seconds by default, configurable via
       `AppConfig.pre_bootstrap_queue_timeout_seconds` (environment variable
       `VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS`).
+    rationale: >-
+      A queue with no expiry holds activities for a case that never bootstraps for as
+      long as the process runs. A fixed default gives every deployment the same bound,
+      and the override lets an operator fit it to how slow its peers are.
     verification: >-
       `test/test_config.py::test_defaults_pre_bootstrap_queue_timeout_seconds` asserts
       the 300-second default, and
@@ -394,6 +398,10 @@ groups:
     statement: >-
       When this codebase drops an expired pre-bootstrap queue (CBT-03-003), it MUST log
       a warning.
+    rationale: >-
+      An expired queue drops activities the actor received but never processed. Without
+      a log record, an operator cannot tell that a case missed its bootstrap or which
+      activities were lost.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_handler.py::test_pending_case_queue_expires_drops_and_warns`
       asserts the WARNING record when an expired queue is dropped.
