@@ -61,7 +61,7 @@ Any `id`, `actor` or `to` the owner put inside the inner offer is ignored.
 The CASE_MANAGER then makes the offer itself.
 The offer is a new `Offer` of the case under an `id` the CASE_MANAGER derives from the proposal, so a repeat of the proposal makes the same offer and never a second one.
 The CASE_MANAGER sends it under its own identity, with the owner who asked for it named as the author (`attributed_to`).
-This is the delegated-message contract that every message the CASE_MANAGER sends on a participant's behalf follows ([CM-24-001 through CM-24-005](../../reference/specs/protocol.md#cm-24)).
+This is the delegated-message contract that every message the CASE_MANAGER sends on a participant's behalf follows ([CM-24-001](../../reference/specs/protocol.md#cm-24-001), [CM-24-002](../../reference/specs/protocol.md#cm-24-002), [CM-24-004](../../reference/specs/architecture.md#cm-24-004), [CM-24-005](../../reference/specs/project.md#cm-24-005)).
 The CASE_MANAGER records the proposal and then the offer in the ledger, so every participant learns that a transfer is being offered.
 That offer is the one offer of the transfer: the one the proposed new owner answers, and the one the ledger closes.
 The offer carries the proposed new owner (`target`) as a full actor object, not as an `id` alone.
@@ -95,7 +95,7 @@ The answer names the CASE_MANAGER's offer by its `id`, the same `id` the ledger 
 It refuses an `Accept` from anyone else, or a second `Accept` of the same offer, and ownership stays where it was.
 The new owner is the actor the recorded offer names, not whoever sent the acceptance.
 A participant's own copy of the case takes the ownership change only from the CASE_MANAGER.
-On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the CASE_MANAGER's case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
+On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the CASE_MANAGER's case never has two owners or none ([CM-21-001](../../reference/specs/protocol.md#cm-21-001), [CM-21-002](../../reference/specs/protocol.md#cm-21-002), [CM-21-003](../../reference/specs/protocol.md#cm-21-003), [CM-21-004](../../reference/specs/project.md#cm-21-004)).
 The previous owner keeps any other roles it held and stays a participant in the case ([CM-21-008](../../reference/specs/protocol.md#cm-21-008), [CM-21-009](../../reference/specs/protocol.md#cm-21-009)).
 The CASE_MANAGER records the acceptance in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
 

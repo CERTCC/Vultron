@@ -96,13 +96,17 @@ class _Repointer:
         if any(group != _group_of(spec_id) for spec_id in spec_ids):
             return match.group(0)  # not these requirements' group anchor
         slugs: list[str] = []
+        unknown: list[str] = []
         for spec_id in spec_ids:
             try:
                 kind = self._registry.get_effective_kind(spec_id)
             except KeyError:
-                self.unknown[spec_id] += 1
-                return match.group(0)
+                unknown.append(spec_id)
+                continue
             slugs.append(_KIND_SLUG[kind])
+        if unknown:
+            self.unknown.update(unknown)  # report every one, not the first
+            return match.group(0)
         prefix = match.group("prefix")
         links: list[str] = []
         for spec_id, slug in zip(spec_ids, slugs, strict=True):

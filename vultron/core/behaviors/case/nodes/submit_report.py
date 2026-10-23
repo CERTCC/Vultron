@@ -109,9 +109,9 @@ class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
     and reason say that ``cc`` addressing is not supported (HP-10-001,
     HP-10-002).  Core does not carry ``cc`` (ADR-0109), so the node cannot
     tell a ``cc`` copy from any other misaddressed one, and does not need
-    to: both are discarded unprocessed.  :attr:`misaddressed` tells the handler that was
-    the reason, as opposed to a wiring fault (a missing DataLayer or actor),
-    which it raises on.
+    to: both are discarded unprocessed.  :attr:`misaddressed` tells the
+    handler that was the reason, as opposed to a wiring fault (a missing
+    DataLayer or actor), which it raises on.
     """
 
     def __init__(
