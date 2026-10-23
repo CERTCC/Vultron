@@ -165,6 +165,7 @@ adr/0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observ
 adr/0153-one-role-check-per-message-picks-the-received-path.md
 adr/0154-a-received-message-is-one-staged-record-archived-only-when-applied.md
 adr/0155-a-participant-states-its-ledger-position-and-the-case-manager-answers-a-lag.md
+adr/0156-every-case-activity-states-its-senders-ledger-position.md
 adr/0157-a-cases-creation-is-one-create-delivered-and-ledgered.md
 adr/_adr-template.md
 adr/archived/0015-create-case-at-report-receipt.md
