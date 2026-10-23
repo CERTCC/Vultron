@@ -3,7 +3,7 @@
 Every case has a Case Manager.
 The Case Manager is a protocol **role**, `CASE_MANAGER`, and a participant holds it from case creation onward ([CM-24-006](../specs/protocol.md#cm-24-006)).
 The participant that holds it may be the actor that created the case, or an actor that the case's creator delegated case maintenance to.
-Authority follows the role and never the actor's name, Uniform Resource Identifier (URI) or hosting location ([§2.2 Roles](introduction.md#22-roles)), so this section names the authority *the CASE_MANAGER*: whichever participant holds the role for the case.
+This section names the authority *the CASE_MANAGER*: whichever participant holds the role for the case ([§2.2 Roles](introduction.md#22-roles)).
 
 This section specifies what the CASE_MANAGER does for its case.
 It is the only writer of the case's shared state ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)), and every case-scoped message passes through it ([§10.2 Routing Topology](interactions.md#102-routing-topology)).
@@ -45,7 +45,7 @@ Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) �
 - The CASE_MANAGER MUST record a case-scoped message in the case ledger before sending it on to the other participants ([PCR-08-003](../specs/protocol.md#pcr-08-003)).
 - `Announce` of a `CaseLedgerEntry` is the **only** mechanism by which a participant learns of an admitted change to shared case state ([PCR-08-002](../specs/protocol.md#pcr-08-002)).
 
-There are exactly **two** exceptions, both confined to case bootstrap, both occurring before a CASE_MANAGER exists to route through ([§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics)):
+There are exactly **two** exceptions, both confined to case bootstrap, both occurring before the reporter has been introduced to the CASE_MANAGER, so the reporter has none to route through ([§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics)):
 
 1. **Pre-case report submission** — the reporter sends the report directly to the vendor.
    No case exists, and therefore no participant holds the `CASE_MANAGER` role.

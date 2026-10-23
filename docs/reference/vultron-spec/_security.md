@@ -14,18 +14,14 @@ verification mechanism. The reference implementation anticipates HTTP Signatures
 future version of this specification is expected to normatively require HTTP
 Signatures at the transport layer.
 
-**Case bootstrap as the trust establishment mechanism.** The
-`Create(VulnerabilityCase)` message that the report receiver sends to the reporter
-as itself is the trust root for a case
-([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)). Late joiners receive a case snapshot and prior ledger
-entries from the CASE_MANAGER. A late joiner trusts the CASE_MANAGER's delivery
-because it trusts the `Create` message that introduced the CASE_MANAGER. This
-chain is the minimal trust model; cryptographic ledger integrity (hash-chaining)
-provides tamper detection.
+**Case bootstrap as the trust establishment mechanism.**
+The `Create(VulnerabilityCase)` message that the report receiver sends to the reporter as itself is the trust root for a case ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
+Late joiners receive a case snapshot and prior ledger entries from the CASE_MANAGER.
+A late joiner trusts the CASE_MANAGER's delivery because it trusts the invitation that named the CASE_MANAGER.
+This chain is the minimal trust model; cryptographic ledger integrity (hash-chaining) provides tamper detection.
 
 !!! info "See also"
     - [§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics) (trust and bootstrap semantics)
-    - [§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root) (the case-creation message as the trust root)
     - [§5.4 Addressing and Channels](layers.md#54-addressing-and-channels) (addressing and channels)
 
 ### 15.2 Embargo Integrity

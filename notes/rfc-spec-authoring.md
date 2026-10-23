@@ -269,9 +269,6 @@ Keep the current order; each alternative was measured and is worse:
   has, so its duties are protocol, stated about the role. The dedicated Case
   Actor appears only in an informative note, because it is one way to hold the
   role, not the protocol's (ADR-0158).
-- A normative statement about a message is about an occasion; a two-letter
-  protocol shorthand is a cross-reference tag and the vocabulary of the state
-  machine transition tables, not the unit a rule is stated on (ADR-0158).
 - §13 Conformance before the back matter is correct per RFC 7322: conformance
   is a body section. §14 IANA and Namespace Considerations precedes §15 Security
   Considerations, and §16 References closes the body.
@@ -317,6 +314,12 @@ Rules for the narrative around them:
 - **Placement is one table on the docs side** (DF-12-005). A new requirement
   file holding either tier fails the check until it is placed on a catalog
   page; the requirement files carry no placement field.
+- **A message rule is stated on its occasion**: a situation in a case that a
+  sender conveys with a particular wire activity. A two-letter protocol
+  shorthand is a cross-reference tag and the vocabulary of the state machine
+  transition tables, never the unit a rule is stated on, because the message
+  reference already documents occasions and two message units would drift
+  (ADR-0158).
 
 ---
 
