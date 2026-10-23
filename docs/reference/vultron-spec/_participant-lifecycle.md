@@ -1,11 +1,11 @@
-## 11. Participant Lifecycle Within a Case [N]
+## 12. Participant Lifecycle Within a Case [N]
 
 A case is not a fixed set of parties. Actors join, take on roles, hand
 responsibilities to one another, and leave. This section specifies that lifecycle:
 how an actor acquires a role, how it is brought into a case, how case ownership
 moves, and how a participant is removed.
 
-### 11.1 Role Assignment [N]
+### 12.1 Role Assignment [N]
 
 A role is granted through the case's authority chain. An actor does not acquire a
 case role by declaring that it holds one, because the other participants act on
@@ -15,7 +15,7 @@ on authority the Case Owner never granted.
 
 1. A case begins with a **Case Owner** — the actor whose disclosure decision the
    case exists to serve. Case ownership is not delegated, though it may be
-   transferred ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)).
+   transferred ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)).
 2. The Case Owner MAY offer an additional role to an actor that is already a participant.
    The offer is an `Offer(CaseParticipantRole)` addressed to the case's Case Manager only, never to the receiving actor ([CM-33-001](../specs/protocol.md#cm-33-001)).
    The Case Manager records the offer and forwards it to the receiving actor, which answers the Case Manager with `Accept` or `Reject` ([CM-33-004](../specs/protocol.md#cm-33-004)).
@@ -32,11 +32,11 @@ offer the case sent, not from the accepting actor's reply — otherwise an actor
 could widen its own grant on the way back.
 
 An implementation MAY verify that an actor has the capability prerequisites for a
-role ([§12.3.1 Process Roles](conformance.md#1231-process-roles)) before completing the assignment.
+role ([§13.3.1 Process Roles](conformance.md#1331-process-roles)) before completing the assignment.
 
 {% include-markdown "./_oq-role-acquisition.md" %}
 
-### 11.2 Invitation and Acceptance [N]
+### 12.2 Invitation and Acceptance [N]
 
 Bringing a new actor into a case has a problem to solve: the actor cannot decide
 whether to join until it knows something about the case, but it must not receive
@@ -88,7 +88,7 @@ The suggested-actor path adds one round-trip, because the Case Owner's decision 
 
     Full definitions are in [§6.1 States](tracking-models.md#61-states).
 
-### 11.3 Case Ownership Transfer [N]
+### 12.3 Case Ownership Transfer [N]
 
 The Case Owner MAY transfer ownership to another actor via
 `Offer(VulnerabilityCase)` / `Accept` handshake routed through the CASE_MANAGER
@@ -108,7 +108,7 @@ the associated protocol responsibilities.
     holder, and what a participant does with ledger entries it can no longer
     decrypt. This specification states no rule for either.
 
-### 11.4 Participant Removal [N]
+### 12.4 Participant Removal [N]
 
 Removing a participant withdraws its entitlement to case content.
 It does not delete the participant from the case.

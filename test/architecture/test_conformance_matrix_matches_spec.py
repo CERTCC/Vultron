@@ -12,21 +12,21 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Ratchet: the Conformance Matrix reference page mirrors spec §12.
+"""Ratchet: the Conformance Matrix reference page mirrors spec §13.
 
 ``docs/reference/conformance_matrix.md`` lays out the specification's two
-conformance dimensions — capability sets (§12.2) and roles (§12.3) — as tables,
-plus the named configurations §12.2 tabulates.  The specification is the
+conformance dimensions — capability sets (§13.2) and roles (§13.3) — as tables,
+plus the named configurations §13.2 tabulates.  The specification is the
 authority and the matrix is a view of it, so the page is hand-written but
 every set it enumerates is checked here against the fragments that define it:
 
 * the matrix's columns are exactly the ``#### <Name> capability set`` headings
   of ``_capability-sets.md``;
-* its rows are exactly the roles tabulated in ``_role-taxonomy.md`` (§12.3.1
-  process roles and §12.3.2 protocol authority roles), and the drive table
+* its rows are exactly the roles tabulated in ``_role-taxonomy.md`` (§13.3.1
+  process roles and §13.3.2 protocol authority roles), and the drive table
   names the same roles;
-* the named-configurations table is the §12.2 table, cell for cell;
-* every role requires Case Observer (§12.2: "Every actor that participates in
+* the named-configurations table is the §13.2 table, cell for cell;
+* every role requires Case Observer (§13.2: "Every actor that participates in
   any Vultron case MUST implement it"), and the two authority roles require
   the set that defines them (Case Owner → Case Decision, Case Manager → Case
   Hosting), which are the only *Required* cells outside that column.
@@ -56,10 +56,10 @@ _MARKUP = re.compile(r"[*`]|\[([^\]]*)\]\([^)]*\)")
 REQUIRED = "Required"
 OPTIONAL = "Optional"
 
-#: The capability set every participant implements (§12.2).
+#: The capability set every participant implements (§13.2).
 FLOOR_SET = "Case Observer"
 
-#: The authority roles and the set that defines each (§12.2).
+#: The authority roles and the set that defines each (§13.2).
 AUTHORITY_SETS = {
     "Case Owner": "Case Decision",
     "Case Manager": "Case Hosting",

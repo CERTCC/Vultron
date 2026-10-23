@@ -28,7 +28,7 @@ Four fields are required on every Activity:
 | `type` | The Activity type — the verb, such as `Offer` or `Announce` |
 | `actor` | The Uniform Resource Identifier (URI) of the actor that performed the action |
 | `object` | The thing acted on, inline or by reference ([§5.5 Serialization](layers.md#55-serialization)) |
-| `id` | A URI uniquely identifying this Activity, used for deduplication ([§14.3 Replay and Idempotency](considerations.md#143-replay-and-idempotency)) |
+| `id` | A URI uniquely identifying this Activity, used for deduplication ([§15.3 Replay and Idempotency](considerations.md#153-replay-and-idempotency)) |
 
 Vultron's own types are declared in the vocabulary namespace
 `https://certcc.github.io/Vultron/ns`.
@@ -89,7 +89,7 @@ types in the protocol, and the difference is one of authority rather than conten
 
 A claim becomes canonical only when the CASE_MANAGER adopts it, and adoption is an
 authorization decision with a named default rather than an automatic consequence of
-receipt ([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)). An
+receipt ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)). An
 implementation MUST NOT substitute one type for the other: a participant that
 emits `CaseStatus` is asserting authority it does not hold, and a CASE_MANAGER that
 treats an inbound `ParticipantStatus` as canonical has skipped the decision.
@@ -144,7 +144,7 @@ loses a round-trip in which the Case Owner decides:
   actor.
 
 Both paths end in an `Accept` of an `Invite`
-([§11.2 Invitation and Acceptance](interactions.md#112-invitation-and-acceptance-n)).
+([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)).
 That `Accept` joins the case; it is not RV. A participant that joined this way never saw the
 report offer, so it judges the case by answering a second `Invite` that has the case itself
 as its target, the full-case `Invite`, and that reply is RV, RI or RC
@@ -185,7 +185,7 @@ VFD state.
 This rule exists to make concurrent claims resolvable. Two participants may report
 contradictory observations about the world at the same moment; with one writer,
 the case has one answer, and the decision about which claim becomes that answer is
-explicit ([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)) rather than a
+explicit ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)) rather than a
 race. The routing rule below follows from it.
 
 #### 5.4.2 Routing Topology
@@ -234,7 +234,7 @@ occurring before a CASE_MANAGER exists to route through
 
     This is scoped per case. The role is held for one case at a time, different
     cases may be managed by different actors, and the role is transferable
-    ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)). The current reference
+    ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)). The current reference
     implementation goes further than the protocol requires and provisions a
     dedicated service actor per case.
 
@@ -289,7 +289,7 @@ The Case Manager never fills a reference in, because the entry hash covers the s
 !!! note "Provisional namespace URI"
     The namespace is currently hosted on GitHub Pages. A permanent URI may be
     registered in a future version
-    ([§13 IANA and Namespace Considerations](considerations.md#13-iana-and-namespace-considerations-i)).
+    ([§14 IANA and Namespace Considerations](considerations.md#14-iana-and-namespace-considerations-i)).
 
 ### 5.6 Transport Layer [N/I]
 
@@ -308,7 +308,7 @@ This is the transport an implementation MUST provide.
 - Each actor exposes an inbox endpoint that accepts inbound Activities.
 - An outbound Activity is delivered by HTTP POST to the recipient's inbox.
 - Authentication and authorization requirements are at
-  [§14 Security Considerations](considerations.md#14-security-considerations-ni).
+  [§15 Security Considerations](considerations.md#15-security-considerations-ni).
 
 {% include-markdown "./_oq-transport-status-codes.md" %}
 

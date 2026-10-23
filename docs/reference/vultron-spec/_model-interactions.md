@@ -1,4 +1,4 @@
-## 10. Model Interactions and Cascade Rules [N]
+## 11. Model Interactions and Cascade Rules [N]
 
 The five state machines are not independent. A transition in one produces
 obligations in others, and this section specifies those couplings.
@@ -11,12 +11,12 @@ so. The cascades below are the complete set that this specification requires.
 !!! note "Recall: which machine owns which state"
     {% include-markdown "./includes/_state-ownership-table.md" %}
 
-### 10.1 Admitting a Participant
+### 11.1 Admitting a Participant
 
 When an actor accepts the stub Invite, the CASE_MANAGER admits it to the case and
 delivers the case content. The CASE_MANAGER created the actor's inert participant
 record, at RM state `Received`, when it sent the stub Invite
-([§11.2 Invitation and Acceptance](interactions.md#112-invitation-and-acceptance-n)).
+([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)).
 The steps are ordered because each one supplies a precondition for the next.
 
 ```mermaid
@@ -56,7 +56,7 @@ in step 2 is what the delivery gate tests
 ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
 Step 4 follows the replay, so the participant judges a case it already holds.
 
-### 10.2 Embargo Revision and Termination Cascades
+### 11.2 Embargo Revision and Termination Cascades
 
 A change to the embargo in force propagates to participants' consent, because consent is given to specific terms.
 A change that is only proposed does not.
@@ -100,7 +100,7 @@ Where the act's activity states a row itself, as the owner's `Accept` states the
 Each other consent row the CASE_MANAGER writes as a consequence of the act, such as an `UNINVITED` row, the proposer's `AGREED` row or a `CARRY_OVER`, is its own CASE_MANAGER entry after the act's entry, a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoConsent)` for a changed one, carrying the row in full (EP-09-007).
 A replica copies those rows and never decides a carry-over, an expiry or a lapse itself.
 
-### 10.3 Status Adoption: The Two-Seam Model
+### 11.3 Status Adoption: The Two-Seam Model
 
 A participant's report does not become canonical case state on arrival. It
 passes two authorization points, which this specification calls **seams**. A
@@ -122,7 +122,7 @@ whether to adopt it as canonical:
 
 - The CASE_MANAGER MUST adopt a Case Owner's report without seeking approval.
   Asking the Case Owner to approve its own report would be circular
-  ([§12.4.4 Case Owner Authority](conformance.md#1244-case-owner-authority)).
+  ([§13.4.4 Case Owner Authority](conformance.md#1344-case-owner-authority)).
 - For every other sender, the CASE_MANAGER MUST obtain Case Owner authorization
   before adopting the report as canonical case state. This is the default
   posture, and it is deliberate: without it, any admitted participant could
@@ -176,7 +176,7 @@ without a change to the other.
 !!! note "Where the gate model applies"
     Seam 1 governs any reported status. Its authorization question matters most
     for the participant-agnostic PXA values, which any participant may report
-    ([§12.4.2 Participant-Agnostic CS Transitions (PXA)](conformance.md#1242-participant-agnostic-cs-transitions-pxa)) —
+    ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](conformance.md#1342-participant-agnostic-cs-transitions-pxa)) —
     including reports about other participants.
 
 !!! info "See also"

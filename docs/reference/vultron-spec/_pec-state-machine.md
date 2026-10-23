@@ -234,7 +234,7 @@ Before the CASE_MANAGER delivers full case content (`Announce(VulnerabilityCase)
     **Embargo consent — not RM progress — is the substantive gate on case content.**
     The ordering is: admit the participant at `RM.RECEIVED`, resolve embargo consent, then deliver the full case.
 
-This matters to [§10 Model Interactions and Cascade Rules](interactions.md#10-model-interactions-and-cascade-rules-n)'s cascade ordering: `Accept(Invite)` agrees to any active embargo on the joiner's row for it, which is what allows delivery to proceed immediately rather than waiting on a separate consent round-trip.
+This matters to [§11 Model Interactions and Cascade Rules](interactions.md#11-model-interactions-and-cascade-rules-n)'s cascade ordering: `Accept(Invite)` agrees to any active embargo on the joiner's row for it, which is what allows delivery to proceed immediately rather than waiting on a separate consent round-trip.
 A joiner whose row for the active embargo is `DECLINED` stays declined, because joining is not an answer to the embargo.
 
 ---

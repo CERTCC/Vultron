@@ -62,7 +62,7 @@ The 300-level introduction is [The Case Manager and the Case Ledger](../../topic
   A refused offer is not recorded and not forwarded.
   The CASE_MANAGER answers an offer refused for its role or target with the refusal notice, and an offer from any other sender with nothing.
 - **Object type:** the object type alone identifies the activity as a role offer rather than an ownership-transfer offer (ADR-0039).
-  Roles are granted through the case's authority chain ([§11.1 Role Assignment](../vultron-spec/interactions.md#111-role-assignment-n)).
+  Roles are granted through the case's authority chain ([§12.1 Role Assignment](../vultron-spec/interactions.md#121-role-assignment-n)).
 - **Target:** the participant offered the role; the `context` is the case.
 - **Forward example:** [forward_case_participant_role.json](../examples/forward_case_participant_role.json).
 - **Triggering transition:** none — roster action, not a state-machine event.
@@ -109,7 +109,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 
 {% include-markdown "./_occasions/sections/offer-case-ownership-transfer.md" %}
 
-- **Routing:** the CASE_MANAGER makes the offer from the owner's proposal and records it in the ledger ([§11.3 Case Ownership Transfer](../vultron-spec/interactions.md#113-case-ownership-transfer-n), [CM-21-005](../specs/protocol.md#cm-21-005)).
+- **Routing:** the CASE_MANAGER makes the offer from the owner's proposal and records it in the ledger ([§12.3 Case Ownership Transfer](../vultron-spec/interactions.md#123-case-ownership-transfer-n), [CM-21-005](../specs/protocol.md#cm-21-005)).
   It is the one offer of the transfer: its `id` is one the CASE_MANAGER derives from the proposal, and the proposed new owner answers it by that `id`.
   A participant takes it only from the CASE_MANAGER ([CM-21-019](../specs/protocol.md#cm-21-019)).
 - **Target:** the proposed new owner, as a full actor object.
@@ -144,7 +144,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 {% include-markdown "./_occasions/sections/invite-actor-to-case.md" %}
 
 - **Who decides:** the Case Owner decides whom to invite; a participant that wants a third party brought in sends a recommendation instead ([Suggest actor to case](general.md#suggest-actor-to-case)).
-  See [§11.2 Invitation and Acceptance](../vultron-spec/interactions.md#112-invitation-and-acceptance-n).
+  See [§12.2 Invitation and Acceptance](../vultron-spec/interactions.md#122-invitation-and-acceptance-n).
 - **Triggering transition:** none — roster action.
 - **Object and target:** the `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`.
   The stub carries the case identifier in its `caseId` and a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../specs/protocol.md#cm-11-013), [CM-17-010](../specs/protocol.md#cm-17-010), [MV-10-001](../specs/protocol.md#mv-10-001)).
@@ -238,7 +238,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   A participant that is not a signatory to the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and the catch-up waits until it accepts.
 - **Notice:** the CASE_MANAGER also sends the reinstated participant a direct `Add(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
   The notice is not ledgered.
-- **Spec:** [Participant Removal](../vultron-spec/interactions.md#114-participant-removal-n).
+- **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
 
 The example above shows a Vendor that holds the Case Owner role reinstating a Coordinator.
 The wire shape is the same whatever roles the participant holds; only `caseRoles` on the attached object differs.
@@ -257,7 +257,7 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
   Every replica applies the removal from that entry, the removed participant's own included.
 - **Notice:** the CASE_MANAGER then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
   The notice is not ledgered.
-- **Spec:** [Participant Removal](../vultron-spec/interactions.md#114-participant-removal-n).
+- **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
 - **Example artifact:** [remove_participant_from_case.json](../examples/remove_participant_from_case.json).
 
 {% include-markdown "./_occasions/sections/update-case-owner.md" %}

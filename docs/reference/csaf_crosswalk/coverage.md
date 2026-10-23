@@ -55,7 +55,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <td markdown="span">CSAF controls distribution of each document with a Traffic Light Protocol (TLP) label, not with entitlement.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">Joining and removal: invitation, acceptance, [suggest-actor-to-case](../glossary.md#messaging-and-protocol), and removal ([§11 Participant Lifecycle Within a Case](../vultron-spec/interactions.md#11-participant-lifecycle-within-a-case-n))</td>
+<td markdown="span">Joining and removal: invitation, acceptance, [suggest-actor-to-case](../glossary.md#messaging-and-protocol), and removal ([§12 Participant Lifecycle Within a Case](../vultron-spec/interactions.md#12-participant-lifecycle-within-a-case-n))</td>
 <td markdown="span">The case changes its list of participants only through these flows.</td>
 <td markdown="span">A CSAF projection can record a join as a `notification` or `coordination` action, but CSAF has no rules for it.</td>
 </tr>
@@ -84,7 +84,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 <td markdown="span">CSAF enforces no order between action status values. The draft gives only an informative common order for a `notification`, and the design proposal calls the status "descriptive and observational".</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[Model interactions and cascade rules](../vultron-spec/interactions.md#10-model-interactions-and-cascade-rules-n)</td>
+<td markdown="span">[Model interactions and cascade rules](../vultron-spec/interactions.md#11-model-interactions-and-cascade-rules-n)</td>
 <td markdown="span">A change in one state machine can cause a change in a different one, for example an embargo end when the vulnerability becomes known to be public.</td>
 <td markdown="span">No counterpart.</td>
 </tr>

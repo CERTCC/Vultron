@@ -124,8 +124,8 @@ Every transition is a change to shared case state, so the CASE_MANAGER applies i
 **Reaching Exited.**
 Exited means the embargo has been torn down at the case level.
 A participant does not put the case into Exited by deciding to stop observing the embargo.
-What a participant may do is withdraw its own consent, report that it intends to exit, propose a shorter embargo, or propose an earlier end date; the CASE_MANAGER then terminates the embargo and records the termination ([§10.2 Embargo Revision and Termination Cascades](interactions.md#102-embargo-revision-and-termination-cascades)).
-Terminating an embargo requires Case Owner authorization by default, on the same terms as any other change to canonical case state ([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)).
+What a participant may do is withdraw its own consent, report that it intends to exit, propose a shorter embargo, or propose an earlier end date; the CASE_MANAGER then terminates the embargo and records the termination ([§11.2 Embargo Revision and Termination Cascades](interactions.md#112-embargo-revision-and-termination-cascades)).
+Terminating an embargo requires Case Owner authorization by default, on the same terms as any other change to canonical case state ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
 An embargo whose end time has passed is terminated by the CASE_MANAGER itself, with the reason `END_TIME_REACHED` (EMB-13-003).
 
 {% include-markdown "./_oq-embargo-termination-authority.md" %}
@@ -167,7 +167,7 @@ Two register steps change who is bound; only one of them writes rows:
 - **Terminating the embargo** leaves no entry `ACTIVE`, so nobody is a signatory and nobody has lapsed.
   The termination writes no consent row, and every row for a final entry is frozen as it stood (CM-18-003, CM-18-016).
 
-[§10.2 Embargo Revision and Termination Cascades](interactions.md#102-embargo-revision-and-termination-cascades) specifies both cascades.
+[§11.2 Embargo Revision and Termination Cascades](interactions.md#112-embargo-revision-and-termination-cascades) specifies both cascades.
 
 !!! info "See also"
     - [Embargo Management Process Model](../../topics/process_models/em/index.md)

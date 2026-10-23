@@ -1,6 +1,6 @@
-## 15. References
+## 16. References
 
-### 15.1 Normative References
+### 16.1 Normative References
 
 These documents are required to implement this specification.
 
@@ -13,7 +13,7 @@ These documents are required to implement this specification.
 | [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) | JSON-LD 1.1: A JSON-based Serialization for Linked Data, W3C Recommendation |
 | [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259) | The JavaScript Object Notation (JSON) Data Interchange Format |
 
-### 15.2 Informative References
+### 16.2 Informative References
 
 These documents provide context. They are not required to implement this
 specification.
@@ -24,8 +24,8 @@ specification.
 | [ISO/IEC 29147:2018](https://www.iso.org/standard/72311.html) | Information technology — Security techniques — Vulnerability disclosure |
 | [ISO/IEC 30111:2019](https://www.iso.org/standard/69725.html) | Information technology — Security techniques — Vulnerability handling processes |
 | [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD) | The CERT Guide to Coordinated Vulnerability Disclosure. Source of this specification's definition of *vulnerability* ([§2.1 Actors, Participants and Cases](introduction.md#21-actors-participants-and-cases)) |
-| [CVE Program](https://www.cve.org/) | Common Vulnerabilities and Exposures (CVE) Numbering Authority operational rules, referenced at [§12.4.3 CVE ID Assignment](conformance.md#1243-cve-id-assignment) |
+| [CVE Program](https://www.cve.org/) | Common Vulnerabilities and Exposures (CVE) Numbering Authority operational rules, referenced at [§13.4.3 CVE ID Assignment](conformance.md#1343-cve-id-assignment) |
 | [RFC 7033](https://www.rfc-editor.org/rfc/rfc7033) | WebFinger. The anticipated participant-discovery mechanism ([§5.6 Transport Layer](layers.md#56-transport-layer-ni)) |
-| [HTTP Signatures](https://datatracker.ietf.org/doc/draft-cavage-http-signatures/) | Signing HTTP Messages. The anticipated authentication layer ([§14.1 Trust Model](considerations.md#141-trust-model)) |
+| [HTTP Signatures](https://datatracker.ietf.org/doc/draft-cavage-http-signatures/) | Signing HTTP Messages. The anticipated authentication layer ([§15.1 Trust Model](considerations.md#151-trust-model)) |
 
 ---

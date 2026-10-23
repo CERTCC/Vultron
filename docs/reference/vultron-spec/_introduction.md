@@ -82,7 +82,7 @@ require, within a case, that shared state have one writer.
 
     Vultron does **not** require a single central authority holding all cases. Any
     actor able to satisfy the Case Manager role can manage a case, and the role is
-    transferable ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)).
+    transferable ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)).
 
     Equally, Vultron as it stands is **not** a fully decentralized design. Within
     a case there is one writer, and its availability bounds how fast the case can

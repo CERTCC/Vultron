@@ -125,7 +125,7 @@ the receiver's model of the sender rather than the receiver's own state
 ([§8.4 Receiving CS Messages: Own State vs. Model of Others](tracking-models.md#84-receiving-cs-messages-own-state-vs-model-of-others)). The three
 PXA messages report a claim about the world, which becomes canonical case state
 only if the CASE_MANAGER adopts it
-([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)).
+([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
 
 ### 4.4 Case Coordination Operations
 
@@ -136,10 +136,10 @@ they concern the case as an object rather than any machine's state.
 | Operation | Meaning |
 |---|---|
 | Case creation | An actor establishes a case for a vulnerability, and with it the case's authority chain ([§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics)) |
-| Invitation | The CASE_MANAGER invites an actor to join, on the Case Owner's behalf; the actor accepts or declines ([§11.2 Invitation and Acceptance](interactions.md#112-invitation-and-acceptance-n)) |
-| Actor suggestion | A participant recommends that some actor be brought into the case; the Case Owner decides whether to invite it ([§11.2 Invitation and Acceptance](interactions.md#112-invitation-and-acceptance-n)) |
-| Role offer | The Case Owner offers a role to an actor, which accepts or declines ([§11.1 Role Assignment](interactions.md#111-role-assignment-n)) |
-| Ownership transfer | The Case Owner offers ownership of the case to another actor ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)) |
+| Invitation | The CASE_MANAGER invites an actor to join, on the Case Owner's behalf; the actor accepts or declines ([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)) |
+| Actor suggestion | A participant recommends that some actor be brought into the case; the Case Owner decides whether to invite it ([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)) |
+| Role offer | The Case Owner offers a role to an actor, which accepts or declines ([§12.1 Role Assignment](interactions.md#121-role-assignment-n)) |
+| Ownership transfer | The Case Owner offers ownership of the case to another actor ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)) |
 | Ledger replication | The CASE_MANAGER sends each committed ledger entry to every participant. This is the only way a participant learns of an admitted change to shared case state |
 | Case delivery | The CASE_MANAGER sends a participant the full case, once that participant is admitted and its embargo consent is resolved ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)) |
 | Case metadata update | The CASE_MANAGER records a change to the case's own attributes |
@@ -168,7 +168,7 @@ holds the role.
 **A late joiner inherits that trust transitively.** An actor invited after the case
 is under way never sees the original creation message. It receives the case
 snapshot and the prior ledger entries from the CASE_MANAGER
-([§10.1 Admitting a Participant](interactions.md#101-admitting-a-participant)), and it trusts them because it
+([§11.1 Admitting a Participant](interactions.md#111-admitting-a-participant)), and it trusts them because it
 trusts the invitation that named the CASE_MANAGER. The hash-chaining of the ledger
 lets the joiner verify it received an unbroken history — a check against tampering
 and omission, not a second source of trust.
@@ -180,7 +180,7 @@ arrives, and discards it if the case never does. Applying it early would create
 case state from a message whose context was never established.
 
 The threat model, identity verification, and the limits of this trust chain are
-covered at [§14.1 Trust Model](considerations.md#141-trust-model).
+covered at [§15.1 Trust Model](considerations.md#151-trust-model).
 
 ### 4.6 Error and Acknowledgment Messages
 

@@ -31,7 +31,7 @@ change to every participant as `Announce(CaseLedgerEntry)`.
 A participant reports its own state and reports observations about the world. It
 does not write shared case state, and reporting an observation is not the same as
 that observation becoming canonical
-([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)).
+([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
 
 ### 3.2 What a Deployment Looks Like
 
@@ -81,7 +81,7 @@ state ([§5.4.2 Routing Topology](layers.md#542-routing-topology)).
     instruction to the recipient. An `RV` message means "I received this report
     and determined it was valid" — it does not ask the recipient to treat the
     report as valid. This holds throughout
-    [§4 Semantic Layer — Message Meanings](layers.md#4-semantic-layer-message-meanings-n) through [§10 Model Interactions and Cascade Rules](interactions.md#10-model-interactions-and-cascade-rules-n)
+    [§4 Semantic Layer — Message Meanings](layers.md#4-semantic-layer-message-meanings-n) through [§11 Model Interactions and Cascade Rules](interactions.md#11-model-interactions-and-cascade-rules-n)
     and governs how every message description in those sections should be read.
 
     One construct is deliberately request-shaped: a proposal such as an embargo
@@ -125,7 +125,7 @@ implementation and is fully normative; its provenance is recorded at
 
 The four dimensions are coupled. A transition in one creates obligations in
 others. This subsection summarizes the couplings;
-[§10 Model Interactions and Cascade Rules](interactions.md#10-model-interactions-and-cascade-rules-n) specifies them.
+[§11 Model Interactions and Cascade Rules](interactions.md#11-model-interactions-and-cascade-rules-n) specifies them.
 
 **RM governs what a participant receives.** A participant's RM state determines
 what it is obliged to do and what the CASE_MANAGER may send it. Full case
@@ -139,20 +139,20 @@ records the termination. A participant may report that it intends to exit, or
 propose a shorter embargo or an earlier end date, but a participant does not end
 the case's embargo by itself — EM is shared case state
 ([§7.2 Transitions and Guards](tracking-models.md#72-transitions-and-guards),
-[§10.2 Embargo Revision and Termination Cascades](interactions.md#102-embargo-revision-and-termination-cascades)).
+[§11.2 Embargo Revision and Termination Cascades](interactions.md#112-embargo-revision-and-termination-cascades)).
 
 **CS records observation, not decision.** A VFD transition is a fact about what
 one participant has done. A PXA transition is a fact about the world. Any
 participant may report a PXA observation; whether that report becomes canonical
 case state is decided separately
-([§10.3 Status Adoption: The Two-Seam Model](interactions.md#103-status-adoption-the-two-seam-model)).
+([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
 
 **EM and PEC answer different questions.**
 EM says whether the case has an embargo.
 PEC says whether a given participant is bound by it.
 The two can disagree: a case at EM Active may hold a participant whose row for the embargo in force is not Agreed, if that participant has been invited but has not yet joined, or declined the terms.
 Cascade rules keep them consistent
-([§10.2 Embargo Revision and Termination Cascades](interactions.md#102-embargo-revision-and-termination-cascades)).
+([§11.2 Embargo Revision and Termination Cascades](interactions.md#112-embargo-revision-and-termination-cascades)).
 
 ### 3.5 Participants and Roles
 
@@ -170,7 +170,7 @@ is both Reporter and Vendor.
 machines regardless of which roles it holds. Roles govern which transitions it
 may cause, not which machines it maintains.
 
-Two categories of role apply. [§12.3 Role Taxonomy](conformance.md#123-role-taxonomy) gives the full
+Two categories of role apply. [§13.3 Role Taxonomy](conformance.md#133-role-taxonomy) gives the full
 taxonomy.
 
 - **Process roles** — what an actor *does* in a case: Reporter, Vendor,
@@ -184,15 +184,15 @@ The distinction between the two authority roles matters throughout:
 - The **Case Owner** is the party whose disclosure decision the case exists to
   serve. It decides who is admitted, which roles they hold, and whether embargo
   terms are accepted or torn down. Case ownership is never delegated, though it
-  may be transferred ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)).
+  may be transferred ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)).
 - The **Case Manager** is the participant holding the `CASE_MANAGER` role. It
   writes the canonical case ledger, relays case-scoped messages, and acts on the
   Case Owner's behalf.
-  The role cannot be granted by a role offer ([§11.1 Role Assignment](interactions.md#111-role-assignment-n)); how it is handed to another actor is not yet specified.
+  The role cannot be granted by a role offer ([§12.1 Role Assignment](interactions.md#121-role-assignment-n)); how it is handed to another actor is not yet specified.
 
 Roles are assigned through the case's authority chain, not claimed. An actor does
 not acquire a case role by asserting that it holds one
-([§11.1 Role Assignment](interactions.md#111-role-assignment-n)).
+([§12.1 Role Assignment](interactions.md#121-role-assignment-n)).
 
 !!! info "See also"
     - [Formal Protocol Definition](../formal_protocol/index.md)

@@ -66,7 +66,7 @@ A production implementation must support dereference (AKM-05-004).
 ### Where the protocol requires one form
 
 The `target` field carries a case by reference only: the case URI when the recipient already holds the case, or a case stub for an actor that does not yet hold it (AKM-02-003).
-The [protocol specification §11.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#112-invitation-and-acceptance-n) defines what a case stub carries.
+The [protocol specification §12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n) defines what a case stub carries.
 
 A case ledger entry's payload snapshot records the asserted activity exactly as it was sent, so its nested objects are inline where the sender inlined them and by URI where the sender named them (CLP-07-006).
 The entry hash covers the snapshot and nothing outside it, which is why the case manager never fills a reference in: the record would then be its reconstruction rather than what was sent.

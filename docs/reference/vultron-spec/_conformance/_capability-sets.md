@@ -1,4 +1,4 @@
-### 12.2 Capability Sets
+### 13.2 Capability Sets
 
 A capability set is a group of obligations an implementation takes on. Three are
 defined: Case Observer, which every participant must provide, and Case Decision
@@ -21,7 +21,7 @@ so that phrase needs pinning down first.
     drive leaves the others to discover its state changes some other way. A
     participant that drives but does not track acts on case state it does not
     know. Which transitions a participant may drive depends on its roles
-    ([§12.4 Role-Specific Normative Requirements](../conformance.md#124-role-specific-normative-requirements)); every
+    ([§13.4 Role-Specific Normative Requirements](../conformance.md#134-role-specific-normative-requirements)); every
     participant tracks.
 
 {% include-markdown "../includes/_dimensions-vs-machines.md" %}
@@ -71,7 +71,7 @@ state and notify others of its own transitions.
     All Observer participants **track** all five machines. Which transitions a
     participant **drives** depends on its role extension set: a Vendor drives its
     own VFD transitions; a Reporter drives RM; any participant may report PXA
-    observations. See [§12.3 Role Taxonomy](../conformance.md#123-role-taxonomy) and [§12.4 Role-Specific Normative Requirements](../conformance.md#124-role-specific-normative-requirements).
+    observations. See [§13.3 Role Taxonomy](../conformance.md#133-role-taxonomy) and [§13.4 Role-Specific Normative Requirements](../conformance.md#134-role-specific-normative-requirements).
 
 #### Case Decision capability set
 
@@ -100,7 +100,7 @@ It is separable from the Case Decision capability set.
   participants via `Announce(CaseLedgerEntry)`
 - MUST implement multi-party case management: participant invitation,
   acceptance, role assignment, and case ownership operations
-- MUST implement the two-seam status adoption model ([§10.3 Status Adoption: The Two-Seam Model](../interactions.md#103-status-adoption-the-two-seam-model)), including the
+- MUST implement the two-seam status adoption model ([§11.3 Status Adoption: The Two-Seam Model](../interactions.md#113-status-adoption-the-two-seam-model)), including the
   canonical-write-before-side-effects ordering
 - MUST deliver full case content only when the [§9.7 Gating Full Case Delivery](../tracking-models.md#97-gating-full-case-delivery) gate is satisfied
 
