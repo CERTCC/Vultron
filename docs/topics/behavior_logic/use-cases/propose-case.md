@@ -25,7 +25,8 @@ The proposal carries the report inline.
 The reference implementation does not permit a URI reference here, because the receiving service cannot yet fetch an object out of the proposer's store (CP-01-004, AKM-03-003).
 It also carries the provenance of the report — which `Offer(VulnerabilityReport)` delivered it and from whom — because the accepting service cannot reconstruct that and needs it for the first ledger entry (CP-01-007).
 
-The proposal is addressed to the service's container identity, never to an identity derived per case or per report (CP-04-003).
+The proposal is addressed to the service's own actor identity, which exists before the report does, never to an identity derived per case or per report (CP-04-003).
+In this implementation that identity is `{case_actor_service_url}/actors/case-actor`, one per case-actor container (CP-04-005).
 The service does not exist yet as a per-case actor; that is what is being asked for.
 That identity is `{case_actor_service_url}/actors/case-actor`: one per container, holding many cases (BT-10-002).
 Which case an activity concerns travels in its `context`, not in the address.
@@ -194,8 +195,9 @@ Bringing in a vendor or a coordinator is a separate flow.
 
 | Requirement | Obligation |
 |---|---|
-| [CP-04-001](../../../reference/specs/protocol.md#cp-04-001) | A proposer MUST send `Create(as_CaseProposal)` to the case actor service's inbox |
-| [CP-04-003](../../../reference/specs/protocol.md#cp-04-003) | The proposal MUST be addressed to the service's container identity, not a per-case one |
+| [CP-04-001](../../../reference/specs/protocol.md#cp-04-001) | A proposer MUST send `Create(CaseProposal)` to the case actor service's inbox |
+| [CP-04-003](../../../reference/specs/protocol.md#cp-04-003) | The proposal MUST be addressed to the service's own actor identity, not a per-case one |
+| [CP-04-005](../../../reference/specs/project.md#cp-04-005) | This implementation's service identity is `{case_actor_service_url}/actors/case-actor` |
 | [CP-05-002](../../../reference/specs/protocol.md#cp-05-002) | The service MUST evaluate the proposal and either accept or reject it |
 | [CP-05-003](../../../reference/specs/protocol.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
 | [CP-05-004](../../../reference/specs/protocol.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal, inline or by reference |
@@ -203,8 +205,8 @@ Bringing in a vendor or a coordinator is a separate flow.
 | [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case; when the case is fully closed it MUST be answered with `Reject(as_CaseProposal)` instead, with no ledger entry and no case or participant change |
 | [CP-05-008](../../../reference/specs/protocol.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case; when the owner's case is fully closed the proposal MUST be answered with `Reject(as_CaseProposal)`, with no ledger entry and no case or participant change |
 | [CP-05-007](../../../reference/specs/protocol.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |
-| [CP-06-003](../../../reference/specs/protocol.md#cp-06-003) | The proposer MUST record the acceptance and await the replica |
-| [CP-06-004](../../../reference/specs/protocol.md#cp-06-004) | The proposer MUST record a refusal and surface its reason where one is given |
+| [CP-06-003](../../../reference/specs/project.md#cp-06-003) | The proposer MUST record the acceptance and await the replica |
+| [CP-06-004](../../../reference/specs/project.md#cp-06-004) | The proposer MUST record a refusal and surface its reason where one is given |
 
 The requirement most often read too loosely is CP-05-002.
 "Evaluate and either accept or reject" is not satisfied by a service that always accepts.

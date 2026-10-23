@@ -49,7 +49,7 @@ deleted for exactly that reason; the ratchet in
 ``test/architecture/test_role_authority_resolver.py`` keeps it from returning
 (ARCH-24-004, CM-02-013).
 
-Spec: CP-04-003, BT-10-002, CM-02-013. Per ADR-0041, narrowed by ADR-0088.
+Spec: CP-04-003, CP-04-005, BT-10-002, CM-02-013. Per ADR-0041, narrowed by ADR-0088.
 """
 
 from vultron.config import get_config

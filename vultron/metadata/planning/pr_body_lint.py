@@ -159,11 +159,19 @@ RULES: tuple[Rule, ...] = (
         "An attribution line (`Generated with [...]`) is the body's last "
         "non-blank line.",
     ),
+    Rule(
+        "PRB-11",
+        "body-length",
+        "The body is at most GitHub's 65,536-character limit, at every stage.",
+    ),
 )
 
 RULES_BY_ID: dict[str, Rule] = {rule.rule_id: rule for rule in RULES}
 
 DOCS_PLACEHOLDER = "Docs: pending check-docs-sync"
+
+#: GitHub refuses a pull request body longer than this many characters.
+BODY_LIMIT = 65_536
 MANIFEST_LINES: tuple[str, ...] = (
     "Loaded (floor):",
     "Loaded (cross-cutting):",
@@ -444,6 +452,17 @@ def _check_attribution(body: _Body) -> Iterator[Finding]:
         )
 
 
+def _check_length(text: str) -> Iterator[Finding]:
+    """PRB-11."""
+    if len(text) > BODY_LIMIT:
+        yield Finding(
+            "PRB-11",
+            f"the body is {len(text):,} characters, over GitHub's "
+            f"{BODY_LIMIT:,}-character limit; shorten it (a long "
+            f"`## Spec amended` statement can show its changed span)",
+        )
+
+
 def lint_body(text: str, facts: BodyFacts) -> list[Finding]:
     """Every finding for the body *text*, in rule order."""
     body = _Body(text)
@@ -454,6 +473,7 @@ def lint_body(text: str, facts: BodyFacts) -> list[Finding]:
         *_check_docs(body, facts),
         *_check_amended(body, facts),
         *_check_attribution(body),
+        *_check_length(text),
     ]
     order = {rule.rule_id: i for i, rule in enumerate(RULES)}
     return sorted(findings, key=lambda f: order[f.rule_id])

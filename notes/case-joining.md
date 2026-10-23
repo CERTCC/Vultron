@@ -295,7 +295,7 @@ distinction in new messages: we accept offers and invitations, never bare object
   are recorded, backward moves refused before the receipt commit, restatements
   `SKIPPED`; see [received-status-authorization](received-status-authorization.md).
 - **A ledger position travels in AS2 `content`**, as the `LedgerPosition` JSON dump
-  (VAM-04-011); `target` stays the plain case URI (AKM-02-003). Only
+  (VAM-04-011, VAM-04-019); `target` stays the plain case URI (AKM-02-003). Only
   `vultron.wire.as2.factories.ledger_position_content` writes it, and the extractor
   refuses a missing, blank or non-parsing one. An empty ledger is `logIndex` -1 with
   the case's `genesisHash` (CLP-08-004).

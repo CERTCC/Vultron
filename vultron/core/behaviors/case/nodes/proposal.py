@@ -45,7 +45,8 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
     the deleted ``ProposeCaseToActorNode`` (issue #4353),
     this node does not require a ``VulnerabilityCase`` to exist — it uses
     ``report_id`` directly and addresses the container's CaseActor identity,
-    ``{ActorConfig.case_actor_service_url}/actors/case-actor`` (CP-04-003).
+    ``{ActorConfig.case_actor_service_url}/actors/case-actor`` (CP-04-003,
+    CP-04-005).
 
     Returns ``FAILURE`` when:
 
@@ -55,7 +56,7 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
 
     The proposal states this actor's ``default_case_roles`` (CFG-07-002), which
     the CASE_MANAGER seats it with alongside ``CASE_OWNER`` (CP-01-011,
-    CP-09-007, ADR-0133).
+    CP-01-013, CP-09-007, ADR-0133).
 
     Per specs/case-proposal.yaml CP-04-001, CP-04-002 and ADR-0041.
     """
@@ -111,7 +112,7 @@ class ProposeReportCaseToActorNode(_EmitSingleActivityBase):
                     case_actor_id=case_actor_id,
                     offer_id=offer_id,
                     offer_actor_id=offer_actor_id,
-                    # CP-01-011, ADR-0133: this actor's own roles, which the
+                    # CP-01-013, ADR-0133: this actor's own roles, which the
                     # CASE_MANAGER cannot read from its own configuration.
                     proposer_case_roles=get_config().actor.default_case_roles,
                 )

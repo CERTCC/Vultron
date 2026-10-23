@@ -284,7 +284,7 @@ assertion that was *understood and refused*.
 The fourth row is the inbox's job, not a tree's: one catch covers every received
 use case. Send no fault for an attempt that will be retried, only when none
 follows, or a retry that succeeds leaves a false fault that closes the ask
-(ASK-07-010, ASK-07-007).
+(ASK-07-010, ASK-07-011, ASK-07-007).
 
 The **fault statement itself** is different. "B could not process A's message" is
 a true, legible statement about a message that arrived, so it is recorded as an

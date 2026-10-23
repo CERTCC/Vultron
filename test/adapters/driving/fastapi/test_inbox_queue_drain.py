@@ -171,6 +171,7 @@ def _logged(caplog: pytest.LogCaptureFixture, *parts: str) -> bool:
 
 @pytest.mark.spec("IE-06-004")
 @pytest.mark.spec("ASK-07-010")
+@pytest.mark.spec("ASK-07-011")
 @pytest.mark.usefixtures("outbox_drains")
 def test_a_failing_replay_is_answered_only_when_dead_lettered(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch, caplog

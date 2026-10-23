@@ -48,6 +48,7 @@ def _invite():
 
 
 @pytest.mark.spec("VAM-04-011")
+@pytest.mark.spec("VAM-04-019")
 def test_invite_targets_the_plain_case_uri_and_carries_the_floor_in_content():
     invite = _invite()
 

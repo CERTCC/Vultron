@@ -578,8 +578,9 @@ def test_unprocessable_activity_is_not_committed_to_the_ledger() -> None:
     )
 
 
-# ASK-07-010 is promoted.  The internal-error fault a raising received use case
-# is answered with is pinned by behavioural tests:
+# ASK-07-010 is promoted, and ASK-07-011 holds how the inbox meets it.  The
+# internal-error fault a raising received use case is answered with is pinned
+# by behavioural tests carrying both markers:
 # test/core/behaviors/inbox/test_process_payload.py
 # (TestARaisedDispatchIsAnsweredWithAFault),
 # test/adapters/driving/fastapi/test_failed_act_redelivery.py

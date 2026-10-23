@@ -32,9 +32,9 @@ That is how a Reporter's proposed embargo terms reach the case-actor (EP-04-004)
 - **Actor:** the `Create` goes to the service's inbox.
   Its `actor` is the proposing actor's full profile inline, not a URI, and its `id` is the proposal's `attributedTo`.
   The profile carries the proposer's `embargoPolicy` when it has published one, which is the Case Owner's actor default (EP-04-003); the case-actor reads the default from that profile alone, and refuses an `actor` that is a bare URI, a Link, an untyped or non-actor object, or a profile naming another actor, at the parse edge (CP-01-010).
-- **Case roles:** the proposal's `proposerCaseRoles` lists the Coordinated Vulnerability Disclosure (CVD) roles the proposer holds in a case it owns, taken from its own configuration (CP-01-011).
+- **Case roles:** the proposal's `proposerCaseRoles` lists the Coordinated Vulnerability Disclosure (CVD) roles the proposer holds in a case it owns, taken from its own configuration (CP-01-011, CP-01-013).
   The case-actor seats the proposer with those roles plus `CASE_OWNER`, and refuses a proposal that claims `CASE_MANAGER` (CP-01-012, [ADR-0133](../../adr/0133-the-report-receiver-states-its-case-roles-on-the-case-proposal.md)).
-- **Spec:** CP-01-010, CP-01-011, CP-01-012, CP-03-001, CP-04-001.
+- **Spec:** CP-01-010, CP-01-011, CP-01-012, CP-01-013, CP-03-001, CP-04-001.
 - **Example artifact:** [create_case_proposal.json](../examples/create_case_proposal.json).
 
 {% include-markdown "./_occasions/sections/accept-case-proposal.md" %}

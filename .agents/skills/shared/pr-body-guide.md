@@ -41,6 +41,7 @@ This table and the tool's `RULES` are one list; a test fails when they differ.
 | PRB-08 | docs-line | A `Docs:` line exists; at `final`, in a final form, not the placeholder |
 | PRB-09 | spec-amended | A `### <ID>` block per amended ID; at `final`, no `<TODO>` |
 | PRB-10 | attribution-last | The `Generated with [...]` line, when present, is the last line |
+| PRB-11 | body-length | The body is at most GitHub's 65,536-character limit |
 
 ---
 
@@ -139,7 +140,10 @@ Docs: pending check-docs-sync   <!-- create-pr writes this; check-docs-sync's re
   diff changes or removes a `statement:` or `priority:` in `specs/`; omit it
   otherwise. `bash .agents/skills/shared/spec-amendments.sh origin/main` lists the
   IDs (new requirements are not listed — nothing built on them can be wrong).
-  One `### <ID>` block each, with **Before**, **After** and **Reason**. The
+  One `### <ID>` block each, with **Before**, **After** and **Reason**. On a
+  sweep large enough to break GitHub's body limit (PRB-11), show a long
+  statement as its changed span with a few words of context either side,
+  `…` marking each cut, and say so at the top of the section. The
   section is the single place a reviewer sees spec text moved to fit code; the
   material test in `notes/agentic-workflow.md` § "Spec Text Conflicts With Code"
   decides whether the Reason is a clarification (allowed in the PR) or an

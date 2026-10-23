@@ -158,11 +158,12 @@ records the activity as the same semantic, which covers a tree with no repeat gu
 of its own (RM engage). Add no repair pass and no "redelivered, so skip" shortcut at
 ingress (ADR-0151, `test_failed_act_redelivery.py`).
 
-**A raised dispatch is answered with a fault** (ASK-07-010): `DispatchNode` logs it
-once at ERROR with the activity and sender ids and queues one internal-error
-`Create(ProcessingFault)` to the sender through `DispatchAdapter`. A live delivery is
-never retried, so only the sender's own resend, which the fault invites, can later
-succeed. A queued replay is retried (IE-06-004, `inbox_queue_drain.py`), so its
+**A raised dispatch is answered with a fault** (ASK-07-010, ASK-07-011):
+`DispatchNode` logs it once at ERROR with the activity and sender ids and queues
+one internal-error `Create(ProcessingFault)` to the sender through `DispatchAdapter`.
+A live delivery is never retried, so only the sender's own resend, which the fault
+invites, can later succeed. A queued replay is retried (IE-06-004,
+`inbox_queue_drain.py`), so its
 `ReplayDispatchAdapter` holds the fault and sends it only when the item is
 dead-lettered or dropped as a protocol violation, never on a re-queue, or a later
 success would follow a false fault (ASK-07-007). A raise after the dispatch returned

@@ -77,7 +77,7 @@ and the common server, database and ledger variables.
   appended at participant creation (BTND-05-002). A report receiver states these
   roles on its `Create(CaseProposal)` as `proposerCaseRoles`, and the CaseActor
   seats it with them; the CaseActor never reads its own `default_case_roles` for a
-  proposer (CP-01-011, ADR-0133).
+  proposer (CP-01-013, ADR-0133).
 - **`actor.min_rsvp_window` / `default_rsvp_window`** are measured from the
   invite's `published` time and bounded by the embargo's end (EP-07-006); see
   [notes/embargo-default-semantics.md](embargo-default-semantics.md). Inbound

@@ -142,7 +142,7 @@ groups:
     kind: protocol
     statement: >
       When an ask for the same kind and subject is already outstanding and
-      unexpired, the tree MUST NOT emit a second ask.
+      unexpired, the actor MUST NOT emit a second ask.
     rationale: >
       Re-asking an open question produces duplicate decisions for the answerer
       and duplicate register entries for the asker.
@@ -174,9 +174,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A branch that records the state of an action not yet authorized MUST leave
-      the case in a state the protocol defines; an action whose not-yet state
-      cannot be represented MUST be refused rather than asked about.
+      An actor that asks for authorization of an action (ASK-01-001) MUST leave
+      the case, while the ask is outstanding, in a state the protocol defines; an
+      action whose not-yet-authorized state cannot be represented MUST be refused
+      rather than asked about.
     rationale: >
       An ask suspends nothing, so the case sits in the pre-authorization state
       for the whole deadline; that state must be legitimate.
@@ -303,7 +304,7 @@ groups:
     statement: >
       `Invite(EmbargoEvent)` is an ask kind. Its closing replies are
       `Accept(Invite(EmbargoEvent))` and `Reject(Invite(EmbargoEvent))` from the
-      invitee; its deadline is `Invite.end_time` (CM-28-001, CM-28-012); its
+      invitee; its deadline is the Invite's `endTime` (CM-28-001, CM-28-012); its
       expiry consequence is stale, not void: a reply after the deadline is still
       honoured under EMB-17 once the expiry has been recorded as `TIMED_OUT`
       (CM-28-004).
@@ -330,7 +331,7 @@ groups:
       `Invite(Actor, CaseStub)` (the stub Invite) is an ask kind. Its closing
       replies are `Accept(Invite(Actor, CaseStub))` and
       `Reject(Invite(Actor, CaseStub))` from the invitee; its deadline is
-      `Invite.end_time` (CM-11-014); its expiry consequence is stale, not
+      the Invite's `endTime` (CM-11-014); its expiry consequence is stale, not
       void: expiry only means the CASE_MANAGER stops waiting, so a reply that
       arrives after the deadline is processed like a live one (an `Accept`
       joins the invitee, a `Reject` closes the record). Expiry closes the ask
@@ -581,8 +582,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      Reaping an expired ask MUST NOT automatically re-emit it; re-asking MUST be
-      decided by a subsequent evaluation of the gated interaction tree.
+      Reaping an expired ask MUST NOT automatically re-emit it; the actor MUST
+      re-ask only when it decides anew to perform the gated action.
     rationale: >
       Mirrors CLP-06-005 — a timeout is a signal, not an instruction to retry;
       the tree owns the decision because only it knows whether the action is
@@ -604,9 +605,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      A case-scoped ask MUST be recorded as a canonical `CaseLedgerEntry` with
-      disposition `recorded` and MUST replicate to case participants on the
-      normal fan-out path.
+      A case-scoped ask MUST be recorded as a canonical `CaseLedgerEntry` and MUST
+      replicate to case participants on the normal fan-out path.
     rationale: >
       An outstanding decision, and a stalled one, is protocol-relevant to every
       participant; a directed-delivery variant would require redaction with
@@ -776,8 +776,8 @@ groups:
     kind: protocol
     statement: >
       A processing fault that can be attributed to a case MUST be recorded as a
-      canonical `CaseLedgerEntry` with disposition `recorded`, unless it reports a
-      failure to apply a `CaseLedgerEntry`, which SYNC-16-002 keeps out of the ledger.
+      canonical `CaseLedgerEntry`, unless it reports a failure to apply a
+      `CaseLedgerEntry`, which SYNC-16-002 keeps out of the ledger.
     rationale: >
       The statement that a message arrived and could not be processed is true,
       legible protocol history, and it explains why a subsequent retransmission
@@ -812,16 +812,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      When a received-side use case raises while processing an inbound activity
-      from an authenticated sender, the inbox MUST answer that sender with
-      `Create(ProcessingFault)` of an internal-error failure class, emitted
-      after any DataLayer transaction the act opened has rolled back. It MUST
-      cover every received use case, not only the trees that commit an act. An
-      attempt the inbox will retry (IE-06-004) MUST NOT be answered: a deferred
-      activity replayed from the pending queue is answered only when it is
-      dead-lettered. The fault id MUST be derived from the failed activity and
-      the failure class, so a repeated failure of the same activity emits no
-      second fault.
+      When a receiver fails on its own internal error while processing an
+      inbound activity from an authenticated sender, it MUST answer that sender
+      with `Create(ProcessingFault)` of an internal-error failure class, sent
+      only after the receiver has undone every change the failed processing
+      made. A failure the receiver will retry MUST NOT be answered until the
+      receiver stops retrying it. A repeated failure of the same activity MUST
+      NOT produce a second fault: a fault sent again carries the identifier of
+      the first.
     rationale: >
       A failed received act keeps only intake's archive (CLP-07-015), and the
       inbox answered before processing, so without this fault the sender waits
@@ -842,6 +840,38 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ASK-07-001
+    - rel_type: depends_on
+      spec_id: IE-06-004
+    tags:
+    - error-handling
+  - id: ASK-07-011
+    priority: MUST
+    kind: project
+    statement: >
+      In this implementation, the inbox MUST send the fault of ASK-07-010 when
+      the received use case dispatched for an activity raises, whichever use
+      case it is, and not only for the trees that commit an act. It MUST queue
+      the fault after the DataLayer transaction the act opened has rolled back.
+      A deferred activity replayed from the pending queue (IE-06-004) MUST be
+      answered only when it is dead-lettered. The fault id MUST be derived from
+      the failed activity's id and the failure class.
+    rationale: >
+      The receiver's internal failure is a raise out of the use case, and the
+      inbox is the one place every dispatch passes through, so answering there
+      covers every use case at once. A fault queued inside the rolled-back
+      transaction would be undone with the act. A derived id makes a repeated
+      failure rebuild the same fault, so the sender is answered once.
+    verification: >
+      `test/core/behaviors/inbox/test_process_payload.py::TestARaisedDispatchIsAnsweredWithAFault::test_the_sender_gets_one_internal_error_fault`
+      confirms a raising use case is answered with one internal-error fault;
+      `test/adapters/driving/fastapi/test_inbox_queue_drain.py::test_a_failing_replay_is_answered_only_when_dead_lettered`
+      confirms a deferred replay is answered only on dead-lettering; and
+      `test/adapters/driving/fastapi/test_failed_act_redelivery.py::test_a_failed_proposal_is_applied_when_posted_again`
+      confirms two failing deliveries of one body keep nothing and are
+      answered with one fault.
+    relationships:
+    - rel_type: implements
+      spec_id: ASK-07-010
     - rel_type: depends_on
       spec_id: IE-06-004
     tags:

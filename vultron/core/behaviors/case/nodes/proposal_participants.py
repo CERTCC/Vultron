@@ -211,9 +211,10 @@ class AddOwnerParticipantNode(DataLayerActionWithPorts, StateWriteCapable):
 
     The receiver's additional CVD roles are the ones it stated on its proposal
     (*case_roles*, CP-09-007, ADR-0133), which it copied from its own
-    ``ActorConfig.default_case_roles`` (CFG-07-002).  This node never reads its
-    own configuration for them: the CaseActor may run in another container
-    (DEMOMA-06-004), and its configuration says nothing about the receiver.
+    ``ActorConfig.default_case_roles`` (CFG-07-002, CP-01-013).  This node never
+    reads its own configuration for them: the CaseActor may run in another
+    container (DEMOMA-06-004), and its configuration says nothing about the
+    receiver.
     They must not be hard-coded either: a coordinator that receives a report is
     a CASE_OWNER but never a VENDOR, and giving it ``CVDRole.VENDOR`` makes
     downstream VFD fix-lifecycle guards demand a fix it will never produce.

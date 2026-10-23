@@ -21,7 +21,7 @@ groups:
     statement: All protocol state axes (RM, EM, VFD, PXA) MUST be defined using Python `StrEnum`
   - id: SM-01-002
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: State enums SHOULD provide both a full descriptive name and a short single-character alias for each state
   - id: SM-01-003
     priority: MUST
@@ -34,7 +34,7 @@ groups:
   specs:
   - id: SM-02-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Each state axis SHOULD have a corresponding `create_*_machine()` factory function that produces a `transitions`
       library `Machine` instance for the axis
   - id: SM-02-002
@@ -58,12 +58,12 @@ groups:
   specs:
   - id: SM-03-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Each state transition SHOULD be expressed as a typed `TransitionBase` subclass with `trigger`, `source`, and
       `dest` fields typed to the appropriate enums
   - id: SM-03-002
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Transition definitions SHOULD be stored as a module-level list in the same module that defines the state enum
   - id: SM-03-003
     priority: MUST
@@ -110,7 +110,7 @@ groups:
     statement: Persisted state for both case-level and participant-level axes MUST use an append-only history list
   - id: SM-05-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The `current_status` property (or equivalent) MUST return the single most-recently-timestamped entry from the
       history list
     verification: A unit test confirms `current_status` returns the entry with the latest timestamp when the history
@@ -142,12 +142,12 @@ groups:
   specs:
   - id: SM-06-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Transient state used only during a single request (e.g., for tracking report status during validation processing)
       SHOULD be clearly separated from persisted state
   - id: SM-06-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: RM state for reports MUST be persisted as participant-level state in `CaseParticipant` records. In-memory transient
       RM state is not permitted.
     verification: Inspection of all RM state write paths confirms they persist to `ParticipantStatus` records via
@@ -177,11 +177,35 @@ groups:
   - id: SM-08-001
     priority: MUST
     kind: protocol
-    statement: State enum values MUST be stored and transmitted as their string value (not as Python enum names or as integers)
-    verification: DataLayer round-trip tests and wire-activity inspection confirm RM, EM, VFD, and PXA values
-      serialize as string values (e.g., `"RECEIVED"`, `"ACTIVE"`) not as Python enum names or integers.
+    statement: >-
+      State values MUST be transmitted on the wire as the state's bare label string
+      (for example `RECEIVED`, `ACTIVE`, `Vf`, `D`, `pxa`), never as an integer or as a
+      qualified form such as `RM.RECEIVED`.
+    verification: >-
+      `test/core/models/test_dimension_bare_serialization.py::test_enclosing_field_alias_carries_the_bare_state_on_the_wire`
+      confirms RM, EM and PXA values reach the wire as bare labels, and
+      `test/core/models/test_dimension_bare_serialization.py::test_vendor_and_deployer_states_travel_as_bare_labels`
+      confirms the same for VF and D.
     stories:
     - story_2022_088
+  - id: SM-08-003
+    priority: MUST
+    kind: project
+    statement: >-
+      In this implementation, the DataLayer MUST store state values as the same bare
+      label strings the wire uses (SM-08-001), never as integers or as qualified forms
+      such as `RM.RECEIVED`.
+    rationale: >-
+      A stored row is read back by other processes and after restarts, so a state stored
+      as an integer or a qualified form would read back as a different value, or as
+      none, wherever the enum's order or module path changes.
+    verification: >-
+      `test/adapters/driven/datalayer_sqlite/test_state_values_stored_as_strings.py`
+      confirms a stored `ParticipantStatus` carries its RM, VF and D states, and a
+      stored `CaseStatus` its EM and PXA states, as plain bare-label strings.
+    relationships:
+    - rel_type: implements
+      spec_id: SM-08-001
   - id: SM-08-002
     priority: MUST
     kind: project
@@ -263,9 +287,11 @@ groups:
     priority: MUST_NOT
     kind: protocol
     verification_debt: '#3612'
-    statement: Handlers MUST NOT apply a participant-specific axis transition (RM, VFD) to the shared `CaseStatus`, and MUST
-      NOT apply a participant-agnostic axis transition (EM, PXA) to a participant's `ParticipantStatus`. Mixing axes is a
-      protocol correctness violation.
+    statement: >-
+      A receiver MUST NOT apply a participant-specific axis transition (RM, VFD) to the
+      shared `CaseStatus`, and MUST NOT apply a participant-agnostic axis transition
+      (EM, PXA) to a participant's `ParticipantStatus`. Mixing axes is a protocol
+      correctness violation.
     relationships:
     - rel_type: refines
       spec_id: CM-04-006

@@ -313,7 +313,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
 
         ``proposer_case_roles`` are the sender's own ``default_case_roles``,
         stated on the proposal so the CASE_MANAGER can seat the sender with
-        them (CP-01-011, ADR-0133).
+        them (CP-01-011, CP-01-013, ADR-0133).
 
         Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
         Returns ``(activity_id, activity_dict)``.

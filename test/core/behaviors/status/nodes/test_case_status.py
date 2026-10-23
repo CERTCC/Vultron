@@ -204,6 +204,7 @@ def _case_status_entries(dl) -> list[CaseLedgerEntry]:
 
 class TestEmitCaseStatusUpdateNode:
     @pytest.mark.spec("RSH-04-004")
+    @pytest.mark.spec("RSH-04-006")
     @pytest.mark.spec("RSH-04-002")
     def test_happy_path_appends_new_case_status(self, populated_dl):
         """SUCCESS: appends a new CaseStatus to case.case_statuses."""
@@ -466,6 +467,7 @@ class TestEmitCaseStatusUpdateNode:
         ]
 
     @pytest.mark.spec("RSH-04-004")
+    @pytest.mark.spec("RSH-04-006")
     def test_happy_path_commits_ledger_entry(self, populated_dl):
         """SUCCESS: a CaseLedgerEntry with semantic_type='add_case_status_to_case' is committed."""
         bridge = BTBridge(
