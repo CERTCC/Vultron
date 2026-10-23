@@ -1032,13 +1032,15 @@ groups:
       The site MUST have one lookup page, linked from the home page and from every
       start page, that lists the reader-facing pages whose `page_type` (DF-11-018) is
       `reference`, grouped by top-level navigation section in navigation order, each
-      with its `description:`. A reference page inside a navigation group below the
-      top level that opens on an `index.md` MUST be listed once, through that index;
-      a reference page the navigation omits MUST be listed through the
-      navigation-reachable `index.md` of its own directory. The listing MUST be
-      generated and gated by a check mode that also fails when a reference page has
-      no such entry or when the home page or a start page does not link the lookup
-      page.
+      with its `description:`. The lookup page MUST NOT be a start page (DF-11-013).
+      A reference page inside a navigation group below the top level MUST be listed
+      once, through the `index.md` that opens the outermost such group containing it;
+      a reference page with no such group, or whose groups below the top level have
+      no opening `index.md`, is listed on its own. A reference page the navigation
+      omits MUST be placed by the navigation-reachable `index.md` of its own
+      directory and then follow the same rule. The listing MUST be generated and
+      gated by a check mode that also fails when a reference page has no such entry
+      or when the home page or a start page does not link the lookup page.
     rationale: >-
       Once Reference is no longer a top-level tab (ADR-0136), a returning reader
       loses the view by type. One generated page gives it back without a type-based

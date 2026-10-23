@@ -341,7 +341,9 @@ and every start page, generated from `page_type: reference` (DF-11-021). List
 a subgroup once, through its `index.md`, so the specification's parts, the
 message pages and the scenarios are one entry each and the page stays short
 enough to scan. Group by top-level nav section, so the page follows the nav.
-It is a routing page under `docs/start/`, titled by the reader's situation.
+It is a routing page beside the home page, titled by the reader's situation.
+It does not go under `docs/start/`: every page there is a start page, with a
+thread of its own (DF-11-013).
 Build it after the tab restructure (#4684): before that, Reference is still a
 tab and the page only repeats it.
 
