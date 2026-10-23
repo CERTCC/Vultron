@@ -31,8 +31,7 @@ Many organizations use a fixed quantile as a Service Level Expectation (SLE), su
 Others track deployment by risk group, such as end-user systems, servers, and network infrastructure, and mark $\mathbf{D}$ when each group reaches its threshold.
 Nothing in the model precludes such roll-up functions, and the model does not choose one.
 
-The other half of the original state explosion is settled.
-In a Vultron case, $\mathbf{D}$ belongs to each deployer, not to the case, so a case with many deployers records each one's deployment separately ([What a Case Records](what_a_case_records.md#per-case-and-per-participant-state)).
+Settled: in a Vultron case $\mathbf{D}$ belongs to each deployer, so a case records each deployer's deployment separately ([What a Case Records](what_a_case_records.md#per-case-and-per-participant-state)).
 
 ---
 
@@ -89,8 +88,7 @@ Timing data has gaps of its own.
 Some events are stamped when the CASE_MANAGER next handles the case rather than when they happened, and some are not recorded at all ([What a Case Records](what_a_case_records.md#data-gaps)).
 A timing measure has to decide how to treat them.
 
-The intervals themselves are now measurable.
-A Vultron case stamps every change it records, and [Timing Metrics Within a Case](timing_metrics.md) proposes the intervals, margins, and dwell times that those stamps support.
+Settled: a Vultron case stamps every change it records, so the intervals are measurable, and [Timing Metrics Within a Case](timing_metrics.md) proposes them.
 
 ---
 
@@ -112,10 +110,7 @@ Many of the mechanisms behind the events in this model are hidden from it, and w
 The model trades causal detail for generality: it measures outcomes independently of the mechanisms that produce them.
 An agent-based model of MPCVD would be better placed to study the mechanisms, and none exists yet.
 
-The protocol side of multiple actors is settled.
-In Vultron each participant is an actor with its own identity and its own store, and actors coordinate only by exchanging protocol messages.
-The reference implementation's [demo scenarios](../../tutorials/container_demos.md) run several such actors, each in its own container, through complete cases.
-They exercise the protocol; they do not model participant strategy.
+Settled: in Vultron each participant is an actor with its own store that coordinates only through protocol messages, and the reference implementation's [demo scenarios](../../tutorials/container_demos.md) run several such actors through complete cases, without modeling their strategy.
 
 ---
 
@@ -131,9 +126,9 @@ Answering such questions needs a large body of event timings, across many kinds 
 That body of data does not exist.
 The model does not depend on the uniformity assumption holding: it measures deviation from a stated baseline, whether chance or past observation.
 
-A Vultron case is a source of such data.
-Its ledger records every change with a timestamp, so cases run on Vultron produce event orders and intervals as a side effect of coordinating ([What a Case Records](what_a_case_records.md)).
-Collecting those records across many organizations' cases is the open part.
+Collecting event records across many organizations' cases is the open part.
+
+Settled: a Vultron case's ledger timestamps every change, so each case run on Vultron produces its event orders and intervals as a side effect of coordinating ([What a Case Records](what_a_case_records.md)).
 
 ---
 
@@ -143,8 +138,7 @@ Not every event, and so not every desideratum, is observable by every interested
 In many cases at least some are, and those can bound the others, as [Observing Skill](observing_skill.md) shows.
 Which events each party can see, and how well a measure holds up when some are missing, is open beyond that one example.
 
-For a Vultron case, much of this is now settled.
-[What a Case Records](what_a_case_records.md#who-observes-what) describes which events reach which participants and which happen outside the protocol.
+Settled: for a Vultron case, [What a Case Records](what_a_case_records.md#who-observes-what) describes which events reach which participants and which happen outside the protocol.
 
 ---
 
@@ -177,6 +171,14 @@ Criteria other than a high median and low variance may also apply.
 
 Accurate estimates of such parameters are likely to stay hard to obtain.
 Equity in MPCVD may interest groups such as the [FIRST Ethics SIG](https://www.first.org/global/sigs/ethics/){:target="_blank"}.
+
+---
+
+## In a two-party case
+
+A two-party case, with one reporter and one vendor, is the special case of the same model, and most of these questions stand in it unchanged.
+The fairness question disappears, because there is only one vendor to aggregate over.
+The question of how participants' strategies interact shrinks to two participants, and the deployment threshold applies only if the vendor also deploys or a deployer joins.
 
 ---
 

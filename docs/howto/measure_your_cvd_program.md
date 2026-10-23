@@ -12,7 +12,7 @@ page_type: how-to
 {% include-markdown "../includes/not_normative.md" %}
 
 This guide shows you how to score the cases your Coordinated Vulnerability Disclosure (CVD) program has handled against the outcomes a case is meant to reach.
-The score is the skill coefficient that the [Measuring CVD](../topics/measuring_cvd/index.md) research derives, applied without the derivation.
+The score is the skill coefficient that the [Measuring CVD Foundations](../topics/measuring_cvd/foundations/index.md) derive, applied without the derivation.
 It is for whoever owns a disclosure program, a product security team's intake, or a coordination practice, and it needs only the dates you already record for each case.
 The result tells you which outcomes your program achieves more often than chance would, and which coordination decisions to change when it does not.
 
@@ -182,7 +182,7 @@ A high median with a wide spread means a few Vendors are being left behind, whic
     [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md) proposes further preferences over report handling, embargoes, and joining, and [Timing Metrics Within a Case](../topics/measuring_cvd/timing_metrics.md) proposes intervals between events.
     Both are draft research, with no published baseline to compare against yet.
 
-- [Measuring CVD](../topics/measuring_cvd/index.md) — the derivation behind every number in this guide.
+- [Measuring CVD Foundations](../topics/measuring_cvd/foundations/index.md) — the derivation behind every number in this guide.
 - [Discriminating Skill and Luck in Observations](../topics/measuring_cvd/discriminating_skill_and_luck.md) — the skill coefficient and the model that yields it.
 - [Benchmarking CVD](../topics/measuring_cvd/benchmarking.md) — why zero is a low bar, and how sector observations become benchmarks.
 - [CVD Roles and Their Influence](../topics/other_uses/roles_influence.md) — how vendors, system owners, coordinators, and governments rank the preferences differently.

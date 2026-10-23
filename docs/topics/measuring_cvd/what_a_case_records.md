@@ -27,7 +27,7 @@ A case holds two kinds of state.
 
 | State | Belongs to | Held by |
 |---|---|---|
-| Public awareness, public exploit, attacks observed (PXA) | The case | Every case, once (SDO-01-003) |
+| Public awareness, public exploit, attacks observed (PXA) | The case | Every case, once (SDO-03-001) |
 | Embargo Management (EM) | The case | Every case, once, derived from its embargo register (ADR-0122) |
 | Report Management (RM) | Each participant | Every participant (SDO-03-002) |
 | Vendor fix path: vendor awareness and fix readiness (VF) | Each vendor | Every participant with the Vendor role (SDO-03-002) |
@@ -43,7 +43,7 @@ A participant-specific event, such as fix readiness $\mathbf{F}$, happens once p
 The [Foundations](foundations/index.md) model treats a case as six events that each happen once, which is exact only for the participant-agnostic three.
 
 The case does not pair a deployer with a vendor.
-A deployer may record deployment once any vendor in the case has a fix ready (CSB-15-004), and nothing records whose fix it deployed.
+A deployer that is not also a vendor may record deployment once any vendor in the case has a fix ready (CSB-15-004), and nothing records whose fix it deployed.
 
 ---
 
@@ -131,10 +131,9 @@ That entry's times are both the CASE_MANAGER's clock at adoption.
 The case-level time of $\mathbf{P}$, $\mathbf{X}$, or $\mathbf{A}$ is therefore when the CASE_MANAGER adopted it, not when a participant first reported it.
 The earliest report is recoverable from the participants' own status entries, which come first in the ledger.
 
-### Commit time is not occurrence time
+### Events outside the protocol are stamped when reported
 
-A commit stamp records when the CASE_MANAGER learned of an event.
-For protocol acts, such as an acceptance, an embargo step, or a join, the two are close.
+For protocol acts, such as an acceptance, an embargo step, or a join, the event and its commit are close in time.
 For $\mathbf{X}$ and $\mathbf{A}$, which happen outside the protocol, the lag between occurrence and a participant's report of it can be long, and nothing measures it.
 
 ### Refusals and replays are not on the ledger
@@ -178,6 +177,10 @@ Its participant-agnostic state is the same as in any case: one PXA state and one
 Its participant-specific state is two copies: the reporter's RM state and consent rows, and the vendor's RM state, fix path, and consent rows.
 Every participant-specific event happens at most once for the vendor, so the six-event model of the [Foundations](foundations/index.md) fits it closely.
 Deployment is the exception: the case records it only if the vendor also holds the Deployer role, or if a deployer joins and the case stops being two-party.
+
+## Reading the record
+
+A measure reads the case's ledger, merges what replicas hold where it has no CASE_MANAGER copy, and joins the embargo register and consent rows back to the entries that set them.
 
 !!! info "In the reference implementation"
 

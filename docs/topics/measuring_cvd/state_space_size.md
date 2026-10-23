@@ -14,7 +14,7 @@ The answers explain why a protocol that coordinates participants matters: left u
 The triple is the formal model's picture of one participant.
 In the protocol today, part of it belongs to the case instead.
 The EM state and the public part of the CS state (PXA) are participant-agnostic: the case holds each once, and the EM state is derived from the case's embargo register (ADR-0122).
-The RM state, the vendor fix path (VF), and the deployment state (D) are participant-specific: each participant holds its own (ADR-0075).
+The RM state, the vendor fix path (VF), and the deployment state (D) are participant-specific: each participant holds its own (SDO-03-002, ADR-0075).
 Each participant also holds a Participant Embargo Consent (PEC) row for every embargo in the register, which the triple leaves out (CM-18-001).
 The per-participant counts below follow the formal model, and [A Lower Bound on the MPCVD State Space](#a-lower-bound-on-the-mpcvd-state-space) applies the split.
 
@@ -616,7 +616,7 @@ Counting the state that the case holds once, rather than once for each Participa
 Two parts of the state belong to the case rather than to any Participant:
 
 1. Because they represent facts about the outside world, the eight $\cdot\cdot\cdot pxa \rightarrow \cdot\cdot\cdot PXA$ CS substates are participant-agnostic.
-    The case holds one PXA state, which the CASE_MANAGER adopts from what Participants report (ADR-0075).
+    The case holds one PXA state, which only the CASE_MANAGER writes, adopting it from what Participants report (RSH-04-001, RSH-04-003).
 
 2. The five EM states are also participant-agnostic.
     The case's EM state is derived from its embargo register, once for the case (ADR-0122).

@@ -45,7 +45,7 @@ The first kind is listed at the end of the page, because it is still worth check
 
 The six CS events are vendor awareness $\mathbf{V}$, fix ready $\mathbf{F}$, fix deployed $\mathbf{D}$, public awareness $\mathbf{P}$, exploit public $\mathbf{X}$, and attacks observed $\mathbf{A}$.
 The process models add the following events.
-Each is recorded by the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) as an entry in the case ledger, though the statuses seated when the case is created carry the creation time, not the time of the decision ([What a Case Records](./what_a_case_records.md#data-gaps)).
+Each is recorded by the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) as an entry in the case ledger, though the statuses seated when the case is created carry the creation time, not the time of the decision ([What a Case Records](./what_a_case_records.md#statuses-seated-at-case-creation)).
 
 | Event | Meaning | Process model |
 |---|---|---|
@@ -151,7 +151,7 @@ The orderings below relate one participant's events to another's, so a per-vendo
 
 The deployer row deserves attention.
 It is stated against every vendor because the case does not pair a deployer with a vendor.
-A deployer may deploy once any vendor in the case has a fix ready (CSB-15-004), and the case records no link from a deployment to the fix it applied.
+A deployer that is not also a vendor may deploy once any vendor in the case has a fix ready (CSB-15-004), and the case records no link from a deployment to the fix it applied.
 The protocol requires no deployer to be invited at all.
 In the original single-vendor model, $\mathbf{D}$ is the vendor's deployment or an aggregate over its users.
 In a multi-party case, a deployer that joins only after $\mathbf{P}$ cannot achieve $\mathbf{D} \prec \mathbf{P}$, however quickly it acts.
@@ -194,7 +194,7 @@ They are still worth checking against case data, because a history that breaks o
 | Ordering | Requirement |
 |---|---|
 | $\mathbf{V}_i \prec \mathbf{F}_i$ for every vendor $i$ | The vendor fix path ([History Constraints](./possible_histories.md)) |
-| $\mathbf{F}_i \prec \mathbf{D}_k$ for some vendor $i$, for every deployer $k$ | CSB-15-004 |
+| $\mathbf{F}_i \prec \mathbf{D}_k$ for some vendor $i$, for every deployer $k$ that is not also a vendor | CSB-15-004 |
 | $\mathbf{F}_i$ only once participant $i$'s RM state is Accepted, Deferred, or Closed | CSB-18-001 |
 | A report is never closed from Valid | VP-02-004, RMB-14-004 |
 | The case is initialized before anyone else is invited and before any embargo change | CM-14-007 |

@@ -45,12 +45,9 @@ The ordering measure keeps only the sign of $m$, so every timing metric below re
 ## Which clock to use
 
 The [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) writes one case ledger entry for each change it admits to the case, so the ledger is a time-ordered history of the case and the data source for nearly every metric on this page.
-Each entry carries two clocks: the CASE_MANAGER's commit stamp, and the time the asserting participant claimed for its activity ([What a Case Records](./what_a_case_records.md#two-clocks)).
-
-The commit stamp is the safer default for intervals.
-It comes from one clock, so intervals between any two entries are comparable.
-It records when the CASE_MANAGER learned of an event, which can be later than when the event happened.
-The claimed time is closer to the event, but two participants' clocks can disagree.
+Each entry carries two clocks, the CASE_MANAGER's commit stamp and the sender's claimed time, described on [What a Case Records](./what_a_case_records.md#two-clocks).
+The commit stamp is the default for every interval on this page, because it is one clock for the whole case.
+Use the claimed time only where the lag between an event and its commit matters, and only for one participant's own events.
 The difference between the two clocks on one entry is itself a measure, listed under process health below.
 
 ---
@@ -83,7 +80,7 @@ They are per-participant, because Report Management (RM) is per-participant.
 
 An Invitee's $\mathbf{R}_i$ is its $\mathbf{J}_i$, because accepting the Stub Invite leaves it at RM Received (CM-11-001).
 For an Invitee, then, time to validate is time to judge plus the wait between joining and receiving the Full-Case Invite.
-The case owner's $\mathbf{R}$ and the reporter's $\mathbf{Ac}$ are seated when the case is created, so neither has a measurable time ([What a Case Records](./what_a_case_records.md#data-gaps)).
+The case owner's $\mathbf{R}$ and the reporter's $\mathbf{Ac}$ are seated when the case is created, so neither has a measurable time ([What a Case Records](./what_a_case_records.md#statuses-seated-at-case-creation)).
 
 ---
 
@@ -120,7 +117,7 @@ An embargo that ends early because of a threat signal has a margin of about zero
 | Fix spread | First vendor's $\mathbf{F}$ to last vendor's $\mathbf{F}$ |
 | Trailing-vendor gap | Last vendor's $\mathbf{F}$ to $\mathbf{E_x}$; negative when the embargo ended before every fix was ready |
 
-Time to deploy starts at the first vendor's $\mathbf{F}$ because that is the event the protocol gates deployment on: a deployer may move to $\mathbf{D}$ once any vendor in the case has a fix ready (CSB-15-004).
+Time to deploy starts at the first vendor's $\mathbf{F}$ because that is the event the protocol gates deployment on: a deployer that is not also a vendor may move to $\mathbf{D}$ once any vendor in the case has a fix ready (CSB-15-004).
 The case records no link from a deployer to the vendor whose fix it deployed, so a per-vendor time to deploy is not measurable from the case.
 
 The spreads are Multi-Party CVD (MPCVD) measures with no counterpart in the single-vendor model.
@@ -219,7 +216,7 @@ It also lets a program report the distribution of an interval across its cases, 
 ## In a two-party case
 
 A two-party case, with one reporter and one vendor, is the special case of the same model, not a separate one.
-Most metrics carry over unchanged: the vendor's intake and triage intervals, every embargo metric, time to fix, the disclosure margins, closure, and process health.
+Most metrics carry over unchanged: the vendor's intake and triage intervals, every embargo metric, time to fix, the disclosure margins that do not involve $\mathbf{D}$, closure, and process health.
 The spreads collapse: with one vendor, notification spread and fix spread are zero, and the trailing-vendor gap is the time from the vendor's own $\mathbf{F}$ to $\mathbf{E_x}$.
 The deployment metrics disappear unless some participant holds the deployer role.
 Time to deploy, the $\mathbf{D}$ margins, and public and exploit exposure all need a participant with a deployment state, and a vendor has one only when it is also a deployer (SDO-03-002).

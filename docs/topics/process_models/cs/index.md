@@ -42,4 +42,4 @@ The research discussion of what the model leaves open, [Open Questions](../../me
 
 The CS model is one of three process models, alongside [Report Management](../rm/index.md) and [Embargo Management](../em/index.md).
 [Model Interactions](../model_interactions/index.md) explains how the CS model constrains the other two.
-[Measuring CVD](../../measuring_cvd/index.md) uses the CS model to reason about the possible histories of a case.
+The [Foundations](../../measuring_cvd/foundations/index.md) of Measuring CVD use the CS model to reason about the possible histories of a case.
