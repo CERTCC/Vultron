@@ -396,6 +396,7 @@ class TestHappyPath:
         assert link.case_id is None, "Link must be pending (case_id=None)"
         assert not link.proposal_rejected
 
+    @pytest.mark.spec("BT-10-002")
     def test_case_creator_id_is_the_case_actor_container(
         self,
         datalayer,

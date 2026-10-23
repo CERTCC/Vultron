@@ -21,7 +21,7 @@ A change of owner matters to everyone in the case, not only to the two participa
 Every participant needs to know who decides for the case now.
 The only way a participant learns about a change to the case is through an entry in the case ledger, and only the CASE_MANAGER writes those entries ([The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md)).
 
-So the owner's proposal, the answer, and a withdrawal are all sent to the CASE_MANAGER, not to the other party directly ([CM-21-005, CM-21-006, CM-21-010, CM-21-015](../../reference/specs/protocol.md#cm-21), [ADR-0053](../../adr/0053-ownership-transfer-routed-via-caseactor.md)).
+So the owner's proposal, the answer, and a withdrawal are all sent to the CASE_MANAGER, not to the other party directly ([CM-21-005](../../reference/specs/protocol.md#cm-21-005), [CM-21-006](../../reference/specs/protocol.md#cm-21-006), [CM-21-010](../../reference/specs/protocol.md#cm-21-010), [CM-21-015](../../reference/specs/protocol.md#cm-21-015), [ADR-0053](../../adr/0053-ownership-transfer-routed-via-caseactor.md)).
 If they went directly between the two parties, no ledger entry would be written, and the other participants would never learn that ownership had changed.
 
 ---
@@ -61,7 +61,7 @@ Any `id`, `actor` or `to` the owner put inside the inner offer is ignored.
 The CASE_MANAGER then makes the offer itself.
 The offer is a new `Offer` of the case under an `id` the CASE_MANAGER derives from the proposal, so a repeat of the proposal makes the same offer and never a second one.
 The CASE_MANAGER sends it under its own identity, with the owner who asked for it named as the author (`attributed_to`).
-This is the delegated-message contract that every message the CASE_MANAGER sends on a participant's behalf follows ([CM-24-001 through CM-24-005](../../reference/specs/protocol.md#cm-24)).
+This is the delegated-message contract that every message the CASE_MANAGER sends on a participant's behalf follows ([CM-24-001](../../reference/specs/protocol.md#cm-24-001), [CM-24-002](../../reference/specs/protocol.md#cm-24-002), [CM-24-004](../../reference/specs/architecture.md#cm-24-004), [CM-24-005](../../reference/specs/project.md#cm-24-005)).
 The CASE_MANAGER records the proposal and then the offer in the ledger, so every participant learns that a transfer is being offered.
 That offer is the one offer of the transfer: the one the proposed new owner answers, and the one the ledger closes.
 The offer carries the proposed new owner (`target`) as a full actor object, not as an `id` alone.
@@ -95,8 +95,8 @@ The answer names the CASE_MANAGER's offer by its `id`, the same `id` the ledger 
 It refuses an `Accept` from anyone else, or a second `Accept` of the same offer, and ownership stays where it was.
 The new owner is the actor the recorded offer names, not whoever sent the acceptance.
 A participant's own copy of the case takes the ownership change only from the CASE_MANAGER.
-On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the CASE_MANAGER's case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
-The previous owner keeps any other roles it held and stays a participant in the case ([CM-21-008, CM-21-009](../../reference/specs/protocol.md#cm-21)).
+On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the CASE_MANAGER's case never has two owners or none ([CM-21-001](../../reference/specs/protocol.md#cm-21-001), [CM-21-002](../../reference/specs/protocol.md#cm-21-002), [CM-21-003](../../reference/specs/protocol.md#cm-21-003), [CM-21-004](../../reference/specs/project.md#cm-21-004)).
+The previous owner keeps any other roles it held and stays a participant in the case ([CM-21-008](../../reference/specs/protocol.md#cm-21-008), [CM-21-009](../../reference/specs/protocol.md#cm-21-009)).
 The CASE_MANAGER records the acceptance in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
 
 The acceptance entry records what the proposed owner sent, not the changes it causes.
@@ -126,7 +126,7 @@ Case Actor inbox receives Reject:
   2. Announce(CaseLedgerEntry) → all participants.
 ```
 
-The proposed owner declines an offer by sending a `Reject` with the `reject-case-ownership-transfer` trigger ([TRIG-11-005](../../reference/specs/protocol.md#trig-11-005)), and the `Reject` is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)).
+The proposed owner declines an offer by sending a `Reject` with the `reject-case-ownership-transfer` trigger ([TRIG-11-005](../../reference/specs/project.md#trig-11-005)), and the `Reject` is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)).
 The protocol treats a `Reject` like an `Accept`: the CASE_MANAGER records it in the ledger and sends the entry to every participant, which is how the participant who made the offer learns of it ([CM-21-012](../../reference/specs/protocol.md#cm-21-012)).
 Only the proposed owner named in an open offer may decline it ([CM-21-013](../../reference/specs/protocol.md#cm-21-013)).
 The CASE_MANAGER does not act on a `Reject` from anyone else: it records nothing, and the offer stays open.
@@ -154,7 +154,7 @@ Case Actor inbox receives Undo:
   2. Announce(CaseLedgerEntry) → all participants.
 ```
 
-The owner may withdraw the offer while it is open, with the `withdraw-case-ownership-transfer` trigger, which sends an `Undo` of the owner's own proposal to the CASE_MANAGER ([CM-21-015](../../reference/specs/protocol.md#cm-21-015), [TRIG-11-006](../../reference/specs/protocol.md#trig-11-006)).
+The owner may withdraw the offer while it is open, with the `withdraw-case-ownership-transfer` trigger, which sends an `Undo` of the owner's own proposal to the CASE_MANAGER ([CM-21-015](../../reference/specs/protocol.md#cm-21-015), [TRIG-11-006](../../reference/specs/project.md#trig-11-006)).
 The owner names the proposal, the one activity of the transfer it holds, and the CASE_MANAGER withdraws the offer it made from that proposal.
 The CASE_MANAGER acts on a withdrawal only when its sender is the Case Owner that offer was made for, and the offer is still open.
 It records the withdrawal in the ledger and sends the entry to every participant, so the proposed owner learns that it can no longer accept, and the offer is closed.
@@ -179,7 +179,7 @@ or a new proposal for the case:
 ```
 
 An offer may also carry an `end_time`, the deadline to answer it ([CM-21-016](../../reference/specs/protocol.md#cm-21-016)).
-The owner sets it with the `end_time` field of the `offer-case-ownership-transfer` trigger, which must be a future time with a timezone ([TRIG-11-007](../../reference/specs/protocol.md#trig-11-007)); without it, the offer stays open until it is answered or withdrawn.
+The owner sets it with the `end_time` field of the `offer-case-ownership-transfer` trigger, which must be a future time with a timezone ([TRIG-11-007](../../reference/specs/project.md#trig-11-007)); without it, the offer stays open until it is answered or withdrawn.
 The trigger puts the deadline on the proposal's inner offer, and the offer the CASE_MANAGER makes carries it, so the proposed owner knows when it can no longer answer.
 The CASE_MANAGER reads the deadline in Coordinated Universal Time (UTC), whatever offset the offer was sent with.
 

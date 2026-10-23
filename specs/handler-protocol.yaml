@@ -15,8 +15,9 @@ groups:
   - id: HP-00-001
     priority: MUST
     kind: protocol
-    statement: Handlers MUST interpret received activities as assertions about the sender's state, not as commands to perform
-      work
+    statement: >-
+      A receiver MUST interpret received activities as assertions about the sender's
+      state, not as commands to perform work
     verification: Inspection of all handler `execute()` methods confirms they update local state machine records from
       the received `VultronEvent` payload and issue no imperative outbound commands in direct response to receipt.
     stories:
@@ -24,7 +25,9 @@ groups:
   - id: HP-00-002
     priority: MUST
     kind: protocol
-    statement: Handlers MUST update local RM/EM/CS state to reflect the state transition asserted by the received activity
+    statement: >-
+      A receiver MUST update its local RM/EM/CS state to reflect the state transition
+      asserted by the received activity
     verification: Integration tests in `test/demo/` confirm that each inbound activity type results in the expected
       RM, EM, or CS state change in the receiver's DataLayer after the handler completes.
     stories:
@@ -166,13 +169,14 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A handler MUST establish that the sender of a received activity is entitled to make
-      its assertion before any write, outbound activity or ledger commit, and MUST report
-      `REFUSED` with a reason naming the missing entitlement when it cannot. Entitlement is
-      the sender's standing, not the receiver's: the governing group's sender clause names
-      it per message (CM-11-017, CM-16-019, CM-21-011, CM-30-001, CM-30-002, CM-33-002,
-      CM-33-004, CM-33-005, CP-06-005, HP-01-010, RMB-08-004, SYNC-03-005), and a receiver
-      role check such as the CASE_MANAGER gate (BT-17-001) never satisfies it.
+      A receiver MUST establish that the sender of a received activity is entitled to
+      make its assertion before any write, outbound activity or ledger commit, and MUST
+      refuse the activity, with a reason naming the missing entitlement, when it cannot.
+      Entitlement is the sender's standing, not the receiver's: the governing group's
+      sender clause names it per message (CM-11-017, CM-16-019, CM-21-011, CM-30-001,
+      CM-30-002, CM-33-002, CM-33-004, CM-33-005, CP-06-005, HP-01-010, RMB-08-004,
+      SYNC-03-005), and a receiver role check such as the CASE_MANAGER gate (BT-17-001)
+      never satisfies it.
     rationale: >-
       A received activity is an assertion about the sender's state (HP-00-001), so the
       first question is whether the sender may assert it. An audit found handlers that let
@@ -719,8 +723,9 @@ groups:
   - id: HP-09-001
     priority: MUST
     kind: protocol
-    statement: Handlers processing an inbound `Offer` activity MUST determine case-creation eligibility from the `to` field
-      only
+    statement: >-
+      A receiver processing an inbound `Offer` activity MUST determine case-creation
+      eligibility from the `to` field only
     verification: >-
       `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics`
       drives `SubmitReportReceivedUseCase` with the receiver in `to`, in `cc` only, and in
@@ -753,11 +758,13 @@ groups:
   - id: HP-10-001
     priority: MUST
     kind: protocol
-    statement: When a receiving actor finds itself in the `cc` field of an inbound `Offer(Report)` activity, the handler MUST
-      log a WARNING and discard the activity without creating a case
+    statement: >-
+      When a receiving actor finds itself only in the `cc` field of an inbound
+      `Offer(VulnerabilityReport)` activity, it MUST discard the activity without
+      creating a case
     verification: >-
       `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_receiving_actor_in_cc_logs_warning_no_case`
-      asserts a WARNING record naming `cc` and that no case is created;
+      asserts that no case is created;
       `::TestSubmitReportDisposition::test_cc_only_is_refused` asserts the handler reports
       `REFUSED` with a reason naming `cc`.
     rationale: '`cc` addressing has no defined handler semantics in the current protocol version. Implementing an "informational
@@ -769,3 +776,18 @@ groups:
     stories:
     - story_2022_002
     - story_2022_012
+  - id: HP-10-002
+    priority: MUST
+    kind: project
+    statement: >-
+      When this codebase discards an `Offer(VulnerabilityReport)` that names the
+      receiving actor only in `cc` (HP-10-001), it MUST log a WARNING naming `cc`.
+    rationale: >-
+      The discarded report never reaches a case, so the log record is the only trace an
+      operator has that a sender addressed this actor in the wrong field.
+    verification: >-
+      `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_receiving_actor_in_cc_logs_warning_no_case`
+      asserts a WARNING record naming `cc`.
+    relationships:
+    - rel_type: implements
+      spec_id: HP-10-001

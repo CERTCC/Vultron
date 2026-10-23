@@ -469,7 +469,7 @@ groups:
   specs:
   - id: VM-08-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Objects intended to be static once created (e.g., vocabulary registry entries, canonical example objects) SHOULD
       use immutable (frozen) configuration so that any attempt to modify them at runtime raises an exception
   - id: VM-08-002
@@ -612,7 +612,7 @@ groups:
     - story_2022_039
   - id: VM-10-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Wire-layer classes whose `_vocab_ns` is `VocabNamespace.VULTRON` MUST default
       `context_` to the Vultron context URI (`https://certcc.github.io/Vultron/ns/context.jsonld`)

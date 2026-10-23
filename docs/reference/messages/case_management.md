@@ -102,7 +102,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   The CASE_MANAGER admits it only from the Case Owner, and only while no offer for the case is open ([CM-21-019](../specs/protocol.md#cm-21-019), [CM-21-014](../specs/protocol.md#cm-21-014)).
   It refuses a proposal whose inner offer names another case, or no actor it can address, and ignores any `id`, `actor` or `to` inside the inner offer.
 - **Context:** the case the proposal is about; the inner offer's object must be that case.
-- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`, which returns the proposal ([TRIG-11-001](../specs/protocol.md#trig-11-001), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`, which returns the proposal ([TRIG-11-001](../specs/project.md#trig-11-001), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Effect:** the CASE_MANAGER records the proposal in the ledger and makes the offer below itself ([ADR-0148](../../adr/0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md)).
 - **Triggering transition:** none — ownership transfer is a roster operation.
 - **Example artifact:** [propose_case_ownership_transfer.json](../examples/propose_case_ownership_transfer.json).
@@ -126,7 +126,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Routing:** the `Reject` is addressed to the CASE_MANAGER, not to the actor that made the offer ([CM-21-010](../specs/protocol.md#cm-21-010)).
   The CASE_MANAGER acts on it only when it comes from the proposed owner of an open offer it recorded ([CM-21-013](../specs/protocol.md#cm-21-013)).
   It records the `Reject` in the ledger and sends the entry to every participant, which closes the offer ([CM-21-012](../specs/protocol.md#cm-21-012)).
-- **Trigger:** the recipient sends it with `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer`, whose body names the `offer_id` it declines ([TRIG-11-005](../specs/protocol.md#trig-11-005), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Trigger:** the recipient sends it with `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer`, whose body names the `offer_id` it declines ([TRIG-11-005](../specs/project.md#trig-11-005), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [reject_case_ownership_transfer.json](../examples/reject_case_ownership_transfer.json).
 
@@ -137,7 +137,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   It records the withdrawal in the ledger and sends the entry to every participant, which closes the offer: the proposed owner can no longer accept it, and the case may be offered again ([CM-21-014](../specs/protocol.md#cm-21-014)).
   A withdrawal from anyone else, or of an offer already answered or withdrawn, is refused with nothing recorded.
   The CASE_MANAGER answers a withdrawal of an offer already answered or withdrawn with the refusal notice, and a withdrawal from anyone else with nothing.
-- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer`, whose body names, as `offer_id`, the proposal it withdraws ([TRIG-11-006](../specs/protocol.md#trig-11-006), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer`, whose body names, as `offer_id`, the proposal it withdraws ([TRIG-11-006](../specs/project.md#trig-11-006), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [undo_case_ownership_transfer.json](../examples/undo_case_ownership_transfer.json).
 

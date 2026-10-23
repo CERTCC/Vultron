@@ -452,9 +452,9 @@ groups:
     kind: protocol
     statement: >-
       When two semantics are discriminated only by a target-field value, a dedicated wire
-      object type (e.g. `as_CaseParticipantRole`) SHOULD be preferred over target-field
+      object type (e.g. `CaseParticipantRole`) SHOULD be preferred over target-field
       discrimination so that the wire shape is unambiguously self-describing without
-      depending on registry ordering.
+      depending on the order in which a receiver tries its patterns.
     rationale: >-
       Target-field discrimination is a latent correctness risk: a minimally-conformant or
       buggy sender omitting the target will be silently misrouted. A distinct object type

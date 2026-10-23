@@ -1,4 +1,4 @@
-"""Tests for pass 2 of ``scripts/relink_requirement_anchors.py``.
+"""Tests for ``scripts/relink_requirement_anchors.py``, mainly pass 2.
 
 A spec renders only on its own kind's docs page (SR-09-001, SR-09-002), so a
 ``kind:`` relabel moves its anchor and every prose link to the old page
@@ -76,6 +76,15 @@ _SPECS = {
                 _item("TST-03-002", "project"),
             ],
         },
+        {
+            # a letter-suffixed ID (as LST-05-002b) is a requirement ID too
+            "id": "TST-04",
+            "title": "Suffixed group",
+            "specs": [
+                _item("TST-04-001", "protocol"),
+                _item("TST-04-001b", "project"),
+            ],
+        },
     ],
 }
 
@@ -89,6 +98,11 @@ Tied group from a page with none of its items: [TST-03](../specs/architecture.md
 Tied group from a page holding some of its items: [TST-03](../specs/process.md#tst-03).
 Not a spec anchor: [Overview](../specs/protocol.md#overview).
 Pass 1 then pass 2: [TST-01-002](../specs/protocol.md#tst-01).
+Split list: [TST-01-001, TST-01-003](../specs/protocol.md#tst-01).
+List naming another group stays: [TST-01-003, TST-02-001](../specs/protocol.md#tst-01).
+List with unknown IDs stays: [TST-01-001, TST-01-008, TST-01-009](../specs/protocol.md#tst-01).
+Suffix ID: [TST-04-001b](../specs/protocol.md#tst-04).
+Suffix ID in a list: [TST-04-001, TST-04-001b](../specs/protocol.md#tst-04).
 """
 
 _EXPECTED = """\
@@ -101,6 +115,11 @@ Tied group from a page with none of its items: [TST-03](../specs/project.md#tst-
 Tied group from a page holding some of its items: [TST-03](../specs/process.md#tst-03).
 Not a spec anchor: [Overview](../specs/protocol.md#overview).
 Pass 1 then pass 2: [TST-01-002](../specs/project.md#tst-01-002).
+Split list: [TST-01-001](../specs/project.md#tst-01-001), [TST-01-003](../specs/protocol.md#tst-01-003).
+List naming another group stays: [TST-01-003, TST-02-001](../specs/protocol.md#tst-01).
+List with unknown IDs stays: [TST-01-001, TST-01-008, TST-01-009](../specs/protocol.md#tst-01).
+Suffix ID: [TST-04-001b](../specs/project.md#tst-04-001b).
+Suffix ID in a list: [TST-04-001](../specs/protocol.md#tst-04-001), [TST-04-001b](../specs/project.md#tst-04-001b).
 """
 
 
@@ -129,9 +148,13 @@ def test_reroutes_every_link_to_the_page_its_anchor_renders_on(tree, capsys):
     assert _page(tree) == _EXPECTED
     out = capsys.readouterr().out
     assert "unknown anchor left as-is: #overview (1)" in out
-    # 1 pass-1 repoint (moved to another page), 2 pass-2 reroutes
+    # every unknown ID in a list is reported, not just the first
+    assert "unknown requirement left as-is: TST-01-008 (1)" in out
+    assert "unknown requirement left as-is: TST-01-009 (1)" in out
+    # 6 pass-1 repoints (two single IDs, two two-ID lists split in two), 4
+    # of them moved to another page; 2 pass-2 reroutes
     assert (
-        "1 requirement link(s) repointed at their own anchor, 1 of them moved "
+        "6 requirement link(s) repointed at their own anchor, 4 of them moved "
         "to a different kind page; 2 link(s) moved to the page their anchor "
         "renders on; 1 file(s) changed"
     ) in out

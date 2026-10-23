@@ -49,7 +49,7 @@ groups:
   specs:
   - id: TRIG-02-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       The following RM behaviors SHOULD be individually triggerable via the trigger
       API: validate-report, invalidate-report, reject-report, submit-report,
@@ -63,11 +63,11 @@ groups:
     - ADR-0145
   - id: TRIG-02-002
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: 'The following EM behaviors SHOULD be individually triggerable via the trigger API: propose-embargo, accept-embargo, reject-embargo, propose-embargo-revision, terminate-embargo'
   - id: TRIG-02-003
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       The following CS state-notification behaviors SHOULD be individually
       triggerable via the general-purpose trigger API (TRIG-08-003):
@@ -84,7 +84,7 @@ groups:
       `/demo/`; #4159 owns exposing all five.
   - id: TRIG-02-004
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       The following case management behaviors SHOULD be individually triggerable
       via the trigger API: engage-case, defer-case, leave-case, add-object-to-case,
@@ -93,7 +93,7 @@ groups:
     - ADR-0145
   - id: TRIG-02-005
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: 'The following participant management behaviors SHOULD be individually triggerable via the trigger API: suggest-actor-to-case, accept-case-invite, reject-case-invite, invite-actor-to-case, accept-actor-recommendation'
   - id: TRIG-02-006
     priority: MUST_NOT
@@ -114,7 +114,7 @@ groups:
     - ADR-0145
   - id: TRIG-02-007
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       Actors holding the CASE_OWNER role SHOULD be able to trigger the following role
       delegation behaviors via the trigger API: offer-case-manager-role,
@@ -198,7 +198,7 @@ groups:
   specs:
   - id: TRIG-05-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Trigger endpoint implementations SHOULD reuse existing BT trees rather than duplicating behavior logic
     stories:
     - story_2022_086
@@ -249,7 +249,7 @@ groups:
   specs:
   - id: TRIG-07-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A successfully executed trigger MUST produce an outgoing ActivityStreams activity added to the actor's outbox
     verification: >-
       Integration tests in `test/demo/` confirm that each successfully executed
@@ -363,7 +363,7 @@ groups:
   specs:
   - id: TRIG-10-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The system MUST expose an `add-object-to-case` general trigger at
       `POST /actors/{actor_id}/trigger/add-object-to-case` that accepts any object type the protocol
@@ -427,7 +427,7 @@ groups:
   specs:
   - id: TRIG-11-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The system MUST expose an `offer-case-ownership-transfer` trigger at `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`
       that accepts a `case_id` and `transferee_id` in its request body and emits
       the requesting Case Owner's proposal, `Offer(Offer(VulnerabilityCase))`, to
@@ -450,7 +450,7 @@ groups:
     - story_2022_050
   - id: TRIG-11-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The system MUST expose an `accept-case-ownership-transfer` trigger at `POST /actors/{actor_id}/trigger/accept-case-ownership-transfer`
       that accepts an `offer_id` in its request body and emits an `Accept(Offer(VulnerabilityCase))` (ownership transfer variant)
       from the requesting actor, addressed to the CASE_MANAGER (CM-21-006).
@@ -472,7 +472,7 @@ groups:
     - story_2022_050
   - id: TRIG-11-003
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: The `offer-case-ownership-transfer` trigger request body SHOULD accept an optional `content` field (free-text
       message) to include in the offer activity, consistent with the factory function signature for `offer_case_ownership_transfer_activity`.
     relationships:
@@ -496,7 +496,7 @@ groups:
       spec_id: TRIG-11-005
   - id: TRIG-11-005
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The system MUST expose a `reject-case-ownership-transfer` trigger at
       `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer` that accepts an
@@ -522,7 +522,7 @@ groups:
     - story_2022_050
   - id: TRIG-11-006
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The system MUST expose a `withdraw-case-ownership-transfer` trigger at
       `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer` that
@@ -545,7 +545,7 @@ groups:
     - story_2022_050
   - id: TRIG-11-007
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The `offer-case-ownership-transfer` trigger (TRIG-11-001) MUST accept an
       optional `end_time` in its request body and, when given, set it as the

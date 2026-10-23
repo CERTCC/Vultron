@@ -28,6 +28,7 @@ from test.core.use_cases.received.conftest import (
 from test.support.embargo_register import activate
 from test.support.ledger_records import with_ledger_records
 from test.support.received import case_stub
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -231,6 +232,34 @@ def _seed_late_joiner_case() -> dict[str, Any]:
     }
 
 
+_INVITEE_ID = "https://example.org/actors/invitee"
+
+
+def _deliver_invite_to_invitee(
+    make_payload: Any,
+    *,
+    target: Any,
+    sender: str,
+    invite_id: str,
+) -> SqliteDataLayer:
+    """Deliver one Invite to a fresh invitee store and return that store."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_INVITEE_ID)
+    invite = rm_invite_to_case_activity(
+        as_Actor(id_=_INVITEE_ID),
+        to=[_INVITEE_ID],
+        target=target,
+        actor=sender,
+        id_=invite_id,
+    )
+    InviteActorToCaseReceivedUseCase(
+        dl,
+        make_payload(invite),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute()
+    return dl
+
+
 class TestInviteActorUseCases:
     """Tests for invite_actor_to_case, accept_invite_actor_to_case,
     and reject_invite_actor_to_case."""
@@ -376,33 +405,18 @@ class TestInviteActorUseCases:
         AnnounceVulnerabilityCaseReceivedUseCase reads this anchor to admit a
         subsequent Announce from the same actor.
         """
-        from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
         from vultron.core.models.pending_case_inbox import (
             VultronPendingCaseInbox,
         )
 
         case_id = "https://example.org/cases/case-trust-1"
-        invitee_id = "https://example.org/actors/invitee"
         case_manager_id = "https://example.org/actors/case-actor"
-
-        dl = SqliteDataLayer(
-            "sqlite:///:memory:",
-            actor_id=invitee_id,
-        )
-        invite = rm_invite_to_case_activity(
-            as_Actor(id_=invitee_id),
-            to=[invitee_id],
+        dl = _deliver_invite_to_invitee(
+            make_payload,
             target=case_id,
-            actor=case_manager_id,
-            id_=f"{case_id}/invitations/trust-anchor-1",
+            sender=case_manager_id,
+            invite_id=f"{case_id}/invitations/trust-anchor-1",
         )
-        event = make_payload(invite)
-        InviteActorToCaseReceivedUseCase(
-            dl,
-            event,
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
 
         pending_id = VultronPendingCaseInbox.build_id(case_id)
         pending = dl.read(pending_id)
@@ -412,6 +426,34 @@ class TestInviteActorUseCases:
         assert pending.case_actor_id == case_manager_id, (
             "Trust anchor case_actor_id must equal the invite sender (the CASE_MANAGER)"
         )
+
+    @pytest.mark.spec("MV-10-004")
+    def test_a_received_stub_invite_stores_no_case(self, make_payload):
+        """MV-10-004: the invitee keeps the stub's anchor, never a case from it.
+
+        The stub Invite is processed (its trust anchor is written, so the
+        assertion below cannot pass on a refused Invite), yet no
+        ``VulnerabilityCase`` record is created from the stub: the case
+        arrives later, whole, with the CASE_MANAGER's Announce.
+        """
+        from vultron.core.models.pending_case_inbox import (
+            VultronPendingCaseInbox,
+        )
+
+        case_id = "https://example.org/cases/case-stub-only"
+        dl = _deliver_invite_to_invitee(
+            make_payload,
+            target=case_stub(case_id),
+            sender="https://example.org/actors/case-actor",
+            invite_id=f"{case_id}/invitations/stub-1",
+        )
+
+        assert isinstance(
+            dl.read(VultronPendingCaseInbox.build_id(case_id)),
+            VultronPendingCaseInbox,
+        ), "the stub Invite must be processed, not refused"
+        assert dl.read(case_id) is None
+        assert dl.get_all("VulnerabilityCase") == []
 
     @pytest.mark.spec("PCR-03-004")
     def test_an_accepted_invite_anchor_refuses_another_case_actor(

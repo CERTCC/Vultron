@@ -176,7 +176,7 @@ groups:
   specs:
   - id: AKM-04-001
     priority: MAY
-    kind: protocol
+    kind: project
     statement: >-
       A future implementation MAY track which objects have been shared with each participant
       (e.g., via `CaseLedgerEntry` hash-chain records) to avoid redundant full-object transmission.

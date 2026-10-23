@@ -302,7 +302,7 @@ groups:
   specs:
   - id: BTND-05-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The `CVDRoles` enum MUST include a `CASE_OWNER` flag value representing the actor who owns and manages a `VulnerabilityCase`.
     rationale: Case ownership is a protocol-significant relationship distinct from the CVD roles (VENDOR, COORDINATOR, etc.).
       When a vendor or coordinator receives a report and creates a case, they are both the receiving CVD actor (VENDOR or
@@ -731,7 +731,7 @@ groups:
   specs:
   - id: BTND-10-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A BT node that persists a ParticipantStatus snapshot containing a non-None
       VFD, RM, or PXA state MUST validate that (current_state → target_state) is

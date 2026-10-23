@@ -154,12 +154,12 @@ groups:
   specs:
   - id: AR-07-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: The system SHOULD expose an endpoint that returns the set of valid CVD actions available to a participant given
       current case state and their role
   - id: AR-07-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       The action rules response MUST be a machine-parseable JSON object that includes:
       (a) the current case state, (b) the requesting participant's CVD role, (c) a list
