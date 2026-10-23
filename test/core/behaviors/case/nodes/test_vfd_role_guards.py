@@ -127,6 +127,7 @@ def test_vendor_guard_success_for_vendor_actor(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.spec("CSB-15-005")
 @pytest.mark.executes_as(DEPLOYER_ACTOR_ID)
 def test_vendor_guard_failure_for_deployer_only_actor(
     bt_scenario: BTTestScenario,
@@ -143,6 +144,7 @@ def test_vendor_guard_failure_for_deployer_only_actor(
     assert result.status == Status.FAILURE
 
 
+@pytest.mark.spec("CSB-15-005")
 @pytest.mark.executes_as(COORDINATOR_ACTOR_ID)
 def test_vendor_guard_failure_for_coordinator_actor(
     bt_scenario: BTTestScenario,
@@ -213,6 +215,7 @@ def test_deployer_guard_success_for_deployer_actor(
     assert result.status == Status.SUCCESS
 
 
+@pytest.mark.spec("CSB-15-006")
 def test_deployer_guard_failure_for_vendor_only_actor(
     bt_scenario: BTTestScenario,
     case_with_vendor_and_deployer: VulnerabilityCase,

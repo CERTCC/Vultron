@@ -22,7 +22,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenDeployed`
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`exit_embargo_when_deployed_factory` param) — condition guard in the ReasonSelector, checked before delegating to `terminate_embargo_bt`; the same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
-- **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the termination's cause to `FIX_DEPLOYED`, which the `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry (EMB-14-001, EMB-13-004)
+- **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the termination's cause to `FIX_DEPLOYED`, which the `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry (EMB-14-001, EMB-14-004, EMB-13-004)
 
 ## `ExitEmbargoWhenFixReady`
 
@@ -37,7 +37,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoWhenFixReady`
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`exit_embargo_when_fix_ready_factory` param) — condition guard in the ReasonSelector, checked before delegating to `terminate_embargo_bt`; the same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
-- **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the termination's cause to `FIX_READY`, naming the case's vendors whose fix is ready, which the `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry (EMB-14-001, EMB-13-004).
+- **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the termination's cause to `FIX_READY`, naming the case's vendors whose fix is ready, which the `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry (EMB-14-001, EMB-14-004, EMB-13-004).
   When no vendor's fix is ready, that node fails, and the ReasonSelector tries the next reason.
 
 ## `ExitEmbargoForOtherReason`
@@ -53,7 +53,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.ExitEmbargoForOtherReason`
 - **Call-out point shape**: Evaluator
 - **Factory-fn placement**: `vultron.core.behaviors.embargo.terminate_active_embargo_tree.create_terminate_active_embargo_tree` (`exit_embargo_for_other_reason_factory` param) — rare fallback condition guard in the ReasonSelector for extraordinary circumstances; the same bundle slot also feeds the `create_manage_embargo_tree` stub Sequence
-- **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the termination's cause to `OTHER`, which the `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry (EMB-14-001, EMB-13-004)
+- **Termination cause**: On SUCCESS, the `ChooseTerminationCauseNode` that follows it sets the termination's cause to `OTHER`, which the `Remove(EmbargoEvent)` and the `TERMINATED` register entry carry (EMB-14-001, EMB-14-004, EMB-13-004)
 
 ## `EmbargoTimerExpired`
 
@@ -234,7 +234,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.OnEmbargoReject`
 - **Call-out point shape**: Actuator — fires integration hooks on embargo rejection; invokes notification APIs and case-management state writes for the rejection rationale.
   There is no content artifact placed on the blackboard; the side effects in external systems are the seam.
-- **Factory-fn placement**: Not wired yet: the `on_embargo_reject_factory` slot exists in `EmbargoCallOutBundle`, and `create_manage_embargo_tree` reserves it for the reject arm (EMB-15-004).
+- **Factory-fn placement**: Not wired yet: the `on_embargo_reject_factory` slot exists in `EmbargoCallOutBundle`, and `create_manage_embargo_tree` reserves it for the reject arm (EMB-15-004, EMB-15-008).
 
 ## `CaseOwnerApprovesEmbargoResponse`
 

@@ -208,6 +208,7 @@ def test_protocol_default_embargo_duration_defaults_to_72_hours():
 
 
 @pytest.mark.spec("EP-04-005")
+@pytest.mark.spec("EP-04-015")
 @pytest.mark.parametrize(
     "value", [timedelta(hours=72), timedelta(days=4), timedelta(days=5)]
 )
@@ -217,6 +218,7 @@ def test_protocol_default_embargo_duration_accepts_range(value):
 
 
 @pytest.mark.spec("EP-04-005")
+@pytest.mark.spec("EP-04-015")
 @pytest.mark.parametrize(
     "value",
     [
@@ -231,6 +233,7 @@ def test_protocol_default_embargo_duration_refuses_out_of_range(value):
         ActorConfig(protocol_default_embargo_duration=value)
 
 
+@pytest.mark.spec("EP-04-015")
 def test_load_actor_config_reads_protocol_default_from_env(monkeypatch):
     monkeypatch.setenv(
         "VULTRON_ACTOR__PROTOCOL_DEFAULT_EMBARGO_DURATION", "P4D"

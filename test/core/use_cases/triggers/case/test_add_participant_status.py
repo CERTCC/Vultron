@@ -1082,8 +1082,9 @@ class TestCreateParticipantStatusNode:
     # _run_node() directly, bypassing ValidateTriggerTransitionsNode
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("CSB-16-003")
     def test_invalid_vf_jump_blocked_at_write_node(self):
-        """CSB-16-001: illegal multi-step VF jump is rejected at the write boundary.
+        """CSB-16-003: illegal multi-step VF jump is rejected at the write boundary.
 
         vf → VF skips Vf; CreateParticipantStatusNode must return FAILURE
         without writing, independent of upstream guard coverage (AC-4).
@@ -1101,8 +1102,9 @@ class TestCreateParticipantStatusNode:
         assert bt_result.status == Status.FAILURE
         assert "status_id" not in result_out
 
+    @pytest.mark.spec("CSB-16-003")
     def test_same_state_vf_write_allowed_at_write_node(self):
-        """CSB-16-001: same-state VF write (no actual transition) is allowed.
+        """CSB-16-003: same-state VF write (no actual transition) is allowed.
 
         Uses CS_vf.Vf because VENDOR participants cannot hold CS_vf.vf
         (Vendor-implies-V, PRM-06-002, ADR-0121).
@@ -1146,6 +1148,8 @@ class TestCreateParticipantStatusNode:
         assert "status_id" not in result_out
         assert "ADR-0075" in bt_result.feedback_message
 
+    @pytest.mark.spec("CSB-15-006")
+    @pytest.mark.spec("CSB-15-002")
     def test_deploy_requires_deployer_role_at_write_node(self):
         """CSB-15-002: D target is blocked when the actor has no DEPLOYER role.
 
@@ -1162,6 +1166,7 @@ class TestCreateParticipantStatusNode:
         assert "status_id" not in result_out
         assert "CSB-15-002" in bt_result.feedback_message
 
+    @pytest.mark.spec("CSB-15-006")
     def test_d_not_deployed_requires_deployer_role_at_write_node(self):
         """#2963: d=d (not deployed) target is blocked when the actor has no DEPLOYER role.
 
@@ -1548,6 +1553,7 @@ class TestValidateTriggerTransitions:
         _seed_copied_status(self.dl, self.actor_participant.id_, **dimensions)
 
     @pytest.mark.spec("CM-04-005")
+    @pytest.mark.spec("CSB-16-003")
     def test_ac1_invalid_vf_jump_raises_and_persists_nothing(self):
         """AC-1: vf → VF (skips Vf) raises VultronValidationError; no record written.
 
@@ -1572,6 +1578,8 @@ class TestValidateTriggerTransitions:
         assert self._status_snapshot() == before
 
     @pytest.mark.spec("CM-04-005")
+    @pytest.mark.spec("CSB-16-002")
+    @pytest.mark.spec("CSB-16-004")
     def test_ac3_backward_pxa_raises_and_persists_nothing(self):
         """AC-3: Pxa → pxa (backward) raises VultronValidationError; no record written.
 

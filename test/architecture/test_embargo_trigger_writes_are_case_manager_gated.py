@@ -202,6 +202,7 @@ def _gated_by_case_manager(node: py_trees.behaviour.Behaviour) -> bool:
 
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("BT-17-001")
+@pytest.mark.spec("EP-09-014")
 @pytest.mark.parametrize("factory_name", sorted(_FACTORIES))
 def test_every_lifecycle_write_is_case_manager_gated(
     factory_name: str,

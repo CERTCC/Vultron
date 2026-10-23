@@ -98,7 +98,7 @@ guard layer against the participant's authoritative `case_roles`:
 
 - **Trigger / emit path** (fail-closed): `ValidateTriggerTransitionsNode` and
   the role guards on the add-participant-status trigger tree (BTND-10-001,
-  CSB-15-001/002).
+  CSB-15-005/006).
 - **Receive path** (the whole status refused):
   `vultron/core/behaviors/status/nodes/participant_status_acceptance.py`
   (RSH-09-003).

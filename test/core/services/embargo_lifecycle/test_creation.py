@@ -20,6 +20,7 @@ refusal or fault leaves the case at ``EM.NONE`` for a redelivered proposal to
 finish (EP-04-012, #4123, #4142).
 """
 
+import logging
 from typing import cast
 
 import pytest
@@ -76,6 +77,32 @@ def _unstored_embargo(context: str, days: int = 45) -> as_EmbargoEvent:
     return as_EmbargoEvent(context=context, end_time=days_from_now_utc(days))
 
 
+@pytest.mark.spec("DUR-07-005")
+def test_initialization_is_logged_at_info(
+    owner_and_dl: tuple[as_Service, SqliteDataLayer],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    owner, dl = owner_and_dl
+    case, _ = _make_case(dl, owner.id_)
+    embargo = _make_embargo(dl, case.id_)
+
+    with caplog.at_level(logging.INFO):
+        EmbargoLifecycle(persistence=dl).initialize_creation_embargo(
+            case_id=case.id_, embargo=embargo, actor_id=owner.id_
+        )
+
+    # The creation service's own record, not the consent move it also logs.
+    assert any(
+        record.name == "vultron.core.services.embargo_lifecycle.creation"
+        and record.levelno == logging.INFO
+        and "initialized creation-time embargo" in record.getMessage()
+        and embargo.id_ in record.getMessage()
+        and case.id_ in record.getMessage()
+        for record in caplog.records
+    )
+
+
+@pytest.mark.spec("DUR-07-003")
 def test_none_to_active_in_one_commit(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
     monkeypatch: pytest.MonkeyPatch,

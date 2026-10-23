@@ -230,7 +230,7 @@ Owner answers Accept/Reject(Invite(B))                   → CASE_MANAGER
 
 - **A proposer's trigger writes no EM state** unless it holds the CASE_MANAGER role: it
   emits to the manager, records the ask in the pending-assertion store, and its replica
-  moves on the announced commit (EP-09-008).
+  moves on the announced commit (EP-09-008, EP-09-014).
 - **A CASE_MANAGER deciding by trigger** writes, commits, and addresses nothing to
   itself (EP-09-008; `notes/embargo-lifecycle.md` § "Embargo Negotiation Relays
   Through the CASE_MANAGER"). The commit is the EK acknowledgement (EP-09-009).

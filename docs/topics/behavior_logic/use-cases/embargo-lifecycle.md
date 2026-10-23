@@ -236,7 +236,7 @@ Its default is to accept (EMB-15-001, EMB-15-005) — the protocol's position is
 All three default to *no*, and the defaults are ordered.
 A fix being deployed is a more plausible reason to exit than a fix merely being ready, and "some other reason" is the least plausible of all.
 An implementer reading only the code sees three similar nodes; the probabilities are where the editorial judgment is recorded.
-When an Evaluator says *yes*, the node after it records the termination's cause: `FIX_DEPLOYED`, `FIX_READY` with the Vendors whose fix is ready, or `OTHER` (EMB-14-001).
+When an Evaluator says *yes*, the node after it records the termination's cause: `FIX_DEPLOYED`, `FIX_READY` with the Vendors whose fix is ready, or `OTHER` (EMB-14-001, EMB-14-004).
 When no Vendor's fix is ready, the `FIX_READY` branch fails and the next reason is tried.
 The termination message and the ended embargo's register entry record that cause.
 
@@ -253,7 +253,7 @@ They are notification and integration hooks that fire after the transition and c
     when it wires nothing (BT-23-001). None of them is a protocol obligation to
     accept. The one place the protocol *does* mandate an answer is the
     public/exploit/attacks condition, and that is enforced independently of any
-    call-out outcome (EMB-15-004).
+    call-out outcome (EMB-15-004, EMB-15-008).
 
 ---
 
@@ -270,7 +270,7 @@ The case manager stamps `Invite.end_time` on every invitation it relays.
 It then records the invitee's `INVITED` consent row, deadline included, as its own ledger entry right after the Invite's, and every replica copies that row from the entry (CM-28-012, CM-28-013).
 A Participant that receives an invitation derives no deadline of its own.
 
-There is a floor. An inviting actor must not send a window shorter than the configured minimum, defaulting to 72 hours (EP-07-002).
+There is a floor. An inviting actor must not send a window shorter than the minimum, which defaults to 72 hours (EP-07-002) and is configurable (EP-07-008).
 The case manager, as the actor that stamps the relayed invitation, clamps a too-short window up to the minimum and logs the clamp; it does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).
 Refusing a too-short invitation would punish the invitee for the inviter's error.
 
@@ -338,7 +338,7 @@ A status with a different EM state is built by construction or by `CaseStatus.wi
 | [EMB-03-001](../../../reference/specs/protocol.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
 | [EMB-06-001](../../../reference/specs/protocol.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` when it rejects the last open proposal, and leave it `PROPOSED` while another is open |
 | [EMB-13-002](../../../reference/specs/protocol.md#emb-13-002) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
-| [EMB-15-002](../../../reference/specs/protocol.md#emb-15-002) | The response seam MUST bypass approval when the deciding actor is the case owner |
+| [EMB-15-002](../../../reference/specs/project.md#emb-15-002) | The response seam MUST bypass approval when the deciding actor is the case owner |
 | [EMB-16-001](../../../reference/specs/protocol.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
 | [EMB-16-002](../../../reference/specs/protocol.md#emb-16-002) | A participant that is not the case manager MUST NOT emit ER as that abandonment or write it itself; it still answers what it receives under EMB-01-002 |
 | [EMB-17-001](../../../reference/specs/protocol.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |
