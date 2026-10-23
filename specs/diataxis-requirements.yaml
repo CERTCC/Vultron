@@ -1046,6 +1046,7 @@ groups:
       to scan (DF-11-006), and deriving it from the nav and frontmatter keeps it
       from drifting (DF-11-005).
     verification_debt: '#2571'
+    tracking_issue: '#5150'
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers
   description: >-
