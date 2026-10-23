@@ -108,3 +108,13 @@ def test_adopted_pages_use_the_macros_not_bare_event_letters(path: Path):
     assert not hits, (
         f"{path.relative_to(DOCS)} writes {hits}; use the \\ev… macros"
     )
+
+
+def test_config_loads_the_action_extension_at_startup():
+    # Autoload does not define \texttip in time for macros expanded from the
+    # config, so in a browser every event symbol rendered as a red error.
+    config = MATHJAX.read_text()
+    assert '"[tex]/action"' in config, "loader.load must include [tex]/action"
+    assert re.search(r'packages:\s*\{\s*"\[\+\]":\s*\["action"\]', config), (
+        'tex.packages must add "action"'
+    )

@@ -1,5 +1,10 @@
 window.MathJax = {
+  // \texttip (used by the case event macros below) lives in the "action"
+  // extension. Load it at startup: the bundle's autoload does not define it in
+  // time for macros expanded from this config, so they render as red errors.
+  loader: { load: ["[tex]/action"] },
   tex: {
+    packages: { "[+]": ["action"] },
     inlineMath: [["\\(", "\\)"]],
     displayMath: [["\\[", "\\]"]],
     processEscapes: true,
