@@ -398,11 +398,11 @@ Vultron also keeps the end of an embargo apart from publication ([Embargo Termin
 </tr>
 <tr markdown="1">
 <td markdown="span">Revised embargo, EM `REVISE` and the next register entry</td>
-<td markdown="span">A second `embargo` action that refers to the first</td>
+<td markdown="span">A new `embargo` action that refers to the earlier `embargo` action</td>
 <td markdown="span">One to one</td>
 <td markdown="span">Derived</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">CSAF could let an `embargo` action carry its own end date. If nothing changes, the second action changes the `disclosure_date` of the document, and the date of the first version is lost. See [proposal 1](proposals.md#1-an-embargo-action-carries-its-own-end-date).</td>
+<td markdown="span">CSAF could let an `embargo` action carry its own end date. If nothing changes, the new action changes the `disclosure_date` of the document, and the date of the earlier version is lost. See [proposal 1](proposals.md#1-an-embargo-action-carries-its-own-end-date).</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">Early termination of an embargo, EM `EXITED` before the end time</td>

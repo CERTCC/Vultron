@@ -60,10 +60,13 @@ The difference explains most of the gaps on the other pages, and it tells which 
 
 ## How a CSAF document relates to a Vultron case
 
-A CSAF document can relate to a Vultron case in three ways.
-It can replace the case, it can travel inside the case, or the case can produce it.
-Vultron uses the second today, because it carries a CSAF document in a report without reading it.
-Vultron plans the third, and it does not use the first.
+A CSAF document can relate to a Vultron case in three ways:
+
+| Relation | In Vultron |
+|---|---|
+| [A CSAF document replaces the case](#a-csaf-document-does-not-replace-the-case) | Not used. |
+| [A CSAF document travels inside the case](#a-csaf-document-can-travel-inside-a-case) | Used today. A report can carry a CSAF document, and Vultron carries it without reading it. |
+| [The case produces a CSAF document](#a-case-can-produce-a-csaf-document) | Planned. |
 
 ### A CSAF document does not replace the case
 
