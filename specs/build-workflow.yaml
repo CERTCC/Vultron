@@ -421,7 +421,7 @@ groups:
           implies a learning file — most findings have a nearer owner.
       - id: BW-07-002
         priority: SHOULD
-        kind: protocol
+        kind: process
         statement: >-
           Incoming learning files SHOULD include a `signal:` frontmatter
           field set to one of `theme-candidate`, `spec-gap`,

@@ -50,7 +50,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The actor enacting `CVDRole.CASE_MANAGER` MUST share its public key with each case
+      The actor enacting the `CASE_MANAGER` role MUST share its public key with each case
       participant when they are added to the case
     verification: Integration tests confirm that when a participant is added to a case, the outbound activity includes
       the CASE_MANAGER's public key.

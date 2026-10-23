@@ -126,7 +126,7 @@ Case Actor inbox receives Reject:
   2. Announce(CaseLedgerEntry) → all participants.
 ```
 
-The proposed owner declines an offer by sending a `Reject` with the `reject-case-ownership-transfer` trigger ([TRIG-11-005](../../reference/specs/protocol.md#trig-11-005)), and the `Reject` is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)).
+The proposed owner declines an offer by sending a `Reject` with the `reject-case-ownership-transfer` trigger ([TRIG-11-005](../../reference/specs/project.md#trig-11-005)), and the `Reject` is also sent to the CASE_MANAGER ([CM-21-010](../../reference/specs/protocol.md#cm-21-010)).
 The protocol treats a `Reject` like an `Accept`: the CASE_MANAGER records it in the ledger and sends the entry to every participant, which is how the participant who made the offer learns of it ([CM-21-012](../../reference/specs/protocol.md#cm-21-012)).
 Only the proposed owner named in an open offer may decline it ([CM-21-013](../../reference/specs/protocol.md#cm-21-013)).
 The CASE_MANAGER does not act on a `Reject` from anyone else: it records nothing, and the offer stays open.
@@ -154,7 +154,7 @@ Case Actor inbox receives Undo:
   2. Announce(CaseLedgerEntry) → all participants.
 ```
 
-The owner may withdraw the offer while it is open, with the `withdraw-case-ownership-transfer` trigger, which sends an `Undo` of the owner's own proposal to the CASE_MANAGER ([CM-21-015](../../reference/specs/protocol.md#cm-21-015), [TRIG-11-006](../../reference/specs/protocol.md#trig-11-006)).
+The owner may withdraw the offer while it is open, with the `withdraw-case-ownership-transfer` trigger, which sends an `Undo` of the owner's own proposal to the CASE_MANAGER ([CM-21-015](../../reference/specs/protocol.md#cm-21-015), [TRIG-11-006](../../reference/specs/project.md#trig-11-006)).
 The owner names the proposal, the one activity of the transfer it holds, and the CASE_MANAGER withdraws the offer it made from that proposal.
 The CASE_MANAGER acts on a withdrawal only when its sender is the Case Owner that offer was made for, and the offer is still open.
 It records the withdrawal in the ledger and sends the entry to every participant, so the proposed owner learns that it can no longer accept, and the offer is closed.
@@ -179,7 +179,7 @@ or a new proposal for the case:
 ```
 
 An offer may also carry an `end_time`, the deadline to answer it ([CM-21-016](../../reference/specs/protocol.md#cm-21-016)).
-The owner sets it with the `end_time` field of the `offer-case-ownership-transfer` trigger, which must be a future time with a timezone ([TRIG-11-007](../../reference/specs/protocol.md#trig-11-007)); without it, the offer stays open until it is answered or withdrawn.
+The owner sets it with the `end_time` field of the `offer-case-ownership-transfer` trigger, which must be a future time with a timezone ([TRIG-11-007](../../reference/specs/project.md#trig-11-007)); without it, the offer stays open until it is answered or withdrawn.
 The trigger puts the deadline on the proposal's inner offer, and the offer the CASE_MANAGER makes carries it, so the proposed owner knows when it can no longer answer.
 The CASE_MANAGER reads the deadline in Coordinated Universal Time (UTC), whatever offset the offer was sent with.
 

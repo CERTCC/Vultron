@@ -555,8 +555,9 @@ class TestOfferAddressingSemantics:
         return event.model_copy(update={"receiving_actor_id": self.VENDOR_ID})
 
     @pytest.mark.spec("HP-10-001")
+    @pytest.mark.spec("HP-10-002")
     def test_receiving_actor_in_cc_logs_warning_no_case(self, caplog):
-        """HP-10-001: Receiving actor in Offer.cc → WARNING logged, no case.
+        """HP-10-001, HP-10-002: Receiving actor in Offer.cc → no case, WARNING logged.
 
         The vendor is only in the wire Offer's ``cc``.  The extractor does not
         carry ``cc`` into core (ADR-0109), so the handler sees a receiver that

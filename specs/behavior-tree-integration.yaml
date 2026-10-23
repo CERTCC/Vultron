@@ -54,7 +54,7 @@ groups:
   specs:
   - id: BT-03-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: BTs MUST use DataLayer as persistent state store
     verification: >-
       Inspection of BT node implementations in `vultron/core/behaviors/` confirms that
@@ -74,7 +74,7 @@ groups:
     statement: BT blackboard MAY cache DataLayer state during execution
   - id: BT-03-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: State changes MUST be committed to DataLayer on successful execution
     verification: >-
       A unit test confirms that a BT node's successful `update()` path calls `dl.save()`
@@ -273,7 +273,7 @@ groups:
     statement: BT nodes MUST use type-safe DataLayer operations
   - id: BT-07-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: State transitions MUST be logged at the level specified by SL-04-001
     verification: >-
       Integration tests in `test/demo/` confirm that every RM, EM, and CS state
@@ -306,7 +306,7 @@ groups:
   specs:
   - id: BT-09-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Each actor MUST have isolated BT execution context
     verification: >-
       Integration tests in `test/demo/` confirm that processing messages for two
@@ -325,7 +325,7 @@ groups:
   specs:
   - id: BT-10-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Report validation MUST trigger VulnerabilityCase creation
     verification: >-
       Integration tests in `test/demo/test_receive_report_demo.py` confirm that
@@ -343,18 +343,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Case creation MUST establish the case's CASE_MANAGER by recording a participant that holds
-      `CVDRole.CASE_MANAGER`. It MUST NOT require a per-case `Service` object, and MUST NOT mint a
-      per-case actor identity: the actor enacting the role (the "CaseActor") has its container's
-      identity, and the case a message concerns is carried by `activity.context`.
+      Case creation MUST establish the case's CASE_MANAGER by recording a participant
+      that holds the `CASE_MANAGER` role. It MUST NOT require a per-case `Service`
+      actor, and MUST NOT mint a per-case actor identity: the actor enacting the role
+      keeps its own actor identity, and the case a message concerns is carried by the
+      activity's `context`.
     rationale: >-
-      The prior text — "Case creation MUST create corresponding CaseActor (Service)" — treated the
-      CaseActor as a distinct per-case *object*, and implementations followed it by deriving
-      `{case_actor_service_url}/actors/case-actor-{slug}` from the report or case id. That identity was
-      unhostable by construction: the *sender* computed it, so no container could have registered it,
-      and `POST /actors/case-actor-<slug>/inbox/` answered a permanent 404 (ISSUE-1872). Provisioning
-      could not rescue it either, because the slug is not computable until a report exists, by which
-      point the proposal has already been delivered.
+      The prior text — "Case creation MUST create corresponding CaseActor (Service)" —
+      treated the CaseActor as a distinct per-case *object*, and implementations
+      followed it by deriving `{case_actor_service_url}/actors/case-actor-{slug}` from
+      the report or case id. That identity was unhostable by construction: the *sender*
+      computed it, so no container could have registered it, and `POST
+      /actors/case-actor-<slug>/inbox/` answered a permanent 404 (ISSUE-1872).
+      Provisioning could not rescue it either, because the slug is not computable until
+      a report exists, by which point the proposal has already been delivered.
 
       An actor participates in many cases; the CASE_MANAGER is whichever participant the case owner
       delegated `CVDRole.CASE_MANAGER` to. That is the role, not an entity, which is why the role is
@@ -365,8 +367,8 @@ groups:
     - rel_type: refines
       spec_id: CP-04-002
     verification: >-
-      `test/core/behaviors/case/test_case_actor_identity.py` asserts the identity does not vary by
-      case and that the slugged form is rejected;
+      `test/core/behaviors/case/test_case_actor_identity.py` asserts the identity does
+      not vary by case and that the slugged form is rejected;
       `test/core/behaviors/case/test_receive_report_case_tree.py` asserts
       `case_creator_id` is the container identity and contains no slug.
     adr:
@@ -378,20 +380,21 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The actor holding `CVDRole.CASE_MANAGER` for a case MUST process that case's messages. The
-      authority is that role; "CaseActor" names only the concrete prototype/demo actor that enacts
-      it, not the role itself.
+      The actor holding the `CASE_MANAGER` role for a case MUST process that case's
+      messages. The authority is that role, not any particular actor that enacts it.
     rationale: >-
-      Reworded with BT-10-002 to remove the entity-vs-role assumption: the prior "CaseActor MUST manage
-      case-related message processing" reads as an obligation on a distinct object, which is what led
-      implementations to mint one per case (ISSUE-1872).
+      Reworded with BT-10-002 to remove the entity-vs-role assumption: the prior
+      "CaseActor MUST manage case-related message processing" reads as an obligation on
+      a distinct object, which is what led implementations to mint one per case
+      (ISSUE-1872).
     relationships:
     - rel_type: refines
       spec_id: BT-10-002
     verification: >-
-      `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts the role holder
-      runs the case-scoped children and a non-holder does not, with the holder identified by
-      `CVDRole.CASE_MANAGER` on its participant record rather than by any actor object.
+      `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts
+      the role holder runs the case-scoped children and a non-holder does not, with the
+      holder identified by `CVDRole.CASE_MANAGER` on its participant record rather than
+      by any actor object.
     stories:
     - story_2022_088
     - story_2022_039
@@ -399,13 +402,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The actor holding `CVDRole.CASE_MANAGER` for a case MUST enforce that case's authorization
-      decisions. Gates MUST test for the role rather than for a CaseActor object or a per-case actor
-      identity.
+      The actor holding the `CASE_MANAGER` role for a case MUST enforce that case's
+      authorization decisions, and MUST do so because it holds that role, not because of
+      a per-case actor identity.
     rationale: >-
-      Same entity-vs-role correction as BT-10-002 and BT-10-003. Testing for the role is also what makes
-      the gate work for a non-software case manager, which is the general case; `CheckIsCaseManagerNode`
-      already does this and needs no notion of a CaseActor entity.
+      Same entity-vs-role correction as BT-10-002 and BT-10-003. Tying the authority to
+      the role is also what makes it work for a non-software case manager, which is the
+      general case. How this codebase's gates test for the role is BT-10-006.
     scope:
     - production
     relationships:
@@ -416,9 +419,9 @@ groups:
     - rel_type: refines
       spec_id: CLP-09-004
     verification: >-
-      `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts the gate admits
-      only the `CVDRole.CASE_MANAGER` holder and that a failure by that holder is reported rather than
-      masked by the skip path a non-holder takes.
+      `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts
+      the gate admits only the `CVDRole.CASE_MANAGER` holder and that a failure by that
+      holder is reported rather than masked by the skip path a non-holder takes.
     stories:
     - story_2022_035
     - story_2022_036
@@ -426,12 +429,12 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      The system SHOULD record an invitee's RM state as RM.RECEIVED via BT execution
-      when the CASE_MANAGER emits the stub Invite (CM-11-006), and SHOULD leave it at
-      RM.RECEIVED when the invitee accepts the stub (CM-11-001). The invitee's triage is
-      driven by its replies to the full-case Invite (RM.VALID, RM.INVALID or RM.CLOSED,
-      CM-11-011) and then by `Join(VulnerabilityCase)` or `Ignore(VulnerabilityCase)`
-      (RM.ACCEPTED or RM.DEFERRED).
+      The CASE_MANAGER SHOULD record an invitee's RM state as RM.RECEIVED when it emits
+      the stub Invite (CM-11-006), and SHOULD leave it at RM.RECEIVED when the invitee
+      accepts the stub (CM-11-001). The invitee's triage is driven by its replies to the
+      full-case Invite (RM.VALID, RM.INVALID or RM.CLOSED, CM-11-011) and then by
+      `Join(VulnerabilityCase)` or `Ignore(VulnerabilityCase)` (RM.ACCEPTED or
+      RM.DEFERRED).
     relationships:
     - rel_type: implements
       spec_id: CM-11-006
@@ -440,6 +443,24 @@ groups:
     adr:
     - ADR-0114
     - ADR-0121
+  - id: BT-10-006
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase's CASE_MANAGER gates (BT-10-004) MUST test for the
+      `CVDRole.CASE_MANAGER` role on the actor's participant record, not for a CaseActor
+      object or a per-case actor identity.
+    rationale: >-
+      `CheckIsCaseManagerNode` reads the role from the participant record and needs no
+      notion of a CaseActor entity, so the gate works for any actor the case owner
+      delegates the role to.
+    verification: >-
+      `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts
+      the gate admits only the `CVDRole.CASE_MANAGER` holder and that a failure by that
+      holder is reported rather than masked by the skip path a non-holder takes.
+    relationships:
+    - rel_type: implements
+      spec_id: BT-10-004
 - id: BT-12
   title: VFD/PXA State Machine Usage
   specs:
@@ -474,7 +495,7 @@ groups:
   specs:
   - id: BT-11-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Prototype MUST process messages sequentially (FIFO order)
     rationale: Eliminates race conditions in prototype phase
     verification: >-
@@ -494,7 +515,7 @@ groups:
     statement: Sequential processing MUST NOT block HTTP response (BackgroundTasks)
   - id: BT-11-003
     priority: MAY
-    kind: protocol
+    kind: project
     statement: Future optimizations MAY introduce resource-level locking
     scope:
     - production
@@ -560,7 +581,7 @@ groups:
       note: Delivery failures must propagate to handler error paths
   - id: BT-14-002
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Peer broadcast fan-out paths SHOULD reuse a shared helper/subtree for recipient filtering, activity construction,
       and outbox enqueueing so the failure contract is consistent across workflow domains.
     rationale: Duplicated fan-out implementations drift over time and re-introduce silent-failure behavior in only some pathways.
@@ -1274,7 +1295,7 @@ groups:
       note: State-mutation ordering relative to routing checks is part of the tree's auditable behavioral contract.
   - id: BT-19-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: In Vultron protocol lifecycle BTs, routing prerequisites for EM/RM/CS state-transition sequences MUST include
       Case Manager actor ID resolution and outbox availability. A missing Case Manager entry in `actor_participant_index`
       MUST cause the sequence to fail at the guard with zero DataLayer state change.

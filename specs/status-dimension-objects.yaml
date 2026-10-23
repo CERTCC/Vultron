@@ -83,7 +83,7 @@ groups:
   specs:
   - id: SDO-02-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Each dimension object except `EmDimension` MUST implement a transition(trigger) method that validates the trigger
       against the current state, applies the state machine rules, and returns a NEW dimension object with the updated state.
       `EmDimension` has none, because EM changes only by an embargo register step (ADR-0122).
@@ -97,7 +97,7 @@ groups:
     - story_2022_088
   - id: SDO-02-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: A dimension object's transition() MUST raise a descriptive exception (VultronInvalidStateTransitionError or
       a subclass) when the trigger is not valid for the current state.
     rationale: Fail-fast at the boundary; never return None or silently no-op on an invalid transition. See ADR-0032 and ARCH-15-001.
@@ -122,7 +122,7 @@ groups:
     - ADR-0036
   - id: SDO-02-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       Dimension objects MUST reject construction with an invalid
       (current_state → target_state) transition at construction time, regardless of
@@ -159,7 +159,7 @@ groups:
   specs:
   - id: SDO-03-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'CaseStatus MUST replace its flat enum fields (em_state: EM, pxa_state: CS_pxa) with embedded dimension object
       fields: em: EmDimension and pxa: PxaDimension.'
     rationale: Flat enum fields provide no transition validation or guard methods. Dimension objects make illegal transitions
@@ -173,7 +173,7 @@ groups:
     - story_2022_062
   - id: SDO-03-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: 'ParticipantStatus MUST carry its participant-level state as embedded dimension object fields, not flat
       enum fields: an always-present rm: RmDimension, an optional vf: VfDimension (present for a VENDOR participant) and an
       optional d: DDimension (present for a DEPLOYER participant); a participant with both roles carries both. It carries

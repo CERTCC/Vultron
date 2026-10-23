@@ -237,7 +237,7 @@ groups:
       spec_id: ARCH-08-001
   - id: CS-10-002
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Wire-level ActivityStreams payload classes SHOULD carry the `Activity` suffix; domain event classes SHOULD
       carry the `Event` suffix
     rationale: Distinguishes wire representation from domain intent, prevents accidental coupling between layers, and makes
@@ -257,7 +257,7 @@ groups:
   specs:
   - id: CS-12-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Core domain model class names SHOULD reflect the domain concept they represent, not a parallel to a wire-format
       class name
     rationale: Generic wire-mirroring names obscure what an object actually represents in the CVD domain. Domain-centric names

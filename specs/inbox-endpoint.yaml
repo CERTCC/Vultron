@@ -194,7 +194,9 @@ groups:
   - id: IE-04-001
     priority: MUST
     kind: protocol
-    statement: The endpoint MUST validate activity structure via schema validation
+    statement: >-
+      The endpoint MUST validate each activity's structure against the message form its
+      type requires
     verification: >-
       Integration tests in `test/demo/` confirm that a structurally invalid
       activity payload is rejected without being placed in the processing queue.
