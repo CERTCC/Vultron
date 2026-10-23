@@ -23,6 +23,7 @@ from vultron.wire.as2.factories import (
     activate_embargo_activity,
     announce_embargo_activity,
     create_embargo_consent_activity,
+    create_embargo_event_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
@@ -141,6 +142,25 @@ def undo_embargo_invite() -> as_Undo:
         id_=f"{invite.id_}/undo",
         actor=case_actor().id_,
         context=invite.context,
+        published=EXAMPLE_TIMESTAMP,
+    )
+
+
+def create_embargo_event() -> as_Create:
+    """The CASE_MANAGER's ``Create(EmbargoEvent)`` of a new case's embargo.
+
+    A case's creation writes its default embargo, and the CASE_MANAGER
+    commits it in full as the ``create_embargo_event`` entry right after the
+    genesis entry (CLP-07-013).  It is addressed to nobody: each participant
+    takes the embargo from the ledger.
+    """
+    _case = case()
+    embargo = embargo_event()
+    return create_embargo_event_activity(
+        embargo,
+        id_=f"{embargo.id_}/create",
+        actor=case_actor().id_,
+        context=_case.id_,
         published=EXAMPLE_TIMESTAMP,
     )
 

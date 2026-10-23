@@ -2214,8 +2214,9 @@ groups:
     verification_debt: '#2575'
     statement: '`_CASE_AUTHORED_SIGNATURES` MUST be a complete superset of all `("verb",
       "object-type")` pairs emitted by the CASE_MANAGER during native case initialization
-      (create_case, add_report_to_case, add_participant_status_to_participant × N,
-      add_case_status_to_case). Any pair present in `_CANONICAL_PAYLOAD_SIGNATURES`
+      (create_case, create_embargo_event, add_report_to_case, create_case_participant,
+      add_participant_status_to_participant × N, add_case_status_to_case). Any pair
+      present in `_CANONICAL_PAYLOAD_SIGNATURES`
       that the CASE_MANAGER natively authors MUST also appear in `_CASE_AUTHORED_SIGNATURES`.'
     rationale: A CASE_MANAGER that cannot author its own initialization entries must
       resort to vendor-side workarounds (the pattern that ADR-0015 introduced and

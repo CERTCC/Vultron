@@ -227,6 +227,11 @@
       "phrase": "{actor} withdrew from the embargo"
     },
     {
+      "semanticType": "create_embargo_event",
+      "wire": "Create(EmbargoEvent)",
+      "phrase": "{actor} created the case's embargo"
+    },
+    {
       "semanticType": "create_embargo_consent",
       "wire": "Create(EmbargoConsent)",
       "phrase": "{actor} created an embargo consent row"

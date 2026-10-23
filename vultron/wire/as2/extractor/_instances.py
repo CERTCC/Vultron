@@ -64,6 +64,16 @@ RejectInviteToEmbargoOnCasePattern = ActivityPattern(
     activity_=TAtype.REJECT,
     object_=InviteToEmbargoOnCasePattern,
 )
+CreateEmbargoEventPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER records an embargo its case's creation wrote, such "
+        "as the default embargo: a CREATE of the EmbargoEvent carrying it in "
+        "full, right after the genesis entry (CLP-07-013).  The object must "
+        "be an EmbargoEvent; a Create of any other Event is unrecognized."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.EMBARGO_EVENT,
+)
 CreateEmbargoConsentPattern = ActivityPattern(
     description=(
         "The CASE_MANAGER creates a participant's embargo consent row: a "

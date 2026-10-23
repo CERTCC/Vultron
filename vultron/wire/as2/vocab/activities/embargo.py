@@ -208,6 +208,24 @@ class _RemoveEmbargoFromCaseActivity(as_Remove):
         return self
 
 
+class _CreateEmbargoEventActivity(as_Create):
+    """The CASE_MANAGER brought an embargo into existence with its case.
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying, in
+    full, an ``EmbargoEvent`` the case's creation wrote, such as the default
+    embargo (EP-04-002, CLP-07-013), labelled ``create_embargo_event``.  It
+    follows the genesis entry.  The registry recognizes it, but no received
+    use case handles it (ADR-0140): a participant takes the embargo from the
+    ledger.
+
+    object_: as_EmbargoEvent
+    """
+
+    object_: as_EmbargoEvent = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
 class _CreateEmbargoConsentActivity(as_Create):
     """The CASE_MANAGER brought a consent row into existence (ADR-0122).
 

@@ -78,6 +78,7 @@ _UNHANDLED = frozenset(
         "create_participant",
         "update_participant",
         "update_case",
+        "create_embargo_event",
         "create_embargo_consent",
         "update_embargo_consent",
     }

@@ -273,12 +273,17 @@ def creation_entry_sequence(
     """The ``(semantic_type, object id)`` entries creating *case* commits.
 
     One rule for every creation path, read off the resulting case file: the
-    genesis ``create_case``, each linked report, each participant's record
+    genesis ``create_case``, each embargo the register names (#5122), each
+    linked report, each participant's record
     created with its first status and then its later statuses, in roster
     order, then each case status (CLP-07-013, CM-23-007).  Two paths that
     produce the same case therefore commit the same sequence.
     """
     sequence = [("create_case", case.id_)]
+    sequence += [
+        ("create_embargo_event", entry.embargo_id)
+        for entry in case.embargo_register
+    ]
     sequence += [
         ("add_report_to_case", str(_as_id(report)))
         for report in case.vulnerability_reports

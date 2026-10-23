@@ -10,6 +10,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
+    ApplyCreatedEmbargoFromLedgerNode,
     ApplyEmbargoAbandonmentFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoActivationFromLedgerNode,
@@ -49,6 +50,7 @@ from vultron.core.behaviors.sync.nodes import (
     IsAddCaseStatusEventNode,
     IsAddNoteEventNode,
     IsCreateCaseParticipantEventNode,
+    IsCreateEmbargoEventNode,
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
@@ -117,8 +119,9 @@ def _event_effect_slot(
 def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
     """The embargo negotiation's replay slots (EP-09-007, RSH-08-004, ADR-0113).
 
-    The proposal the CASE_MANAGER received, each Invite it relayed (a
-    re-invite among them, EMB-17-003), each participant's ``Accept`` or
+    An embargo the case's creation wrote (#5122), the proposal the
+    CASE_MANAGER received, each Invite it relayed (a re-invite among them,
+    EMB-17-003), each participant's ``Accept`` or
     ``Reject`` of an Invite — the sender's own consent, an honoured late
     ``Accept`` included (EMB-17-002) — a signatory's withdrawal from the
     embargo in force (MSM-07-010), the manager's abandonment of an open
@@ -126,6 +129,11 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
     (EMB-16-001, ADR-0152), and the manager's own consent-row entries.
     """
     return [
+        _event_effect_slot(
+            "CreatedEmbargo",
+            IsCreateEmbargoEventNode,
+            ApplyCreatedEmbargoFromLedgerNode,
+        ),
         _event_effect_slot(
             "EmbargoProposal",
             IsEmbargoProposalEventNode,

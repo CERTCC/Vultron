@@ -749,6 +749,20 @@ groups:
     - path: howto/activitypub/activities/manage_embargo.md
       title: How to Revise or Terminate an Embargo
     example: withdraw_from_embargo
+  - anchor: create-embargo-event
+    heading: Create embargo event
+    when: the Case Manager has created a case and, with it, an embargo such as the default
+      embargo
+    send: Create(EmbargoEvent)
+    send_to: a participant
+    sent_by: not handled
+    semantics: create_embargo_event
+    status: none
+    description: Carries the new embargo in full, its start and end times included. It follows
+      the case's genesis entry.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: create_embargo_event
   - anchor: create-embargo-consent
     heading: Create embargo consent
     when: the Case Manager creates a participant's consent row for an embargo, such as the

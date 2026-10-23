@@ -67,6 +67,13 @@ A revision that ends later sends no such notice, because those participants neve
 - **Who sends it:** only the Case Manager, which undoes only invitations it sent.
   No use case handles it on receipt.
 
+{% include-markdown "./_occasions/sections/create-embargo-event.md" %}
+
+- **Protocol role:** each embargo a case's creation writes, such as the default embargo, is its own ledger entry, right after the case's genesis entry, carrying the embargo in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
+  A replica built from the ledger alone reads the embargo's start and end times from it.
+- **Who commits it:** only the Case Manager, as a ledger entry.
+  No use case handles it on receipt: each replica stores the embargo from the ledger entry.
+
 {% include-markdown "./_occasions/sections/create-embargo-consent.md" %}
 
 - **Protocol role:** each consent row the Case Manager brings into existence is its own ledger entry, after the act that caused it, carrying the row in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).

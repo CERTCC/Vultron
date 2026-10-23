@@ -50,8 +50,9 @@ _PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", CaseLedgerEntry)
 
 # Every ``(activity_type, object_type)`` pair that may appear as a canonical
 # ledger ``payloadSnapshot``.  Audited against the CaseActor-authoritative
-# initialization path in ADR-0041 (Issue #1777): the four init signatures
-# (``Create(VulnerabilityCase)``, ``Add(VulnerabilityReport)``,
+# initialization path in ADR-0041 (Issue #1777): the init signatures
+# (``Create(VulnerabilityCase)``, ``Create(EmbargoEvent)``,
+# ``Add(VulnerabilityReport)``, ``Create(CaseParticipant)``,
 # ``Add(ParticipantStatus)``, ``Add(CaseStatus)``) are all still required —
 # ``case_proposal_received_tree`` now commits them natively where the deleted
 # ``WritePrologueLedgerEntriesNode`` used to back-fill them (CM-22-003).  No
@@ -86,6 +87,10 @@ _CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
     ("Add", "ParticipantStatus"),
     ("Add", "EmbargoEvent"),
     ("Remove", "EmbargoEvent"),
+    # CASE_MANAGER-authored record of an embargo the case's creation wrote,
+    # carried in full after the genesis entry (create_embargo_event,
+    # CLP-07-013).
+    ("Create", "EmbargoEvent"),
     ("Offer", "EmbargoEvent"),
     ("Invite", "EmbargoEvent"),
     ("Accept", "EmbargoEvent"),
@@ -166,6 +171,7 @@ _CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
         ("Update", "EmbargoConsent"),
         # native case-initialization entries (ADR-0041, CM-22-003)
         ("Create", "VulnerabilityCase"),
+        ("Create", "EmbargoEvent"),  # create_embargo_event (CLP-07-013)
         ("Add", "VulnerabilityReport"),
         ("Add", "ParticipantStatus"),
         ("Add", "CaseStatus"),  # add_case_status_to_case (CLP-12-001, #1767)

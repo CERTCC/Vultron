@@ -1800,7 +1800,8 @@ class TestADR0041LedgerEntries:
         """The proposal path's entries follow the one creation rule (#4440).
 
         ``creation_entry_sequence`` reads the sequence off the resulting case
-        file: genesis, each report, then per seated record one
+        file: genesis, each embargo the register names, each report, then
+        per seated record one
         ``create_case_participant`` followed by an entry per later status,
         then each case status (CLP-07-013).  The create-case trigger is
         pinned to the same rule in ``test_create.py``, so a case created
@@ -2541,6 +2542,48 @@ class TestADR0041GenesisCommitFailure:
         assert node.update() == Status.FAILURE
         assert missing in node.feedback_message
         assert "create_case_participant" not in attempted
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_embargo_missing_from_the_store_stops_the_sequence(
+        self, make_payload, monkeypatch
+    ):
+        """An embargo the register names but the store lacks has no entry.
+
+        No replica could read its times, so the creation entries stop at its
+        ``create_embargo_event`` and the node fails (#5122).
+        """
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.nodes import (
+            CommitNativeLedgerEntriesNode,
+            proposal_ledger,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        case = self._case_with_no_entries(make_payload, dl, monkeypatch)
+        missing = case.embargo_register[0].embargo_id
+        dl.delete("EmbargoEvent", missing)
+        attempted: list[str] = []
+
+        def _accept(*_args, **kwargs):
+            attempted.append(kwargs["semantic_type"])
+            return py_trees.behaviours.Success(name="AcceptedCommit")
+
+        monkeypatch.setattr(
+            proposal_ledger, "create_commit_log_entry_tree", _accept
+        )
+        node = CommitNativeLedgerEntriesNode(
+            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
+        )
+        node.datalayer = dl
+        node.actor_id = _CASE_ACTOR_URI
+        node.trigger_activity_factory = TriggerActivityAdapter(dl)
+        node._case_id_bb = case.id_
+
+        assert node.update() == Status.FAILURE
+        assert missing in node.feedback_message
+        assert attempted == ["create_case"]
 
     def test_case_not_found_is_best_effort_success(self, make_payload):
         """case-not-found in the ledger node is best-effort SUCCESS."""

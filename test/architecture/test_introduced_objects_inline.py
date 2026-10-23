@@ -62,6 +62,7 @@ from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_case_activity,
     create_embargo_consent_activity,
+    create_embargo_event_activity,
     create_participant_activity,
     create_processing_fault_activity,
     em_propose_embargo_activity,
@@ -114,6 +115,10 @@ INTRODUCES: dict[
     "create_embargo_consent_activity": (
         lambda o: create_embargo_consent_activity(o, actor=_ACTOR),
         _consent_row,
+    ),
+    "create_embargo_event_activity": (
+        lambda o: create_embargo_event_activity(o, actor=_ACTOR),
+        _example_object("create_embargo_event"),
     ),
     "rm_create_report_activity": (
         lambda o: rm_create_report_activity(o, actor=_ACTOR),

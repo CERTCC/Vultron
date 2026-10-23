@@ -72,6 +72,7 @@ class MessageSemantics(StrEnum):
     ACTIVATE_EMBARGO_ON_CASE = auto()
     REJECT_EMBARGO_PROPOSAL_ON_CASE = auto()
     WITHDRAW_FROM_EMBARGO_ON_CASE = auto()
+    CREATE_EMBARGO_EVENT = auto()
     CREATE_EMBARGO_CONSENT = auto()
     UPDATE_EMBARGO_CONSENT = auto()
 

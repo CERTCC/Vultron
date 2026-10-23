@@ -16,8 +16,9 @@
 
 """Native canonical-ledger commit leaf node for a newly created case.
 
-Commits the genesis ``create_case`` entry plus the report, participant-record
-and case-status entries the CASE_MANAGER authors during initialization
+Commits the genesis ``create_case`` entry plus the embargo, report,
+participant-record and case-status entries the CASE_MANAGER authors during
+initialization
 (ADR-0041 AC-4, CLP-07-013).  It is the one creation commit: composed by
 ``create_case_proposal_received_tree`` and by the create-case trigger's
 ``create_case_trigger_bt``, so a case created either way commits the same
@@ -49,6 +50,7 @@ from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.predicates.addressing import same_actor_id
+from vultron.core.services.embargo_ordering import read_embargo_event
 from vultron.core.sync_helpers import _find_equivalent_recorded_entry
 from vultron.errors import VultronError
 
@@ -75,11 +77,13 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
     Commits entries in causal order per ADR-0041 AC-4:
 
       1. ``create_case``                     actor=CaseActor
-      2. ``add_report_to_case``              actor=CaseActor
-      3. per seated record, ``create_case_participant`` carrying it as
+      2. ``create_embargo_event`` for each embargo the creation wrote
+         (CLP-07-013)                        actor=CaseActor
+      3. ``add_report_to_case``              actor=CaseActor
+      4. per seated record, ``create_case_participant`` carrying it as
          created, then ``add_participant_status_to_participant`` for each
          later status (CLP-07-013, CM-23-007)  actor=CaseActor
-      4. ``add_case_status_to_case``         actor=owner (the receiver set the
+      5. ``add_case_status_to_case``         actor=owner (the receiver set the
          genesis case status; ``("Add","CaseStatus")`` is nonetheless in
          ``_CASE_AUTHORED_SIGNATURES`` per CLP-12-001, so a CaseActor-authored
          entry would also validate)
@@ -139,6 +143,36 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
             self._case_id_bb = self.get_input("case_id")
         except (NoDataAvailable, NotImplementedError):
             pass
+
+    def _commit_creation_embargoes(
+        self, case: VulnerabilityCase, case_id: str
+    ) -> None:
+        """Commit each embargo the creation wrote, in full (CLP-07-013).
+
+        One ``create_embargo_event`` entry per embargo the register names, in
+        register order: the default embargo, and a contested creation's
+        losing terms (EP-04-003).  A replica's embargo decisions read the
+        event's times, so no entry may name it by id alone (#5122).
+        """
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        port = self._require_trigger_activity_port()
+        for entry in case.embargo_register:
+            try:
+                embargo = read_embargo_event(self.datalayer, entry.embargo_id)
+            except VultronError as exc:
+                raise _EntryNotCommitted(
+                    f"embargo '{entry.embargo_id}' of case '{case_id}' cannot"
+                    f" be read: {exc}"
+                ) from exc
+            self._commit_one(
+                case_id,
+                embargo.id_,
+                MessageSemantics.CREATE_EMBARGO_EVENT.value,
+                port.record_embargo_event_created(
+                    embargo=embargo, case_id=case_id, actor=self.actor_id
+                ),
+            )
 
     def _commit_one(
         self,
@@ -421,12 +455,15 @@ class CommitNativeLedgerEntriesNode(DataLayerActionWithPorts):
 
         failed: str | None = None
         try:
-            # 2. add_report_to_case  (actor = CaseActor)
+            # 2. create_embargo_event, one per embargo the creation wrote
+            #    (actor = CaseActor)
+            self._commit_creation_embargoes(case, case_id)
+            # 3. add_report_to_case  (actor = CaseActor)
             self._commit_add_reports(case, case_id)
-            # 3. per record: create_case_participant, then its later
+            # 4. per record: create_case_participant, then its later
             #    statuses  (actor = CaseActor)
             self._commit_participant_records(case, case_id)
-            # 4. add_case_status  (actor = owner_uri — provenance, not a guard
+            # 5. add_case_status  (actor = owner_uri — provenance, not a guard
             #    constraint: ("Add","CaseStatus") IS in
             #    _CASE_AUTHORED_SIGNATURES per CLP-12-001, so a
             #    CaseActor-authored entry validates too)

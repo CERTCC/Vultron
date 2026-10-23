@@ -60,6 +60,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -79,6 +80,13 @@ _CREATION_RECORDS: Mapping[str, tuple[str, type[CoreObject]]] = {
     "add_participant_status_to_participant": ("target", CaseParticipant),
     "add_case_status_to_case": ("object", CaseStatus),
 }
+
+#: Creation entries the replay stores rather than the seed, so a rebuild
+#: drives each one through its replica slot (``ApplyCreatedEmbargoFromLedgerNode``
+#: for ``create_embargo_event``, #5122).
+_REPLAYED_CREATION_ENTRIES: frozenset[str] = frozenset(
+    {"create_embargo_event"}
+)
 
 
 def run_use_case(
@@ -128,10 +136,14 @@ def creation_records(entries: Iterable[CaseLedgerEntry]) -> list[CoreObject]:
     """The records a ledger's leading creation entries carry, latest copy each.
 
     Read from the entries' snapshots alone, as a replica's copy is: a later
-    entry carrying the same record replaces the earlier copy.
+    entry carrying the same record replaces the earlier copy.  A creation
+    entry in ``_REPLAYED_CREATION_ENTRIES`` seeds nothing; its record
+    reaches the replica when the entry is replayed.
     """
     records: dict[str, CoreObject] = {}
     for entry in entries:
+        if str(entry.semantic_type) in _REPLAYED_CREATION_ENTRIES:
+            continue
         carried = _CREATION_RECORDS.get(str(entry.semantic_type))
         if carried is None:
             break
@@ -242,13 +254,51 @@ def _case_statuses(case: VulnerabilityCase) -> list[Any]:
     ]
 
 
+def _embargo_differences(
+    manager_dl: SqliteDataLayer,
+    replica_dl: SqliteDataLayer,
+    manager: VulnerabilityCase,
+) -> list[str]:
+    """Each ``EmbargoEvent`` the register names that the replica lacks or
+    holds differently: compared whole, its times included, since a replica's
+    own embargo decisions read them (CLP-07-013, #5122)."""
+    found: list[str] = []
+    for embargo_id in (entry.embargo_id for entry in manager.embargo_register):
+        held = manager_dl.read(embargo_id)
+        copied = replica_dl.read(embargo_id)
+        if not isinstance(held, EmbargoEvent):
+            # A test network may register an embargo it never stored (the
+            # revision fixtures of test_embargo_termination_copy.py); the
+            # replica then has nothing to copy either.
+            if isinstance(copied, EmbargoEvent):
+                found.append(
+                    f"embargo '{embargo_id}' held by the replica only"
+                )
+            continue
+        if not isinstance(copied, EmbargoEvent):
+            found.append(f"embargo '{embargo_id}' missing")
+            continue
+        want, got = (
+            held.model_dump(mode="json"),
+            copied.model_dump(mode="json"),
+        )
+        found.extend(
+            f"embargo '{embargo_id}' {field}: {got.get(field)!r}"
+            f" != {want[field]!r}"
+            for field in want
+            if got.get(field) != want[field]
+        )
+    return found
+
+
 def case_file_differences(
     manager_dl: SqliteDataLayer, replica_dl: SqliteDataLayer, case_id: str
 ) -> list[str]:
     """Every way *replica_dl*'s case file differs from the CASE_MANAGER's.
 
     Compares the roster, each participant record whole (its consent rows and
-    statuses included), the case statuses and the embargo register.  Empty
+    statuses included), the case statuses, the embargo register and each
+    ``EmbargoEvent`` it names, whole.  Empty
     when they are equal.
     """
     manager, replica = _case(manager_dl, case_id), _case(replica_dl, case_id)
@@ -281,6 +331,7 @@ def case_file_differences(
     )
     if got_register != want_register:
         found.append(f"embargo register: {got_register} != {want_register}")
+    found.extend(_embargo_differences(manager_dl, replica_dl, manager))
     if replica.ledger_position != manager.ledger_position:
         found.append(
             f"ledger position: {replica.ledger_position}"

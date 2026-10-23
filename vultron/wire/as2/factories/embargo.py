@@ -45,6 +45,7 @@ from vultron.wire.as2.vocab.activities.embargo import (
     _ActivateEmbargoActivity,
     _AnnounceEmbargoActivity,
     _CreateEmbargoConsentActivity,
+    _CreateEmbargoEventActivity,
     _EmAcceptEmbargoActivity,
     _EmProposeEmbargoActivity,
     _EmRejectEmbargoActivity,
@@ -522,6 +523,35 @@ def remove_embargo_from_case_activity(
         )
         raise VultronActivityConstructionError(
             "remove_embargo_from_case_activity: invalid arguments"
+        ) from exc
+
+
+def create_embargo_event_activity(
+    embargo: as_EmbargoEvent,
+    **kwargs,
+) -> as_Create:
+    """Build a Create(as_EmbargoEvent): the case's creation wrote an embargo.
+
+    The snapshot shape of a CASE_MANAGER-authored ledger entry carrying the
+    embargo in full, right after the genesis entry (CLP-07-013); never sent
+    as a message.
+
+    Args:
+        embargo: The embargo the case's creation wrote.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``context``, ``id_``).
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _CreateEmbargoEventActivity(object_=embargo, **kwargs)
+    except ValidationError as exc:
+        logger.warning(
+            "create_embargo_event_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "create_embargo_event_activity: invalid arguments"
         ) from exc
 
 
