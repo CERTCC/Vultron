@@ -372,11 +372,15 @@ trigger composes the same node (`create_case_trigger_tree.py`), its creator bein
 owner and CASE_MANAGER, so both creation paths commit one sequence; do not add a
 second copy (CLP-07-013). Order:
 
-1. `create_case` — `Create(VulnerabilityCase)`, actor CASE_MANAGER
+1. `create_case` — the `Create(VulnerabilityCase)` the creation queued, its
+   sealed body verbatim: one activity, delivered and ledgered (CLP-07-011,
+   ADR-0157), actor CASE_MANAGER
 2. `create_embargo_event` — `Create(EmbargoEvent)` in full, once per embargo
    the register names (the default embargo, and a contested creation's losing
-   terms), actor CASE_MANAGER. The genesis names them by id, so without it a
-   replica rebuilt from the ledger lacks the end time (#5122, VAM-05-016)
+   terms), actor CASE_MANAGER. The genesis carries only the active embargo
+   inline, and a replica copies each record from its own entry (ADR-0124), so
+   without it a replica rebuilt from the ledger lacks the end time (#5122,
+   VAM-05-016)
 3. `add_report_to_case` — actor CASE_MANAGER
 4. per seated record, `create_case_participant` — `Create(CaseParticipant)`
    carrying the record as created (roles, consent rows, its first status), then
@@ -384,8 +388,8 @@ second copy (CLP-07-013). Order:
    CASE_MANAGER's VALID, ACCEPTED; CM-23-007) — actor CASE_MANAGER
 5. `add_case_status_to_case` — actor **vendor URI**
 
-Each snapshot is the CASE_MANAGER's factory-built activity, sealed and committed
-verbatim: the `record_*` methods of `TriggerActivityPort`
+Each later snapshot is the CASE_MANAGER's factory-built activity, sealed and
+committed verbatim: the `record_*` methods of `TriggerActivityPort`
 (`trigger_activity_adapter/ledger.py`). Core builds no snapshot dict itself
 (VM-08-003; `test/architecture/test_no_hand_built_payload_snapshots.py`).
 A record is sealed, not stored as an activity (`_seal_record`): it is no

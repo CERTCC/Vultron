@@ -208,6 +208,24 @@ def _queued_create(dl: SqliteDataLayer) -> dict[str, Any]:
 
 
 @pytest.mark.spec("CP-05-005")
+class _RecordGenesisCreateId(py_trees.behaviour.Behaviour):
+    """Record ``/create_case_activity_id`` while the tree still ticks.
+
+    The bridge restores the key when the execution ends, so the value the
+    emit node published is observable only mid-tree.
+    """
+
+    def __init__(self, observed: dict[str, object]) -> None:
+        super().__init__(name="RecordGenesisCreateId")
+        self._observed = observed
+
+    def update(self) -> py_trees.common.Status:
+        self._observed["id"] = py_trees.blackboard.Blackboard.storage.get(
+            "/create_case_activity_id"
+        )
+        return py_trees.common.Status.SUCCESS
+
+
 class TestEmitCreateVulnerabilityCaseNode:
     """Unit tests for EmitCreateVulnerabilityCaseNode."""
 
@@ -222,15 +240,23 @@ class TestEmitCreateVulnerabilityCaseNode:
         accept_id: str | None = "https://example.org/activities/a-001",
         seed: bool = True,
         with_factory: bool = True,
+        observed: dict[str, object] | None = None,
     ) -> py_trees.common.Status:
-        """Execute EmitCreateVulnerabilityCaseNode via BTBridge."""
+        """Execute EmitCreateVulnerabilityCaseNode via BTBridge.
+
+        With *observed*, also record the ``create_case_activity_id`` the node
+        published.
+        """
         if seed and case_id is not None:
             self._seed_case(dl, case_id)
         node = EmitCreateVulnerabilityCaseNode(
             proposal_id=_PROPOSAL_URI, owner_uri=_VENDOR_URI
         )
+        children: list[py_trees.behaviour.Behaviour] = [node]
+        if observed is not None:
+            children.append(_RecordGenesisCreateId(observed))
         tree = py_trees.composites.Sequence(
-            name="TestSeq", memory=False, children=[node]
+            name="TestSeq", memory=False, children=children
         )
         # Pre-populate the blackboard keys the node reads.
         client = py_trees.blackboard.Client(name="TestSetup")
@@ -280,6 +306,25 @@ class TestEmitCreateVulnerabilityCaseNode:
         _store_announced_create(dl)
         assert self._run_node(dl) == py_trees.common.Status.SUCCESS
         assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CLP-07-011")
+    @pytest.mark.parametrize(
+        "already_stored", [False, True], ids=["built-now", "already-stored"]
+    )
+    def test_publishes_the_create_the_genesis_entry_records(
+        self, already_stored
+    ):
+        """The node names its Create for the genesis commit, whether it built
+        it now or found it already stored under the derived id."""
+        dl = self._dl()
+        if already_stored:
+            _store_announced_create(dl)
+        observed: dict[str, object] = {}
+        assert (
+            self._run_node(dl, observed=observed)
+            == py_trees.common.Status.SUCCESS
+        )
+        assert observed["id"] == _CREATE_ID
 
     def test_a_create_announcing_another_case_fails_loudly(self, caplog):
         """A sender that reuses a proposal id for a new case finds the old
@@ -2374,6 +2419,7 @@ class TestADR0041GenesisCommitFailure:
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
         node._case_id_bb = case.id_
+        node._create_activity_id_bb = _CREATE_ID
 
         assert node.update() == Status.FAILURE, (
             "genesis create_case commit failure must propagate as FAILURE,"
@@ -2382,6 +2428,57 @@ class TestADR0041GenesisCommitFailure:
         assert "genesis create_case ledger commit failed" in (
             node.feedback_message
         )
+
+    @pytest.mark.spec("CLP-07-011")
+    @pytest.mark.parametrize(
+        ("create_id", "reason"),
+        [
+            pytest.param(
+                None,
+                "no Create(VulnerabilityCase) was built",
+                id="no-create-built",
+            ),
+            pytest.param(
+                f"{_CREATE_ID}-never-sealed",
+                "is not sealed",
+                id="create-not-sealed",
+            ),
+        ],
+    )
+    def test_a_genesis_with_no_sealed_create_fails(
+        self, make_payload, monkeypatch, create_id, reason
+    ):
+        """No genesis entry is committed from a Create that is not there.
+
+        The genesis entry is the built ``Create(VulnerabilityCase)`` itself
+        (CLP-07-011), so a creation that built none, or whose id names no
+        sealed body, fails with its cause and commits nothing.
+        """
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.nodes import (
+            CommitNativeLedgerEntriesNode,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        case = self._case_with_no_entries(make_payload, dl, monkeypatch)
+
+        node = CommitNativeLedgerEntriesNode(
+            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
+        )
+        node.datalayer = dl
+        node.actor_id = _CASE_ACTOR_URI
+        node.trigger_activity_factory = TriggerActivityAdapter(dl)
+        node._case_id_bb = case.id_
+        node._create_activity_id_bb = create_id
+
+        assert node.update() == Status.FAILURE
+        assert "genesis create_case ledger commit failed" in (
+            node.feedback_message
+        )
+        assert reason in node.feedback_message
+        assert dl.list_objects("CaseLedgerEntry") == []
 
     @pytest.mark.spec("CLP-07-013")
     def test_a_failed_later_entry_fails_and_stops_the_sequence(
@@ -2538,6 +2635,7 @@ class TestADR0041GenesisCommitFailure:
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
         node._case_id_bb = case.id_
+        node._create_activity_id_bb = _CREATE_ID
 
         assert node.update() == Status.FAILURE
         assert missing in node.feedback_message
@@ -2580,6 +2678,7 @@ class TestADR0041GenesisCommitFailure:
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
         node._case_id_bb = case.id_
+        node._create_activity_id_bb = _CREATE_ID
 
         assert node.update() == Status.FAILURE
         assert missing in node.feedback_message

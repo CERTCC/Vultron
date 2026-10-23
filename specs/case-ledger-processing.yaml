@@ -240,13 +240,15 @@ groups:
       received by a participant (the bootstrap `Create(VulnerabilityCase)`, its
       `Announce(EmbargoEvent)` notice, its `Accept` or `Reject` answering a
       recommender's `Offer(Actor)`): a participant never commits (CLP-01-003), so such
-      an activity is ledgered, if it is a case event, where the CASE_MANAGER sends it; a
-      `Create(ProcessingFault)` NACK (ADR-0080), which reports on message handling
-      rather than changing the case; a late `Accept` of an embargo invitation that
-      arrives when the case has no embargo for it to bind (EMB-17-004), which changes
-      nothing at any receiver (ADR-0152); and a message whose meaning the receiver does
-      not recognize or whose object cannot be resolved. The list is closed: a new kind
-      of activity that carries no entry MUST be added here first.
+      an activity is ledgered, if it is a case event, where the CASE_MANAGER sends it,
+      and the bootstrap `Create(VulnerabilityCase)` is the case's genesis entry itself
+      (CLP-07-011); a `Create(ProcessingFault)` NACK (ADR-0080), which reports on
+      message handling rather than changing the case; a late `Accept` of an embargo
+      invitation that arrives when the case has no embargo for it to bind
+      (EMB-17-004), which changes nothing at any receiver (ADR-0152); and a message
+      whose meaning the receiver does not recognize or whose object cannot be
+      resolved. The list is closed: a new kind of activity that carries no entry MUST
+      be added here first.
     rationale: >-
       Whether something is ledgered was decided handler by handler, so a handler
       that "changed nothing" committed nothing and nobody noticed. A closed list
@@ -633,7 +635,10 @@ groups:
       The `payloadSnapshot` of a `CaseLedgerEntry` MUST be the verbatim AS2 activity
       that was asserted. For an activity the CASE_MANAGER received, it is the JSON body
       as received (VM-08-002); for one the CASE_MANAGER emits, it is the body it
-      delivered (VM-08-003). The CASE_MANAGER MUST NOT drop, re-serialize, inline, patch
+      delivered (VM-08-003). An activity the CASE_MANAGER sends and ledgers is one
+      activity: the case's genesis entry is the `Create(VulnerabilityCase)` it sends
+      for the case, not a second activity built for the ledger. The CASE_MANAGER
+      MUST NOT drop, re-serialize, inline, patch
       or merge any field of it; the metadata it adds (index, hashes, commit and receipt
       times, `case_id`) lives on the entry, outside the snapshot.
     rationale: >-
@@ -650,6 +655,12 @@ groups:
       `test/core/use_cases/received/test_verbatim_received_snapshot.py` confirms that a
       received entry's snapshot equals the received body, key order included, revalidates
       through its wire class without transformation, and is what a replica records.
+      `test_the_delivered_create_is_the_genesis_entry` in
+      `test/core/use_cases/received/test_one_genesis_create.py` and
+      `test_the_sent_create_is_the_genesis_entry` in
+      `test/core/use_cases/triggers/case/test_create.py` confirm that, on both
+      creation paths, the queued `Create(VulnerabilityCase)` body equals the genesis
+      entry's snapshot (ADR-0157).
     adr:
     - ADR-0107
     stories:

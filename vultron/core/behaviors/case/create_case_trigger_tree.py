@@ -140,7 +140,11 @@ class _RegisterCreatorParticipantNode(
 
 
 class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
-    """Create Create(Case) activity and publish activity_id to blackboard."""
+    """Create Create(Case) activity and publish activity_id to blackboard.
+
+    Also published as ``create_case_activity_id``: the case's genesis entry
+    is this activity, sent or not (CLP-07-011).
+    """
 
     def __init__(
         self,
@@ -159,11 +163,18 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
 
     OUTPUT_PORTS: dict[str, PortInformation] = {
         "activity_id": PortInformation(data_type=str, required=True),
+        "create_case_activity_id": PortInformation(
+            data_type=str, required=True
+        ),
     }
 
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"case_id": "/case_id", "activity_id": "/activity_id"}
+        return {
+            "case_id": "/case_id",
+            "activity_id": "/activity_id",
+            "create_case_activity_id": "/create_case_activity_id",
+        }
 
     def initialise(self) -> None:
         super().initialise()
@@ -188,6 +199,8 @@ class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
             return Status.FAILURE
 
         self._set_output("activity_id", activity_id)
+        # The genesis entry records this same activity (CLP-07-011).
+        self._set_output("create_case_activity_id", activity_id)
         self._result_out["activity"] = json.loads(activity_dict)
         return Status.SUCCESS
 

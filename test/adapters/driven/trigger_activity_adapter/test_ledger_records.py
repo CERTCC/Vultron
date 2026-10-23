@@ -49,6 +49,7 @@ from vultron.core.models.report import VulnerabilityReport
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
+from vultron.errors import VultronNotFoundError
 
 VENDOR_ID = "https://example.org/actors/vendor"
 EMBARGO_ID = "https://example.org/embargoes/urn:uuid:embargo-1"
@@ -113,6 +114,17 @@ def case(dl, vendor_actor, report, participant):
 
 Recipe = Callable[[TriggerActivityAdapter], tuple[str, str]]
 
+#: The id the creation's ``Create(VulnerabilityCase)`` is built under.
+GENESIS_ID = f"{CASE_ID}/activities/create"
+
+
+def _built_create(adapter: TriggerActivityAdapter) -> str:
+    """Build the creation's ``Create`` as the create-case trigger does."""
+    activity_id, _ = adapter.create_case(
+        case_id=CASE_ID, actor=CASE_ACTOR_ID, id_=GENESIS_ID
+    )
+    return activity_id
+
 
 @pytest.fixture
 def recipes(case, report, participant) -> dict[str, Recipe]:
@@ -121,7 +133,7 @@ def recipes(case, report, participant) -> dict[str, Recipe]:
     assert isinstance(status, CaseStatus)
     return {
         "record_case_created": lambda a: a.record_case_created(
-            case_id=CASE_ID, actor=CASE_ACTOR_ID
+            create_activity_id=_built_create(a)
         ),
         "record_report_added_to_case": lambda a: a.record_report_added_to_case(
             report_id=REPORT_ID,
@@ -273,7 +285,7 @@ def test_the_record_is_the_case_managers_own_activity(
     assert "to" not in snapshot, "the ledger fan-out delivers it"
 
 
-@pytest.mark.spec("CLP-07")
+@pytest.mark.spec("CLP-07-011")
 @pytest.mark.spec("CLP-12-002")
 @pytest.mark.parametrize("method", sorted(_SHAPES))
 def test_the_record_passes_the_canonical_guard(adapter, recipes, method):
@@ -372,11 +384,27 @@ def test_an_announced_case_carries_its_participants_and_reports(
 
 
 @pytest.mark.spec("CLP-07-013")
-def test_the_genesis_record_carries_the_case_as_stored(adapter, case):
-    """Each participant and report has an entry of its own (ADR-0124)."""
-    _, blob = adapter.record_case_created(case_id=CASE_ID, actor=CASE_ACTOR_ID)
-    obj = json.loads(blob)["object"]
-    assert VulnerabilityCase.model_validate(obj) == case
+@pytest.mark.spec("CLP-07-011")
+def test_the_genesis_record_is_the_built_create(adapter, case):
+    """The genesis entry is the ``Create`` the creation built and sealed,
+    verbatim: one activity, delivered and ledgered (ADR-0157)."""
+    built_id, built = adapter.create_case(
+        case_id=CASE_ID, actor=CASE_ACTOR_ID, id_=GENESIS_ID, to=[VENDOR_ID]
+    )
+
+    assert adapter.record_case_created(create_activity_id=built_id) == (
+        built_id,
+        built,
+    )
+    obj = json.loads(built)["object"]
+    assert VulnerabilityCase.model_validate(obj).id_ == case.id_
+
+
+@pytest.mark.spec("CLP-07-011")
+def test_a_genesis_record_with_nothing_built_raises(adapter, case):
+    """No sealed ``Create`` under the id: the genesis has nothing to record."""
+    with pytest.raises(VultronNotFoundError):
+        adapter.record_case_created(create_activity_id=GENESIS_ID)
 
 
 # Allow-listed camelCase-looking dict-literal keys in vultron/core/: the

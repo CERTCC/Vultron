@@ -55,6 +55,7 @@ from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.adapters.outbox_sealed_body import dump_outbound_body
 from vultron.core.models import pending_assertion
+from vultron.core.models._helpers import _as_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -132,6 +133,30 @@ def receive_into(
     )
 
 
+def case_naming_its_records(case: VulnerabilityCase) -> VulnerabilityCase:
+    """*case* with each record it carries inline named by id.
+
+    The genesis entry is the delivered ``Create``, which carries the case's
+    participants, reports and active embargo inline (ADR-0157).  Each of them
+    is also carried by an entry of its own, which the rebuild copies it from,
+    so the seeded case only names them.
+    """
+    return case.model_copy(
+        update={
+            "case_participants": [
+                str(_as_id(p)) for p in case.case_participants
+            ],
+            "vulnerability_reports": [
+                str(_as_id(r)) for r in case.vulnerability_reports
+            ],
+            "embargo_register": [
+                entry.model_copy(update={"embargo": entry.embargo_id})
+                for entry in case.embargo_register
+            ],
+        }
+    )
+
+
 def creation_records(entries: Iterable[CaseLedgerEntry]) -> list[CoreObject]:
     """The records a ledger's leading creation entries carry, latest copy each.
 
@@ -149,6 +174,8 @@ def creation_records(entries: Iterable[CaseLedgerEntry]) -> list[CoreObject]:
             break
         key, cls = carried
         record = cls.model_validate(entry.payload_snapshot[key])
+        if isinstance(record, VulnerabilityCase):
+            record = case_naming_its_records(record)
         records[record.id_] = record
     return list(records.values())
 
