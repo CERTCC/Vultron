@@ -904,6 +904,7 @@ class TestSiteSync:
             "reference/formal_protocol/index.md",
             "reference/messages/index.md",
             "topics/measuring_cvd/index.md",
+            "topics/measuring_cvd/foundations/index.md",
             "topics/other_uses/index.md",
         }
         assert {p.path for p in indexes.routing} == {
