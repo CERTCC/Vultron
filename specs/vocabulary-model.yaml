@@ -578,7 +578,7 @@ groups:
   specs:
   - id: VM-09-001
     priority: MAY
-    kind: project
+    kind: protocol
     statement: Messages that cannot be parsed or whose semantics are unknown MAY still be forwarded to the case event log
       to create an entry for human or agent review
 - id: VM-10

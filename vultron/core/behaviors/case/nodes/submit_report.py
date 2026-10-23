@@ -107,10 +107,9 @@ class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
     receiver refuses (HP-01-005) rather than reporting a processed no-op.  A
     receiver the sender named only in ``cc`` lands here too, and the WARNING
     and reason say that ``cc`` addressing is not supported (HP-10-001,
-    HP-10-002).  Core
-    does not carry ``cc`` (ADR-0109), so the node cannot tell a ``cc`` copy
-    from any other misaddressed one, and does not need to: both are
-    discarded unprocessed.  :attr:`misaddressed` tells the handler that was
+    HP-10-002).  Core does not carry ``cc`` (ADR-0109), so the node cannot
+    tell a ``cc`` copy from any other misaddressed one, and does not need
+    to: both are discarded unprocessed.  :attr:`misaddressed` tells the handler that was
     the reason, as opposed to a wiring fault (a missing DataLayer or actor),
     which it raises on.
     """

@@ -455,9 +455,10 @@ groups:
       notion of a CaseActor entity, so the gate works for any actor the case owner
       delegates the role to.
     verification: >-
-      `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts
-      the gate admits only the `CVDRole.CASE_MANAGER` holder and that a failure by that
-      holder is reported rather than masked by the skip path a non-holder takes.
+      `test/core/behaviors/case/nodes/test_role_gates.py::TestCaseManagerGate` asserts the
+      gate admits the actor whose participant record carries `CVDRole.CASE_MANAGER` and
+      skips one whose record does not, with no CaseActor object or per-case actor
+      identity in the setup.
     relationships:
     - rel_type: implements
       spec_id: BT-10-004

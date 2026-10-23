@@ -122,7 +122,7 @@ A minimal stub is still valid ActivityStreams 2.0.
 Almost all AS2 properties are optional, so an object with only `id` and `type` is standards-conformant.
 
 When a recipient receives a stub, they look up the full case in their own records by its `caseId`, and use it if they already hold it.
-If they do not, the stub is a placeholder: it does not create a new case record, and the full case is delivered separately once the invitee has been admitted and its [embargo consent](behavior_logic/use-cases/embargo-lifecycle.md) resolved ([MV-10-004, MV-10-005](../reference/specs/protocol.md#mv-10)).
+If they do not, the stub is a placeholder: it does not create a new case record, and the full case is delivered separately once the invitee has been admitted and its [embargo consent](behavior_logic/use-cases/embargo-lifecycle.md) resolved ([MV-10-004](../reference/specs/project.md#mv-10-004), [MV-10-005](../reference/specs/protocol.md#mv-10-005)).
 A stub never overwrites a full case the recipient already holds ([MV-10-003](../reference/specs/project.md#mv-10-003)).
 
 ### When to use each
