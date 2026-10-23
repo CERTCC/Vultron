@@ -76,9 +76,9 @@ Read it field by field.
 | `actor` | The actor performing the activity | Case-management handshakes are sent by the CASE_MANAGER, with the requesting participant in `attributedTo` |
 | `object` | The thing acted on: a Vultron object, or an earlier activity being answered | `Accept`, `Reject`, `TentativeReject`, and `Read` carry the activity they answer, not the object inside it |
 | `target` | Where the object goes | `Add` names the case here, as do `Remove(Note)` and `Remove(CaseParticipant)`; `Offer(CaseParticipantRole)` names the actor being offered the role |
-| `origin` | Where the object comes from | `Remove(Event)`, which terminates an embargo, names the case here rather than in `target` |
-| `context` | The case an activity belongs to | `Invite(Event)` names the case here, and so does the `Note` an `Add(Note)` carries |
-| `inReplyTo` | The earlier activity this one answers, when the verb alone does not say so | `Add(Event)` with `inReplyTo` activates an agreed embargo; without it, it imposes one |
+| `origin` | Where the object comes from | `Remove(EmbargoEvent)`, which terminates an embargo, names the case here rather than in `target` |
+| `context` | The case an activity belongs to | `Invite(EmbargoEvent)` names the case here, and so does the `Note` an `Add(Note)` carries |
+| `inReplyTo` | The earlier activity this one answers, when the verb alone does not say so | `Add(EmbargoEvent)` with `inReplyTo` activates an agreed embargo; without it, it imposes one |
 | `to` | The recipient inboxes | A report is offered to each recipient separately; case traffic goes to the CASE_MANAGER |
 
 Whether the case sits in `target` or `context` is not a matter of style.
@@ -95,7 +95,7 @@ The objects are where Vultron extends AS2.
 Standard AS2 objects appear too: an embargo proposal is an `as:Event`, a case note is an `as:Note`, and the actor invited to a case is an `as:Actor`.
 
 The same verb carries different protocol messages depending on its object.
-`Accept(Offer(VulnerabilityReport))` is Report Valid (RV); `Accept(Invite(Event))` is Embargo Proposal Acceptance (EA); `Accept(Invite(Actor))` is an actor joining a case.
+`Accept(Offer(VulnerabilityReport))` is Report Valid (RV); `Accept(Invite(EmbargoEvent))` is Embargo Proposal Acceptance (EA); `Accept(Invite(Actor))` is an actor joining a case.
 Read the object before the verb.
 
 <div class="grid cards" markdown>

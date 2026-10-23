@@ -40,21 +40,21 @@ title: Revising or Terminating an Active Embargo
 ---
 flowchart TB
     subgraph as:Invite
-        EmProposeEmbargo["Embargo Proposal (EP) / Embargo Revision Proposal (EV)<br/>Invite(Event)"]
+        EmProposeEmbargo["Embargo Proposal (EP) / Embargo Revision Proposal (EV)<br/>Invite(EmbargoEvent)"]
     end
     subgraph participant answers
-        EmAcceptEmbargo["Embargo Proposal Acceptance (EA) / Embargo Revision Acceptance (EC)<br/>Accept(Invite(Event))"]
-        EmRejectEmbargo["Embargo Proposal Rejection (ER) / Embargo Revision Rejection (EJ)<br/>Reject(Invite(Event))"]
+        EmAcceptEmbargo["Embargo Proposal Acceptance (EA) / Embargo Revision Acceptance (EC)<br/>Accept(Invite(EmbargoEvent))"]
+        EmRejectEmbargo["Embargo Proposal Rejection (ER) / Embargo Revision Rejection (EJ)<br/>Reject(Invite(EmbargoEvent))"]
     end
     subgraph Case Owner decides
-        ActivateEmbargo["Activate the revision<br/>Accept(Event), target: VulnerabilityCase"]
-        RejectEmbargoProposal["Keep the current terms<br/>Reject(Event), target: VulnerabilityCase"]
+        ActivateEmbargo["Activate the revision<br/>Accept(EmbargoEvent), target: VulnerabilityCase"]
+        RejectEmbargoProposal["Keep the current terms<br/>Reject(EmbargoEvent), target: VulnerabilityCase"]
     end
     subgraph as:Remove
-        RemoveEmbargoFromCase["Embargo Termination (ET)<br/>Remove(Event)"]
+        RemoveEmbargoFromCase["Embargo Termination (ET)<br/>Remove(EmbargoEvent)"]
     end
     subgraph as:Announce
-        AnnounceEmbargo["Announce the embargo terms<br/>Announce(Event)"]
+        AnnounceEmbargo["Announce the embargo terms<br/>Announce(EmbargoEvent)"]
     end
     start([Start]) --> t{Terminate?}
     t -->|n| p{Propose?}
@@ -77,21 +77,21 @@ flowchart TB
 
 ## Revise the terms
 
-Embargo Revision Proposal (EV) is implemented in ActivityStreams as `Invite(Event)` — the same activity as an initial proposal, Embargo Proposal (EP).
+Embargo Revision Proposal (EV) is implemented in ActivityStreams as `Invite(EmbargoEvent)` — the same activity as an initial proposal, Embargo Proposal (EP).
 
-1. Send `Invite(Event)` with the revised `EmbargoEvent`.
+1. Send `Invite(EmbargoEvent)` with the revised `EmbargoEvent`.
    The case moves to `EM.REVISE`.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-proposal.md" %}
 
-2. Each participant answers with Embargo Revision Acceptance (EC), `Accept(Invite(Event))`, or Embargo Revision Rejection (EJ), `Reject(Invite(Event))`.
+2. Each participant answers with Embargo Revision Acceptance (EC), `Accept(Invite(EmbargoEvent))`, or Embargo Revision Rejection (EJ), `Reject(Invite(EmbargoEvent))`.
    Either answer records only that participant's own consent to the revision, the Case Owner's included; the active embargo is unchanged.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-acceptance.md" %}
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-rejection.md" %}
 
-3. As Case Owner, send `Accept(Event)` with the revised `EmbargoEvent` as its `object` and the case as its `target`, once you judge the revision has carried, then `Announce(Event)`.
+3. As Case Owner, send `Accept(EmbargoEvent)` with the revised `EmbargoEvent` as its `object` and the case as its `target`, once you judge the revision has carried, then `Announce(EmbargoEvent)`.
    The revision replaces the active embargo and your own consent to it is recorded.
    If the revision ends no later than the embargo it replaces, every participant that agreed to the old terms is bound by the new ones too.
 
@@ -102,7 +102,7 @@ Embargo Revision Proposal (EV) is implemented in ActivityStreams as `Invite(Even
 A revision uses the same activities as an initial proposal.
 The receiver tells the two apart from the case's EM state: a proposal that arrives while the embargo is active is a revision (MSM-02).
 
-To keep the current terms, send `Reject(Event)` with the same `object` and `target` as Case Owner instead.
+To keep the current terms, send `Reject(EmbargoEvent)` with the same `object` and `target` as Case Owner instead.
 The case returns to `EM.ACTIVE` under the original terms, and no participant's consent changes.
 The embargo does not lapse because a revision failed.
 
@@ -112,13 +112,13 @@ The embargo does not lapse because a revision failed.
 
 ## Terminate the embargo
 
-Embargo Termination (ET) is implemented in ActivityStreams as `Remove(Event)`.
+Embargo Termination (ET) is implemented in ActivityStreams as `Remove(EmbargoEvent)`.
 
-Send `Remove(Event)`.
+Send `Remove(EmbargoEvent)`.
 The case moves to `EM.EXITED`, with immediate effect.
 
 Set `content` to the reason the embargo ends: `EARLY` to end it before its end time, or `END_TIME_REACHED` once its end time has passed.
-A receiver refuses a `Remove(Event)` whose `content` is anything else, and refuses `END_TIME_REACHED` sent before the end time.
+A receiver refuses a `Remove(EmbargoEvent)` whose `content` is anything else, and refuses `END_TIME_REACHED` sent before the end time.
 Put a human-readable account in `summary` if you want one; the protocol does not read it.
 
 With `EARLY`, you may also say why the embargo ends, in `terminationCause`.
@@ -133,32 +133,32 @@ If you end the embargo with the `terminate-embargo` trigger, give the cause as `
 An `EARLY` request with no `cause` is sent with an `OTHER` cause.
 The trigger refuses a `THREAT_SIGNAL` cause, and any cause with `END_TIME_REACHED`.
 Do not send `terminationCause` with `END_TIME_REACHED`.
-A receiver refuses a `Remove(Event)` with an unknown `kind`, a missing or malformed detail, or a cause on `END_TIME_REACHED`.
+A receiver refuses a `Remove(EmbargoEvent)` with an unknown `kind`, a missing or malformed detail, or a cause on `END_TIME_REACHED`.
 
-Do not use `THREAT_SIGNAL`: the CASE_MANAGER refuses it on any `Remove(Event)` but its own.
+Do not use `THREAT_SIGNAL`: the CASE_MANAGER refuses it on any `Remove(EmbargoEvent)` but its own.
 To end the embargo because the vulnerability is public, an exploit is public or attacks are observed, send a case status update setting `P`, `X` or `A` instead.
 The CASE_MANAGER then ends the embargo itself, with a `THREAT_SIGNAL` cause naming the signals the case carries.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-termination.md" %}
 
 Only the CASE_MANAGER changes the case's EM state (EP-09-008).
-If you are not the CASE_MANAGER, address `Remove(Event)` to the CASE_MANAGER.
-If you are the CASE_MANAGER, address `Remove(Event)` to every other participant and never to yourself (EMB-19-001).
+If you are not the CASE_MANAGER, address `Remove(EmbargoEvent)` to the CASE_MANAGER.
+If you are the CASE_MANAGER, address `Remove(EmbargoEvent)` to every other participant and never to yourself (EMB-19-001).
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-termination-notice.md" %}
 
 The CASE_MANAGER commits the termination to the case ledger and fans the entry out to every participant.
 Your own copy of the case moves to `EM.EXITED` when the CASE_MANAGER's ledger entry for the termination reaches you, not when you send.
 
-When the CASE_MANAGER applies a Case Owner's termination that arrives before the end time, it then sends `Announce(Event)` naming the terminated embargo to every other active participant except a Closed Participant, the Case Owner included (EMB-19-001, CM-23-004).
-A termination the CASE_MANAGER starts itself sends no `Announce(Event)`.
-Neither does a Case Owner's termination that arrives after the end time: the CASE_MANAGER's own end-time check has already ended the embargo when that `Remove(Event)` arrives.
+When the CASE_MANAGER applies a Case Owner's termination that arrives before the end time, it then sends `Announce(EmbargoEvent)` naming the terminated embargo to every other active participant except a Closed Participant, the Case Owner included (EMB-19-001, CM-23-004).
+A termination the CASE_MANAGER starts itself sends no `Announce(EmbargoEvent)`.
+Neither does a Case Owner's termination that arrives after the end time: the CASE_MANAGER's own end-time check has already ended the embargo when that `Remove(EmbargoEvent)` arrives.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/announce-embargo-termination.md" %}
 
 !!! warning "Termination is not a revision"
 
-    `Remove(Event)` ends the embargo now, rather than proposing a shorter one.
+    `Remove(EmbargoEvent)` ends the embargo now, rather than proposing a shorter one.
     If you want the embargo to end sooner but still exist, propose a revision with an earlier end time.
 
 An embargo also terminates when the case reaches public awareness.
@@ -176,12 +176,12 @@ If the embargo has already ended, the trigger answers with no activity and commi
 ## Withdraw from the embargo
 
 A participant bound by the active embargo can stop complying with it at any time (VP-13-017).
-Withdrawal is implemented in ActivityStreams as `Leave(Event)`, with the embargo in force as its `object` and the case as its `context` (MSM-07-010).
-It is not an answer to an Invite, so you need no `Invite(Event)` to withdraw: a Reporter whose consent was recorded when the case was created can withdraw too.
+Withdrawal is implemented in ActivityStreams as `Leave(EmbargoEvent)`, with the embargo in force as its `object` and the case as its `context` (MSM-07-010).
+It is not an answer to an Invite, so you need no `Invite(EmbargoEvent)` to withdraw: a Reporter whose consent was recorded when the case was created can withdraw too.
 
 1. Call `withdraw-embargo` with the case's ID.
    The trigger reads the embargo in force from your copy of the case.
-2. The trigger sends `Leave(Event)` to the CASE_MANAGER.
+2. The trigger sends `Leave(EmbargoEvent)` to the CASE_MANAGER.
    The CASE_MANAGER marks your consent row for the embargo in force `DECLINED`, and also every row you had marked `AGREED` for an open revision, because each open revision replaces the embargo you left.
    It commits the withdrawal to the case ledger, then each consent row it declines as an entry of its own.
    Your own copy of the case changes when those entries reach you.
@@ -199,7 +199,7 @@ The trigger refuses the withdrawal in three cases:
 
 !!! warning "A Reject never withdraws"
 
-    `Reject(Invite(Event))` refuses terms; it is not a way to leave an embargo you agreed to.
+    `Reject(Invite(EmbargoEvent))` refuses terms; it is not a way to leave an embargo you agreed to.
     A `Reject` of the embargo in force from an `AGREED` row is refused, and `reject-embargo` with no `proposal_id` rejects an open revision while your consent to the embargo in force stays `AGREED` (MSM-07-004).
 
 ---
@@ -208,12 +208,12 @@ The trigger refuses the withdrawal in three cases:
 
 | What you sent | What to confirm |
 |---|---|
-| `Invite(Event)` on an active embargo | The case `em_state` is `REVISE`. |
-| `Accept(Event)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE` and the active embargo carries the new terms. |
-| `Reject(Event)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE` and the terms are unchanged. |
-| `Reject(Invite(Event))` on a revision | Your consent row for the revision is `DECLINED`; the case `em_state` is still `REVISE`. |
-| `Remove(Event)` | Once the CASE_MANAGER's ledger entry arrives, the case `em_state` is `EXITED` and no embargo is active. |
-| `Leave(Event)` | Once the CASE_MANAGER's ledger entry arrives, your consent row for the embargo in force is `DECLINED`; the case `em_state` is unchanged. |
+| `Invite(EmbargoEvent)` on an active embargo | The case `em_state` is `REVISE`. |
+| `Accept(EmbargoEvent)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE` and the active embargo carries the new terms. |
+| `Reject(EmbargoEvent)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE` and the terms are unchanged. |
+| `Reject(Invite(EmbargoEvent))` on a revision | Your consent row for the revision is `DECLINED`; the case `em_state` is still `REVISE`. |
+| `Remove(EmbargoEvent)` | Once the CASE_MANAGER's ledger entry arrives, the case `em_state` is `EXITED` and no embargo is active. |
+| `Leave(EmbargoEvent)` | Once the CASE_MANAGER's ledger entry arrives, your consent row for the embargo in force is `DECLINED`; the case `em_state` is unchanged. |
 
 ---
 

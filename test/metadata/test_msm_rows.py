@@ -18,10 +18,16 @@ rows stay, as the derived page, shorthands and status of each entry.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import pytest
+
 from vultron.core.models.events.base import MessageSemantics
 from vultron.metadata.msm import MappingStatus
 from vultron.metadata.msm._mapping import ROW_SPECS, SEMANTICS_TO_ROW
-from vultron.metadata.msm.occasions import format_pattern, wire_summary
+from vultron.metadata.msm.occasions import (
+    emitted_type,
+    format_pattern,
+    wire_summary,
+)
 from vultron.semantic_registry import lookup_entry
 
 # ---------------------------------------------------------------------------
@@ -48,6 +54,40 @@ def test_format_pattern_with_target_qualifier():
     entry = lookup_entry(MessageSemantics.ADD_CASE_STATUS_TO_CASE)
     assert entry is not None and entry.pattern is not None
     assert "target=" in format_pattern(entry.pattern)
+
+
+@pytest.mark.parametrize(
+    ("semantics", "expected"),
+    [
+        (
+            MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+            "Invite(EmbargoEvent)[context=VulnerabilityCase]",
+        ),
+        (
+            MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+            "Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])",
+        ),
+        (
+            MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+            "Remove(EmbargoEvent)",
+        ),
+        (MessageSemantics.CREATE_EMBARGO_EVENT, "Create(EmbargoEvent)"),
+    ],
+)
+def test_format_pattern_writes_the_embargo_type_the_sender_emits(
+    semantics: MessageSemantics, expected: str
+):
+    """An embargo pattern matches ``Event``, but the sender emits
+    ``EmbargoEvent``, which is what Wire Activity notation writes (Annex C,
+    #5155)."""
+    entry = lookup_entry(semantics)
+    assert entry is not None and entry.pattern is not None
+    assert format_pattern(entry.pattern) == expected
+
+
+def test_emitted_type_passes_other_types_through():
+    assert emitted_type("Event") == "EmbargoEvent"
+    assert emitted_type("VulnerabilityCase") == "VulnerabilityCase"
 
 
 def test_wire_summary_of_a_none_status_entry_is_its_pattern():
@@ -87,7 +127,7 @@ def test_expansion_gi_appears_in_multiple_rows():
 
 
 def test_ep_maps_only_to_invite_embargo():
-    """EP is Invite(Event) and nothing else (MSM-02-001) — not an expansion."""
+    """EP is Invite(EmbargoEvent) and nothing else (MSM-02-001) — not an expansion."""
     ep_rows = [row for row in ROW_SPECS if "EP" in row.shorthands]
     assert [row.semantics for row in ep_rows] == [
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE

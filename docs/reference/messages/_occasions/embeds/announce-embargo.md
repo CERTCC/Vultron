@@ -5,7 +5,7 @@
     Tells participants the terms of the active embargo. It proposes nothing.
 
     - **When…** the Case Manager states the terms of the embargo in force
-    - **Send:** `Announce(Event)[context=VulnerabilityCase]`
+    - **Send:** `Announce(EmbargoEvent)[context=VulnerabilityCase]`
     - **Send to:** a participant
     - **Sent by:** the case manager
     - **Distinguished by:** register status of the named embargo `ACTIVE`

@@ -5,7 +5,7 @@
 Records the sender's own consent to the proposed terms. The embargo becomes active only when the Case Owner sends its decision.
 
 - **When…** a Participant agrees to proposed embargo terms
-- **Send:** `Accept(Invite(Event)[context=VulnerabilityCase])`
+- **Send:** `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`
 - **Send to:** the case manager
 - **Sent by:** the invitee
 - **Distinguished by:** EM state `PROPOSED`

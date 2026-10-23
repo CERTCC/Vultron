@@ -183,47 +183,47 @@
     },
     {
       "semanticType": "remove_embargo_event_from_case",
-      "wire": "Remove(Event)",
+      "wire": "Remove(EmbargoEvent)",
       "phrase": "{actor} removed an embargo from the case"
     },
     {
       "semanticType": "announce_embargo_event_to_case",
-      "wire": "Announce(Event)[context=VulnerabilityCase]",
+      "wire": "Announce(EmbargoEvent)[context=VulnerabilityCase]",
       "phrase": "{actor} announced an embargo change"
     },
     {
       "semanticType": "invite_to_embargo_on_case",
-      "wire": "Invite(Event)[context=VulnerabilityCase]",
+      "wire": "Invite(EmbargoEvent)[context=VulnerabilityCase]",
       "phrase": "{actor} proposed an embargo"
     },
     {
       "semanticType": "accept_invite_to_embargo_on_case",
-      "wire": "Accept(Invite(Event)[context=VulnerabilityCase])",
+      "wire": "Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])",
       "phrase": "{actor} accepted the embargo"
     },
     {
       "semanticType": "reject_invite_to_embargo_on_case",
-      "wire": "Reject(Invite(Event)[context=VulnerabilityCase])",
+      "wire": "Reject(Invite(EmbargoEvent)[context=VulnerabilityCase])",
       "phrase": "{actor} declined the embargo"
     },
     {
       "semanticType": "undo_invite_to_embargo_on_case",
-      "wire": "Undo(Invite(Event)[context=VulnerabilityCase])",
+      "wire": "Undo(Invite(EmbargoEvent)[context=VulnerabilityCase])",
       "phrase": "{actor} withdrew the embargo invitation"
     },
     {
       "semanticType": "activate_embargo_on_case",
-      "wire": "Accept(Event)[target=VulnerabilityCase]",
+      "wire": "Accept(EmbargoEvent)[target=VulnerabilityCase]",
       "phrase": "{actor} activated the embargo"
     },
     {
       "semanticType": "reject_embargo_proposal_on_case",
-      "wire": "Reject(Event)[target=VulnerabilityCase]",
+      "wire": "Reject(EmbargoEvent)[target=VulnerabilityCase]",
       "phrase": "{actor} rejected the proposed embargo"
     },
     {
       "semanticType": "withdraw_from_embargo_on_case",
-      "wire": "Leave(Event)[context=VulnerabilityCase]",
+      "wire": "Leave(EmbargoEvent)[context=VulnerabilityCase]",
       "phrase": "{actor} withdrew from the embargo"
     },
     {

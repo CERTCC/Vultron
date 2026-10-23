@@ -62,7 +62,7 @@ The accepting service does the steps below, and the order is not interchangeable
 | Emit `Accept(as_CaseProposal)` | The proposer learns its request succeeded |
 | Emit `Create(VulnerabilityCase)` | The proposer receives the case replica, with Participants inline |
 | Commit the canonical ledger entries | The case's history starts here, and each entry fans out to every Participant |
-| Relay a contested creation's revision | When the reporter and the owner both proposed terms, the longer ones are sent as an `Invite(Event)` to the party whose terms won (EP-04-011) |
+| Relay a contested creation's revision | When the reporter and the owner both proposed terms, the longer ones are sent as an `Invite(EmbargoEvent)` to the party whose terms won (EP-04-011) |
 
 The ledger commits come after both emissions for a reason that is easy to miss.
 Each commit fans its entry out through the same first-in-first-out outbox that carries the `Create(VulnerabilityCase)`.

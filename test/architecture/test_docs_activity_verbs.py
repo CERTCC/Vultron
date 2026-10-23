@@ -88,6 +88,7 @@ from test.architecture import _corpus
 # re-exports only 48 of the 51, so importing the public surface would leave the
 # unexported patterns invisible to this ratchet — the same silent gap a
 # class-only map produced.
+from vultron.metadata.msm.occasions import emitted_type
 from vultron.semantic_registry import SEMANTIC_REGISTRY
 from vultron.wire.as2.extractor import _instances
 from vultron.wire.as2.extractor._pattern import ActivityPattern
@@ -257,10 +258,13 @@ def _render_as2_form(pattern: ActivityPattern) -> str:
     """The canonical AS2 wire form of a pattern, e.g. ``Read(Offer(Report))``.
 
     ``object_`` is either an object type or a nested pattern, which is what makes
-    the composite forms — ``Accept(Invite(Event))`` is an ``Accept`` whose object
-    is an ``Invite``.  ``target_`` and ``context_`` are deliberately *not* folded
-    in: they are per-activity qualifiers the prose states, and including them
-    would make the inline form too long to read in a sentence or a diagram node.
+    the composite forms — ``Accept(Invite(EmbargoEvent))`` is an ``Accept`` whose
+    object is an ``Invite``.  ``target_`` and ``context_`` are deliberately *not*
+    folded in: they are per-activity qualifiers the prose states, and including
+    them would make the inline form too long to read in a sentence or a diagram
+    node.  An object type is written as the sender emits it (``emitted_type``),
+    as the occasion generator writes it: an embargo pattern matches ``Event``
+    but the sender emits ``EmbargoEvent`` (Annex C; #5155 fixes the pattern).
     """
     verb = getattr(pattern.activity_, "value", pattern.activity_)
     obj = pattern.object_
@@ -269,7 +273,7 @@ def _render_as2_form(pattern: ActivityPattern) -> str:
     if isinstance(obj, ActivityPattern):
         inner = _render_as2_form(obj)
     else:
-        inner = str(getattr(obj, "value", obj))
+        inner = emitted_type(obj)
     return f"{verb}({inner})"
 
 
@@ -409,7 +413,7 @@ def test_mermaid_labels_are_the_canonical_as2_form():
 
     The wire line may carry a trailing ``, <qualifier>`` naming a field the
     reader needs to tell an activity apart, such as the case ``target`` of the
-    case owner's ``Accept``/``Reject(Event)``. The qualifier is *checked*
+    case owner's ``Accept``/``Reject(EmbargoEvent)``. The qualifier is *checked*
     against ``_EXPECTED_QUALIFIER`` rather than stripped: when two activities
     once shared ``Add(Event)`` and were told apart only by ``inReplyTo``,
     discarding it let a label assert the exact opposite of the truth while this

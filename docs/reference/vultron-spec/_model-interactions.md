@@ -86,7 +86,7 @@ Each cascade below starts from a step on the case's embargo register ([§7.1.1 T
   With no `ACTIVE` entry, no participant is a signatory and none has lapsed, and every row for the terminated and canceled entries is frozen as it stood, so an accept that arrives afterwards records nothing (EMB-17-004).
 - **After a teardown.**
   The termination's own ledger entry, fanned out as `Announce(CaseLedgerEntry)`, records the end (EP-09-009).
-  The CASE_MANAGER then sends `Announce(Event)` to every other active participant (EMB-19-001), and a direct `Remove(Event)` notice to each signatory the ledger fan-out does not reach (CM-31-009).
+  The CASE_MANAGER then sends `Announce(EmbargoEvent)` to every other active participant (EMB-19-001), and a direct `Remove(EmbargoEvent)` notice to each signatory the ledger fan-out does not reach (CM-31-009).
   No message is sent for consent, because none is written (MSM-07-006).
 
 !!! note "Recall: participant embargo consent states"

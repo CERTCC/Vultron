@@ -88,8 +88,8 @@ sequenceDiagram
 
     note over F,CA: Phase 5 — Publication and embargo teardown
     V->>CA: Add(ParticipantStatus Pxa) — public awareness
-    CA->>V: Remove(Event) — Embargo Termination (ET)
-    CA->>F: Remove(Event) — Embargo Termination (ET)
+    CA->>V: Remove(EmbargoEvent) — Embargo Termination (ET)
+    CA->>F: Remove(EmbargoEvent) — Embargo Termination (ET)
     F->>CA: Add(ParticipantStatus Pxa) — public awareness
     CA-->>V: Announce(CaseLedgerEntry) ×n
     CA-->>F: Announce(CaseLedgerEntry) ×n
@@ -314,12 +314,12 @@ POST /api/v2/actors/{reporter_id}/demo/notify-published
 | Activity | Occasion | Direction |
 |:---------|:---------|:----------|
 | `Add(ParticipantStatus)[target=CaseParticipant]`, `caseStatus.pxaState` = `Pxa` | [Public awareness in a participant status](messages/cs.md#participant-public-awareness) | Vendor → Case Actor; Reporter → Case Actor |
-| `Remove(Event)` | [Tell a participant the embargo has ended](messages/em.md#embargo-termination-notice) | Case Actor → Vendor, Reporter |
+| `Remove(EmbargoEvent)` | [Tell a participant the embargo has ended](messages/em.md#embargo-termination-notice) | Case Actor → Vendor, Reporter |
 
 ### What happens
 
 1. The Vendor's trigger sends `Add(ParticipantStatus)` with the public-path state `Pxa`.
-2. The Case Actor records the status and, because the report of public awareness comes from the Case Owner, terminates the embargo: it sends `Remove(Event)` to every participant and commits an `add_case_status_to_case` entry carrying `EM.EXITED`.
+2. The Case Actor records the status and, because the report of public awareness comes from the Case Owner, terminates the embargo: it sends `Remove(EmbargoEvent)` to every participant and commits an `add_case_status_to_case` entry carrying `EM.EXITED`.
 3. The Reporter's trigger sends its own `Add(ParticipantStatus)` with `Pxa`.
 
 ### Milestone M6

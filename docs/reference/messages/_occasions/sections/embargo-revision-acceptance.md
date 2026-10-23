@@ -5,7 +5,7 @@
 Records the sender's own consent to the revision. The revision replaces the active embargo only when the Case Owner sends its decision.
 
 - **When…** a Participant agrees to a proposed embargo revision
-- **Send:** `Accept(Invite(Event)[context=VulnerabilityCase])`
+- **Send:** `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`
 - **Send to:** the case manager
 - **Sent by:** the invitee
 - **Distinguished by:** EM state `REVISE`

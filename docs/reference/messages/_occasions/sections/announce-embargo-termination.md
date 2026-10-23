@@ -5,7 +5,7 @@
 Tells the active participants other than the Case Manager and any Closed Participant that the embargo it names is terminated. It proposes nothing.
 
 - **When…** the Case Manager has applied an Embargo Termination a Case Owner sent before the end time
-- **Send:** `Announce(Event)[context=VulnerabilityCase]`
+- **Send:** `Announce(EmbargoEvent)[context=VulnerabilityCase]`
 - **Send to:** a participant
 - **Sent by:** the case manager
 - **Distinguished by:** register status of the named embargo `TERMINATED`
