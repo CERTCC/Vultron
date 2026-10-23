@@ -13,10 +13,11 @@ This specification and the documentation write one as `Verb(Object)[field=Value]
 - **Verb.** The activity's own AS2 `type` comes first: `Offer`, `Accept`, `Add`.
 - **Object in parentheses.** The parentheses hold the type of the activity's `object`: `Offer(VulnerabilityReport)` is an `Offer` whose `object` is a `VulnerabilityReport`.
 - **Nesting.** When the object is itself an activity, the parentheses hold that activity in the same notation: `Accept(Offer(VulnerabilityReport))` is an `Accept` whose `object` is an `Offer` of a `VulnerabilityReport`.
-- **Bracketed fields.** Brackets after an activity name its other fields that tell occasions apart, each as `field=Value`, with a comma between two of them.
+- **Bracketed fields.** Brackets after an activity name its other fields that tell [occasions](../glossary.md#messaging-and-protocol) apart, each as `field=Value`, with a comma between two of them.
   The brackets qualify the activity they follow: in `Add(CaseStatus)[target=VulnerabilityCase]` the `target` is the `Add`'s, and in `Accept(Invite(Event)[context=VulnerabilityCase])` the `context` is the `Invite`'s.
   A value is the type the field holds, or a literal value such as a state name.
-  Written without its brackets, as `Invite(Event)`, an activity names every occasion of that shape; a field that tells no occasions apart is described in the surrounding text, not in the notation.
+  Written without its brackets, as `Invite(Event)`, an activity names every occasion of that shape.
+  A field that tells no occasions apart is described in the surrounding text, not in the notation.
 - **Type names.** Each name is a `type` value as it appears on the wire, never the name of a class in an implementation.
   Where a receiver accepts an AS2 type or the Vultron type that extends it, the notation writes the AS2 type: `Invite(Event)` names an embargo invitation whether its object is sent with `type` `Event` or `EmbargoEvent`.
   Where a receiver accepts only the Vultron type, the notation writes that type: `Create(EmbargoEvent)`.
