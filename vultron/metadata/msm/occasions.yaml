@@ -753,7 +753,7 @@ groups:
     heading: Create embargo event
     when: the Case Manager has created a case and, with it, an embargo such as the default
       embargo
-    send: Create(Event)
+    send: Create(EmbargoEvent)
     send_to: a participant
     sent_by: not handled
     semantics: create_embargo_event

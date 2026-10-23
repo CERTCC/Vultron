@@ -466,7 +466,7 @@ ENTRIES: list[SemanticEntry] = [
     ),
     # The CASE_MANAGER's own records: an embargo its case's creation wrote,
     # and its acts on consent rows, each committed as its own entry carrying
-    # the record in full (ADR-0122, CLP-07-013).  Only the CASE_MANAGER sends
+    # the record in full (ADR-0122, CLP-07-013).  Only the CASE_MANAGER commits
     # them, and a participant takes the record from the ledger, so no
     # received use case handles them (ADR-0140 item 5).
     SemanticEntry(

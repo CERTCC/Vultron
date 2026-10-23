@@ -72,7 +72,8 @@ The same activity carries a revision, Embargo Revision Proposal (EV); a receiver
 
 1. Send `Invite(Event)` with the proposed `EmbargoEvent` inline as its `object` and the case as its `context`.
    The case moves to `EM.PROPOSED`.
-   The protocol names `Invite(Event)` as the one form; a received `Create(Event)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
+   The protocol names `Invite(Event)` as the one form; a received `Create(Event)` is not a protocol message (VAM-01-011), and this implementation's inbox does not process it (VAM-01-010).
+   A `Create` of an `EmbargoEvent` is the Case Manager's own ledger record of a creation-time embargo, so the inbox reports it as "no use case found"; a `Create` of any other `Event` is refused as an unrecognized activity.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal.md" %}
 

@@ -228,7 +228,7 @@
     },
     {
       "semanticType": "create_embargo_event",
-      "wire": "Create(Event)",
+      "wire": "Create(EmbargoEvent)",
       "phrase": "{actor} created the case's embargo"
     },
     {
