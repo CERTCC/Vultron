@@ -162,7 +162,7 @@ received guard, the trigger and the lifecycle write all call it, so they cannot
 drift: `reject_is_withdrawal_refusal` for the Reject, `embargo_withdrawal_refusal`
 for the Leave (not in force, not `AGREED`, or the case owner). Answering the
 embargo in force names its relayed `Invite(EmbargoEvent)`, never the full-case
-Invite, and never falls back to it when no Invite is named (EP-09-012, #4373;
+Invite, and never falls back to it when no Invite is named (EP-09-015, #4373;
 see § "Answering the Embargo in Force").
 
 Only the owner's decision changes the embargo on the case, through
@@ -473,10 +473,11 @@ sender's id is needed or kept (DL-06-006).
   trigger find it; that breaks EP-08-003 and EP-08-002's selection.
 - **Withdrawing is not answering.** A signatory leaves through
   `Leave(EmbargoEvent)` (EP-09-013, MSM-07-010), which needs no Invite: the
-  withdraw-embargo trigger resolves the embargo from the case's active embargo
-  (`resolve_embargo_to_withdraw`, beside `_resolve_embargo_proposal` in the
-  same module), so a signatory made by seeding or joining can leave too. The
-  reject trigger never withdraws (MSM-07-004; ADR-0122).
+  withdraw-embargo trigger (EP-09-016) resolves the embargo from the case's
+  active embargo (`resolve_embargo_to_withdraw`, beside
+  `_resolve_embargo_proposal` in the same module), so a signatory made by
+  seeding or joining can leave too. The reject trigger never withdraws
+  (MSM-07-004; ADR-0122).
 
 ---
 

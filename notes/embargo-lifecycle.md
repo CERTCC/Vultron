@@ -121,7 +121,8 @@ Statuses and triggers are in `vultron/core/states/embargo_register.py`.
   triggering status, or, when unknown at build time, the case's PXA at the
   write. A voluntary termination passes `ChosenTermination`, set by the
   `ChooseTerminationCauseNode` after the reason call-out that succeeded and
-  read at the write, so the choice and the commit are one act (EMB-14-001);
+  read at the write, so the choice and the commit are one act (EMB-14-001,
+  EMB-14-004);
   the trigger records the request's cause, or `OTHER` when it names none.
   The `Remove` carries the why as `terminationCause` (a field on the
   base `as_Remove`, marked a Vultron property so `context.jsonld` names it),
@@ -455,7 +456,8 @@ a misrouting (RSH-08-003: store it, write nothing).
 CASE_MANAGER's commit and announcement; no EK message exists or is to be built
 (EP-09-009, MSM-02-009).
 
-**A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008).** Each
+**A trigger writes shared EM state only as the CASE_MANAGER (EP-09-008,
+EP-09-014).** Each
 tree in `vultron/core/behaviors/embargo/trigger_tree.py` ends in two exclusive
 arms built by `_by_role()` (BT-17-001). Ratchet:
 `test/architecture/test_embargo_trigger_writes_are_case_manager_gated.py`.

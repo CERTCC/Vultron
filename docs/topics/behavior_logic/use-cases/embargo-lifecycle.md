@@ -338,7 +338,7 @@ A status with a different EM state is built by construction or by `CaseStatus.wi
 | [EMB-03-001](../../../reference/specs/protocol.md#emb-03-001) | An EV in `EM.ACTIVE` MUST move to `EM.REVISE`, leaving the active embargo in force |
 | [EMB-06-001](../../../reference/specs/protocol.md#emb-06-001) | An ER in `EM.PROPOSED` MUST return the case to `EM.NONE` when it rejects the last open proposal, and leave it `PROPOSED` while another is open |
 | [EMB-13-002](../../../reference/specs/protocol.md#emb-13-002) | An actor at `EM.EXITED` MUST NOT accept a new embargo for a public case |
-| [EMB-15-002](../../../reference/specs/protocol.md#emb-15-002) | The response seam MUST bypass approval when the deciding actor is the case owner |
+| [EMB-15-002](../../../reference/specs/project.md#emb-15-002) | The response seam MUST bypass approval when the deciding actor is the case owner |
 | [EMB-16-001](../../../reference/specs/protocol.md#emb-16-001) | An actor at `EM.PROPOSED` observing the case go public MUST abandon the proposal and emit ER |
 | [EMB-16-002](../../../reference/specs/protocol.md#emb-16-002) | A participant that is not the case manager MUST NOT emit ER as that abandonment or write it itself; it still answers what it receives under EMB-01-002 |
 | [EMB-17-001](../../../reference/specs/protocol.md#emb-17-001) | A late `Accept` MUST NOT be refused solely because the deadline passed |

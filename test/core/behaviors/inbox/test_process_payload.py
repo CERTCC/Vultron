@@ -828,6 +828,7 @@ class TestInboundRsvpWindows:
         return deadline
 
     @pytest.mark.spec("EP-07-001")
+    @pytest.mark.spec("EP-07-007")
     def test_configured_default_window_applies(self) -> None:
         published = datetime.now(tz=UTC)
         config = ActorConfig(default_rsvp_window=timedelta(days=14))
@@ -843,6 +844,7 @@ class TestInboundRsvpWindows:
         )
 
     @pytest.mark.spec("EP-07-002")
+    @pytest.mark.spec("EP-07-008")
     def test_configured_minimum_window_applies(self) -> None:
         published = datetime.now(tz=UTC)
         config = ActorConfig(min_rsvp_window=timedelta(days=4))

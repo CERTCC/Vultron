@@ -181,6 +181,7 @@ def test_child_0_is_has_active_embargo():
 
 
 @pytest.mark.spec("EMB-14-001")
+@pytest.mark.spec("EMB-14-004")
 def test_child_1_is_reason_selector():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()
@@ -191,6 +192,7 @@ def test_child_1_is_reason_selector():
 
 
 @pytest.mark.spec("EMB-14-001")
+@pytest.mark.spec("EMB-14-004")
 def test_reason_selector_has_three_children():
     tree = create_terminate_active_embargo_tree(
         case_id=CASE_ID, result_out=_make_result_out()

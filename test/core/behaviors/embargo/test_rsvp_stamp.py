@@ -54,6 +54,8 @@ def test_the_default_window_is_seven_days_from_published(dl) -> None:
 
 
 @pytest.mark.spec("CM-28-012")
+@pytest.mark.spec("EP-07-007")
+@pytest.mark.spec("EP-07-008")
 def test_the_configured_window_and_floor_are_used(dl) -> None:
     config = ActorConfig(
         default_rsvp_window=timedelta(days=10),

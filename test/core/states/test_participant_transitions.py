@@ -27,6 +27,8 @@ two properties ADR-0086 turns on:
 Closes #3050 AC-1, AC-5, AC-10.
 """
 
+import pytest
+
 from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
 from vultron.core.states.participant_transitions import (
     participant_transition_violations,
@@ -259,6 +261,7 @@ class TestRoleGates:
         assert "ADR-0075" in violation.message
         assert "CVDRole.VENDOR" in violation.message
 
+    @pytest.mark.spec("CSB-15-001")
     def test_fix_ready_vf_role_gate_cites_csb_15_001(self):
         violations = _violations(
             current_rm=RM.ACCEPTED,
@@ -267,6 +270,7 @@ class TestRoleGates:
         )
         assert any("CSB-15-001" in v.message for v in violations)
 
+    @pytest.mark.spec("CSB-15-002")
     def test_any_d_assertion_requires_deployer_role(self):
         """#2963: the gate covers ``d`` too, not only ``D``.
 

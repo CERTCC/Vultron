@@ -149,6 +149,7 @@ def test_manager_reject_embargo_commits_the_decision(
 
 
 @pytest.mark.spec("EP-09-008")
+@pytest.mark.spec("EMB-15-004")
 def test_non_manager_owner_reject_asks_the_manager_to_reject(
     owner_actor_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

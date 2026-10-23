@@ -392,7 +392,7 @@ call sites reach write nodes with no guard (BTND-10-001, BTND-10-003).
   `violation_*` predicate (BTND-10-002, EH-07-001); enforced by
   `test/architecture/test_participant_status_validation.py`.
 - **`CaseStatus` and other dimensions**: call the relevant
-  `is_valid_*_transition()` (CSB-16-001 for VFD; CSB-16-002, SM-09-001 for PXA).
+  `is_valid_*_transition()` (CSB-16-003 for VFD; CSB-16-004, SM-09-001 for PXA).
 - **EM**: route through `EmbargoLifecycle` (EMB-18-001); see
   [embargo-lifecycle.md](embargo-lifecycle.md).
 
