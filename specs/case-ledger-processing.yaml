@@ -250,7 +250,7 @@ groups:
     rationale: >-
       Whether something is ledgered was decided handler by handler, so a handler
       that "changed nothing" committed nothing and nobody noticed. A closed list
-      turns each exception into a recorded decision and gives the CLP-09-003
+      turns each exception into a recorded decision and gives a commit
       coverage test a fixed set of grounds for exemption. A handler that runs
       only at a participant has no commit to reach. An activity that changes
       nothing at any receiver is an observation, not an act, and ledgering it
@@ -264,8 +264,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CLP-02-001
-    - rel_type: refines
-      spec_id: CLP-09-003
     adr:
     - ADR-0152
     stories:
@@ -308,7 +306,10 @@ groups:
       `test/core/models/test_case_ledger_entry_semantic_type.py` confirm that a payload
       carrying `eventType` beside `semanticType` is refused with an error naming the
       rename, that a stored row carrying the retired field is refused, and that a
-      `HashChainLedgerRecord` carries the value as `semantic_type`.
+      `HashChainLedgerRecord` carries the value as `semantic_type`. Tests marked
+      `CLP-02-015` in `test/wire/as2/test_unknown_key_disposition.py` confirm that a
+      received inline entry, or any other inline object, carrying `eventType` is
+      refused at parse with a message naming the rename.
     relationships:
     - rel_type: implements
       spec_id: CLP-02-014
@@ -450,7 +451,7 @@ groups:
     verification: >-
       `test/core/behaviors/sync/test_announce_tree.py::test_replica_refuses_entry_whose_hash_does_not_match_content`
       asserts the ERROR record of a hash refusal;
-      `test/core/use_cases/received/test_processing_fault_received.py::test_received_fault_is_logged_naming_its_sender_and_activity`
+      `test/core/use_cases/received/test_processing_fault_received.py::test_received_fault_is_logged_naming_its_sender_and_fault`
       asserts the WARNING record of a received fault;
       `test/core/behaviors/sync/test_divergence_recovery.py::test_a_conflicting_copy_is_logged_at_error`
       asserts the ERROR record of a conflicting copy, a strict `xfail` until #4797
@@ -1157,6 +1158,9 @@ groups:
       every use case reachable via `use_case_map()` and asserts, using the static
       commit inventory in `test/architecture/_ledger_commit_inventory.py`, that each
       one reaches a canonical commit or carries a CLP-02-013 exemption.
+    relationships:
+    - rel_type: implements
+      spec_id: CLP-02-013
     stories:
     - story_2022_045
     - story_2022_074
@@ -2064,6 +2068,8 @@ groups:
       emitting tree (CLP-10-013). A participant whose container does not host the
       CASE_MANAGER MUST NOT execute a tree locally as the CASE_MANAGER (CM-24-004).
     verification: >-
+      `test/core/use_cases/test_validate_report_ledger_routing.py::TestTriggerEmitsToCaseActorOutbox::test_emit_addressed_to_case_actor_id`
+      asserts a trigger tree addresses its outbound activity to `case_manager_id`;
       `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcInviteActorToCaseUseCase::test_invite_is_queued_in_the_owners_outbox_only`
       and
       `::TestSvcOfferCaseOwnershipTransferUseCase::test_offer_is_queued_in_the_owners_outbox_only`

@@ -567,9 +567,10 @@ groups:
       CASE_MANAGER (not the case owner). The CASE_MANAGER is the authoritative recipient
       and processor of all case-management handshake messages after case creation.
     verification: >-
-      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcAcceptCaseInviteUseCase::test_accept_creates_activity`
-      confirms the invitee's `Accept` is addressed `to` the `Invite`'s actor, the
-      CASE_MANAGER, alone.
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcAcceptCaseInviteUseCase::test_accept_addresses_case_manager_not_case_owner`
+      confirms that, for a case another actor owns, the invitee's `Accept` is
+      addressed `to` the `Invite`'s actor, the CASE_MANAGER, alone, and not to
+      the case owner.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-001

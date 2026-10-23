@@ -272,7 +272,7 @@ def _inline_ledger_entry(**keys: Any) -> dict[str, Any]:
 def test_received_ledger_entry_carrying_event_type_is_refused(
     keys: dict[str, Any],
 ) -> None:
-    """A received entry still spelling ``eventType`` is refused (CLP-02-014).
+    """A received entry still spelling ``eventType`` is refused (CLP-02-015).
 
     The parse edge decides the key before the core class sees it, so the
     refusal must name the rename whether or not ``semanticType`` rides along;

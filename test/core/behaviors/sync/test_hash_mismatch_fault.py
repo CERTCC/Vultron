@@ -13,8 +13,8 @@
 
 """Hash refusal: the replica reports it, the CASE_MANAGER logs and self-checks.
 
-Every test here is a strict ``xfail`` for unbuilt behaviour (SYNC-03-007,
-SYNC-03-008). Each implementation issue removes the ``xfail`` from the tests
+Most tests here are strict ``xfail`` probes for unbuilt behaviour (SYNC-03-007,
+SYNC-03-008, SYNC-03-010). Each implementation issue removes the ``xfail`` from the tests
 it makes pass, and replaces a probe with a full behaviour test where the probe
 only pins a name.
 """
@@ -29,7 +29,9 @@ from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models import fault_classes
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
+from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.use_cases._helpers import outbox_ids
 from vultron.core.use_cases.received.fault import (
     CreateProcessingFaultReceivedUseCase,
 )
@@ -86,6 +88,42 @@ def test_hash_mismatch_fault_from_a_non_participant_is_refused() -> None:
     ).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("SYNC-03-008")
+def test_hash_mismatch_fault_from_an_active_participant_changes_nothing() -> (
+    None
+):
+    """An active participant's fault sends nothing and leaves its state alone."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
+    case = as_VulnerabilityCase(
+        id_=_CASE_ID, name="hash mismatch", attributed_to=_CASE_ACTOR_ID
+    )
+    seed_case_participant(dl, case, _PARTICIPANT_ID)
+    dl.create(case)
+    state = VultronReplicationState(
+        case_id=_CASE_ID,
+        peer_id=_PARTICIPANT_ID,
+        last_acknowledged_hash="a" * 64,
+    )
+    dl.create(state)
+    before = dl.read(state.id_)
+    activity = create_processing_fault_activity(
+        actor=_PARTICIPANT_ID,
+        fault=as_ProcessingFault(
+            failure_class=_HASH_MISMATCH,
+            in_reply_to=f"{_CASE_ID}/ledger/entries/7/announce",
+        ),
+        to=[_CASE_ACTOR_ID],
+    )
+
+    CreateProcessingFaultReceivedUseCase(
+        dl, cast(CreateProcessingFaultReceivedEvent, received_event(activity))
+    ).execute()
+
+    assert outbox_ids(_CASE_ACTOR_ID, dl) == set()
+    assert dl.read(state.id_) == before
+    assert len(list(dl.list_objects("ReplicationState"))) == 1
 
 
 @pytest.mark.xfail(

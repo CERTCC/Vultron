@@ -375,8 +375,8 @@ guards, commit, effects.
    nothing (CLP-07-015, ADR-0151); only a registered `OneActExemption`
    (CLP-07-016) opts a tree out. So an effect that fails as a normal outcome
    (a withheld status adoption) must not return FAILURE, or the act loses its
-   entry: make it the success arm of a Selector. Read the stages through `received_stages()`,
-   which opens that block in place.
+   entry: make it the success arm of a Selector. Read the stages through
+   `received_stages()`, which opens that block in place.
 
 **Intake is the only path that stores the received activity** (CLP-10-019). Do
 not add a per-tree store node or handler-local store helper. A receive tree

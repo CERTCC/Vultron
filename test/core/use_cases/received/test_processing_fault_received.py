@@ -46,10 +46,15 @@ def test_received_fault_is_skipped_until_ask_register_exists(make_payload):
 
 
 @pytest.mark.spec("CLP-04-008")
-def test_received_fault_is_logged_naming_its_sender_and_activity(
+def test_received_fault_is_logged_naming_its_sender_and_fault(
     make_payload, caplog
 ):
-    """A fault reporting a failure to apply an entry is surfaced in the log."""
+    """A fault reporting a failure to apply an entry is surfaced in the log.
+
+    The line names the sender and the ``Create`` that carried the fault. It
+    does not yet name the failed activity the fault's ``inReplyTo`` names,
+    which the event does not carry (#5129).
+    """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     activity = create_processing_fault_activity(
         actor=_EMITTER,

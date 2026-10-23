@@ -355,9 +355,12 @@ groups:
     - rel_type: refines
       spec_id: SYNC-16-002
     verification: >-
-      `test/core/behaviors/sync/test_hash_mismatch_fault.py` asserts an empty outbox and
-      unchanged replication state for a fault from an active participant of a seeded
-      case, and `REFUSED` for one from a sender that is not a participant of that case.
+      `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_changes_nothing`
+      asserts an empty outbox and unchanged replication state for a fault from an
+      active participant of a seeded case.
+      `::test_hash_mismatch_fault_from_a_non_participant_is_refused` asserts `REFUSED`
+      for one from a sender that is not a participant; it is a strict `xfail` until
+      #5094 builds the sender rule.
     stories:
     - story_2022_045
   - id: SYNC-03-010

@@ -1147,6 +1147,42 @@ class TestSvcAcceptCaseInviteUseCase:
         assert activity_of(result)["inReplyTo"] == invite.id_
         assert activity_of(result).get("to") == [inviter.id_]
 
+    @pytest.mark.spec("PCR-08-008")
+    def test_accept_addresses_case_manager_not_case_owner(self):
+        """The Accept goes to the Invite's actor, the CASE_MANAGER, even when
+        another actor owns the case (PCR-08-008)."""
+        owner, _ = _make_actor_dl("Vendor")
+        case_manager, _ = _make_actor_dl("CaseActor")
+        invitee, dl_invitee = _make_actor_dl("Finder")
+
+        case = as_VulnerabilityCase(
+            attributed_to=owner.id_, name="Test Case", content="Content"
+        )
+        invite = rm_invite_to_case_activity(
+            invitee,
+            target=case_stub(case.id_),
+            actor=case_manager.id_,
+            to=[invitee.id_],
+        )
+        dl_invitee.create(case_manager)
+        archive_received(dl_invitee, invite)
+
+        request = AcceptCaseInviteTriggerRequest(
+            actor_id=invitee.id_,
+            invite_id=invite.id_,
+        )
+        result = SvcAcceptCaseInviteUseCase(
+            dl_invitee,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl_invitee),
+            sync_port=SyncActivityAdapter(dl_invitee),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        addressed = activity_of(result).get("to")
+        assert addressed == [case_manager.id_]
+        assert owner.id_ not in addressed
+
     def test_accept_raises_when_invite_missing(self):
         _, dl = _make_actor_dl("Finder")
         request = AcceptCaseInviteTriggerRequest(
