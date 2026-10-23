@@ -30,6 +30,7 @@ import pytest
 
 from test.metadata._git_repo import commit_all, commit_base, git, head_sha
 from vultron.metadata.planning.pr_body_lint import (
+    BODY_LIMIT,
     DOCS_PLACEHOLDER,
     RULES,
     BodyFacts,
@@ -337,6 +338,33 @@ class TestAttributionLast:
 
     def test_trailing_blank_lines_are_ignored(self):
         assert _ids(_body(tail=f"{ATTRIBUTION}\n\n\n")) == []
+
+
+@pytest.mark.spec("PAD-20-001")
+class TestBodyLength:
+    """GitHub refuses a body over its limit, after the push (#5163)."""
+
+    @staticmethod
+    def _sized(length: int) -> str:
+        body = _body(verification="- All tests pass\n- ")
+        return body.replace(
+            "- \n\n", "- " + "x" * (length - len(body)) + "\n\n"
+        )
+
+    def test_a_body_over_the_limit_is_found(self):
+        body = self._sized(BODY_LIMIT + 1)
+        assert len(body) == BODY_LIMIT + 1
+        (finding,) = lint_body(body, IMPL)
+        assert finding.rule_id == "PRB-11"
+        assert f"{BODY_LIMIT + 1:,} characters" in finding.message
+
+    def test_a_body_at_the_limit_is_not_a_finding(self):
+        body = self._sized(BODY_LIMIT)
+        assert len(body) == BODY_LIMIT
+        assert _ids(body) == []
+
+    def test_the_limit_holds_at_the_final_stage_too(self):
+        assert _ids(self._sized(BODY_LIMIT + 1), FINAL) == ["PRB-11"]
 
 
 # --- CLI ---------------------------------------------------------------------
