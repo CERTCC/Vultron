@@ -30,7 +30,7 @@ per participant ([§6 Report Management (RM) State Machine](tracking-models.md#6
 agreement per participant
 ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)), and an ordered
 case ledger that every participant replicates
-([§5.4 Addressing and Channels](layers.md#54-addressing-and-channels)).
+([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)).
 
 Embargo timing is worth noting early. In practice the first two parties to a case
 establish the initial embargo, and it carries forward as further participants join

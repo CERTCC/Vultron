@@ -52,8 +52,8 @@ There are exactly **two** exceptions, both confined to case bootstrap, both occu
 2. **Case creation handshake** — the receiving party sends the case-creation message back to the reporter as itself, introducing the actor that holds the role ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
    When that actor is not the receiving party, its first message to the reporter is a later sync, which the reporter holds if it arrives before the introduction ([CBT-01-010](../specs/protocol.md#cbt-01-010)).
 
-The report acknowledgment `RK` is not an exception, because it is not case-scoped.
-It answers the reporter's original report offer, outside the case, so it goes to the reporter directly ([PCR-08-001](../specs/protocol.md#pcr-08-001)).
+The report acknowledgment `RK` falls outside this rule rather than adding a bootstrap exception.
+It answers the reporter's original report offer, outside the case, so it goes to the reporter directly, never to the CASE_MANAGER ([PCR-08-001](../specs/protocol.md#pcr-08-001)).
 
 !!! warning "This is a routing rule, not a prohibition on talking"
     The rule above scopes **Vultron protocol messages about a case**.

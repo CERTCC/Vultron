@@ -270,8 +270,8 @@ Keep the current order; each alternative was measured and is worse:
   Actor appears only in an informative note, because it is one way to hold the
   role, not the protocol's (ADR-0158).
 - A normative statement about a message is about an occasion; a two-letter
-  protocol shorthand is a cross-reference tag and the vocabulary of the §6–§9
-  transition tables, not the unit a rule is stated on (ADR-0158).
+  protocol shorthand is a cross-reference tag and the vocabulary of the state
+  machine transition tables, not the unit a rule is stated on (ADR-0158).
 - §13 Conformance before the back matter is correct per RFC 7322: conformance
   is a body section. §14 IANA and Namespace Considerations precedes §15 Security
   Considerations, and §16 References closes the body.

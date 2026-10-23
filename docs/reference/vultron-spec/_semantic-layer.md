@@ -150,8 +150,7 @@ The CASE_MANAGER also replicates the case ledger to every participant and delive
 
 A case begins before there is a case. The reporter's first message goes to a vendor
 directly, because no case exists and so no CASE_MANAGER exists to route through.
-Every later message routes through the CASE_MANAGER
-([§10.2 Routing Topology](interactions.md#102-routing-topology)).
+Every later message routes through the CASE_MANAGER ([§10.2 Routing Topology](interactions.md#102-routing-topology)).
 The transition between those two regimes is the bootstrap, and it is where a case's trust is established ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
 
 **Messages that arrive before their case.** A case-scoped message may reach a
@@ -159,9 +158,6 @@ participant before the case it refers to has. A participant MUST NOT apply such 
 message to a case it has not yet received. It holds the message until the case
 arrives, and discards it if the case never does. Applying it early would create
 case state from a message whose context was never established.
-
-The threat model, identity verification, and the limits of this trust chain are
-covered at [§15.1 Trust Model](considerations.md#151-trust-model).
 
 ### 4.6 Error and Acknowledgment Messages
 

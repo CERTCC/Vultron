@@ -15,8 +15,9 @@ future version of this specification is expected to normatively require HTTP
 Signatures at the transport layer.
 
 **Case bootstrap as the trust establishment mechanism.** The
-`Create(VulnerabilityCase)` message signed by the originating actor is the
-trust root for a case. Late joiners receive a case snapshot and prior ledger
+`Create(VulnerabilityCase)` message that the report receiver sends to the reporter
+as itself is the trust root for a case
+([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)). Late joiners receive a case snapshot and prior ledger
 entries from the CASE_MANAGER. A late joiner trusts the CASE_MANAGER's delivery
 because it trusts the `Create` message that introduced the CASE_MANAGER. This
 chain is the minimal trust model; cryptographic ledger integrity (hash-chaining)
