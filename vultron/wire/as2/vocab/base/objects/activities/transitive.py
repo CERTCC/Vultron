@@ -1,0 +1,484 @@
+#!/usr/bin/env python
+"""This module provides transitive activity classes"""
+
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from pydantic import Field, field_validator, model_validator
+
+from vultron.core.models._helpers import _as_id
+from vultron.core.models.embargo_termination import TerminationCause
+from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
+from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
+from vultron.wire.as2.vocab.base.objects.activities.base import (
+    as_Activity as Activity,
+)
+from vultron.wire.as2.vocab.base.objects.base import (
+    as_ObjectRef,
+    as_ObjectRequiredRef,
+)
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.utils import name_of, print_activity_examples
+
+
+class as_TransitiveActivity(Activity):
+    """A transitive activity is an activity that has an object.
+    ActivityPub doesn't define transitive activities separately from activities, but we do it here for convenience.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity>
+    """
+
+    object_: as_ObjectRequiredRef = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def set_name(self):
+        """Set a default name if none is provided"""
+        if self.name is not None:
+            return self
+
+        parts = []
+        if self.actor is not None:
+            parts.append(name_of(self.actor))
+        if self.type_ is not None:
+            parts.append(self.type_)
+        if self.object_ is not None:
+            parts.append(name_of(self.object_))
+        if self.origin is not None:
+            parts.extend(("from", name_of(self.origin)))
+        if self.target is not None:
+            parts.extend(("to", name_of(self.target)))
+        if self.instrument is not None:
+            parts.extend(("using", name_of(self.instrument)))
+
+        if parts:
+            object.__setattr__(
+                self, "name", " ".join([str(part) for part in parts])
+            )
+
+        return self
+
+
+class as_Like(as_TransitiveActivity):
+    """The actor likes, recommends or endorses the object. The target and origin typically have no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-like>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.LIKE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Ignore(as_TransitiveActivity):
+    """The actor is ignoring the object. The target and origin typically have no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-ignore>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.IGNORE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Block(as_Ignore):
+    """The actor is blocking the object. The target and origin typically have no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-block>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.BLOCK,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Offer(as_TransitiveActivity):
+    """The actor is offering the object. If specified, the origin indicates the context from which the object originated.
+    The target indicates the entity to which the object is being offered.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-offer>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.OFFER,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    # Declared on the base rather than only on _RecommendActorActivity because
+    # VOCABULARY["Offer"] resolves to this class: an inbound Offer is
+    # reconstructed as a bare as_Offer, so without the field here the suggested
+    # roles are dropped on the DataLayer round-trip (#1990).  Aliased
+    # explicitly, matching the convention in this module.
+    suggested_roles: list[str] | None = Field(
+        default=None,
+        validation_alias="suggestedRoles",
+        serialization_alias="suggestedRoles",
+    )
+    # EP-04-004: a Reporter states embargo terms for *this* report by carrying
+    # a proposed EmbargoEvent on the Offer(VulnerabilityReport).  Declared on
+    # the base for the same reason as ``suggested_roles``: an inbound Offer is
+    # reconstructed as a bare as_Offer, and Pydantic's default ``extra="ignore"``
+    # would otherwise drop the proposal silently (ADR-0096).  The event's
+    # ``context`` is the report URI until the CASE_MANAGER rewrites it at case
+    # creation (EP-04-009).  ``as_ObjectRef`` admits the core ``EmbargoEvent``
+    # the parser expands the inline dict to (ARCH-25-003, ADR-0099).
+    proposed_embargo: as_ObjectRef = Field(
+        default=None,
+        validation_alias="proposedEmbargo",
+        serialization_alias="proposedEmbargo",
+    )
+
+    @field_validator("proposed_embargo", mode="before")
+    @classmethod
+    def _expand_proposed_embargo(cls, value: object) -> object:
+        """Type an inline proposal by its ``type``, as the parser does at ingress.
+
+        ``as_ObjectRef`` is a union whose first model branch is the base
+        ``as_Object``, so a stored ``{"type": "EmbargoEvent", ...}`` read back
+        from the data layer — a path that has no ``parse_activity``
+        pre-expansion — would validate as a bare ``as_Object`` and lose its
+        class.  Resolving the wire type here keeps the two paths agreeing.  An
+        unknown type is left for the union to validate (MV-04-003).
+        """
+        if isinstance(value, dict) and isinstance(value.get("type"), str):
+            try:
+                target = find_in_vocabulary(value["type"])
+            except KeyError:
+                return value
+            return target.model_validate(value)
+        return value
+
+
+class as_Invite(as_Offer):
+    """The actor is requesting that the target accept the object. The origin indicates the context from which the object originated.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-invite>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.INVITE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    roles: list[str] | None = None
+
+
+class as_Flag(as_TransitiveActivity):
+    """The actor is flagging the object. The target and origin typically have no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-flag>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.FLAG,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Remove(as_TransitiveActivity):
+    """The actor removes the object from the target. If specified, the origin indicates the context from which the object originated.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-remove>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.REMOVE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    # EMB-13-005: a termination Remove(EmbargoEvent) carries the termination's
+    # why as the Vultron property ``terminationCause``.  Declared on the base
+    # for the reason ``as_Offer`` declares ``proposed_embargo``: an inbound
+    # Remove is reconstructed as a bare as_Remove, so without the field here
+    # the parse edge would set the cause aside (MV-11-003).  The core cause
+    # models validate it, so an unknown ``kind`` or a malformed detail is
+    # refused at the edge; the extractor checks it against ``content``.  The
+    # marker gives it a term in the generated JSON-LD context.
+    termination_cause: TerminationCause | None = Field(
+        default=None,
+        validation_alias="terminationCause",
+        serialization_alias="terminationCause",
+        json_schema_extra=VULTRON_PROPERTY_EXTRA,
+    )
+
+
+class as_Undo(as_TransitiveActivity):
+    """The actor is undoing the object. The target and origin typically have no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-undo>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.UNDO,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Create(as_TransitiveActivity):
+    """The actor is creating the object. If specified, the origin indicates the context from which the object originated.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-create>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.CREATE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Delete(as_TransitiveActivity):
+    """The actor is deleting the object. If specified, the origin indicates the context from which the object was deleted.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-delete>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.DELETE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Move(as_TransitiveActivity):
+    """The actor is moving the object from the origin to the target.
+    If the origin or target are not specified, either can be determined by context.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-move>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.MOVE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Add(as_TransitiveActivity):
+    """The actor is adding the object to the target. If the target is not specified, it must be determined by context.
+    The origin indicates the context from which the object originated.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-add>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.ADD,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Join(as_TransitiveActivity):
+    """The actor has joined the object. The target and origin typically have no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-join>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.JOIN,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Update(as_TransitiveActivity):
+    """The actor has updated the object. The target and origin typically have no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-update>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.UPDATE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Listen(as_TransitiveActivity):
+    """The actor has listened to the object.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-listen>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.LISTEN,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Leave(as_TransitiveActivity):
+    """The actor has left the object. The target and origin typically have no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-leave>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.LEAVE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Announce(as_TransitiveActivity):
+    """The actor is calling the target's attention to the object. The origin typically has no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-announce>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.ANNOUNCE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Follow(as_TransitiveActivity):
+    """The actor is "following" the object.
+    Following is defined in the sense commonly used in Social systems in which the actor is interested in any activity
+    performed by or on the object.
+    The target and origin typically have no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-follow>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.FOLLOW,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Accept(as_TransitiveActivity):
+    """The actor accepts the object. The target property can be used in certain circumstances to indicate the context into
+    which the object has been accepted.
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.ACCEPT,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_TentativeAccept(as_Accept):
+    """The actor tentatively accepts the object.
+    A specialization of Accept indicating that the acceptance is tentative.
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.TENTATIVE_ACCEPT,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_View(as_TransitiveActivity):
+    """The actor has viewed the object.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-view>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.VIEW,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Dislike(as_TransitiveActivity):
+    """The actor dislikes the object.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-dislike>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.DISLIKE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Reject(as_TransitiveActivity):
+    """The actor rejects the object.
+    The target and origin typically have no defined meaning.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-reject>
+
+    ``object`` may be absent in exactly one Vultron message: a replica that
+    holds no ledger entry asks the CASE_MANAGER to replay a case from
+    genesis with a ``Reject(CaseLedgerEntry)`` that names no entry, an empty
+    last-accepted hash, and the case as ``target`` (SYNC-16-007).  Any other
+    ``Reject`` without an object is refused when it is built or parsed.
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.REJECT,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    object_: as_ObjectRequiredRef | None = Field(  # type: ignore[assignment]
+        default=None, validation_alias="object", serialization_alias="object"
+    )
+
+    @property
+    def asks_for_genesis_replay(self) -> bool:
+        """Whether this is the objectless genesis-replay ``Reject``.
+
+        A plain ``Reject`` with no ``object``, an empty last-accepted hash
+        (``context`` absent or ``""``) and a ``target`` that names the case
+        (SYNC-16-007): its id, or an inline ``VulnerabilityCase``; an inline
+        object of any other type names no case.  The one rule the parser and
+        the router both read.
+        """
+        target_type = getattr(self.target, "type_", None)
+        return (
+            self.object_ is None
+            and str(self.type_) == str(TA_type.REJECT)
+            and self.context in (None, "")
+            and bool(_as_id(self.target))
+            and (
+                target_type is None or str(target_type) == "VulnerabilityCase"
+            )
+        )
+
+    @model_validator(mode="after")
+    def _objectless_only_to_replay_from_genesis(self) -> "as_Reject":
+        """Refuse a ``Reject`` with no object unless it asks for genesis."""
+        if self.object_ is not None or self.asks_for_genesis_replay:
+            return self
+        raise ValueError(
+            f"{self.type_} names no object.  Only a Reject(CaseLedgerEntry)"
+            " asking for a replay from genesis may: it carries an empty"
+            " last-accepted hash and names the case as its target"
+            " (SYNC-16-007)"
+        )
+
+
+class as_TentativeReject(as_Reject):
+    """A specialization of Reject indicating that the rejection is tentative.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-tentativereject>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.TENTATIVE_REJECT,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class as_Read(as_TransitiveActivity):
+    """The actor has read the object.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-read>
+    """
+
+    type_: TA_type = Field(
+        default=TA_type.READ,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+def main():
+    print_activity_examples()
+
+
+if __name__ == "__main__":
+    main()

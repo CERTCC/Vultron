@@ -1,3 +1,11 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+page_type: explanation
+description: >
+  The twelve desired orderings and the partial order they induce over the histories.
+---
+
 # On the Desirability of Possible Histories
 
 {% include-markdown "../../includes/not_normative.md" %}
@@ -125,16 +133,16 @@ desired orderings $\mathbb{D}$ as follows:
 
 {% include-markdown "./_ordered_pairs_events.md" %}
 
-    {% include-markdown "./_history_constraints.md" %}
+{% include-markdown "./_history_constraints.md" %}
 
 !!! tip "Ordering vs. Timing"
 
-    Before proceeding, we note that our model focuses on the _ordering_ of
+    Our model focuses on the _ordering_ of
     transitions, not their _timing_. We acknowledge that in some situations,
     the interval between transitions may be of more interest than merely the
     order of those transitions, as a rapid tempo of transitions can alter
     the options available to stakeholders in their response. We discuss this
-    limitation further in [Limitations](../future_work/cs_model_limitations.md) however,
+    limitation further in [Limitations](../process_models/cs/cs_model_limitations.md) however,
     the following model posits event sequence timing on a human-oriented timescale 
     measured in minutes to weeks.
 
@@ -222,7 +230,7 @@ This partial order requires a formal definition of which desiderata are met by a
     diagram represents an individual history $h_a$ from
     the 70 possible histories in $\mathcal{H}$; labels correspond to the index of
     the table. 
-    The figure follows the partiarl order defined above, in that $h_a$ is higher in the order than
+    The figure follows the partial order defined above, in that $h_a$ is higher in the order than
     $h_b$ when $h_a$ contains all the desiderata from $h_b$ and at least one
     more. Histories that do not share a path are incomparable (formally, two
     histories incomparable if both 

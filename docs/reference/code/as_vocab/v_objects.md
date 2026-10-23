@@ -1,13 +1,17 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Vultron ActivityStreams Vocabulary Objects
 
-::: vultron.as_vocab.objects.base
+::: vultron.wire.as2.vocab.objects.base
 
-::: vultron.as_vocab.objects.case_participant
+::: vultron.wire.as2.vocab.objects.case_participant
 
-::: vultron.as_vocab.objects.case_status
+::: vultron.wire.as2.vocab.objects.case_status
 
-::: vultron.as_vocab.objects.embargo_event
+::: vultron.wire.as2.vocab.objects.embargo_event
 
-::: vultron.as_vocab.objects.vulnerability_case
+::: vultron.wire.as2.vocab.objects.vulnerability_case
 
-::: vultron.as_vocab.objects.vulnerability_report
+::: vultron.wire.as2.vocab.objects.vulnerability_report

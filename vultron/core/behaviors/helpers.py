@@ -1,0 +1,1393 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+DataLayer-aware behavior tree helper nodes.
+
+This module provides base classes and common nodes for BT implementations that
+interact with the DataLayer for persistent state access.
+
+Per specs/behavior-tree-integration.yaml:
+- BT-07-001: BT nodes interact with DataLayer via Protocol interface
+- BT-07-002: BT nodes use type-safe DataLayer wrappers
+- BT-07-003: State transitions logged via DataLayer integration helpers
+
+Per specs/behavior-tree-node-design.yaml BTND-03-009 through BTND-03-011:
+- BTND-03-009: Typed-Ports nodes declare blackboard contracts via the
+  INPUT_PORTS / OUTPUT_PORTS class attributes rather than imperative
+  register_key() calls.
+- BTND-03-010: Typed-Ports nodes call setup_ports() in setup() with remappings
+  {"datalayer": "/datalayer", "actor_id": "/actor_id"} to wire the BTBridge
+  flat keys.
+- BTND-03-011: Typed-Ports nodes read injected values via get_input() in
+  initialise() rather than direct blackboard attribute access.
+"""
+
+import json
+import logging
+from typing import TYPE_CHECKING, Any, cast, overload
+
+import py_trees
+from py_trees.common import Status
+from py_trees.ports import BehaviourWithPorts, NoDataAvailable, PortInformation
+from pydantic import BaseModel
+
+from vultron.core.behaviors.emit_capable import EmitCapable
+from vultron.core.behaviors.node_logger import node_logger, port_wiring_logger
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.participant_status import (
+    participant_status_rm_state,
+)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.ports.datalayer import DataLayer, StorableRecord
+from vultron.core.states.rm import RM
+from vultron.errors import VultronValidationError, VultronWiringError
+
+if TYPE_CHECKING:
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
+
+logger = logging.getLogger(__name__)
+
+# Feedback a node sets when it was composed without a dependency it needs.
+# A received handler raises on these rather than refusing the sender (#2255).
+DATALAYER_UNAVAILABLE = "DataLayer not available"
+DATALAYER_OR_ACTOR_UNAVAILABLE = "DataLayer or actor_id not available"
+TRIGGER_FACTORY_UNAVAILABLE = "trigger_activity_factory not available"
+WIRE_RENDER_PORT_UNAVAILABLE = (
+    "wire_render_port not available; core cannot render the AS2 shape itself"
+    " (ARCH-20-001)"
+)
+# The received event was not placed on the blackboard (``activity=`` omitted
+# from ``execute_with_setup``): the intake node cannot record what arrived.
+ACTIVITY_UNAVAILABLE = "received activity not available"
+WIRING_UNAVAILABLE_MESSAGES = frozenset(
+    {
+        DATALAYER_UNAVAILABLE,
+        DATALAYER_OR_ACTOR_UNAVAILABLE,
+        TRIGGER_FACTORY_UNAVAILABLE,
+        WIRE_RENDER_PORT_UNAVAILABLE,
+        ACTIVITY_UNAVAILABLE,
+    }
+)
+
+
+@overload
+def read_rm_states(
+    node: py_trees.behaviour.Behaviour,
+    status: object,
+    /,
+) -> tuple[RM] | None: ...
+
+
+@overload
+def read_rm_states(
+    node: py_trees.behaviour.Behaviour,
+    status: object,
+    other: object,
+    /,
+) -> tuple[RM, RM] | None: ...
+
+
+def read_rm_states(
+    node: py_trees.behaviour.Behaviour,
+    *statuses: object,
+) -> tuple[RM, ...] | None:
+    """Return the RM states of *statuses*, or ``None`` to signal FAILURE.
+
+    A ``ParticipantStatus`` whose RM dimension is unreadable is a shape
+    mismatch, not an absence.  Substituting a default (``RM.START``, ``None``)
+    let an invalid transition through unchecked and silently reset a
+    participant's RM ladder (#2264, a symptom of #2232), so ARCH-15-001 and
+    ARCH-15-002 require FAILURE instead of a degraded SUCCESS.
+
+    Callers for whom *absence* is legitimate (e.g. a participant with no
+    recorded status) must handle that case before calling.
+
+    The one- and two-status arities are declared as ``@overload``\\ s with
+    fixed-length return tuples, so a caller that unpacks the result
+    (``new, current = states``) is arity-checked statically instead of raising
+    ``ValueError: too many values to unpack`` at runtime — where a BT node's
+    blanket handler would report it only as an opaque FAILURE.
+
+    Args:
+        node: The calling BT node.  Its ``feedback_message`` and ``logger`` are
+            used to report the mismatch, and its ``participant_id`` (when
+            present) identifies the participant in the message.
+        *statuses: Status objects to read, in the caller's preferred order.
+
+    Returns:
+        A tuple of :class:`RM` states positionally matching *statuses*, or
+        ``None`` when any status is not core-shaped.  On ``None`` the caller
+        must return ``Status.FAILURE``.
+    """
+    try:
+        return tuple(participant_status_rm_state(s) for s in statuses)
+    except VultronValidationError as exc:
+        participant_id = getattr(node, "participant_id", "<unknown>")
+        node.feedback_message = (
+            "Non-canonical ParticipantStatus shape for participant"
+            f" '{participant_id}': {exc}"
+        )
+        log = node_logger(node)
+        log.error(  # noqa: TRY400  # ruff-baseline #3353
+            "%s: %s", node.name, node.feedback_message
+        )
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Case-resolution disposition policy (ADR-0087)
+# ---------------------------------------------------------------------------
+#
+# One canonical decision about "what to do when a case evaporates underneath a
+# BT node", not a per-site accident.  A node coordinating an *existing* case
+# has exactly one of three dispositions when ``read_case`` returns nothing, and
+# each has a single shared entry point so the disposition is chosen by role,
+# not re-litigated at every call site (#3101):
+#
+#   Regime 1 — Authoritative coordination (default).  Guards, acceptance
+#     checks, ledger commits, append/emit nodes: the case MUST exist.  Its
+#     absence mid-coordination is an anomaly, so ``require_case`` reports one
+#     canonical FAILURE at ``error`` level.
+#   Regime 2 — Replica-apply of a remote ledger entry.  ``resolve_case_replica``
+#     treats a missing *local* case as normal (partial replica, SYNC-02-002 /
+#     ADR-0073) and lets the caller SUCCESS-skip.
+#   Regime 3 — Case-under-construction (proposal / offer-received flows).
+#     Absence precedes a create and is handled inline by those nodes; they use
+#     neither helper.
+
+
+def require_case(
+    node: py_trees.behaviour.Behaviour,
+    case_id: "str | None",
+) -> "tuple[VulnerabilityCase, Status | None]":
+    """Resolve a case that MUST exist for authoritative coordination (Regime 1).
+
+    The canonical case-resolution helper for BT nodes that coordinate an
+    *existing* case: idempotency/invariant guards, acceptance checks,
+    ledger commits, append nodes, emit nodes.  A case that cannot be resolved
+    mid-coordination is an anomaly — a concurrent deletion or a caller bug —
+    never a routine branch (ADR-0087).  It therefore reports one canonical
+    outcome, ``Status.FAILURE`` at ``error`` log level with a canonical
+    ``feedback_message``, replacing the per-site drift (silent / ``debug`` /
+    ``warning``) that #3101 catalogued.
+
+    Returns ``(case, None)`` when the case resolves, or
+    ``(None, Status.FAILURE)`` when ``case_id`` is missing/empty or the record
+    is absent or not a :class:`VulnerabilityCase`.  On the failure tuple the
+    caller MUST return the supplied status::
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure
+        # `case` is a VulnerabilityCase from here on
+
+    The first tuple element is annotated ``VulnerabilityCase`` (not
+    ``Optional``) so callers need no ``assert``/narrowing after the guard: the
+    contract is that ``case`` is only read when ``failure is None``.  On the
+    failure tuple it is really ``None``, hence the ``type: ignore`` on the
+    failure returns below — the sole place that unsoundness is contained.
+
+    The isinstance guard treats a non-``VulnerabilityCase`` record (e.g. a
+    vocabulary-registry mismatch) as not-found, subsuming the defensive check
+    formerly hand-rolled in ``_CsStatusGuardBase._resolve_case``.  The
+    DataLayer-missing branch mirrors :meth:`_require_datalayer`.
+
+    Two disposition regimes deliberately do NOT use this helper (ADR-0087):
+    replica-apply of remote ledger entries (:func:`resolve_case_replica`,
+    SYNC-02-002 / ADR-0073) and case-under-construction flows where absence
+    legitimately precedes a create.
+    """
+    log = node_logger(node)
+    datalayer = getattr(node, "datalayer", None)
+    if datalayer is None:
+        node.feedback_message = DATALAYER_UNAVAILABLE
+        log.error("%s: %s", node.name, node.feedback_message)
+        return None, Status.FAILURE  # type: ignore[return-value]
+    if not case_id:
+        node.feedback_message = "no case_id available to resolve case"
+        log.error("%s: %s", node.name, node.feedback_message)
+        return None, Status.FAILURE  # type: ignore[return-value]
+    case = datalayer.read_case(case_id)
+    if not isinstance(case, VulnerabilityCase):
+        node.feedback_message = f"case '{case_id}' not found in DataLayer"
+        log.error("%s: %s", node.name, node.feedback_message)
+        return None, Status.FAILURE  # type: ignore[return-value]
+    return case, None
+
+
+def resolve_case_replica(
+    node: py_trees.behaviour.Behaviour,
+    case_id: "str | None",
+) -> "VulnerabilityCase | None":
+    """Resolve a case for replica-apply of a remote ledger entry (Regime 2).
+
+    Apply-from-ledger nodes run against a *partial* local replica whose case
+    row may legitimately be absent (SYNC-02-002, ADR-0073 per-actor storage):
+    the local store simply does not mirror that case yet.  Absence here is NOT
+    an error — the caller returns ``Status.SUCCESS`` and skips the apply so the
+    surrounding Announce processing is never blocked.  This logs at ``debug``
+    and sets no failure ``feedback_message``.
+
+    Returns the case, or ``None`` when it is absent/unresolvable (caller skips).
+    Distinct from :func:`require_case` solely in disposition (ADR-0087): the
+    same lookup, the opposite verdict on absence.
+    """
+    datalayer = getattr(node, "datalayer", None)
+    if datalayer is None:
+        return None
+    if not case_id:
+        return None
+    case = datalayer.read_case(case_id)
+    if not isinstance(case, VulnerabilityCase):
+        log = node_logger(node)
+        log.debug(
+            "%s: case '%s' not present in local replica;"
+            " skipping apply (SYNC-02-002)",
+            node.name,
+            case_id,
+        )
+        return None
+    return case
+
+
+class DataLayerCondition(py_trees.behaviour.Behaviour):
+    """
+    Base class for BT condition nodes that check state from DataLayer.
+
+    Condition nodes check preconditions or state without side effects.
+    Returns SUCCESS if condition holds, FAILURE otherwise.
+
+    Subclasses should override update() to implement condition logic.
+    """
+
+    # Declare the managed logger type so subclass log calls are type-checked
+    # against the stdlib logging.Logger API (not py_trees.logging.Logger).
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(self, name: str):
+        """
+        Initialize condition node.
+
+        Args:
+            name: Descriptive name for this condition node
+        """
+        super().__init__(name=name)
+        # py_trees creates self.logger = logging.Logger(name) with parent=None,
+        # so messages are silently dropped.  Replace with a proper managed logger
+        # so BT node log messages propagate through the standard logging hierarchy.
+        self.logger = node_logger(self)  # type: ignore[assignment]
+        self.datalayer: CasePersistence | None = None
+        self.actor_id: str | None = None
+        self.wire_render_port: WireRenderPort | None = None
+
+    def setup(self, **kwargs: Any) -> None:
+        """Set up blackboard access for DataLayer and actor_id."""
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        self.blackboard.register_key(
+            key="datalayer", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="actor_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="wire_render_port",
+            access=py_trees.common.Access.READ,
+        )
+
+    def initialise(self) -> None:
+        """Initialize condition node by reading blackboard state."""
+        self.datalayer = self.blackboard.datalayer
+        self.actor_id = self.blackboard.actor_id
+
+        try:
+            self.wire_render_port = self.blackboard.wire_render_port
+        except KeyError:
+            # Optional key: registered in setup() but may carry no value on
+            # this tick.  py_trees raises KeyError for a registered-but-unset
+            # blackboard key; anything else is a real fault (CS-23-001).
+            self.wire_render_port = None
+
+        if self.datalayer is None:
+            self.logger.error(
+                "%s: DataLayer not found in blackboard", self.name
+            )
+        if self.actor_id is None:
+            self.logger.error(
+                "%s: actor_id not found in blackboard", self.name
+            )
+
+    def _require_datalayer(self) -> Status | None:
+        """Return FAILURE if ``self.datalayer`` is not set, else None."""
+        if self.datalayer is None:
+            self.feedback_message = DATALAYER_UNAVAILABLE
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        """Return FAILURE if ``datalayer`` or ``actor_id`` is not set, else None."""
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
+            return Status.FAILURE
+        return None
+
+    def _require_case(
+        self, case_id: "str | None"
+    ) -> "tuple[VulnerabilityCase, Status | None]":
+        """Resolve a case that must exist (Regime 1); see :func:`require_case`."""
+        return require_case(self, case_id)
+
+    def _resolve_case_replica(
+        self, case_id: "str | None"
+    ) -> "VulnerabilityCase | None":
+        """Resolve a replica case (Regime 2); see :func:`resolve_case_replica`."""
+        return resolve_case_replica(self, case_id)
+
+    def update(self) -> Status:
+        """
+        Evaluate condition. Override in subclasses.
+
+        Returns:
+            SUCCESS if condition holds, FAILURE otherwise
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.update() must be implemented by subclass"
+        )
+
+
+class DataLayerAction(py_trees.behaviour.Behaviour):
+    """
+    Base class for BT action nodes that modify state in DataLayer.
+
+    Action nodes perform state transitions with side effects.
+    Returns SUCCESS if action completes, FAILURE if action fails.
+
+    Subclasses should override update() to implement action logic.
+    """
+
+    # Declare the managed logger type so subclass log calls are type-checked
+    # against the stdlib logging.Logger API (not py_trees.logging.Logger).
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(self, name: str):
+        """
+        Initialize action node.
+
+        Args:
+            name: Descriptive name for this action node
+        """
+        super().__init__(name=name)
+        # py_trees creates self.logger = logging.Logger(name) with parent=None,
+        # so messages are silently dropped.  Replace with a proper managed logger
+        # so BT node log messages propagate through the standard logging hierarchy.
+        self.logger = node_logger(self)  # type: ignore[assignment]
+        self.datalayer: CasePersistence | None = None
+        self.actor_id: str | None = None
+        self.trigger_activity_factory: TriggerActivityPort | None = None
+        self.wire_render_port: WireRenderPort | None = None
+
+    def setup(self, **kwargs: Any) -> None:
+        """Set up blackboard access for DataLayer, actor_id, and trigger_activity_factory."""
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        self.blackboard.register_key(
+            key="datalayer", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="actor_id", access=py_trees.common.Access.READ
+        )
+        self.blackboard.register_key(
+            key="trigger_activity_factory",
+            access=py_trees.common.Access.READ,
+        )
+        self.blackboard.register_key(
+            key="wire_render_port",
+            access=py_trees.common.Access.READ,
+        )
+
+    def initialise(self) -> None:
+        """Initialize action node by reading blackboard state."""
+        self.datalayer = self.blackboard.datalayer
+        self.actor_id = self.blackboard.actor_id
+
+        try:
+            self.trigger_activity_factory = (
+                self.blackboard.trigger_activity_factory
+            )
+        except KeyError:
+            # Optional key: registered in setup() but may carry no value on
+            # this tick (KeyError from py_trees); anything else is a real
+            # fault (CS-23-001).
+            self.trigger_activity_factory = None
+
+        try:
+            self.wire_render_port = self.blackboard.wire_render_port
+        except KeyError:
+            self.wire_render_port = None
+
+        if self.datalayer is None:
+            self.logger.error(
+                "%s: DataLayer not found in blackboard", self.name
+            )
+        if self.actor_id is None:
+            self.logger.error(
+                "%s: actor_id not found in blackboard", self.name
+            )
+
+    def _require_datalayer(self) -> Status | None:
+        """Return FAILURE if ``self.datalayer`` is not set, else None."""
+        if self.datalayer is None:
+            self.feedback_message = DATALAYER_UNAVAILABLE
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        """Return FAILURE if ``datalayer`` or ``actor_id`` is not set, else None."""
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
+            return Status.FAILURE
+        return None
+
+    def _require_case(
+        self, case_id: "str | None"
+    ) -> "tuple[VulnerabilityCase, Status | None]":
+        """Resolve a case that must exist (Regime 1); see :func:`require_case`."""
+        return require_case(self, case_id)
+
+    def _resolve_case_replica(
+        self, case_id: "str | None"
+    ) -> "VulnerabilityCase | None":
+        """Resolve a replica case (Regime 2); see :func:`resolve_case_replica`."""
+        return resolve_case_replica(self, case_id)
+
+    def _require_factory(self) -> Status | None:
+        """Return FAILURE if ``trigger_activity_factory`` is not set, else None."""
+        if self.trigger_activity_factory is None:
+            self.feedback_message = TRIGGER_FACTORY_UNAVAILABLE
+            return Status.FAILURE
+        return None
+
+    def update(self) -> Status:
+        """
+        Perform action. Override in subclasses.
+
+        Returns:
+            SUCCESS if action completes, FAILURE if action fails
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.update() must be implemented by subclass"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Typed-Ports base classes (BTND-03-009 through BTND-03-011)
+# ---------------------------------------------------------------------------
+
+# BTBridge writes datalayer and actor_id as flat root-level blackboard keys.
+# Ports nodes remap their port names to these absolute paths so that
+# get_input("datalayer") reads the same value that was written by
+# BTBridge.setup_tree().
+_DL_KEY = "/datalayer"
+_ACTOR_KEY = "/actor_id"
+
+
+class DataLayerConditionWithPorts(BehaviourWithPorts):
+    """Base class for typed-Ports BT condition nodes with DataLayer access.
+
+    Declares ``datalayer`` and ``actor_id`` as required input ports, remapped
+    to the flat BTBridge blackboard keys ``/datalayer`` and ``/actor_id``.
+    Subclasses extend ``INPUT_PORTS`` / ``OUTPUT_PORTS`` (e.g.
+    ``{**DataLayerConditionWithPorts.INPUT_PORTS, ...}``) and implement
+    ``update()``.  They read injected values via ``get_input()`` in
+    ``initialise()``.
+
+    Per BTND-03-009: typed port declarations replace imperative register_key().
+    Per BTND-03-010: setup_ports() with remappings wires BTBridge flat keys.
+    Per BTND-03-011: get_input() replaces direct blackboard attribute access.
+    """
+
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(self, name: str):
+        super().__init__(name=name)
+        self.logger = node_logger(self)
+        self.datalayer: CasePersistence | None = None
+        self.actor_id: str | None = None
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        "datalayer": PortInformation(data_type=object, required=True),
+        "actor_id": PortInformation(data_type=str, required=True),
+    }
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Subclasses override to map domain input-port names to absolute blackboard paths.
+
+        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
+        that domain keys declared in ``INPUT_PORTS`` resolve to the same global
+        paths written by preceding ``DataLayerAction`` writer nodes.
+        """
+        return {}
+
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Override for instance-state-dependent port paths (dynamic keys)."""
+        return {}
+
+    def _try_get_input(self, key: str) -> object | None:
+        try:
+            return cast(object, self.get_input(key))
+        except (NoDataAvailable, NotImplementedError):
+            return None
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": _DL_KEY,
+                "actor_id": _ACTOR_KEY,
+                **self._domain_port_remappings(),
+                **self._instance_port_remappings(),
+            },
+            logger=port_wiring_logger(),
+        )
+
+    def initialise(self) -> None:
+        try:
+            self.datalayer = self.get_input("datalayer")
+        except NotImplementedError:
+            self.datalayer = None
+        try:
+            self.actor_id = self.get_input("actor_id")
+        except NotImplementedError:
+            self.actor_id = None
+
+    def _require_datalayer(self) -> Status | None:
+        if self.datalayer is None:
+            self.feedback_message = DATALAYER_UNAVAILABLE
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
+            return Status.FAILURE
+        return None
+
+    def _require_case(
+        self, case_id: "str | None"
+    ) -> "tuple[VulnerabilityCase, Status | None]":
+        """Resolve a case that must exist (Regime 1); see :func:`require_case`."""
+        return require_case(self, case_id)
+
+    def _resolve_case_replica(
+        self, case_id: "str | None"
+    ) -> "VulnerabilityCase | None":
+        """Resolve a replica case (Regime 2); see :func:`resolve_case_replica`."""
+        return resolve_case_replica(self, case_id)
+
+    def update(self) -> Status:
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.update() must be implemented"
+        )
+
+
+class DataLayerActionWithPorts(BehaviourWithPorts):
+    """Base class for typed-Ports BT action nodes with DataLayer access.
+
+    Declares ``datalayer``, ``actor_id``, and optionally
+    ``trigger_activity_factory`` and ``wire_render_port`` as input ports,
+    remapped to BTBridge flat keys.  Subclasses extend ``INPUT_PORTS`` / ``OUTPUT_PORTS`` (e.g.
+    ``{**DataLayerActionWithPorts.INPUT_PORTS, ...}``) and implement
+    ``update()``.
+
+    Per BTND-03-009 through BTND-03-011.
+    """
+
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(self, name: str):
+        super().__init__(name=name)
+        self.logger = node_logger(self)
+        self.datalayer: CasePersistence | None = None
+        self.actor_id: str | None = None
+        self.trigger_activity_factory: TriggerActivityPort | None = None
+        self.wire_render_port: WireRenderPort | None = None
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        "datalayer": PortInformation(data_type=object, required=True),
+        "actor_id": PortInformation(data_type=str, required=True),
+        "trigger_activity_factory": PortInformation(
+            data_type=object, required=False
+        ),
+        "wire_render_port": PortInformation(data_type=object, required=False),
+    }
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {}
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        """Subclasses override to map domain input-port names to absolute blackboard paths.
+
+        Merged into the ``port_remappings`` dict passed to ``setup_ports()`` so
+        that domain keys declared in ``INPUT_PORTS`` resolve to the same global
+        paths written by preceding ``DataLayerAction`` writer nodes.
+        """
+        return {}
+
+    def _instance_port_remappings(self) -> dict[str, str]:
+        """Override for instance-state-dependent port paths (dynamic keys)."""
+        return {}
+
+    def _try_get_input(self, key: str) -> object | None:
+        try:
+            return cast(object, self.get_input(key))
+        except (NoDataAvailable, NotImplementedError):
+            return None
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": _DL_KEY,
+                "actor_id": _ACTOR_KEY,
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "wire_render_port": "/wire_render_port",
+                **self._domain_port_remappings(),
+                **self._instance_port_remappings(),
+            },
+            logger=port_wiring_logger(),
+        )
+
+    def initialise(self) -> None:
+        try:
+            self.datalayer = self.get_input("datalayer")
+        except NotImplementedError:
+            self.datalayer = None
+        try:
+            self.actor_id = self.get_input("actor_id")
+        except NotImplementedError:
+            self.actor_id = None
+        try:
+            self.trigger_activity_factory = self.get_input(
+                "trigger_activity_factory"
+            )
+        except (NoDataAvailable, NotImplementedError):
+            self.trigger_activity_factory = None
+        try:
+            self.wire_render_port = self.get_input("wire_render_port")
+        except (NoDataAvailable, NotImplementedError):
+            self.wire_render_port = None
+
+    def _require_datalayer(self) -> Status | None:
+        if self.datalayer is None:
+            self.feedback_message = DATALAYER_UNAVAILABLE
+            return Status.FAILURE
+        return None
+
+    def _require_datalayer_and_actor(self) -> Status | None:
+        if self.datalayer is None or self.actor_id is None:
+            self.feedback_message = DATALAYER_OR_ACTOR_UNAVAILABLE
+            return Status.FAILURE
+        return None
+
+    def _require_wire_render_port(self) -> "WireRenderPort":
+        """Return the rendering port, or raise if the tree was built without it.
+
+        Core never produces the AS2 shape of an object itself (ARCH-20-001), so
+        a node that needs it has no fallback: a missing port is a composition
+        fault, never the sender's doing.  Raises
+        :class:`~vultron.errors.VultronWiringError`, which ``BTBridge`` reports
+        as an internal error and a received handler re-raises rather than
+        refusing the sender (#2255, ADR-0095).
+        """
+        if self.wire_render_port is None:
+            raise VultronWiringError(WIRE_RENDER_PORT_UNAVAILABLE)
+        return self.wire_render_port
+
+    def _require_trigger_activity_port(self) -> "TriggerActivityPort":
+        """Return the trigger-activity port, or raise if the tree lacks it.
+
+        For a node that records the CASE_MANAGER's own act: its ledger entry
+        is the factory-built activity's sealed blob (VM-08-003), so without
+        the port there is nothing to commit and no fallback.  A missing port
+        is a composition fault, never the sender's doing, so it raises
+        :class:`~vultron.errors.VultronWiringError` rather than returning a
+        FAILURE an enclosing Selector could read as a guard that did not
+        pass (ARCH-15-001).
+        """
+        if self.trigger_activity_factory is None:
+            raise VultronWiringError(
+                f"{self.name}: {TRIGGER_FACTORY_UNAVAILABLE}"
+            )
+        return self.trigger_activity_factory
+
+    def _require_case(
+        self, case_id: "str | None"
+    ) -> "tuple[VulnerabilityCase, Status | None]":
+        """Resolve a case that must exist (Regime 1); see :func:`require_case`."""
+        return require_case(self, case_id)
+
+    def _resolve_case_replica(
+        self, case_id: "str | None"
+    ) -> "VulnerabilityCase | None":
+        """Resolve a replica case (Regime 2); see :func:`resolve_case_replica`."""
+        return resolve_case_replica(self, case_id)
+
+    def _require_factory(self) -> Status | None:
+        if self.trigger_activity_factory is None:
+            self.feedback_message = TRIGGER_FACTORY_UNAVAILABLE
+            return Status.FAILURE
+        return None
+
+    def update(self) -> Status:
+        raise NotImplementedError(
+            f"{self.__class__.__name__}.update() must be implemented"
+        )
+
+
+class _EmitSingleActivityBase(DataLayerActionWithPorts, EmitCapable):
+    """Base class for emit nodes that create one activity and queue it in the actor's outbox.
+
+    Subclasses override ``_call_factory()`` (required) to invoke the
+    appropriate ``TriggerActivityPort`` method and return
+    ``(activity_id, activity_dict)``.  A node whose activity is recorded in
+    the case ledger overrides ``_record_sent()`` to commit it: ``update()``
+    calls it after the outbox write, because a ledger entry records a
+    completed act and a send is complete once the activity is in this
+    actor's outbox (ADR-0119, SYNC-09-002).  The optional ``_on_success()``
+    hook is called after a successful outbox write and is useful for
+    domain-specific log messages.
+
+    When *captured* is provided, ``captured["activity"]`` is set to the
+    serialised activity dict on success, avoiding a follow-up ``dl.read()``
+    (AC-1, AC-2, DL-06-001).
+
+    Implements BTND-07-005, BTND-07-009, BTND-07-010.
+    """
+
+    def __init__(
+        self,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._captured = captured
+
+    def _call_factory(self) -> tuple[str, str]:
+        """Invoke the trigger-activity factory.  Subclasses must implement this.
+
+        Returns:
+            ``(activity_id, activity_json)``
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method.
+        """
+        raise NotImplementedError
+
+    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
+        """Commit the ledger entry of the activity just queued; default: none.
+
+        Called after the outbox write whether or not that write queued the
+        activity: an id already pending is the earlier attempt's send, whose
+        commit failed, so the retry records it now (OX-06-002, ADR-0119).
+        Raises when the commit fails; ``update()`` does not catch it, so the
+        exception reaches ``BTBridge`` with the activity queued and
+        unrecorded until a retry records it.
+        """
+
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        """Optional hook called after a successful outbox write.
+
+        Override in concrete nodes to emit domain-specific log messages or
+        post-emit side-effects.  The default implementation is a no-op.
+        """
+
+    def _emit_through_seam(self, activity_id: str, activity_blob: str) -> bool:
+        """Route activity emission through the shared outbox-enqueue seam.
+
+        Appends *activity_id* to the actor's outbox and populates
+        ``_captured["activity"]`` when a capture dict is present.  An id
+        already pending is not queued again (OX-06-002): a retry that rebuilt
+        the activity under its first attempt's id sends it once.  Returns
+        ``True`` when this call queued it, ``False`` when it was pending.
+
+        Cross-cutting hooks for outstanding-ask registration (ASK-04-008)
+        and undelivered-activity correlation (OX-14-001) belong here.
+
+        Note: ``_on_success()`` is intentionally NOT called here — callers
+        invoke it *outside* the enclosing try/except so that a hook bug is
+        not silently swallowed as a retryable FAILURE after the write has
+        already committed.
+        """
+        # `outbox_append`, not the retired `record_outbox_item(actor_id, …)`:
+        # this store is already the executing actor's own, so naming the
+        # actor again is both redundant and a way to get it wrong (ADR-0073,
+        # see `CaseOutboxPersistence`).
+        queued = cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+            activity_id
+        )
+        if not queued:
+            self.logger.info(
+                "%s: activity '%s' is already pending in the outbox — not"
+                " queued again (OX-06-002)",
+                self.name,
+                activity_id,
+            )
+        if self._captured is not None:
+            self._captured["activity"] = json.loads(activity_blob)
+        return queued
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        if (f := self._require_factory()) is not None:
+            self.logger.error("%s", self.feedback_message)
+            return f
+        try:
+            activity_id, activity_blob = self._call_factory()
+            self._emit_through_seam(activity_id, activity_blob)
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.feedback_message = f"{self.__class__.__name__} failed: {e}"
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            return Status.FAILURE
+        # Not caught: the activity is already queued, so a FAILURE here would
+        # let an enclosing Selector fall through to another arm and send a
+        # second, contradictory answer after it.  A failed commit escapes to
+        # ``BTBridge`` as an internal error instead (BT-14-001, ARCH-15-001),
+        # as in the relay node and ``_CommitCaseManagerActivityBase``.
+        self._record_sent(activity_id, activity_blob)
+        self._on_success(activity_id, activity_blob)
+        return Status.SUCCESS
+
+
+class FindParticipantByActorIdNode(DataLayerConditionWithPorts):
+    """
+    Resolve and store a case participant by actor ID.
+
+    Iterates ``case.case_participants`` and resolves each participant reference
+    until it finds a participant whose ``attributed_to`` matches the target
+    actor ID. On success the matched participant is written to the blackboard.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        target_actor_id: str,
+        participant_key: str = "participant",
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.target_actor_id = target_actor_id
+        self.participant_key = participant_key
+        self.found_participant: CaseParticipant | None = None
+        """The record the last successful run found, else ``None``."""
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "participant": PortInformation(data_type=object, required=True),
+    }
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "participant": f"/{self.participant_key}",
+            },
+            logger=port_wiring_logger(),
+        )
+
+    def _participant_actor_id(self, participant: CaseParticipant) -> str:
+        actor_ref = participant.attributed_to
+        return (
+            actor_ref
+            if isinstance(actor_ref, str)
+            else getattr(actor_ref, "id_", str(actor_ref))
+        )
+
+    def _participant_id(self, participant: object) -> str:
+        return str(getattr(participant, "id_", participant))
+
+    def _found(self, participant: object) -> None:
+        """Publish the matched *participant* and keep it for subclasses."""
+        self._set_output("participant", participant)
+        if isinstance(participant, CaseParticipant):
+            self.found_participant = participant
+
+    def _fail(self, message: str) -> Status:
+        self.feedback_message = message
+        self.logger.error("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+    def _find_matching_participant(
+        self, case_obj: object
+    ) -> tuple[object | None, str | None, str | None]:
+        assert self.datalayer is not None
+        matched_participant: object | None = None
+        matched_participant_id: str | None = None
+        for participant_ref in getattr(case_obj, "case_participants", []):
+            if isinstance(participant_ref, str):
+                participant_obj = self.datalayer.read(
+                    participant_ref, raise_on_missing=False
+                )
+            else:
+                # For inline objects, read the live DL record to avoid stale
+                # snapshots (#2233 — _build_case_object materialises inlines
+                # for delivery; the standalone record may have advanced since).
+                pid = getattr(participant_ref, "id_", None)
+                live = (
+                    self.datalayer.read(pid, raise_on_missing=False)
+                    if pid
+                    else None
+                )
+                participant_obj = (
+                    live
+                    if isinstance(live, CaseParticipant)
+                    else participant_ref
+                )
+            if not isinstance(participant_obj, CaseParticipant):
+                continue
+            if (
+                self._participant_actor_id(participant_obj)
+                != self.target_actor_id
+            ):
+                continue
+
+            participant_id = self._participant_id(participant_obj)
+            if (
+                matched_participant_id is not None
+                and participant_id != matched_participant_id
+            ):
+                return (
+                    None,
+                    None,
+                    "Participant-index divergence: actor "
+                    f"{self.target_actor_id} resolves to multiple "
+                    "case_participants.",
+                )
+            matched_participant = participant_obj
+            matched_participant_id = participant_id
+
+        return matched_participant, matched_participant_id, None
+
+    def update(self) -> Status:
+        self.found_participant = None
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case_obj, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        index_match = case_obj.actor_participant_index.get(
+            self.target_actor_id
+        )
+        matched_participant, matched_participant_id, error_message = (
+            self._find_matching_participant(case_obj)
+        )
+        if error_message is not None:
+            return self._fail(error_message)
+
+        if matched_participant is None:
+            if index_match is not None:
+                return self._fail(
+                    "Participant-index divergence: actor "
+                    f"{self.target_actor_id} mapped to {index_match} in "
+                    "actor_participant_index but missing from "
+                    "case_participants."
+                )
+            self.feedback_message = f"No participant for actor {self.target_actor_id} in case {self.case_id}"
+            self.logger.debug("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        if index_match != matched_participant_id:
+            if index_match is None:
+                self._found(matched_participant)
+                self.feedback_message = (
+                    f"Found participant for actor {self.target_actor_id}"
+                )
+                self.logger.debug("%s: %s", self.name, self.feedback_message)
+                return Status.SUCCESS
+            return self._fail(
+                "Participant-index divergence: actor "
+                f"{self.target_actor_id} resolves to "
+                f"{matched_participant_id} from case_participants but "
+                f"actor_participant_index maps to {index_match}."
+            )
+
+        self._found(matched_participant)
+        self.feedback_message = (
+            f"Found participant for actor {self.target_actor_id}"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class ReadObject(DataLayerConditionWithPorts):
+    """
+    Read an object from DataLayer and store in blackboard.
+
+    Returns SUCCESS if object found and stored, FAILURE if not found.
+    Stores retrieved object in blackboard with key "object_{last_path_segment}".
+    """
+
+    def __init__(self, table: str, object_id: str, name: str | None = None):
+        """
+        Initialize ReadObject node.
+
+        Args:
+            table: DataLayer table name to read from
+            object_id: ID of object to retrieve
+            name: Optional custom name (defaults to "ReadObject_{table}_{last_segment}")
+        """
+        # Use last part of ID for blackboard key (URL-safe)
+        self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = (
+            name
+            or f"ReadObject_{table}_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        )
+        super().__init__(name=display_name)
+        self.table = table
+        self.object_id = object_id
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "object_data": PortInformation(data_type=object, required=True),
+    }
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "object_data": f"/{self.blackboard_key}",
+            },
+            logger=port_wiring_logger(),
+        )
+
+    def update(self) -> Status:
+        """
+        Read object from DataLayer and store in blackboard.
+
+        Returns:
+            SUCCESS if object found, FAILURE if not found or error
+        """
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            record = self.datalayer.read(self.object_id)
+
+            if record is None:
+                self.feedback_message = (
+                    f"Object not found: {self.table}/{self.object_id}"
+                )
+                self.logger.debug("%s", self.feedback_message)
+                return Status.FAILURE
+
+            self._set_output("object_data", record)
+            self.feedback_message = f"Read {self.table}/{self.object_id}"
+            self.logger.debug("%s", self.feedback_message)
+            return Status.SUCCESS
+
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.feedback_message = (
+                f"Error reading {self.table}/{self.object_id}: {e}"
+            )
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            return Status.FAILURE
+
+
+class UpdateObject(DataLayerActionWithPorts):
+    """
+    Update an object in DataLayer with new values.
+
+    Reads current object from blackboard (stored by ReadObject), applies updates, and persists.
+    Returns SUCCESS if update completes, FAILURE if error occurs.
+    """
+
+    def __init__(
+        self,
+        object_id: str,
+        updates: dict[str, Any],
+        name: str | None = None,
+    ):
+        """
+        Initialize UpdateObject node.
+
+        Args:
+            object_id: ID of object to update
+            updates: Dictionary of field updates to apply
+            name: Optional custom name (defaults to "UpdateObject_{last_segment}")
+        """
+        # Use last part of ID for blackboard key (URL-safe)
+        self.blackboard_key = f"object_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        display_name = (
+            name or f"UpdateObject_{object_id.rsplit('/', maxsplit=1)[-1]}"
+        )
+        super().__init__(name=display_name)
+        self.object_id = object_id
+        self.updates = updates
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "object_data": PortInformation(data_type=object, required=True),
+    }
+
+    def setup(self, **kwargs: Any) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "object_data": f"/{self.blackboard_key}",
+            },
+            logger=port_wiring_logger(),
+        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._current_dict = self.get_input("object_data")
+        except (NoDataAvailable, NotImplementedError):
+            self._current_dict = None
+
+    def update(self) -> Status:
+        """
+        Update object in DataLayer.
+
+        Returns:
+            SUCCESS if update completes, FAILURE if error occurs
+        """
+        if (f := self._require_datalayer()) is not None:
+            return f
+
+        try:
+            current_dict = self._current_dict
+
+            if current_dict is None:
+                self.feedback_message = (
+                    f"Object not in blackboard: {self.object_id}"
+                )
+                self.logger.error("%s", self.feedback_message)
+                return Status.FAILURE
+
+            # Build an updated StorableRecord without importing the adapter-layer Record.
+            if isinstance(current_dict, BaseModel):
+                # Typed domain object stored by ReadObject; serialise to dict
+                # before applying updates.
+                current_data = current_dict.model_dump(mode="json")
+                record_type = current_data.get("type_") or str(
+                    getattr(current_dict, "type_", "Object")
+                )
+                updated_data = {**current_data, **self.updates}
+                storable = StorableRecord(
+                    id_=self.object_id,
+                    type_=record_type,
+                    data_=updated_data,
+                )
+            elif "data_" in current_dict:
+                updated_data = {**current_dict["data_"], **self.updates}
+                storable = StorableRecord(
+                    id_=current_dict["id_"],
+                    type_=current_dict["type_"],
+                    data_=updated_data,
+                )
+            else:
+                updated_data = {**current_dict, **self.updates}
+                record_type = updated_data.get("type_", "Object")
+                storable = StorableRecord(
+                    id_=self.object_id,
+                    type_=record_type,
+                    data_=updated_data,
+                )
+
+            # Persist to DataLayer; update() is a low-level primitive not in
+            # CasePersistence — cast to the full DataLayer contract here.
+            cast(DataLayer, self.datalayer).update(self.object_id, storable)
+
+            self.feedback_message = (
+                f"Updated {self.object_id} with {len(self.updates)} fields"
+            )
+            self.logger.info("%s", self.feedback_message)
+            return Status.SUCCESS
+
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.feedback_message = f"Error updating {self.object_id}: {e}"
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            return Status.FAILURE
+
+
+class CreateObject(DataLayerAction):
+    """
+    Create a new object in DataLayer.
+
+    Creates object from provided data and persists to DataLayer.
+    Returns SUCCESS if creation completes, FAILURE if error occurs.
+    """
+
+    def __init__(
+        self,
+        table: str,
+        object_data: dict,
+        name: str | None = None,
+    ):
+        """
+        Initialize CreateObject node.
+
+        Args:
+            table: DataLayer table name to create object in
+            object_data: Data dict for new object (must include 'id_' field)
+            name: Optional custom name (defaults to "CreateObject_{table}")
+        """
+        display_name = name or f"CreateObject_{table}"
+        super().__init__(name=display_name)
+        self.table = table
+        self.object_data = object_data
+
+    def update(self) -> Status:
+        """
+        Create object in DataLayer.
+
+        Returns:
+            SUCCESS if creation completes, FAILURE if error occurs
+        """
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        try:
+            # Ensure object_data has required 'id_' field
+            if "id_" not in self.object_data:
+                self.feedback_message = (
+                    "Object data missing required 'id_' field"
+                )
+                self.logger.error("%s", self.feedback_message)
+                return Status.FAILURE
+
+            # Get type from data, default to table name
+            object_type = self.object_data.get("type_", self.table)
+            object_id = self.object_data["id_"]
+
+            # Build a typed StorableRecord and pass it to the DataLayer
+            storable = StorableRecord(
+                id_=object_id,
+                type_=object_type,
+                data_=self.object_data,
+            )
+
+            # Create object in DataLayer
+            self.datalayer.create(storable)
+
+            self.feedback_message = f"Created {self.table}/{object_id}"
+            self.logger.info("%s", self.feedback_message)
+            return Status.SUCCESS
+
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.feedback_message = (
+                f"Error creating object in {self.table}: {e}"
+            )
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            return Status.FAILURE
+
+
+class UpdateActorOutbox(DataLayerActionWithPorts, EmitCapable):
+    """
+    Update actor's outbox with a new activity.
+
+    Reads ``activity_id`` and ``case_id`` from the blackboard (set by the
+    preceding activity-creation node) and appends the activity ID to the
+    actor's outbox.  Also queues the activity for delivery via
+    ``outbox_append``.
+
+    Per BTND-04-001: defined here as shared logic used by both
+    ``vultron/core/behaviors/report/nodes.py`` and
+    ``vultron/core/behaviors/case/nodes.py``.
+    """
+
+    def __init__(self, name: str | None = None):
+        """
+        Initialize UpdateActorOutbox node.
+
+        Args:
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity_id": PortInformation(data_type=str, required=True),
+        "case_id": PortInformation(data_type=str, required=False),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity_id": "/activity_id", "case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.activity_id = self.get_input("activity_id")
+        except (NoDataAvailable, NotImplementedError):
+            self.activity_id = None
+        try:
+            self.case_id = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self.case_id = None
+
+    def update(self) -> Status:
+        """
+        Update actor's outbox with activity ID.
+
+        Returns:
+            SUCCESS if outbox updated, FAILURE on error
+        """
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        try:
+            activity_id = self.activity_id
+            if activity_id is None:
+                self.logger.error(
+                    "%s: activity_id not found in blackboard", self.name
+                )
+                return Status.FAILURE
+
+            case_id = self.case_id
+
+            queued = cast(CaseOutboxPersistence, self.datalayer).outbox_append(
+                activity_id
+            )
+            self.logger.info(
+                "%s Create(Case '%s') activity '%s' in actor '%s' outbox"
+                " (case creation notification)",
+                "Queued" if queued else "Left already-pending (OX-06-002)",
+                case_id,
+                activity_id,
+                self.actor_id,
+            )
+
+            return Status.SUCCESS
+
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
+                "%s: Error updating actor outbox: %s", self.name, e
+            )
+            return Status.FAILURE

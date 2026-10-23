@@ -1,0 +1,1327 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+Unit tests for vultron.wire.as2.factories.case.
+
+Spec coverage:
+- AF-01-002: Factory functions return plain AS2 base types.
+- AF-01-003: Explicit, domain-typed parameters for protocol-significant fields.
+- AF-04-001: Factory functions wrap ValidationError in
+  VultronActivityConstructionError.
+- AF-04-002: All factory functions re-exported from factories/__init__.py.
+- CM-17-002: The stub carries the embargo in force (EM ACTIVE or REVISE).
+- CM-17-011: The stub Invite embeds the full active embargo, or is refused.
+"""
+
+import json
+from datetime import UTC, datetime
+from typing import Any
+
+import pytest
+from pydantic import BaseModel, ValidationError
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import register
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import EmDimension
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.states.em import EM
+from vultron.wire.as2.factories import (
+    VultronActivityConstructionError,
+    accept_case_ownership_transfer_activity,
+    add_note_to_case_activity,
+    add_report_to_case_activity,
+    add_status_to_case_activity,
+    announce_vulnerability_case_activity,
+    create_case_activity,
+    offer_case_ownership_transfer_activity,
+    propose_case_ownership_transfer_activity,
+    reject_case_ownership_transfer_activity,
+    rm_accept_invite_to_case_activity,
+    rm_close_case_activity,
+    rm_defer_case_activity,
+    rm_engage_case_activity,
+    rm_invite_to_case_activity,
+    rm_reject_invite_to_case_activity,
+    undo_case_ownership_transfer_activity,
+    update_case_activity,
+)
+from vultron.wire.as2.factories.case import (
+    _stub_embargo,
+)
+from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Add,
+    as_Announce,
+    as_Create,
+    as_Ignore,
+    as_Invite,
+    as_Join,
+    as_Leave,
+    as_Offer,
+    as_Reject,
+    as_Undo,
+    as_Update,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_Person
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+_ACTOR_URI = "https://example.org/actors/alice"
+_CASE_URI = "https://example.org/cases/case-001"
+_TARGET_URI = "https://example.org/actors/bob"
+_CASE_ACTOR_URI = "https://example.org/actors/case-actor"
+
+
+@pytest.fixture
+def sample_case() -> as_VulnerabilityCase:
+    return as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Test Case")
+
+
+@pytest.fixture
+def sample_report() -> as_VulnerabilityReport:
+    return as_VulnerabilityReport(name="Test Report")
+
+
+@pytest.fixture
+def sample_status() -> as_CaseStatus:
+    # ``context`` is required on the core class (fail-fast, ARCH-10-001); the
+    # deleted wire class allowed it absent (ARCH-12-002 leniency).
+    return as_CaseStatus(context="https://example.org/cases/case-factories-01")
+
+
+@pytest.fixture
+def sample_note() -> as_Note:
+    return as_Note(content="Test note content")
+
+
+@pytest.fixture
+def sample_actor() -> as_Person:
+    return as_Person(name="Alice", id_=_ACTOR_URI)
+
+
+@pytest.fixture
+def sample_offer(sample_case) -> as_Offer:
+    """OfferCaseOwnershipTransferActivity — used for Accept/Reject tests."""
+    return offer_case_ownership_transfer_activity(
+        case=sample_case, actor=_ACTOR_URI
+    )
+
+
+@pytest.fixture
+def sample_proposal(sample_case) -> as_Offer:
+    """The owner's ownership-transfer proposal — used for Undo tests."""
+    return propose_case_ownership_transfer_activity(
+        sample_case, target=_TARGET_URI, actor=_ACTOR_URI
+    )
+
+
+@pytest.fixture
+def sample_invite(sample_actor) -> as_Invite:
+    """RmInviteToCaseActivity — used for Accept/Reject invite tests."""
+    return rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+
+
+# ---------------------------------------------------------------------------
+# add_report_to_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_add_report_to_case_returns_add(sample_report):
+    result = add_report_to_case_activity(
+        report=sample_report, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Add)
+
+
+def test_add_report_to_case_object_is_report(sample_report):
+    result = add_report_to_case_activity(
+        report=sample_report, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_report
+
+
+def test_add_report_to_case_target_is_set(sample_report):
+    result = add_report_to_case_activity(
+        report=sample_report, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert result.target == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_add_report_to_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        add_report_to_case_activity(
+            report="not-a-report"  # type: ignore[arg-type]
+        )
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# add_status_to_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_add_status_to_case_returns_add(sample_status):
+    result = add_status_to_case_activity(
+        status=sample_status, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Add)
+
+
+def test_add_status_to_case_object_is_status(sample_status):
+    result = add_status_to_case_activity(
+        status=sample_status, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_status
+
+
+def test_add_status_to_case_target_is_set(sample_status):
+    result = add_status_to_case_activity(
+        status=sample_status, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert result.target == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_add_status_to_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        add_status_to_case_activity(
+            status="not-a-status"  # type: ignore[arg-type]
+        )
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# create_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_create_case_returns_create(sample_case):
+    result = create_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert isinstance(result, as_Create)
+
+
+def test_create_case_object_is_case(sample_case):
+    result = create_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert result.object_ == sample_case
+
+
+def test_create_case_kwargs_forwarded(sample_case):
+    result = create_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert result.actor == _ACTOR_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_create_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        create_case_activity(case="not-a-case")  # type: ignore[arg-type]
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# add_note_to_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_add_note_to_case_returns_add(sample_note):
+    result = add_note_to_case_activity(note=sample_note, actor=_ACTOR_URI)
+    assert isinstance(result, as_Add)
+
+
+def test_add_note_to_case_object_is_note(sample_note):
+    result = add_note_to_case_activity(note=sample_note, actor=_ACTOR_URI)
+    assert result.object_ == sample_note
+
+
+def test_add_note_to_case_target_is_set(sample_note):
+    result = add_note_to_case_activity(
+        note=sample_note, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert result.target == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_add_note_to_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        add_note_to_case_activity(note=42)  # type: ignore[arg-type]
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# update_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_update_case_returns_update(sample_case):
+    result = update_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert isinstance(result, as_Update)
+
+
+def test_update_case_object_is_case(sample_case):
+    result = update_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert result.object_ == sample_case
+
+
+@pytest.mark.spec("AF-04-001")
+def test_update_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        update_case_activity(case="not-a-case")  # type: ignore[arg-type]
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# rm_engage_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_rm_engage_case_returns_join(sample_case):
+    result = rm_engage_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert isinstance(result, as_Join)
+
+
+def test_rm_engage_case_object_is_case(sample_case):
+    result = rm_engage_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert result.object_ == sample_case
+
+
+@pytest.mark.spec("AF-04-001")
+def test_rm_engage_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        rm_engage_case_activity(case="not-a-case")  # type: ignore[arg-type]
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# rm_defer_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_rm_defer_case_returns_ignore(sample_case):
+    result = rm_defer_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert isinstance(result, as_Ignore)
+
+
+def test_rm_defer_case_object_is_case(sample_case):
+    result = rm_defer_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert result.object_ == sample_case
+
+
+@pytest.mark.spec("AF-04-001")
+def test_rm_defer_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        rm_defer_case_activity(case="not-a-case")  # type: ignore[arg-type]
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# rm_close_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_rm_close_case_returns_leave(sample_case):
+    result = rm_close_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert isinstance(result, as_Leave)
+
+
+def test_rm_close_case_object_is_case(sample_case):
+    result = rm_close_case_activity(case=sample_case, actor=_ACTOR_URI)
+    assert result.object_ == sample_case
+
+
+@pytest.mark.spec("AF-04-001")
+def test_rm_close_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        rm_close_case_activity(case="not-a-case")  # type: ignore[arg-type]
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# offer_case_ownership_transfer_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_offer_ownership_transfer_returns_offer(sample_case):
+    result = offer_case_ownership_transfer_activity(
+        case=sample_case, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Offer)
+
+
+def test_offer_ownership_transfer_object_is_case(sample_case):
+    result = offer_case_ownership_transfer_activity(
+        case=sample_case, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_case
+
+
+def test_offer_ownership_transfer_target_is_set(sample_case, sample_actor):
+    result = offer_case_ownership_transfer_activity(
+        case=sample_case, target=sample_actor, actor=_ACTOR_URI
+    )
+    assert result.target == sample_actor
+
+
+@pytest.mark.spec("DL-08-003")
+def test_offer_ownership_transfer_wraps_a_bare_transferee_id(sample_case):
+    """A transferee named by URI travels inline as an Actor (#4843)."""
+    transferee = "https://example.org/actors/transferee"
+    result = offer_case_ownership_transfer_activity(
+        case=sample_case, target=transferee, actor=_ACTOR_URI
+    )
+    assert isinstance(result.target, as_Actor)
+    assert result.target.id_ == transferee
+    wire = result.model_dump(mode="json", by_alias=True, exclude_none=True)
+    assert wire["target"]["id"] == transferee
+
+
+@pytest.mark.spec("AF-04-001")
+def test_offer_ownership_transfer_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        offer_case_ownership_transfer_activity(
+            case="not-a-case"  # type: ignore[arg-type]
+        )
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# accept_case_ownership_transfer_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_accept_ownership_transfer_returns_accept(sample_offer):
+    result = accept_case_ownership_transfer_activity(
+        offer=sample_offer, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Accept)
+
+
+def test_accept_ownership_transfer_object_is_offer(sample_offer):
+    result = accept_case_ownership_transfer_activity(
+        offer=sample_offer, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_offer
+
+
+@pytest.mark.spec("AF-04-001")
+def test_accept_ownership_transfer_plain_offer_raises(sample_report):
+    """A plain as_Offer (not from offer_case_ownership_transfer_activity) must fail."""
+    plain_offer = as_Offer(actor=_ACTOR_URI, object_=sample_report)
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        accept_case_ownership_transfer_activity(offer=plain_offer)
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# reject_case_ownership_transfer_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_reject_ownership_transfer_returns_reject(sample_offer):
+    result = reject_case_ownership_transfer_activity(
+        offer=sample_offer, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Reject)
+
+
+def test_reject_ownership_transfer_object_is_offer(sample_offer):
+    result = reject_case_ownership_transfer_activity(
+        offer=sample_offer, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_offer
+
+
+@pytest.mark.spec("AF-04-001")
+def test_reject_ownership_transfer_plain_offer_raises(sample_report):
+    plain_offer = as_Offer(actor=_ACTOR_URI, object_=sample_report)
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        reject_case_ownership_transfer_activity(offer=plain_offer)
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# undo_case_ownership_transfer_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("CM-21-015")
+def test_undo_ownership_transfer_returns_undo(sample_proposal):
+    result = undo_case_ownership_transfer_activity(
+        proposal=sample_proposal, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Undo)
+
+
+def test_undo_ownership_transfer_object_is_the_proposal(sample_proposal):
+    result = undo_case_ownership_transfer_activity(
+        proposal=sample_proposal, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_proposal
+
+
+@pytest.mark.spec("AF-04-001")
+def test_undo_ownership_transfer_plain_offer_raises(sample_offer):
+    """The Offer itself is not withdrawn; the owner's proposal is (ADR-0148)."""
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        undo_case_ownership_transfer_activity(proposal=sample_offer)
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# propose_case_ownership_transfer_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CM-21-005")
+@pytest.mark.spec("CM-21-016")
+def test_proposal_nests_the_offer_the_case_manager_will_make(sample_case):
+    """Offer(Offer(Case), context=case): the inner Offer names the case, the
+    transferee and the deadline (ADR-0148)."""
+    deadline = datetime(2030, 1, 1, tzinfo=UTC)
+    result = propose_case_ownership_transfer_activity(
+        sample_case,
+        target=_TARGET_URI,
+        end_time=deadline,
+        actor=_ACTOR_URI,
+        to=[_CASE_ACTOR_URI],
+    )
+
+    assert isinstance(result, as_Offer)
+    assert result.context == sample_case.id_
+    inner = result.object_
+    assert isinstance(inner, as_Offer)
+    assert inner.object_ == sample_case
+    assert isinstance(inner.target, as_Actor)
+    assert inner.target.id_ == _TARGET_URI
+    assert inner.end_time == deadline
+    assert result.end_time is None
+
+
+# ---------------------------------------------------------------------------
+# rm_invite_to_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_rm_invite_to_case_returns_invite(sample_actor):
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Invite)
+
+
+def test_rm_invite_to_case_object_is_actor(sample_actor):
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_actor
+
+
+def test_rm_invite_to_case_target_is_set(sample_actor):
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert result.target == as_VulnerabilityCaseStub(case_id=_CASE_URI)
+
+
+@pytest.mark.spec("CM-11-013")
+@pytest.mark.spec("VAM-04-004")
+def test_rm_invite_to_case_wraps_a_case_uri_in_a_stub(sample_actor):
+    """A case named by URI travels as a stub; ``context`` is the case."""
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    wire = json.loads(result.model_dump_json(by_alias=True, exclude_none=True))
+    assert wire["target"]["type"] == "VulnerabilityCaseStub"
+    assert wire["target"]["id"] == f"{_CASE_URI}/stub"
+    assert wire["target"]["caseId"] == _CASE_URI
+    assert wire["context"] == _CASE_URI
+
+
+def _invite_stub_wire(sample_actor) -> dict:
+    """The serialised stub an Invite carries for a case with no embargo."""
+    case = as_VulnerabilityCase(
+        id_=_CASE_URI,
+        name="CVE-2025-0001 in widget",
+        summary="A summary of the case",
+        stub_summary="RCE in widget — details withheld pending disclosure",
+        attributed_to=_ACTOR_URI,
+    )
+    result = rm_invite_to_case_activity(
+        invitee=sample_actor, target=case, actor=_ACTOR_URI
+    )
+    wire = json.loads(result.model_dump_json(by_alias=True, exclude_none=True))
+    stub: dict[str, Any] = wire["target"]
+    return stub
+
+
+def test_rm_invite_stub_carries_no_case_content(sample_actor):
+    """The stub names the case and carries no other case content.
+
+    Only the stub summary #4165 adds may join the identifying keys; the
+    case's own ``summary`` and its ``attributedTo`` never travel.
+    """
+    stub = _invite_stub_wire(sample_actor)
+    assert set(stub) <= {"@context", "type", "id", "caseId", "summary"}
+    assert stub.get("summary") != "A summary of the case"
+
+
+@pytest.mark.spec("CM-17-010")
+def test_rm_invite_stub_carries_a_non_empty_summary(sample_actor):
+    """The stub carries a non-empty ``summary`` beside its identity (CM-17-010)."""
+    stub = _invite_stub_wire(sample_actor)
+    assert set(stub) == {"@context", "type", "id", "caseId", "summary"}
+    assert isinstance(stub["summary"], str)
+    assert stub["summary"].strip()
+
+
+@pytest.mark.spec("CM-17-010")
+def test_rm_invite_to_case_refuses_when_no_stub_summary():
+    """The factory refuses when the case carries no ``stub_summary`` (CM-17-010, AC-2).
+
+    The case owner MUST set ``stub_summary`` before emitting a stub Invite;
+    the factory raises rather than silently falling back to the case name or
+    any other default.
+    """
+    case = as_VulnerabilityCase(
+        id_=_CASE_URI,
+        name="CVE-2025-0001 in widget",
+        summary="A summary of the case",
+        attributed_to=_ACTOR_URI,
+        # stub_summary intentionally absent
+    )
+    with pytest.raises(VultronActivityConstructionError, match="stub_summary"):
+        rm_invite_to_case_activity(
+            invitee=_ACTOR_URI,
+            target=case,
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("AF-04-001")
+def test_rm_invite_to_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        rm_invite_to_case_activity(
+            invitee="not-an-actor",  # type: ignore[arg-type]
+            target=_CASE_URI,
+        )
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# rm_accept_invite_to_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_rm_accept_invite_to_case_returns_accept(sample_actor):
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    assert isinstance(result, as_Accept)
+
+
+def test_rm_accept_invite_to_case_object_is_invite(sample_actor):
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    assert result.object_ == invite
+
+
+def test_rm_accept_invite_to_case_in_reply_to_auto_set(sample_actor):
+    """Model validator auto-populates in_reply_to from invite.id_."""
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    assert result.in_reply_to == invite.id_
+
+
+def test_rm_accept_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
+    """Explicitly provided in_reply_to is not overwritten."""
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    explicit_id = "https://example.org/activities/explicit-invite-id"
+    result = rm_accept_invite_to_case_activity(
+        invite=invite, in_reply_to=explicit_id, actor=_ACTOR_URI
+    )
+    assert result.in_reply_to == explicit_id
+
+
+@pytest.mark.spec("AF-04-001")
+def test_rm_accept_invite_to_case_plain_invite_raises(sample_actor):
+    """A plain as_Invite (not from rm_invite_to_case_activity) must fail."""
+    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_actor)
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        rm_accept_invite_to_case_activity(invite=plain_invite)
+    assert exc_info.value.__cause__ is not None
+
+
+def _received(activity: Any, **extra: object) -> Any:
+    """*activity* as a receiver parses it from the body its sender sent.
+
+    *extra* adds keys to that body, as a sender that names more than this
+    receiver's vocabulary would.
+    """
+    body = activity.model_dump(
+        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
+    )
+    body.update(extra)
+    return parse_activity(body)
+
+
+def _embedded(reply: BaseModel) -> dict[str, Any]:
+    """The answered activity in *reply*'s outbound body."""
+    body: dict[str, Any] = json.loads(
+        reply.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )
+    embedded: dict[str, Any] = body["object"]
+    return embedded
+
+
+@pytest.mark.spec("DL-06-004")
+@pytest.mark.parametrize(
+    "factory",
+    [rm_accept_invite_to_case_activity, rm_reject_invite_to_case_activity],
+)
+def test_reply_embeds_an_invite_as_its_sender_sent_it(sample_actor, factory):
+    """A received Invite is parsed from the body intake archived; the reply
+    validates it into the case-Invite class and embeds the body verbatim,
+    keys no vocabulary names included (ADR-0149)."""
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor,
+        actor=_ACTOR_URI,
+        target=as_VulnerabilityCaseStub(
+            case_id="https://example.org/cases/c1", summary="A case"
+        ),
+        roles=["vendor"],
+    )
+    held = _received(invite, fooBar=[1])
+    assert type(held) is as_Invite
+
+    result = factory(invite=held, actor=_ACTOR_URI)
+
+    assert result.object_.id_ == invite.id_
+    assert result.object_.roles == ["vendor"]
+    assert result.in_reply_to == invite.id_
+    assert _embedded(result) == held.received_evidence
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [rm_accept_invite_to_case_activity, rm_reject_invite_to_case_activity],
+)
+def test_reply_refuses_a_received_activity_that_is_not_an_invite(
+    sample_actor, factory
+):
+    from vultron.wire.as2.factories import recommend_actor_activity
+
+    offer = recommend_actor_activity(
+        sample_actor,
+        target=as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_="https://example.org/cases/c1",
+            name="Case",
+        ),
+        actor=_ACTOR_URI,
+    )
+
+    with pytest.raises(
+        VultronActivityConstructionError, match="not a case Invite"
+    ):
+        factory(invite=_received(offer), actor=_ACTOR_URI)
+
+
+# ---------------------------------------------------------------------------
+# rm_reject_invite_to_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_rm_reject_invite_to_case_returns_reject(sample_actor):
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    assert isinstance(result, as_Reject)
+
+
+def test_rm_reject_invite_to_case_object_is_invite(sample_actor):
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    assert result.object_ == invite
+
+
+def test_rm_reject_invite_to_case_in_reply_to_auto_set(sample_actor):
+    """Model validator auto-populates in_reply_to from invite.id_."""
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
+    assert result.in_reply_to == invite.id_
+
+
+def test_rm_reject_invite_to_case_explicit_in_reply_to_preserved(sample_actor):
+    """Explicitly provided in_reply_to is not overwritten."""
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    explicit_id = "https://example.org/activities/explicit-invite-id"
+    result = rm_reject_invite_to_case_activity(
+        invite=invite, in_reply_to=explicit_id, actor=_ACTOR_URI
+    )
+    assert result.in_reply_to == explicit_id
+
+
+@pytest.mark.spec("AF-04-001")
+def test_rm_reject_invite_to_case_plain_invite_raises(sample_actor):
+    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_actor)
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        rm_reject_invite_to_case_activity(invite=plain_invite)
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# announce_vulnerability_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+def test_announce_vulnerability_case_returns_announce(sample_case):
+    result = announce_vulnerability_case_activity(
+        case=sample_case, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Announce)
+
+
+def test_announce_vulnerability_case_object_is_case(sample_case):
+    result = announce_vulnerability_case_activity(
+        case=sample_case, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_case
+
+
+@pytest.mark.spec("AF-04-001")
+def test_announce_vulnerability_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        announce_vulnerability_case_activity(
+            case="not-a-case"  # type: ignore[arg-type]
+        )
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# __init__.py re-exports (AF-04-002)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-04-002")
+def test_all_case_factories_importable_from_package():
+    """All case factory functions must be importable from the factories package."""
+    from vultron.wire.as2.factories import (  # noqa: F401
+        accept_case_ownership_transfer_activity,
+        add_note_to_case_activity,
+        add_report_to_case_activity,
+        add_status_to_case_activity,
+        announce_vulnerability_case_activity,
+        create_case_activity,
+        offer_case_ownership_transfer_activity,
+        reject_case_ownership_transfer_activity,
+        rm_accept_invite_to_case_activity,
+        rm_close_case_activity,
+        rm_defer_case_activity,
+        rm_engage_case_activity,
+        rm_invite_to_case_activity,
+        rm_reject_invite_to_case_activity,
+        undo_case_ownership_transfer_activity,
+        update_case_activity,
+    )
+
+
+# ---------------------------------------------------------------------------
+# CM-17-002: the Invite stub is enriched from a case whose embargo is inline
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CM-17-002")
+def test_rm_invite_stub_is_enriched_from_an_inline_active_embargo(
+    sample_actor,
+):
+    """A case seeded from a sealed Announce carries ``active_embargo`` as the
+    ``EmbargoEvent`` object, not its id.  The stub must still carry the embargo,
+    its id and end time included — and needs no separate ``embargo_obj`` when
+    the case already holds the object."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import EmDimension
+    from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.core.states.em import EM
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    case_id = "https://example.org/cases/inline-embargo"
+    embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-010",
+        stub_summary="Memory corruption under embargo",
+        attributed_to="https://example.org/actors/coordinator",
+        case_statuses=[
+            CaseStatus(
+                context=case_id,
+                attributed_to="https://example.org/actors/coordinator",
+                em=EmDimension(state=EM.ACTIVE),
+            )
+        ],
+        embargo_register=register(active=embargo),
+    )
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor,
+        target=case,
+        actor="https://example.org/actors/coordinator",
+    )
+
+    stub = invite.target
+    assert isinstance(stub, as_VulnerabilityCaseStub)
+    assert stub.case_id == case_id
+    assert stub.id_ == f"{case_id}/stub"
+    assert isinstance(stub.active_embargo, as_EmbargoEvent)
+    assert stub.active_embargo.id_ == embargo.id_
+    assert stub.active_embargo.end_time is not None
+    assert isinstance(stub.case_status, as_CaseStatus)
+    assert stub.case_status.em is not None
+    assert stub.case_status.em.state == EM.ACTIVE
+
+
+@pytest.mark.spec("CM-17-002")
+def test_enriched_stub_carries_only_the_embargo_terms(sample_actor):
+    """An embargo-active stub adds only ``activeEmbargo`` and ``caseStatus``,
+    and its ``caseStatus`` states only the EM state.
+
+    The case here is public with an exploit (``PXa``).  The stub's status is
+    built for the stub, not read from the case, so a ``pxaState`` on the wire
+    would be the class default and would tell the invitee the case is not
+    public.  The dump goes through the outbound form, the subtype-aware JSON
+    dump (VM-07-001).
+    """
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.dimensions import EmDimension, PxaDimension
+    from vultron.core.models.embargo_event import EmbargoEvent
+    from vultron.core.states.cs import CS_pxa
+    from vultron.core.states.em import EM
+
+    case_id = "https://example.org/cases/enriched-stub"
+    embargo = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-011",
+        summary="Case content the invitee must not see",
+        stub_summary="Vulnerability under active embargo",
+        attributed_to=_ACTOR_URI,
+        case_statuses=[
+            CaseStatus(
+                context=case_id,
+                attributed_to=_ACTOR_URI,
+                em=EmDimension(state=EM.ACTIVE),
+                pxa=PxaDimension(state=CS_pxa.PXa),
+            )
+        ],
+        embargo_register=register(active=embargo),
+    )
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=case, actor=_ACTOR_URI
+    )
+    wire = json.loads(
+        invite.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )
+
+    stub = wire["target"]
+    # "summary" is the stub summary #4165 adds (CM-17-010), not case content.
+    assert set(stub) - {"summary"} == {
+        "@context",
+        "type",
+        "id",
+        "caseId",
+        "activeEmbargo",
+        "caseStatus",
+    }
+    status = stub["caseStatus"]
+    assert status["emState"] == EM.ACTIVE.value
+    assert set(status) <= {"@context", "id", "type", "context", "emState"}
+
+
+@pytest.mark.spec("CM-17-002")
+def test_revise_stub_carries_the_embargo_in_force_not_the_revision(
+    sample_actor,
+):
+    """In EM ``REVISE`` the prior embargo stays in force (EP-05-002) and
+    accepting the stub binds the invitee to it (CM-11-001), so the stub
+    carries that embargo and ``emState=REVISE``.  The open revision is not
+    yet binding and stays out of the stub; EP-09-011 relays it after
+    joining."""
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    case_id = "https://example.org/cases/revise-stub"
+    in_force = EmbargoEvent(context=case_id, end_time=days_from_now_utc(30))
+    revision = EmbargoEvent(context=case_id, end_time=days_from_now_utc(60))
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-013",
+        stub_summary="Vulnerability under a revised embargo",
+        attributed_to=_ACTOR_URI,
+        case_statuses=[
+            CaseStatus(
+                context=case_id,
+                attributed_to=_ACTOR_URI,
+                em=EmDimension(state=EM.REVISE),
+            )
+        ],
+        embargo_register=register(active=in_force, proposed=[revision]),
+    )
+    assert case.em_state == EM.REVISE
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor, target=case, actor=_ACTOR_URI
+    )
+
+    stub = invite.target
+    assert isinstance(stub, as_VulnerabilityCaseStub)
+    assert isinstance(stub.active_embargo, as_EmbargoEvent)
+    assert stub.active_embargo.id_ == in_force.id_
+    assert stub.active_embargo.id_ != revision.id_
+    assert isinstance(stub.case_status, as_CaseStatus)
+    assert stub.case_status.em is not None
+    assert stub.case_status.em.state == EM.REVISE
+
+
+@pytest.mark.spec("CM-17-002")
+@pytest.mark.parametrize(
+    ("entry", "em_state"),
+    [("proposed", EM.PROPOSED), ("terminated", EM.EXITED)],
+    ids=["proposal-only", "embargo-ended"],
+)
+def test_no_embargo_in_force_leaves_the_stub_bare(
+    sample_actor, entry, em_state
+):
+    """With no embargo in force the stub carries no terms.
+
+    The stub is enriched from the register's ``ACTIVE`` entry, not from any
+    entry: a proposal (EM ``PROPOSED``) binds nobody yet, and an ended embargo
+    (EM ``EXITED``) binds nobody any more (CM-17-002, CM-17-010).
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    case_id = f"https://example.org/cases/{entry}-stub"
+    embargo = _full_embargo(case_id)
+    entries = (
+        register(proposed=[embargo])
+        if entry == "proposed"
+        else register(terminated=embargo)
+    )
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-014",
+        stub_summary="Vulnerability with no embargo in force",
+        attributed_to=_ACTOR_URI,
+        embargo_register=entries,
+    )
+    assert case.em_state == em_state
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor,
+        target=case,
+        actor=_ACTOR_URI,
+        embargo_obj=embargo,
+    )
+
+    stub = invite.target
+    assert isinstance(stub, as_VulnerabilityCaseStub)
+    assert stub.active_embargo is None
+    assert stub.case_status is None
+
+
+#: An embargo in force: EM ``ACTIVE``, or ``REVISE`` with a revision open.
+_IN_FORCE_EM = pytest.mark.parametrize(
+    "revising", [False, True], ids=["em-active", "em-revise"]
+)
+
+
+def _embargo_active_case(
+    case_id: str,
+    active_embargo: str | EmbargoEvent,
+    *,
+    revising: bool = False,
+) -> VulnerabilityCase:
+    """A case with *active_embargo* (id or object) in force.
+
+    EM is ``ACTIVE``, or ``REVISE`` when *revising* adds an open revision.
+    """
+    em_state = EM.REVISE if revising else EM.ACTIVE
+    revisions = (
+        [EmbargoEvent(context=case_id, end_time=days_from_now_utc(90))]
+        if revising
+        else []
+    )
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="CVE-2025-012",
+        stub_summary="Vulnerability under active embargo",
+        attributed_to=_ACTOR_URI,
+        case_statuses=[
+            CaseStatus(
+                context=case_id,
+                attributed_to=_ACTOR_URI,
+                em=EmDimension(state=em_state),
+            )
+        ],
+        embargo_register=register(active=active_embargo, proposed=revisions),
+    )
+    assert case.em_state == em_state
+    return case
+
+
+def _full_embargo(case_id: str) -> EmbargoEvent:
+    """An embargo carrying every term a sender may set, not just its window."""
+    return EmbargoEvent(
+        context=case_id,
+        name="Coordinated embargo for widget RCE",
+        summary="Disclose together once the vendor ships the fix",
+        attributed_to=_ACTOR_URI,
+        start_time=datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC),
+        end_time=datetime(2099, 6, 7, 8, 9, 10, tzinfo=UTC),
+    )
+
+
+@pytest.mark.spec("CM-17-011")
+@_IN_FORCE_EM
+@pytest.mark.parametrize(
+    "held_inline", [False, True], ids=["named-by-id", "held-inline"]
+)
+def test_rm_invite_stub_embeds_the_full_active_embargo(
+    sample_actor, held_inline, revising
+):
+    """The stub carries the whole embargo, not just its id and end time.
+
+    The prototype builds no way for the invitee to ask the inviter for the
+    embargo by id, so the stub embeds it (CM-17-011).  Every term the stored
+    embargo holds reaches the wire unchanged — its sender-set start, name,
+    summary and author included — rather than a rebuilt copy that keeps only
+    the end time and mints a fresh start.  That holds whether the case names
+    the embargo by id (the caller passes the object it read) or holds it
+    inline.
+    """
+    case_id = "https://example.org/cases/full-embargo"
+    embargo = _full_embargo(case_id)
+    case = _embargo_active_case(
+        case_id, embargo if held_inline else embargo.id_, revising=revising
+    )
+
+    invite = rm_invite_to_case_activity(
+        invitee=sample_actor,
+        target=case,
+        actor=_ACTOR_URI,
+        embargo_obj=None if held_inline else embargo,
+    )
+    wire = json.loads(
+        invite.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )
+
+    expected = json.loads(
+        embargo.model_dump_json(by_alias=True, exclude_none=True)
+    )
+    assert wire["target"]["activeEmbargo"] == expected
+
+
+@pytest.mark.spec("CM-17-011")
+@_IN_FORCE_EM
+def test_rm_invite_refuses_an_active_embargo_it_cannot_embed(
+    sample_actor, revising
+):
+    """An active embargo named only by id, with no object to embed, is refused.
+
+    A bare id would leave the invitee no way to read the terms it would agree
+    to, since the prototype does not build fetching by id (CM-17-002,
+    CM-17-011).  The factory refuses rather than sending an uninformed stub.
+    """
+    case_id = "https://example.org/cases/embargo-not-held"
+    case = _embargo_active_case(
+        case_id, _full_embargo(case_id).id_, revising=revising
+    )
+
+    with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
+        rm_invite_to_case_activity(
+            invitee=sample_actor, target=case, actor=_ACTOR_URI
+        )
+
+
+@pytest.mark.spec("CM-17-011")
+@_IN_FORCE_EM
+def test_rm_invite_refuses_an_embargo_object_that_is_not_the_active_one(
+    sample_actor, revising
+):
+    """A supplied embargo whose id is not the case's active embargo is refused."""
+    case_id = "https://example.org/cases/embargo-mismatch"
+    case = _embargo_active_case(
+        case_id, _full_embargo(case_id).id_, revising=revising
+    )
+
+    with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
+        rm_invite_to_case_activity(
+            invitee=sample_actor,
+            target=case,
+            actor=_ACTOR_URI,
+            embargo_obj=_full_embargo(case_id),
+        )
+
+
+@pytest.mark.spec("CM-17-011")
+def test_stub_embargo_refuses_when_no_active_embargo_is_named():
+    """An EM-active case that names no active embargo is refused, not sent bare.
+
+    A case whose EM is derived ``ACTIVE`` always has an active register entry,
+    so this guards the helper itself: with no embargo at all there are no terms
+    to embed, and the stub is not built (CM-17-011).
+    """
+    with pytest.raises(VultronActivityConstructionError, match="CM-17-011"):
+        _stub_embargo(None, None, "https://example.org/cases/no-embargo")
+
+
+@pytest.mark.spec("CM-11-001")
+def test_stub_invite_factory_docstrings_do_not_label_the_stub_replies_as_rm_replies():
+    """The stub Invite and its replies are not RV/RI messages (CM-11-001, CM-11-007).
+
+    Accepting the stub is joining; the RV/RI/RC replies belong to the full-case
+    Invite.
+    """
+    from vultron.wire.as2.factories import case as case_factories
+
+    accept = case_factories.rm_accept_invite_to_case_activity.__doc__ or ""
+    reject = case_factories.rm_reject_invite_to_case_activity.__doc__ or ""
+    stub = case_factories.rm_invite_to_case_activity.__doc__ or ""
+
+    assert "stub Invite" in stub.splitlines()[0]
+    assert "RV message" not in accept.splitlines()[0]
+    assert "join" in accept.splitlines()[0]
+    assert "RI message" not in reject.splitlines()[0]
+    assert "(RC)" in reject.splitlines()[0]
+    full = case_factories.rm_accept_full_case_invite_activity.__doc__ or ""
+    assert "RV" in full.splitlines()[0]
+
+
+@pytest.mark.spec("DL-06-004")
+@pytest.mark.parametrize(
+    "factory",
+    [
+        accept_case_ownership_transfer_activity,
+        reject_case_ownership_transfer_activity,
+    ],
+)
+def test_ownership_reply_embeds_the_offer_as_its_sender_sent_it(factory):
+    """A received ownership Offer, parsed from its archived body, is
+    validated into the Offer class the reply embeds, and embedded as the
+    body that arrived: its answer deadline and ``cc`` included (ADR-0149)."""
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/c1",
+        name="C",
+    )
+    offer = offer_case_ownership_transfer_activity(
+        case, target=_ACTOR_URI, actor=_ACTOR_URI, to=[_ACTOR_URI]
+    )
+    received = _received(
+        offer,
+        endTime="2031-01-01T00:00:00+00:00",
+        cc=["https://example.org/actors/watcher"],
+    )
+
+    result = factory(offer=received, actor=_ACTOR_URI)
+
+    assert result.object_.id_ == offer.id_
+    assert result.object_.object_.id_ == case.id_
+    embedded = _embedded(result)
+    assert embedded == received.received_evidence
+    assert embedded["endTime"] == "2031-01-01T00:00:00+00:00"
+    assert embedded["cc"] == ["https://example.org/actors/watcher"]
+
+
+@pytest.mark.spec("AF-04-001")
+@pytest.mark.parametrize(
+    "factory",
+    [
+        accept_case_ownership_transfer_activity,
+        reject_case_ownership_transfer_activity,
+    ],
+)
+def test_ownership_reply_refuses_a_received_offer_of_another_kind(
+    sample_report, factory
+):
+    """A received ``Offer(Report)`` is not an ownership-transfer Offer."""
+    from vultron.wire.as2.factories import rm_submit_report_activity
+
+    offer = rm_submit_report_activity(
+        sample_report, to=_ACTOR_URI, actor=_ACTOR_URI
+    )
+
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        factory(offer=_received(offer), actor=_ACTOR_URI)
+    cause = exc_info.value.__cause__
+    # as_answered's validation of the parsed Offer refused it.
+    assert isinstance(cause, ValidationError)
+    assert cause.title == "_OfferCaseOwnershipTransferActivity"

@@ -1,0 +1,306 @@
+#!/usr/bin/env python
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Production-layer BT action nodes for the fix development workflow.
+
+Two action nodes implement the ``DevelopFixBT`` creation sequence:
+
+- :class:`TransitionCStoFixReady` — persist VF=VF ParticipantStatus snapshot
+- :class:`EmitCFActivity` — emit CF (Fix Readiness) to Case Actor
+
+The entry guard/condition nodes (``CheckIsVendorRoleNode``,
+``CheckCSFixNotYetReady``) live in :mod:`develop_fix_conditions` and are
+re-exported here for backward compatibility.
+
+The tree's RM guard, ``CheckRMStateAccepted``, lives in ``conditions.py``
+alongside the other RM-state condition nodes: three trees use it
+(``DevelopFixBT``, ``DeployFixBT``, ``DeployMitigationBT``), so it is a
+participant-RM condition rather than anything specific to developing a fix.
+
+References
+----------
+- Issue: #1812
+- Spec: ``specs/behavior-tree-integration.yaml`` BT-06-001
+- ADR-0025: factory injection seam
+"""
+
+import logging
+
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.participant.common import (
+    resolve_participant_state_from_dl,
+)
+from vultron.core.behaviors.case.nodes.participant.status import (
+    CreateParticipantStatusNode,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
+)
+from vultron.core.behaviors.report.nodes.develop_fix_conditions import (
+    CheckCSFixNotYetReady,
+    CheckIsVendorRoleNode,
+)
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.states.cs import CS_vf
+
+logger = logging.getLogger(__name__)
+
+
+class TransitionCStoFixReady(DataLayerActionWithPorts, StateWriteCapable):
+    """Store the VF=VF ParticipantStatus snapshot the actor reports.
+
+    Validates the move of the actor's VF dimension to ``CS_vf.VF`` (fix
+    ready) and stores the ``ParticipantStatus`` the emitted activity carries.
+    An actor not yet vendor-aware (``vf``) first gets a ``Vf`` step, and the
+    ``VF`` step is validated as following it (CSB-16-001).  Neither is
+    appended to the participant record: the CASE_MANAGER appends each when it
+    accepts it, and the actor's replica copies them from the ledger
+    (RSH-08-003, CLP-07-013, CM-23-016).  ``result_out["status_ids"]`` lists
+    the stored steps in order, for :class:`EmitCFActivity` to send each.
+
+    Per AC-7 (issue #1812); follows the ``CreateParticipantStatusNode``
+    pattern (``vultron/core/behaviors/case/nodes/participant/status.py``).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        actor_id: str,
+        result_out: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        _name = name or self.__class__.__name__
+        super().__init__(name=_name)
+        self._case_id = case_id
+        self._actor_id = actor_id
+        self._result_out = result_out if result_out is not None else {}
+        # Pre-build status nodes (BTND-10-004: no construction in update()).
+        # BTBridge seeds case_id on the blackboard so CaseIdInputPortMixin reads it.
+        self._vendor_aware_ids: list[str] = []
+        self._fix_ready_ids: list[str] = []
+        self._vendor_aware_node = CreateParticipantStatusNode(
+            actor_id=actor_id,
+            rm_state=None,
+            vf_state=CS_vf.Vf,
+            d_state=None,
+            pxa_state=None,
+            result_out=self._result_out,
+            name=f"{_name}._VendorAware",
+            written_ids=self._vendor_aware_ids,
+            attach=False,
+        )
+        self._fix_ready_node = CreateParticipantStatusNode(
+            actor_id=actor_id,
+            rm_state=None,
+            vf_state=CS_vf.VF,
+            d_state=None,
+            pxa_state=None,
+            result_out=self._result_out,
+            name=f"{_name}._Create",
+            written_ids=self._fix_ready_ids,
+            attach=False,
+            follows=self._vendor_aware_ids,
+        )
+
+    def _ensure_vendor_aware(self) -> Status:
+        """Advance actor to VF=Vf if still at initial state (CSB-16-001 strict adjacency)."""
+        assert self.datalayer is not None
+        # Regime 1 (ADR-0087, #3101): fix development coordinates an *existing*
+        # case — there is no create path here — so a vanished case is an
+        # anomaly, not a routine skip. Previously this returned SUCCESS and let
+        # update() proceed into status creation against a missing case.
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure
+        participant_id = case.actor_participant_index.get(self._actor_id)
+        if participant_id is None:
+            return Status.SUCCESS
+        _, current_vf, _ = resolve_participant_state_from_dl(
+            self.datalayer, participant_id
+        )
+        if current_vf not in (None, CS_vf.vf):
+            return Status.SUCCESS
+        # BTBridge.execute_with_setup classifies any node error into a FAILURE
+        # result (internal_error) rather than raising, so no broad catch is
+        # needed here — an escaping exception would be a bridge-contract
+        # violation that must surface loudly (CS-23-001).
+        result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+            tree=self._vendor_aware_node,
+            actor_id=self._actor_id,
+            case_id=self._case_id,
+        )
+        return result.status
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        self._vendor_aware_ids.clear()
+        if self._ensure_vendor_aware() != Status.SUCCESS:
+            return Status.FAILURE
+
+        try:
+            result = BTBridge(datalayer=self.datalayer).execute_with_setup(
+                tree=self._fix_ready_node,
+                actor_id=self._actor_id,
+                case_id=self._case_id,
+            )
+            if result.status == Status.SUCCESS:
+                self._result_out["status_ids"] = [
+                    *self._vendor_aware_ids,
+                    *self._fix_ready_ids,
+                ]
+                self.logger.debug(
+                    "%s: VF → VF for actor '%s' in case '%s'",
+                    self.name,
+                    self._actor_id,
+                    self._case_id,
+                )
+            return result.status
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
+                "%s: Error transitioning to VF=VF: %s", self.name, e
+            )
+            return Status.FAILURE
+
+
+class _EmitParticipantStatusActivityBase(_EmitSingleActivityBase):
+    """Shared guard+factory-dispatch+outbox-write skeleton for
+    ``Add(ParticipantStatus)`` trigger activities (BTND-07-005).
+
+    Calls ``trigger_activity_factory.add_participant_status_to_participant``
+    for each status the preceding ``TransitionCStoFix*`` node stored
+    (``result_out["status_ids"]``, in order, or its one ``status_id``) and
+    queues each resulting activity ID via ``outbox_append``.
+
+    Subclasses provide only a constructor docstring; all protocol logic
+    lives here.  The ``result_out`` dict must be populated by the preceding
+    ``TransitionCStoFix*`` node (keys: ``status_id``, ``participant_id``).
+
+    Per ADR-0021 CLP-10-027: trigger trees MUST address fix-readiness
+    activities to the Case Actor (CASE_MANAGER) so the CaseActor can
+    commit a canonical ledger entry.
+
+    Per AC-7 (issue #1812).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        actor_id: str,
+        result_out: dict,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._actor_id = actor_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        if (f := self._require_factory()) is not None:
+            self.logger.warning(
+                "%s: no TriggerActivityPort — cannot emit participant-status activity",
+                self.name,
+            )
+            return f
+
+        assert self.datalayer is not None
+        assert self.trigger_activity_factory is not None
+
+        status_id = self._result_out.get("status_id")
+        participant_id = self._result_out.get("participant_id")
+        if not status_id or not participant_id:
+            self.feedback_message = (
+                "status_id or participant_id missing from result_out"
+                f" — a TransitionCS node must precede {self.__class__.__name__}"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        case_manager_id = resolve_case_manager_id(case, self.datalayer)
+        if not case_manager_id:
+            self.feedback_message = (
+                f"No CASE_MANAGER found for case '{self._case_id}'"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        # Addressed to the CASE_MANAGER even when that is this actor: the
+        # status is appended only when the CASE_MANAGER accepts it and
+        # commits its entry, so a self-addressed copy is delivered too
+        # (RSH-08-003, CLP-07-013).
+        status_ids: list[str] = self._result_out.get("status_ids") or [
+            status_id
+        ]
+        try:
+            for step_id in status_ids:
+                activity_id = self.trigger_activity_factory.add_participant_status_to_participant(
+                    status_id=step_id,
+                    participant_id=participant_id,
+                    actor=self._actor_id,
+                    to=[case_manager_id],
+                )
+                # Route through the shared emit seam (OX-14-001, ASK-04-008).
+                # factory.add_participant_status_to_participant returns str
+                # only; pass an empty blob since no captured dict is present.
+                self._emit_through_seam(activity_id, "")
+            self.logger.info(
+                "Actor '%s' emitted %s for case '%s'",
+                self._actor_id,
+                self.__class__.__name__,
+                self._case_id,
+            )
+            return Status.SUCCESS
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
+                "%s: Error emitting participant-status activity: %s",
+                self.name,
+                e,
+            )
+            return Status.FAILURE
+
+
+class EmitCFActivity(_EmitParticipantStatusActivityBase):
+    """Emit a CF (Fix Readiness) ``Add(ParticipantStatus)`` to the Case Actor.
+
+    Calls ``trigger_activity_factory.add_participant_status_to_participant``
+    with the status and participant IDs written to *result_out* by
+    :class:`TransitionCStoFixReady` and queues the resulting activity ID
+    via ``record_outbox_item``.
+
+    Per ADR-0021 CLP-10-027: trigger trees MUST address fix-readiness
+    activities to the Case Actor (CASE_MANAGER) so the CaseActor can
+    commit a canonical ledger entry.
+
+    Per AC-7 (issue #1812).
+    """
+
+
+__all__ = [
+    "_EmitParticipantStatusActivityBase",
+    "CheckIsVendorRoleNode",
+    "CheckCSFixNotYetReady",
+    "TransitionCStoFixReady",
+    "EmitCFActivity",
+]

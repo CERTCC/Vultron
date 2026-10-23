@@ -1,0 +1,360 @@
+#!/usr/bin/env python
+"""
+Vultron API v2 Application
+"""
+
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import logging
+import threading
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any
+from uuid import uuid4
+
+from fastapi import FastAPI, Path, Request
+
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
+from vultron.adapters.driving.fastapi.deps import get_actor_dl, node_base_url
+from vultron.adapters.driving.fastapi.inbox_handler import (
+    init_dispatcher,
+    make_dispatcher,
+)
+from vultron.adapters.driving.fastapi.inbox_startup_replay import (
+    finish_startup_inbox_replay,
+    start_startup_inbox_replay,
+)
+from vultron.adapters.driving.fastapi.ledger_stream import (
+    SHUTDOWN_STATE_KEY,
+    install_shutdown_signal_hook,
+)
+from vultron.adapters.driving.fastapi.outbox_handler import (
+    configure_default_emitter,
+)
+from vultron.adapters.driving.fastapi.outbox_monitor import (
+    OutboxMonitor,
+)
+from vultron.adapters.driving.fastapi.routers import demo_triggers, router
+from vultron.config import RunMode, get_config
+from vultron.logging_setup import (
+    restore_third_party_log_levels,
+    suppress_third_party_info_noise,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def configure_logging() -> None:
+    """Configure root logger to use Uvicorn's handlers at server startup.
+
+    Reads ``LOG_LEVEL`` from the environment (default ``INFO``) and applies it
+    to the root logger.  HTTP access logs (``uvicorn.access``) are suppressed
+    at INFO level to reduce noise; set ``LOG_LEVEL=DEBUG`` to see them.
+
+    Only called inside the lifespan context so importing this module in tests
+    does not mutate the root logger.
+    """
+    log_level_name = get_config().server.log_level
+    log_level = getattr(logging, log_level_name, logging.INFO)
+
+    uvicorn_logger = logging.getLogger("uvicorn")
+    logging.getLogger().handlers = uvicorn_logger.handlers
+    logging.getLogger().setLevel(log_level)
+    logging.getLogger("uvicorn.error").propagate = True
+
+    # Suppress HTTP access-log entries at INFO; only surface them at DEBUG so
+    # that repeated health-check and API request lines do not drown out
+    # application-level log messages.
+    #
+    # Using NullHandler + propagate=False is more robust than setLevel() alone:
+    # uvicorn may reinitialise its dictConfig after the lifespan fires (e.g.
+    # with --reload), which would reset a simple setLevel() change.
+    uvicorn_access_logger = logging.getLogger("uvicorn.access")
+    if log_level > logging.DEBUG:
+        # Replace any handlers set by uvicorn's dictConfig with a NullHandler
+        # so that access-log records are silently discarded.
+        uvicorn_access_logger.handlers = [logging.NullHandler()]
+        uvicorn_access_logger.propagate = False
+    else:
+        uvicorn_access_logger.propagate = True
+
+    # Suppress httpx library internals (request/response lifecycle events)
+    # to reduce DEBUG output noise by ~30%.
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
+
+    # Drop `transitions` FSM callback chatter from INFO (SL-04-007), and keep
+    # the static-wiring loggers (py_trees port registration) at INFO even at
+    # DEBUG (#4600).
+    suppress_third_party_info_noise(log_level)
+
+
+def _auto_inject_isolated_datalayer(application: FastAPI) -> None:
+    """Auto-inject per-actor in-memory DataLayers if none are registered.
+
+    Called during :func:`_make_lifespan` startup when ``configure_globals``
+    is ``False``.  If the caller has already registered an override (e.g. a
+    test fixture), it is left untouched.
+
+    Two dimensions of isolation are in play and both must hold:
+
+    - **Per application** (issue #534): several ``create_app()`` instances in
+      one process must not share storage.  Each app therefore gets its own
+      *named* in-memory deployment, so the resolved URL differs per app.
+      Without the name every app would resolve to the same store and
+      cross-app leakage would return — along a different axis than the one
+      ADR-0073 closed, but the same class of bug.
+    - **Per actor** (ADR-0073, CM-01-001): within an app, each actor gets its
+      own store.  The override is therefore a *factory* keyed on the requested
+      actor, not one shared instance.
+
+    The segment is resolved through ``deps.node_base_url(request)``, the same
+    call the real :func:`~vultron.adapters.driving.fastapi.deps.get_actor_dl`
+    makes.  Resolving against the process-global config base instead would give
+    two apps in one process *different* canonical URIs for the same segment when
+    either declares a ``node_base_url``, so a record created through one app
+    would be a 404 through the other — the override keyed on one spelling while
+    every route handler downstream used the other.
+    """
+    if get_actor_dl in application.dependency_overrides:
+        return
+
+    db_url = (
+        f"sqlite:///file:app-{uuid4().hex}?mode=memory&cache=shared&uri=true"
+    )
+    registry: dict[str, SqliteDataLayer] = {}
+
+    def _isolated_actor_dl(
+        actor_id: str = Path(...),
+        request: Request = None,  # type: ignore[assignment]
+    ) -> SqliteDataLayer:
+        canonical = canonical_actor_uri(
+            actor_id, base_url=node_base_url(request)
+        )
+        if canonical not in registry:
+            registry[canonical] = SqliteDataLayer(
+                db_url=db_url, actor_id=canonical
+            )
+        return registry[canonical]
+
+    application.dependency_overrides[get_actor_dl] = _isolated_actor_dl
+    application.state.actor_dls = registry
+    application.state.db_url = db_url
+
+
+def _teardown_per_app_state(application: FastAPI) -> None:
+    """Clean up per-app dispatcher and DataLayer state on lifespan shutdown."""
+    # Clear dispatcher BEFORE the early return: even when the DataLayers were
+    # supplied by a pre-registered override (app.state.actor_dls is None),
+    # the per-app dispatcher was still created by this lifespan and must be
+    # released so it cannot leak across lifespan restarts on the same app.
+    application.state.dispatcher = None
+    registry = getattr(application.state, "actor_dls", None)
+    if registry is None:
+        return
+    application.state.actor_dls = None
+    if get_actor_dl in application.dependency_overrides:
+        del application.dependency_overrides[get_actor_dl]
+    # Closing every actor's store drops this app's named in-memory databases:
+    # an in-memory database lives only while a connection to it is open.
+    for actor_dl in registry.values():
+        actor_dl.close()
+
+
+def _make_lifespan(*, configure_globals: bool = True):
+    """Return a lifespan context manager for a FastAPI Vultron application.
+
+    Args:
+        configure_globals: When ``True`` (the default for the production
+            singleton ``app_v2``), the lifespan installs the
+            ``HttpDeliveryAdapter`` as the module-level default emitter,
+            configures logging, starts the background ``OutboxMonitor``, and
+            starts the startup replay of every hosted actor's inbox queue
+            (IE-06-006).
+            When ``False`` (used by :func:`create_app` for isolated test apps),
+            these global side-effects are skipped, the startup replay
+            included, so that multiple apps
+            running in the same process do not contaminate each other's state.
+    """
+
+    @asynccontextmanager
+    async def _lifespan(application: FastAPI) -> AsyncIterator[dict[str, Any]]:
+        if configure_globals:
+            configure_logging()
+
+        # Open demo ledger streams end on this event (ADR-0104).  It reaches
+        # routes as lifespan state, which — unlike ``application.state`` —
+        # also reaches a sub-application mounted under this one (main.py).
+        ledger_stream_shutdown = threading.Event()
+        undo_shutdown_hook = install_shutdown_signal_hook(
+            ledger_stream_shutdown
+        )
+
+        if configure_globals:
+            init_dispatcher()
+        else:
+            application.state.dispatcher = make_dispatcher()
+
+        if not configure_globals:
+            _auto_inject_isolated_datalayer(application)
+
+        monitor = None
+        if configure_globals:
+            emitter = HttpDeliveryAdapter()
+            application.state.emitter = emitter
+            configure_default_emitter(emitter)
+            monitor = OutboxMonitor()
+            monitor.start()
+            # Exposed so a host (or a test) can see that the safety-net
+            # drain is running, and stop it where inline drains alone are
+            # wanted.
+            application.state.outbox_monitor = monitor
+
+        # Replay what a previous run left in any hosted actor's inbox queue;
+        # nothing else would until that actor's next delivery (IE-06-006).
+        startup_replay = (
+            start_startup_inbox_replay(application.state.emitter)
+            if configure_globals
+            else None
+        )
+
+        yield {SHUTDOWN_STATE_KEY: ledger_stream_shutdown}
+
+        ledger_stream_shutdown.set()
+        undo_shutdown_hook()
+        await finish_startup_inbox_replay(startup_replay)
+
+        if monitor is not None:
+            monitor.stop()
+            application.state.outbox_monitor = None
+        # Clear the per-app emitter reference so it cannot leak between
+        # TestClient lifetimes on the same app singleton.
+        if configure_globals:
+            application.state.emitter = None
+            # configure_logging() pinned third-party logger levels globally;
+            # undo it so a TestClient lifetime does not reconfigure logging
+            # for everything that runs after it.
+            restore_third_party_log_levels()
+
+        if not configure_globals:
+            _teardown_per_app_state(application)
+
+    return _lifespan
+
+
+tags_metadata = [
+    {
+        "name": "Examples",
+        "description": """Vocabulary showcase endpoints. Each object type has a GET endpoint
+that returns a sample instance and a POST endpoint that validates a submitted
+object through the Pydantic model.
+
+- `GET` to see a sample object.
+- `POST` an object to run it through the pydantic model validation.
+""",
+    },
+    {
+        "name": "Actors",
+        "description": """Actors are the entities that participate in Vultron activities.
+They can be individuals, organizations, or software agents.
+Each Actor has an inbox where they receive activities and messages.
+
+In a full implementation, Actors would also have outboxes for sending activities, but
+for this prototype, we focus on inboxes since most Vultron interactions are done via direct
+messages to an Actor's inbox.
+""",
+    },
+]
+
+app_v2 = FastAPI(
+    title="Vultron API v2",
+    version="0.2.0",
+    docs_url="/docs",
+    openapi_url="/openapi/v2.json",
+    openapi_tags=tags_metadata,
+    lifespan=_make_lifespan(configure_globals=True),
+)
+
+
+def create_app(
+    title: str = "Vultron API v2",
+    version: str = "0.2.0",
+    docs_url: str | None = "/docs",
+    openapi_url: str | None = "/openapi/v2.json",
+    node_base_url: str | None = None,
+) -> FastAPI:
+    """Factory that creates a fresh, isolated FastAPI application instance.
+
+    Each call produces an independent application with its own lifespan
+    context.  During startup the lifespan automatically:
+
+    - Creates a per-app inbox dispatcher (stored on ``app.state.dispatcher``)
+      so that multiple ``create_app()`` instances in the same process never
+      share the module-level ``_DISPATCHER_SLOT`` (issue #534).
+    - Injects per-actor in-memory ``SqliteDataLayer`` instances via
+      ``app.dependency_overrides[get_actor_dl]`` when no override has already
+      been registered.  Each app gets its own *named* in-memory deployment, so
+      instances never share storage (issue #534), and within an app each actor
+      gets its own store (ADR-0073, CM-01-001).
+
+    If you need specific DataLayers (e.g. file-backed SQLite, or test-fixture
+    instances), register the override *before* the lifespan starts (i.e. before
+    calling ``TestClient.__enter__()``).  The override receives the requested
+    ``actor_id`` path segment, so it must return that actor's store:
+
+    .. code-block:: python
+
+        app = create_app(docs_url=None, openapi_url=None)
+        app.dependency_overrides[get_actor_dl] = (
+            lambda actor_id: my_dls[canonical_actor_uri(actor_id)]
+        )
+        with TestClient(app) as client:
+            ...
+
+    Args:
+        title: OpenAPI title.
+        version: OpenAPI version string.
+        docs_url: URL for the Swagger UI (``None`` to disable).
+        openapi_url: URL for the OpenAPI schema (``None`` to disable).
+        node_base_url: Base URL at which *this* app is reached, used to resolve
+            actor path segments to canonical URIs.  Leave ``None`` to use
+            ``ServerConfig.base_url``, which is correct whenever one process is
+            one node.  Set it when several apps run in one process and each must
+            resolve segments into its own namespace — otherwise an actor created
+            under one app's base URL is looked up under another's and reported
+            missing.  See ``deps.node_base_url``.
+
+    Returns:
+        A new :class:`FastAPI` instance with the Vultron router included.
+    """
+    application = FastAPI(
+        title=title,
+        version=version,
+        docs_url=docs_url,
+        openapi_url=openapi_url,
+        lifespan=_make_lifespan(configure_globals=False),
+    )
+    application.state.node_base_url = node_base_url
+    if get_config().mode == RunMode.PROTOTYPE:
+        application.include_router(demo_triggers.router, prefix="/api/v2")
+    application.include_router(router, prefix="/api/v2")
+    return application
+
+
+# The demo router module is always imported, but its endpoints are mounted
+# only in prototype mode, so they never appear in production deployments (TRIG-09-002, TRIG-09-003).
+if get_config().mode == RunMode.PROTOTYPE:
+    app_v2.include_router(demo_triggers.router)
+app_v2.include_router(router)

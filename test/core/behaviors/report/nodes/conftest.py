@@ -1,0 +1,104 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+Fixtures for test/core/behaviors/report/nodes tests.
+
+Imports VulnerabilityCase (and related wire-layer types) as a side effect so
+that the global vocabulary registry is populated before any test in this
+package runs.
+"""
+
+import pytest
+
+from test.core.behaviors.bt_harness import BTTestScenario
+from vultron.core.models.activity import VultronOffer
+from vultron.core.models.actor import VultronService
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+
+# imported for vocabulary registration side-effect
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
+    as_VulnerabilityCase as _WireVulnerabilityCase,
+)
+
+
+@pytest.fixture
+def actor(bt_scenario: BTTestScenario) -> VultronService:
+    """Create a test actor and persist it in the scenario DataLayer."""
+    obj = VultronService(
+        id_="https://example.org/actors/vendor",
+        name="Vendor Co",
+    )
+    bt_scenario.dl.create(obj)
+    return obj
+
+
+@pytest.fixture
+def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
+    """Create a test report and persist it in the scenario DataLayer."""
+    obj = VulnerabilityReport(
+        name="TEST-001",
+        content="Test vulnerability report",
+    )
+    bt_scenario.dl.create(obj)
+    return obj
+
+
+@pytest.fixture
+def report_case_link(
+    bt_scenario: BTTestScenario,
+    report: VulnerabilityReport,
+) -> VultronReportCaseLink:
+    """Create a VultronReportCaseLink at RM.RECEIVED for the test report."""
+    obj = VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    bt_scenario.dl.create(obj)
+    return obj
+
+
+@pytest.fixture
+def offer(
+    bt_scenario: BTTestScenario,
+    report: VulnerabilityReport,
+    actor: VultronService,
+) -> VultronOffer:
+    """Create a test offer and persist it in the scenario DataLayer."""
+    obj = VultronOffer(actor=actor.id_, object_=report.id_)
+    bt_scenario.dl.create(obj)
+    return obj
+
+
+@pytest.fixture
+def case(
+    bt_scenario: BTTestScenario,
+    report: VulnerabilityReport,
+    actor: VultronService,
+) -> VulnerabilityCase:
+    """Create a participant-less VulnerabilityCase linked to the test report.
+
+    Deliberately has no ``CaseParticipant``: this is the "case replica arrived
+    dehydrated" shape that ISSUE-2548's negative tests exercise.  Tests that
+    need a case the actor can actually transition in use
+    :func:`case_with_participant`.
+    """
+    obj = VulnerabilityCase(
+        name="Test Case for TEST-001",
+        vulnerability_reports=[report.id_],
+        attributed_to=actor.id_,
+    )
+    bt_scenario.dl.create(obj)
+    return obj

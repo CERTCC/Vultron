@@ -2,6 +2,7 @@
 """
 Provides fix development behaviors
 """
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -22,7 +23,6 @@ from vultron.bt.messaging.outbound.behaviors import EmitCF
 from vultron.bt.report_management.conditions import RMinStateAccepted
 from vultron.bt.report_management.fuzzer.develop_fix import CreateFix
 from vultron.bt.roles.conditions import RoleIsNotVendor
-
 
 _CreateFixForAcceptedReports = sequence_node(
     "_CreateFixForAcceptedReports",

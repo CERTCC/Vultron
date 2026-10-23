@@ -4,8 +4,18 @@ config:
   "MDOO4":
     style: "dash"
   # 013 Line length
-  # Disabled because we have a lot of long lines. We should fix this eventually.
-  "MD013": false
+  # 88 characters outside docs/ (AGENTS.md § Markdown Formatting, PD-10-001);
+  # tables and code blocks are exempt, and a line whose overflow is one
+  # unbreakable token (a URL) passes because `strict` stays false. The limit is
+  # vultron.metadata.line_length.LINE_LIMIT; test_line_length.py pins the two.
+  # Turned off again, by a nested .markdownlint-cli2.yaml, in docs/ (one
+  # sentence per line, no limit, SG-38) and in the archives plan/history/
+  # (append-only, HM-01-005), plan/retired-specs/ (retired text kept as it was,
+  # MS-09-005) and archived_notes/.
+  "MD013":
+    line_length: 88
+    code_blocks: false
+    tables: false
   # 033 Inline HTML
   # Disabled because we use inline HTML (<br/> in table cells for example)
   "MD033": false
@@ -23,7 +33,36 @@ config:
   # Force asterisk style for strong
   "MD050":
     style: "asterisk"
+  # 024 No duplicate headings
+  # Allow duplicate headings as long as they don't share the same parent section
+  "MD024":
+    siblings_only: true
+  # 025 Single title / single H1
+  # Disable front_matter_title so that YAML frontmatter 'title:' does not
+  # count as an H1, allowing both frontmatter title and a body # heading.
+  "MD025":
+    front_matter_title: ""
   # 051 Link fragments should be valid
   # Disabled because conversion from TeX to markdown produces invalid links
   # We might eventually be able to re-enable this one.
   "MD051": false
+  # 055 Table pipe style
+  # Force leading and trailing pipes. vultron/metadata/markdown_tables.py — the
+  # reader behind the notes/ scenario-table ratchets — requires both outer pipes
+  # to tell a table row from a prose line that happens to contain a pipe. Pinning
+  # the style here makes that narrowing enforced rather than assumed: a table
+  # written without outer pipes fails lint instead of parsing wrong.
+  "MD055":
+    style: "leading_and_trailing"
+  # 060 - Table column style
+  "MD060": false
+ignores:
+  - "wip_notes/**"
+  - "wip_outputs/**"
+  # Generated knowledge-graph output; git-ignored, but markdownlint globs it anyway
+  - "graphify-out/**"
+  # Any node_modules, including ui/node_modules after `npm ci` in ui/
+  - "**/node_modules/**"
+  - ".github/**"
+  - ".venv/**"
+  - ".git/**"

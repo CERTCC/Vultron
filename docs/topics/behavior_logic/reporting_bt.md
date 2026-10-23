@@ -1,4 +1,18 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Reporting Behavior
+
+## Related Requirements
+
+This tree covers the report-sending (initiator) side of the RM process.
+Behavioral requirements for receiving RM messages are specified in the
+[Protocol Specifications](../../reference/specs/protocol.md):
+
+- [RMB-01](../../reference/specs/protocol.md#rmb-01) — Receive RS (Report Submission) — what the recipient does when this tree sends a report
+
+See the full [RMB](../../reference/specs/protocol.md#rmb) section for all RM behavioral requirements.
 
 The [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}
 describes the reporting phase as the process of identifying parties that need to be informed about the vulnerability
@@ -7,6 +21,13 @@ Reporting only works if the intended recipient has the ability to receive report
 our introduction of the [RM *Received* state](../process_models/rm/index.md#the-received-r-state).
 
 The Reporting Behavior Tree is shown in the figure below.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 ```mermaid
 ---

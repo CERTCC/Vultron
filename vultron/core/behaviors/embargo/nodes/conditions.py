@@ -1,0 +1,345 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Condition nodes for case, embargo, and participant validation."""
+
+from py_trees.common import Status
+
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+    PortInformation,
+)
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.states.em import EM, EM_EMBARGO_ACTIVE
+from vultron.errors import VultronInvalidStateTransitionError
+
+
+class ValidateCaseExistsNode(DataLayerConditionWithPorts):
+    """Check that the target case exists in the DataLayer.
+
+    Returns SUCCESS if the case is found and is a ``VulnerabilityCase``.
+    Returns FAILURE otherwise, halting the parent Sequence.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        _case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        return Status.SUCCESS
+
+
+class IsActiveEmbargoNode(DataLayerConditionWithPorts):
+    """Check that the given embargo is the active embargo on the case.
+
+    Returns SUCCESS if ``case.active_embargo`` resolves to ``embargo_id``.
+    Returns FAILURE if the embargo is not active (e.g. it was only proposed),
+    halting the parent Sequence so the teardown path is skipped.
+    """
+
+    def __init__(self, case_id: str, embargo_id: str, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        active = case.active_embargo
+        active_id = (
+            active if isinstance(active, str) else getattr(active, "id_", None)
+        )
+        if active_id != self.embargo_id:
+            self.feedback_message = (
+                f"Embargo '{self.embargo_id}' is not the active embargo"
+                f" on case '{self.case_id}'"
+            )
+            return Status.FAILURE
+
+        return Status.SUCCESS
+
+
+class IsAnswerableEmbargoNode(DataLayerConditionWithPorts):
+    """Guard that an answer names an embargo the case can still answer.
+
+    SUCCESS when ``embargo_id`` is the case's active embargo or one of its
+    open proposals — the two embargoes an ``Accept`` or a ``Reject`` of an
+    embargo Invite may name (MSM-07-003, MSM-07-004).  For a Reject,
+    ``RejectIsNotWithdrawalNode`` refuses the one reading of the first that
+    would withdraw (MSM-07-010).  FAILURE otherwise: an answer to a proposal
+    already decided, to terms the case replaced or ended, or to an embargo
+    the case never knew has nothing to change, since a row for an entry in a
+    final register status accepts no trigger (CM-18-003).  Read-only, so it
+    sits ahead of the guarded commit (CLP-10-009): an answer the effects
+    would refuse is never committed, and no replica is sent an entry it
+    cannot replay (SYNC-12-001).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        embargo_id: str,
+        *,
+        accept: bool,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.embargo_id = embargo_id
+        self.accept = accept
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        if (
+            self.embargo_id == case.active_embargo_id
+            or self.embargo_id in case.proposed_embargo_ids
+        ):
+            return Status.SUCCESS
+        verb = "accept" if self.accept else "reject"
+        self.feedback_message = (
+            f"Embargo '{self.embargo_id}' is neither the active embargo nor"
+            f" an open proposal of case '{self.case_id}': nothing to {verb}"
+            " (CM-18-003)"
+        )
+        self.logger.warning("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class LookupParticipantNode(DataLayerConditionWithPorts):
+    """Resolve participant from case and actor_id.
+
+    Looks up the actor in case.actor_participant_index and reads the
+    participant record. Stores the participant record on the blackboard
+    under the 'participant' key for downstream nodes to use.
+
+    Returns SUCCESS if participant is found, FAILURE otherwise.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "participant": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"participant": "/participant"}
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        actor_id = self.actor_id
+        if actor_id is None:
+            self.feedback_message = "actor_id not found in blackboard"
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        participant_id = case.actor_participant_index.get(actor_id)
+        if not participant_id:
+            self.feedback_message = (
+                f"No participant found for actor '{actor_id}'"
+                f" on case '{self.case_id}'"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        participant = self.datalayer.read(participant_id)
+        if not isinstance(participant, CaseParticipant):
+            self.feedback_message = (
+                f"Participant '{participant_id}' not found or invalid"
+            )
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        self._set_output("participant", participant)
+        self.feedback_message = (
+            f"Resolved participant '{participant_id}' for actor"
+            f" '{actor_id}' on case '{self.case_id}'"
+        )
+        self.logger.info("%s: %s", self.name, self.feedback_message)
+        return Status.SUCCESS
+
+
+class HasActiveEmbargoNode(DataLayerConditionWithPorts):
+    """Guard that the case has an active embargo set.
+
+    Returns SUCCESS when ``case.active_embargo`` is non-None.
+    Returns FAILURE (writing ``VultronInvalidStateTransitionError`` into
+    ``result_out``) when there is no active embargo, halting the parent
+    Sequence before any state mutation occurs.
+
+    Used as the first precondition child in ``terminate_embargo_bt`` so that
+    the "no active embargo" state-transition error is produced by a named BT
+    node rather than inline use-case guard code (LST-05 / AC-5).
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        active = case.active_embargo
+        active_id = (
+            active if isinstance(active, str) else getattr(active, "id_", None)
+        )
+        if active_id is None:
+            error = VultronInvalidStateTransitionError(
+                f"Case '{self.case_id}' has no active embargo to terminate."
+            )
+            self._result_out["error"] = error
+            self.feedback_message = str(error)
+            self.logger.warning("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
+
+        return Status.SUCCESS
+
+
+class IsCloseBlockedByActiveEmbargoNode(DataLayerConditionWithPorts):
+    """Guard: an owner's close must be declined because an embargo is live.
+
+    Returns SUCCESS when the case has an active embargo (``active_embargo`` is
+    non-None) AND the EM state is ``EM.ACTIVE`` or ``EM.REVISE`` — the
+    CM-23-011 condition under which the Case Actor declines an owner
+    ``Leave(VulnerabilityCase)`` with an ``as:Reject`` instead of running the
+    CM-23-002 closure sequence.  Returns FAILURE otherwise, so the parent
+    Selector falls through to the normal closure effects.
+
+    Reads the EM state from ``result_out["em_before"]`` populated by an
+    upstream :class:`~vultron.core.behaviors.embargo.nodes.em_state
+    .ReadEmStateNode` (AC-1: EM-state reads go through ``Read*StateNode``),
+    and tests it against the canonical ``EM_EMBARGO_ACTIVE`` set.
+    ``active_embargo`` is a direct case-object reference, not an EM/RM/CS state
+    read, so it is read here directly via ``case.active_embargo_id``.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self.case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        active_id = case.active_embargo_id
+        em_before = self._result_out.get("em_before")
+        if active_id is not None and em_before in EM_EMBARGO_ACTIVE:
+            self.feedback_message = (
+                f"Case '{self.case_id}' has an active embargo"
+                f" (em_state={em_before}); owner close declined (CM-23-011)"
+            )
+            self.logger.info("%s: %s", self.name, self.feedback_message)
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Case '{self.case_id}' close is not embargo-blocked"
+            f" (active_embargo={active_id!r}, em_state={em_before})"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class IsProposedEmbargoNode(DataLayerConditionWithPorts):
+    """Check that the case EM state is PROPOSED.
+
+    Returns SUCCESS when the EM state is ``EM.PROPOSED``. Returns FAILURE for
+    any other EM state (including ACTIVE, REVISE, NONE, EXITED), halting the
+    parent Sequence so the proposed-embargo arm is skipped.
+
+    Reads the EM state from ``result_out["em_before"]`` populated by an upstream
+    :class:`~vultron.core.behaviors.embargo.nodes.em_state.ReadEmStateNode`
+    (AC-1: EM-state reads go through ``Read*StateNode``, never inline). Returns
+    FAILURE when ``em_before`` is absent (e.g. the read node found no
+    materialized CaseStatus and failed upstream).
+
+    Analogous to :class:`IsActiveEmbargoNode` but for the PROPOSED state.
+    """
+
+    def __init__(
+        self,
+        case_id: str,
+        result_out: dict[str, object],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self._result_out = result_out
+
+    def update(self) -> Status:
+        em_before = self._result_out.get("em_before")
+        if em_before == EM.PROPOSED:
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Case '{self.case_id}' EM state is '{em_before}', not PROPOSED"
+        )
+        return Status.FAILURE

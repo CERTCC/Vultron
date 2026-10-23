@@ -1,0 +1,118 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""The join-time ledger backfill: its sync port and what it sends."""
+
+import pytest
+from py_trees.common import Status
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
+    BackfillCanonicalLedgerToInviteeNode,
+)
+
+CASE_MANAGER_ID = "https://example.org/actors/case-manager"
+CASE_ID = "https://example.org/cases/backfill-wiring"
+INVITEE_ID = "https://example.org/actors/invitee"
+
+
+@pytest.mark.spec("SYNC-02-003")
+@pytest.mark.spec("BT-14-001")
+def test_backfill_without_a_sync_port_is_a_wiring_fault():
+    """The same wiring-fault type the fan-out raises, not a soft FAILURE."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=CASE_MANAGER_ID)
+    bridge = BTBridge(datalayer=dl, wire_render_port=As2WireRenderAdapter())
+
+    result = bridge.execute_with_setup(
+        tree=BackfillCanonicalLedgerToInviteeNode(
+            case_id=CASE_ID, invitee_id=INVITEE_ID
+        ),
+        actor_id=CASE_MANAGER_ID,
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "sync_port" in result.feedback_message
+    assert dl.outbox_list() == []
+
+
+def _backfill(bridge, invitee_id: str, sync_port):
+    from test.core.behaviors.sync.nodes._embargo_gate_support import (
+        MANAGER_ID,
+    )
+    from test.core.behaviors.sync.nodes.conftest import CASE_ID as GATE_CASE
+
+    return bridge.execute_with_setup(
+        tree=BackfillCanonicalLedgerToInviteeNode(
+            case_id=GATE_CASE, invitee_id=invitee_id
+        ),
+        actor_id=MANAGER_ID,
+        sync_port=sync_port,
+    )
+
+
+@pytest.mark.spec("CM-17-004")
+@pytest.mark.spec("CLP-07-015")
+def test_backfill_sends_the_whole_ledger_in_order_and_keeps_no_state():
+    """An inert joiner gets every entry, its Accept's own included.
+
+    The Accept entry's fan-out skipped the invitee while it was inert, so the
+    backfill sends the ledger as it stands, in log order.  It writes no
+    replication state: the backfill commits with its Accept (CLP-07-015),
+    and the duplicate test reads the participant record (CM-17-012).
+    """
+    from unittest.mock import MagicMock
+
+    from test.core.behaviors.sync.nodes._embargo_gate_support import (
+        manager_datalayer,
+        seed_ledger,
+        sends,
+    )
+    from vultron.core.ports.sync_activity import SyncActivityPort
+
+    dl = manager_datalayer()
+    bridge = BTBridge(datalayer=dl)
+    seed_ledger(dl, 3)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = _backfill(bridge, INVITEE_ID, sync_port)
+
+    assert result.status == Status.SUCCESS
+    assert sends(sync_port) == [
+        (0, [INVITEE_ID]),
+        (1, [INVITEE_ID]),
+        (2, [INVITEE_ID]),
+    ]
+    assert dl.list_objects("ReplicationState") == []
+
+
+@pytest.mark.spec("CLP-07-015")
+def test_backfill_of_an_empty_ledger_sends_nothing():
+    from unittest.mock import MagicMock
+
+    from test.core.behaviors.sync.nodes._embargo_gate_support import (
+        manager_datalayer,
+    )
+    from vultron.core.ports.sync_activity import SyncActivityPort
+
+    dl = manager_datalayer()
+    bridge = BTBridge(datalayer=dl)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = _backfill(bridge, INVITEE_ID, sync_port)
+
+    assert result.status == Status.SUCCESS
+    sync_port.send_announce_log_entry.assert_not_called()
+    assert dl.list_objects("ReplicationState") == []

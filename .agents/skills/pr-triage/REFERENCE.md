@@ -1,0 +1,368 @@
+# PR Triage — Reference
+
+Detailed criteria for each triage phase, the artifact schema, and the comment
+format. Referenced from SKILL.md.
+
+---
+
+## Spec Conformance Criteria
+
+When checking changed code against loaded specs, focus on the spec IDs most
+relevant to the changed file paths:
+
+| Changed path prefix | Primary specs to load |
+|---|---|
+| `vultron/wire/as2/` | `architecture.yaml` (ARCH-14), `code-style.yaml` (CS-08) |
+| `vultron/core/behaviors/` | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml` |
+| `vultron/core/use_cases/` | `behavior-tree-integration.yaml` (BT-06, BT-15), `inbox-orchestration.yaml` |
+| `vultron/core/models/` | `architecture.yaml` (ARCH-10, ARCH-12), `code-style.yaml` (CS-20) |
+| `vultron/adapters/` | `outbox.yaml`, `architecture.yaml` (ARCH-14) |
+| `vultron/demo/` | `behavior-tree-integration.yaml` (BT demo patterns) |
+| `docs/`, `notes/`, `specs/` | `project-documentation.yaml` |
+| `plan/history/` | `history-management.yaml` (HM-01–HM-05) |
+
+For each spec ID mentioned in the linked issue or PR body, confirm the
+corresponding requirement is met in the diff.
+
+---
+
+## AGENTS.md Rule Checklist
+
+Check the diff for violations of these non-negotiable rules. Emit **FAIL** for
+confirmed violations.
+
+### Naming
+
+- [ ] Domain class names use CVD-domain vocabulary, not wire-format parallels
+- [ ] `vul` (not `vuln`) as the abbreviation for vulnerability
+- [ ] Wire layer classes in `vultron/wire/as2/vocab/objects/` use `as_` prefix
+- [ ] Core domain classes do NOT use `as_` prefix
+- [ ] Use-case classes follow Received/Svc/\_trigger naming conventions
+
+### Type Safety and Validation
+
+- [ ] No `Optional[str]` fields that accept empty strings — use `NonEmptyString`
+  or `OptionalNonEmptyString`, or add a validator
+- [ ] No new `Any` usages without justification
+- [ ] Pydantic v2 style (`model_validator`, `field_validator`) throughout
+- [ ] Fail-fast domain objects: required fields not typed as `X | None`
+  in concrete subclasses (ARCH-10-001)
+- [ ] Protocol fields stay in sync with concrete implementations (CS-20-001)
+- [ ] `TypeGuard` discriminators use only Protocol-declared fields (CS-20-002)
+
+### BT Integration (if `behaviors/` or `use_cases/` changed)
+
+- [ ] BT nodes do NOT call use-case classes from `update()` (no BT→UC→BT chain)
+- [ ] BT nodes do NOT import from use-case modules
+- [ ] `update()` stays under ~20–30 lines; large nodes decomposed into subtrees
+- [ ] Protocol-significant behavior lives in BT leaf nodes, not in `execute()`
+- [ ] `execute()` does NOT call `dl.save()` / `dl.create()` / `dl.update()` directly
+- [ ] Received-side BTs commit the triggering activity BEFORE applying protocol effects
+- [ ] Guarded-commit BTs are role-gated (CaseActor identity check before commit)
+- [ ] No new `CommitCaseLedgerEntryNode` calls bypassing `BTBridge`
+
+### ActivityStreams / Wire Layer (if `wire/as2/` changed)
+
+- [ ] `SEMANTIC_REGISTRY`: specific patterns ordered before general ones
+- [ ] `rehydrate()` called before pattern matching
+- [ ] Outbound activities use factory functions in `vultron.wire.as2.factories`
+- [ ] `as_VulnerabilityCase` (wire) vs `VulnerabilityCase` (core) — correct prefix in
+      each layer
+
+### Use Cases (if `use_cases/` changed)
+
+- [ ] Received-side use cases do NOT spoof another actor's identity
+- [ ] Trigger-side `execute()` delegates SM transitions to `BTBridge`, not inline
+- [ ] No roster-wide recipient list on the participant sender side; a
+  participant sends to the CASE_MANAGER alone (PCR-08-001/02)
+
+### Adapters (if `adapters/` changed)
+
+- [ ] Stub adapter files raise `NotImplementedError`, not silent no-op
+- [ ] `create_app()` does NOT mutate module-level singletons
+- [ ] Actor IDs are full URIs
+
+### Module Organization
+
+- [ ] No flat `nodes.py` in BT areas (must use `nodes/` subpackage)
+- [ ] New submodules after a split stay under 500 lines
+- [ ] Subpackage `__init__.py` re-exports all public names (including request models)
+
+---
+
+## ADR Check Criteria
+
+Architectural signals that warrant an ADR (per `notes/specs-vs-adrs.md`
+MS-11-001–MS-11-006):
+
+- Introducing a new layer or cross-layer dependency direction
+- Changing the public API or persistence schema
+- Adding a new adapter type (driving or driven)
+- Changing how BT execution is orchestrated (e.g., concurrency model)
+- Adopting a new protocol pattern with broad reuse implications
+- Reversing or superseding a previous architectural decision
+
+**Check procedure:**
+
+1. `gh pr diff <number> -- docs/adr/` — did the PR add or modify an ADR?
+2. `cat docs/adr/index.md` — does an existing ADR cover the area changed?
+3. If the PR's approach contradicts an existing ADR without a new ADR: **FAIL**.
+4. If the change has architectural signals but no ADR: **IMPROVE** with a
+   suggested title for the ADR.
+
+---
+
+## Notes and Docs Currency Criteria
+
+### Domain-to-notes-and-docs mapping
+
+A starting point, not an exhaustive list: also grep `docs/` for the names of
+changed classes, functions, messages, and CLI commands.
+
+| Changed domain | Potentially relevant notes files | Potentially relevant `docs/` pages |
+|---|---|---|
+| `wire/as2/` | `activitystreams-semantics.md`, `vocabulary-registry.md` | `docs/reference/messages/`, `docs/reference/activitypub/objects.md`, `docs/topics/activity_vocabulary_design.md`, `docs/topics/message_semantics.md` |
+| `core/behaviors/` | `bt-integration.md` | `docs/reference/behaviors/`, `docs/topics/behavior_logic/` |
+| `core/use_cases/` | `bt-integration.md`, `event-driven-control-flow.md` | `docs/reference/trigger-api.md`, `docs/reference/behaviors/` |
+| `core/models/case` | `case-state-model.md`, `case-communication-model.md` | `docs/reference/case_model_fields.md`, `docs/howto/case_object.md`, `docs/topics/case_lifecycle/` |
+| `core/states/` | `case-state-model.md` | `docs/topics/process_models/`, `docs/reference/case_states/` |
+| `adapters/` | `architecture-adapters.md`, `architecture-hexagonal.md` | `docs/topics/reference_architecture.md`, `docs/reference/codebase/` |
+| `core/ports/` | `architecture-hexagonal.md` | `docs/topics/reference_architecture.md`, `docs/reference/codebase/ARCHITECTURE.md` |
+| Embargo logic | `participant-embargo-consent.md`, `embargo-lifecycle.md` | `docs/topics/process_models/em/`, `docs/reference/messages/em.md` |
+| Case ledger | `case-ledger-authority.md` | `docs/topics/case_lifecycle/case_manager_and_ledger.md`, `docs/topics/case_lifecycle/case_ledger_sync.md`, `docs/reference/messages/ledger_replication.md` |
+| Inbox processing | `inbox-orchestration.md` | `docs/topics/protocol_flow.md`, `docs/topics/reference_architecture.md` |
+| Participant routing | `case-communication-model.md` | `docs/topics/protocol_flow.md`, `docs/topics/actor-knowledge-model.md` |
+| `demo/` | `demo-scenario-authoring.md` | `docs/tutorials/` demo pages, `docs/howto/demos/`, `docs/reference/rv-demo-protocol.md` |
+| Dev tooling, `metadata/`, `.agents/skills/` | — | `docs/developer/` (draft docs) |
+
+Spec pages under `docs/reference/specs/`, the mkdocstrings `:::` API pages,
+and `docs/reference/examples/*.json` regenerate at build time. A change whose
+only described surface is one of these has no docs impact.
+
+### Check procedure
+
+1. Identify relevant notes from the table above.
+2. For each relevant note: was it modified in the PR diff? If not: **IMPROVE**.
+3. For each `notes/*.md` file **modified** in the PR: validate frontmatter.
+4. If any modified note has `status: superseded`, flag that it should have
+   been moved to `archived_notes/` instead of edited.
+5. If `docs/` was modified: confirm `uv run mkdocs build --strict` passed
+   (check CI or note it as pending).
+
+### Docs currency procedure (PD-03-009)
+
+Runs for every implementation or bug-fix PR (scope defined in
+`.agents/skills/shared/pr-body-guide.md` § "Implementation PR rules"), with
+**no** "if `docs/` was modified" precondition.
+
+1. From the diff and the table above, list the `docs/` pages that describe
+   the changed behavior, interfaces, or architecture (`check-docs-sync` Q1).
+   For each, state what would need to change (Q2). Read each candidate page;
+   a page that only mentions a name without describing the changed behavior
+   is not affected.
+2. Read the PR body's `Docs:` line and compare:
+
+   | `Docs:` line | Your determination | Finding |
+   |---|---|---|
+   | Missing, or `pending check-docs-sync` | any | **FAIL** |
+   | `updated <pages>` | every affected page is listed and changed in the diff | none |
+   | `updated <pages>` | an affected page is neither listed nor deferred | **IMPROVE** |
+   | `updated <pages>` | a listed page is not changed in the diff | **IMPROVE** — the line claims an update the diff lacks |
+   | `no docs impact — <reason>` | no affected page | none |
+   | `no docs impact — <reason>` | an affected page | **IMPROVE** |
+   | `deferred to #N` | `#N` exists (open, or closed as planned), is a `type:Concern` listing the pages, and the update rewrites several pages (PD-03-007) | none |
+   | `deferred to #N` | `#N` does not exist, is not a Concern, does not list the pages, or the update is a single-page edit | **IMPROVE** |
+   | `updated <pages>; deferred to #N` | judge each half by the rows above | the worse of the two |
+
+3. Verify a deferral with
+   `gh issue view <N> --json state,stateReason,body` and the issue type query
+   in `.agents/skills/shared/query-issue-type.sh`. A closed issue passes only
+   with `stateReason: COMPLETED`; `NOT_PLANNED` fails.
+4. Name each affected page in the finding's `description`, so `pr-execute` can
+   update it without re-running discovery.
+
+---
+
+## Integration Test Detection
+
+Emit a finding (captured as `needs_integration_tests: true` in `pr_metadata`)
+if the PR modifies any of:
+
+- `vultron/demo/` — any demo script or orchestration file
+- `integration_tests/` — any integration test file
+- `vultron/adapters/` — driving or driven adapters
+- `vultron/core/behaviors/` — behavior tree logic
+- `vultron/core/use_cases/` — use-case implementations
+- `vultron/wire/as2/extractor/` — semantic extraction (a package)
+
+The flag is informational. `pr-execute`'s local gate comes from
+`targeted-tests`, which gates these paths by their importers and leaves the
+rest to CI (PAD-18-003, ADR-0143), so execute does not read the flag to
+choose its test scope.
+
+---
+
+## Merge State Findings
+
+`mergeable` and `merge_state_status` come from `merge-state.sh` (which wraps
+`gh pr view --json mergeable,mergeStateStatus`). They are computed independently
+by GitHub, so check both.
+
+| `mergeable` | Meaning | Severity |
+|---|---|---|
+| `MERGEABLE` | No conflicts with base | none |
+| `CONFLICTING` | Merge conflicts present | **FAIL** |
+| `UNKNOWN` | GitHub has not finished computing (or the PR is closed) | **FAIL** — cannot be treated as clean |
+
+| `merge_state_status` | Meaning | Severity |
+|---|---|---|
+| `CLEAN` | Mergeable, checks green | none |
+| `UNSTABLE` | Mergeable, but a non-required check is failing/pending | none — Phase 11 owns CI |
+| `BEHIND` | Base advanced; a ruleset requires up-to-date branches (none does today, ADR-0126) | **IMPROVE** (`fix-now`: execute clears it with `gh pr update-branch`, PAD-18-004) |
+| `DIRTY` | Conflicts — authoritative even if `mergeable` says otherwise | **FAIL** |
+| `BLOCKED` | Missing required review or failing required check | **IMPROVE** (note the cause; not fixable by execute) |
+| `DRAFT` | PR is a draft and cannot merge | **IMPROVE** |
+| `HAS_HOOKS` | Mergeable with pre-receive hooks | none |
+| `UNKNOWN` | Not yet computed | **FAIL** |
+
+### Why merge conflicts are always FAIL
+
+A conflict means the PR cannot be merged at all — it is the most complete form
+of "broken" in the FAIL/IMPROVE/NEW-ISSUE taxonomy. Resolving it is never out of
+scope and never a separate issue: only the conflicted branch can be fixed, and
+only by whoever holds it. Do not tag a conflict `defer-ask` or
+`inversion-halt`.
+
+### Stacked PRs
+
+`base_ref` is not always `main`. When a PR targets another task branch, all
+sync operations in execute must use that base — see `sync-with-main.sh`, which
+takes the base branch as its first argument, `git merge-tree --write-tree HEAD
+origin/<base_ref>` for the conflict check, and `targeted-tests --base
+origin/<base_ref>` for the overlap record and the targeted set.
+
+---
+
+## Triage Artifact Schema
+
+File: `.claude/pr-{number}-triage.json`
+
+```json
+{
+  "schema_version": "1.0",
+  "pr_number": 1234,
+  "timestamp": "2026-01-01T00:00:00Z",
+  "pr_metadata": {
+    "title": "...",
+    "head_ref": "task/1234-slug",
+    "head_sha": "0123abc",
+    "base_ref": "main",
+    "linked_issues": [100, 101],
+    "changed_files": ["vultron/core/behaviors/foo.py"],
+    "ci_status": "failing",
+    "domains": ["core/behaviors"],
+    "needs_integration_tests": true,
+    "mergeable": "CONFLICTING",
+    "merge_state_status": "DIRTY",
+    "is_draft": false,
+    "review_mode": "full",
+    "prepush_artifact": null,
+    "delta_files": [],
+    "reviewed_base_sha": null,
+    "reviewed_head_sha": null,
+    "affected_docs_pages": []
+  },
+  "findings": [
+    {
+      "id": "phase5-missing-nonemptystring-0",
+      "phase": 5,
+      "phase_name": "spec-conformance",
+      "severity": "FAIL",
+      "description": "Field `summary` typed as Optional[str] — must use OptionalNonEmptyString (CS-20-001)",
+      "decision_outcome": "fix-now",
+      "file": "vultron/core/models/case/case.py",
+      "line": 42,
+      "spec_ids": ["CS-20-001"],
+      "adr_refs": [],
+      "notes": null,
+      "resolution": null
+    }
+  ],
+  "triage_comment_url": "https://github.com/CERTCC/Vultron/pull/1234#issuecomment-..."
+}
+```
+
+### Review-Mode Fields
+
+`review_mode` is `pre-push`, `delta` or `full` (SKILL.md § "Modes"). A
+pre-push artifact has `pr_number: null`, fills `reviewed_base_sha` and
+`reviewed_head_sha`, and leaves `head_sha`, `ci_status` and the merge fields
+`null`. A delta artifact names its `prepush_artifact` path and the
+`delta_files` it reviewed. `affected_docs_pages` is Phase 9 step 5's
+determination: the pre-push run writes it, and the delta run adds the pages its
+delta affects before comparing the `Docs:` line.
+
+`resolution` is written by `build` into the pre-push artifact only, once per
+finding, before `create-pr` (PAD-07-003): `{"status": "fixed", "note": "<what
+changed, where>"}`, or `{"status": "filed-and-fixed", "note": "...", "issue":
+N}` for a `fix-now-file`, or `{"status": "held", "note": "<why>"}` when the PR
+opens as a draft held on it. It names no commit: `create-pr`'s cherry-pick
+gives every pre-push commit a new SHA, so the carry-forward check reads the
+fix on the PR head instead. The delta run's carry-forward check reads it.
+`pr-triage` itself always writes `null`.
+
+### Finding ID Rules
+
+- Format: `phase{N}-{kebab-description}-{index}`
+- Index is a zero-based integer suffix that guarantees uniqueness within the run
+- Description is a kebab-case slug of the finding (≤ 5 words)
+- Examples: `phase7-bt-node-imports-usecase-0`, `phase11-ci-ruff-fail-0`
+- Execute and verify use `finding_id` as the stable cross-artifact key
+
+### Decision Outcome Values
+
+| Value | When to use |
+|---|---|
+| `fix-now` | Anything the agent can just do that is not an "also" excursion — fixed inline, no issue filed (the diff is the record) |
+| `fix-now-file` | An "also" excursion, fixed now and filed so the PR closes it (replaces `fix-now-expand-scope`; size is not a constraint) |
+| `defer-ask` | Second-order work too big to finish now — execute files, presents a measured remainder, and asks; on silence, fixes it now (replaces `new-issue-ask`) |
+| `inversion-halt` | Work that inverts an issue/spec/ADR premise — execute explains and asks if/what to file; on silence, halts the PR |
+
+`new-issue-no-ask` is removed — silent deferral does not exist. See
+`.claude/skills/shared/completeness-doctrine.md` § "Filing Is Not Deferring" and
+"The Two Gates".
+
+---
+
+## Triage Comment Format
+
+```markdown
+## PR Triage: #<number> — <title>
+
+**Linked issues**: #N (<title>)
+**Changed files**: <count> files — <domains>
+**CI status**: ✅ passing / ❌ failing / ⏳ pending
+**Merge state**: ✅ mergeable (CLEAN) / ❌ CONFLICTING (DIRTY) / ⚠️ BEHIND / 📝 DRAFT / ⏳ UNKNOWN
+**Base branch**: <base_ref>
+**Needs integration tests**: yes / no
+
+---
+
+### Findings
+
+| # | Phase | Severity | Description | Outcome |
+|---|---|---|---|---|
+| phase5-missing-nonemptystring-0 | spec-conformance | ❌ FAIL | Field `summary` must use OptionalNonEmptyString | fix-now |
+| phase9-bt-integration-note-stale-0 | notes-currency | ⚠️ IMPROVE | `notes/bt-integration.md` not updated | fix-now |
+| phase8-unused-import-0 | code-review | ⚠️ IMPROVE | Unused import in `behaviors/foo.py:12` | fix-now |
+| phase12-merge-conflict-0 | merge-state | ❌ FAIL | Conflicts with `main` in 3 files | fix-now |
+
+**Total**: 2 FAIL · 2 IMPROVE · 0 NEW-ISSUE
+
+---
+
+*Triage artifact: `.claude/pr-<number>-triage.json`*
+*Next step: run `/pr-execute` or `/pr-ship` to apply fixes.*
+```
+
+Severity emoji: ❌ FAIL · ⚠️ IMPROVE · 🎫 NEW-ISSUE

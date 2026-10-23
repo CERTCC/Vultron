@@ -1,0 +1,293 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Tests for participant helper behavior."""
+
+import logging
+from typing import Any, cast
+
+import pytest
+
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import propose
+from vultron.core.behaviors.case.nodes import _create_and_attach_participant
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
+from vultron.enums.roles import CVDRole
+
+
+class TestCreateAndAttachParticipant:
+    """Unit tests for the shared _create_and_attach_participant helper."""
+
+    def test_creates_participant_in_datalayer(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        actor_id: str,
+    ) -> None:
+        participant = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        result = _create_and_attach_participant(
+            bt_scenario.dl,
+            participant,
+            case_obj.id_,
+            actor_id,
+            logging.getLogger("test"),
+        )
+        assert result is not None
+        assert bt_scenario.dl.read(participant.id_) is not None
+
+    def test_attaches_participant_to_case(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        actor_id: str,
+    ) -> None:
+        participant = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        result = _create_and_attach_participant(
+            bt_scenario.dl,
+            participant,
+            case_obj.id_,
+            actor_id,
+            logging.getLogger("test"),
+        )
+        assert result is not None
+        assert participant.id_ in result.case_participants
+
+    @pytest.mark.spec("CM-19-002")
+    def test_updates_actor_participant_index(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        actor_id: str,
+    ) -> None:
+        participant = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        result = _create_and_attach_participant(
+            bt_scenario.dl,
+            participant,
+            case_obj.id_,
+            actor_id,
+            logging.getLogger("test"),
+        )
+        assert result is not None
+        assert result.actor_participant_index.get(actor_id) == participant.id_
+
+    def test_returns_unsaved_case(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        actor_id: str,
+    ) -> None:
+        """The returned case is unsaved; the caller controls the final save."""
+        participant = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        result = _create_and_attach_participant(
+            bt_scenario.dl,
+            participant,
+            case_obj.id_,
+            actor_id,
+            logging.getLogger("test"),
+        )
+        assert result is not None
+        persisted = cast(Any, bt_scenario.dl.read(case_obj.id_))
+        assert participant.id_ not in persisted.case_participants
+
+    def test_idempotent_participant_creation(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        actor_id: str,
+    ) -> None:
+        """Calling twice does not create a duplicate participant."""
+        participant = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        node_logger = logging.getLogger("test")
+        _create_and_attach_participant(
+            bt_scenario.dl, participant, case_obj.id_, actor_id, node_logger
+        )
+        bt_scenario.dl.save(cast(Any, bt_scenario.dl.read(case_obj.id_)))
+
+        result2 = _create_and_attach_participant(
+            bt_scenario.dl, participant, case_obj.id_, actor_id, node_logger
+        )
+        assert result2 is not None
+        assert result2.case_participants.count(participant.id_) == 1
+
+    def test_returns_none_when_case_not_found(
+        self, bt_scenario: BTTestScenario, actor_id: str
+    ) -> None:
+        participant = CaseParticipant(
+            attributed_to=actor_id,
+            context="https://example.org/cases/missing",
+            case_roles=[CVDRole.VENDOR],
+        )
+        result = _create_and_attach_participant(
+            bt_scenario.dl,
+            participant,
+            "https://example.org/cases/missing",
+            actor_id,
+            logging.getLogger("test"),
+        )
+        assert result is None
+        assert bt_scenario.dl.read(participant.id_) is None
+
+    @pytest.mark.spec("CM-18-001")
+    def test_stores_the_participant_with_a_row_per_register_entry(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        actor_id: str,
+    ) -> None:
+        """The first stored record already holds an UNINVITED row per entry."""
+        embargo_id = f"{case_obj.id_}/embargoes/e1"
+        propose(case_obj, embargo_id)
+        bt_scenario.dl.save(case_obj)
+        participant = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        _create_and_attach_participant(
+            bt_scenario.dl,
+            participant,
+            case_obj.id_,
+            actor_id,
+            logging.getLogger("test"),
+        )
+        stored = bt_scenario.dl.read(participant.id_)
+        assert isinstance(stored, CaseParticipant)
+        assert [(r.embargo_id, r.state) for r in stored.embargo_consents] == [
+            (embargo_id, EmbargoConsentState.UNINVITED)
+        ]
+
+    @pytest.mark.spec("CM-18-001")
+    def test_an_existing_participant_gains_and_saves_new_rows(
+        self,
+        bt_scenario: BTTestScenario,
+        case_obj: VulnerabilityCase,
+        actor_id: str,
+    ) -> None:
+        """A registered actor's record gains rows for later entries; no second record is stored."""
+        node_logger = logging.getLogger("test")
+        first = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        case = _create_and_attach_participant(
+            bt_scenario.dl, first, case_obj.id_, actor_id, node_logger
+        )
+        assert case is not None
+        embargo_id = f"{case_obj.id_}/embargoes/e1"
+        propose(case, embargo_id)
+        bt_scenario.dl.save(case)
+
+        second = CaseParticipant(
+            attributed_to=actor_id,
+            context=case_obj.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        result = _create_and_attach_participant(
+            bt_scenario.dl, second, case_obj.id_, actor_id, node_logger
+        )
+
+        assert result is not None
+        assert result.actor_participant_index[actor_id] == first.id_
+        stored = bt_scenario.dl.read(first.id_)
+        assert isinstance(stored, CaseParticipant)
+        assert stored.consent_for(embargo_id) is EmbargoConsentState.UNINVITED
+        assert bt_scenario.dl.read(second.id_) is None
+
+
+class TestResolveParticipantStateShapeGuard:
+    """``resolve_participant_state_from_dl`` must not substitute ``RM.START``.
+
+    Regression for #2264 (a symptom of #2232): a wire-shaped participant has
+    no ``rm`` attribute, so ``latest.rm.state if hasattr(latest, "rm") else
+    RM.START`` silently reset the participant's RM ladder to its initial state
+    instead of failing.  ARCH-15-001..004 requires the mismatch to raise.
+    """
+
+    _CONTEXT = "https://example.org/cases/case-2264"
+
+    class _FakeDl:
+        def __init__(self, obj: Any) -> None:
+            self._obj = obj
+
+        def read(self, _id: str) -> Any:
+            return self._obj
+
+    def test_returns_state_for_core_shaped_participant(self) -> None:
+        from test.support.participant_status import advance_participant_rm
+        from vultron.core.behaviors.case.nodes.participant.common import (
+            resolve_participant_state_from_dl,
+        )
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.core.states.rm import RM
+
+        actor = "https://example.org/actors/alice"
+        participant = CaseParticipant(
+            attributed_to=actor, context=self._CONTEXT
+        )
+        advance_participant_rm(
+            participant, RM.RECEIVED, actor=actor, context=self._CONTEXT
+        )
+
+        rm_state, _, _ = resolve_participant_state_from_dl(
+            cast(Any, self._FakeDl(participant)), participant.id_
+        )
+        assert rm_state is RM.RECEIVED
+
+    def test_raises_on_wire_shaped_participant(self) -> None:
+        from vultron.core.behaviors.case.nodes.participant.common import (
+            resolve_participant_state_from_dl,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        # ``as_CaseParticipant`` *is* ``CaseParticipant`` (ARCH-25-003, ADR-0099), so
+        # the DataLayer hands back exactly the shape this resolver wants and the
+        # state is readable.  There is no wire-shaped participant left to refuse.
+        wire_participant = as_CaseParticipant(
+            attributed_to="https://example.org/actors/vendor",
+            context=self._CONTEXT,
+        )
+
+        state = resolve_participant_state_from_dl(
+            cast(Any, self._FakeDl(wire_participant)),
+            wire_participant.id_,
+        )
+        assert state is not None

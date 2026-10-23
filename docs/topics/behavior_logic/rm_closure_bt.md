@@ -1,4 +1,28 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Report Closure Behavior
+
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Protocol Specifications](../../reference/specs/protocol.md):
+
+- [RMB-14](../../reference/specs/protocol.md#rmb-14) — Enter RM Closed
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 The Report Closure Behavior Tree is shown below.
 As usual, the post-condition is checked before proceeding.

@@ -1,0 +1,269 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Trigger-side behavior tree for create-case workflow."""
+
+import json
+from collections.abc import Callable
+from typing import Any
+
+import py_trees
+from py_trees.common import Status
+from py_trees.ports import NoDataAvailable
+
+from vultron.core.behaviors.act_transaction import ActTransaction
+from vultron.core.behaviors.case.nodes.participant.common import (
+    _create_and_attach_participant,
+)
+from vultron.core.behaviors.case.nodes.proposal_ledger import (
+    CommitNativeLedgerEntriesNode,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+    UpdateActorOutbox,
+)
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.nodes.port_guard import (
+    RequireSyncPortNode,
+    RequireWireRenderPortNode,
+)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.enums.roles import CVDRole
+
+
+class _CreateCaseRecordNode(DataLayerActionWithPorts, StateWriteCapable):
+    """Create and persist VulnerabilityCase; publish case_id to blackboard."""
+
+    def __init__(
+        self,
+        case_name: str,
+        case_content: str,
+        report_id: str | None,
+        result_out: dict[str, Any],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_name = case_name
+        self._case_content = case_content
+        self._report_id = report_id
+        self._result_out = result_out
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_id": PortInformation(data_type=str, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        case = VulnerabilityCase(
+            name=self._case_name,
+            content=self._case_content,
+            attributed_to=self.actor_id,
+        )
+        if self._report_id is not None:
+            case.vulnerability_reports.append(self._report_id)
+        self.datalayer.create(case)
+        self._set_output("case_id", case.id_)
+        self._result_out["case_id"] = case.id_
+        return Status.SUCCESS
+
+
+class _RegisterCreatorParticipantNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
+    """Register CASE_OWNER+CASE_MANAGER participant for the creating actor (CM-02-015)."""
+
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._case_id_bb: str = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._case_id_bb = ""
+
+    def update(self) -> Status:
+        case_id = self._case_id_bb
+        if not case_id:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+
+        # The record names its case, as every participant record does: a
+        # received Add(ParticipantStatus) acts on that case (HP-08-008).
+        participant = CaseParticipant(
+            attributed_to=self.actor_id,
+            context=case_id,
+            case_roles=[CVDRole.CASE_OWNER, CVDRole.CASE_MANAGER],
+        )
+        case = _create_and_attach_participant(
+            self.datalayer, participant, case_id, self.actor_id, self.logger
+        )
+        if case is None:
+            return Status.FAILURE
+        self.datalayer.save(case)
+        return Status.SUCCESS
+
+
+class _BuildCreateCaseActivityNode(DataLayerActionWithPorts):
+    """Create Create(Case) activity and publish activity_id to blackboard.
+
+    Also published as ``create_case_activity_id``: the case's genesis entry
+    is this activity, sent or not (CLP-07-011).
+    """
+
+    def __init__(
+        self,
+        activity_builder: Callable[[str], tuple[str, str]],
+        result_out: dict[str, Any],
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._activity_builder = activity_builder
+        self._result_out = result_out
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+    }
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "activity_id": PortInformation(data_type=str, required=True),
+        "create_case_activity_id": PortInformation(
+            data_type=str, required=True
+        ),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "activity_id": "/activity_id",
+            "create_case_activity_id": "/create_case_activity_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._case_id_bb: str = self.get_input("case_id")
+        except (NoDataAvailable, NotImplementedError):
+            self._case_id_bb = ""
+
+    def update(self) -> Status:
+        case_id = self._case_id_bb
+        if not case_id:
+            self.feedback_message = "case_id not found in blackboard"
+            return Status.FAILURE
+
+        try:
+            activity_id, activity_dict = self._activity_builder(case_id)
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
+            self.feedback_message = (
+                f"CreateCase activity construction failed: {exc}"
+            )
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            return Status.FAILURE
+
+        self._set_output("activity_id", activity_id)
+        # The genesis entry records this same activity (CLP-07-011).
+        self._set_output("create_case_activity_id", activity_id)
+        self._result_out["activity"] = json.loads(activity_dict)
+        return Status.SUCCESS
+
+
+def create_case_trigger_bt(
+    *,
+    actor_id: str,
+    case_name: str,
+    case_content: str,
+    report_id: str | None,
+    result_out: dict[str, Any],
+    activity_builder: Callable[[str], tuple[str, str]],
+    queue_for_delivery: bool,
+) -> py_trees.behaviour.Behaviour:
+    """Return trigger-side BT for case creation + outbound Create activity.
+
+    ``queue_for_delivery`` is ``False`` when the activity names no recipient:
+    the case and its ``Create`` are still built, but nothing is queued, since
+    the outbox refuses an activity whose ``to:`` names no one (OX-08-001).
+
+    The creating actor (*actor_id*) is the case's CASE_OWNER and its
+    CASE_MANAGER (CM-02-015), so it commits the case's creation entries:
+    the genesis ``create_case`` entry, then one entry for each record the
+    tree wrote (CLP-07-013).  ``CommitNativeLedgerEntriesNode`` is the same
+    node the case-proposal tree composes, so a case created either way is
+    committed as the same entry sequence.  It runs after the ``Create`` is
+    queued, as on the proposal path (CP-09-009): the entries record a case
+    whose creation was sent (ADR-0119).
+
+    The creation is one act (ADR-0146): the case, the creator's record, the
+    queued ``Create`` and every creation entry are written in one
+    ``ActTransaction``.  An entry that fails to commit, genesis or a later
+    one, or a ``Create`` the outbox cannot take, rolls all of them back, so
+    no record is kept without its entry (CLP-07-013, #4442).  The outbox
+    monitor is told of the ``Create`` only once the block commits
+    (DL-02-004), so delivery never takes a ``Create`` whose case is then
+    rolled back.  The ports those commits need are checked first, so a
+    composition fault refuses before the case is written.
+    """
+    act: list[py_trees.behaviour.Behaviour] = [
+        _CreateCaseRecordNode(
+            case_name=case_name,
+            case_content=case_content,
+            report_id=report_id,
+            result_out=result_out,
+        ),
+        _RegisterCreatorParticipantNode(),
+        _BuildCreateCaseActivityNode(
+            activity_builder=activity_builder,
+            result_out=result_out,
+        ),
+    ]
+    if queue_for_delivery:
+        act.append(UpdateActorOutbox())
+    act.append(
+        CommitNativeLedgerEntriesNode(owner_uri=actor_id, report_id=report_id)
+    )
+    return py_trees.composites.Sequence(
+        name="CreateCaseTriggerBT",
+        memory=False,
+        children=[
+            RequireWireRenderPortNode(),
+            RequireSyncPortNode(),
+            ActTransaction(name="CreateCaseAct", children=act),
+        ],
+    )

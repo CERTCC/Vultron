@@ -1,0 +1,265 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""One DataLayer transaction for an act and every consequence its tree commits.
+
+An act's consequences commit all at once or not at all (CLP-07-015,
+ADR-0146).  Some of them are committed by later nodes in the act's tree, such
+as the stub re-issue (CM-11-016) and the relay of a proposal (EP-09-002).
+:class:`ActTransaction` runs the act's commit node and those later nodes as
+one ``Sequence`` inside one ``CasePersistence.transaction()``: when any child
+raises or fails, nothing any of them wrote is kept.
+
+A received act's own entry is one of them: the received-tree factory runs
+the guarded commit of that entry inside the same ``ActTransaction`` as the
+effects that commit its consequences (ADR-0151), so a received act succeeds
+or fails as a whole, as a trigger act does.  That is the factory's default
+for every received tree that commits to a case; a tree runs outside one only
+by naming a registered :class:`OneActExemption` that records why
+(:data:`ONE_ACT_EXEMPTIONS`).
+"""
+
+import logging
+from collections.abc import Iterator, Mapping
+from types import MappingProxyType
+from typing import Any, Final, cast
+
+import py_trees
+from py_trees.common import Status
+from pydantic import BaseModel, ConfigDict
+
+from vultron.core.behaviors.exemption_registry import require_registered
+from vultron.core.behaviors.node_logger import node_logger
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import VultronWiringError
+from vultron.primitives import NonEmptyString
+
+
+class ActTransactionError(RuntimeError):
+    """A child of an :class:`ActTransaction` did not finish in one tick.
+
+    A plain ``RuntimeError``, not a ``VultronError``: ``BTBridge`` reports it
+    as an internal error.  A transaction cannot stay open between ticks, so a
+    ``RUNNING`` child is a wiring fault, never a protocol outcome.
+    """
+
+
+class _RolledBack(Exception):
+    """Raised inside the block to roll it back when the children fail."""
+
+
+class ActTransaction(py_trees.composites.Sequence):
+    """Run *children* as a ``Sequence`` inside one DataLayer transaction.
+
+    Place the act's commit node and every later node that commits a
+    consequence of it among *children* (CLP-07-015, ADR-0146).  Returns the
+    ``Sequence``'s status: ``SUCCESS`` commits every write the children made,
+    and ``FAILURE`` rolls all of them back.  A child that raises rolls them
+    back and the exception propagates to ``BTBridge``, as without the
+    wrapper.  The decision is made before the parent sees this node's status.
+
+    Every child must finish in one tick: a ``RUNNING`` result stops the
+    children, rolls the block back and raises :class:`ActTransactionError`.
+
+    Composable: an ``ActTransaction`` inside another is part of the outer
+    one, so a subtree that wraps its own act (``terminate_embargo_bt``) may
+    run inside a larger one (a rejection that ends the embargo).
+    """
+
+    # py_trees types ``Behaviour.logger`` as its own logger class; nodes
+    # rebind it to a stdlib logger (``node_logger``).
+    logger: logging.Logger  # type: ignore[assignment]
+
+    def __init__(
+        self, name: str, children: list[py_trees.behaviour.Behaviour]
+    ) -> None:
+        super().__init__(name=name, memory=False, children=children)
+        self.logger = node_logger(self)  # type: ignore[assignment]
+
+    def setup(self, **kwargs: Any) -> None:
+        """Register read access to the BTBridge ``datalayer`` key."""
+        super().setup(**kwargs)
+        self._blackboard = self.attach_blackboard_client(name=self.name)
+        self._blackboard.register_key(
+            key="datalayer", access=py_trees.common.Access.READ
+        )
+
+    def _datalayer(self) -> CasePersistence | None:
+        blackboard = getattr(self, "_blackboard", None)
+        if blackboard is None:
+            return None
+        try:
+            return cast(CasePersistence | None, blackboard.datalayer)
+        except KeyError:
+            return None
+
+    def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
+        datalayer = self._datalayer()
+        if datalayer is None:
+            self.feedback_message = "DataLayer not found in blackboard"
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            self.stop(Status.FAILURE)
+            yield self
+            return
+        try:
+            with datalayer.transaction():
+                yield from self._tick_children()
+        except _RolledBack:
+            self.logger.info(
+                "%s: a step failed, so nothing the act wrote is kept"
+                " (CLP-07-016)",
+                self.name,
+            )
+        yield self
+
+    def _tick_children(self) -> Iterator[py_trees.behaviour.Behaviour]:
+        """Tick the ``Sequence``; raise to roll back unless it succeeded.
+
+        Stops before the ``Sequence`` yields itself, so the transaction ends
+        before the parent reads this node's status.
+        """
+        for node in super().tick():
+            if node is self:
+                break
+            yield node
+        if self.status == Status.RUNNING:
+            running = getattr(self.current_child, "name", None)
+            # INVALID stops every running child; the act itself failed.
+            self.stop(Status.INVALID)
+            self.status = Status.FAILURE
+            raise ActTransactionError(
+                f"{self.name}: child {running!r} returned"
+                " RUNNING; an act's transaction cannot stay open between"
+                " ticks (CLP-07-016)"
+            )
+        if self.status != Status.SUCCESS:
+            raise _RolledBack
+
+
+class RefusalActTransaction(ActTransaction):
+    """An :class:`ActTransaction` in a refusal arm: its failure fails the tree.
+
+    A refusal arm sits in a ``Selector``, which tries the next arm when one
+    fails, and the arms after a refusal admit.  A refusal whose act rolled
+    back must not fall through to them, so where an ``ActTransaction``
+    returns ``FAILURE``, this one raises :class:`RefusedActRolledBackError`
+    once the block is rolled back.  ``BTBridge`` reports the tree as an
+    internal error and nothing the act wrote is kept, so the delivery is
+    neither admitted nor declined (``notes/bt-pitfalls.md`` § "A Refusal Arm
+    in a Selector Fails Toward 'Admit'", CLP-07-015).
+    """
+
+    def tick(self) -> Iterator[py_trees.behaviour.Behaviour]:
+        for node in super().tick():
+            if node is self and self.status != Status.SUCCESS:
+                raise RefusedActRolledBackError(
+                    f"{self.name}: the refusal failed and was rolled back"
+                    f" ({self._failure_reason()}); failing the tree rather"
+                    " than trying the next arm"
+                )
+            yield node
+
+    def _failure_reason(self) -> str:
+        """The failed child's feedback, or this node's own."""
+        failed = next(
+            (c for c in self.children if c.status == Status.FAILURE), None
+        )
+        if failed is not None:
+            return f"{failed.name}: {failed.feedback_message or 'failed'}"
+        return self.feedback_message or "a step failed"
+
+
+class RefusedActRolledBackError(RuntimeError):
+    """A :class:`RefusalActTransaction` failed, so its tree must fail.
+
+    A plain ``RuntimeError``, as :class:`ActTransactionError` is: the refusal
+    was decided, so its failure is the CASE_MANAGER's own fault, never a
+    protocol outcome.
+    """
+
+
+class OneActExemption(BaseModel):
+    """One recorded decision that a received tree commits outside one act.
+
+    ``create_receive_activity_tree`` runs the guarded commit of a received
+    act's own entry and every effect after it in one :class:`ActTransaction`
+    (CLP-07-015, CLP-07-016, ADR-0146).  A tree that must not do so names one of these,
+    registered in :data:`ONE_ACT_EXEMPTIONS`; a bare opt-out does not exist.
+
+    Attributes:
+        name: Short stable name of the decision.
+        reason: Why the tree is correct with its commits outside one act.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: NonEmptyString
+    reason: NonEmptyString
+
+
+#: Every registered exemption, by name.  The factory refuses any other.
+#: Empty: every received tree that commits to a case runs as one act.
+ONE_ACT_EXEMPTIONS: Final[Mapping[str, OneActExemption]] = MappingProxyType({})
+
+
+def received_act_stage(
+    name: str,
+    act: list[py_trees.behaviour.Behaviour],
+    case_id: str | None,
+    exemption: OneActExemption | None,
+) -> list[py_trees.behaviour.Behaviour]:
+    """The guarded commit and the effects after it, as one act by default.
+
+    A tree that commits to *case_id* runs its commit and every effect after
+    it in one ``ActTransaction`` named ``{name}Act``: the act's own entry and
+    every consequence a later node commits succeed or fail as one
+    (CLP-07-015, CLP-07-016, ADR-0146, ADR-0151).  A tree with no commit has no act to
+    hold, and its effects run as they are.
+
+    Raises:
+        VultronWiringError: *exemption* is not registered in
+            ``ONE_ACT_EXEMPTIONS``, or it exempts a tree that commits to no
+            case and so has no act to run outside of.
+    """
+    if exemption is not None:
+        where = f"create_receive_activity_tree({name})"
+        require_registered(
+            exemption,
+            ONE_ACT_EXEMPTIONS,
+            where=where,
+            kind="one-act",
+            registry_name="ONE_ACT_EXEMPTIONS",
+            spec_id="CLP-07-016",
+        )
+        if case_id is None:
+            raise VultronWiringError(
+                f"{where}: one-act exemption {exemption.name!r} exempts a"
+                " tree that commits to no case; drop it (CLP-07-016)"
+            )
+        return act
+    if case_id is None:
+        return act
+    return [ActTransaction(name=f"{name}Act", children=act)]
+
+
+__all__ = [
+    "ONE_ACT_EXEMPTIONS",
+    "ActTransaction",
+    "ActTransactionError",
+    "OneActExemption",
+    "RefusalActTransaction",
+    "RefusedActRolledBackError",
+    "received_act_stage",
+]

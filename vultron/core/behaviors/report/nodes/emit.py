@@ -1,0 +1,443 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Outbound emit nodes for the report behavior tree."""
+
+import json
+from typing import cast
+
+from py_trees.common import Status
+
+from vultron.core.behaviors.helpers import _EmitSingleActivityBase
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.participants.authority import (
+    case_manager_address,
+    resolve_case_manager_id,
+)
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.predicates.addressing import same_actor_id
+
+
+class _EmitCaseActorReportActivityBase(_EmitSingleActivityBase):
+    """Base class for emit nodes that route report-phase activities to the CaseActor.
+
+    Per ADR-0021 CLP-10-027: trigger trees MUST emit an outbound activity
+    addressed to case_manager_id so the CaseActor receives it and can commit
+    a canonical ledger entry.
+
+    Subclasses must override ``_call_report_factory`` to invoke the appropriate
+    ``TriggerActivityPort`` method and return ``(activity_id, activity_dict)``.
+
+    When *captured* is provided, the activity dict is stored as
+    ``captured["activity"]`` on success, eliminating any need for a
+    follow-up ``dl.read(activity_id)`` call (AC-1, AC-2, DL-06-001).
+    """
+
+    def __init__(
+        self,
+        offer_id: str,
+        report_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        """Initialize the base emit node.
+
+        Args:
+            offer_id: ID of the Offer activity being acted upon.
+            report_id: ID of the VulnerabilityReport (for address resolution).
+            captured: Optional dict; ``captured["activity"]`` is set to the
+                serialised activity dict on success.
+            name: Optional custom node name.
+        """
+        super().__init__(
+            captured=captured, name=name or self.__class__.__name__
+        )
+        self.offer_id = offer_id
+        self.report_id = report_id
+
+    def _call_report_factory(
+        self, actor_id: str, addressees: list[str]
+    ) -> tuple[str, str]:
+        """Invoke the trigger-activity factory method for this activity type.
+
+        Args:
+            actor_id: Sending actor URI.
+            addressees: Recipient URI list (already computed).
+
+        Returns:
+            ``(activity_id, activity_dict)``
+
+        Raises:
+            NotImplementedError: Subclasses must implement this method.
+        """
+        raise NotImplementedError
+
+    def _compute_addressees(self) -> list[str] | None:
+        """Resolve and validate outbound recipients; return None to fail."""
+        assert self.datalayer is not None and self.actor_id is not None
+        record_id = VultronOfferRecord.build_id(self.offer_id)
+        offer_record = self.datalayer.read(record_id)
+        if not isinstance(offer_record, VultronOfferRecord):
+            offer_record = None
+        addressees = _compute_report_addressees(
+            self.report_id,
+            self.actor_id,
+            offer_record,
+            cast(CaseOutboxPersistence, self.datalayer),
+        )
+        if not addressees:
+            self.feedback_message = (
+                f"no routable recipients for report activity"
+                f" (offer_id={self.offer_id}, report_id={self.report_id},"
+                f" actor_id={self.actor_id})"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+        return addressees
+
+    def _validate_context(self) -> Status | None:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            self.logger.error(
+                "%s: DataLayer or actor_id not available", self.name
+            )
+            return f
+        if (f := self._require_factory()) is not None:
+            self.logger.warning(
+                "%s: no TriggerActivityPort — cannot emit report activity",
+                self.name,
+            )
+            return f
+        return None
+
+    def update(self) -> Status:
+        """Create and queue the report-phase activity."""
+        if (f := self._validate_context()) is not None:
+            return f
+        try:
+            addressees = self._compute_addressees()
+            if not addressees:
+                return Status.FAILURE
+            activity_id, activity_dict = self._call_report_factory(
+                self.actor_id,  # type: ignore[arg-type]
+                addressees,
+            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, activity_dict)
+            self.logger.info(
+                "Actor '%s' emitted %s for offer '%s'",
+                self.actor_id,
+                self.__class__.__name__,
+                self.offer_id,
+            )
+            return Status.SUCCESS
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error("%s: Error emitting activity: %s", self.name, e)  # noqa: TRY400  # ruff-baseline #3353
+            return Status.FAILURE
+
+
+class EmitValidateReportActivity(_EmitCaseActorReportActivityBase):
+    """Emit RmValidateReportActivity to the Case Actor's inbox.
+
+    Calls ``trigger_activity_factory.validate_report()`` and queues the
+    resulting activity ID via ``outbox_append``. Routes the activity
+    to the Case Actor (CASE_MANAGER participant) using ``_compute_report_addressees``.
+
+    Per ADR-0021 CLP-10-027: trigger trees MUST emit an outbound activity
+    addressed to case_manager_id so the CaseActor receives the activity and
+    can execute the guarded commit.
+
+    Per issue #1029 AC-1: validate_tree.py transitions from
+    ``_requires_trigger_activity = False`` to having a proper emit node.
+    """
+
+    def __init__(
+        self,
+        offer_id: str,
+        report_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            offer_id=offer_id,
+            report_id=report_id,
+            captured=captured,
+            name=name,
+        )
+
+    def _call_report_factory(
+        self, actor_id: str, addressees: list[str]
+    ) -> tuple[str, str]:
+        """Call ``validate_report`` on the trigger-activity factory."""
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.validate_report(
+            offer_id=self.offer_id,
+            report_id=self.report_id,
+            actor=actor_id,
+            to=addressees,
+        )
+
+
+def _compute_report_addressees(
+    report_id: str,
+    actor_id: str,
+    offer_record: VultronOfferRecord | None,
+    dl: CaseOutboxPersistence,
+) -> list[str] | None:
+    """Compute outbound recipient list for a report-phase trigger activity.
+
+    For case-scoped report activities, route only to the Case Actor. Falls back
+    to the offer submitter (from the ``VultronOfferRecord``) when no case is
+    found.
+
+    Per ADR-0035 DL-06-001: the offer submitter ID is read from the core
+    ``VultronOfferRecord``, not from the stored wire Offer activity.
+
+    The Case Actor is **not** excluded from being addressed when it is itself the
+    sender.  CLP-10-001 is explicit that "the CaseActor is a participant with
+    extra duties; it is not excluded" — a *participant-role* activity (here the
+    vendor validating a report) is addressed to the CASE_MANAGER, and when the
+    same actor holds both roles that recipient is its own inbox, reached over
+    ordinary HTTP delivery (OX-12-001).  That is what triggers its received-side
+    use case and fires ``GuardedCommitCaseLedgerEntryBT`` in the right inbox
+    context.  This is not the self-*copy* ADR-0109 forbids: that rule covers an
+    activity the CASE_MANAGER authors *as* CASE_MANAGER, which the emitting tree
+    commits itself.  Dropping the self-address left a report activity with no
+    recipients at all, which fails the emit node and surfaces as "no routable
+    recipients" — so an actor that both participates and manages the case could
+    not validate a report.
+
+    Args:
+        report_id: VulnerabilityReport ID used to locate the linked case.
+        actor_id: Sender's actor ID.
+        offer_record: Core offer record capturing the submitter's actor ID.
+        dl: DataLayer for case lookup.
+
+    Returns:
+        List of recipient URIs, or None when no recipients can be determined.
+    """
+    case = dl.find_case_by_report_id(report_id)
+    if case is not None:
+        # The case's own participant list is authoritative once bootstrap has
+        # populated it.  Before that it is empty, so fall back to the trust
+        # anchor recorded on the ``ReportCaseLink`` — the same resolution
+        # `case_manager_address` performs for every other case-scoped path, and
+        # the reason it exists (CBT-01-006).  Without the fallback a case created
+        # before its participants are registered has no addressable manager, and
+        # the report activity fails as unroutable.
+        case_manager_id = resolve_case_manager_id(case, dl) or (
+            case_manager_address(dl, case.id_)
+        )
+        if case_manager_id:
+            return [case_manager_id]
+        return None
+
+    if offer_record is None:
+        return None
+    offer_actor_id = offer_record.offer_actor_id
+    if offer_actor_id and offer_actor_id != actor_id:
+        return [offer_actor_id]
+    return None
+
+
+class EmitInvalidateReportActivity(_EmitCaseActorReportActivityBase):
+    """Emit RmInvalidateReportActivity (TentativeReject) to the actor outbox.
+
+    Calls ``trigger_activity_factory.invalidate_report()`` and queues the
+    resulting activity ID via ``outbox_append``.
+
+    Per issue #849 AC-1, AC-2: emit nodes must be BT leaf nodes, not inline
+    procedural calls in ``execute()``.
+    """
+
+    def __init__(
+        self,
+        offer_id: str,
+        report_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            offer_id=offer_id,
+            report_id=report_id,
+            captured=captured,
+            name=name,
+        )
+
+    def _call_report_factory(
+        self, actor_id: str, addressees: list[str]
+    ) -> tuple[str, str]:
+        """Call ``invalidate_report`` on the trigger-activity factory."""
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.invalidate_report(
+            offer_id=self.offer_id,
+            actor=actor_id,
+            to=addressees,
+        )
+
+
+class EmitCloseReportActivity(_EmitCaseActorReportActivityBase):
+    """Emit RmCloseReportActivity (Reject) to the actor outbox.
+
+    Calls ``trigger_activity_factory.close_report()`` and queues the
+    resulting activity ID via ``outbox_append``.
+
+    Used by the reject-report trigger workflow.
+
+    Per issue #849 AC-1, AC-2: emit nodes must be BT leaf nodes, not inline
+    procedural calls in ``execute()``.
+    """
+
+    def __init__(
+        self,
+        offer_id: str,
+        report_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            offer_id=offer_id,
+            report_id=report_id,
+            captured=captured,
+            name=name,
+        )
+
+    def _call_report_factory(
+        self, actor_id: str, addressees: list[str]
+    ) -> tuple[str, str]:
+        """Call ``close_report`` on the trigger-activity factory."""
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.close_report(
+            offer_id=self.offer_id,
+            report_id=self.report_id,
+            actor=actor_id,
+            to=addressees,
+        )
+
+
+class EmitAckReportActivity(_EmitCaseActorReportActivityBase):
+    """Emit RmReadReportActivity (``Read(Offer(Report))``, RK) to the reporter.
+
+    RK goes from an actor the ``Offer(VulnerabilityReport)`` was addressed to,
+    to the reporter, and never to the CASE_MANAGER (RMB-08-003), so unlike its
+    siblings this node does not route through the case: its one recipient is
+    the Offer's actor, read from this store's ``VultronOfferRecord``
+    (DL-06-001).  ``content`` is the trigger's optional note, carried on the
+    RK (TRIG-03-003).
+    """
+
+    def __init__(
+        self,
+        offer_id: str,
+        report_id: str,
+        content: str | None = None,
+        captured: dict | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            offer_id=offer_id,
+            report_id=report_id,
+            captured=captured,
+            name=name,
+        )
+        self.content = content
+
+    def _compute_addressees(self) -> list[str] | None:
+        """Address RK to the reporter alone; ``None`` fails the emit.
+
+        Overrides the case routing of the base: RK goes to the actor of the
+        recorded Offer, never to the CASE_MANAGER (RMB-08-003).  ``None`` is
+        the base's failure signal, returned when this store holds no record
+        of the Offer or when the executing actor is itself the reporter.
+        """
+        assert self.datalayer is not None and self.actor_id is not None
+        offer_record = self.datalayer.read(
+            VultronOfferRecord.build_id(self.offer_id)
+        )
+        if not isinstance(offer_record, VultronOfferRecord):
+            self.feedback_message = (
+                f"no record of offer '{self.offer_id}' to acknowledge"
+            )
+        elif same_actor_id(offer_record.offer_actor_id, self.actor_id):
+            self.feedback_message = (
+                f"actor '{self.actor_id}' is the reporter of offer"
+                f" '{self.offer_id}' and cannot acknowledge it to itself"
+            )
+        else:
+            return [offer_record.offer_actor_id]
+        self.logger.error("%s: %s", self.name, self.feedback_message)
+        return None
+
+    def _call_report_factory(
+        self, actor_id: str, addressees: list[str]
+    ) -> tuple[str, str]:
+        """Call ``ack_report`` on the trigger-activity factory."""
+        assert self.trigger_activity_factory is not None
+        return self.trigger_activity_factory.ack_report(
+            offer_id=self.offer_id,
+            actor=actor_id,
+            to=addressees,
+            content=self.content,
+        )
+
+
+class EmitSubmitReportActivity(_EmitSingleActivityBase):
+    """Create Offer(VulnerabilityReport) and queue in actor outbox.
+
+    Calls ``trigger_activity_factory.submit_report()`` and queues the
+    offer ID via ``_emit_through_seam`` (OX-14-001, ASK-04-008).  Stores
+    the offer dict in ``captured["offer"]`` if *captured* is provided.
+
+    Per BT-15-001: outbound activity construction and queueing must be
+    BT leaf nodes.
+    """
+
+    def __init__(
+        self,
+        report_id: str,
+        recipient_id: str,
+        captured: dict | None = None,
+        name: str | None = None,
+        proposed_embargo_id: str | None = None,
+    ) -> None:
+        # Pass captured=None to the seam base: the seam stores the activity
+        # under "activity"; this node uses the legacy "offer" key for its
+        # callers.  _on_success() handles the "offer" capture separately.
+        super().__init__(captured=None, name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.recipient_id = recipient_id
+        self.proposed_embargo_id = proposed_embargo_id
+        self._offer_captured = captured
+
+    def _call_factory(self) -> tuple[str, str]:
+        """Call submit_report on the factory. Raises on error."""
+        assert self.trigger_activity_factory is not None
+        assert self.actor_id is not None
+        return self.trigger_activity_factory.submit_report(
+            report_id=self.report_id,
+            actor=self.actor_id,
+            to=self.recipient_id,
+            target=self.recipient_id,
+            proposed_embargo_id=self.proposed_embargo_id,
+        )
+
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        """Store the offer dict under the legacy ``"offer"`` key and log."""
+        if self._offer_captured is not None:
+            self._offer_captured["offer"] = json.loads(activity_blob)
+        self.logger.info(
+            "Actor '%s' emitted Offer(VulnerabilityReport) '%s' to '%s'",
+            self.actor_id,
+            activity_id,
+            self.recipient_id,
+        )

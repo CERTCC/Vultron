@@ -1,0 +1,156 @@
+---
+status: accepted
+date: 2026-08-05
+created: 2026-08-05
+updated: 2026-08-05
+revision: 1
+deciders: Allen D. Householder
+consulted: []
+informed: []
+stakeholder_type: [project-contributor]
+partially_superseded_by: 0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md
+---
+
+# Route Ownership-Transfer Offer and Accept Through the CaseActor
+
+> **Partially superseded by [ADR-0148](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md).**
+> Its Concrete routing model is retained as history.
+> The owner no longer sends the Offer: it proposes one to the CaseActor as `Offer(Offer(VulnerabilityCase))`, and the CaseActor makes the one Offer the transferee answers, under its own id, instead of forwarding the owner's.
+> The routing of the Offer and its answers through the CaseActor stands.
+
+## Context and Problem Statement
+
+The current ownership-transfer protocol has two routing gaps:
+
+1. The offering actor sends `Offer(VulnerabilityCase)` (ownership-transfer
+   variant) **directly to the transferee's inbox**, bypassing the CaseActor.
+   No CaseLedgerEntry is committed for the offer-in-flight, so participants
+   not involved in the transfer (e.g., Finder) receive no notification that
+   a transfer is being negotiated.
+
+2. The accepting actor sends `Accept(Offer(VulnerabilityCase))` **directly
+   to the offerer's inbox**, bypassing the CaseActor.
+   `AcceptCaseOwnershipTransferReceivedUseCase` therefore only runs when the
+   Accept is manually self-delivered (as in the FVCV-handoff demo workaround).
+   No CaseLedgerEntry is committed after the ownership change, so the Announce
+   broadcast never fires and participants not involved in the transfer are
+   never notified of the completed ownership change.
+
+Issue: CONCERN-1755, Epic: #1753.
+
+## Decision Drivers
+
+- The canonical communication model (`notes/case-communication-model.md`,
+  PCR-08) requires that all case-scoped state changes flow through the
+  CaseActor and propagate via `CaseLedgerEntry → Announce` broadcast.
+- Participants who are not the old or new owner have no reliable way to
+  learn who is currently responsible for a case.  In multi-party cases
+  this causes messages to be routed to the wrong actor.
+- The Invite/Accept handshake (ADR-0026, PCR-08-007/008) established the
+  same principle for participant invitation: the Invite is sent **by** the
+  CaseActor, and the Accept is addressed **to** the CaseActor.
+  Ownership-transfer should follow the same pattern.
+
+## Considered Options
+
+1. **Route both Offer and Accept through the CaseActor** — the Offer is
+   sent to the CaseActor, which records it and forwards to the transferee;
+   the Accept is addressed to the CaseActor, which applies the ownership
+   change and commits a CaseLedgerEntry → broadcast.
+2. **Route Accept through CaseActor only; leave Offer direct** — Accept
+   routing is the critical path for the broadcast cascade; Offer routing
+   can remain direct.
+3. **Keep current routing; add a post-Accept notification trigger** —
+   after the offerer receives the Accept, it manually emits an
+   `Announce(VulnerabilityCase)` to all participants.
+4. **Demo-level workaround only** — keep the protocol underspecified;
+   patch the demo.
+
+## Decision Outcome
+
+Chosen option: **Option 1 — route both Offer and Accept through the
+CaseActor**, because it aligns with the established canonical communication
+model (PCR-08) and ensures all participants receive CaseLedgerEntry
+notifications for both the offer-in-flight and the completed transfer.
+
+### Concrete routing model
+
+**Offer flow:**
+
+```text
+Offering actor triggers offer-case-ownership-transfer
+  → EmitOfferCaseOwnershipTransferNode constructs
+    Offer(VulnerabilityCase, target=transferee_id, to=[case_actor_id])
+  → CaseActor's OfferCaseOwnershipTransferReceivedUseCase:
+      1. Records the offer object.
+      2. Commits a CaseLedgerEntry (offer-recorded).
+      3. Announce(CaseLedgerEntry) → all participants.
+      4. Forwards the Offer to the transferee's inbox.
+```
+
+**Accept flow:**
+
+```text
+Accepting actor triggers accept-case-ownership-transfer
+  → EmitAcceptCaseOwnershipTransferNode constructs
+    Accept(Offer(VulnerabilityCase), to=[case_actor_id])
+  → CaseActor's AcceptCaseOwnershipTransferReceivedUseCase:
+      1. AcceptCaseOwnershipTransferNode applies role changes (CM-21-001–004).
+      2. Commits a CaseLedgerEntry (ownership-transferred).
+      3. Announce(CaseLedgerEntry) → all participants.
+```
+
+### Consequences
+
+- Good, because all participants (including Finder, Vendor2, etc.) are
+  notified of both the pending offer and the completed transfer via the
+  normal CaseLedgerEntry broadcast — no separate notification mechanism.
+- Good, because the `AcceptCaseOwnershipTransferReceivedUseCase` now
+  runs automatically on the CaseActor without a manual self-delivery
+  workaround.
+- Good, because the routing pattern is identical to the Invite/Accept
+  handshake (ADR-0026); developers can apply the same mental model.
+- Bad, because this is a breaking change to the wire routing for both
+  activities; existing devlogs and test fixtures must be updated.
+- ~~Bad, because `OfferCaseOwnershipTransferReceivedUseCase` must be
+  extended to forward the Offer to the transferee — currently it only
+  stores the offer object.~~ Resolved by #2067:
+  `ForwardOfferToTransfereeNode` (wrapped in `create_case_manager_gated_tree`)
+  is now an effect node in `create_offer_ownership_transfer_tree`, called
+  from `OfferCaseOwnershipTransferReceivedUseCase.execute()` via
+  `BTBridge(trigger_activity=...)` (CM-21-005, CLP-10-005).
+
+## Validation
+
+- Spec entries CM-21-005 through CM-21-007 in `specs/case-management.yaml`
+  encode the MUST requirements; the architecture ratchet tests verify
+  boundary compliance.
+- The FVCV-handoff demo (`vultron/demo/scenario/fvcv_handoff_demo.py`) removes
+  the `post_to_inbox_and_wait` self-delivery workaround, and
+  `_phase_ownership_handoff` verifies that the Finder's own replica receives the
+  `accept_case_ownership_transfer` ledger entry — which can only arrive via the
+  `Announce(CaseLedgerEntry)` broadcast, since the Finder is party to neither
+  side of the transfer.
+- `TestOwnershipTransferAnnounceReachesFinderAC5c`
+  (`test/demo/test_fvcv_handoff_demo.py`) proves the same cascade at the HTTP
+  level with three isolated actor apps and no manual trigger.
+- The exchange demo (`vultron/demo/exchange/transfer_ownership_demo.py`) shows
+  the routing at the wire level for both the accept and reject paths (#2789).
+- Unit tests confirm `EmitOfferCaseOwnershipTransferNode` and
+  `EmitAcceptCaseOwnershipTransferNode` address the CaseActor.
+- `ForwardOfferToTransfereeNode` and `create_offer_ownership_transfer_tree`
+  are covered by `test_offer_ownership_transfer_tree.py` (#2067), and
+  `test_offer_cascade_forward_lives_in_the_bt_not_in_execute`
+  (`test/core/use_cases/received/actor/test_ownership.py`) pins the use case to
+  that tree — a catch-up merge had reverted the wiring while every behavioural
+  test kept passing (#2789).
+
+## More Information
+
+- `notes/case-communication-model.md` — canonical communication model (PCR-08)
+- `notes/ownership-transfer.md` — implementation guidance for this routing model
+- ADR-0026 — CaseActor-Routed Actor Suggestion (precedent for same pattern)
+- CONCERN-1755 — source concern
+
+Generated spec requirements: `specs/case-management.yaml` CM-21-005, CM-21-006,
+CM-21-007.

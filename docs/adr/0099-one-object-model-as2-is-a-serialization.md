@@ -1,0 +1,790 @@
+---
+status: accepted
+date: 2026-09-21
+created: 2026-09-21
+updated: 2026-09-21
+revision: 1
+deciders: Allen D. Householder
+consulted: notes/wire-core-boundary.md, notes/domain-model-separation.md
+stakeholder_type: [project-contributor]
+supersedes:
+  - 0017-domain-wire-object-separation.md
+  - 0082-wire-core-boundary-pairing-registry.md
+partially_supersedes:
+  - 0063-wire-rendering-port-for-core-objects.md
+  - 0074-wire-activity-artifact-immutability.md
+---
+
+# One Object Model: AS2 Is a Serialization of the Core Model, Not a Parallel Hierarchy
+
+> **Implementation status as of 2026-09-30: decided; built, except detail 7's
+> inbound disposition, which #3921 and #3922 build.** The decision
+> details below are in the present tense because they state the decision, not
+> the state of the code — that is the MADR convention. Every migration issue
+> under #2670 is closed and the record is `accepted` (#3491).
+> [Validation](#validation) maps each of the ten details to the test that holds
+> it. Details 7 and 8 carry dated amendments, on the details themselves: the
+> first (#3888) recorded what had been built, the second (#3900) decided the
+> inbound rule the build had left to class ancestry; Validation records why.
+> [Migration](#migration) is kept as the record of how the work landed and of
+> the amendments made along the way.
+
+## Context and Problem Statement
+
+The project has carried three successive positions on the relationship between
+the domain model and the ActivityStreams 2.0 (AS2) wire format:
+
+1. **Everything is an AS2 object.** The domain types lived under
+   `vultron/wire/as2/vocab/objects/` and inherited the AS2 class hierarchy.
+2. **Core is different.** ADR-0017 (as first written, Option B) introduced a
+   parallel, independent `CoreObject` hierarchy under `vultron/core/models/`.
+3. **Core and wire share a lenient root.** ADR-0017 was amended two days later
+   to Option D, connecting both hierarchies at a shared `VultronBase` /
+   `VultronObject` root, because fully independent hierarchies blocked the
+   `from_core()` / `to_core()` translation protocol.
+
+Position 3 is neither one model nor two. It has produced a recurring stream of
+structural repairs rather than converging: `_NORMALIZE_WIRE_TO_CORE`
+(ADR-0062), the `_is_core_branch` sentinel (#2416), the `| CoreObject` union in
+`as_ObjectRef` and its removal (#2935, ARCH-23-006), the wire-spelling
+reject-guards (ARCH-15-002), the `ValidatedAssignmentMixin` threading dance
+(ADR-0064, ARCH-21-002), the pairing registry (ADR-0082, ARCH-23-001), and the
+branch-neutral-layer relocation chain (#2932, #2933).
+
+Two further facts made the position unstable rather than merely costly:
+
+- **ADR-0082 removed position 3's own justification.** Amended ARCH-12-005 now
+  *forbids* `from_core()` / `to_core()` on wire vocabulary classes and moves
+  translation to adapter-side translators. The per-class translation protocol
+  was the sole reason ADR-0017 abandoned independent hierarchies. Nobody
+  re-derived whether the shared root was still needed once that protocol was
+  removed.
+- **ARCH-22-001 ("wire MUST NOT import core") is not derived from ADR-0009.**
+  The hexagonal-architecture ADR lists six Key Rules; none of them is a
+  wire→core prohibition. Its rule 6 is *"the `wire/` layer is replaceable as a
+  unit without touching `core/`"* — a constraint that wire→core imports
+  satisfy. ARCH-22-001 cites ADR-0017, 0032, 0063 and 0082, never ADR-0009. It
+  reads as a symmetric mirror of ARCH-01-001, but hexagonal dependency rules
+  are asymmetric by design: outer layers depend inward.
+
+This ADR settles the question at the level the previous three positions did
+not: what the object hierarchy is *for*.
+
+## Decision Drivers
+
+- Stop the recurring structural repairs. Each individual fix has been
+  defensible; the sequence is the defect.
+- Preserve the ability to replace AS2 with a different wire representation
+  later. This is the stated reason the layers were kept separate, and it is as
+  yet unrealised and unplanned.
+- Do not force core to adopt a wire representation that is wrong for internal
+  use. AS2's *semantics* — activities as verbs, objects as nouns, "who does
+  what to which object in what context" — match what core needs to express.
+  AS2's *serialization choices* — camelCase, `@context`, inline-or-IRI
+  polymorphism, optional-everything — do not.
+- Keep Python naming idiomatic: snake_case field names in core.
+- Keep the two kinds of object distinguishable. Conflating a wire object with a
+  core object was the original defect that motivated the split (#2232, #2264).
+- Fail loudly. Silent field loss (#2262) is the failure mode to eliminate.
+
+## Considered Options
+
+1. **One object model; AS2 is a serialization of it.** Core classes are the
+   model. AS2 field names are aliases on those classes. The wire layer holds
+   the AS2 envelope and message shapes, whose slots are typed with core
+   classes.
+2. **Relocate the shared root to a branch-neutral layer** (#2933, the status
+   quo plan). Keeps both hierarchies and the machinery that reconciles them.
+3. **Two fully independent hierarchies plus a translator.** Delete the shared
+   root but keep both class families, bridged only by an explicit translator.
+4. **Adopt a third-party AS2 hierarchy** (`activitypubdantic`, #2947) as the
+   wire half.
+
+## Decision Outcome
+
+Chosen option: **Option 1 — one object model; AS2 is a serialization of it.**
+
+The measured evidence (see *More Information*) shows the two "hierarchies" are
+not two models. Across the 27 class pairs that have both a core and a wire
+form, 346 fields differ, and not one of those differences is a semantic
+disagreement. 71% are one side declining to state a type the other side already
+states. 14.5% are `Any` on the core side specifically because ARCH-01-001
+forbids core from naming a wire type. The remainder is AS2's inline-or-IRI
+reference form plus `type_` expressed as an enum on one side and a `Literal` on
+the other. Exactly two of the 27 pairs differ by field *name* rather than by
+spelling, and both are the status classes covered by ADR-0036.
+
+### Decision details
+
+1. **One set of classes, serialized two different ways at two different
+   boundaries.** The classes under `vultron/core/models/` are the object model.
+   There is no second set of classes. Those same classes are written out
+   differently depending on where they are going:
+
+   | boundary | call | spelling |
+   |---|---|---|
+   | inter-actor delivery over HTTP | `model_dump_json(by_alias=True)` | AS2 — camelCase plus `@context` |
+   | persistence to the data layer | `model_dump(mode="json")`, no `by_alias`, then `_rekey_wire_identity()` | Python field names, with `id_`/`type_`/`context_` renamed to wire-facing `id`/`type`/`@context` (ARCH-23-005, #3546) |
+
+   **Amended 2026-09-28 (#3546):** the persistence path now applies `_rekey_wire_identity()` after `model_dump(mode="json")`, renaming the three identity keys (`id_`→`id`, `type_`→`type`, `context_`→`@context`) to their wire-facing spellings before storing.
+   camelCase is still not applied to other fields.
+
+   **AS2 is the HTTP transmission format only.** Stored rows are not fully
+   AS2-spelled (camelCase is not applied) and this decision does not change that. A received activity is
+   additionally kept as an unparsed `dict[str, Any]` in the ledger payload
+   snapshot (CLP-07-011); that copy is neither serialization above. It is meant
+   to be the body as it arrived, but today it is rebuilt from the parsed graph;
+   [ADR-0107](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)
+   records that gap and stages the change that records the received evidence
+   instead.
+2. **Core field names follow Python convention; the AS2 spelling lives in a
+   Pydantic alias.** Core models are `pydantic.BaseModel` subclasses and
+   Pydantic's own JSON handling is the mechanism. AS2 is a JSON format and
+   follows JSON naming convention, so the two spellings differ; that difference
+   is carried entirely by `validation_alias` / `serialization_alias` on the
+   field. Core code MUST NOT type an AS2 spelling — it types `in_reply_to`,
+   never `inReplyTo`.
+
+   No parallel core-only naming scheme is built. YAGNI: the aliases already
+   provide the separation. How a core implemented in another language would
+   handle this is out of scope for this decision.
+
+   **Amended during #3487: the aliases are *derived*, not enumerated.** As first
+   written this detail said the spelling is carried "entirely by
+   `validation_alias` / `serialization_alias` on the field", i.e. one hand-written
+   alias per field. That was built and then changed, for a measured reason:
+   `pydantic.alias_generators.to_camel` produces the correct AS2 property name for
+   27 of 30 real field names, and the three it misses (`id_`, `type_`, `context_`)
+   are trailing-underscore fields that already carry explicit aliases and always
+   will — `@context` cannot come from any generator.
+
+   Enumerating therefore buys nothing and costs the fields nobody remembers:
+   declaring the generator per class instead of once let four promoted types ship
+   `attributed_to` on the wire while their siblings shipped `attributedTo`, which
+   is invisible until a peer cannot read the payload. So the generator is declared
+   once on `CoreObject` and inherited, and what keeps it honest is a closed-world
+   test on the projected key set
+   (`test_promoted_core_classes_are_exactly_as2_representable`) rather than the
+   declaration site. ARCH-12-003 and ARCH-20-001 both forbid this mechanism and
+   are annotated; #3578 owns their rewrite.
+3. **The 27 paired `as_*` domain classes are deleted.** Message-shape classes
+   name core classes in their slots: `object_: VulnerabilityReport`,
+   `target: VulnerabilityCase`.
+
+   **Implication, stated deliberately because it is a real new constraint:** a
+   core class that can appear in a message slot MUST be exactly
+   AS2-representable. Every field it carries must have a valid AS2 property
+   spelling, and it MUST NOT carry a field that cannot go on the wire. This
+   constrains future core modelling and is accepted. It does **not** extend to
+   core classes that never appear in a message — the 23 with no wire
+   counterpart (dead-letter records, the role and lifecycle participant
+   subclasses, pending-queue entries) are unconstrained by AS2.
+4. **The shared root is deleted.** `as_Base` gets its own root carrying the AS2
+   envelope fields. Core has **two** roots: a minimal record base (`id`,
+   `type`, `name`) for records that are not AS2 objects, such as dead letters,
+   and one object root carrying the AS2 object fields, `@context`, and required
+   timestamps.
+5. **Dimension objects serialize as a bare value.** A dimension object holds
+   exactly one data field, `state`; everything else on it is behaviour, and
+   behaviour does not serialize. Each dimension gains a whole-model serializer
+   and reader so `RmDimension` writes itself as `"START"` and accepts
+   `"START"`. With an alias of `rmState`, **the AS2 wire form does not change**,
+   so the published ontology and any peer remain valid. This transformation
+   belongs on the dimension class, not in a helper or a translator: it is a
+   value object stating how it writes itself.
+6. **ARCH-22-001 is repealed and replaced by an allow-list.** Wire MAY import
+   `vultron/core/models/` and `vultron/core/states/`. Wire MUST NOT import
+   anything else under `vultron/core/` — `behaviors/`, `use_cases/`, `ports/`,
+   `services/`, `predicates/`, `scoring/`, `participants/`, `dispatcher.py`,
+   `sync_helpers.py`. The rule attaches to the *importing* directory, so
+   relocating a file cannot evade it, and it is an allow-list so a new core
+   package is forbidden by default. ARCH-01-001 (core MUST NOT import wire) is
+   unchanged and remains fully satisfied.
+7. **Reading is strict on declared fields; an unrecognised key is decided at
+   the parse edge, not by class ancestry.** Recognised fields are validated
+   strictly and a violation is refused at the edge (ADR-0032). An unrecognised
+   key on *inbound* data is partitioned off before validation by
+   `parse_activity`, for every object at every depth, and disposed of by one
+   rule (MV-11-001): a **near miss** for a declared spelling — the same string
+   after lowercasing and removing non-alphanumerics, or a retired name — refuses
+   the whole activity naming both spellings (MV-11-002), because the sender
+   meant a field we read and proceeding without it is the #2232 shape with a log
+   line attached; any **other** unknown key is set aside and reported at `INFO`
+   with `activity_id`, the sender's `actor_id`, the field path and the key, and
+   the activity proceeds on its declared fields (MV-11-003). No edit distance or
+   other similarity measure is ever used. `CoreObject` keeps `extra="forbid"`
+   (ARCH-12-003) unchanged: it guards *in-process and stored* data, where an
+   unknown key is always a bug, and it never sees an inbound unknown key because
+   the parse edge is the only door inbound data enters by (MV-11-004). No core
+   class gains a loose "extras" field, and a set-aside key is never carried on
+   the parsed object — the received evidence (VM-08-002) is the only copy.
+
+   **Amended 2026-09-30 (#3900).** This detail has been rewritten twice. As
+   first written it said unrecognised fields were "set aside before validation,
+   not rejected". That was never built: #2940 landed `extra="forbid"` on every
+   core object, inbound and stored alike, and on 2026-09-29 (#3888) the detail
+   was amended to say so, with an envelope carve-out because `as_Base` kept
+   Pydantic's default `extra="ignore"`. Measuring that carve-out for #3900
+   showed the real shape: the disposition of an inbound unknown key was being
+   decided by whether the resolved class *happened* to be core (refused) or wire
+   (dropped silently — envelope, generic AS2 objects, `Link`, untyped inline
+   dicts). Neither outcome had been chosen for inbound data. The rule above
+   chooses: the receive side is liberal with a report (ADR-0086, ARCH-21-002),
+   except where the key is a spelling of something we read, and the core
+   `forbid` is left to do the job it was added for. The federation argument
+   stands as #3888 put it — an extension a peer wants Vultron to *read* ships
+   through the versioned context document (ADR-0106) — but a property Vultron
+   does not read is now reported rather than refused or lost.
+8. **Every legitimate AS2 field is declared, so "unrecognised" means
+   unknown.** The AS2 object and activity field sets are declared in full on
+   the core roots and on `as_Base`/`as_Object` — including fields Vultron does
+   not use, such as `bto`, `bcc`, `icon`, `image` — so a recognised-but-ignored
+   field is distinguished structurally from an unknown one, and only the unknown
+   one reaches detail 7's partition. A refusal names the key and the spelling it
+   resembles (EH-07-001 lists every violation), so the report *is* the error;
+   a set-aside key is named once in the log, with its path.
+
+   **Amended 2026-09-30 (#3900).** As first written this detail said set-aside
+   fields were reported at `INFO`, with a `WARNING` when the key was a near
+   miss after lowercasing and stripping non-alphanumerics or matched a retired
+   name; fuzzy/edit-distance matching was rejected because AS2 has many two- and
+   three-letter field names within one character of each other. The 2026-09-29
+   amendment (#3888) withdrew the reporting because detail 7 had become
+   refuse-everything on core objects. The 2026-09-30 rewrite of detail 7
+   restores the reporting for foreign keys and *promotes* the near miss from a
+   warning to a refusal: a warning still loses the sender's data. The
+   deterministic normalisation and the rejection of edit distance are unchanged
+   and are now normative (MV-11-002).
+9. **Object slots hold the whole object, not an ID.** Reading resolves an IRI
+   reference to the referenced object; an unresolvable reference is deferred or
+   refused. **`rehydrate()` owns that materialisation** — VM-06-007, in
+   `vultron/wire/as2/rehydration.py`. It already holds the `DataLayer` the
+   resolution needs (VM-06-002), so it resolves the *real* object rather than
+   standing a placeholder in for it. Which of *deferred* and *refused* applies
+   is read off the declared field type: a slot that admits `str` — every
+   `ActivityStreamRef[T]` — can legally hold the IRI, so an unresolvable
+   reference is deferred there (VM-06-004); a slot that admits a model and no
+   `str` cannot, so an unresolvable reference is refused. The `WireParsePort`
+   (#2938) was the other candidate and is rejected: it does not exist, its
+   prerequisite #2937 is cancelled below, and its single-method wire→core shape
+   carries no store access, so it could only have fabricated placeholders —
+   which is the defect, not the fix. Per-class `from_core` fabricated a stub
+   `as_Activity` with a *synthesized* actor; that is not reproduced, and the
+   reasoning is recorded in `materialise_object_slots` and VM-06-007. See the
+   caveat under *Measured evidence*.
+
+   **This is a prototype shortcut, recorded as such.** It defers data
+   normalization rather than solving it. A production system would be expected
+   to normalize considerably further — references rather than embedded copies,
+   backed by a single store, with join tables or dedicated join objects where a
+   relationship carries data of its own. We are simply not making that choice
+   in the prototype at this time. This detail MUST NOT be read as a permanent
+   architectural principle, and MUST be revisited before production.
+10. **The AS2 vocabulary and the formal message set stay separate artifacts.**
+    AS2 can express more sentences than Vultron needs, and the formal protocol
+    over-counts in the other direction — proposing an embargo and proposing a
+    revision to one are the same sentence with different start and end states.
+    Neither list is a subset of the other. The mapping between them is the
+    reconciling artifact, as ADR-0083 already decided. The message-shape
+    classes stay in `vultron/wire/`, because they subclass AS2 verbs and are
+    therefore the AS2 *encoding* of a message, not the message's identity.
+
+### Consequences
+
+- Good, because the duplication disappears at its source. No pairing table, no
+  translators, no shared root to keep aligned, no branch-neutral layer.
+- Good, because replacing AS2 becomes cheaper, which is the goal the separation
+  was meant to serve. Under the parallel hierarchy a second wire format costs
+  roughly 127 new classes and 27 new pairings; under one model it costs one
+  read/write module.
+- Good, because the wire→core boundary test shrinks from a 20-entry violations
+  list plus two ratchet tests plus a goal test plus a declared exemption set,
+  to one allow-list test.
+- Good, because conflating a wire object with a core object becomes
+  structurally impossible for domain types: there is only one class per
+  concept.
+- Good, because declaring the full AS2 object field set on the core root —
+  including fields Vultron does not use, such as `bto`, `bcc`, `icon`,
+  `image` — now separates "standard AS2 we ignore" from "field nobody
+  recognises", instead of being dead weight.
+- Bad, because core classes carry AS2 field aliases, so the domain model is
+  visibly shaped by AS2. This is accepted deliberately: 234 of 1535 core fields
+  already carry one, so the separation being given up was never real.
+- Bad, because it supersedes two accepted ADRs and amends three more, and
+  requires changes across seven spec groups.
+- Bad, because work has already landed on the superseded plan — PR #3440 merged
+  2026-09-20 and created the branch-neutral layer for #2932 — so some recent
+  effort is reversed.
+- Bad, because detail 3 took away the mechanism ADR-0074 used to keep received evidence intact: `frozen` on the envelope does not reach the nested core objects.
+  The evidence is now sealed as text at parse instead (#3584); see **Amends** below.
+- Neutral, because the AS2 wire form is unchanged by this decision. The
+  dimension-object change is deliberately designed to keep output identical.
+
+## Migration
+
+**This section is the record of how the work landed.** It was written as the
+difference between the code as it was when this decision was taken and the
+decision above, to be deleted once that difference closed. It is kept instead,
+because the dated amendments inside it (#3485, #3490) are decision content that
+[Validation](#validation) and the downstream notes cite.
+
+- **Delete 25 of the 27 paired `as_*` domain classes**, and retarget the
+  message-shape classes' slots at the core classes.
+- **Delete the remaining 2 pairs** (`as_CaseStatus`, `as_ParticipantStatus`).
+  Larger than it looks: `as_ParticipantStatus` is referenced across dozens of
+  production and test modules — re-measure before scoping rather than trusting a
+  figure quoted here (MS-16-001) — and the structural
+  blocker is `as_CaseParticipant.participant_statuses: list[as_ParticipantStatus]`
+  — deleting it forces `as_CaseParticipant` to change, which cascades into its
+  activities, its factories, the FastAPI example routes, and two demo scripts.
+  This is migration work, not a step that fits inside a spike.
+- **Collapse the rendering port.** `As2WireRenderAdapter.render()` currently
+  returns `wire_cls.from_core(obj).model_dump(by_alias=True, exclude_none=True,
+  mode="json")`. Once the wire counterpart is gone it is
+  `obj.model_dump(by_alias=True, exclude_none=True, mode="json")` plus the
+  delivery-supplied `@context` — measured byte-identical for
+  `ParticipantStatus`. This requires amending **ARCH-20-003**, which presently
+  says the port MUST raise when no wire counterpart exists; under one model a
+  missing counterpart is the normal case, not an error.
+
+  **Amended 2026-09-24 (#3490): `@context` comes from the core serializer, not the delivery step.**
+  As built, `As2WireRenderAdapter.render()` returns `obj.model_dump(by_alias=True, exclude_none=True, mode="json")` of the `CoreObject` itself, with nothing added at delivery.
+  `@context` is emitted by a model serializer on `CoreObject`, and only on a `by_alias=True` dump.
+  This deviates from the "delivery-supplied `@context`" above, for three reasons.
+  The namespace is supplied in exactly one place (VM-10).
+  A `by_alias` dump of any core object is then complete AS2, with no second step to forget.
+  A persistence dump, which does not use `by_alias`, still carries no context.
+
+  **Amended 2026-09-30 (#3930): the render also passes `serialize_as_any=True`.**
+  Once every ledger snapshot went through the port, a received activity's inline wire object whose field held a value other than its declared type (an actor's `inbox` as the IRI string) became a serializer warning instead of a rendering.
+  Serialising nested values by their runtime type is what every other AS2 path in the codebase already did, so ARCH-20-002 now names the flag.
+- **Collapse the core root stack from three levels to two.** The middle level
+  (`VultronObject`) existed only to keep timestamps optional so the wire half
+  could stay lenient (ARCH-12-002); `CoreObject` then re-tightened them. With no
+  wire half sharing the root, the middle level has no job.
+- ~~**Fix the 73 places under `vultron/core/` that type an AS2 spelling.**~~
+  **Done (#3485.)** The real figure is **39** core-*logic* sites across 11 files;
+  the rest of the 73 grep hits were alias declarations and prose, which are
+  correct and stayed. The fix is a derivation rather than a table:
+  `vultron/core/models/wire_keys.py` reads the wire spelling off the field's
+  declared alias, so core names the core field and the camelCase is never typed
+  and cannot drift.
+
+  `_SNAKE_TWINS` was reduced, not deleted — deleting it would have broken the
+  adjudication-patch path (RSH-05-009, CM-18-006). It was two contracts fused
+  together, now separated in `vultron/core/behaviors/ledger_patch.py`: the
+  RSH-05-013 allow-list of patchable keys, and the stale-twin map that stops a
+  consumer reading a value the receiver refused.
+
+  Two behaviour deltas, both in the strict direction and both deliberate.
+  `emConsentState` is dropped from the patch allow-list, so an override naming it
+  is now refused — no producer emits it and nothing adjudicates consent
+  (ADR-0046). And an explicit `{"rmState": None}` now raises instead of falling
+  back to the dimension default, which is detail 7's fail-loudly rule; nothing in
+  the suite relied on the fallback.
+
+  One convergence worth noting: `CaseStatus.em`/`pxa` now declare
+  `serialization_alias="emState"`/`"pxaState"`, so core and `as_CaseStatus` emit
+  **identical key sets**. One path changes — `behaviors/status/nodes/case_status.py`
+  hand-builds a snapshot by dumping a core `CaseStatus` directly rather than
+  through `WireRenderPort`, and that snapshot was carrying the core spelling. It
+  was the odd one out among ledger snapshots; it now matches. Every
+  port-rendered snapshot is unchanged.
+- ~~**Name the owner of ID-to-object materialisation**~~ **Done (#3486.)**
+  `rehydrate()` owns it (VM-06-007); detail 9 and the caveat under *Measured
+  evidence* both name it. `WireParsePort` (#2938) was rejected on three grounds:
+  it does not exist, its own AC-2 requires resolving a counterpart *through the
+  pairing registry* — which this ADR cancels — and its single-method shape has no
+  store access, so it could only have fabricated placeholders, which is the
+  defect rather than the fix.
+
+  The synthesized actor is **declared unnecessary, and was actively wrong.**
+  `as_Activity.actor` is required with no default, so a stub built from a bare ID
+  had to supply something, and `from_core` had no data layer to ask — so it
+  invented `attributed_to or id_`. But `record_activity` records activity by *any*
+  participant, so that misattributes every activity the case owner did not
+  perform, and the fallback attributes an activity to a *case*, which is not an
+  actor at all. `actor` is what semantic dispatch and the AKM-03-001 outbox gate
+  both key on. Corroborating: `as_VulnerabilityCase.model_validate({"case_activity":
+  ["urn:uuid:a1"]})` raises today, which shows the stub was the only way a case
+  with recorded activity could become a wire object — a type-mismatch workaround,
+  not a behaviour. The argument is recorded in the `materialise_object_slots`
+  docstring, in VM-06-007, and in a test asserting the resolved actor is neither
+  the case owner nor the case URI.
+
+  `as_Collection` endpoint slots (`inbox`, `outbox`, `followers`, …) are excluded:
+  an actor's inbox is an address, ActivityPub publishes it as a URI, it usually
+  belongs to a remote actor, and `as_Actor` already declares a `mode="before"`
+  coercion for it.
+- ~~**Rename the four misnamed wire classes** to `as_*`.~~ **Done (#3484.)**
+  `as_VultronObject`, `as_VultronActivity`, `as_VulnerabilityCaseStub`,
+  `as_VultronActorMixin`. The 47 `_XxxActivity` classes are private and
+  unambiguous, and stayed.
+
+  Two things worth carrying forward. `WIRE_TYPE_MAP` is keyed on
+  `cls.__name__.removeprefix("as_")`, so *adding* the prefix is registry-neutral
+  while changing the stem is not — and `VulnerabilityCaseStub` is both a live
+  registry key and a published JSON-LD term in `docs/ns/context.jsonld`. And
+  `VultronActorMixin` named two different things: the wire class, and the core
+  alias `VultronActorMixin = CoreActor`. `test_wire_vocab_naming.py` reported
+  zero collisions throughout, because it scans `class` statements and a name
+  introduced by assignment is invisible to it. That hole is now closed.
+- ~~**Replace the ARCH-22 ratchet** — its 20-entry `KNOWN_VIOLATIONS` set, two
+  two-sided tests, `xfail` goal test and declared exemption set — with the
+  single detail-6 allow-list test.~~ **Done (#3483.)** `case_states/` and
+  `participants/` were classified **forbidden**: despite its name the former
+  holds graph-walking and validation behaviour rather than state definitions,
+  and the bare enumerations wire legitimately needs already live in
+  `vultron/core/states/`. `TYPE_CHECKING`-only imports are exempt generally,
+  not by carving out the one file that needed it.
+- ~~**Retire ADR-0017 and ADR-0082**, including the forward references from
+  `notes/wire-core-boundary.md`, `notes/vocabulary-registry.md`,
+  `notes/core-wire-rendering-port.md`, `docs/reference/glossary.md` and several
+  spec rationales.~~ **Done (#3492).** Both carry `status: superseded` and live
+  in `docs/adr/archived/`; their old URLs redirect. The notes and glossary named
+  here already described ADR-0082's remedy as cancelled; the spec rationales
+  that still presented it as current were reworded, and the requirements whose
+  *normative* text still named the cancelled mechanisms were rewritten or
+  removed (#3840: ARCH-20-008, ARCH-20-009, CM-18-015, UCORG-05-014 and
+  AF-01-005 rewritten; SDO-04-001 removed — with one class there is no second
+  shape to keep in step). (The ratchet test that also cited them was deleted
+  with detail 6.)
+
+## Validation
+
+Detail 5 is the part of this decision that could have failed, so it was
+validated before the rest was planned. `ParticipantStatus` is the hardest of the
+27 pairs, being one of only two whose fields differ by name rather than by
+spelling.
+
+**Acceptance test: the serialized AS2 output is byte-identical to today's.**
+
+**Result: passed.** With the dimension wrapper collapsed and four field aliases
+declared, core `ParticipantStatus` produces output identical to
+`as_ParticipantStatus` across six state combinations (default, RM-only, vendor,
+deployer, consent, all-set), modulo timestamps. Only two keys needed anything
+added: a derived display `name`, which moved onto the core class, and
+`@context`, which the delivery step supplies by existing design
+(`CoreObject.context_` is deliberately `exclude=True` because the JSON-LD
+namespace is a transmission concern).
+
+**Amended 2026-09-24 (#3490):** that description of `@context` is historical.
+`CoreObject.context_` is still `exclude=True`, but the delivery step does not supply the namespace.
+A model serializer on `CoreObject` emits `@context` on every `by_alias=True` dump, using `context_` when one was supplied and the Vultron context otherwise.
+A persistence dump without `by_alias` still omits it.
+The reasons are recorded in the amendment to "Collapse the rendering port" under Migration.
+
+The spike surfaced two things worth recording, both of which are this ADR's own
+argument appearing unprompted.
+
+**First: three inconsistent copies of one rule.** `as_CaseStatus.from_core`
+already tolerated both the bare and the mapping form of a dimension
+(`em_dim.get("state") if isinstance(em_dim, dict) else em_dim`). Its two sibling
+before-validators — `as_CaseStatus._migrate_core_dimension_format` and
+`as_ParticipantStatus._migrate_core_dimension_format` — accepted only the
+mapping form. Given the bare form, the dict-only branch left the key unconsumed,
+never set the flat field, and let the state fall back to its initial value
+(`RM.START`, `EM.NONE`) **with no error** — the #2262 silent-state-loss pattern,
+in two further locations. All three now agree. This is the fourth duplication
+ADR-0082 described, found in a place ADR-0082 did not enumerate.
+
+**Second, and larger: persistence currently round-trips core objects through the
+wire vocabulary.** `_storable_to_record` in
+`vultron/adapters/driven/datalayer_sqlite/crud.py` normalises through
+`_NORMALIZE_WIRE_TO_CORE`, and its docstring says that set is "currently
+`CaseParticipant` and `ParticipantStatus`". It is not. The set holds **15**
+types, including `VulnerabilityCase`, `CaseStatus`, `VulnerabilityReport`,
+`EmbargoPolicy`, `CaseLedgerEntry` and all five actor types. So `DataLayer.update`
+for a case reconstitutes it as `as_VulnerabilityCase`, walks its nested
+`as_CaseStatus` children, and projects back — meaning a plain persistence write
+passes through the wire classes and is exposed to every projection gap in them.
+That is how an EM state set by a caller was being dropped between
+`DataLayer.update` and the stored row.
+
+This is a materially deeper entanglement than the "translation at the boundary"
+picture in ADR-0062 and ADR-0082, and it strengthens the case for one model:
+under one model there is nothing for `_NORMALIZE_WIRE_TO_CORE` to normalise,
+because the stored object and the transmitted object are the same class. The
+stale docstring should be corrected independently of this ADR.
+
+### What holds each detail
+
+The record was graduated to `accepted` on 2026-09-28 (#3491), when the last
+migration issue under #2670 closed and the annotated architecture requirements
+(see *More Information*) were rewritten to the one-object model. Detail 5 was validated by
+the spike above before anything else was built; the other details were built
+under their own issues, and each is held by a test the way the table records.
+Details 7 and 8 were amended in #3888 to say what was built, and again in
+issue #3900 to decide the inbound rule; the paragraph after the table records why.
+
+| detail | held by |
+|---|---|
+| 1 — one class, two serializations | `test_core_object_context_is_emitted_on_the_as2_path_only` (`test/core/models/test_core_object.py`): `@context` on the `by_alias` dump only. `test_rekey_wire_identity_renames_only_identity_keys` (`test/adapters/driven/test_db_record.py`): the persistence path renames only `id_`/`type_`/`context_`. `test_core_object_derives_as2_spellings_and_accepts_field_names` (`test/architecture/test_hierarchy_invariants.py`) keeps both spellings readable on input. |
+| 2 — AS2 spelling lives in the alias | `test/architecture/test_core_no_as2_spellings.py`: no module under `vultron/core/` types an AS2 spelling. `test_promoted_core_classes_are_exactly_as2_representable` (`test/architecture/test_wire_no_core_object_annotations.py`): the closed-world check on the projected key set. `test/architecture/test_core_by_alias_dumps.py`: the `by_alias` output against its baseline. |
+| 3 — the paired classes are deleted | `test/architecture/test_wire_no_core_object_annotations.py`: message-shape slots name core classes. The identity tests per type — `TestVulnerabilityCaseWireRoundTrip` in `test/core/models/test_case.py`, and its siblings in `test_case_actor.py` and `test_case_reference.py` — assert `as_X is X`. `test/architecture/test_core_no_to_core_duck_typing.py`: nothing looks for a `to_core()` that no longer exists. |
+| 4 — the shared root is deleted | `test/wire/as2/vocab/base/test_wire_base_hierarchy.py`: `as_Base` stands directly on `pydantic.BaseModel`. `TestCoreRoots` and `test_wire_vocabulary_inherits_nothing_from_core` (`test/architecture/test_hierarchy_invariants.py`): core has exactly two roots and wire inherits neither. |
+| 5 — dimensions serialize as a bare value | `test/core/models/test_dimension_bare_serialization.py`, including the parity of core and wire AS2 output. |
+| 6 — wire→core allow-list | `test/architecture/test_wire_core_import_allowlist.py`, replacing the deleted ratchet. `test/architecture/test_core_no_wire_imports.py` holds ARCH-01-001 unchanged. |
+| 7 — strict on declared fields; inbound unknown keys decided at the parse edge (as amended) | `test/wire/as2/test_unknown_key_disposition.py` (MV-11): one matrix over every position an unknown key can arrive in — envelope, generic AS2 object, `Link`, untyped inline dict, inline domain object — asserting near miss → refused naming both spellings, foreign → set aside and reported once, built by `vultron/wire/as2/unknown_keys.py` (#3921). `test/architecture/test_no_receive_path_reparse.py` holds MV-11-005: nothing on the receive path re-validates from the raw body (#3922). The stored-side half is `test_unknown_key_raises_for_every_core_vocabulary_entry` and `test_every_core_object_forbids_extra_with_no_exemption_list` (`test/architecture/test_core_extra_forbid.py`): every `CoreObject` subclass refuses an unknown key, with no exemption list. |
+| 8 — every AS2 field declared, so only unknown keys reach the partition (as amended) | `test_vultron_activity_accepts_every_wire_activity_key` (`test/adapters/driving/fastapi/test_outbox_helpers.py`): on the stored/delivery path, every key a wire activity dumps is a declared `VultronActivity` field, so a legitimate field is never the unknown one. On the inbound path the near-miss rows of `test/wire/as2/test_unknown_key_disposition.py` assert the refusal names the declared spelling, and `test_no_similarity_helper_in_the_parse_edge` pins the deterministic normalisation. |
+| 9 — object slots hold the whole object | `test/wire/as2/test_rehydration_materialisation.py`: `rehydrate()` materialises, refuses on a model-only slot, defers on a URI-admitting one. |
+| 10 — vocabulary and message set stay separate | `test/test_message_semantics_mapping.py` (MSM-03 to MSM-05): the formal shorthands map onto the semantic registry rather than onto AS2 types one-for-one. The reconciling artifact is `notes/message-type-reference.md` (ADR-0083). |
+
+**Details 7 and 8 were amended twice.** As first written they described a
+set-aside-and-report design: unrecognised fields kept but not validated, logged
+at `INFO`, with near-miss warnings. It was never built. #2940 put
+`extra="forbid"` on every core object instead, ARCH-12-003 made that a MUST,
+and its rationale cited detail 7 as the argument it enforced while the detail
+said the opposite — so the spec and the ADR each read the other as
+confirmation. The graduation in #3491 did not catch it: closing every issue
+under #2670 showed the *work items* were done, not that each detail had a test,
+and the `lint_suppress` added to get past the stale status sentence in
+Validation also silenced the gate that would have asked. The first amendment
+(#3888) recorded what was built and carved out the envelope. Planning the
+envelope fix (#3900) then measured every position an unknown key can arrive in
+and found the carve-out was not a design but an accident of class ancestry, so
+the second amendment decided the inbound rule on its own terms: partition at
+the parse edge, refuse a near miss, set aside and report a foreign key, and
+leave the core `forbid` to the stored side (MV-11).
+
+## Pros and Cons of the Options
+
+### One object model; AS2 is a serialization of it
+
+- Good, because it matches the measured evidence: there is one model, not two.
+- Good, because it removes the machinery rather than relocating it.
+- Bad, because it is the largest change of the four options.
+
+### Relocate the shared root to a branch-neutral layer (#2933)
+
+- Good, because it is incremental and already planned and scoped.
+- Bad, because it cements a decision whose premise ADR-0082 already removed.
+- Bad, because it requires moving `CORE_TYPE_MAP` or inventing a registration
+  seam, since `VultronObject.__init_subclass__` writes to a core registry and a
+  branch-neutral module may not import core.
+
+### Two fully independent hierarchies plus a translator
+
+- Good, because it removes the inheritance entanglement with no ambiguity.
+- Bad, because it keeps every duplicate class and the translator, which is the
+  larger cost, while the measurement shows no semantic difference to translate.
+
+### Adopt a third-party AS2 hierarchy
+
+- Good, because it reduces hand-maintained surface for the pure-AS2 subset.
+- Bad, because it introduces a foreign root and does not address the
+  duplication, which is the actual problem. Deferred; see #2947.
+
+## More Information
+
+### Measured evidence
+
+Measured on `origin/main` at 55f5ff467. Do not re-derive.
+
+**Population, classified by module rather than by name prefix:**
+
+| | count |
+|---|---|
+| classes under `vultron/wire/` | 127 |
+| of those, *not* named `as_*` | 51 |
+| classes under `vultron/core/models/` | 45 |
+| `as_*` classes paired to a core class by name | 27 |
+| `as_*` classes with no core counterpart | 49 |
+| core classes with no wire counterpart | 23 |
+
+The 51 misnamed wire classes (`VulnerabilityCaseStub`, `VultronAS2Object`,
+`VultronAS2Activity`, `VultronActorMixin`, and 47 `_XxxActivity` classes) are
+the concrete form of the tell-them-apart problem. The first four are renamed to
+`as_*` by this decision; the `_XxxActivity` classes are private and
+unambiguous.
+
+**The 346 differing fields across the 27 paired classes:**
+
+| share | kind of difference |
+|---|---|
+| 46.0% | same base type; core adds a validator or makes it required |
+| 24.9% | wire declares `Any`; core states the real type |
+| 14.5% | core declares `Any`; wire states the real type |
+| 10.4% | AS2 inline-or-IRI-or-Link union; `type_` enum vs `Literal` |
+| 4.3% | `type_` enum vs `Literal` |
+
+Only two pairs differ by field name rather than spelling:
+
+- `as_CaseStatus` / `CaseStatus` — wire `em_state`, `pxa_state`; core `em`, `pxa`
+- `as_ParticipantStatus` / `ParticipantStatus` — wire `rm_state`, `vf_state`,
+  `d_state`, `em_consent_state`; core `rm`, `vf`, `d`, `consent`
+
+### Caveat: the measurement covers declared field types, not projection bodies
+
+Stated plainly because the summary above is easy to over-read. The 346-field
+analysis compares the **declared type of each field** on the 27 paired classes.
+It does *not* measure what the `from_core()` / `to_core()` method bodies do, and
+some of them do structural work no alias can express. `as_VulnerabilityCase
+.from_core` fabricates objects:
+
+```python
+data["case_activity"] = [
+    as_Activity(id_=activity_id, actor=core_obj.attributed_to or core_obj.id_)
+    if isinstance(activity_id, str) else activity_id
+    for activity_id in data.get("case_activity", [])
+]
+```
+
+A string ID becomes a stub object with a *synthesized* actor. Counting
+structural operations across the projection overrides — object construction,
+`.to_core()` recursion, ref unwrapping, dimension mapping, list comprehension:
+`vulnerability_case` 20, `case_status` 15, `case_participant` 7,
+`vultron_actor` 5, `vulnerability_report` 4, `case_reference` 4,
+`case_actor` 3, and only `case_ledger_entry` at zero.
+
+Most of it dissolves with the second hierarchy, because it exists only to bridge
+two shapes: `.to_core()` recursion into nested children, and
+`_scalar_ref_id_or_value` unwrapping a wire `object | Link | str` union into a
+core scalar. Both have nothing to do once there is one shape.
+
+**One kind does not dissolve: materialising an object from an ID.** That is
+detail 9's rehydration, and per-class `from_core` code is what implements it
+today. Detail 9 says slots hold whole objects; it does not say what fills them.
+Deleting the projection methods without naming a replacement owner would drop
+the behaviour silently — the same failure shape as the two silent-state-loss
+bugs the spike found. The candidates were `rehydrate()` (VM-06-001) and the
+`WireParsePort` (#2938); **detail 9 above names `rehydrate()`** and VM-06-007
+records it.
+
+Surfaced by #3437, which had been filed as a narrow adapter-consolidation
+cleanup.
+
+**Core is already AS2-shaped.** 234 of 1535 core model fields carry a
+wire-facing alias, including the AS2 backbone: `id`, `type`, `@context`,
+`inReplyTo`, `mediaType`, `attributedTo`, `preferredUsername`.
+
+**Core code already types AS2 spellings** in 73 places, including a
+hand-written translation table at
+`vultron/core/behaviors/case/nodes/lifecycle.py:98` mapping `"rmState"` to
+`"rm_state"`, and 21 `by_alias=True` calls under `vultron/core/`. This is the
+cleanup detail 2 creates.
+
+**What wire actually reaches into core for today:** 50 imports from
+`vultron.core.models`, 14 from `vultron.core.states`, and one
+`TYPE_CHECKING`-only reference to the `DataLayer` interface at
+`vultron/wire/as2/rehydration.py:36`. No behaviours, no use cases, no handler
+logic. And core imports **nothing** from wire — ARCH-01-001 is fully held.
+
+The old rule therefore banned the harmless direction while the harmful coupling
+passed through it undetected, as duck-typing: core calling `getattr(obj,
+"to_core", None)` at three sites, which no import-based test can see.
+
+**A dimension object holds one field.** `RmDimension.model_fields` is exactly
+`["state"]`; the rest of the class is `transition()` and guard predicates. It
+already reads a bare string via `field_validator` and writes a bare string via
+`field_serializer`. Only the one-key `{"state": ...}` wrapper stands between the
+core form and the wire form. There is no stored state requiring backward
+compatibility.
+
+### Relationship to other decisions
+
+**Supersedes** — recorded as `superseded_by` on both, which now carry
+`status: superseded` and live in
+[`docs/adr/archived/`](archived/README.md). Until this ADR reached `accepted`
+they were only annotated (`partially_superseded_by`) and kept
+`status: accepted`, because retiring two accepted decisions on the strength of
+one not yet validated would have overstated what had been established. They
+were retired in full when this ADR reached `accepted` (#3492).
+
+- **ADR-0017** — the Option D shared root is replaced. Everything Option B
+  contributed and ADR-0017 preserved — `CoreObject`, `CORE_VOCABULARY`, the
+  migrated domain types from the #699 chain — survives as *the* model here. Its
+  domain/wire separation rationale still reads correctly; only the shared-root
+  mechanism does not.
+- **ADR-0082** — the diagnosis stands and is the foundation this ADR builds on:
+  the four duplications, the measured evidence, and the finding that "zero
+  wire→core imports" was unreachable. The *remedy* is replaced — there is
+  nothing to pair and nothing to translate once the second hierarchy is gone.
+  Item 8 of its Decision Outcome is the specific item reversed here.
+
+**Amends:**
+
+- ADR-0009 — repeals the wire→core prohibition that was never among its six Key
+  Rules, and adds the detail-6 allow-list. Rule 6 is unchanged and better
+  served.
+- ADR-0032 — confirms validate-at-edge, and adds the unknown-field rule that
+  ADR-0032 did not state.
+- ADR-0036 — dimension objects serialize as a bare value. Governing principles
+  1 through 3 are unchanged.
+- ADR-0074 — its principle stands: a received activity is immutable evidence (VM-08-002).
+  Its mechanism does not.
+  `frozen=True` covers only the class that declares it, and detail 3 made every paired nested object a mutable core class, so a frozen envelope can carry a writable case, report, participant or status.
+  Pydantic has no per-instance freezing, and the nested classes are mutable by design because they are also the domain objects.
+  The evidence therefore moves out of the object graph: `parse_activity` seals the received body as JSON text before anything expands or validates it, and ingress rehydration carries that text to the routing copy (snapshot-at-parse, #3584).
+  What the ledger does with that evidence is [ADR-0107](0107-case-ledger-entry-is-a-postmark-on-the-received-envelope.md)'s decision, not this one's.
+
+**Unaffected:** ADR-0083 (the message set and the AS2 vocabulary are different
+shapes), ADR-0069 (namespace).
+
+**ADR-0063** — its decision (render core objects to wire JSON behind a driven
+port) stands. Its mechanism and its removal of `alias_generator` from the core
+branch do not: detail 2 puts the AS2 spelling back on `CoreObject` as the field
+alias, and the port collapsed to the core object's own `by_alias` dump
+(ARCH-20-002). Recorded as `partially_superseded_by` on ADR-0063 when ADR-0082,
+which had previously held that pointer, was retired (#3492).
+
+### Issue dispositions
+
+| issue | disposition |
+|---|---|
+| #2933 move the shared root to a branch-neutral layer | cancelled — the shared root is deleted |
+| #2937 declarative pairing registry | cancelled — nothing to pair |
+| #2939 move projection to adapter-side translators | cancelled — no projection code |
+| #2942 relocate the semantic extractor | cancelled — it only moved to evade ARCH-22-001 |
+| #2944 / #2670 / #2673 the ARCH-22 ratchet and its exemption set | replaced by one allow-list test |
+| #2940 `extra="forbid"` on the core branch | landed as filed, not re-scoped: every core object refuses an unrecognised key (ARCH-12-003). Details 7 and 8 were first amended to match (#3888), then amended again so that inbound unknown keys are decided at the parse edge and `forbid` guards the stored side only (#3900, MV-11) |
+| #2947 evaluate `activitypubdantic` | unchanged, still deferred |
+
+Generated spec requirements: `SDO-01-004` (detail 5, new). `SDO-03-004`'s
+rationale corrected — it claimed dimension fields "serialize as nested dicts",
+which is no longer true.
+
+Thirteen requirements carry a `note:` recording that ADR-0099 supersedes,
+inverts or repeals their *direction*, while their normative statements stay
+true to the current code: `ARCH-01-003`, `ARCH-03-001`, `ARCH-12-001`,
+`ARCH-12-002`, `ARCH-12-005`, `ARCH-12-010`, `ARCH-20-002`, `ARCH-20-003`,
+`ARCH-21-002`, `ARCH-22-001`, `ARCH-22-003`, `ARCH-23-001`, `ARCH-23-006`.
+
+Annotating rather than rewriting is deliberate. The specs are what
+`load-specs` feeds to implementation agents. Rewriting `ARCH-22-001` to permit
+wire→core imports while the ratchet test and its 20-entry violation set are
+still in the tree would make the corpus contradict both the code and itself,
+and would have agents implementing a state that does not exist. Each note says
+plainly: this still describes the code, do not implement it as a target. The
+normative statements are rewritten when the migration lands.
+
+Two of the thirteen are inversions rather than repeals, and both carry a
+prerequisite: `ARCH-20-003` (a missing wire counterpart becomes normal rather
+than an error) and `ARCH-23-006` (wire annotations MUST name core classes). The
+defect behind `ARCH-23-006` is real and must be re-handled before inverting it —
+`VultronValidationError` is not a `ValueError` subclass, so a core-side guard
+firing while Pydantic resolves a union escapes the whole operation instead of
+being absorbed as a failed union branch.
+
+**Annotated 2026-10-09 (#4390).**
+The three paragraphs above, and detail 2's "#3578 owns their rewrite", describe the state before the migration landed.
+The rewrite has since been done and the annotations removed, across PR #3468 (the ARCH-22 allow-list), PR #3676 (#3578: ARCH-12, ARCH-20 and ARCH-21 reconciled) and PR #3783 (#3491: the remaining annotated requirements).
+Of the thirteen, together with the ARCH-12-003 and ARCH-20-001 that detail 2 names, ARCH-01-003, ARCH-03-001, ARCH-12-001, ARCH-12-002, ARCH-12-003, ARCH-20-001, ARCH-20-002, ARCH-20-003, ARCH-21-002, ARCH-22-001, ARCH-22-003 and ARCH-23-006 now state the one-object-model direction.
+ARCH-12-005 and ARCH-23-001 are retired: there is no translation to place and no pair to register.
+ARCH-12-010 keeps only the `CORE_TYPE_MAP` registration duty for bare `CoreRecord` types, which is not an ADR-0099 direction.
+The ARCH-23-006 prerequisite named above is met: `VultronValidationError` is a `ValueError`, held by `test_core_guard_inside_wire_union_fails_the_branch`.
+The audit in #4390 checked the set and rewrote the one requirement still carrying an ADR-0099 annotation, ARCH-20-006, which had required HTTP routes to render from an `as_*` class that detail 3 deletes.
+
+**Annotated 2026-10-12 (#4409).**
+The ten decision details are restated in full as the requirement group ARCH-25 in `specs/architecture.yaml`, one requirement per detail in order: ARCH-25-001 (detail 1) through ARCH-25-010 (detail 10).
+Each carries `adr: ADR-0099` and a verification clause naming the tests the table under Validation lists.
+Five checks the table did not list were added with them: `test_every_wire_name_for_a_domain_type_is_its_core_class` for ARCH-25-003, `test_enclosing_field_alias_carries_the_bare_state_on_the_wire` for ARCH-25-005, `test_as2_vocabulary_properties_are_declared_on_both_roots` and `test_core_object_declares_every_as2_object_field` for ARCH-25-008, and `test_every_wire_activity_class_lives_under_the_wire_package` for ARCH-25-010.
+The amendments to details 7 and 8 are carried as provenance in the rationales of ARCH-25-007 and ARCH-25-008.
+Specs and notes now cite those requirement IDs rather than this record's detail numbers, and MS-11-007 forbids citing a detail number from either.
+Generated spec requirements: ARCH-25-001, ARCH-25-002, ARCH-25-003, ARCH-25-004, ARCH-25-005, ARCH-25-006, ARCH-25-007, ARCH-25-008, ARCH-25-009, ARCH-25-010.
+
+## Ratification — 2026-10-02
+
+Ratified by Allen D. Householder on 2026-10-02, in the audit of unsupervised agent decisions (#4195).
+The amendments of 2026-09-28 to 2026-09-30 to details 7 and 8 (#3888, #3900) were made without a human reviewing them; the audit confirmed the MV-11 strictness they describe: a near miss on a declared field spelling is refused with a 422 naming both spellings, `@id` and `@type` are refused, and no similarity measure is used.
+The receive-side half is still a defect to finish: the verbatim snapshot of a received activity is persisted by #3742.

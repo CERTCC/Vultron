@@ -1,0 +1,452 @@
+#!/usr/bin/env python
+"""
+Provides tools for generating examples of Vultron ActivityStreams objects.
+
+Used within the Vultron documentation to provide examples of Vultron ActivityStreams objects.
+
+When run as a script, this module generates a set of example objects and writes them to
+``docs/reference/examples/``.  Re-run this generator whenever a new example function is
+added or an existing wire object changes shape so that the committed JSON files stay
+in sync with the current vocabulary.
+
+To regenerate from the repo root::
+
+    uv run python vultron/wire/as2/vocab/examples/vocab_examples.py
+
+The test ``test/architecture/test_vocab_examples_current.py`` fails when the committed
+JSON file list drifts from what this generator produces.
+"""
+
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from pathlib import Path
+from typing import cast
+
+from pydantic import BaseModel
+
+from vultron.wire.as2.vocab.examples._base import *  # noqa: F403
+from vultron.wire.as2.vocab.examples._base import (  # noqa: F401
+    _CASE_ACTOR,
+    _COORDINATOR,
+    ACTOR_FUNCS,
+    case,
+    case_actor,
+    coordinator,
+    finder,
+    gen_report,
+    obj_to_file,
+    vendor,
+)
+from vultron.wire.as2.vocab.examples.actor import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.actor import (  # noqa: F401
+    accept_actor_recommendation,
+    accept_case_participant_offer,
+    offer_case_participant,
+    recommend_actor,
+    reject_actor_recommendation,
+    reject_case_participant_offer,
+    request_invite_actor_to_case,
+)
+from vultron.wire.as2.vocab.examples.case import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.case import (  # noqa: F401
+    accept_case_ownership_transfer,
+    accept_case_participant_role,
+    add_report_to_case,
+    announce_case,
+    close_case,
+    create_case,
+    defer_case,
+    engage_case,
+    forward_case_participant_role,
+    offer_case_ownership_transfer,
+    offer_case_participant_role,
+    populated_case,
+    propose_case_ownership_transfer,
+    reengage_case,
+    reject_case_ownership_transfer,
+    reject_case_participant_role,
+    undo_case_ownership_transfer,
+    update_case,
+)
+from vultron.wire.as2.vocab.examples.case_proposal import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.case_proposal import (
+    accept_case_proposal,
+    create_case_proposal,
+    reject_case_proposal,
+)
+from vultron.wire.as2.vocab.examples.embargo import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.embargo import (
+    accept_embargo,
+    accept_embargo_revision,
+    activate_embargo,
+    announce_embargo,
+    announce_embargo_termination,
+    create_embargo_consent,
+    create_embargo_event,
+    embargo_event,
+    notify_embargo_termination,
+    propose_embargo,
+    propose_embargo_revision,
+    reject_embargo,
+    reject_embargo_proposal,
+    reject_embargo_revision,
+    relay_embargo_proposal,
+    remove_embargo,
+    undo_embargo_invite,
+    update_embargo_consent,
+    withdraw_from_embargo,
+)
+from vultron.wire.as2.vocab.examples.fault import (
+    create_processing_fault,
+    refusal_notice,
+)
+from vultron.wire.as2.vocab.examples.note import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.note import (  # noqa: F401
+    add_note_to_case,
+    note,
+    remove_note_from_case,
+)
+from vultron.wire.as2.vocab.examples.participant import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.participant import (  # noqa: F401
+    accept_full_case_invite,
+    accept_invite_to_case,
+    add_coordinator_participant_to_case,
+    add_finder_participant_to_case,
+    add_vendor_participant_to_case,
+    case_participant,
+    coordinator_participant,
+    create_participant,
+    finder_participant,
+    invite_to_case,
+    invite_to_full_case,
+    reject_full_case_invite,
+    reject_invite_to_case,
+    remove_participant_from_case,
+    rm_invite_to_case,
+    tentative_reject_full_case_invite,
+    update_participant,
+    vendor_participant,
+)
+from vultron.wire.as2.vocab.examples.report import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.report import (
+    close_report,
+    create_report,
+    invalidate_report,
+    read_report,
+    submit_report,
+    validate_report,
+)
+from vultron.wire.as2.vocab.examples.status import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.status import (
+    add_attacks_observed_to_case,
+    add_attacks_observed_to_participant,
+    add_exploit_public_to_case,
+    add_exploit_public_to_participant,
+    add_fix_deployment_to_participant,
+    add_fix_readiness_to_participant,
+    add_public_awareness_to_case,
+    add_public_awareness_to_participant,
+    add_status_to_case,
+    add_status_to_participant,
+    add_vendor_awareness_to_participant,
+    case_status,
+    participant_status,
+)
+from vultron.wire.as2.vocab.examples.sync import *  # noqa: F403
+from vultron.wire.as2.vocab.examples.sync import (
+    announce_case_ledger_entry,
+    reject_case_ledger_entry,
+)
+
+
+def main(outdir=None):
+    if outdir is None:
+        outdir = Path(__file__).parents[5] / "docs" / "reference" / "examples"
+    else:
+        outdir = Path(outdir)
+    print(f"Generating examples to: {outdir}")
+
+    # ensure the output directory exists
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    # create a finder (Person) object
+    _finder = finder()
+    obj_to_file(_finder, f"{outdir}/finder.json")
+
+    # create a vendor (Organization) object
+    _vendor = vendor()
+    obj_to_file(_vendor, f"{outdir}/vendor.json")
+
+    # create a vulnerability _report
+    _report = gen_report()
+    obj_to_file(_report, f"{outdir}/vulnerability_report.json")
+
+    # activity: finder creates _report
+    activity = create_report()
+    obj_to_file(activity, f"{outdir}/create_report.json")
+
+    # activity: finder submits _report to vendor
+    activity = submit_report()
+    obj_to_file(activity, f"{outdir}/submit_report.json")
+
+    # activity: vendor reads _report
+    activity = read_report()
+    obj_to_file(activity, f"{outdir}/read_report.json")
+
+    # activity: vendor validates _report
+    activity = validate_report()
+    obj_to_file(activity, f"{outdir}/validate_report.json")
+
+    # activity: vendor invalidates _report
+    activity = invalidate_report()
+    obj_to_file(activity, f"{outdir}/invalidate_report.json")
+
+    # activity: vendor closes _report
+    activity = close_report()
+    obj_to_file(activity, f"{outdir}/close_report.json")
+
+    # activity: vendor creates case from _report (also yields the case object)
+    activity = create_case()
+    obj_to_file(activity, f"{outdir}/create_case.json")
+
+    # case object — extracted from create_case activity for coherence
+    _case = cast(BaseModel, activity.object_)
+    obj_to_file(_case, f"{outdir}/vulnerability_case.json")
+
+    # activity: vendor adds _report to case
+    activity = add_report_to_case()
+    obj_to_file(activity, f"{outdir}/add_report_to_case.json")
+
+    # activity: vendor adds self as participant to case
+    activity = add_vendor_participant_to_case()
+
+    participant = activity.object_
+    if isinstance(participant, BaseModel):
+        obj_to_file(participant, f"{outdir}/vendor_participant.json")
+    obj_to_file(activity, f"{outdir}/add_vendor_participant_to_case.json")
+
+    # activity: vendor adds finder as participant to case
+    activity = add_finder_participant_to_case()
+    participant = activity.object_
+    if isinstance(participant, BaseModel):
+        obj_to_file(participant, f"{outdir}/finder_participant.json")
+    obj_to_file(activity, f"{outdir}/add_finder_participant_to_case.json")
+
+    # activity: vendor engages case
+    activity = engage_case()
+    obj_to_file(activity, f"{outdir}/engage_case.json")
+
+    # activity: vendor closes case
+    activity = close_case()
+    obj_to_file(activity, f"{outdir}/close_case.json")
+
+    # activity: vendor defers case
+    activity = defer_case()
+    obj_to_file(activity, f"{outdir}/defer_case.json")
+
+    # activity: vendor reengages case
+    activity = reengage_case()
+    obj_to_file(activity, f"{outdir}/reengage_case.json")
+
+    # activity: add note to case
+    activity = add_note_to_case()
+    obj_to_file(activity, f"{outdir}/add_note_to_case.json")
+
+    _coordinator = _COORDINATOR
+    obj_to_file(_coordinator, f"{outdir}/coordinator.json")
+
+    # activity: propose case ownership transfer
+    activity = propose_case_ownership_transfer()
+    obj_to_file(activity, f"{outdir}/propose_case_ownership_transfer.json")
+
+    # activity: offer case ownership transfer
+    activity = offer_case_ownership_transfer()
+    obj_to_file(activity, f"{outdir}/offer_case_ownership_transfer.json")
+
+    # activity: accept case ownership transfer
+    activity = accept_case_ownership_transfer()
+    obj_to_file(activity, f"{outdir}/accept_case_ownership_transfer.json")
+
+    # activity: reject case ownership transfer
+    activity = reject_case_ownership_transfer()
+    obj_to_file(activity, f"{outdir}/reject_case_ownership_transfer.json")
+
+    # activity: undo (withdraw) case ownership transfer
+    activity = undo_case_ownership_transfer()
+    obj_to_file(activity, f"{outdir}/undo_case_ownership_transfer.json")
+
+    # activity: update case
+    activity = update_case()
+    obj_to_file(activity, f"{outdir}/update_case.json")
+
+    # recommend actor
+    activity = recommend_actor()
+    obj_to_file(activity, f"{outdir}/recommend_actor.json")
+
+    # accept actor recommendation
+    activity = accept_actor_recommendation()
+    obj_to_file(activity, f"{outdir}/accept_actor_recommendation.json")
+
+    # reject actor recommendation
+    activity = reject_actor_recommendation()
+    obj_to_file(activity, f"{outdir}/reject_actor_recommendation.json")
+
+    # rm_invite_to_case
+    activity = rm_invite_to_case()
+    obj_to_file(activity, f"{outdir}/invite_to_case.json")
+
+    # rm_accept_invite_to_case
+    activity = accept_invite_to_case()
+    obj_to_file(activity, f"{outdir}/accept_invite_to_case.json")
+
+    # rm_reject_invite_to_case
+    activity = reject_invite_to_case()
+    obj_to_file(activity, f"{outdir}/reject_invite_to_case.json")
+
+    # create participant
+    activity = create_participant()
+    obj_to_file(activity, f"{outdir}/create_participant.json")
+
+    _case_status = case_status()
+    obj_to_file(_case_status, f"{outdir}/case_status.json")
+
+    _add_status_to_case = add_status_to_case()
+    obj_to_file(_add_status_to_case, f"{outdir}/add_status_to_case.json")
+
+    _participant_status = participant_status()
+    obj_to_file(_participant_status, f"{outdir}/participant_status.json")
+
+    _case_participant = case_participant()
+    obj_to_file(_case_participant, f"{outdir}/case_participant.json")
+
+    _embargo_event = embargo_event()
+    obj_to_file(_embargo_event, f"{outdir}/embargo_event.json")
+
+    _invite_to_case = invite_to_case()
+    obj_to_file(_invite_to_case, f"{outdir}/invite_to_case.json")
+
+    _add_status_to_participant = add_status_to_participant()
+    obj_to_file(
+        _add_status_to_participant, f"{outdir}/add_status_to_participant.json"
+    )
+
+    _remove_participant_from_case = remove_participant_from_case()
+    obj_to_file(
+        _remove_participant_from_case,
+        f"{outdir}/remove_participant_from_case.json",
+    )
+
+    _propose_embargo = propose_embargo()
+    obj_to_file(_propose_embargo, f"{outdir}/propose_embargo.json")
+
+    _accept_embargo = accept_embargo()
+    obj_to_file(_accept_embargo, f"{outdir}/accept_embargo.json")
+
+    _reject_embargo = reject_embargo()
+    obj_to_file(_reject_embargo, f"{outdir}/reject_embargo.json")
+
+    _activate_embargo = activate_embargo()
+    obj_to_file(_activate_embargo, f"{outdir}/activate_embargo.json")
+
+    _reject_embargo_proposal = reject_embargo_proposal()
+    obj_to_file(
+        _reject_embargo_proposal, f"{outdir}/reject_embargo_proposal.json"
+    )
+
+    _withdraw_from_embargo = withdraw_from_embargo()
+    obj_to_file(_withdraw_from_embargo, f"{outdir}/withdraw_from_embargo.json")
+
+    _announce_embargo = announce_embargo()
+    obj_to_file(_announce_embargo, f"{outdir}/announce_embargo.json")
+
+    _remove_embargo = remove_embargo()
+    obj_to_file(_remove_embargo, f"{outdir}/remove_embargo.json")
+
+    # announce case (ANNOUNCE_VULNERABILITY_CASE — sent after Accept(Invite))
+    _announce_case = announce_case()
+    obj_to_file(_announce_case, f"{outdir}/announce_case.json")
+
+    # role delegation flow (ADR-0039) — distinct from the GI actor-suggestion
+    # handshake that offer_case_participant covers
+    _offer_role = offer_case_participant_role()
+    obj_to_file(_offer_role, f"{outdir}/offer_case_participant_role.json")
+    _forward_role = forward_case_participant_role()
+    obj_to_file(_forward_role, f"{outdir}/forward_case_participant_role.json")
+    _accept_role = accept_case_participant_role()
+    obj_to_file(_accept_role, f"{outdir}/accept_case_participant_role.json")
+    _reject_role = reject_case_participant_role()
+    obj_to_file(_reject_role, f"{outdir}/reject_case_participant_role.json")
+
+    # case proposal flow (pre-case bootstrap, ADR-0023)
+    _create_case_proposal = create_case_proposal()
+    obj_to_file(_create_case_proposal, f"{outdir}/create_case_proposal.json")
+
+    _accept_case_proposal = accept_case_proposal()
+    obj_to_file(_accept_case_proposal, f"{outdir}/accept_case_proposal.json")
+
+    _reject_case_proposal = reject_case_proposal()
+    obj_to_file(_reject_case_proposal, f"{outdir}/reject_case_proposal.json")
+
+    # ledger replication flow (SYNC substrate, ADR-0077)
+    _announce_case_ledger_entry = announce_case_ledger_entry()
+    obj_to_file(
+        _announce_case_ledger_entry,
+        f"{outdir}/announce_case_ledger_entry.json",
+    )
+
+    _reject_case_ledger_entry = reject_case_ledger_entry()
+    obj_to_file(
+        _reject_case_ledger_entry,
+        f"{outdir}/reject_case_ledger_entry.json",
+    )
+
+    # one example per occasion (MSM-08-003, ADR-0128): each collapsed
+    # occasion shows its own distinguishing value
+    for occasion_example in (
+        add_vendor_awareness_to_participant,
+        add_fix_readiness_to_participant,
+        add_fix_deployment_to_participant,
+        add_public_awareness_to_participant,
+        add_exploit_public_to_participant,
+        add_attacks_observed_to_participant,
+        add_public_awareness_to_case,
+        add_exploit_public_to_case,
+        add_attacks_observed_to_case,
+        propose_embargo_revision,
+        request_invite_actor_to_case,
+        relay_embargo_proposal,
+        undo_embargo_invite,
+        create_embargo_event,
+        create_embargo_consent,
+        update_embargo_consent,
+        update_participant,
+        notify_embargo_termination,
+        announce_embargo_termination,
+        accept_embargo_revision,
+        reject_embargo_revision,
+        remove_note_from_case,
+        invite_to_full_case,
+        accept_full_case_invite,
+        tentative_reject_full_case_invite,
+        reject_full_case_invite,
+        create_processing_fault,
+        refusal_notice,
+    ):
+        obj_to_file(
+            occasion_example(), f"{outdir}/{occasion_example.__name__}.json"
+        )
+
+
+if __name__ == "__main__":
+    main()

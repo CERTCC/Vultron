@@ -1,0 +1,153 @@
+#!/usr/bin/env python
+"""
+Provides utilities for the ActivityStreams Vocabulary.
+"""
+
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import uuid
+from typing import Any
+
+from vultron.primitives import is_blank_string
+from vultron.wire.as2.vocab import VOCABULARY
+
+URN_UUID_PREFIX = "urn:uuid:"
+
+
+def name_of(obj: Any) -> str:
+    """Return a concise human-readable label for an AS2 object or reference.
+
+    Resolution order:
+    1. Strings are returned unchanged (already a URI or label).
+    2. ``obj.name`` if present and not ``None``.
+    3. ``obj.href`` if present and not ``None`` (AS2 Link objects).
+    4. ``obj.id_`` if present and not ``None`` (any AS2/domain object).
+    5. ``str(obj)`` as a last resort.
+
+    Args:
+        obj: The object to get the name of — may be a string, an AS2 object,
+             an AS2 Link, or any other value.
+
+    Returns:
+        A short, human-readable string representation of *obj*.
+    """
+    if isinstance(obj, str):
+        return obj
+    name = getattr(obj, "name", None)
+    if name is not None:
+        return str(name)
+    href = getattr(obj, "href", None)
+    if href is not None:
+        return str(href)
+    id_ = getattr(obj, "id_", None)
+    if id_ is not None:
+        return str(id_)
+    return str(obj)
+
+
+def is_blank(value: Any) -> bool:
+    """Return True when *value* carries no content: absent, null, or blank.
+
+    A required field that is present but empty carries nothing, so it is
+    absence rather than a malformed value — CS-08-001's "if present, then
+    non-empty".  Whitespace-only counts as blank: the string case is decided by
+    the project's canonical predicate, ``vultron.primitives.is_blank_string``,
+    which ``NonEmptyString`` and ``require_non_empty`` also use.
+
+    Deliberately narrower than a bare falsy test: ``0``, ``[]`` and ``{}`` are
+    *malformed* values for the fields this guards, not omitted ones, and
+    reporting them as missing would tell the sender to supply a field they
+    already sent (ISSUE-3217).
+
+    This is the single definition of "blank" for the wire layer.  Both
+    ``parser.parse_activity``'s required-field guards and the shared timestamp
+    validator in ``vocab.base.objects.base`` read it from here, so the two
+    cannot drift apart (CS-22-001).
+
+    Args:
+        value: The value to check
+
+    Returns:
+        True if the value is absent, None, or a whitespace-only string
+    """
+    return value is None or (isinstance(value, str) and is_blank_string(value))
+
+
+def exclude_if_none(value: Any) -> bool:
+    """Exclude a field if it is None
+
+    Args:
+        value: The value to check
+
+    Returns:
+        True if the value is None, False otherwise
+    """
+    return value is None
+
+
+def exclude_if_empty(value: Any) -> bool:
+    """Exclude a field if it is empty
+
+    Args:
+        value: The value to check
+
+    Returns:
+        True if the value is empty, False otherwise
+    """
+    return len(value) == 0
+
+
+def generate_new_id(prefix: str | None = None) -> str:
+    """Generate a new URI-form ID for an object.
+
+    Returns a ``urn:uuid:`` URI by default, which is a valid AS2 identifier
+    and requires no HTTP server configuration. When a *prefix* is supplied the
+    UUID is appended to it with a ``/`` separator, allowing callers to produce
+    HTTPS-style identifiers (e.g. ``https://example.org/reports/{uuid}``).
+
+    Returns:
+        a URI-form ID string
+    """
+    _uuid = str(uuid.uuid4())
+    if prefix is not None:
+        _id = f"{prefix}/{_uuid}"
+    else:
+        _id = f"{URN_UUID_PREFIX}{_uuid}"
+
+    return _id
+
+
+def _print_examples(d) -> None:
+    """Print out empty examples of the classes in the given dictionary"""
+
+    for k, v in d.items():
+        print(f"Example of {k}:")
+        # instantiate the class and print it out
+        print(v().to_json(indent=2))
+        print()
+
+
+def print_object_examples() -> None:
+    """Print out empty examples of the classes in the given module"""
+    _print_examples(VOCABULARY)
+
+
+def print_activity_examples():
+    """Print out empty examples of the classes in the given module"""
+    _print_examples(VOCABULARY)
+
+
+def print_link_examples():
+    """Print out empty examples of the classes in the given module"""
+    _print_examples(VOCABULARY)

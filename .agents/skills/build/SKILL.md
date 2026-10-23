@@ -1,0 +1,470 @@
+---
+name: build
+description: >
+  Completes the highest-priority pending implementation task: loads project
+  context, selects the next task from GitHub Issues, implements it, validates,
+  opens a PR, and updates plan history. Use when the user asks to continue
+  planned implementation work or turn the next prioritized item into a
+  completed changeset.
+---
+
+# Skill: Build
+
+## Quick Start
+
+0. Sync the worktree to `origin/main` before loading any context.
+1. Invoke `orient-agent` to load baseline context.
+2. Select the target issue or bundle (auto or explicit) and fail fast on blockers.
+3. Claim every member.
+4. Invoke `deepen-context` with hints and the `Governing specs:` floor from the issue(s).
+5. Implement and self-check, validate, have a fresh subagent review the branch,
+   open one PR closing every member, archive.
+
+## Workflow
+
+### Phase 0 — Sync
+
+Move the worktree HEAD to `origin/main` before loading any context. Do **not**
+use `git checkout main` — that branch may be checked out in another worktree.
+
+```bash
+git fetch origin main && git reset --hard origin/main
+```
+
+If this fails, stop and investigate before proceeding. On success, `orient-agent`
+reads fresh specs and notes, and the task branch created by `claim-issue.sh` in
+Phase 2 will be rooted at the latest `origin/main` commit.
+
+### Phase 1 — Orient
+
+Invoke the `orient-agent` skill.
+
+### Phase 2 — Select, Gate, and Claim
+
+0. Determine the target issue mode:
+
+   - If the user passed multiple issue numbers (for example `build 123 456`),
+     that is a **bundle**: implement all of them in one PR that closes every
+     member. Follow `.agents/skills/shared/bundling.md` § "Executing a bundle".
+     Do not ask whether to take only the first, and do not drop members —
+     bundling exists to get more than one issue done in a PR.
+   - If the user passed one explicit issue number, use that issue.
+   - `--epic-run <Epic>` means this build is part of that Epic's epic run
+     (`work-epic-tasks` always passes it). Keep it for the hold gate in step 5
+     and the claim in step 7.
+   - If no explicit issue was passed, auto-select from the top-priority
+     unblocked Now-Epic flow below.
+
+1. List open Now-Epics:
+
+   ```bash
+   bash .agents/skills/shared/query-now-epics.sh
+   ```
+
+   The top-priority group is the first Epic with at least one unblocked
+   open leaf sub-issue.
+
+2. Query leaf Issues of that Epic and apply eligibility **and** fit:
+
+   ```bash
+   bash .agents/skills/shared/query-epic-subissues.sh <EPIC_NUMBER> \
+     | PYTHONPATH= uv run bundle-fit --workflow build
+   ```
+
+   Eligibility alone (`state=OPEN`, no assignees, no `stale-claim`, all
+   `blockedBy` `CLOSED`, `subIssues.totalCount==0`) is not sufficient: an
+   `Idea` or `Concern` leaf clears every one of those gates and still must not
+   be built — it belongs to `plan-issue`, and a `Bug` belongs to `bugfix`.
+   `bundle-fit` enforces that routing, orders candidates by the authoritative
+   Project #24 `Schedule` tier rather than sub-issue list order (PAD-03-001),
+   and respects the size budget. See `bundling.md` for the rule table.
+
+3. Take the tool's proposed bundle. Auto-selection may return several members;
+   confirm they share one design idea in a single sentence (`bundling.md`
+   § "Selecting a bundle") and drop any member that needs a different one.
+
+4. **Empty-Epic gate** — applies to both auto-selected and explicit issues:
+
+   Query the selected issue's type and sub-issue count:
+
+   ```bash
+   bash .agents/skills/shared/query-issue-type.sh <ISSUE_NUMBER>
+   ```
+
+   If `issueType.name == "Epic"` and `subIssues.totalCount == 0`:
+
+   1. Apply `needs-decomposition` label if not already present:
+
+      ```bash
+      gh issue edit <ISSUE_NUMBER> --repo CERTCC/Vultron \
+        --add-label "needs-decomposition"
+      ```
+
+   2. Post an actionable comment on the Epic:
+
+      ```bash
+      gh issue comment <ISSUE_NUMBER> --repo CERTCC/Vultron \
+        --body "No implementable sub-issues found. Run \`/plan-issue <ISSUE_NUMBER>\` to decompose this Epic into Tasks before building."
+      ```
+
+   3. Tell the user: "Epic #N has no sub-issues and cannot be built yet. Run
+      `/plan-issue N` to decompose it into Tasks first."
+   4. **Stop.** Do not claim, branch, or proceed.
+
+5. Fail-fast blocker gate on every selected issue (auto-selected or explicit),
+   and, for an explicit bundle, a homogeneity gate:
+
+   - Query `blockedBy` for each issue and filter to `state=OPEN`.
+   - If any OPEN blockers exist, print blocker numbers/titles and stop.
+   - Do not claim, branch, or deepen context when blocked.
+   - Query each member's `issueType`. If a member is not a `Task` or `Feature`,
+     stop and name the skill it belongs to (`bugfix` for a Bug; `plan-issue`
+     for an Idea, Concern, or Epic). Do not silently work or drop it.
+   - **Epic-run hold** (PAD-19-003). For each member, run
+     `bash .agents/skills/shared/epic-hold.sh <N> [<EPIC_RUN>]`. Exit 3 means
+     its Epic is claimed by an epic run, which owns its Tasks and Features
+     even in a later wave. Stop and ask the user before working it. The run
+     itself passes `--epic-run <Epic>`, which clears the hold for that Epic
+     only. Auto-selection never reaches this case: `bundle-fit` already holds
+     those candidates back as "not workable yet".
+
+6. **Pre-claim AC verification gate** — fetch the issue body and verify
+   each acceptance criterion against `origin/main` HEAD before claiming:
+
+   For each `- [ ] AC-N: <text>` item in the issue body, grep
+   `origin/main` for concrete evidence the AC is already satisfied (e.g.,
+   the described file exists with the required content, the named function
+   or class is present, the referenced behavior is implemented).
+
+   If **no** `- [ ] AC-N:` items are found in the issue body (prose-format
+   or free-form ACs), the gate cannot run mechanically — and that is where
+   already-delivered work slips through. Read the prose, list its concrete
+   claims, and check each against `origin/main` by hand as above. Only then
+   proceed to step 7 (or close per the rules below) (#1907, #3036).
+
+   If **all** ACs are confirmed satisfied on `origin/main`:
+
+   1. Post a reference comment on the issue citing the PR(s) that
+      delivered the work:
+
+      ```bash
+      gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
+      All acceptance criteria are already satisfied on `origin/main` (delivered
+      by #<PR>). Closing without further work.
+      EOF
+      )"
+      ```
+
+   2. Close the issue:
+
+      ```bash
+      gh issue close <N> --repo CERTCC/Vultron
+      ```
+
+   3. **Stop.** Do not claim, branch, or deepen context.
+
+   If any AC is unconfirmed, proceed to step 7 and claim normally.
+
+7. **Claim the Issue** — or every bundle member, onto one branch named for the
+   first member:
+
+   ```bash
+   bash .agents/skills/shared/claim-issue.sh [--epic-run <Epic>] <N> task <slug> [<OTHER_MEMBERS>...]
+   ```
+
+   GitHub creates the branch, linked to the issue, and that branch is the
+   lock (PAD-04-001). The script then assigns you, comments, and sets
+   `Status = In Progress`. Abort immediately if it exits non-zero: exit 1 means
+   already claimed or failed, and exit 3 means held by an epic run (step 5).
+
+8. Fetch each issue's body and comments (including any comments not yet
+   loaded in step 6). Use the full content as implementation context
+   throughout Phases 3–5.
+
+### Phase 3 — Deepen Context
+
+Invoke `deepen-context` with focus hints derived from the issue body
+(e.g., `"wire layer"`, `"BT integration"`, `"embargo lifecycle"`), and pass
+as the **spec floor** every spec ID in each member's `Governing specs:` line
+plus any other spec IDs the issue body or comments cite. If an issue has no
+`Governing specs:` line, say so and pass the cited IDs you found (or an
+explicitly empty floor).
+
+`deepen-context` returns a **Spec manifest**. Keep it: it goes into the PR
+body (Phase 8), and reviewers use it as their spec floor.
+
+### Phase 4 — Verify Before Coding
+
+1. **Compose-before-create gate (all domain types — blocking)**:
+   Load `.agents/skills/shared/compose-before-create.md` and apply the
+   per-subsystem search patterns for every subsystem the task touches (use
+   cases, wire handlers, adapters, demo helpers). Do not write any new code
+   until this search is complete. If an existing artifact covers the
+   requirement, compose or subclass it — do not re-implement.
+
+2. Search `vultron/` and `test/` to confirm the current state.
+3. Do not assume missing functionality; verify in code.
+4. If a blocking prerequisite is discovered, create and wire it
+   (see `shared/issue-creation-requirements.md`):
+
+   ```bash
+   TASK_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Task)
+   # Determine parent epic from the current task's parent
+   EPIC_NUMBER=$(gh api graphql -f query='{
+     repository(owner:"CERTCC", name:"Vultron") {
+       issue(number: '"${ISSUE_NUMBER}"') { parent { number } }
+     }
+   }' --jq '.data.repository.issue.parent.number // ""')
+
+   NEW_ISSUE=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
+     --title "<prerequisite title>" \
+     --body "<description>
+
+   Governing specs: <IDs, or none — reason>" \
+     --issue-type-id "${TASK_TYPE_ID}" \
+     --label "size:<S|M|L>" \
+     --parent "${EPIC_NUMBER:-${ISSUE_NUMBER}}" \
+     --opened-as separate-defect)
+   bash .agents/skills/shared/add-to-project.sh "${NEW_ISSUE}"
+   ```
+
+   Record the dependency as a learning file in `plan/incoming/learnings/` and stop.
+
+5. If more than one prerequisite is required, or the work is non-trivial,
+   create a learning file in `plan/incoming/learnings/` and stop.
+
+### Phase 5 — Implement
+
+See `.claude/skills/shared/completeness-doctrine.md` for the project standard
+on what "done" means — loaded by `orient-agent` in Phase 1.
+
+1. Implement the full intent of the selected task, not just the happy path.
+   Edge cases, error handling, and type correctness are part of the task, not
+   optional add-ons.
+2. Follow project conventions. "Keep the change focused" means do not expand
+   into adjacent unscoped work — it does not mean implement less than the task
+   requires.
+3. Add or update tests for every new or changed behavior. A behavior with no
+   test is not done.
+4. Reuse existing helpers and keep the implementation DRY.
+
+   **If this task creates or modifies a BT node (required — BTC-01-001,
+   BTND-07-005):**
+
+   a. **Node inventory**: grep `vultron/core/behaviors/` for existing node
+      classes whose protocol state, domain, or semantic action overlaps with
+      what you are about to implement. Search for the target state value, the
+      action name, and the affected domain (e.g. `"RM.CLOSED"`,
+      `"EM.EXITED"`, `"active_embargo = None"`, `"add_participant_status"`).
+      If a matching node exists, compose or delegate from it — do not
+      re-implement.
+
+   b. **Base-class check (BTND-07-009, BTND-07-010)**: for any emit, send,
+      or state-transition node, check `vultron/core/behaviors/` for an
+      existing base class whose `update()` frame covers the same
+      guard+emit+outbox or guard+transition+log pattern. Consult the domain
+      base-class table in
+      [`vultron/core/behaviors/AGENTS.md`](../../../vultron/core/behaviors/AGENTS.md).
+      If a matching base exists, subclass it. If none exists for your domain,
+      create it first, then write the concrete node.
+
+   c. **Sibling-domain scan**: check peer trees in sibling modules for the
+      same trigger condition appearing more than once. A shared trigger (e.g.
+      `IsRemoveEmbargoEvent` appearing in two trees) signals a shared behavior
+      need that should be a single composed subtree, not two parallel
+      implementations.
+
+   d. **AC-1 compliance gate**: any node that reads EM/RM/CS state MUST do
+      so through the appropriate `Read*StateNode`. Any node that writes
+      EM/RM/CS state MUST do so through `Write*StateNode`. Inline reads
+      (e.g. `case.current_status.em.state`) and inline writes are AC-1
+      violations regardless of context and must be caught before review.
+
+5. Sub-agents may help, but main-agent validation is mandatory.
+6. **Pre-review self-check** — on every PR, once the diff is finished, run the
+   four items in `.agents/skills/shared/pre-review-self-check.md`: affected-text
+   sweep, failure-path pass, branch coverage, reuse check. Fix what each one
+   turns up, then write its result into a draft PR body at
+   `/tmp/pr-body-<N>.md` (the `pr-body-guide.md` implementation template, with
+   the four results under `Self-check:` in `## Verification`). The step is done
+   when all four results are written; the Phase 7 reviewer reads them.
+
+**Scope expansion judgment:** If implementing this task reveals adjacent work,
+the default is to **fix it now** — FILE (keep a record) and DEFER (leave it for
+later) are separate decisions. Apply
+`.agents/skills/shared/completeness-doctrine.md`:
+
+- Not an "also" excursion (you can explain it and the task in one sentence
+  without "also") → just do it; no issue, the diff is the record.
+- An "also" excursion → fix it now **and** file an issue this PR closes
+  (`- Closes #N`, one-line "why"). Filing is not deferring.
+- Genuinely too big to finish now → defer only via Gate 1: file, present a
+  **measured remainder** in plain language, and get explicit approval. On
+  silence (unattended), **DEFER is unavailable**: finish it in this PR, or hold
+  the PR (draft, blocked, the unfinished item stated). Never file an issue as the
+  way to get the PR merged, and do not park the rationale in a learning file as a
+  substitute for doing the work. Only second-order findings are eligible.
+- Inverts a premise the issue or its specs/ADRs rested on → Gate 2: explain the
+  overturned premise, ask if/what to file. On silence (unattended), **halt** —
+  leave the PR blocked rather than acting on the new premise unreviewed.
+
+### Phase 6 — Validate
+
+1. Run the linters:
+
+   ```bash
+   uv run ruff check --fix && uv run ruff format
+   uv run ruff check && uv run mypy && uv run pyright
+   ```
+
+   Do **not** run `pytest` here. The full local unit and integration suites run
+   exactly once before the first push, in `create-pr` Phase 3, adjacent to the
+   push they guard (PAD-18-001, PAD-18-008). Running them here as well would
+   pay for the most expensive step in the pipeline twice with no change to the
+   tree in between. While implementing, run the specific test files you are
+   writing or changing (`uv run pytest <path> -n 0`) as often as you like;
+   those are development runs, not the gate.
+
+2. **Spec backstop (blocking).** Update the Spec manifest from Phase 3 if the
+   work drifted, then resolve it against the diff per `deepen-context`
+   § "Backstop" until
+   `spec-backstop --manifest /tmp/spec-manifest-<issue>.txt` exits 0 (no
+   `--paths`: the branch diff is what ships). The resolved manifest is what
+   goes into the PR body. Exit 0 is a floor, not proof of completeness — read
+   the `no deterministic signal` and `no Python source in the diff` notes as
+   "this part rests on your judgment".
+3. Do not skip or delegate validation. Never bypass a pre-commit hook
+   (`--no-verify`, `SKIP=`); fix what it reports. The sole exception is the
+   devcontainer `actionlint` hang (`notes/devcontainer-tooling.md`).
+4. Apply branch-ownership and pre-existing-failure rules from
+   `completeness-doctrine.md` § "Finding Severity".
+5. If pre-existing is proven, the PR is still held: a failing check blocks the
+   PR whatever its cause (`completeness-doctrine.md` § "Never Merge on Red"). Do
+   not open or merge it past the red. Create/update a Bug issue via `manage-github-issue`
+   with evidence (failing command/output, clean-base proof, causality check,
+   blocked/unblocked impact), wire structured blockers, add a handoff comment,
+   and record the Bug link as a learning file in `plan/incoming/learnings/`.
+   Set `--parent "${ISSUE_NUMBER}"` so the bug is wired under the same
+   task (and therefore the same epic) where it was discovered — this keeps it
+   visible in the epic tree and off the `no:parent-issue` orphan list.
+
+### Phase 7 — Pre-Push Review by a Fresh Agent
+
+The review runs in a subagent that did not write the change, before the first
+push, so its findings cost no fix commit and no CI run (PAD-07-001, ADR-0139).
+
+1. Commit everything. The reviewer reads `origin/main...HEAD`, so uncommitted
+   work is invisible to it (PAD-07-005).
+2. Spawn a fresh subagent with exactly this prompt:
+
+   ```text
+   In <worktree>, on branch <branch>, run the pr-triage skill in pre-push
+   mode: /pr-triage --pre-push <N> [<M>...] --body /tmp/pr-body-<N>.md
+   Make no code changes. Return the artifact path and the finding count.
+   ```
+
+   The prompt is the whole hand-off: the reviewer's value is a context that
+   never saw the author's reasoning, so its blind spots differ. The subagent
+   writes the artifact to the path
+   `bash .agents/skills/pr-triage/prepush-delta.sh --path` prints.
+3. Resolve every finding by its `decision_outcome`, as `pr-execute` would:
+   `fix-now` inline; `fix-now-file` inline plus an issue the PR closes; a
+   `defer-ask` or `inversion-halt` through the gates in Phase 5's scope
+   judgment, which on an unattended run means fix it or hold the PR as a draft.
+   Write each finding's `resolution` into the artifact (`pr-triage/REFERENCE.md`
+   § "Review-Mode Fields") and commit the fixes (PAD-07-003).
+4. Hand the fixes to the post-push triage, which reviews them as part of its
+   delta; the pre-push review runs once (PAD-07-006).
+
+The step is done when every finding in the artifact has a `resolution`.
+There is no advisory category: every finding is fixed here, filed and fixed,
+or holds the PR.
+
+### Nearby debt
+
+Before opening the PR, apply the nearby-debt rule from
+`.claude/skills/shared/completeness-doctrine.md` § "Net Issues: Close More Than
+You Open": list open `opened:debt` issues whose `Where:` names a file in the
+diff and fix them in this PR (`- Closes #N` each). State the closes/opens line in
+the PR body per `pr-body-guide.md`. Any issue you file takes `--opened-as`.
+
+### Phase 8 — Open PR and Finalize
+
+1. **Do not set a `size:` label.** The `pr-size-label` workflow measures the
+   whole-PR diff and applies it on every push (PAD-05-002), and the Issue keeps
+   its AC-count estimate untouched so estimate-versus-actual stays queryable
+   (PAD-05-010). See `shared/sizing.md`. To see the size before pushing:
+   `PYTHONPATH= uv run pr-size --base origin/main`.
+
+2. Invoke the `create-pr` skill to push and open the PR. One bundle is one PR:
+   the body carries `- Closes #N` **once per member, in bundle order**, and the
+   Changes section names each member's change so a reviewer can map every hunk
+   to a closed issue (`pr-body-guide.md`; `bundling.md` § "Executing a bundle").
+   The body includes a `## Specs` section carrying the Spec manifest from
+   Phase 3 (`pr-body-guide.md` § "Specs").
+
+   ```text
+   type:         implementation
+   title:        <short title>
+   body:         </tmp/pr-body-<N>.md from Phase 5, completed per pr-body-guide.md>
+   labels:       <topic labels only — never size:, see step 1>
+   issue_number: <N>        # the first bundle member
+   manifest:     /tmp/spec-manifest-<N>.txt   # resolved in Phase 6 step 2
+   ```
+
+   `create-pr` freshens the branch onto `origin/main` (cherry-pick),
+   validates, pushes, and returns the PR URL. Use the returned URL in the
+   `archive-history` call below.
+
+3. Invoke `check-docs-sync` while CI runs in the cloud. Apply any small docs
+   updates inline and commit them before finalizing:
+
+   ```text
+   Commit message: docs: sync docs/ for issue #<N>
+   ```
+
+   Then **record the outcome** (PD-03-008): edit the PR body to replace the
+   `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
+   `Docs:` line `check-docs-sync` reported, and push any docs commit. Then run
+   `pr-body-lint --pr-json` at the final stage, with `--closes-work-item` (a
+   build PR closes a `Task` or `Feature`, so it needs a `Docs:` line even when
+   it changes no `.py`), and fix every finding (PAD-20-005; `check-docs-sync`
+   § Step 5).
+   Do this before `archive-history`. The session is not done while the
+   placeholder remains.
+
+4. Post the pre-push review on the PR as a comment: each finding with its
+   resolution, so a human sees what the review found (PAD-07-004).
+
+5. Invoke `archive-history` — once per bundle member, each entry carrying the
+   same PR URL:
+
+   ```text
+   TYPE    = implementation
+   TITLE   = <short task title>
+   SOURCE  = ISSUE-<N>
+   BODY    = "## Issue #<N> — <title>\n\n<completion summary, PR link>"
+   ```
+
+6. Run the **upward-reflection checklist** per
+   `.agents/skills/shared/upward-reflection.md` and **route** each triggered
+   item to the destination that file specifies (BW-07-004). Most route to a
+   GitHub issue or an in-session fix, not to a learning file. Do not write
+   completion summaries, and do not record decisions that were made, applied,
+   and shipped in this session (BW-07-008).
+
+7. Invoke `commit` if any learning files were created in `plan/incoming/learnings/`.
+
+## Constraints
+
+- One run produces one PR. That PR closes one issue, or every member of a
+  bundle — see `.agents/skills/shared/bundling.md`.
+- Multi-issue input is a bundle, not a menu: implement every member. If the
+  bundle cannot be finished, finish what you can, close only those members, and
+  say which you left and why.
+- Every member is implemented to the standard it would get alone — its own
+  tests, its own acceptance criteria. A bundle amortizes context, never rigor.
+- Do not skip validation, the self-check, or the fresh-agent pre-push review.
+- Do not commit directly to `main`. All work goes through a PR.
+- The run is not done while the PR body still reads
+  `Docs: pending check-docs-sync` (Phase 8 step 3, PD-03-008).

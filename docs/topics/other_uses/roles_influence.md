@@ -1,3 +1,11 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+page_type: explanation
+description: >
+  Which events each role can cause, and how vendors, system owners, coordinators, and governments each rank the ordering preferences.
+---
+
 # CVD Roles and Their Influence
 
 {% include-markdown "../../includes/not_normative.md" %}
@@ -28,7 +36,7 @@ to cover the **A** transition.
 Different stakeholders might want different things, although most
 benevolent parties will likely seek some subset of $\mathbb{D}$. Because
 $\mathcal{H}$ is the same for all stakeholders, the expected frequencies
-shown in [Event Order Frequency](../measuring_cvd/reasoning_over_histories.md/#event-order-frequency)
+shown in [Event Order Frequency](../measuring_cvd/reasoning_over_histories.md)
 will be consistent across any such variations in desiderata.
 
 A discussion of some stakeholder preferences is given below, while a
@@ -126,7 +134,7 @@ limited.
 
 !!! tip "Silent Patches"
 
-    "Silent patches" can obviously occur when vendors fix a
+    "Silent patches" can occur when vendors fix a
     vulnerability but do not make that fact known. In principle, silent
     patches could achieve $\mathbf{D} \prec \mathbf{P}$ even in
     traditional COTS or OSS distribution models. However, in practice
@@ -225,7 +233,7 @@ early as possible prior to public disclosure
 
     $$vfdpxa \xrightarrow{\mathbf{V}} Vfdpxa \implies \mathbf{V} \prec \mathbf{P} \textrm{, } \mathbf{V} \prec \mathbf{X} \textrm{ and } \mathbf{V} \prec \mathbf{A}$$
 
-    Also note that many of the other desiderata are impossible to achieve
+    Many of the other desiderata are also impossible to achieve
     without **V**. For example, **F** $\prec$ **P** is impossible 
     without **V** $\prec$ **P** because the vendor cannot create a fix for a 
     vulnerability it does not know about. The same applies to **F** $\prec$ **X**
@@ -273,7 +281,7 @@ set of desiderata ($\mathbb{D}_c = \mathbb{D}$).
     potentially reduce $|\mathcal{H}|$ to 329 by only including positions in
     $\mathcal{H}$ that precede the **D** event. This is still too
     large and unwieldy for meaningful analysis within our scope; instead, we
-    simply provide the following comment.
+    provide the following comment.
     
     The goal of coordination is this: regardless of which stage a
     coordinator becomes involved in a case, the objective is to choose

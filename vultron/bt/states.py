@@ -16,19 +16,22 @@ Provides state management for the Vultron Behavior Tree
 """
 
 from collections import deque
-from dataclasses import dataclass, field
+from collections.abc import Callable
 from enum import Flag, auto
-from typing import Any, Callable, Deque, Dict, List
+from pprint import pprint
+from typing import Any
 
-from vultron.bt.base.bt import Blackboard as Blackboard
-from vultron.bt.embargo_management.states import EM
-from vultron.bt.messaging.states import MessageTypes as MT
+from pydantic import BaseModel, Field
+
+from vultron.bt.messaging.message import Message
+from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.report_priority_states import (
     ReportPriority,
 )
-from vultron.bt.report_management.states import RM
-from vultron.bt.roles.states import CVDRoles
-from vultron.case_states.states import CS
+from vultron.bt.roles.enums import CVDRolesFlag
+from vultron.core.states.cs import CS
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 
 
 class CapabilityFlag(Flag):
@@ -39,48 +42,49 @@ class CapabilityFlag(Flag):
     DeployFix = auto()
 
 
-@dataclass
-class ActorState(Blackboard):
-    CVD_role: CVDRoles = CVDRoles.NO_ROLE
-    others: Dict = field(default_factory=dict)
+class ActorState(BaseModel):
+    CVD_role: CVDRolesFlag = CVDRolesFlag.NO_ROLE
+    others: dict = Field(default_factory=dict)
 
     q_rm: RM = RM.START
-    q_em: EM = EM.NO_EMBARGO
+    q_em: EM = EM.NONE
     q_cs: CS = CS.vfdpxa
 
-    q_rm_history: List[RM] = field(default_factory=list)
-    q_em_history: List[EM] = field(default_factory=list)
-    q_cs_history: List[CS] = field(default_factory=list)
+    q_rm_history: list[RM] = Field(default_factory=list)
+    q_em_history: list[EM] = Field(default_factory=list)
+    q_cs_history: list[CS] = Field(default_factory=list)
 
-    incoming_messages: Deque = field(default_factory=deque)
+    incoming_messages: deque = Field(default_factory=deque)
 
-    emit_func: Callable = None
+    emit_func: Callable | None = None
 
-    msgs_emitted_this_tick: List[MT] = field(default_factory=list)
-    msgs_received_this_tick: List[MT] = field(default_factory=list)
-    msg_history: List[MT] = field(default_factory=list)
-    current_message: MT = None
+    msgs_emitted_this_tick: list[Message | MessageTypes] = Field(
+        default_factory=list
+    )
+    msgs_received_this_tick: list[Message | MessageTypes] = Field(
+        default_factory=list
+    )
+    msg_history: list[Message | MessageTypes] = Field(default_factory=list)
+    current_message: Message | MessageTypes | None = None
 
     priority: ReportPriority = ReportPriority.DEFER
-    prioritization_count = 0
+    prioritization_count: int = 0
 
-    capabilities: CapabilityFlag = 0
+    capabilities: CapabilityFlag = CapabilityFlag.NoCapability
 
     reporting_effort_budget: int = 200
 
-    add_participant_func: Callable = None
-    currently_notifying: Any = None
+    add_participant_func: Callable | None = None
+    currently_notifying: Any | None = None
 
-    case: Any = None
+    case: Any | None = None
 
     name: str = "ActorName"
 
 
 def main():
-    from pprint import pprint
-
     a = ActorState()
-    pprint(a.__dict__)
+    pprint(a.model_dump())
 
 
 if __name__ == "__main__":

@@ -1,0 +1,918 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+BT Bridge Layer - Handler-to-BehaviorTree execution interface.
+
+This module implements the bridge layer between handler functions and py_trees
+behavior tree execution. It provides:
+
+1. Setup of py_trees execution context with DataLayer access
+2. Blackboard initialization with activity and actor state
+3. Single-shot BT execution to completion
+4. Result capture and error handling
+5. Leadership guard port (SYNC-09-003): single-node always returns True;
+   seam for future multi-node Raft leader check.
+
+Per specs/behavior-tree-integration.yaml:
+- BT-05-001: Provides BT execution bridge for handler-to-BT invocation
+- BT-05-002: Sets up py_trees context with DataLayer access
+- BT-05-003: Populates blackboard with activity and actor state
+- BT-05-004: Executes tree and returns execution result
+
+Per specs/sync-ledger-replication.yaml:
+- SYNC-09-003: Leadership role-check port; always True in single-node.
+"""
+
+import logging
+import threading
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+import py_trees
+from py_trees.common import Status
+from py_trees.display import unicode_tree
+
+from vultron.core.behaviors.blackboard_scope import (
+    restore_keys,
+    snapshot_keys,
+)
+from vultron.core.behaviors.store_scope import port_for_store, store_for_actor
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.errors import (
+    INTERNAL_FAULTS,
+    VultronError,
+)
+
+if TYPE_CHECKING:
+    from vultron.core.ports.sync_activity import SyncActivityPort
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+    from vultron.core.ports.wire_render import WireRenderPort
+
+logger = logging.getLogger(__name__)
+
+# py_trees uses a process-global blackboard (Blackboard.storage).
+# FastAPI runs synchronous BackgroundTask callables in a thread-pool
+# executor, so two BT executions can run on different threads at the
+# same time, corrupting each other's actor_id / datalayer entries.
+# This lock serialises BT executions from *different* threads while
+# allowing same-thread re-entrancy (e.g. lifecycle.py nodes that call
+# execute_with_setup internally).  RLock is used instead of Lock to
+# prevent deadlock in those re-entrant paths.
+_BT_GLOBAL_LOCK = threading.RLock()
+
+
+@dataclass
+class BTExecutionResult:
+    """Result of BT execution returned to handler.
+
+    ``internal_error`` separates the two things a bare ``FAILURE`` used to
+    conflate: a protocol outcome the tree is entitled to report, and a
+    programming error that escaped a node. Callers that make a protocol
+    decision from a failure — retry, re-buffer, log level — should consult it,
+    because retrying a code bug never converges. See CONCERN-3019.
+
+    Read the flag as *"an internal error reached the bridge"*, not *"no bug
+    occurred"*. Two known gaps, both tracked in CONCERN-3019:
+
+    - Node ``update()`` bodies catch broadly by convention, so a crash swallowed
+      inside a node arrives here as an ordinary ``FAILURE`` (or even
+      ``SUCCESS``) and is never flagged.
+    - Nodes that run a sub-tree through their own ``BTBridge`` discard the inner
+      result's flag and return a bare ``Status.FAILURE``, so a crash inside a
+      nested subtree is not visible in the outer result.  The exception is
+      ``CommitCaseLedgerEntryNode``, which raises ``VultronBTInternalError``
+      when its nested commit reports one, so a missing sync port on a
+      received commit is not read as a refusal (#4113).
+    """
+
+    status: Status
+    feedback_message: str = ""
+    errors: list[str] | None = None
+    internal_error: bool = False
+    # The tree never ran: this node is not the replication leader. A caller
+    # reports that as "not my job", so it must not have to match the message.
+    leader_skipped: bool = False
+
+
+def _default_is_leader() -> bool:
+    """Default leadership guard for single-node deployments.
+
+    Always returns ``True`` — the single-node CaseActor is permanently the
+    replication leader.  In a future multi-node deployment this function is
+    replaced by an actual Raft leader check.
+
+    Per SYNC-09-003, SYNC-06-003.
+    """
+    return True
+
+
+class BTBridge:
+    """
+    Bridge layer for executing behavior trees from handler functions.
+
+    Provides single-shot BT execution with DataLayer integration and
+    blackboard management. Handlers invoke BTs through this bridge to
+    orchestrate complex workflows while preserving handler protocol.
+
+    The ``is_leader`` attribute is a leadership guard port (SYNC-09-003).
+    In single-node deployments it always returns ``True``; replace it with
+    a real Raft leader check when multi-node CaseActor cluster support is
+    introduced.
+    """
+
+    def __init__(
+        self,
+        datalayer: CasePersistence,
+        is_leader: Callable[[], bool] = _default_is_leader,
+        trigger_activity: "TriggerActivityPort | None" = None,
+        sync_port: "SyncActivityPort | None" = None,
+        wire_render_port: "WireRenderPort | None" = None,
+    ):
+        """
+        Initialize BT bridge with DataLayer access and optional leadership guard.
+
+        Args:
+            datalayer: CasePersistence implementation for persistent state access.
+            is_leader: Callable returning True iff this node is the
+                replication leader.  Defaults to a function that always
+                returns True (single-node behaviour).  Per SYNC-09-003.
+            trigger_activity: Optional port for constructing outbound wire
+                activities from BT nodes (ARCH-01-004).  When provided it is
+                placed on the py_trees blackboard under the key
+                ``trigger_activity_factory`` so that BT nodes can call it
+                without importing from the wire layer.
+            sync_port: Optional port for LedgerFanout replication fan-out
+                (SYNC-02-002).  When provided it is placed on the py_trees
+                blackboard under the key ``sync_port`` so that
+                ``CommitCaseLedgerEntryNode`` can fan out
+                ``Announce(CaseLedgerEntry)`` activities to participants.
+                Without this, ledger entries committed inside BTs are
+                persisted locally but not replicated.
+            wire_render_port: Optional port for rendering core domain objects
+                to wire-shaped (camelCase) JSON (ARCH-20-001).  When provided
+                it is placed on the py_trees blackboard under the key
+                ``wire_render_port`` so that BT nodes can call it without
+                importing from the wire layer (ARCH-01-001, ARCH-01-004).
+        """
+        self.datalayer = datalayer
+        self.is_leader = is_leader
+        # Tracks whether the caller provided an explicit guard (not _default_is_leader).
+        # Used to distinguish "caller opted in to a specific policy" from "caller
+        # accepted the default" so that inheritance from an outer BTBridge execution
+        # can be applied only to the latter case (CLP-08-005).
+        self._is_leader_explicit: bool = is_leader is not _default_is_leader
+        self.trigger_activity = trigger_activity
+        self.sync_port = sync_port
+        self.wire_render_port = wire_render_port
+        self.logger = logging.getLogger(
+            f"{__name__}.{self.__class__.__name__}"
+        )
+
+    def _store_for_actor(self, actor_id: str) -> CasePersistence:
+        """Return the store belonging to *actor_id* (ADR-0073, BT-05-005).
+
+        BT-05-002 and BT-05-003 put ``datalayer`` and ``actor_id`` on the
+        blackboard as two independent facts.  Under per-actor storage they are
+        one fact: a store is always some actor's own, so the executing actor's
+        identity *determines* which store the tree operates on.  Reconciling
+        them here makes every write a node performs — ``outbox_append()`` above
+        all — correct by construction, rather than correct only when the caller
+        remembered to inject a matching DataLayer.
+
+        It is load-bearing wherever a tree runs as a co-hosted actor other than
+        the one whose store was injected — the demo-only ``sync-log-entry``
+        trigger runs as the case's CASE_MANAGER from the requesting actor's
+        route.  Without reconciliation the work lands in one store and is
+        queued in the other's outbox, and the outbox entry names an activity
+        its own store does not hold (PCR-08-007, CM-24-004).
+
+        Scoping is skipped unless the DataLayer reports a concrete ``actor_id``
+        that differs, which leaves test doubles and any non-actor-scoped
+        implementation untouched.  That fall-through is BT-05-005's one
+        recorded exception: a store that cannot name its own actor has nothing
+        to reconcile against.
+
+        The guard logic itself lives in
+        :func:`~vultron.core.behaviors.store_scope.store_for_actor` so that this
+        node, ``WritePendingReportCaseLinkNode`` and the demo seeding helpers
+        cannot drift apart on what "that actor's store" means.
+
+        ``require_same_authority`` is set, so an executing actor under an
+        authority this node does not host is refused with
+        :class:`~vultron.errors.VultronUnhostedActorError` rather than handed
+        a store.  ``clone_for_actor`` would mint an empty local store under the
+        foreign actor's name, and keeping the injected store instead would run
+        the tree as one actor against another actor's data.  Neither is
+        sanctioned: a container executes trees only as actors it hosts, and a
+        participant reaches a CASE_MANAGER on another container by sending it
+        its own activity, never by executing a tree in its name (BT-05-005,
+        CM-24-004, ADR-0109).  ``execute_with_setup`` classifies the raise as
+        an internal error, so a trigger that tries answers 500, not 422.
+
+        Reconciling the store is necessary but not sufficient — see
+        :meth:`_ports_for_store` for the other half.
+        """
+        return store_for_actor(
+            self.datalayer, actor_id, require_same_authority=True
+        )
+
+    def _ports_for_store(
+        self, store: CasePersistence
+    ) -> tuple[
+        "TriggerActivityPort | None",
+        "SyncActivityPort | None",
+        "WireRenderPort | None",
+    ]:
+        """Return this bridge's driven ports, rebound to *store* (DL-07-009).
+
+        ``_store_for_actor`` reconciles the store the *nodes* write through.  The
+        driven adapters on the blackboard hold a second, independent reference to
+        a DataLayer — the one they were constructed with — and that reference is
+        what persists an outbound activity.  Leaving it alone splits a single
+        emit across two stores: ``TriggerActivityAdapter.invite_actor_to_case``
+        creates the ``Invite`` in the *requesting* actor's store while
+        ``EmitInviteActorToCaseNode`` appends its id to the *executing* actor's
+        outbox.  Nothing raises; the outbox handler simply reports the activity
+        "not found in DataLayer for actor …", skips delivery, and the invitee is
+        never told it was invited (ISSUE-2548).
+
+        No trigger runs a delegated emit any more (CM-24-004, ADR-0109): the
+        invite and the ownership-transfer offer both send the requester's own
+        activity to the CASE_MANAGER.  The reconciliation stays for any tree
+        that runs as a co-hosted actor other than the injected store's own.
+
+        A port this bridge was not given is *inherited* from the blackboard
+        rather than left alone, because the blackboard is process-global
+        (``Blackboard.storage``) and the nested-bridge pattern relies on that:
+        an emit node builds its ledger-commit tree with
+        ``BTBridge(datalayer=...)`` and no ports, so whatever the last execution
+        wrote is what the commit tree's ``LedgerFanoutNode`` picks up.  Within
+        one request that inheritance is intended — the ports belong to the
+        execution in progress.  Across requests it is a store leak: a node
+        hosting several actors runs actor A's trigger, then actor B's, and B's
+        ``Announce(CaseLedgerEntry)`` is persisted through A's adapter into A's
+        store (ADR-0073, CM-01-001).  Rebinding on the way through makes the
+        inheritance safe by construction instead of safe by luck, so the port a
+        nested tree reads always writes the store that tree runs in.
+
+        Ports that do not opt in are returned unchanged; see
+        :func:`~vultron.core.behaviors.store_scope.port_for_store`.
+        """
+        return (
+            port_for_store(
+                self.trigger_activity
+                or self._inherited_port("trigger_activity_factory"),
+                store,
+            ),
+            port_for_store(
+                self.sync_port or self._inherited_port("sync_port"), store
+            ),
+            port_for_store(
+                self.wire_render_port
+                or self._inherited_port("wire_render_port"),
+                store,
+            ),
+        )
+
+    @staticmethod
+    def _inherited_port(key: str) -> Any:
+        """Return the port currently on the blackboard under *key*, or ``None``.
+
+        Read straight out of ``Blackboard.storage`` rather than through a
+        ``Client``: registering READ access for a key that may never have been
+        written raises, and "no port has been set yet" is the ordinary case for
+        the first execution in a process.
+        """
+        return py_trees.blackboard.Blackboard.storage.get(f"/{key}")
+
+    def setup_tree(
+        self,
+        tree: py_trees.behaviour.Behaviour,
+        actor_id: str,
+        activity: Any = None,
+        **context_data: Any,
+    ) -> py_trees.trees.BehaviourTree:
+        """
+        Set up behavior tree with blackboard and execution context.
+
+        Args:
+            tree: Root behavior node to execute
+            actor_id: ID of actor executing this tree (for state isolation)
+            activity: Optional ActivityStreams activity being processed
+            **context_data: Additional context to populate in blackboard
+
+        Returns:
+            Configured BehaviourTree ready for execution
+
+        Implements:
+            - BT-05-002: Sets up py_trees context with DataLayer access
+            - BT-05-003: Populates blackboard with activity and actor state
+        """
+        self.logger.debug("Setting up BT for actor %s", actor_id)
+
+        # Create py_trees BehaviourTree wrapper
+        bt = py_trees.trees.BehaviourTree(root=tree)
+
+        # Populate blackboard with execution context
+        blackboard = py_trees.blackboard.Client(name=f"BTBridge-{actor_id}")
+        blackboard.register_key(
+            key="datalayer", access=py_trees.common.Access.WRITE
+        )
+        blackboard.register_key(
+            key="actor_id", access=py_trees.common.Access.WRITE
+        )
+
+        store = self._store_for_actor(actor_id)
+        trigger_activity, sync_port, wire_render_port = self._ports_for_store(
+            store
+        )
+
+        blackboard.datalayer = store
+        blackboard.actor_id = actor_id
+
+        if trigger_activity is not None:
+            blackboard.register_key(
+                key="trigger_activity_factory",
+                access=py_trees.common.Access.WRITE,
+            )
+            blackboard.trigger_activity_factory = trigger_activity
+
+        if sync_port is not None:
+            blackboard.register_key(
+                key="sync_port",
+                access=py_trees.common.Access.WRITE,
+            )
+            blackboard.sync_port = sync_port
+
+        if wire_render_port is not None:
+            blackboard.register_key(
+                key="wire_render_port",
+                access=py_trees.common.Access.WRITE,
+            )
+            blackboard.wire_render_port = wire_render_port
+
+        # Write is_leader to the blackboard only when this bridge carries an
+        # explicit (non-default) guard.  Default bridges do NOT overwrite the
+        # key so that an outer explicit value is visible to grandchild bridges
+        # (prevents a 3-level-deep inner bridge from reading _default_is_leader
+        # instead of the outermost raft_fn — CLP-08-005, SYNC-09-003).
+        if self._is_leader_explicit:
+            blackboard.register_key(
+                key="is_leader", access=py_trees.common.Access.WRITE
+            )
+            blackboard.is_leader = self.is_leader
+
+        if activity is not None:
+            blackboard.register_key(
+                key="activity", access=py_trees.common.Access.WRITE
+            )
+            blackboard.activity = activity
+
+        # Register any additional context data
+        for key, value in context_data.items():
+            blackboard.register_key(
+                key=key, access=py_trees.common.Access.WRITE
+            )
+            setattr(blackboard, key, value)
+
+        self.logger.info("BT setup complete for actor %s", actor_id)
+
+        # No tree dump here: before the first tick every node is unrun, so it
+        # would restate the tree's shape, which "Final BT state" (logged after
+        # execution) repeats with each node's result (#4600).
+        return bt
+
+    def _exception_result(
+        self,
+        e: BaseException,
+        *,
+        prefix: str,
+        internal_error: bool = False,
+    ) -> BTExecutionResult:
+        """Build the FAILURE result for an exception caught at a bridge boundary.
+
+        The bridge catches exceptions at three boundaries — the ticks inside
+        ``execute_tree``, and ``setup_tree`` and ``execute_tree`` as called from
+        ``execute_with_setup`` — each split by whether the exception is a
+        ``VultronError``, so six handlers in total.  Every one of them owes the
+        caller the same three consistent facts: a message naming the exception
+        type, a log record at the level that classification implies, and a
+        matching ``internal_error`` flag.  Keeping them in one place is what
+        stops the three from drifting apart: #3080 was a log-level divergence
+        between two of these handlers that a reader comparing them could not
+        tell was accidental (CS-22-001).
+
+        The one broad handler in this module that does *not* come here is the
+        ``bt.shutdown()`` guard in ``execute_tree``'s ``finally``: it has no
+        result to build, because its whole job is to preserve the result the
+        classified handlers already returned.
+
+        ``internal_error`` is the single input that drives all three outputs,
+        rather than each handler deciding independently:
+
+        - ``False`` — a protocol outcome the tree is entitled to report (a
+          deliberate ``VultronError``).  Logged at WARNING, no traceback, and
+          the message is bare ``"<prefix>: <Type>: <msg>"``.
+        - ``True`` — a programming error that escaped a node.  Logged with
+          ``logger.exception`` (ERROR + traceback, which requires that this
+          method be called from inside the ``except`` block), and the message
+          says so: ``"<prefix> with internal error: <Type>: <msg>"``.
+
+        Args:
+            e: The caught exception.  Its type name is always included,
+                because ``str(e)`` is empty for several common cases
+                (e.g. a bare ``AttributeError``).
+            prefix: Which boundary was crossed — ``"BT setup failed"`` or
+                ``"BT execution failed"``.  The two must stay distinguishable
+                so an execution error is never reported as a setup error.
+            internal_error: Classification, as described above.  A
+                ``VultronWiringError`` is always internal: a missing DataLayer
+                or port is our composition fault, not the protocol's, whatever
+                base class it shares (#2255).  A ``VultronBTInternalError`` is
+                internal too: a node raises it to carry a nested bridge's
+                ``internal_error`` across the hop (#4113).
+
+        Returns:
+            A FAILURE ``BTExecutionResult`` carrying the composed message as
+            both ``feedback_message`` and the sole entry in ``errors``.
+        """
+        internal_error = internal_error or isinstance(e, INTERNAL_FAULTS)
+        if internal_error:
+            error_msg = (
+                f"{prefix} with internal error: {type(e).__name__}: {e}"
+            )
+            self.logger.exception("%s", error_msg)
+        else:
+            error_msg = f"{prefix}: {type(e).__name__}: {e}"
+            self.logger.warning("%s", error_msg)
+
+        return BTExecutionResult(
+            status=Status.FAILURE,
+            feedback_message=error_msg,
+            errors=[error_msg],
+            internal_error=internal_error,
+        )
+
+    def execute_tree(
+        self, bt: py_trees.trees.BehaviourTree, max_iterations: int = 100
+    ) -> BTExecutionResult:
+        """
+        Execute behavior tree to completion or max iterations.
+
+        Single-shot execution model per BT-01-002: BT executes to completion
+        (or max iterations) per invocation, not continuous tick loop.
+
+        Args:
+            bt: Configured BehaviourTree ready for execution
+            max_iterations: Safety limit on tick count (default: 100)
+
+        Returns:
+            BTExecutionResult with final status, feedback, any errors, and the
+            ``internal_error`` classification.  A FAILURE is flagged
+            ``internal_error=True`` when it did not come from a protocol
+            decision: an exception that is not a ``VultronError``, a root left
+            in ``INVALID`` mid-execution, or ``max_iterations`` exhausted.
+            A node returning FAILURE, or raising a ``VultronError``
+            deliberately, leaves the flag ``False``.  See
+            ``BTExecutionResult`` for the two cases the flag cannot see.
+
+        Implements:
+            - BT-05-004: Executes tree and returns execution result
+            - BT-01-002: BTs execute to completion per invocation
+            - BT-01-003: No continuous tick-based polling loops
+        """
+        self.logger.debug("Starting BT execution")
+
+        errors: list[str] = []
+        iteration = 0
+
+        try:
+            # Inside the try: a node whose setup() raises used to escape
+            # execute_tree uncaught *and* skip the shutdown in `finally`,
+            # so setup-time crashes were neither classified nor cleaned up.
+            bt.setup()
+
+            while iteration < max_iterations:
+                iteration += 1
+                bt.tick()
+
+                root_status = bt.root.status
+
+                # Terminal states: SUCCESS or FAILURE
+                if root_status in (Status.SUCCESS, Status.FAILURE):
+                    feedback = bt.root.feedback_message
+
+                    # SL-04-001/AC-18: a bare "Status.FAILURE" is not a story.
+                    # Fold the failing leaf's reason into the line that was
+                    # already emitted, rather than adding a second record —
+                    # many callers treat FAILURE as an expected idempotent
+                    # skip and log their own explanation at DEBUG.
+                    detail = feedback
+                    if root_status == Status.FAILURE:
+                        detail = (
+                            detail
+                            or self.get_failure_reason(bt.root)
+                            or "<no reason reported>"
+                        )
+                    self.logger.info(
+                        "BT execution completed: %s after %d ticks - %s",
+                        root_status,
+                        iteration,
+                        detail,
+                    )
+                    # Tree dump is scaffolding, not story — DEBUG (SL-04-007).
+                    # Guard kept: lazy args do not skip the unicode_tree call.
+                    if self.logger.isEnabledFor(logging.DEBUG):
+                        tree_repr = unicode_tree(bt.root, show_status=True)
+                        self.logger.debug("Final BT state:\n%s", tree_repr)
+
+                    return BTExecutionResult(
+                        status=root_status,
+                        feedback_message=feedback,
+                        errors=None,
+                    )
+
+                # RUNNING: continue ticking
+                if root_status == Status.RUNNING:
+                    self.logger.debug("BT still running (tick %s)", iteration)
+                    continue
+
+                # INVALID: should not happen during execution
+                if root_status == Status.INVALID:
+                    # Not a protocol outcome — a tree in INVALID mid-execution
+                    # is malformed, so retrying it cannot converge.
+                    error_msg = f"BT entered INVALID state at tick {iteration}"
+                    self.logger.error("%s", error_msg)
+                    errors.append(error_msg)
+                    return BTExecutionResult(
+                        status=Status.FAILURE,
+                        feedback_message=error_msg,
+                        errors=errors,
+                        internal_error=True,
+                    )
+
+            # Max iterations reached without completion.  Also not a protocol
+            # outcome: a tree that will not settle in `max_iterations` ticks
+            # will not settle on a retry either.
+            error_msg = (
+                f"BT execution exceeded max iterations ({max_iterations})"
+            )
+            self.logger.error("%s", error_msg)
+            errors.append(error_msg)
+            return BTExecutionResult(
+                status=Status.FAILURE,
+                feedback_message=error_msg,
+                errors=errors,
+                internal_error=True,
+            )
+
+        except VultronError as e:
+            # A node raised a domain error deliberately (28 such sites, e.g.
+            # sync/nodes/canonical_entry.py).  Treated as attributable to the
+            # protocol rather than to us.  Not a blanket retry licence: a
+            # malformed peer message will not parse on a retry either, and
+            # VultronActivityConstructionError wraps what is really a factory
+            # misuse.  Consult the exception, not just the flag.
+            #
+            # ``errors`` is provably empty on both exception paths — the two
+            # branches that append to it (INVALID, max_iterations) return
+            # immediately — so the helper's single-entry list is the same list
+            # this handler used to build.
+            return self._exception_result(e, prefix="BT execution failed")
+
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            # Anything else is a programming error — a wrong-typed port, a
+            # missing attribute, a bad key.  Still caught, because a half-ticked
+            # tree must not escape into a FastAPI background task, but flagged
+            # so callers do not mistake it for a protocol outcome and retry it
+            # forever (CONCERN-3019).
+            return self._exception_result(
+                e, prefix="BT execution failed", internal_error=True
+            )
+
+        finally:
+            # A raise here would replace the classified result with an
+            # unrelated exception, losing the failure that actually mattered.
+            try:
+                bt.shutdown()
+            except Exception:
+                self.logger.exception("BT shutdown failed; result preserved")
+
+    def execute_with_setup(
+        self,
+        tree: py_trees.behaviour.Behaviour,
+        actor_id: str,
+        activity: Any = None,
+        max_iterations: int = 100,
+        **context_data: Any,
+    ) -> BTExecutionResult:
+        """
+        Convenience method combining setup and execution.
+
+        Checks the leadership guard before executing.  If the effective
+        ``is_leader()`` returns ``False``, execution is skipped and a FAILURE
+        result is returned immediately with a descriptive feedback message
+        (SYNC-09-003).  The check runs inside ``_BT_GLOBAL_LOCK`` to prevent
+        cross-thread contamination from a concurrent outer execution's
+        blackboard state.
+
+        When this bridge was constructed without an explicit ``is_leader``
+        callable (``_is_leader_explicit`` is False), the method inherits the
+        guard from the current outer BTBridge execution's blackboard key
+        ``/is_leader``.  This ensures that an inner ``BTBridge(datalayer=...)``
+        constructed inside a BT node (e.g. ``EmitCaseStatusUpdateNode``)
+        respects the same leadership constraint as the outer execution rather
+        than silently defaulting to always-True (CLP-08-005).  Non-callable
+        values on the blackboard are ignored to guard against test pollution.
+
+        ``activity`` and every ``context_data`` key are **execution-scoped**:
+        they are restored to their pre-execution values when this call returns,
+        on every outcome.  A nested ``execute_with_setup`` that reuses one of
+        these keys therefore hands the outer execution's value back when it
+        finishes, instead of leaving its own behind for the outer tree's
+        remaining ticks to read (#3161).  Consequently a caller must not use one
+        of these keys as an *output* channel — pass a mutable ``result_out``
+        dict, which is shared by reference and unaffected by the restore.
+
+        Typical usage from handler:
+            result = bridge.execute_with_setup(
+                tree=ValidateReportBT(...),
+                actor_id=actor_id,
+                activity=request,
+            )
+
+        Args:
+            tree: Root behavior node to execute
+            actor_id: ID of actor executing this tree
+            activity: Optional ActivityStreams activity being processed
+            max_iterations: Safety limit on tick count
+            **context_data: Additional context for blackboard
+
+        Returns:
+            BTExecutionResult with execution status and feedback.  Never raises:
+            a failure in ``setup_tree`` is classified the same way
+            ``execute_tree`` classifies a failure during the ticks, and each is
+            labelled with the phase it came from — see
+            ``BTExecutionResult.internal_error``.  The leadership skip is a
+            protocol outcome, not an internal error.
+
+        Implements:
+            - BT-05-001: BT execution bridge for handler-to-BT invocation
+            - SYNC-09-003: Leadership guard check before BT execution
+        """
+        with _BT_GLOBAL_LOCK:
+            # Resolve the effective leadership guard.
+            #
+            # This check is inside _BT_GLOBAL_LOCK for two reasons:
+            #
+            # 1. Thread safety: the blackboard is process-global.  Reading
+            #    /is_leader outside the lock risks reading a value written by a
+            #    concurrent outer execution that has not yet cleaned up, making
+            #    this bridge's leadership decision depend on another request's
+            #    raft state.  The lock serialises all BT executions, so by the
+            #    time we read the blackboard here the previous execution's
+            #    cleanup has already run (CLP-08-005, SYNC-09-003).
+            #
+            # 2. Accurate inheritance: an outer setup_tree() wrote is_leader
+            #    to the blackboard before calling execute_tree(), which ticked
+            #    the node that spawned this inner bridge.  Reading the
+            #    blackboard here (still inside the same re-entrant lock
+            #    acquisition) sees the outer value rather than a stale residue.
+            #
+            # The callable() guard rejects any non-callable that test pollution
+            # or a future node might write under the /is_leader key, preventing
+            # a TypeError from escaping the error net.
+            inherited_raw = (
+                self._inherited_port("is_leader")
+                if not self._is_leader_explicit
+                else None
+            )
+            inherited = inherited_raw if callable(inherited_raw) else None
+            effective_is_leader = (
+                inherited if inherited is not None else self.is_leader
+            )
+            if not effective_is_leader():
+                msg = (
+                    "BT execution skipped: this node is not the replication"
+                    " leader"
+                )
+                self.logger.warning("%s", msg)
+                return BTExecutionResult(
+                    status=Status.FAILURE,
+                    feedback_message=msg,
+                    leader_skipped=True,
+                )
+            # Execution-scoped blackboard keys: each lives for exactly one BT
+            # execution and is reset to its pre-execution state in the finally
+            # block below, on EVERY outcome (SUCCESS, FAILURE, Sequence
+            # short-circuit, or exception).  The finally block is the single
+            # DRY teardown for anything that must not leak across executions —
+            # see the comment there for why it covers both resource release and
+            # cross-execution state hygiene (#3101).
+            managed_keys = [
+                "datalayer",
+                "trigger_activity_factory",
+                "sync_port",
+                "is_leader",
+                "wire_render_port",
+                # Published by ResolveCreationTimeRevisionNode, read by
+                # InitializeCreationEmbargoNode and RelayCreationTimeRevisionNode
+                # (EP-04-011).  The writer ticks only on the creation arm, so a
+                # redelivery that skips that arm would otherwise hand the
+                # readers the previous execution's value, and the relay would
+                # send an Invite no registration in this act asked for.
+                "creation_time_revision_candidate",
+                # Published by the node that builds a case's
+                # Create(VulnerabilityCase), read by
+                # CommitNativeLedgerEntriesNode as the genesis entry
+                # (CLP-07-011).  The writer ticks only when this act builds
+                # the Create, so a creation that built none must see no id,
+                # not the previous execution's, or it would commit another
+                # case's Create as its genesis.
+                "create_case_activity_id",
+                # Published by the RM adjudication guards
+                # (CheckParticipantStatusAcceptableNode,
+                # AdjudicateRMDeclarationNode), read by EmitRMGapNoteNode.
+                # The note runs as a refusal effect (CLP-10-022) whenever any
+                # precondition guard refuses, including one ahead of the
+                # adjudication that never ticked it, so a previous
+                # execution's anomaly must not survive to be noted again.
+                "rm_transition_anomaly",
+                # The executing actor's identity is execution-scoped too, and for
+                # a sharper reason than the ports above.  Every node base in
+                # `helpers.py` re-reads `/actor_id` into `self.actor_id` in
+                # `initialise()` — NOT in `setup()` — and py_trees calls
+                # `initialise()` on every tick in which the node was not RUNNING.
+                # So without this entry a later sibling of a node that made a
+                # nested call read the *inner* execution's actor, not the actor
+                # its own tree was executing as (#3516).
+                #
+                # Reconciliation makes `self.datalayer.actor_id` and `/actor_id`
+                # the same actor, and the sites that pass the store's own actor
+                # to a nested call (`case/nodes/participant/rm_closure.py`,
+                # reached from `case/nodes/leave/advance.py` twice) usually pass
+                # the value already on the blackboard.  Where a nested call runs
+                # as another actor, `OwnerLeaveSeq`
+                # (`case/receive_close_case_tree.py`) ticks the ledger-committing
+                # sibling downstream of `AdvanceParticipantToRMClosedNode`, and a
+                # leaked actor would reach `payloadSnapshot.actor`: a CLP-07-003
+                # identity fault in a canonical entry.
+                #
+                # Restoring is safe, not merely safer: the restore runs in the
+                # *inner* call's own `finally`, after its tree has finished, and
+                # puts back exactly the value that same call snapshotted.  It
+                # cannot overwrite a live execution.
+                "actor_id",
+            ]
+            # setup_tree() also writes /activity (when one is supplied) and one
+            # key per **context_data entry, so those are execution-scoped for
+            # exactly the same reason as the fixed keys above — with the same
+            # sharpness that a *nested* execute_with_setup passing the same key
+            # overwrites the outer execution's value and, without this, never
+            # puts it back.  The outer tree then resumes ticking against the
+            # inner call's activity or case_id (#3161).
+            managed_keys += ["activity", *context_data.keys()]
+            storage = py_trees.blackboard.Blackboard.storage
+            # Both spellings of every key, and "absent" kept distinct from
+            # "None" — see blackboard_scope for why each matters.  Shared with
+            # the inbox pipeline, which needs the identical guarantee (#3534).
+            previous_values = snapshot_keys(storage, managed_keys)
+            try:
+                # Two try blocks, not one, so the label always names the phase
+                # that actually failed.  A single combined block reported an
+                # error raised during the ticks as "BT setup failed", which
+                # sends a reader to the wiring when the bug is in a node (#3085).
+                #
+                # Each is inside a try for the same reason execute_tree() moved
+                # bt.setup() inside its own: setup_tree() does fallible work
+                # (store cloning, port construction, register_key/setattr over
+                # arbitrary context_data), and a programming error there used to
+                # escape BTBridge entirely — unclassified, and into a FastAPI
+                # background task.  Classify it like any other internal error
+                # rather than letting the one call outside the net through
+                # (CONCERN-3019).
+                try:
+                    bt = self.setup_tree(
+                        tree, actor_id, activity, **context_data
+                    )
+                except VultronError as e:
+                    return self._exception_result(e, prefix="BT setup failed")
+                except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+                    return self._exception_result(
+                        e, prefix="BT setup failed", internal_error=True
+                    )
+
+                # execute_tree() has its own catch-all, so in the current code
+                # nothing reaches these two handlers.  They are the guarantee
+                # rather than the mechanism: "a BT execution never escapes the
+                # bridge" stays true if that catch-all is ever narrowed, and if
+                # something does escape it is labelled as execution, not setup.
+                try:
+                    return self.execute_tree(bt, max_iterations)
+                except VultronError as e:
+                    return self._exception_result(
+                        e, prefix="BT execution failed"
+                    )
+                except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+                    return self._exception_result(
+                        e, prefix="BT execution failed", internal_error=True
+                    )
+            finally:
+                # Restore managed blackboard keys to their pre-execution state.
+                # Blackboard.storage is process-global, so anything setup_tree()
+                # or the ticked nodes write there outlives the execution unless
+                # reset here.  This single finally is the DRY teardown for two
+                # otherwise-separate hazards:
+                #
+                #  1. Resource release.  setup_tree() writes SqliteDataLayer and
+                #     TriggerActivityAdapter objects (both hold sqlite3
+                #     connections); leaving them keeps the connections alive
+                #     until the next execution overwrites the key.  That delayed
+                #     release causes ResourceWarning: unclosed database when GC
+                #     runs at an unpredictable moment — typically during the
+                #     next test's SQL activity, which pytest promotes to a test
+                #     failure via PytestUnraisableExceptionWarning (pytest
+                #     9.1.0+).
+                #
+                #  2. Cross-execution state hygiene.  A node-written key such as
+                #     rm_transition_anomaly can be left stranded when a
+                #     Sequence FAILURE-short-circuits before its owning node
+                #     ticks (#3101).  Resetting it here guarantees no stale
+                #     hand-off state bleeds into the next execution, no matter
+                #     which node aborted or why.
+                #
+                # ``trigger_activity_factory`` is included here even though
+                # each setup_tree() call re-writes it: restoring the previous
+                # value (or removing it when it was absent) ensures that the
+                # previous TriggerActivityAdapter reference is released
+                # promptly rather than being held until the next execution.
+                # Nested execute_with_setup calls are safe because the RLock
+                # is reentrant and previous_values captures the outer call's
+                # state, so the inner call restores exactly what the outer
+                # call wrote.
+                restore_keys(storage, previous_values)
+
+    @staticmethod
+    def get_failure_reason(
+        tree: py_trees.behaviour.Behaviour,
+    ) -> str:
+        """Return a human-readable explanation for a tree that returned FAILURE.
+
+        Follows the chain of FAILURE nodes down from the root and returns the
+        ``feedback_message`` of the leaf it ends at, or that leaf's class name
+        when it carries no message.  At each failed composite it follows the
+        *last* failed child: a failed Sequence has exactly one, and in a failed
+        Selector every child failed, so the last is the final attempt.  The
+        first is usually the cheap "already done?" guard whose failure is what
+        sent the Selector on, and naming it hides the real cause.  A decorator
+        that failed while its child did not (an ``Inverter``) is itself the
+        leaf.  If the tree succeeded (or is still RUNNING), an empty string is
+        returned.
+
+        Args:
+            tree: Root behavior node to inspect.
+
+        Returns:
+            The failing leaf's ``feedback_message``, its class name, or
+            ``""`` when the tree did not fail.
+        """
+        node = tree
+        if node.status != Status.FAILURE:
+            return ""
+        while True:
+            failed = [c for c in node.children if c.status == Status.FAILURE]
+            if not failed:
+                return node.feedback_message or node.__class__.__name__
+            node = failed[-1]
+
+    @staticmethod
+    def get_tree_visualization(
+        tree: py_trees.behaviour.Behaviour, show_status: bool = False
+    ) -> str:
+        """
+        Get unicode visualization of behavior tree structure.
+
+        Useful for logging tree structure from handlers or debugging.
+
+        Args:
+            tree: Root behavior node to visualize
+            show_status: Include node execution status in visualization
+
+        Returns:
+            String representation of tree with unicode art
+        """
+        return unicode_tree(tree, show_status=show_status)

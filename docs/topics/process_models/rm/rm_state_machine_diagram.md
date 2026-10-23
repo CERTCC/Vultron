@@ -21,6 +21,7 @@ stateDiagram-v2
     V --> D : defer
     A --> D : defer
     D --> A : accept
+    R --> C : close
     A --> C : close
     D --> C : close
     I --> C : close

@@ -1,4 +1,29 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Report Prioritization Behavior
+
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Protocol Specifications](../../reference/specs/protocol.md):
+
+- [RMB-12](../../reference/specs/protocol.md#rmb-12) — Enter RM Deferred
+- [RMB-13](../../reference/specs/protocol.md#rmb-13) — Enter RM Accepted
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 The Report Prioritization Behavior Tree is shown in the figure below.
 It bears some structural similarity to the Report Validation Behavior Tree just described: An initial

@@ -1,0 +1,226 @@
+repos:
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      # Mechanical floor for SG-37 (American spelling) over docs/ prose
+      # (ADR-0092, DF-09-001). Dictionary and exclusions come from
+      # [tool.codespell] in pyproject.toml. Two guards are load-bearing and
+      # both must stay:
+      #  - `--write-changes` lives HERE, not in pyproject.toml, so a manual
+      #    `codespell docs/` is read-only (as markdownlint carries `--fix`).
+      #  - `files:` restricts the hook to docs/*.md. Run over the repo root with
+      #    write-changes, codespell "corrects" the ignore-regex in its own
+      #    config and destroys the pattern protecting py_trees.behaviour.
+      #    pyproject.toml is also in the config's `skip` for the same reason.
+      # codespell cannot see a code fence, an inline code span, or a link or
+      # include target: protect such a token with ignore-regex, never by
+      # editing around the hook.
+      - id: codespell
+        args: ["--write-changes"]
+        files: ^docs/.*\.md$
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      # Catches GitHub Actions errors that YAML parsing cannot: invalid context
+      # references, bad `if:` expressions, unknown action inputs. A job-level
+      # `if:` referencing the `matrix` context parses as valid YAML but makes
+      # GitHub reject the whole workflow with a zero-job startup failure.
+      # Uses the golang hook (not actionlint-docker) so pre-commit provisions
+      # its own toolchain; the devcontainer has neither docker nor go on PATH.
+      - id: actionlint
+
+  - repo: local
+    hooks:
+      - id: markdownlint-cli2
+        name: markdownlint-cli2 (direct invocation)
+        entry: markdownlint-cli2
+        # Use the system language so pre-commit resolves the executable via PATH
+        language: system
+        args: ["--fix", "--config", ".markdownlint-cli2.yaml", "**/*.md"]
+        # The args above already carry the glob, so pre-commit must not append
+        # the staged filenames too: markdownlint-cli2 re-globs per argument, and
+        # a commit staging ~100 markdown files hangs for over 10 minutes.
+        # Linting the whole tree takes ~13s.
+        pass_filenames: false
+        files: \.(md|markdown)$
+
+      - id: validate-notes-frontmatter
+        name: Validate notes frontmatter
+        entry: uv run python -c "from vultron.metadata.notes.loader import load_notes_registry; load_notes_registry()"
+        language: system
+        files: ^notes/.*\.md$
+        exclude: ^notes/README\.md$
+        pass_filenames: false
+
+      - id: validate-incoming-learnings-frontmatter
+        name: Validate incoming learnings frontmatter
+        entry: uv run python -c "from vultron.metadata.history.incoming import validate_incoming_learnings; validate_incoming_learnings()"
+        language: system
+        files: ^plan/incoming/learnings/.*\.md$
+        exclude: ^plan/incoming/learnings/README\.md$
+        pass_filenames: false
+
+      - id: validate-adr-frontmatter
+        name: Validate ADR frontmatter
+        entry: uv run python -c "from vultron.metadata.adr.loader import load_adr_registry; load_adr_registry()"
+        language: system
+        files: ^docs/adr/.*\.md$
+        exclude: ^docs/adr/(index|README)\.md$
+        pass_filenames: false
+
+      - id: adr-lifecycle-check
+        name: ADR edits respect the lifecycle epochs
+        entry: uv run python -m vultron.metadata.adr.lifecycle
+        language: system
+        files: ^docs/adr/.*\.md$
+        exclude: ^docs/adr/(index|README)\.md$
+
+      - id: adr-added-reference-check
+        name: ADR edits add no unresolvable path or code symbol
+        entry: uv run python -m vultron.metadata.adr.added_refs
+        language: system
+        files: ^docs/adr/.*\.md$
+        exclude: ^docs/adr/(index|README)\.md$
+
+      - id: validate-docs-page-frontmatter
+        name: Validate docs page stakeholder_type, level and page_type
+        entry: uv run python -m vultron.metadata.docs.page_frontmatter
+        language: system
+        # Every docs page (DF-11-001, DF-11-018), plus the inputs that change
+        # the verdict without touching a page: the nav, which decides what is
+        # an include fragment, and not_in_nav, which working record must
+        # match; the schema and patterns; and the nav and frontmatter readers
+        # they use.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/page_.*|vultron/metadata/(base|file_loading)\.py)$
+        pass_filenames: false
+
+      - id: docs-normative-banner
+        name: Normative banner on exactly the normative set
+        entry: uv run python -m vultron.metadata.docs.normative_banner
+        language: system
+        # Every docs page and fragment, any of which can gain or lose the
+        # banner (DF-12-006), plus the check, which declares the normative
+        # set, and the include-directive and failure readers it uses.
+        files: ^(docs/.*\.md|vultron/metadata/docs/(normative_banner|page_frontmatter)\.py|vultron/metadata/(base|file_loading)\.py)$
+        pass_filenames: false
+
+      - id: docs-level-order
+        name: Docs pages depend on no page above their own level
+        entry: uv run docs-level-order
+        language: system
+        # Every input that changes the verdict (DF-11-002): any docs page (its
+        # level, its introduces:, its prose and links), the nav, which decides
+        # what is an include fragment; the glossary is a docs page; and the
+        # checker, its scanner, baseline and the readers they use.
+        # test_the_committed_docs_tree_passes is the CI backstop.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/(level_(order|baseline).*|concept_(scan|registry)\.py|baseline_file\.py|page_.*|glossary_index\.py)|vultron/metadata/(base|file_loading|markdown_tables)\.py)$
+        pass_filenames: false
+
+      - id: docs-site-sync
+        name: Docs-site landing pages, stakeholder fragment and coverage matrix in sync
+        entry: uv run docs-site --check
+        language: system
+        # Every input that can make an artifact stale (DF-11-005/008/011): any
+        # docs page (its description:, level or stakeholder_type), the nav, the
+        # schema and generators, and the artifacts themselves so a hand-edit is
+        # caught. test_committed_site_artifacts_are_in_sync is the CI backstop,
+        # and the only one for a deletion, which no staged-file pattern matches.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
+        pass_filenames: false
+
+      - id: docs-threads
+        name: Reading-path threads list only existing reader-facing pages
+        entry: uv run docs-threads
+        language: system
+        # A thread lives in its start page's frontmatter, and any docs page
+        # can be renamed, deleted or moved into the working record (DF-11-016).
+        # test_the_committed_threads_pass is the CI backstop.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading)\.py)$
+        pass_filenames: false
+
+      - id: adr-index-sync
+        name: ADR index in sync, and no ADR in the nav
+        entry: uv run python -m vultron.metadata.adr.index_gen --check
+        language: system
+        files: ^(docs/adr/.*\.md|mkdocs\.yml|vultron/metadata/base\.py|vultron/metadata/adr/index_gen\.py)$
+        pass_filenames: false
+
+      - id: demo-scenarios-sync
+        name: Demo scenario artifacts in sync
+        # The console script, not `python -m ...`: `__init__.py` re-exports from
+        # `sync`, so `-m` runs the module twice as two distinct objects and
+        # prints a RuntimeWarning on every commit. This also matches the command
+        # every error message, README step and AGENTS.md entry names.
+        entry: uv run demo-scenarios --check
+        language: system
+        # Three kinds of input make the committed artifacts stale, so all three
+        # are watched (DEMOCI-11-005): the @scenario decorators in the scenario
+        # modules, the renderers that turn them into tables and JSON, and the
+        # artifacts themselves — the last so a hand-edit is caught too. The
+        # scenario narrative pages are watched as well, because --check also
+        # refuses a page for an unregistered scenario or one that declares a
+        # maturity claim (DEMOCI-11-012).
+        #
+        # Not covered: a commit that *only deletes* a scenario module and its
+        # derived files. pre-commit's staged-file list excludes deletions, so no
+        # pattern can match one; test_committed_artifacts_are_in_sync in
+        # test/metadata/test_demo_scenario_artifacts.py is the backstop there.
+        files: ^(vultron/demo/scenario/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md|docs/topics/scenarios/.*\.md)$
+        pass_filenames: false
+
+      - id: msm-occasions-sync
+        name: Occasion table and message fragments in sync
+        # Console script, for the same reason as demo-scenarios-sync.
+        entry: uv run msm-occasions --check
+        language: system
+        # Every input of the generated YAML and fragments is watched
+        # (MSM-06-001): the registry modules that declare the occasions, the
+        # wire patterns and type enums behind "Send", the received use cases
+        # and sender rules behind "Sent by", the MessageSemantics enum, the
+        # state enums behind "Distinguished by", the example modules the
+        # sections name, every page under docs/ (an include directive on any
+        # page adds it to an occasion's "Seen in", whose link text is the
+        # page's H1), mkdocs.yml (its draft_docs and exclude_docs keep a page
+        # out of "Seen in"), the generator and the metadata helpers it calls, and the
+        # artifacts themselves, so a hand-edit is caught too.
+        # test_committed_occasion_artifacts_are_in_sync in
+        # test/metadata/test_msm_occasions.py enforces the check in CI and is
+        # the backstop for a deletion, which no `files:` pattern can match.
+        files: ^(vultron/semantic_registry/.*\.py|vultron/wire/as2/extractor/.*\.py|vultron/core/use_cases/received/.*\.py|vultron/core/behaviors/sender_entitlement\.py|vultron/enums/roles\.py|vultron/core/models/events/base\.py|vultron/core/models/enums\.py|vultron/wire/as2/enums\.py|vultron/core/states/.*\.py|vultron/metadata/(base|markdown_tables|file_loading|generated_files|docs/page_frontmatter)\.py|vultron/wire/as2/vocab/examples/.*\.py|vultron/metadata/msm/.*\.(py|yaml)|docs/.*\.md|mkdocs\.yml)$
+        pass_filenames: false
+
+      - id: wire-context-sync
+        name: JSON-LD @context in sync with wire vocabulary
+        # Console script, not `python -m ...`: the package re-exports from
+        # `sync`, so `-m` would run the module twice and print a RuntimeWarning.
+        entry: uv run wire-context --check
+        language: system
+        # Two kinds of input make the artifact stale (VM-10-001/002): the wire
+        # vocabulary classes (a new/renamed Vultron-namespace type, or a
+        # changed _vocab_ns) and the committed file itself (a hand-edit).
+        # This hook is local-only; test_committed_context_is_not_stale is what
+        # enforces the check in CI, and is also the backstop for a deletion,
+        # which pre-commit's staged-file list cannot match.
+        files: ^(vultron/wire/as2/vocab/.*\.py|vultron/metadata/wire_context/.*\.py|docs/ns/context\.jsonld)$
+        pass_filenames: false
+
+      - id: ruff
+        name: ruff (lint + format check)
+        # Invoked directly, not through run-if-changed.sh: the whole-tree run
+        # takes about a second, so a fingerprint lookup would cost a real share
+        # of the work it saves (ADR-0094). Fail-only, like every hook here: fix
+        # with `uv run ruff check --fix` and `uv run ruff format`.
+        # pre-commit appends the staged filenames; `force-exclude = true` in
+        # [tool.ruff] makes ruff apply the config's exclusions to them, so this
+        # hook and the CI job agree about scope (IMPLTS-07-021).
+        entry: bash -c 'uv run ruff check "$@" && uv run ruff format --check "$@"' --
+        language: system
+        files: (\.pyi?|^pyproject\.toml)$
+
+      - id: spec-lint
+        name: Spec registry linter
+        entry: uv run python -m vultron.metadata.specs.lint specs/
+        language: system
+        files: ^(specs/.*\.yaml|docs/adr/.*\.md|vultron/metadata/adr/.*\.py)$
+        pass_filenames: false

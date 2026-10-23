@@ -1,0 +1,175 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Domain representations of AS2 activity types used in the core layer."""
+
+# pyright: reportGeneralTypeIssues=false
+
+from typing import Any, Literal
+
+from pydantic import Field
+
+from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.embargo_termination import TerminationCause
+
+
+class VultronActivity(CoreObject):
+    """Domain representation of an AS2 activity for DataLayer storage.
+
+    ``VultronActivity`` is the domain model for an inbound or outbound AS2
+    activity object. It is distinct from ``VultronEvent`` (defined in
+    ``vultron.core.models.events``), which is the semantic dispatch event
+    that carries decomposed ID/type fields extracted from the wire format.
+    A ``VultronEvent`` may carry a ``VultronActivity`` as its ``activity``
+    field, but the two types serve different purposes: ``VultronActivity``
+    persists activity records in the DataLayer, while ``VultronEvent`` drives
+    handler dispatch in the core.
+
+    ``type_`` is required and must be set to the actual activity type
+    (e.g. ``"Offer"``, ``"Accept"``, ``"Invite"``, ``"Leave"``, ``"Read"``).
+
+    Field names match the wire-layer ``as_Activity`` internal names so that
+    a stored ``VultronActivity`` can be round-tripped through
+    ``record_to_object`` and deserialized as the appropriate AS2 activity
+    subclass.  ``object_`` uses alias ``"object"`` to match the AS2 wire
+    field name; callers may pass either ``object_=`` or ``object=`` thanks
+    to ``populate_by_name=True`` on ``CoreRecord``.
+    """
+
+    type_: NonEmptyString = Field(  # pyright: ignore[reportGeneralTypeIssues]
+        validation_alias="type", serialization_alias="type"
+    )
+    actor: NonEmptyString  # non-optional because every activity must have an actor
+    object_: Any | None = Field(
+        default=None,
+        validation_alias="object",
+        serialization_alias="object",
+    )
+    target: Any | None = None
+    origin: NonEmptyString | None = None
+    # AS2 Activity fields no Vultron activity uses yet.  They stay declared
+    # (ARCH-25-008, ADR-0099): ``CoreObject`` forbids extras, and a stored wire
+    # activity dumps them, even when null.
+    instrument: Any | None = None
+    result: Any | None = None
+    # A Reporter's proposed embargo terms on Offer(VulnerabilityReport)
+    # (EP-04-004); the wire dump carries it as ``proposedEmbargo``.
+    proposed_embargo: Any | None = None
+    # A termination Remove(EmbargoEvent)'s why (EMB-13-005); the wire dump
+    # carries it as ``terminationCause``, and the ledger entry that records
+    # the Remove carries it with it.
+    termination_cause: TerminationCause | None = None
+    # ``Question`` fields (AS2 §4.1); the CBT-03-004 bootstrap-replay Question
+    # is delivered through this model.
+    any_of: Any | None = None
+    one_of: Any | None = None
+    closed: Any | None = None
+    # Addressing carries actor references; a blank one names nobody
+    # (CS-08-001).  Only ``to`` is modelled: Vultron addresses every direct
+    # message with it (OX-08-001), and ``cc``/``bto``/``bcc`` have no handler
+    # semantics (HP-10-001, ADR-0109).  ``cc`` stays declared on ``CoreObject``
+    # only as AS2 vocabulary a stored wire activity may dump (ARCH-25-008);
+    # the extractor never maps it and no core code reads it.
+    to: list[NonEmptyString] | None = None
+    # CM-16-003: the wire dump this model is validated from is camelCase, so
+    # the alias is required — without it the field silently validates to None
+    # and the suggested roles vanish from the delivered activity.
+    suggested_roles: list[NonEmptyString] | None = Field(
+        default=None,
+        validation_alias="suggestedRoles",
+        serialization_alias="suggestedRoles",
+    )
+    # Single-word, so the camelCase wire name is identical and no alias is
+    # needed; stated explicitly because the neighbouring field shows what the
+    # omission costs when the names do differ.
+    roles: list[NonEmptyString] | None = None
+
+
+class VultronOffer(VultronActivity):
+    """Domain representation of an Offer activity.
+
+    Mirrors the essential fields of ``as_Offer``.
+    ``type_`` is ``"Offer"`` to match the wire value.
+    """
+
+    type_: Literal["Offer"] = Field(
+        default="Offer",
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+class VultronAccept(VultronActivity):
+    """Domain representation of an Accept activity.
+
+    Mirrors the essential fields of ``as_Accept``.
+    ``type_`` is ``"Accept"`` to match the wire value.
+
+    ``result`` carries the URI of the ``VulnerabilityCase`` this Accept
+    refers to.  For a duplicate-proposal response (CP-05-006 AC-2), it is
+    the URI of the *existing* case so the vendor can correlate the
+    acceptance to the already-created case.  For a first-time acceptance
+    it is the URI of the newly-created case.
+    """
+
+    type_: Literal["Accept"] = Field(
+        default="Accept",
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    result: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "URI of the VulnerabilityCase this Accept produced or refers to "
+            "(CP-05-006 AC-2)."
+        ),
+    )
+
+
+class VultronCreateCaseActivity(VultronActivity):
+    """Domain representation of a Create(Case) activity.
+
+    Mirrors the essential fields of ``as_CreateCase``.
+    ``type_`` is ``"Create"`` to match the wire value.
+
+    Per CP-05-003 and ADR-0045:
+
+    - ``context`` MUST be the URI of the new ``VulnerabilityCase`` (consistent
+      with all other case-scoped activities; required for inbox deferral routing).
+    - ``in_reply_to`` carries the URI of the ``Accept(CaseProposal)`` activity
+      that authorised case creation (causal antecedent in the AS2-correct field).
+    """
+
+    type_: Literal["Create"] = Field(
+        default="Create",
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    context: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "URI of the VulnerabilityCase this activity is scoped to "
+            "(CP-05-003, ADR-0045). MUST be the case URI, not the Accept URI."
+        ),
+    )
+    in_reply_to: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="inReplyTo",
+        serialization_alias="inReplyTo",
+        description=(
+            "URI of the Accept(CaseProposal) that authorised this Create "
+            "(CP-05-003, ADR-0045). Causal antecedent in the AS2-correct field."
+        ),
+    )

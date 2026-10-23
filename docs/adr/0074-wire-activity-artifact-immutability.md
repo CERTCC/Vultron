@@ -1,0 +1,139 @@
+---
+status: accepted
+date: 2026-08-26
+created: 2026-08-26
+updated: 2026-08-26
+revision: 1
+deciders: ahouseholder
+consulted: notes/wire-artifact-immutability.md, notes/datalayer-design.md, notes/activity-factories.md, notes/core-wire-rendering-port.md, docs/adr/archived/0017-domain-wire-object-separation.md, docs/adr/0064-core-branch-validate-assignment.md, docs/adr/0073-per-actor-storage-isolation.md
+informed: specs/vocabulary-model.yaml
+stakeholder_type: [project-contributor]
+partially_superseded_by: 0099-one-object-model-as2-is-a-serialization.md
+---
+
+# Treat Wire Activities as Immutable Artifacts; Freeze at Receipt and at Factory Seal
+
+## Context and Problem Statement
+
+Wire Activity objects (subclasses of `as_Object`) are used for two distinct
+purposes that have conflicting mutability requirements:
+
+1. **Inbound**: a received Activity is an artifact — it captures the wire state
+   at receipt time. It is stored as `CaseLedgerEntry.payloadSnapshot` and
+   replicated to other participants via `Announce(CaseLedgerEntry)`. Mutating
+   it before ledger storage breaks replication fidelity: other actors reconstruct
+   their local state from the replicated form, so they would see a different
+   representation than what was originally received.
+
+2. **Outbound**: a factory-constructed Activity is an artifact — it captures
+   exactly what was sent. The same object must serve as both the delivery payload
+   and the `payloadSnapshot` in the ledger entry. Adapter enrichment after the
+   factory seals the blob creates a gap: the ledger records one form while the
+   recipient receives another, breaking the accountability invariant.
+
+Currently nothing in the type system prevents mutation. `as_Object` uses
+`ConfigDict(validate_assignment=False)` (ADR-0064) to stay lenient for inbound
+AS2 data, but has no `frozen=True`. Downstream code can and does mutate Activity
+objects in place — three mutation sites in `outbox_delivery.py` overwrite
+`outbound_activity.object_` after the ledger entry has already been written.
+
+## Decision Drivers
+
+- **Ledger integrity**: `CaseLedgerEntry.payloadSnapshot` must be identical to
+  the delivered payload. Post-factory mutation creates a permanent divergence.
+- **Replication fidelity**: other actors reconstruct state from the replicated
+  `payloadSnapshot`. If the frozen artifact is mutated before ledger storage,
+  replications propagate the mutated form.
+- **Type-level enforcement**: "do not mutate" as a convention enforced only by
+  documentation is insufficient; the runtime should raise on accidental mutation
+  during development and testing.
+- **Orthogonality**: `validate_assignment=False` (wire branch leniency,
+  ARCH-12-002) and `frozen=True` (post-construction immutability) are
+  independent properties that can coexist. ADR-0064 established the former;
+  this ADR establishes the latter.
+
+## Considered Options
+
+1. **Full `frozen=True` on `as_Object` + A/B split for inbound routing**
+2. **Per-field freeze** — mark only `payloadSnapshot`-bound fields as frozen
+3. **Mutable Activities with a documentation-only immutability convention**
+
+## Decision Outcome
+
+Chosen option: **"Full `frozen=True` + A/B split"**, because it is the only
+option that enforces the invariant at the type level for both the inbound and
+outbound pipelines.
+
+### Inbound: A/B split
+
+Two distinct objects serve the two needs of the inbound pipeline:
+
+- **A — the frozen artifact**: the wire Activity exactly as received. Frozen
+  at the moment of receipt, before any rehydration or routing logic touches it.
+  Stored as `CaseLedgerEntry.payloadSnapshot`. Replicated unchanged.
+- **B — the hydrated routing copy**: a separately constructed object with
+  bare-string references resolved to full objects. Produced independently from
+  A — not by mutating A. Used for semantic dispatch and use-case execution.
+  Never stored in the ledger.
+
+A is never modified to produce B. If rehydration fails, A remains intact.
+
+How A is held changed after this decision.
+`frozen=True` covers only the class that declares it, and ADR-0099 detail 3 made every paired nested object a mutable core class, so a frozen envelope no longer makes the received activity immutable.
+A is now the received body itself: `parse_activity` seals it as JSON text before anything expands or validates it, and ingress rehydration carries that text onto B (#3584).
+That mechanism is recorded in ADR-0099's **Amends** list; the principle, that A is the evidence and B is never it, is unchanged.
+This is why `status:` stays `accepted` with `partially_superseded_by:` rather than `superseded`: the outbound half of this decision is unaffected.
+
+### Outbound: frozen blob pipeline
+
+1. **Factory** (`vultron/wire/as2/factories/`) constructs the wire object
+   fully populated and returns a frozen blob.
+2. **Port** (`TriggerActivityPort` / `SyncActivityPort`) returns the frozen
+   blob to core — not a `model_dump()` dict.
+3. **Core** uses the exact same blob for both `CaseLedgerEntry.payloadSnapshot`
+   and outbox delivery.
+4. **Adapter** delivers the blob unchanged — no enrichment, no expansion.
+
+How step 4 gets the blob (amended by #2654/#2655): the outbox queues activity ids, and the activity *record* is a dehydrated, rehydrated-on-read reconstruction, not the blob.
+So the adapter that persists an outbound activity also *seals* the blob's text as a `SealedOutboundBody` record keyed by the activity id (`vultron/adapters/outbox_sealed_body.py`), and the outbox handler delivers that text without reading the activity record at all (OX-07-001).
+The `ActivityEmitter` port carries the sealed JSON text, not an activity object.
+
+The factory is solely responsible for completeness. Adapter enrichment
+compensates for an incomplete factory and creates a ledger/delivery gap.
+
+### Consequences
+
+- Good, because mutation of received Activities raises immediately during
+  development, rather than corrupting ledger entries silently in production.
+  Under Pydantic v2 the rejection is a `ValidationError` carrying
+  `type=frozen_instance`, not a `TypeError` — code that means to clear a field
+  must build a new object with `model_copy(update=...)` instead (issue #2904).
+- Good, because the ledger entry and delivery payload are guaranteed identical
+  — the accountability invariant becomes structurally enforced.
+- Good, because `frozen=True` and `validate_assignment=False` are orthogonal;
+  no change to the wire branch's lenient field-type policy is required.
+- Bad, because any code that currently mutates wire Activity objects in place
+  must be refactored — three known mutation sites in `outbox_delivery.py` and
+  one in `EmitInviteActorToCaseNode._call_factory()` (renamed from `_emit()` by #2881).
+- Bad, because `TriggerActivityPort` methods must change their return type
+  from `dict[str, Any]` to a frozen wire object, requiring callers to be
+  updated.
+
+## Validation
+
+- `test/architecture/test_wire_artifact_immutability.py`: for every class reachable in a parsed example activity, tampering with its instances leaves the received evidence equal to the delivered body (VM-08-002); and the VM-08-003 trigger-port return-type check.
+- `specs/vocabulary-model.yaml` VM-08-002 and VM-08-003 (MUST-level requirements).
+
+## More Information
+
+Implementation tracked in:
+
+- #2652 — add `frozen=True` to wire branch `as_Object` + ratchet test
+- #2653 — redesign `TriggerActivityPort` to return frozen wire blob (size:L)
+- #2654 — remove `_drop_bare_inline_refs` from emit nodes (done: the snapshot is `json.loads(activity_blob)`; the factory sets `context`; the commit boundary accepts a bare `target` naming the entry's own case)
+- #2655 — remove `outbox_delivery.py` enrichment mutations (done: the handler relays the *sealed body*)
+- #2656 — A/B split in inbox pipeline (blocked by #2652)
+
+Source: CONCERN-2545. Design rationale: `notes/wire-artifact-immutability.md`.
+
+Generated spec requirements: `specs/vocabulary-model.yaml` VM-08-002, VM-08-003.

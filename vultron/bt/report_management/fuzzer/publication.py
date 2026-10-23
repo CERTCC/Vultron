@@ -14,6 +14,7 @@
 """
 This module provides fuzzer leaf nodes in support of the process of publishing the vulnerability and its artifacts
 """
+
 from vultron.bt.base.factory import fuzzer
 from vultron.bt.base.fuzzer import (
     AlmostAlwaysFail,

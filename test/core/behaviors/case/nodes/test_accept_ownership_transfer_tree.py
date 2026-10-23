@@ -1,0 +1,272 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Regression tests for ISSUE-2252 — accept-ownership-transfer BT commit guard.
+
+Verifies that ``create_accept_ownership_transfer_tree`` commits exactly one
+canonical ledger entry when the CaseActor processes the Accept, and zero
+entries when any other actor processes it.
+
+Root cause: an extra unguarded ``CommitCaseLedgerEntryNode`` in ``effect_nodes``
+allowed the transferee to write a second entry at the same ``log_index`` as the
+CaseActor's guarded commit, producing a hash-chain fork (AC-3, CLP-09-001).
+"""
+
+from contextlib import contextmanager
+from unittest.mock import patch
+
+import pytest
+from py_trees.common import Status
+
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.received import with_evidence
+from vultron.core.behaviors.case.nodes.lifecycle import (
+    CommitCaseLedgerEntryNode,
+)
+from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
+    OfferParty,
+    OwnershipOfferOpenNode,
+)
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
+    AcceptRecordedOwnershipOfferNode,
+)
+from vultron.core.behaviors.case.ownership_transfer_tree import (
+    create_accept_ownership_transfer_tree,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderIsCaseManagerNode,
+    SenderIsOwnershipTransfereeNode,
+)
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.events.actor import (
+    AcceptCaseOwnershipTransferReceivedEvent,
+)
+from vultron.core.use_cases.received.actor.ownership import (
+    AcceptCaseOwnershipTransferReceivedUseCase,
+)
+from vultron.enums.roles import CVDRole
+
+CASE_ID = "https://example.org/cases/case-2252"
+CASE_ACTOR_ID = "https://example.org/actors/case-actor"
+TRANSFEREE_ID = "https://example.org/actors/coordinator"
+OFFER_ID = "https://example.org/activities/offer-2252"
+
+
+def _seed_case(bt_scenario: BTTestScenario) -> None:
+    case_actor_participant = CaseParticipant(
+        id_="https://example.org/participants/case-actor-cp",
+        attributed_to=CASE_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
+    )
+    transferee_participant = CaseParticipant(
+        id_="https://example.org/participants/coordinator-cp",
+        attributed_to=TRANSFEREE_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.COORDINATOR],
+    )
+    case = VulnerabilityCase(
+        id_=CASE_ID,
+        name="ISSUE-2252 test case",
+        attributed_to="https://example.org/actors/vendor",
+        case_participants=[
+            case_actor_participant.id_,
+            transferee_participant.id_,
+        ],
+        actor_participant_index={
+            CASE_ACTOR_ID: case_actor_participant.id_,
+            TRANSFEREE_ID: transferee_participant.id_,
+        },
+    )
+    bt_scenario.seed(case_actor_participant, transferee_participant, case)
+
+
+def _accept_event() -> AcceptCaseOwnershipTransferReceivedEvent:
+    """The received Accept(Offer(Case)) as a handler places it on the blackboard.
+
+    A real event, not a stand-in: intake reads it first (CLP-10-017) and a
+    bare object would be a wiring fault.
+    """
+    activity = VultronActivity(
+        id_=OFFER_ID,
+        type_="Accept",
+        actor=TRANSFEREE_ID,
+        to=[CASE_ACTOR_ID],
+        context=CASE_ID,
+        object_={
+            "id": OFFER_ID,
+            "type": "Offer",
+            "object": {"id": CASE_ID, "type": "VulnerabilityCase"},
+        },
+    )
+    return with_evidence(
+        AcceptCaseOwnershipTransferReceivedEvent(
+            activity_id=OFFER_ID, actor_id=TRANSFEREE_ID, activity=activity
+        )
+    )
+
+
+def _accept_tree():
+    return create_accept_ownership_transfer_tree(
+        case_id=CASE_ID,
+        offer_id=OFFER_ID,
+        sender_id=TRANSFEREE_ID,
+        answer_id=OFFER_ID,
+        sender_rule=AcceptCaseOwnershipTransferReceivedUseCase.sender_entitlement,
+    )
+
+
+@contextmanager
+def _sender_admitted():
+    """Admit the sender and name the transferee as the recorded Offer would.
+
+    These tests are about the commit gate, not the Offer lookup; the sender
+    guard, the open-Offer guard and the lookup are tested through the use case in
+    ``test/core/use_cases/received/actor/test_ownership.py``.
+    """
+    with (
+        patch.object(
+            SenderIsOwnershipTransfereeNode,
+            "update",
+            autospec=True,
+            return_value=Status.SUCCESS,
+        ),
+        # The replica's side of the rule: the sender is the CASE_MANAGER.
+        patch.object(
+            SenderIsCaseManagerNode,
+            "update",
+            autospec=True,
+            return_value=Status.SUCCESS,
+        ),
+        patch.object(
+            OwnershipOfferOpenNode,
+            "update",
+            autospec=True,
+            return_value=Status.SUCCESS,
+        ),
+        patch.object(
+            AcceptRecordedOwnershipOfferNode,
+            "_new_owner_id",
+            autospec=True,
+            return_value=TRANSFEREE_ID,
+        ),
+    ):
+        yield
+
+
+@pytest.mark.parametrize(
+    "actor_id,expect_commit",
+    [
+        (CASE_ACTOR_ID, True),
+        (TRANSFEREE_ID, False),
+    ],
+)
+@pytest.mark.spec("CM-21-007")
+def test_accept_ownership_transfer_commit_is_role_gated(
+    bt_scenario_factory,
+    actor_id: str,
+    expect_commit: bool,
+) -> None:
+    """CaseActor commits exactly once; all other actors skip the commit.
+
+    Regression for ISSUE-2252: the previous tree had an extra unguarded
+    ``CommitCaseLedgerEntryNode`` in ``effect_nodes`` that fired for the
+    transferee, writing a duplicate entry at the same ``log_index`` as the
+    CaseActor's guarded commit (CLP-09-001, AC-3).
+
+    The scenario is built per parameter rather than taken from the ``bt_scenario``
+    fixture, because this test has *two* executing actors and a BT's store follows
+    the actor it executes as (ADR-0073).  One shared store would leave whichever
+    actor did not own it reading an empty one — the case would be absent, the role
+    guard would fail for lack of a case rather than for lack of the role, and the
+    "transferee does not commit" half would pass for the wrong reason.
+    """
+    bt_scenario: BTTestScenario = bt_scenario_factory(actor_id)
+    _seed_case(bt_scenario)
+    tree = _accept_tree()
+
+    with (
+        _sender_admitted(),
+        patch.object(
+            CommitCaseLedgerEntryNode, "update", autospec=True
+        ) as mock_commit,
+    ):
+        mock_commit.return_value = Status.SUCCESS
+        result = bt_scenario.run(
+            tree, actor_id=actor_id, activity=_accept_event()
+        )
+
+    assert result.status == Status.SUCCESS
+    if expect_commit:
+        mock_commit.assert_called_once()
+    else:
+        mock_commit.assert_not_called()
+
+
+@pytest.mark.spec("CM-21-007")
+@pytest.mark.executes_as(CASE_ACTOR_ID)
+def test_accept_ownership_transfer_no_double_commit(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """Only one ``CommitCaseLedgerEntryNode.update`` call fires for CaseActor.
+
+    Guards against re-introducing the ISSUE-2252 double-write: if
+    ``CommitCaseLedgerEntryNode`` appears in ``effect_nodes`` AND is injected
+    by ``create_receive_activity_tree``, it fires twice — forking the chain.
+    """
+    _seed_case(bt_scenario)
+    tree = _accept_tree()
+
+    with (
+        _sender_admitted(),
+        patch.object(
+            CommitCaseLedgerEntryNode, "update", autospec=True
+        ) as mock_commit,
+    ):
+        mock_commit.return_value = Status.SUCCESS
+        bt_scenario.run(tree, actor_id=CASE_ACTOR_ID, activity=_accept_event())
+
+    assert mock_commit.call_count == 1, (
+        f"Expected exactly 1 CommitCaseLedgerEntryNode.update call for "
+        f"CaseActor; got {mock_commit.call_count}. "
+        f"A count > 1 means the double-write bug (ISSUE-2252) is back."
+    )
+
+
+@pytest.mark.executes_as(CASE_ACTOR_ID)
+def test_open_offer_guard_raises_when_the_offer_is_not_recorded(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """The sender check runs first and finds the Offer, so the open-Offer
+    guard not finding it is a local anomaly: an internal error, never a
+    refusal of the sender."""
+    _seed_case(bt_scenario)
+    guard = OwnershipOfferOpenNode(
+        case_id=CASE_ID,
+        offer_id=OFFER_ID,
+        reply_id="https://example.org/activities/accept-2252",
+        sender_id=TRANSFEREE_ID,
+        party=OfferParty.TRANSFEREE,
+    )
+
+    result = bt_scenario.run(guard, actor_id=CASE_ACTOR_ID)
+
+    bt_scenario.assert_failure(
+        result,
+        reason="the Offer the sender check found is gone",
+        allow_internal=True,
+    )

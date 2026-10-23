@@ -1,9 +1,7 @@
 #!/usr/bin/env python
-"""file: cvd_role_conditions
-author: adh
-created_at: 4/26/22 10:23 AM
-"""
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+"""This module provides condition check behavior tree nodes"""
+
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -16,15 +14,14 @@ created_at: 4/26/22 10:23 AM
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 from vultron.bt.base.bt_node import BtNode
 from vultron.bt.base.factory import condition_check, invert
-from vultron.bt.roles.states import CVDRoles
+from vultron.bt.roles.enums import CVDRolesFlag
 
 
 def role_is_vendor(obj: BtNode) -> bool:
     """True if the CVD role is vendor"""
-    return obj.bb.CVD_role & CVDRoles.VENDOR
+    return bool(obj.bb.CVD_role & CVDRolesFlag.VENDOR)
 
 
 RoleIsVendor = condition_check("RoleIsVendor", role_is_vendor)
@@ -32,7 +29,7 @@ RoleIsVendor = condition_check("RoleIsVendor", role_is_vendor)
 
 def role_is_deployer(obj: BtNode) -> bool:
     """True if the CVD role is deployer"""
-    return obj.bb.CVD_role & CVDRoles.DEPLOYER
+    return bool(obj.bb.CVD_role & CVDRolesFlag.DEPLOYER)
 
 
 RoleIsDeployer = condition_check("RoleIsDeployer", role_is_deployer)
@@ -40,7 +37,7 @@ RoleIsDeployer = condition_check("RoleIsDeployer", role_is_deployer)
 
 def role_is_coordinator(obj: BtNode) -> bool:
     """True if the CVD role is coordinator"""
-    return obj.bb.CVD_role & CVDRoles.COORDINATOR
+    return bool(obj.bb.CVD_role & CVDRolesFlag.COORDINATOR)
 
 
 RoleIsCoordinator = condition_check("RoleIsCoordinator", role_is_coordinator)

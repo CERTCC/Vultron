@@ -1,16 +1,90 @@
-# Error Handling
+---
+stakeholder_type: [platform-developer]
+level: 300
+page_type: how-to
+---
 
-While the ActivityStreams vocabulary doesn't include any specific error messages,
-we can use the `as:Reject` activity to indicate that a message has been rejected
-for some reason. We specify a number of specific error messages that can be
-indicated based on what kind of message they are `as:inReplyTo`.
+# How to Report a Protocol Fault
 
-```mermaid
-flowchart LR
+Use this guide when a message you received cannot be processed as sent.
+Vultron partitions fault reporting by **failure mode**, so your first job is to decide which of three modes you are in, and your second is to send the activity that mode calls for.
+You finish with the sender informed of why the message failed, in a form it can act on.
 
-    vultron_proto:VultronMessageType --> VultronError
-    vultron_proto:CsMessageType --> CsError
-    vultron_proto:EmMessageType --> EmError
-    vultron_proto:GmMessageType --> GmError
-    vultron_proto:RmMessageType --> RmError
-```
+---
+
+## Prerequisites
+
+{% include-markdown "./_demo_prerequisites.md" %}
+
+- The message that failed, and the sender's actor Uniform Resource Identifier (URI).
+- Your own determination of why it failed.
+  The modes below are mutually exclusive.
+
+---
+
+## Choose the failure mode
+
+| Failure mode | Send |
+|---|---|
+| Received but **not understood** — format error, unknown type, parse failure | `Create(ProcessingFault)` |
+| Received and understood, but **your processing failed** — an internal error, nothing kept | `Create(ProcessingFault)`, internal-error class |
+| Received and understood but **declined** — invalid state, rule violation, unauthorized | `as:Reject` |
+| Received and understood, but the condition needs **narrative explanation** | A case note: one `Add(Note)` carrying the note inline |
+
+Three mechanisms cover every case (MSM-05-001).
+
+- If you could not parse the message, send `Create(ProcessingFault)`.
+  Do not reject it — rejection claims you understood it.
+
+    {% include-markdown "../../../reference/messages/_occasions/embeds/create-processing-fault.md" %}
+
+- If you understood the message but your own processing of it failed, send `Create(ProcessingFault)` with the internal-error class, after your act has rolled back, and say nothing about the cause ([Faults and Acknowledgments](../../../reference/messages/faults_and_acknowledgements.md#create-processing-fault)).
+  The Vultron inbox sends this one for you.
+- If you understood the message and are refusing it, send `as:Reject`.
+  Say which rule or state made it inadmissible.
+- If the condition needs a human to read it, add a note to the case.
+  See [How to Post a Status Update or a Case Note](status_updates.md).
+
+The failure mode is the actionable axis.
+Knowing a message was not understood tells the sender to check its serialization; knowing it was declined tells the sender to check the protocol state it assumed.
+
+---
+
+## Interpret an incoming `as:Reject`
+
+`as:Reject` carries ordinary protocol refusals as well as faults — `close_report`, `reject_invite_to_embargo_on_case`, `reject_invite_actor_to_case`, `reject_case_proposal`, and `reject_case_ownership_transfer` among them.
+
+Read the object and the context before treating a `Reject` as an error.
+
+!!! warning "Never infer a fault from the verb alone"
+
+    A receiver MUST NOT infer error semantics from `as:Reject` by itself (MSM-05-003).
+    Treating every `Reject` as a fault turns each legitimate refusal into a false alarm.
+
+A `Reject` from the CASE_MANAGER whose object is an activity you sent, carried inline, is a refusal notice.
+It tells you a precondition did not hold, so your assertion had no effect, and its `summary` gives the reason.
+Close the pending assertion you recorded for that activity, and do not send it again because of the notice ([CLP-05-001](../../../reference/specs/protocol.md#clp-05-001)).
+A refusal notice of an `Invite` or an `Offer` you sent reads as the decline of that request.
+
+A `Reject(CaseLedgerEntry)` is a third thing again: it is the ledger negative acknowledgment, and it asks the CASE_MANAGER to replay a missing prefix rather than reporting a fault.
+See [Faults and Acknowledgments](../../../reference/messages/faults_and_acknowledgements.md).
+
+---
+
+## Verify
+
+The sender holds your fault report, and the exchange that failed has not advanced any state on your side.
+A fault report is not a state transition.
+
+---
+
+## Further reading
+
+- [Faults and Acknowledgments](../../../reference/messages/faults_and_acknowledgements.md) — the wire format for each mechanism, and why the formal `RE`, `EE`, `CE`, and `GE` shorthands have no dedicated wire activity
+- [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md) — why the implementation partitions faults by failure mode rather than by state machine
+- [Message Types](../../../reference/formal_protocol/messages.md) — the formal error shorthands these mechanisms realize
+
+!!! note "Name collision"
+
+    `VultronError` in `vultron/errors.py` is a Python exception base class.
+    It is unrelated to the protocol wire-level fault activities above.

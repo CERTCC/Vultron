@@ -1,0 +1,836 @@
+#!/usr/bin/env python
+"""Integration tests for RejectLogEntryReceivedBT."""
+
+import logging
+from typing import cast
+from unittest.mock import MagicMock
+
+import py_trees
+import pytest
+from py_trees.common import Status
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.received import received_event
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.behaviors.sync.reject_tree import (
+    create_reject_log_entry_tree,
+)
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
+from vultron.core.models.replication_state import VultronReplicationState
+from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.use_cases.received.sync import (
+    RejectLedgerEntryReceivedUseCase,
+)
+from vultron.errors import VultronError, VultronValidationError
+from vultron.wire.as2.factories import reject_log_entry_activity
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
+)
+
+OWNER_ACTOR_ID = "https://example.org/actors/vendor"
+PEER_ID = "https://example.org/actors/reporter"
+#: A second participant, holding its own replica of the case (TB-06-007).
+REPLICA_ID = "https://example.org/actors/coordinator"
+CASE_ID = "https://example.org/cases/case-sync"
+
+_ZERO_HASH: str = "0" * 64  # arbitrary prev_log_hash for test chains
+
+
+@pytest.fixture
+def datalayer():
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=OWNER_ACTOR_ID,
+    )
+
+
+@pytest.fixture
+def bridge(datalayer):
+    return BTBridge(datalayer=datalayer)
+
+
+def _seed_case(datalayer, *, extra_participants: tuple[str, ...] = ()):
+    """Store the case, OWNER_ACTOR_ID its CASE_MANAGER, in *datalayer*.
+
+    PEER_ID, the Reject's sender, is a joined participant; each of
+    *extra_participants* joins too.
+    """
+    from vultron.enums.roles import CVDRole
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_CaseParticipant,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    participant = as_CaseParticipant(
+        id_=f"{CASE_ID}/participants/owner",
+        context=CASE_ID,
+        attributed_to=OWNER_ACTOR_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    datalayer.create(participant)
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Sync Case"
+    )
+    case.case_participants.append(participant.id_)
+    case.actor_participant_index[OWNER_ACTOR_ID] = participant.id_
+    # The Reject's sender is a joined participant, so the replay and the
+    # genesis pre-seed's active-participant gate admit it (CM-10-004).
+    for i, actor in enumerate((PEER_ID, *extra_participants)):
+        peer = as_CaseParticipant(
+            id_=f"{CASE_ID}/participants/p{i}",
+            context=CASE_ID,
+            attributed_to=actor,
+        )
+        datalayer.create(peer)
+        case.case_participants.append(peer.id_)
+        case.actor_participant_index[actor] = peer.id_
+    datalayer.create(case)
+    return case
+
+
+@pytest.fixture
+def case_manager_case(datalayer):
+    """A case in which OWNER_ACTOR_ID holds CASE_MANAGER.
+
+    Every test in this module needs it, for two reasons.  Every effect sits
+    inside the factory's CASE_MANAGER gate, whose guard is the *role* (CLP-09)
+    and not an identity comparison — the holder may be any Actor type.  With
+    no case naming a CASE_MANAGER the gate skips: nothing is replayed or
+    announced, so a test without this fixture asserts nothing.
+    ``FindCaseActorNode`` resolves the replay's sender address from the same
+    role (ADR-0088, ARCH-24-004) and returns FAILURE without it.
+
+    Note that the role is modelled as a ``CaseParticipant`` carrying
+    ``case_roles``, not as the ``CaseActor`` service entity — those are
+    different things, and only the former satisfies either node.  A
+    ``CaseActor`` whose ``context`` was the case id used to be enough for
+    ``FindCaseActorNode``; ADR-0088 retired that hosting signal, so this module
+    no longer creates one.
+    """
+    return _seed_case(datalayer)
+
+
+def _make_entry(
+    log_index: int, prev_hash: str = _ZERO_HASH
+) -> CaseLedgerEntry:
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/log-{log_index}",
+            semantic_type="test_event",
+            payload_snapshot={"log_index": log_index},
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+def _make_event(
+    entry: CaseLedgerEntry, tail_hash: str, to: list[str] | None = None
+) -> RejectLogEntryReceivedEvent:
+    """Build the received Reject, addressed to the CASE_MANAGER by default.
+
+    *to* overrides the recipients, for a copy that also reaches a replica:
+    the tree's addressee door refuses a copy naming nobody it executes as
+    (HP-01-005).
+    """
+    recipients = [OWNER_ACTOR_ID] if to is None else to
+    wire_entry = WireCaseLedgerEntry.model_validate(
+        entry.model_dump(mode="json")
+    )
+    activity = reject_log_entry_activity(
+        entry=wire_entry,
+        context=tail_hash,
+        actor=PEER_ID,
+        to=recipients,
+    )
+    event = cast(RejectLogEntryReceivedEvent, received_event(activity))
+    # The inbox pipeline attaches the core wire activity; intake archives it.
+    event.activity = VultronActivity(
+        id_=event.activity_id,
+        type_="Reject",
+        actor=PEER_ID,
+        to=recipients,
+        object_=entry,
+    )
+    return event
+
+
+def test_create_reject_log_entry_tree_returns_sequence():
+    tree = create_reject_log_entry_tree(
+        CASE_ID,
+        sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+    )
+    assert tree.name == "RejectLogEntryReceivedBT"
+    # Intake first (CLP-10-017), the addressee door (HP-01-005), the sender
+    # guard the factory composes (HP-01-008, #4696), the case lookup, then
+    # the CASE_MANAGER gate holding every effect (BT-17-008).
+    assert [child.name for child in tree.children] == [
+        "IntakeReceivedActivityNode",
+        "ActivityAddressedToReceiverNode",
+        "SenderIsActiveLedgerParticipant",
+        "FindCaseActor",
+        "AnswerRejectIfCaseManager",
+    ]
+    assert isinstance(tree.children[-1], CaseManagerGate)
+    # The genesis pre-seed precedes the replay inside the gate (SYNC-15-002).
+    assert [
+        child.name for child in tree.children[-1].gated_branch.children
+    ] == [
+        "UpdateReplicationState",
+        "AnnounceCaseOnGenesisReject",
+        "ReplayMissingEntries",
+    ]
+
+
+@pytest.mark.spec("SYNC-03-001")
+@pytest.mark.spec("SYNC-03-002")
+@pytest.mark.spec("SYNC-04-001")
+@pytest.mark.spec("SYNC-04-002")
+def test_reject_tree_updates_replication_state_and_replays_entries(
+    bridge, datalayer, case_manager_case
+):
+    first_entry = _make_entry(0)
+    second_entry = _make_entry(1, first_entry.entry_hash)
+    datalayer.save(first_entry)
+    datalayer.save(second_entry)
+    event = _make_event(second_entry, tail_hash=first_entry.entry_hash)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    state_id = VultronReplicationState(
+        case_id=CASE_ID,
+        peer_id=PEER_ID,
+        last_acknowledged_hash=first_entry.entry_hash,
+    ).id_
+    state = datalayer.read(state_id)
+    assert state is not None
+    assert state.last_acknowledged_hash == first_entry.entry_hash
+    sync_port.send_announce_log_entry.assert_called_once()
+    assert isinstance(
+        datalayer.read(ReceivedActivityRecord.build_id(event.activity_id)),
+        ReceivedActivityRecord,
+    )
+    call_kwargs = sync_port.send_announce_log_entry.call_args.kwargs
+    assert call_kwargs["entry"].id_ == second_entry.id_
+    # The CASE_MANAGER and the executing actor are necessarily the same id here:
+    # the guarded announce gates on the *executing* actor holding the role, so a
+    # distinct manager would send the tree down its skip branch and there would
+    # be no call to inspect.  This assertion therefore cannot distinguish "the
+    # role was resolved" from "the executing actor was echoed" — that
+    # discrimination lives in the FindCaseActorNode unit tests
+    # (test/core/behaviors/sync/nodes/test_replay.py), where MANAGER_ACTOR_ID is
+    # deliberately neither the store owner nor the executing actor.
+    assert call_kwargs["actor_id"] == OWNER_ACTOR_ID
+    assert call_kwargs["to"] == [PEER_ID]
+
+
+@pytest.mark.spec("SYNC-03-002")
+def test_reject_tree_replays_all_entries_when_hash_not_found(
+    bridge, datalayer, case_manager_case
+):
+    first_entry = _make_entry(0)
+    second_entry = _make_entry(1, first_entry.entry_hash)
+    datalayer.save(first_entry)
+    datalayer.save(second_entry)
+    event = _make_event(second_entry, tail_hash="deadbeef" * 8)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    assert sync_port.send_announce_log_entry.call_count == 2
+
+
+@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("SYNC-15-005")
+def test_genesis_reject_queues_announce_vulnerability_case(
+    datalayer, case_manager_case
+):
+    """When last_accepted_hash='', AnnounceVulnerabilityCase is sent before
+    entry replay so the peer can anchor its hash chain (SYNC-15-002).
+    """
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    event = _make_event(entry, tail_hash="")
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+    trigger_activity.announce_vulnerability_case.return_value = (
+        "https://example.org/activities/announce-case-1"
+    )
+
+    bridge = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    trigger_activity.announce_vulnerability_case.assert_called_once()
+    call_kwargs = trigger_activity.announce_vulnerability_case.call_args.kwargs
+    assert call_kwargs["case_id"] == CASE_ID
+    assert call_kwargs["to"] == [PEER_ID]
+
+
+@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("EMB-18-003")
+def test_genesis_reject_logs_an_unbuildable_announce_at_error(
+    datalayer, case_manager_case, caplog: pytest.LogCaptureFixture
+):
+    """An announce the sender cannot build from its own records is an ERROR.
+
+    The trigger adapter refuses to send a case naming an embargo its store
+    cannot read (EMB-18-003); replay still continues, but the broken invariant
+    is not logged as a recoverable WARNING.
+    """
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    event = _make_event(entry, tail_hash="")
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+    trigger_activity.announce_vulnerability_case.side_effect = (
+        VultronValidationError("case names an unreadable embargo (EMB-18-003)")
+    )
+
+    bridge = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+    with caplog.at_level(logging.WARNING):
+        result = bridge.execute_with_setup(
+            tree=create_reject_log_entry_tree(
+                CASE_ID,
+                sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+            ),
+            actor_id=OWNER_ACTOR_ID,
+            activity=event,
+            sync_port=sync_port,
+        )
+
+    assert result.status == Status.SUCCESS
+    refusals = [
+        r for r in caplog.records if "refusing to queue" in r.getMessage()
+    ]
+    assert [r.levelno for r in refusals] == [logging.ERROR]
+    assert refusals[0].exc_info is not None
+    assert "EMB-18-003" in str(refusals[0].exc_info[1])
+
+
+@pytest.mark.spec("SYNC-15-002")
+def test_genesis_reject_without_trigger_port_still_succeeds(
+    bridge, datalayer, case_manager_case
+):
+    """Missing trigger port is a WARNING, not a FAILURE — replay continues
+    (SYNC-15-002 is best-effort; replay remains the backstop).
+    """
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    event = _make_event(entry, tail_hash="")
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("SYNC-15-002")
+def test_non_genesis_reject_skips_announce_vulnerability_case(
+    datalayer, case_manager_case
+):
+    """When last_accepted_hash is non-empty the node is a no-op — the peer
+    already has the case and does not need re-seeding (SYNC-15-002).
+    """
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    first_entry = _make_entry(0)
+    second_entry = _make_entry(1, first_entry.entry_hash)
+    datalayer.save(first_entry)
+    datalayer.save(second_entry)
+    event = _make_event(second_entry, tail_hash=first_entry.entry_hash)
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+
+    bridge = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    trigger_activity.announce_vulnerability_case.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Reject/replay amplification guard (SYNC-15-003)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("SYNC-15-014")
+def test_genesis_announce_skipped_when_replay_rate_limited(
+    datalayer, case_manager_case
+):
+    """A genesis Reject the replay guard suppresses sends no case either.
+
+    The case pre-seed exists to anchor the replay that follows it; while that
+    replay is rate-limited the peer already holds the case announce sent with
+    the last one.  Sending a fresh ``Announce(VulnerabilityCase)`` per Reject
+    anyway kept one message per Reject flowing in the loop the guard bounds
+    (#4882).
+    """
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    entries = [_make_entry(0)]
+    for index in range(1, 5):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+    for entry in entries:
+        datalayer.save(entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+    trigger_activity.announce_vulnerability_case.return_value = (
+        "https://example.org/activities/announce-case-1"
+    )
+    bridge = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+
+    # One genesis Reject per replayed entry, as a peer without the case sends.
+    for entry in entries:
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge.execute_with_setup(
+            tree=create_reject_log_entry_tree(
+                CASE_ID,
+                sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+            ),
+            actor_id=OWNER_ACTOR_ID,
+            activity=_make_event(entry, tail_hash=""),
+            sync_port=sync_port,
+        )
+        assert result.status == Status.SUCCESS
+
+    trigger_activity.announce_vulnerability_case.assert_called_once()
+
+
+@pytest.mark.spec("SYNC-15-003")
+@pytest.mark.spec("SYNC-15-009")
+def test_repeated_reject_at_same_hash_does_not_replay_unboundedly(
+    bridge, datalayer, case_manager_case
+):
+    """A peer stuck at the same ``last_accepted_hash`` must not trigger an
+    unbounded full-ledger replay on every Reject.
+
+    Regression guard for the reject/replay amplification loop: a late-joining
+    participant that cannot anchor its hash chain re-Rejects each replayed
+    entry, and each Reject previously re-replayed the *entire* ledger.  With a
+    25-entry ledger this produced thousands of Announce activities, starving
+    the container until unrelated DataLayer reads timed out.
+
+    The first Reject at a given hash SHOULD replay; subsequent Rejects at the
+    *same* hash MUST NOT replay again, because nothing has changed — the peer
+    has made no progress, so re-sending the same entries cannot help.
+    """
+    entries = [_make_entry(0)]
+    for index in range(1, 25):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+    for entry in entries:
+        datalayer.save(entry)
+
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    # The peer is stuck: it never advances past entry 0.
+    stuck_hash = entries[0].entry_hash
+    for _ in range(10):
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge.execute_with_setup(
+            tree=create_reject_log_entry_tree(
+                CASE_ID,
+                sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+            ),
+            actor_id=OWNER_ACTOR_ID,
+            activity=_make_event(entries[-1], tail_hash=stuck_hash),
+            sync_port=sync_port,
+        )
+        assert result.status == Status.SUCCESS
+
+    # Without a guard this is 10 rounds × 24 missing entries = 240 announces.
+    # With the guard only the first round replays.
+    assert sync_port.send_announce_log_entry.call_count == len(entries) - 1
+
+
+@pytest.mark.spec("SYNC-15-010")
+def test_reject_at_advanced_hash_replays_again(
+    bridge, datalayer, case_manager_case
+):
+    """The guard must not wedge a peer that *is* making progress.
+
+    When a peer's ``last_accepted_hash`` advances between Rejects, the replay
+    MUST fire again for the newly-missing suffix.
+    """
+    entries = [_make_entry(0)]
+    for index in range(1, 4):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+    for entry in entries:
+        datalayer.save(entry)
+
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    for stuck_at in range(3):
+        py_trees.blackboard.Blackboard.storage.clear()
+        result = bridge.execute_with_setup(
+            tree=create_reject_log_entry_tree(
+                CASE_ID,
+                sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+            ),
+            actor_id=OWNER_ACTOR_ID,
+            activity=_make_event(
+                entries[-1], tail_hash=entries[stuck_at].entry_hash
+            ),
+            sync_port=sync_port,
+        )
+        assert result.status == Status.SUCCESS
+
+    # Progress at index 0, 1, 2 → 3 + 2 + 1 = 6 replayed entries.
+    assert sync_port.send_announce_log_entry.call_count == 6
+
+
+@pytest.mark.spec("ID-04-005")
+@pytest.mark.spec("BT-19-001")
+def test_unknown_case_reject_leaves_replication_state_unchanged(
+    bridge, datalayer
+):
+    """Reject(LedgerEntry) for an unknown case must not write replication state.
+
+    FindCaseActorNode must run before UpdateReplicationStateNode so that a
+    failing case lookup leaves nothing behind (ID-04-005, BT-19-001).
+    """
+    entry = _make_entry(0)
+    # Do NOT save the case — this is the unknown-case scenario
+    event = _make_event(entry, tail_hash="")
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    state_id = VultronReplicationState(
+        case_id=CASE_ID,
+        peer_id=PEER_ID,
+        last_acknowledged_hash="",
+    ).id_
+    assert datalayer.read(state_id) is None, (
+        "UpdateReplicationStateNode must not write state before FindCaseActorNode validates the case"
+    )
+
+
+@pytest.mark.spec("SYNC-15-011")
+def test_reject_at_tail_then_growth_replays_the_new_suffix(
+    bridge, datalayer, case_manager_case
+):
+    """A Reject that needs nothing must not start a cooldown against its position.
+
+    Regression guard for the guard itself: the replay position used to be
+    recorded *before* the replay loop ran, so a peer already at the ledger tail
+    (zero entries to send) still started a cooldown.  When the ledger then grew,
+    that peer's next Reject reported the same ``last_accepted_hash`` — now
+    genuinely stale, with a real suffix missing — and was suppressed.  The peer
+    waited out the full cooldown having never received a single entry, which is
+    the late-joiner stall SYNC-15-003 exists to prevent.
+    """
+    entries = [_make_entry(0)]
+    for index in range(1, 4):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+    for entry in entries:
+        datalayer.save(entry)
+
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tail_hash = entries[-1].entry_hash
+
+    # The peer is fully caught up; its Reject needs no entries replayed.
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=_make_event(entries[-1], tail_hash=tail_hash),
+        sync_port=sync_port,
+    )
+    assert result.status == Status.SUCCESS
+    assert sync_port.send_announce_log_entry.call_count == 0
+
+    # The ledger grows by three entries.
+    for index in range(4, 7):
+        entries.append(_make_entry(index, entries[-1].entry_hash))
+        datalayer.save(entries[-1])
+
+    # The peer Rejects at the same hash it reported before — but that position
+    # is now three entries behind, so the suffix MUST be replayed.
+    py_trees.blackboard.Blackboard.storage.clear()
+    result = bridge.execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=_make_event(entries[-1], tail_hash=tail_hash),
+        sync_port=sync_port,
+    )
+    assert result.status == Status.SUCCESS
+    assert sync_port.send_announce_log_entry.call_count == 3
+
+
+def _sender_refused(datalayer, event) -> Status:
+    """Run the reject tree for *event* and assert nothing was written or sent."""
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock()
+    result = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    ).execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    )
+    if event.actor_id:  # a blank sender cannot even name a state record
+        state_id = VultronReplicationState(
+            case_id=CASE_ID, peer_id=event.actor_id
+        ).id_
+        assert datalayer.read(state_id) is None
+    sync_port.send_announce_log_entry.assert_not_called()
+    trigger_activity.announce_vulnerability_case.assert_not_called()
+    return result.status
+
+
+@pytest.mark.spec("SYNC-03-005")
+def test_reject_from_stranger_halts_before_any_write(
+    datalayer, case_manager_case
+):
+    """A sender absent from the roster leaves no state and gets nothing."""
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    stranger = "https://example.org/actors/stranger"
+    wire_entry = WireCaseLedgerEntry.model_validate(
+        entry.model_dump(mode="json")
+    )
+    event = cast(
+        RejectLogEntryReceivedEvent,
+        received_event(
+            reject_log_entry_activity(
+                entry=wire_entry,
+                context="",
+                actor=stranger,
+                to=[OWNER_ACTOR_ID],
+            )
+        ),
+    )
+
+    event.activity = VultronActivity(
+        id_=event.activity_id,
+        type_="Reject",
+        actor=stranger,
+        to=[OWNER_ACTOR_ID],
+        object_=entry,
+    )
+
+    assert _sender_refused(datalayer, event) == Status.FAILURE
+    # A refused sender still leaves the archive of what arrived (CLP-10-018).
+    assert isinstance(
+        datalayer.read(ReceivedActivityRecord.build_id(event.activity_id)),
+        ReceivedActivityRecord,
+    )
+
+
+@pytest.mark.spec("SYNC-03-005")
+def test_reject_from_rostered_but_not_joined_participant_halts(
+    datalayer, case_manager_case
+):
+    """A roster entry that has not joined is inert: nothing is replayed to it."""
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    peer = datalayer.read(case_manager_case.actor_participant_index[PEER_ID])
+    peer.joined = False
+    datalayer.save(peer)
+    event = _make_event(entry, tail_hash="")
+
+    assert _sender_refused(datalayer, event) == Status.FAILURE
+
+
+@pytest.mark.spec("SYNC-03-005")
+def test_reject_without_sender_halts(datalayer, case_manager_case):
+    """An event with no actor_id cannot be vouched for, so it is refused."""
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    event = _make_event(entry, tail_hash="").model_copy(
+        update={"actor_id": ""}
+    )
+
+    assert _sender_refused(datalayer, event) == Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
+# The answer is the CASE_MANAGER's alone (SYNC-03-005, BT-17-008, #4324)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("BT-17-001")
+def test_undecidable_embargo_gate_fails_the_tree_at_the_case_manager(
+    datalayer, case_manager_case, monkeypatch
+):
+    """A pre-seed that fails at the CASE_MANAGER fails the tree.
+
+    The in-place ``Selector(Sequence(check, announce), Success)`` used to read
+    this failure as "not the CASE_MANAGER" and replay anyway; the factory's
+    gate propagates it, and the replay never starts (BTND-07-005).
+    """
+    from vultron.core.behaviors.sync.nodes import genesis_announce
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    def _undecidable(*_args, **_kwargs):
+        raise VultronError("embargo gate undecidable for the peer")
+
+    monkeypatch.setattr(genesis_announce, "peer_is_withheld", _undecidable)
+    entry = _make_entry(0)
+    datalayer.save(entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+    tree = create_reject_log_entry_tree(
+        CASE_ID,
+        sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+    )
+
+    result = BTBridge(
+        datalayer=datalayer,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=OWNER_ACTOR_ID,
+        activity=_make_event(entry, tail_hash=""),
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    assert BTBridge.get_failure_reason(tree) == (
+        "embargo gate undecidable for the peer"
+    )
+    trigger_activity.announce_vulnerability_case.assert_not_called()
+    sync_port.send_announce_log_entry.assert_not_called()
+
+
+@pytest.mark.spec("SYNC-03-005")
+@pytest.mark.spec("BT-17-008")
+def test_reject_at_a_participant_replica_sends_and_records_nothing():
+    """A replica that receives a Reject neither pre-seeds, replays nor records.
+
+    The replica holds its own copy of the case and ledger in its own store
+    (TB-06-007); the CASE_MANAGER is another actor.
+    """
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    replica_dl = SqliteDataLayer("sqlite:///:memory:", actor_id=REPLICA_ID)
+    _seed_case(replica_dl, extra_participants=(REPLICA_ID,))
+    entry = _make_entry(0)
+    replica_dl.save(entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+    trigger_activity = MagicMock(spec=TriggerActivityPort)
+
+    result = BTBridge(
+        datalayer=replica_dl,
+        sync_port=sync_port,
+        trigger_activity=trigger_activity,
+    ).execute_with_setup(
+        tree=create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=REPLICA_ID,
+        # The copy reaches the replica too, so the addressee door admits it
+        # and the CASE_MANAGER gate is what keeps the replica idle.
+        activity=_make_event(
+            entry, tail_hash="", to=[OWNER_ACTOR_ID, REPLICA_ID]
+        ),
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    trigger_activity.announce_vulnerability_case.assert_not_called()
+    sync_port.send_announce_log_entry.assert_not_called()
+    state_id = VultronReplicationState(case_id=CASE_ID, peer_id=PEER_ID).id_
+    assert replica_dl.read(state_id) is None
+    assert replica_dl.outbox_list() == []

@@ -1,0 +1,205 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Shared demo helper library.
+
+Re-exports the full public surface of all sub-modules so callers can
+import from ``vultron.demo.helpers`` directly.
+
+Sub-modules
+-----------
+- :mod:`~vultron.demo.helpers.actor_roles` — ``ActorRole``, ``role_map``, and
+  ``role_kwarg_names``: the per-scenario actor role declarations the demo CLI
+  turns into sub-command options (DEMOCI-11-011).
+- :mod:`~vultron.demo.helpers.polling` — ``_poll_until``,
+  ``find_case_invite_for_actor``, ``find_cp_offer_for_case``,
+  ``find_case_actor_participant_id``, ``find_ownership_transfer_offer_for_actor``,
+  ``resolve_case_actor_store_id``, ``wait_for_object_stored``,
+  ``wait_for_received_activity``, ``wait_for_report_submission_stored``,
+  ``wait_for_reporter_introduction``,
+  and all ``wait_for_*`` helpers.
+- :mod:`~vultron.demo.helpers.embargo` — ``make_embargo_event`` factory and
+  ``publish_embargo_policy`` (``PUT /actors/{slug}/embargo-policy``, EP-02).
+- :mod:`~vultron.demo.helpers.embargo_outcome` — creation-time embargo outcome
+  checks for the negotiated path (``verify_reporter_terms_active``,
+  ``verify_pending_revision``, ``verify_uncontested``,
+  ``verify_receiver_replica_agrees``).
+- :mod:`~vultron.demo.helpers.runner` — ``run_exchange_demos`` and
+  ``check_all_containers``.
+- :mod:`~vultron.demo.helpers.seeding` — ``_dl_key``, ``get_actor_by_id``,
+  ``seed_containers``, ``seed_containers_rvv``, ``seed_containers_rccv``,
+  ``seed_containers_rcv``, ``seed_containers_rcvcv``, and
+  ``reset_containers``.
+- :mod:`~vultron.demo.helpers.ledger_commit` — ``trigger_log_commit``.
+- :mod:`~vultron.demo.helpers.sync` — ``verify_replica_state`` and the shared
+  sync-verification phase helpers ``wait_for_replica_ledger_coverage`` and
+  ``run_sync_verification_phase``.
+- :mod:`~vultron.demo.helpers.verification` — lower-level participant and
+  case-state assertion primitives, plus ``verify_activity_in_inbox``,
+  ``verify_receiver_case_state``, and ``verify_case_actor_holds_records``.
+- :mod:`~vultron.demo.helpers.workflow` — ``reporter_submits_report``,
+  ``receiver_validates_report``, ``receiver_engages_case``,
+  ``find_case_by_report_id``, ``find_case_for_offer``,
+  ``wait_for_case_for_offer``, ``seat_participant_through_stub_invite``,
+  ``setup_initialized_case``, ``setup_two_participant_case``,
+  ``submit_validate_and_create_case``, and
+  ``verify_reporter_trusts_introduction``.
+- :mod:`~vultron.demo.helpers.invite_chain` — ``run_case_invite_chain``,
+  ``CaseInviter``, and ``EmittedBy``: the invite → deliver → answer → replica
+  chain every scenario joins an invitee through (DEMOMA-17-001).
+- :mod:`~vultron.demo.helpers.notes` — ``participant_adds_note_to_case``.
+- :mod:`~vultron.demo.helpers.milestones` — lifecycle milestone verifiers
+  (``verify_case_active``, ``verify_fix_ready``, ``verify_fix_deployed``,
+  ``verify_publicly_disclosed``, ``verify_case_closed``,
+  ``verify_case_closure_recorded``).
+- :mod:`~vultron.demo.helpers.closure` — ``close_case_owner_last`` and
+  ``CaseLeaver``: the closure phase every scenario shares, the Case Owner
+  leaving last (CM-23-015); ``wait_for_owner_replica_embargo_state``, the
+  gate before an owner's ``leave-case`` (TRIG-13-003).
+"""
+
+from vultron.demo.helpers.actor_roles import (
+    ActorRole,
+    role_kwarg_names,
+    role_map,
+)
+from vultron.demo.helpers.closure import (
+    CaseLeaver,
+    close_case_owner_last,
+    wait_for_owner_replica_embargo_state,
+)
+from vultron.demo.helpers.embargo import (
+    make_embargo_event,
+    publish_embargo_policy,
+)
+from vultron.demo.helpers.embargo_outcome import (
+    PROTOCOL_DEFAULT_CEILING,
+    WINDOW_TOLERANCE,
+    assert_about_the_case,
+    assert_window_is,
+    embargo_window,
+    read_embargo,
+    verify_pending_revision,
+    verify_receiver_replica_agrees,
+    verify_reporter_terms_active,
+    verify_uncontested,
+)
+from vultron.demo.helpers.invite_chain import (
+    CaseInviter,
+    EmittedBy,
+    run_case_invite_chain,
+)
+from vultron.demo.helpers.ledger_commit import (
+    trigger_log_commit,
+)
+from vultron.demo.helpers.milestones import (
+    verify_case_active,
+    verify_case_closed,
+    verify_case_closure_recorded,
+    verify_fix_deployed,
+    verify_fix_ready,
+    verify_publicly_disclosed,
+)
+from vultron.demo.helpers.notes import (
+    participant_adds_note_to_case,
+)
+from vultron.demo.helpers.polling import (
+    BACKFILL_PROGRESS_CEILING,
+    CROSS_CONTAINER_TIMEOUT,
+    LATE_JOINER_COVERAGE_TIMEOUT,
+    LATE_JOINER_REPLICA_TIMEOUT,
+    LATE_JOINER_TIMEOUT,
+    LEDGER_COVERAGE_TIMEOUT,
+    PARTICIPANT_JOIN_TIMEOUT,
+    REPLICA_PARTICIPANT_TIMEOUT,
+    _poll_until,
+    find_case_actor_participant_id,
+    find_case_invite_for_actor,
+    find_cp_offer_for_case,
+    find_embargo_invite_for_actor,
+    find_ownership_transfer_offer_for_actor,
+    resolve_case_actor_store_id,
+    wait_for_all_participants_rm_closed,
+    wait_for_case_attributed_to,
+    wait_for_case_em_state,
+    wait_for_case_em_terminated,
+    wait_for_case_on_container,
+    wait_for_case_participants,
+    wait_for_contiguous_ledger_coverage,
+    wait_for_ledger_event,
+    wait_for_note_in_case,
+    wait_for_object_stored,
+    wait_for_participant_d_state,
+    wait_for_participant_embargo_consent,
+    wait_for_participant_vf_state,
+    wait_for_participants_on_replicas,
+    wait_for_pending_inbox_quiescent,
+    wait_for_received_activity,
+    wait_for_report_submission_stored,
+    wait_for_reporter_case,
+    wait_for_reporter_introduction,
+    wait_for_reporter_log_entry,
+    wait_for_semantic_type_in_ledger,
+)
+from vultron.demo.helpers.runner import (
+    check_all_containers,
+    run_exchange_demos,
+)
+from vultron.demo.helpers.seeding import (
+    _dl_key,
+    get_actor_by_id,
+    reset_containers,
+    seed_containers,
+    seed_containers_rccv,
+    seed_containers_rcv,
+    seed_containers_rcvcv,
+    seed_containers_rvv,
+)
+from vultron.demo.helpers.sync import (
+    _extract_ref_id,
+    _get_log_entries_for_case,
+    run_sync_verification_phase,
+    verify_replica_state,
+    wait_for_replica_ledger_coverage,
+)
+from vultron.demo.helpers.verification import (
+    _all_fetchable_participants_rm_closed,
+    _assert_case_notes,
+    _assert_participant_vf_pxa,
+    _assert_vendor_case_status,
+    _assert_vendor_participant_state,
+    _check_participant_d_state_in,
+    _check_participant_vf_state_in,
+    _fetch_participant,
+    _fetch_participant_data,
+    _require_case_participant_id,
+    verify_activity_in_inbox,
+    verify_case_actor_holds_records,
+    verify_receiver_case_state,
+)
+from vultron.demo.helpers.workflow import (
+    _load_case_from_datalayer,
+    _report_id_from_offer_data,
+    find_case_by_report_id,
+    find_case_for_offer,
+    receiver_engages_case,
+    receiver_validates_report,
+    reporter_submits_report,
+    run_invite_path_rm_triage,
+    seat_participant_through_stub_invite,
+    setup_initialized_case,
+    setup_two_participant_case,
+    submit_validate_and_create_case,
+    verify_reporter_trusts_introduction,
+    wait_for_case_for_offer,
+)

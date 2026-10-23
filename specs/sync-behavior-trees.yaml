@@ -1,0 +1,334 @@
+id: SBT
+title: Sync Behavior Trees
+description: >-
+  Requirements for behavior-tree-based implementation of sync log entry protocol flows.
+  Covers three BTs: AnnounceLogEntryReceivedBT (received-side hash-chain validation with
+  case-actor vs non-case-actor branching), RejectLogEntryReceivedBT (replication state
+  update and replay), and CommitLogEntryBT (append, persist, fan-out).
+scope:
+  - prototype
+  - production
+tags:
+- behavior-tree
+relationships:
+  - rel_type: extends
+    spec_id: BT-06-001
+    note: >-
+      BT-06-001 requires all protocol-significant behavior in BTs; these
+      specs define the sync-specific BTs that fulfill that requirement.
+  - rel_type: implements
+    spec_id: SYNC-02-002
+    note: CommitLogEntryBT fan-out replaces procedural _fan_out_log_entry()
+  - rel_type: implements
+    spec_id: SYNC-03-001
+    note: AnnounceLogEntryReceivedBT hash-chain validation and reject path
+  - rel_type: implements
+    spec_id: SYNC-03-002
+    note: RejectLogEntryReceivedBT replay from last-accepted hash
+
+groups:
+  - id: SBT-01
+    title: General Sync BT Requirements
+    specs:
+      - id: SBT-01-001
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          All sync log entry protocol flows MUST be implemented as behavior
+          trees, not procedural use-case code. Procedural sync logic in
+          `received/sync.py` and `triggers/sync.py` MUST be replaced by BT
+          invocations via BTBridge.
+        relationships:
+          - rel_type: implements
+            spec_id: BT-06-001
+            note: Protocol-significant behavior in BTs
+          - rel_type: implements
+            spec_id: BT-06-006
+            note: Protocol actions MUST NOT be outside BT
+
+      - id: SBT-01-002
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          Sync BTs MUST be organized as three separate trees, each
+          corresponding to a single message-type use case: (1)
+          AnnounceLogEntryReceivedBT, (2) RejectLogEntryReceivedBT, (3)
+          CommitLogEntryBT. This preserves the one-message-type-per-use-case
+          pattern.
+
+      - id: SBT-01-003
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          Sync BT nodes MUST reside in `vultron/core/behaviors/sync/` with
+          separate modules for node definitions (`nodes.py`) and tree
+          composition functions (one module per tree).
+
+      - id: SBT-01-004
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          Driven ports (SyncActivityPort, DataLayer) MUST be injected into
+          BT nodes via the blackboard context set up by BTBridge.setup_tree().
+          BT nodes MUST NOT construct or acquire ports themselves.
+        relationships:
+          - rel_type: extends
+            spec_id: BT-07-001
+            note: BT nodes use DataLayer via Protocol
+
+      - id: SBT-01-005
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          Core use cases MUST NOT call trigger functions for sync operations.
+          Triggers exist as external API entry points (demo puppeteering);
+          core work flows through BTs. The CommitLogEntryBT replaces
+          `commit_log_entry_trigger()` for core-initiated log commits.
+
+  - id: SBT-02
+    title: AnnounceLogEntryReceivedBT
+    specs:
+      - id: SBT-02-001
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          AnnounceLogEntryReceivedBT MUST include an explicit branch that
+          determines whether the receiving actor is the case-actor for the
+          case referenced in the log entry. The case-actor path and the
+          non-case-actor (participant) path MUST have distinct subtrees.
+
+      - id: SBT-02-002
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          The non-case-actor (participant) path MUST validate the received
+          log entry's hash chain before persisting.
+        relationships:
+          - rel_type: implements
+            spec_id: SYNC-03-001
+            note: Reject on hash-chain divergence
+
+      - id: SBT-02-007
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          In the non-case-actor path, `prev_log_hash` MUST match the
+          receiver's local chain tail hash.
+        rationale: >-
+          The hash-chain linkage is the integrity guarantee; accepting an
+          entry whose prev_log_hash does not match the local tail would
+          introduce a fork in the replica's chain.
+
+      - id: SBT-02-008
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          On hash-chain mismatch in the non-case-actor path, the participant
+          MUST send `Reject(CaseLedgerEntry)` back to the case-actor with
+          its last-accepted hash.
+        rationale: >-
+          The Reject triggers the case-actor's replay path (SYNC-03-002),
+          which resends all entries from the last accepted position forward
+          so the participant can converge.
+
+      - id: SBT-02-003
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          The non-case-actor path MUST check for duplicate entries before
+          persisting (idempotency). If the entry is already stored, the
+          BT MUST return SUCCESS without re-persisting.
+        relationships:
+          - rel_type: implements
+            spec_id: SYNC-03-003
+            note: Idempotent delivery
+
+      - id: SBT-02-004
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          The case-actor path MUST verify that the log entry's sender
+          matches the case-actor's own identity (actor-ID comparison).
+
+      - id: SBT-02-009
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          On sender-identity mismatch (potential injection attempt) in the
+          case-actor path, the BT MUST log at WARNING level including the
+          activity_id and the mismatched actor IDs.
+        rationale: >-
+          A WARNING-level log with the mismatched IDs provides an auditable
+          record of potential injection attempts without exposing internal
+          state to the sender.
+
+      - id: SBT-02-010
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          On sender-identity mismatch in the case-actor path, the BT MUST
+          return FAILURE without persisting.
+        rationale: >-
+          Persisting a log entry whose sender does not match the case-actor's
+          own identity would allow injection of forged entries into the
+          canonical ledger.
+
+      - id: SBT-02-005
+        priority: SHOULD
+        kind: project
+        statement: >-
+          The case-actor path's sender verification SHOULD be designed
+          as a replaceable condition node so that cryptographic signature
+          verification can replace actor-ID comparison in a future phase
+          without restructuring the tree.
+
+      - id: SBT-02-006
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          When the case-actor receives a valid round-trip of its own
+          log entry, the BT MUST log at DEBUG level (delivery round-trip
+          confirmation) and return SUCCESS. No state update or
+          re-persistence is performed. Delivery confirmation tracking is
+          deferred to a future phase.
+
+  - id: SBT-03
+    title: RejectLogEntryReceivedBT
+    specs:
+      - id: SBT-03-001
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          RejectLogEntryReceivedBT MUST update the VultronReplicationState
+          for the rejecting peer with the last-accepted hash reported in
+          the rejection.
+        relationships:
+          - rel_type: implements
+            spec_id: SYNC-04-001
+            note: Per-peer replication state tracking
+
+      - id: SBT-03-002
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          After updating replication state, RejectLogEntryReceivedBT MUST
+          replay all missing entries from the peer's last-accepted hash
+          forward by queuing `Announce(CaseLedgerEntry)` activities via
+          SyncActivityPort.
+        relationships:
+          - rel_type: implements
+            spec_id: SYNC-03-002
+            note: Retry from last-accepted hash
+
+      - id: SBT-03-003
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          RejectLogEntryReceivedBT MUST resolve the case-actor for the
+          referenced case and use the case-actor's identity as the sender
+          for replayed Announce activities.
+
+  - id: SBT-04
+    title: CommitLogEntryBT
+    specs:
+      - id: SBT-04-001
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          CommitLogEntryBT MUST compose as a Sequence of discrete BT nodes:
+          (1) reconstruct chain tail hash, (2) create CaseLedgerEntry with
+          computed entry_hash, (3) persist entry to DataLayer, (4) fan out
+          Announce(CaseLedgerEntry) to case participants via SyncActivityPort.
+        relationships:
+          - rel_type: implements
+            spec_id: SYNC-02-002
+            note: Replication transport with sender and hash identification
+          - rel_type: implements
+            spec_id: BT-06-005
+            note: Cascades as BT subtrees, not procedural calls
+
+      - id: SBT-04-002
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          Fan-out MUST be a separate BT action node (not inlined into the
+          persist step) so that the commit and replication concerns are
+          independently testable and composable.
+
+      - id: SBT-04-003
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          The existing `CommitCaseLedgerEntryNode` in
+          `vultron/core/behaviors/case/nodes/lifecycle.py` MUST be
+          refactored to invoke CommitLogEntryBT as a subtree rather than
+          calling `commit_log_entry_trigger()` procedurally.
+
+      - id: SBT-04-004
+        priority: MUST
+        kind: project
+        statement: >-
+          Fan-out MUST only occur after the log entry is durably persisted
+          (committed). An emit node whose activity the ledger records MUST
+          append the activity to the outbox before it runs the commit tree
+          that records it, and MUST NOT run that commit first.
+        rationale: >-
+          The fan-out is the record's delivery, so it follows the record; the
+          activity the record describes is the act, so it precedes it
+          (ADR-0119).
+        verification: >-
+          `test/core/behaviors/case/nodes/test_actor_and_announce_nodes.py::TestEmitInviteActorToCaseNodeQueuesBeforeCommitting`
+          observes the ledger at the Invite's outbox append and asserts no
+          entry for it is committed yet;
+          `test/core/use_cases/triggers/test_actor_triggers.py::TestStubInviteIsRecordedAfterItIsSent`
+          asserts the queue write precedes the entry.
+        adr:
+          - ADR-0119
+        relationships:
+          - rel_type: implements
+            spec_id: SYNC-09-002
+            note: Send-then-commit order (ADR-0119)
+
+  - id: SBT-05
+    title: Port Injection via Blackboard
+    specs:
+      - id: SBT-05-001
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          All driven ports used by BT nodes (DataLayer, SyncActivityPort,
+          and any future ports) MUST be injected via the BTBridge blackboard
+          context using a consistent pattern. BT nodes MUST read ports from
+          the blackboard at `update()` time, never at construction time.
+
+      - id: SBT-05-002
+        priority: MUST
+        kind: project
+        verification_debt: '#2574'
+        statement: >-
+          Blackboard keys for injected ports MUST follow the existing
+          naming convention: `{noun}_{last_url_segment}` with no slashes.
+          Recommended keys: `sync_port` for SyncActivityPort,
+          `datalayer` for DataLayer (already established).
+

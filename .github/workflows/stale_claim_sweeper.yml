@@ -1,0 +1,58 @@
+# Stale-claim sweeper: flags orphaned claims with stale-claim.
+# An orphaned issue claim is an assigned Issue whose <prefix>/<N>-slug branch
+# (any prefix) has no open PR and no commit or claim within 3 days. An orphaned
+# Epic claim is an assigned Epic none of whose children has an open PR or
+# claim-branch activity within 3 days. The logic is in
+# .github/scripts/stale_claim_sweeper.py.
+#
+# Reference: specs/parallel-development.yaml PAD-10, PAD-14-003, PAD-19-005
+
+name: Stale claim sweeper
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 09:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Report the claims it would flag without flagging them
+        type: boolean
+        default: false
+
+permissions:
+  issues: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  sweep:
+    name: Sweep stale claims
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Find and flag orphaned claims
+        env:
+          DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
+        # An array keeps an empty DRY_RUN from becoming an empty argument.
+        run: |
+          args=()
+          if [ -n "$DRY_RUN" ]; then args+=(--dry-run); fi
+          python3 -I .github/scripts/stale_claim_sweeper.py "${args[@]}"
+
+      - name: Notify CI failure
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-stale-claim-sweeper
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success() && github.event_name == 'schedule'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-stale-claim-sweeper
+          token: ${{ secrets.GITHUB_TOKEN }}

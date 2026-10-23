@@ -1,0 +1,382 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Condition nodes for the report behavior tree."""
+
+from py_trees.common import Status
+
+from vultron.core.behaviors.case.nodes.case_lookup import (
+    CaseIdInputPortMixin,
+)
+from vultron.core.behaviors.case.nodes.participant.common import (
+    resolve_participant_state_from_dl,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerConditionWithPorts,
+)
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+
+
+class _CheckReportPhaseRMStateBase(DataLayerConditionWithPorts):
+    """Shared update() skeleton for report-phase RM presence checks.
+
+    Resolves actor_id, computes the RM.VALID status key, and dispatches on
+    ``_success_when_valid`` to determine which Status value to return.
+    Subclasses set ``_success_when_valid = True`` (succeed when VALID) or
+    ``False`` (succeed when NOT VALID).
+    """
+
+    _success_when_valid: bool
+
+    def __init__(
+        self,
+        report_id: str,
+        sender_actor_id: str | None = None,
+        name: str | None = None,
+    ):
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.sender_actor_id = sender_actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        link_id = VultronReportCaseLink.build_id(self.report_id)
+        link = self.datalayer.read(link_id)
+        if isinstance(link, VultronReportCaseLink):
+            is_valid = link.rm_state == RM.VALID
+        else:
+            # No link yet → implicit RM.RECEIVED (not yet VALID)
+            is_valid = False
+
+        if is_valid:
+            if self._success_when_valid:
+                self.logger.debug(
+                    "%s: Report %s already VALID", self.name, self.report_id
+                )
+                return Status.SUCCESS
+            self.logger.debug(
+                "%s: Report %s already VALID - precondition failed",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+
+        if self._success_when_valid:
+            self.logger.debug(
+                "%s: Report %s not in VALID state", self.name, self.report_id
+            )
+            return Status.FAILURE
+        self.logger.debug(
+            "%s: Report %s in acceptable state for validation",
+            self.name,
+            self.report_id,
+        )
+        return Status.SUCCESS
+
+
+class CheckRMStateValid(_CheckReportPhaseRMStateBase):
+    """Check if report is already in RM.VALID state.
+
+    Returns SUCCESS if report status is RM.VALID (early exit optimization).
+    Returns FAILURE if report is in any other state.
+
+    Input ports (inherited + declared):
+        datalayer (object, required): CasePersistence, remapped to /datalayer.
+        actor_id (str, required): Executing actor ID, remapped to /actor_id.
+
+    Per BTND-03-009: typed port declarations replace register_key().
+    """
+
+    _success_when_valid = True
+
+
+class CheckRMStateReceivedOrInvalid(_CheckReportPhaseRMStateBase):
+    """Check the report is not already in RM.VALID.
+
+    Returns SUCCESS for any state but VALID; FAILURE when the report is
+    already VALID.  An illegal source state such as CLOSED passes here and is
+    refused by the RM transition that follows (``TransitionRMtoValid``).
+
+    Input ports (inherited + declared):
+        datalayer (object, required): CasePersistence, remapped to /datalayer.
+        actor_id (str, required): Executing actor ID, remapped to /actor_id.
+
+    Per BTND-03-009: typed port declarations replace register_key().
+    """
+
+    _success_when_valid = False
+
+
+class _CheckParticipantRMStateBase(DataLayerConditionWithPorts):
+    """Shared update() skeleton for case-participant RM state guard nodes.
+
+    Reads the actor's latest RM state and returns SUCCESS when it equals
+    ``_target_rm``.  Subclasses set ``_target_rm`` as a class attribute.
+    """
+
+    _target_rm: RM
+
+    def __init__(
+        self,
+        case_id: str | None,
+        actor_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self._case_id = case_id
+        self._actor_id = actor_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+
+        participant_id = case.actor_participant_index.get(self._actor_id)
+        if participant_id is None:
+            self.logger.warning(
+                "%s: actor '%s' not in case '%s'",
+                self.name,
+                self._actor_id,
+                self._case_id,
+            )
+            return Status.FAILURE
+
+        rm_state, _, _ = resolve_participant_state_from_dl(
+            self.datalayer, participant_id
+        )
+        target = self._target_rm
+        if rm_state == target:
+            self.logger.debug(
+                "%s: RM state is %s for actor '%s'",
+                self.name,
+                target.name,
+                self._actor_id,
+            )
+            return Status.SUCCESS
+
+        self.feedback_message = (
+            f"Actor '{self._actor_id}' RM state is {rm_state!r},"
+            f" expected {target!r}"
+        )
+        self.logger.debug("%s: %s", self.name, self.feedback_message)
+        return Status.FAILURE
+
+
+class CheckRMStateAccepted(_CheckParticipantRMStateBase):
+    """Guard: actor RM state must be ACCEPTED to create a fix.
+
+    Returns ``SUCCESS`` when the actor's latest RM state is ``RM.ACCEPTED``.
+    Returns ``FAILURE`` otherwise, blocking the fix-creation action nodes.
+
+    Per AC-7 (issue #1812).
+    """
+
+    _target_rm = RM.ACCEPTED
+
+
+class CheckParticipantRMState(_CheckParticipantRMStateBase):
+    """Guard: actor RM is already *target_rm*; a restated move is recorded once."""
+
+    def __init__(
+        self,
+        case_id: str | None,
+        actor_id: str,
+        target_rm: RM,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(case_id=case_id, actor_id=actor_id, name=name)
+        self._target_rm = target_rm
+
+
+class EnsureEmbargoExists(CaseIdInputPortMixin, DataLayerConditionWithPorts):
+    """Check that the case for this report has an active embargo.
+
+    Returns SUCCESS if the case has a non-None ``active_embargo``, FAILURE
+    otherwise.
+
+    Implements DUR-07-004: an embargo end time MUST be established before the
+    case reaches RM.VALID.
+
+    The case comes from the ``/case_id`` blackboard key published upstream by
+    :class:`~vultron.core.behaviors.case.nodes.case_lookup.RequireCaseForReport`
+    rather than from a second ``find_case_by_report_id`` call, so a tree resolves
+    "the case for this report" exactly once (ARCH-15-004).
+
+    Input ports (inherited + declared):
+        datalayer (object, required): CasePersistence, remapped to /datalayer.
+        actor_id (str, required): Executing actor ID, remapped to /actor_id.
+        case_id (str, optional): remapped to /case_id; required in practice.
+
+    Per BTND-03-009: typed port declarations replace register_key().
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """Initialize EnsureEmbargoExists node.
+
+        Args:
+            report_id: ID of the VulnerabilityReport, used only for log context.
+            name: Optional custom node name (defaults to class name).
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        case_id = self._resolve_case_id()
+        if case_id is None:
+            return Status.FAILURE
+
+        case, failure = self._require_case(case_id)
+        if failure is not None:
+            return failure  # Regime 1 (ADR-0087)
+        if case.active_embargo is None:
+            self.logger.warning(
+                "%s: Case for report %s has no active embargo — "
+                "validation blocked (DUR-07-004)",
+                self.name,
+                self.report_id,
+            )
+            return Status.FAILURE
+
+        self.logger.debug(
+            "%s: Case for report %s has active embargo",
+            self.name,
+            self.report_id,
+        )
+        return Status.SUCCESS
+
+
+class EvaluateReportCredibility(DataLayerConditionWithPorts):
+    """
+    Evaluate report credibility using policy.
+
+    Phase 1: Always returns SUCCESS (stub implementation).
+    Future: Implement configurable policy for credibility checks.
+
+    This node implements the credibility check from the simulation BT.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """
+        Initialize EvaluateReportCredibility node.
+
+        Args:
+            report_id: ID of VulnerabilityReport to evaluate
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """
+        Evaluate report credibility (stub: always succeeds).
+
+        Returns:
+            SUCCESS (always, for Phase 1)
+        """
+        self.logger.info(
+            "%s: Evaluating credibility for report %s (stub: always accepts)",
+            self.name,
+            self.report_id,
+        )
+        return Status.SUCCESS
+
+
+class EvaluateReportValidity(DataLayerConditionWithPorts):
+    """
+    Evaluate report technical validity using policy.
+
+    Phase 1: Always returns SUCCESS (stub implementation).
+    Future: Implement configurable policy for validity checks.
+
+    This node implements the validity check from the simulation BT.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """
+        Initialize EvaluateReportValidity node.
+
+        Args:
+            report_id: ID of VulnerabilityReport to evaluate
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    def update(self) -> Status:
+        """
+        Evaluate report validity (stub: always succeeds).
+
+        Returns:
+            SUCCESS (always, for Phase 1)
+        """
+        self.logger.info(
+            "%s: Evaluating validity for report %s (stub: always accepts)",
+            self.name,
+            self.report_id,
+        )
+        return Status.SUCCESS
+
+
+class EvaluateCasePriority(DataLayerConditionWithPorts):
+    """
+    Evaluate whether to engage or defer a case using prioritization policy.
+
+    Phase 1: Always returns SUCCESS (stub — always engage).
+    Future: Plug in SSVC or other priority framework via PrioritizationPolicy.
+
+    This node is used when the local actor is DECIDING whether to engage or
+    defer (i.e., generating an outgoing RmEngageCaseActivity or
+    RmDeferCaseActivity message), as opposed to the receive-side nodes above
+    which record a decision already made by the sending actor.
+
+    See specs/prototype-shortcuts.yaml PROTO-05-001 for SSVC deferral policy.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None):
+        """
+        Initialize EvaluateCasePriority node.
+
+        Args:
+            case_id: ID of VulnerabilityCase to evaluate
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        """
+        Evaluate case priority (stub: always engage).
+
+        Returns:
+            SUCCESS (always, for Phase 1)
+        """
+        self.logger.info(
+            "%s: Evaluating priority for case %s (stub: always engage)",
+            self.name,
+            self.case_id,
+        )
+        return Status.SUCCESS

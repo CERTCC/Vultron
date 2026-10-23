@@ -1,0 +1,400 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Tests for vultron/config.py — unified configuration system.
+
+Per specs/configuration.yaml CFG-06-001 through CFG-06-005.
+"""
+
+import pytest
+
+from vultron.config import (
+    RunMode,
+    ServerConfig,
+    clear_config_cache,
+    config_override,
+    get_config,
+    reload_config,
+)
+from vultron.enums.roles import CVDRole
+
+
+@pytest.fixture(autouse=True)
+def reset_config(monkeypatch, tmp_path):
+    """Ensure each test starts with a clean config cache (CFG-06-003).
+
+    Changes the working directory to a temporary path so that no real
+    ``config.yaml`` is inadvertently picked up.  Clears all ``VULTRON_``
+    config env vars so that defaults are isolated, then restores state via
+    monkeypatch teardown.  Clears the config cache in teardown.
+    """
+    monkeypatch.chdir(tmp_path)
+    # Clear all Vultron config env vars so tests see true defaults
+    for var in (
+        "VULTRON_CONFIG",
+        "VULTRON_SERVER__BASE_URL",
+        "VULTRON_SERVER__LOG_LEVEL",
+        "VULTRON_DATABASE__DB_URL",
+        "VULTRON_MODE",
+        "VULTRON_ACTOR__AUTO_CREATE_CASE",
+        "VULTRON_ACTOR__DEFAULT_CASE_ROLES",
+        "VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    reload_config()
+    yield
+    # Clear cache after teardown; guard against FileNotFoundError when
+    # VULTRON_CONFIG still points to a missing file set by the test body
+    # (monkeypatch reverts env vars only after this fixture's teardown).
+    clear_config_cache()
+
+
+# ---------------------------------------------------------------------------
+# CFG-06-005: application starts with all defaults (no file, no env vars)
+# ---------------------------------------------------------------------------
+
+
+def test_defaults_server_base_url():
+    cfg = get_config()
+    assert cfg.server.base_url == "http://localhost:7999/api/v2"
+
+
+def test_defaults_server_log_level():
+    cfg = get_config()
+    assert cfg.server.log_level == "INFO"
+
+
+def test_defaults_database_db_url():
+    cfg = get_config()
+    assert cfg.database.db_url == "sqlite:///vultron.db"
+
+
+def test_defaults_mode():
+    cfg = get_config()
+    assert cfg.mode == RunMode.PROTOTYPE
+
+
+# ---------------------------------------------------------------------------
+# CFG-01-002: get_config() returns a cached instance
+# ---------------------------------------------------------------------------
+
+
+def test_get_config_returns_same_instance():
+    cfg1 = get_config()
+    cfg2 = get_config()
+    assert cfg1 is cfg2
+
+
+# ---------------------------------------------------------------------------
+# CFG-01-003: reload_config() clears the cache
+# ---------------------------------------------------------------------------
+
+
+def test_reload_config_returns_new_instance():
+    cfg1 = get_config()
+    cfg2 = reload_config()
+    assert cfg1 is not cfg2
+    assert get_config() is cfg2
+
+
+# ---------------------------------------------------------------------------
+# CFG-06-003: clear_config_cache() drops the cache without reloading
+# ---------------------------------------------------------------------------
+
+
+def test_clear_config_cache_defers_the_reload(monkeypatch):
+    """Clearing reads nothing; the next ``get_config()`` sees the env then."""
+    cfg1 = get_config()
+    clear_config_cache()
+    # Set after the clear: a clear that reloaded would have missed it.
+    monkeypatch.setenv("VULTRON_SERVER__LOG_LEVEL", "DEBUG")
+    cfg2 = get_config()
+    assert cfg2 is not cfg1
+    assert cfg2.server.log_level == "DEBUG"
+    assert get_config() is cfg2
+
+
+# ---------------------------------------------------------------------------
+# CFG-01-005: get_config() is injectable via FastAPI Depends
+# ---------------------------------------------------------------------------
+
+
+def test_get_config_is_injectable_with_depends():
+    """The cached ``get_config`` still works as a FastAPI dependency."""
+    from fastapi import Depends, FastAPI
+    from fastapi.testclient import TestClient
+
+    from vultron.config import AppConfig
+
+    app = FastAPI()
+
+    @app.get("/config")
+    def _config(cfg: AppConfig = Depends(get_config)) -> dict[str, bool]:
+        return {"cached": cfg is get_config()}
+
+    response = TestClient(app).get("/config")
+    assert response.status_code == 200
+    assert response.json() == {"cached": True}
+
+
+# ---------------------------------------------------------------------------
+# CFG-06-001 / CFG-06-004: env vars override defaults
+# ---------------------------------------------------------------------------
+
+
+def test_env_override_base_url(monkeypatch):
+    monkeypatch.setenv("VULTRON_SERVER__BASE_URL", "http://myserver:8080")
+    reload_config()
+    assert get_config().server.base_url == "http://myserver:8080"
+
+
+def test_env_override_log_level(monkeypatch):
+    monkeypatch.setenv("VULTRON_SERVER__LOG_LEVEL", "DEBUG")
+    reload_config()
+    assert get_config().server.log_level == "DEBUG"
+
+
+def test_env_override_db_url(monkeypatch):
+    monkeypatch.setenv("VULTRON_DATABASE__DB_URL", "sqlite:///:memory:")
+    reload_config()
+    assert get_config().database.db_url == "sqlite:///:memory:"
+
+
+def test_env_override_mode(monkeypatch):
+    monkeypatch.setenv("VULTRON_MODE", "prod")
+    reload_config()
+    assert get_config().mode == RunMode.PROD
+
+
+# ---------------------------------------------------------------------------
+# CFG-06-002: YAML config file loading
+# ---------------------------------------------------------------------------
+
+
+def test_yaml_file_sets_log_level(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text("server:\n  log_level: DEBUG\n")
+    monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
+    reload_config()
+    assert get_config().server.log_level == "DEBUG"
+
+
+def test_yaml_file_sets_base_url(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text("server:\n  base_url: http://yaml-host:9000\n")
+    monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
+    reload_config()
+    assert get_config().server.base_url == "http://yaml-host:9000"
+
+
+def test_yaml_file_sets_db_url(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text("database:\n  db_url: sqlite:///yaml.db\n")
+    monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
+    reload_config()
+    assert get_config().database.db_url == "sqlite:///yaml.db"
+
+
+# ---------------------------------------------------------------------------
+# CFG-06-004: env vars override YAML values for the same field
+# ---------------------------------------------------------------------------
+
+
+def test_env_overrides_yaml_log_level(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text("server:\n  log_level: DEBUG\n")
+    monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
+    monkeypatch.setenv("VULTRON_SERVER__LOG_LEVEL", "ERROR")
+    reload_config()
+    assert get_config().server.log_level == "ERROR"
+
+
+def test_env_overrides_yaml_base_url(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text("server:\n  base_url: http://yaml-host:9000\n")
+    monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
+    monkeypatch.setenv("VULTRON_SERVER__BASE_URL", "http://env-host:1234")
+    reload_config()
+    assert get_config().server.base_url == "http://env-host:1234"
+
+
+# ---------------------------------------------------------------------------
+# CFG-02-006: non-existent file when VULTRON_CONFIG is set raises an error
+# ---------------------------------------------------------------------------
+
+
+def test_missing_config_file_raises_when_vultron_config_set(monkeypatch):
+    monkeypatch.setenv("VULTRON_CONFIG", "/nonexistent/path/config.yaml")
+    with pytest.raises(FileNotFoundError, match="VULTRON_CONFIG"):
+        reload_config()
+
+
+# ---------------------------------------------------------------------------
+# CFG-02-007: no config file and VULTRON_CONFIG unset → start with defaults
+# ---------------------------------------------------------------------------
+
+
+def test_no_config_file_no_env_uses_defaults():
+    # tmp_path + no VULTRON_CONFIG → defaults only
+    cfg = get_config()
+    assert cfg.server.base_url == "http://localhost:7999/api/v2"
+    assert cfg.database.db_url == "sqlite:///vultron.db"
+
+
+# ---------------------------------------------------------------------------
+# ServerConfig field validation
+# ---------------------------------------------------------------------------
+
+
+def test_server_config_rejects_invalid_base_url():
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
+        ServerConfig(base_url="not-a-url")
+
+
+def test_server_config_normalises_log_level_to_uppercase():
+    cfg = ServerConfig(log_level="debug")  # type: ignore[arg-type]
+    assert cfg.log_level == "DEBUG"
+
+
+def test_server_config_rejects_invalid_log_level():
+    with pytest.raises(Exception):  # noqa: B017  # ruff-baseline #3353
+        ServerConfig(log_level="VERBOSE")  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# RunMode
+# ---------------------------------------------------------------------------
+
+
+def test_run_mode_prototype_value():
+    assert RunMode.PROTOTYPE == "prototype"
+
+
+def test_run_mode_prod_value():
+    assert RunMode.PROD == "prod"
+
+
+# ---------------------------------------------------------------------------
+# CFG-07-005: AppConfig.actor field defaults and env-var overrides
+# ---------------------------------------------------------------------------
+
+
+def test_defaults_actor_auto_create_case():
+    cfg = get_config()
+    assert cfg.actor.auto_create_case is True
+
+
+def test_defaults_actor_default_case_roles_empty():
+    cfg = get_config()
+    assert cfg.actor.default_case_roles == []
+
+
+def test_env_override_actor_auto_create_case(monkeypatch):
+    monkeypatch.setenv("VULTRON_ACTOR__AUTO_CREATE_CASE", "false")
+    reload_config()
+    assert get_config().actor.auto_create_case is False
+
+
+def test_yaml_file_sets_actor_auto_create_case(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text("actor:\n  auto_create_case: false\n")
+    monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
+    reload_config()
+    assert get_config().actor.auto_create_case is False
+
+
+def test_yaml_file_sets_actor_default_case_roles(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text("actor:\n  default_case_roles:\n    - coordinator\n")
+    monkeypatch.setenv("VULTRON_CONFIG", str(cfg_file))
+    reload_config()
+    assert CVDRole.COORDINATOR in get_config().actor.default_case_roles
+
+
+# ---------------------------------------------------------------------------
+# CFG-06-006: config_override() context manager
+# ---------------------------------------------------------------------------
+
+
+def test_config_override_yields_updated_config():
+    """config_override sets env var and yields a config reflecting the change."""
+    with config_override(
+        VULTRON_SERVER__BASE_URL="http://override.test"
+    ) as cfg:
+        assert cfg.server.base_url == "http://override.test"
+
+
+def test_config_override_restores_env_on_exit():
+    """config_override restores the original env var value after exit."""
+    import os
+
+    original = os.environ.get("VULTRON_SERVER__BASE_URL")
+    with config_override(VULTRON_SERVER__BASE_URL="http://override.test"):
+        pass
+    assert os.environ.get("VULTRON_SERVER__BASE_URL") == original
+
+
+def test_config_override_removes_new_key_on_exit():
+    """config_override removes env vars it introduced (were absent before)."""
+    import os
+
+    os.environ.pop("VULTRON_SERVER__BASE_URL", None)
+    with config_override(VULTRON_SERVER__BASE_URL="http://new.test"):
+        assert "VULTRON_SERVER__BASE_URL" in os.environ
+    assert "VULTRON_SERVER__BASE_URL" not in os.environ
+
+
+def test_config_override_restores_on_exception():
+    """config_override restores env and reloads config even when body raises."""
+    import os
+
+    os.environ.pop("VULTRON_SERVER__BASE_URL", None)
+    try:
+        with config_override(VULTRON_SERVER__BASE_URL="http://exc.test"):
+            raise RuntimeError("deliberate failure")  # noqa: TRY301  # ruff-baseline #3353
+    except RuntimeError:
+        pass
+    assert "VULTRON_SERVER__BASE_URL" not in os.environ
+    assert get_config().server.base_url == "http://localhost:7999/api/v2"
+
+
+def test_config_override_nested_key():
+    """config_override correctly maps __ delimiter to nested config fields."""
+    with config_override(VULTRON_SERVER__BASE_URL="http://nested.test") as cfg:
+        assert cfg.server.base_url == "http://nested.test"
+
+
+def test_config_override_cache_restored_after_exit():
+    """Config cache reflects restored state after config_override block exits."""
+    with config_override(VULTRON_SERVER__BASE_URL="http://inside.test"):
+        pass
+    assert get_config().server.base_url == "http://localhost:7999/api/v2"
+
+
+# ---------------------------------------------------------------------------
+# CBT-03-005: the pre-bootstrap queue expiry default and its override
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CBT-03-005")
+def test_defaults_pre_bootstrap_queue_timeout_seconds():
+    assert get_config().pre_bootstrap_queue_timeout_seconds == 300
+
+
+@pytest.mark.spec("CBT-03-005")
+def test_env_override_pre_bootstrap_queue_timeout_seconds(monkeypatch):
+    monkeypatch.setenv("VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS", "45")
+    reload_config()
+    assert get_config().pre_bootstrap_queue_timeout_seconds == 45

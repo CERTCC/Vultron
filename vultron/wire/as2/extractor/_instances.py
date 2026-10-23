@@ -1,0 +1,557 @@
+"""ActivityPattern instances for all Vultron semantic dispatch entries.
+
+Each constant named ``<TypeName>Pattern`` corresponds to one
+``MessageSemantics`` value and is imported by the
+``vultron.semantic_registry`` sub-modules to build ``SEMANTIC_REGISTRY``.
+
+Pattern ordering does **not** matter here — ordering is enforced by the
+registry in ``vultron/semantic_registry/``.
+"""
+
+from vultron.enums.object_types import VultronObjectType as VOtype
+from vultron.wire.as2.enums import (
+    as_ObjectType as AOtype,
+    as_TransitiveActivityType as TAtype,
+)
+from vultron.wire.as2.extractor._pattern import (
+    ActivityPattern,
+    InlineActivityObjectPattern,
+    LedgerEntryRejectPattern,
+)
+
+# ---------------------------------------------------------------------------
+# Embargo patterns
+# ---------------------------------------------------------------------------
+
+RemoveEmbargoEventFromCasePattern = ActivityPattern(
+    description=(
+        "Remove an embargo event from a vulnerability case. This is typically "
+        "observed as a REMOVE activity where the object is an EVENT. The "
+        "origin field of the activity contains the VulnerabilityCase from "
+        "which the embargo is removed."
+    ),
+    activity_=TAtype.REMOVE,
+    object_=AOtype.EVENT,
+)
+AnnounceEmbargoEventToCasePattern = ActivityPattern(
+    description=(
+        "Announce an embargo event to a vulnerability case. This is typically "
+        "observed as an ANNOUNCE activity where the object is an EVENT and the "
+        "context is a VULNERABILITY_CASE."
+    ),
+    activity_=TAtype.ANNOUNCE,
+    object_=AOtype.EVENT,
+    context_=VOtype.VULNERABILITY_CASE,
+)
+InviteToEmbargoOnCasePattern = ActivityPattern(
+    description=(
+        "Propose an embargo on a vulnerability case. "
+        "This is observed as an INVITE activity where the object is an "
+        "EmbargoEvent and the context is the VulnerabilityCase. "
+        "Corresponds to EmProposeEmbargoActivity."
+    ),
+    activity_=TAtype.INVITE,
+    object_=AOtype.EVENT,
+    context_=VOtype.VULNERABILITY_CASE,
+)
+AcceptInviteToEmbargoOnCasePattern = ActivityPattern(
+    description="Accept an invitation to an embargo on a vulnerability case.",
+    activity_=TAtype.ACCEPT,
+    object_=InviteToEmbargoOnCasePattern,
+)
+RejectInviteToEmbargoOnCasePattern = ActivityPattern(
+    description="Reject an invitation to an embargo on a vulnerability case.",
+    activity_=TAtype.REJECT,
+    object_=InviteToEmbargoOnCasePattern,
+)
+CreateEmbargoEventPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER records an embargo its case's creation wrote, such "
+        "as the default embargo: a CREATE of the EmbargoEvent carrying it in "
+        "full, right after the genesis entry (CLP-07-013).  The object must "
+        "be an EmbargoEvent; a Create of any other Event is unrecognized."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.EMBARGO_EVENT,
+)
+CreateEmbargoConsentPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER creates a participant's embargo consent row: a "
+        "CREATE of the EmbargoConsent carrying the row in full (ADR-0122, "
+        "CLP-07-013)."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.EMBARGO_CONSENT,
+)
+UpdateEmbargoConsentPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER changes a participant's embargo consent row: an "
+        "UPDATE of the EmbargoConsent carrying the row in full (ADR-0122, "
+        "MSM-07-004)."
+    ),
+    activity_=TAtype.UPDATE,
+    object_=VOtype.EMBARGO_CONSENT,
+)
+UndoInviteToEmbargoOnCasePattern = ActivityPattern(
+    description=(
+        "Withdraw an invitation to an embargo on a vulnerability case: an "
+        "UNDO of the Invite the sender itself sent (ADR-0152).  The "
+        "CASE_MANAGER sends it when it abandons an open proposal "
+        "(EMB-16-001)."
+    ),
+    activity_=TAtype.UNDO,
+    object_=InviteToEmbargoOnCasePattern,
+)
+ActivateEmbargoOnCasePattern = ActivityPattern(
+    description=(
+        "The case owner activates a proposed embargo on a vulnerability "
+        "case: an ACCEPT whose object is the EmbargoEvent itself (not the "
+        "Invite that proposed it) and whose target is the VulnerabilityCase "
+        "(ADR-0122)."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=AOtype.EVENT,
+    target_=VOtype.VULNERABILITY_CASE,
+    # Not strict: ``ActivityPattern.strict`` governs object_ AND target_
+    # together, but the case target is a bare URI by design (the recipient
+    # holds the case, so ``case_target_ref`` reduces it, MV-10-001). The
+    # ACCEPT verb + EVENT object + case target discriminate this activity from
+    # ``Accept(Invite(...))`` (object is an Invite activity, not an EVENT);
+    # a malformed bare-URI object is caught by ``IsOpenEmbargoProposalNode``.
+)
+RejectEmbargoProposalOnCasePattern = ActivityPattern(
+    description=(
+        "The case owner rejects a proposed embargo on a vulnerability case: "
+        "a REJECT whose object is the EmbargoEvent itself (not the Invite "
+        "that proposed it) and whose target is the VulnerabilityCase "
+        "(ADR-0122)."
+    ),
+    activity_=TAtype.REJECT,
+    object_=AOtype.EVENT,
+    target_=VOtype.VULNERABILITY_CASE,
+    # Not strict, for the same reason as the activation pattern above.
+)
+
+WithdrawFromEmbargoOnCasePattern = ActivityPattern(
+    description=(
+        "A signatory withdraws from the embargo in force on a vulnerability "
+        "case: a LEAVE whose object is the EmbargoEvent and whose context is "
+        "the VulnerabilityCase (MSM-07-010, ADR-0122).  Distinct from "
+        "Leave(VulnerabilityCase), which leaves the case."
+    ),
+    activity_=TAtype.LEAVE,
+    object_=AOtype.EVENT,
+    context_=VOtype.VULNERABILITY_CASE,
+)
+
+# ---------------------------------------------------------------------------
+# Report patterns
+# ---------------------------------------------------------------------------
+
+CreateReportPattern = ActivityPattern(
+    description=(
+        "Create a vulnerability report. This is the initial step in the "
+        "vulnerability disclosure process, where a finder creates a report to "
+        "disclose a vulnerability. It may not always be observed directly, as "
+        "it could be implicit in the OFFER of the report."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.VULNERABILITY_REPORT,
+)
+ReportSubmissionPattern = ActivityPattern(
+    description=(
+        "Submit a vulnerability report for validation. This is typically "
+        "observed as an OFFER of a VULNERABILITY_REPORT, which represents the "
+        "submission of the report to a coordinator or vendor for validation."
+    ),
+    activity_=TAtype.OFFER,
+    object_=VOtype.VULNERABILITY_REPORT,
+)
+AckReportPattern = ActivityPattern(
+    activity_=TAtype.READ, object_=ReportSubmissionPattern
+)
+ValidateReportPattern = ActivityPattern(
+    activity_=TAtype.ACCEPT, object_=ReportSubmissionPattern
+)
+InvalidateReportPattern = ActivityPattern(
+    activity_=TAtype.TENTATIVE_REJECT, object_=ReportSubmissionPattern
+)
+CloseReportPattern = ActivityPattern(
+    activity_=TAtype.REJECT, object_=ReportSubmissionPattern
+)
+
+# ---------------------------------------------------------------------------
+# Case patterns
+# ---------------------------------------------------------------------------
+
+CreateCaseActivityPattern = ActivityPattern(
+    activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
+)
+UpdateCaseOwnerPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER names a new Case Owner on a vulnerability case: an "
+        "UPDATE of the case carrying its new attributedTo, its own act on an "
+        "ownership transfer (CM-21-002, CLP-07-013)."
+    ),
+    activity_=TAtype.UPDATE,
+    object_=VOtype.VULNERABILITY_CASE,
+)
+EngageCasePattern = ActivityPattern(
+    description=(
+        "Actor engages (joins) a VulnerabilityCase, transitioning their RM "
+        "state to ACCEPTED."
+    ),
+    activity_=TAtype.JOIN,
+    object_=VOtype.VULNERABILITY_CASE,
+)
+DeferCasePattern = ActivityPattern(
+    description=(
+        "Actor defers (ignores) a VulnerabilityCase, transitioning their RM "
+        "state to DEFERRED."
+    ),
+    activity_=TAtype.IGNORE,
+    object_=VOtype.VULNERABILITY_CASE,
+)
+AddReportToCaseActivityPattern = ActivityPattern(
+    activity_=TAtype.ADD,
+    object_=VOtype.VULNERABILITY_REPORT,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+
+# ---------------------------------------------------------------------------
+# CaseProposal patterns (CP-03-001 through CP-03-004)
+# ---------------------------------------------------------------------------
+
+CreateCaseProposalPattern = ActivityPattern(
+    description=(
+        "Report receiver requests case initialization at a case-actor service "
+        "by creating a CaseProposal object. "
+        "Corresponds to Create(as_CaseProposal) — CP-03-001."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.CASE_PROPOSAL,
+    strict=True,
+)
+AcceptCaseProposalPattern = ActivityPattern(
+    description=(
+        "Case-actor service accepts a report receiver's CaseProposal. "
+        "Corresponds to Accept(as_CaseProposal) — CP-03-002."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=VOtype.CASE_PROPOSAL,
+    strict=True,
+)
+RejectCaseProposalPattern = ActivityPattern(
+    description=(
+        "Case-actor service rejects a report receiver's CaseProposal. "
+        "Corresponds to Reject(as_CaseProposal) — CP-03-003."
+    ),
+    activity_=TAtype.REJECT,
+    object_=VOtype.CASE_PROPOSAL,
+    strict=True,
+)
+
+# ---------------------------------------------------------------------------
+# Actor-suggestion and role-offer patterns
+# ---------------------------------------------------------------------------
+
+SuggestActorToCasePattern = ActivityPattern(
+    activity_=TAtype.OFFER,
+    object_=AOtype.ACTOR,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+AcceptSuggestActorToCasePattern = ActivityPattern(
+    description=(
+        "CASE_MANAGER Accept(Offer(Actor, Case)) answering a recommender, "
+        "received on the recommender's inbox (ACCEPT_ACTOR_RECOMMENDATION; "
+        "CM-16-006, CM-16-009)."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=SuggestActorToCasePattern,
+)
+RejectSuggestActorToCasePattern = ActivityPattern(
+    description=(
+        "CASE_MANAGER Reject(Offer(Actor, Case)) answering a recommender, "
+        "received on the recommender's inbox (REJECT_ACTOR_RECOMMENDATION; "
+        "CM-16-007)."
+    ),
+    activity_=TAtype.REJECT,
+    object_=SuggestActorToCasePattern,
+)
+
+# CaseActor-routed ADR-0026 patterns (CM-16)
+OfferActorToCasePattern = ActivityPattern(
+    description=(
+        "Offer(CaseParticipant{actor,roles}, Case) sent by the CaseActor "
+        "to the Case Owner (CM-16-003/CM-16-004, ADR-0026). Used as the "
+        "nested sub-pattern inside AcceptActorRecommendationPattern and "
+        "RejectActorRecommendationPattern. Identified by object being "
+        "CASE_PARTICIPANT."
+    ),
+    activity_=TAtype.OFFER,
+    object_=VOtype.CASE_PARTICIPANT,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+AcceptActorRecommendationPattern = ActivityPattern(
+    description=(
+        "Case Owner Accept(Offer(CaseParticipant)) routed to CaseActor "
+        "inbox per ADR-0026/CM-16-006. Routes ACCEPT_OFFER_CASE_PARTICIPANT; "
+        "the CASE_MANAGER's answer to the recommender "
+        "(ACCEPT_ACTOR_RECOMMENDATION) is AcceptSuggestActorToCasePattern."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=OfferActorToCasePattern,
+)
+RejectActorRecommendationPattern = ActivityPattern(
+    description=(
+        "Case Owner Reject(Offer(CaseParticipant)) routed to CaseActor "
+        "inbox per ADR-0026/CM-16-007. Routes REJECT_OFFER_CASE_PARTICIPANT; "
+        "the CASE_MANAGER's answer to the recommender "
+        "(REJECT_ACTOR_RECOMMENDATION) is RejectSuggestActorToCasePattern."
+    ),
+    activity_=TAtype.REJECT,
+    object_=OfferActorToCasePattern,
+)
+OfferCaseParticipantRolePattern = ActivityPattern(
+    description=(
+        "Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase) "
+        "— the canonical role-delegation wire format introduced in ADR-0039. "
+        "Replaces the deprecated Offer(VulnerabilityCase, target=CaseParticipant) "
+        "format. Self-describing: the object type unambiguously identifies this "
+        "as a role offer. See SE-08-003."
+    ),
+    activity_=TAtype.OFFER,
+    object_=VOtype.CASE_PARTICIPANT_ROLE,
+    context_=VOtype.VULNERABILITY_CASE,
+)
+AcceptCaseParticipantRolePattern = ActivityPattern(
+    description=(
+        "Accept(Offer(CaseParticipantRole, ...)) — acceptance of the canonical "
+        "role-delegation wire format (ADR-0039). Received by the case's "
+        "CASE_MANAGER when the target actor accepts the role (CM-33-004). "
+        "See SE-08-003."
+    ),
+    activity_=TAtype.ACCEPT,
+    object_=OfferCaseParticipantRolePattern,
+)
+RejectCaseParticipantRolePattern = ActivityPattern(
+    description=(
+        "Reject(Offer(CaseParticipantRole, ...)) — rejection of the canonical "
+        "role-delegation wire format (ADR-0039). Received by the case's "
+        "CASE_MANAGER when the target actor declines the role (CM-33-004). "
+        "See SE-08-003."
+    ),
+    activity_=TAtype.REJECT,
+    object_=OfferCaseParticipantRolePattern,
+)
+
+# ---------------------------------------------------------------------------
+# Case ownership transfer patterns
+# ---------------------------------------------------------------------------
+
+OfferCaseOwnershipTransferActivityPattern = ActivityPattern(
+    activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_CASE
+)
+AcceptCaseOwnershipTransferActivityPattern = ActivityPattern(
+    activity_=TAtype.ACCEPT, object_=OfferCaseOwnershipTransferActivityPattern
+)
+RejectCaseOwnershipTransferActivityPattern = ActivityPattern(
+    activity_=TAtype.REJECT, object_=OfferCaseOwnershipTransferActivityPattern
+)
+ProposeCaseOwnershipTransferActivityPattern = ActivityPattern(
+    description=(
+        "Offer(Offer(VulnerabilityCase)) — the Case Owner proposes an "
+        "ownership transfer to the CASE_MANAGER, which makes the one "
+        "Offer(VulnerabilityCase) the transferee answers (ADR-0148, "
+        "CM-21-005).  Told apart from that Offer by its shape: its object "
+        "is an Offer, not a case."
+    ),
+    activity_=TAtype.OFFER,
+    object_=OfferCaseOwnershipTransferActivityPattern,
+)
+UndoCaseOwnershipTransferActivityPattern = ActivityPattern(
+    description=(
+        "Undo(Offer(Offer(VulnerabilityCase))) — the Case Owner withdraws "
+        "its ownership-transfer proposal, and with it the Offer the "
+        "CASE_MANAGER made from it (CM-21-015, ADR-0148)."
+    ),
+    activity_=TAtype.UNDO,
+    object_=ProposeCaseOwnershipTransferActivityPattern,
+)
+
+# ---------------------------------------------------------------------------
+# Case membership / invite patterns
+# ---------------------------------------------------------------------------
+
+InviteActorToCasePattern = ActivityPattern(
+    description=(
+        "The stub Invite: Invite(Actor)[target=VulnerabilityCaseStub]"
+        " (VAM-04-004).  The target's type alone identifies it (CM-11-013);"
+        " strict (SE-08-004), so an Invite whose target is a bare URI — the"
+        " full-case Invite references its case by ID (CM-11-010) — does not"
+        " match.  Strictness also covers ``object``: an invitee still a bare"
+        " URI after rehydration cannot be confirmed as an actor."
+    ),
+    activity_=TAtype.INVITE,
+    object_=AOtype.ACTOR,
+    target_=VOtype.VULNERABILITY_CASE_STUB,
+    strict=True,
+)
+AcceptInviteActorToCasePattern = ActivityPattern(
+    activity_=TAtype.ACCEPT,
+    object_=InviteActorToCasePattern,
+)
+RejectInviteActorToCasePattern = ActivityPattern(
+    activity_=TAtype.REJECT,
+    object_=InviteActorToCasePattern,
+)
+InviteActorToFullCasePattern = ActivityPattern(
+    description=(
+        "The full-case Invite: Invite(Actor)[target=VulnerabilityCase]"
+        " (VAM-04-011, CM-11-010).  The target is the plain case URI"
+        " (AKM-02-003), which a permissive pattern accepts; the stub Invite's"
+        " target is a VulnerabilityCaseStub object, whose type does not match,"
+        " so the two Invites are told apart by their target."
+    ),
+    activity_=TAtype.INVITE,
+    object_=AOtype.ACTOR,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+AcceptInviteActorToFullCasePattern = ActivityPattern(
+    description="RV: Accept(Invite(Actor)[target=VulnerabilityCase]) (VAM-04-012).",
+    activity_=TAtype.ACCEPT,
+    object_=InviteActorToFullCasePattern,
+)
+TentativeRejectInviteActorToFullCasePattern = ActivityPattern(
+    description=(
+        "RI: TentativeReject(Invite(Actor)[target=VulnerabilityCase])"
+        " (VAM-04-013).  The stub Invite has no TentativeReject (CM-11-007)."
+    ),
+    activity_=TAtype.TENTATIVE_REJECT,
+    object_=InviteActorToFullCasePattern,
+)
+RejectInviteActorToFullCasePattern = ActivityPattern(
+    description="RC: Reject(Invite(Actor)[target=VulnerabilityCase]) (VAM-04-014).",
+    activity_=TAtype.REJECT,
+    object_=InviteActorToFullCasePattern,
+)
+CloseCasePattern = ActivityPattern(
+    activity_=TAtype.LEAVE, object_=VOtype.VULNERABILITY_CASE
+)
+
+# ---------------------------------------------------------------------------
+# Case log / announcement patterns
+# ---------------------------------------------------------------------------
+
+AnnounceLogEntryPattern = ActivityPattern(
+    description=(
+        "Announce a canonical CaseLedgerEntry to a participant for log "
+        "replication. The object is a CaseLedgerEntry object."
+    ),
+    activity_=TAtype.ANNOUNCE,
+    object_=VOtype.CASE_LEDGER_ENTRY,
+)
+AnnounceVulnerabilityCasePattern = ActivityPattern(
+    description=(
+        "Case owner announces full VulnerabilityCase details to a newly "
+        "accepted invitee (MV-10-003). The object is a VulnerabilityCase."
+    ),
+    activity_=TAtype.ANNOUNCE,
+    object_=VOtype.VULNERABILITY_CASE,
+)
+RejectLogEntryPattern = LedgerEntryRejectPattern(
+    description=(
+        "Participant rejects a CaseLedgerEntry announcement due to "
+        "hash-chain mismatch. The object is the rejected CaseLedgerEntry, or "
+        "absent when the participant holds no entry and asks for a replay "
+        "from genesis, naming the case as its target (SYNC-16-007)."
+    ),
+    activity_=TAtype.REJECT,
+    object_=VOtype.CASE_LEDGER_ENTRY,
+)
+RefusalNoticePattern = InlineActivityObjectPattern(
+    description=(
+        "The CASE_MANAGER's refusal notice: a Reject whose object is the "
+        "refused activity, inline (CLP-05-001, ADR-0141).  Any verb but "
+        "Invite and Offer: a Reject of either has the shape of a decline "
+        "and is read by the use case that reads the decline."
+    ),
+    activity_=TAtype.REJECT,
+    excluded_object_verbs=frozenset({TAtype.INVITE, TAtype.OFFER}),
+)
+
+# ---------------------------------------------------------------------------
+# Note patterns
+# ---------------------------------------------------------------------------
+
+AddNoteToCaseActivityPattern = ActivityPattern(
+    activity_=TAtype.ADD,
+    object_=AOtype.NOTE,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+RemoveNoteFromCasePattern = ActivityPattern(
+    activity_=TAtype.REMOVE,
+    object_=AOtype.NOTE,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+
+# ---------------------------------------------------------------------------
+# Case participant patterns
+# ---------------------------------------------------------------------------
+
+AddCaseParticipantToCasePattern = ActivityPattern(
+    activity_=TAtype.ADD,
+    object_=VOtype.CASE_PARTICIPANT,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+RemoveCaseParticipantFromCasePattern = ActivityPattern(
+    activity_=TAtype.REMOVE,
+    object_=VOtype.CASE_PARTICIPANT,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+CreateCaseParticipantPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER creates a participant record: a CREATE of the "
+        "CaseParticipant carrying the record in full (ADR-0114, CLP-07-013)."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.CASE_PARTICIPANT,
+)
+UpdateCaseParticipantPattern = ActivityPattern(
+    description=(
+        "The CASE_MANAGER changes a participant record: an UPDATE of the "
+        "CaseParticipant carrying the record in full (CLP-07-013)."
+    ),
+    activity_=TAtype.UPDATE,
+    object_=VOtype.CASE_PARTICIPANT,
+)
+
+# ---------------------------------------------------------------------------
+# ProcessingFault patterns (ASK-07-001, ADR-0080)
+# ---------------------------------------------------------------------------
+
+CreateProcessingFaultPattern = ActivityPattern(
+    description=(
+        "Receiver notifies an authenticated sender that their status assertion "
+        "could not be processed. "
+        "Corresponds to Create(as_ProcessingFault) — ASK-07-001, ADR-0080."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.PROCESSING_FAULT,
+    strict=True,
+)
+
+# ---------------------------------------------------------------------------
+# Case status / participant status patterns
+# ---------------------------------------------------------------------------
+
+AddCaseStatusToCasePattern = ActivityPattern(
+    activity_=TAtype.ADD,
+    object_=VOtype.CASE_STATUS,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+AddParticipantStatusToParticipantPattern = ActivityPattern(
+    activity_=TAtype.ADD,
+    object_=VOtype.PARTICIPANT_STATUS,
+    target_=VOtype.CASE_PARTICIPANT,
+)

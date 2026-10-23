@@ -2,6 +2,7 @@
 """
 This module contains common behaviors that are used by the inbound message handler.
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -14,7 +15,6 @@ This module contains common behaviors that are used by the inbound message handl
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
 
 import logging
 
@@ -37,7 +37,7 @@ def pop_message(obj: BtNode) -> bool:
     # take one down
     # pass it around
     obj.bb.current_message = obj.bb.incoming_messages.popleft()
-    logger.debug(f"** <-- Recv {obj.bb.current_message.msg_type}")
+    logger.debug("** <-- Recv %s", obj.bb.current_message.msg_type)
     return True
 
 
@@ -54,7 +54,7 @@ def push_message(obj: BtNode) -> bool:
             obj.bb.incoming_messages.appendleft(obj.bb.current_message)
             obj.bb.current_message = None
         except IndexError as e:
-            logger.warning(f"Caught error: {e}")
+            logger.warning("Caught error: %s", e)
             return False
 
     return True

@@ -1,0 +1,256 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Tests for SqliteDataLayer case-lookup helpers.
+
+Covers: find_case_by_short_id (HTTP URL and URN IDs, ambiguity guard) and
+find_case_by_report_id (via vulnerability_reports list and ReportCaseLink).
+Fixtures (dl) come from conftest.
+"""
+
+from test.support.case_owner import CASE_OWNER_ID
+from vultron.core.models.case import VulnerabilityCase
+
+# ---------------------------------------------------------------------------
+# find_case_by_short_id tests
+# ---------------------------------------------------------------------------
+
+
+def test_find_case_by_short_id_with_http_url_case_id(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/api/v2/cases/demo-123",
+    )
+    dl.save(case)
+
+    result = dl.find_case_by_short_id("demo-123")
+    assert result is not None
+    assert isinstance(result, VulnerabilityCase)
+    assert result.id_ == case.id_
+
+
+def test_find_case_by_short_id_with_urn_case_id(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="urn:uuid:11111111-2222-3333-4444-555555555555",
+    )
+    dl.save(case)
+
+    result = dl.find_case_by_short_id("11111111-2222-3333-4444-555555555555")
+    assert result is not None
+    assert isinstance(result, VulnerabilityCase)
+    assert result.id_ == case.id_
+
+
+def test_find_case_by_short_id_returns_none_when_ambiguous(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+
+    case1 = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://org1.example/api/v2/cases/shared",
+    )
+    case2 = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://org2.example/api/v2/cases/shared",
+    )
+    dl.save(case1)
+    dl.save(case2)
+
+    assert dl.find_case_by_short_id("shared") is None
+
+
+# ---------------------------------------------------------------------------
+# find_case_by_report_id tests
+# ---------------------------------------------------------------------------
+
+
+def test_find_case_by_report_id_returns_case_when_report_stored_as_string(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(
+        name="CVE-2025-001",
+        content="Test vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case.vulnerability_reports.append(report.id_)
+
+    dl.create(report)
+    dl.save(case)
+
+    result = dl.find_case_by_report_id(report.id_)
+    assert result is not None
+    assert isinstance(result, VulnerabilityCase)
+    assert result.id_ == case.id_
+
+
+def test_find_case_by_report_id_returns_case_when_report_id_in_list(dl):
+    """find_case_by_report_id finds the case when the report ID is in vulnerability_reports.
+
+    After ARCH-25-003 (ADR-0099), vulnerability_reports holds string IDs only.
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(
+        name="CVE-2025-002",
+        content="Another vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, vulnerability_reports=[report.id_]
+    )
+
+    dl.create(report)
+    dl.save(case)
+
+    result = dl.find_case_by_report_id(report.id_)
+    assert result is not None
+    assert result.id_ == case.id_
+
+
+def test_find_case_by_report_id_returns_none_when_not_found(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(
+        name="CVE-2025-003",
+        content="Unlinked vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+
+    dl.create(report)
+    dl.save(case)
+
+    result = dl.find_case_by_report_id(report.id_)
+    assert result is None
+
+
+def test_find_case_by_report_id_returns_none_when_no_cases(dl):
+    result = dl.find_case_by_report_id("urn:uuid:nonexistent-report")
+    assert result is None
+
+
+def test_find_case_by_report_id_returns_none_for_unknown_id(dl):
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(
+        name="CVE-2025-004",
+        content="Linked vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    other_report = as_VulnerabilityReport(
+        name="CVE-2025-005",
+        content="Unlinked vulnerability",
+        attributed_to="https://example.org/finder",
+    )
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    case.vulnerability_reports.append(report.id_)
+
+    dl.create(report)
+    dl.create(other_report)
+    dl.save(case)
+
+    result = dl.find_case_by_report_id(other_report.id_)
+    assert result is None
+
+
+def test_find_case_by_report_id_returns_case_via_report_case_link(dl):
+    from vultron.core.models.report_case_link import VultronReportCaseLink
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(
+        name="CVE-2025-006",
+        content="Linked through ReportCaseLink",
+        attributed_to="https://example.org/finder",
+    )
+    case = as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+
+    dl.create(report)
+    dl.save(case)
+    dl.save(VultronReportCaseLink(report_id=report.id_, case_id=case.id_))
+
+    result = dl.find_case_by_report_id(report.id_)
+
+    assert result is not None
+    assert isinstance(result, VulnerabilityCase)
+    assert result.id_ == case.id_
+
+
+def test_find_case_by_report_id_matches_an_inline_report_stored_under_id(dl):
+    """A case seeded from a sealed Announce holds its reports inline.
+
+    ``announce_vulnerability_case`` embeds every report as a full object, and
+    the sealed body is delivered as built, so ``SeedAnnouncedCaseNode`` stores
+    the case with inline report dicts.  Rows are re-keyed to the wire spelling
+    on write, so the inline entry carries ``id``, not ``id_`` — the lookup
+    that read only ``id_`` returned ``None`` and the vendor's validate-report
+    trigger failed with "no VulnerabilityCase for report" (#3923).
+    """
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report = as_VulnerabilityReport(
+        name="CVE-2025-003",
+        content="Announced inline",
+        attributed_to="https://example.org/finder",
+    )
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, vulnerability_reports=[report]
+    )
+    dl.save(case)
+
+    stored = dl.read(case.id_)
+    assert stored is not None, "the case round-trips with the inline report"
+
+    result = dl.find_case_by_report_id(report.id_)
+    assert result is not None
+    assert result.id_ == case.id_

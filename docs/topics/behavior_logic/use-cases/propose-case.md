@@ -1,0 +1,224 @@
+---
+stakeholder_type: [platform-developer]
+level: 400
+page_type: explanation
+description: >
+  Trigger `create_case`: asking a case actor service to open and manage a case, and what it does on acceptance.
+---
+
+# Propose Case
+
+Proposing a case is how an actor asks a service to open and manage a coordination case on its behalf.
+The proposing actor does not create the case itself.
+It sends a proposal and waits, and the service that accepts becomes the single-writer authority for everything that follows.
+
+This page explains why the protocol delegates case creation rather than performing it locally, what the accepting service does on the proposer's behalf, and where the decision to accept or decline lives.
+
+---
+
+## What starts it
+
+An actor that holds a report and wants it coordinated as a case sends `Create(as_CaseProposal)` to a **case actor service** — the provisioning endpoint configured as `case_actor_service_url` (CP-04-001, CP-08-002).
+In the reference implementation this happens inside the `create_case` trigger path: the actor records a local case, publishes the case actor identity it will address, and emits the proposal.
+
+The proposal carries the report inline.
+The reference implementation does not permit a URI reference here, because the receiving service cannot yet fetch an object out of the proposer's store (CP-01-004, AKM-03-003).
+It also carries the provenance of the report — which `Offer(VulnerabilityReport)` delivered it and from whom — because the accepting service cannot reconstruct that and needs it for the first ledger entry (CP-01-007).
+
+The proposal is addressed to the service's container identity, never to an identity derived per case or per report (CP-04-003).
+The service does not exist yet as a per-case actor; that is what is being asked for.
+That identity is `{case_actor_service_url}/actors/case-actor`: one per container, holding many cases (BT-10-002).
+Which case an activity concerns travels in its `context`, not in the address.
+An address derived from the report could not be provisioned before the report arrived, so the proposal would meet a permanent 404 and the round-trip would never start.
+The service URL comes from the actor's configuration — `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` in a container deployment — and not from the server's own base URL, which happens to work when both actors share a container and sends the proposal back to the proposer when they do not.
+
+!!! note "Why creation is delegated rather than done locally"
+
+    An actor can hold a local case object. What it cannot do alone is be the
+    **single-writer authority** for a case that other organizations will replicate
+    from. The `CVDRole.CASE_MANAGER` role carries that authority, and the
+    canonical ledger every Participant converges on is written by whoever holds
+    it ([ADR-0041](../../../adr/0041-caseactor-authoritative-case-initialization.md)).
+    Delegating creation is how the authority gets established as a fact other
+    actors can recognize, rather than a claim the proposer makes about itself.
+
+---
+
+## The mechanical path
+
+Accepting a proposal is the largest single cascade in the protocol.
+The accepting service does the steps below, and the order is not interchangeable.
+
+| Step | What it establishes |
+|---|---|
+| Resolve or create the case | A redelivered proposal (same proposal identifier) reuses its case rather than creating a second (CP-05-006); a new proposal identifier is a new request, and the case is reused only for the proposer that owns it (CP-05-008) |
+| Store the inline report | Everything downstream derives from it — the reporter Participant, its ledger entry, the consent seed |
+| Add itself as Participant | COORDINATOR and CASE_MANAGER, so the authority is in the roster |
+| Add the proposing actor | CASE_OWNER at `RM.RECEIVED`, plus the roles its proposal states in `proposerCaseRoles` (CP-09-007) — never the accepting service's own configuration |
+| Add the reporter | At `RM.ACCEPTED` — the reporter has already accepted, by reporting |
+| Initialize the default embargo | A case begins embargoed rather than open (EP-04-001) |
+| Seed the owner's consent | An `AGREED` consent row for the default embargo, without an invitation round-trip |
+| Seed the reporter's consent | An `AGREED` consent row — submitting a report is implicit consent ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md)) |
+| Emit `Accept(as_CaseProposal)` | The proposer learns its request succeeded |
+| Emit `Create(VulnerabilityCase)` | The proposer receives the case replica, with Participants inline |
+| Commit the canonical ledger entries | The case's history starts here, and each entry fans out to every Participant |
+| Relay a contested creation's revision | When the reporter and the owner both proposed terms, the longer ones are sent as an `Invite(EmbargoEvent)` to the party whose terms won (EP-04-011) |
+
+The ledger commits come after both emissions for a reason that is easy to miss.
+Each commit fans its entry out through the same first-in-first-out outbox that carries the `Create(VulnerabilityCase)`.
+A commit placed ahead of the `Create` therefore hands every Participant ledger entries for a case it does not hold yet.
+Each such entry takes the pre-genesis recovery path — buffer, `Reject`, replay from genesis — while the replica waits behind the whole fan-out (CP-09-009).
+Emitting the case first makes that recovery path what it was designed to be: a backstop for transport reordering, not the normal route.
+The revision relay comes after the ledger commits, because no modification of the case may start before its initialization is complete (CM-14-007).
+Case creation is one act: every step from the case to the revision relay is written in one storage transaction, so a step that fails keeps none of them, including the queued `Accept`, `Create` and `Invite` (CLP-07-015, CLP-07-016).
+Delivery learns of the queued messages only once that transaction commits, so a failed creation sends nothing, and a redelivered proposal starts again from the beginning.
+No marker is stored for a later run to finish the creation.
+
+The two emissions are queued together or not at all.
+The `Accept` is irrevocable once sent: the service has committed to managing the case.
+An `Accept` with no `Create` behind it would tell the proposer of a case that nothing announces, so neither is queued without the other (CP-05-005).
+Once both are queued, the outbox retries the delivery of each one until it succeeds or its attempts run out.
+The `Create` takes an id derived from the proposal: a redelivery that finds the case already announced announces nothing again, and one that finds a `Create` for a different case under that id fails rather than leave the new case unannounced.
+Sending a second `Accept` would tell the proposer it had been accepted twice, and there is no such thing.
+
+---
+
+## Where judgment enters
+
+One call-out point governs this use case: **EvaluateCaseProposal** (Evaluator), the admission decision (CP-05-002).
+Evaluator is one of the four capability shapes ([ADR-0097](../../../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md), BT-18-013), and the backend that answers it is injected as a swappable factory ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)), so a deployment supplies its own admission policy without editing the tree.
+Its service contract is in the [Capability Model](../../capability_model/index.md#case-admission).
+
+It is the only place a deployment can express admission policy.
+Admission policy answers three things.
+Whether the proposing actor is one this service will work for.
+Whether that actor already holds more open cases than the service will carry.
+And whether the inline report is substantive enough to be worth coordinating.
+All of that lives here or nowhere.
+
+The decision is placed ahead of every step above, and that placement is the interesting part.
+A refusal has to happen before the case exists.
+A service that created the case, committed ledger entries, and *then* declined would be telling the proposer "no" while holding a case that no Participant will ever converge on — the canonical-versus-replica divergence CLP-10-009 exists to prevent.
+
+When the service declines, it sends `Reject(as_CaseProposal)` with the proposal inline, and creates nothing (CP-05-004).
+The proposing actor records the refusal (CP-06-003, CP-06-004).
+It records a reply only from the actor it addressed the proposal to, and a reply from anyone else is refused with its records unchanged (CP-06-005).
+Once a case exists for the report, no reply replaces the case's trusted CASE_MANAGER.
+
+The refusal is recorded and queued in one storage transaction, and a refusal that fails stops the whole delivery.
+A decline that cannot be queued does not silently become an acceptance: the service keeps neither the decision nor the `Reject`, and does not try the accept path, so the irrevocability CP-05-004 and CP-05-005 rely on holds in both directions.
+The consequence a reader should expect: a service that decided "no" and then failed to say so reports a processing failure, and decides again on the next delivery — it never creates the case.
+
+Two properties of the guarding are worth stating, because each is a way a refusal gate can be defeated rather than merely fail.
+
+The guards key on the **proposal**, never on the report.
+A report identifier arrives inside the proposal, which means the sender chooses it, and two proposals may name one report.
+A guard asking "does a case already exist for this report?" therefore answers "already handled" for a proposal that was never judged at all, and admits it as a duplicate of the earlier one — policy never consulted.
+So the service writes its own per-proposal record when it begins to admit, and asks that instead.
+
+"We already told them" comes from that record too, not from the outbound queue.
+A refusal leaves the queue once it is delivered, so a queue-based check cannot distinguish a refusal that was delivered from one that was never sent, and re-sends on every later delivery of the same proposal.
+Recording the identifier of the refusal that was actually queued gives the service three answers instead of two: undecided, decided but not yet told, and told.
+
+Under the deterministic default the service admits.
+That default is deliberate: a service an actor was configured to trust should not silently refuse, and refusing by default would mean no unconfigured deployment could ever open a case.
+It is also not the conservative-default case that BT-23-012 governs, because accepting creates a *new* case in which the proposer becomes the owner — no other party's agreed state is touched.
+
+The reason for a refusal is a separate matter.
+CP-06-004 requires the proposer to surface one where present.
+Nothing yet carries a reason from the admission decision onto the wire.
+A call-out point signals refusal by returning failure, and the blackboard contract in BT-18 defines outputs only for the success case.
+Until that channel is designed the `Reject` carries no `summary`, so a proposer records the refusal without an explanation.
+The same missing channel means a policy backend that is merely unreachable is read as a refusal, and the refusal it produces is permanent ([#3446](https://github.com/CERTCC/Vultron/issues/3446)).
+
+An already-answered proposal is never re-adjudicated.
+A duplicate delivery of the *same* proposal reuses the existing case rather than deciding again, because a later "decline" would contradict an `Accept` already sent.
+CP-05-006 goes further: the stored `Accept` must be re-sent unchanged, with its original identifier, so a proposer whose copy was lost converges rather than waiting forever.
+The reference implementation does this.
+The `Accept` takes an id derived from the proposal.
+A duplicate proposal queues the stored `Accept` again under that id, unless it is still waiting in the outbox.
+The CASE_MANAGER finds the case through the `Accept` it stored for the proposal, not only through the case's current owner.
+So a former owner's redelivery after an ownership transfer creates no second case, and it does not make the former owner CASE_OWNER again (CM-21-001).
+The exception is a case that is fully closed, that is, its ledger holds the CASE_MANAGER's own status entry reaching RM `CLOSED`.
+The stored `Accept` would lead into the accept path, which writes to the case, and a closed case accepts no further writes (CM-23-013).
+So the CASE_MANAGER answers the duplicate with `Reject(as_CaseProposal)` instead, and commits no ledger entry and changes no case or participant state.
+The `Reject` declines only the redelivery: the stored `Accept` stands, and the proposer learns only that nothing more will be done for the proposal.
+The same lookup gives a former owner this answer after an ownership transfer.
+Only the proposal's author can redeliver it.
+The proposal identifier is chosen by the sender, so the CASE_MANAGER refuses a delivery whose identifier it recorded for another proposer, and writes and sends nothing for it (CP-05-010).
+The proposer-side deadline that lets a proposer give up on a lost reply (CP-05-007) is not yet implemented ([#2890](https://github.com/CERTCC/Vultron/issues/2890)).
+
+A proposal under a *new* identifier is a new request, even when it names a report that already has a case (CP-05-008).
+It goes through the admission decision and gets its own `Accept` or `Reject`, not the earlier proposal's stored answer.
+What happens to the case depends on who asks.
+The proposer that owns the case gets that case back: the `Accept`'s `result` names it, no second case is created, and the case is not announced or recorded in the ledger a second time.
+Any other proposer gets a separate case of its own and is not added to the first one, because the report identifier is chosen by the sender and does not say whose case it is.
+When the owner's case is fully closed, the owner's new proposal is declined with `Reject(as_CaseProposal)`, and nothing is written for the case (CM-23-013).
+The admission policy is not consulted, because the closure decides.
+Reopening a closed case, or creating a fresh case for its report, is not yet designed ([#3066](https://github.com/CERTCC/Vultron/issues/3066)).
+
+Both closed-case declines write a decline record keyed on the proposal, before the `Reject` is queued.
+That record is not a ledger entry or a case change, so CM-23-013 does not bar it.
+It stops a failed `Reject` from falling through into the accept path, and it answers a later delivery of the same proposal without deciding again.
+The `Reject` carries a `summary` that says the case is fully closed.
+
+---
+
+## What the case learns
+
+The proposer receives two messages, in order: `Accept(as_CaseProposal)`, then `Create(VulnerabilityCase)` carrying the case with its Participants inline.
+The `Create` sets `context` to the new case's URI and `in_reply_to` to the `Accept` that authorized it, so the causal link is explicit in the ActivityStreams 2.0 (AS2) correct field (CP-05-003, [ADR-0045](../../../adr/0045-create-vulnerability-case-field-assignment.md)).
+
+On a declined proposal the proposer receives `Reject(as_CaseProposal)` and nothing else.
+
+The authority sends nothing to the reporter (CBT-01-010).
+The proposer, which received the report, sends the reporter its own `Create(VulnerabilityCase)` with the same case inline, naming the authority as `CASE_MANAGER` (CBT-01-001, [ADR-0132](../../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
+The reporter trusts that message because it comes from the actor the reporter sent its report to.
+
+No other actor learns anything yet.
+At this point the case has three Participants — the authority, the owner, and the reporter — and no one has been invited.
+Bringing in a vendor or a coordinator is a separate flow.
+
+!!! warning "A proposal with no answer is not a proposal still pending"
+
+    A proposer that has received neither an `Accept` nor a `Reject` by the
+    proposal's deadline MUST treat it as expired and stop waiting (CP-05-007).
+    Nothing in the protocol will eventually resolve it, because nothing is
+    holding it open — see
+    [Protocol Event Flow](../../protocol_flow.md#deadlines-need-something-to-notice-them)
+    for why a deadline passing is not an event.
+
+---
+
+## What conformance requires
+
+| Requirement | Obligation |
+|---|---|
+| [CP-04-001](../../../reference/specs/protocol.md#cp-04-001) | A proposer MUST send `Create(as_CaseProposal)` to the case actor service's inbox |
+| [CP-04-003](../../../reference/specs/protocol.md#cp-04-003) | The proposal MUST be addressed to the service's container identity, not a per-case one |
+| [CP-05-002](../../../reference/specs/protocol.md#cp-05-002) | The service MUST evaluate the proposal and either accept or reject it |
+| [CP-05-003](../../../reference/specs/protocol.md#cp-05-003) | On acceptance it MUST send `Accept` and then `Create(VulnerabilityCase)`, in that order |
+| [CP-05-004](../../../reference/specs/protocol.md#cp-05-004) | On refusal it MUST send `Reject(as_CaseProposal)` with the proposal, inline or by reference |
+| [CP-05-005](../../../reference/specs/protocol.md#cp-05-005) | `Accept` and `Create(VulnerabilityCase)` MUST be queued together or not at all, each retried until delivered, and the `Accept` never sent a second time |
+| [CP-05-006](../../../reference/specs/protocol.md#cp-05-006) | A duplicate proposal (the same proposal identifier) MUST re-send the stored `Accept` unchanged, with its original identifier, and MUST NOT create a second case; when the case is fully closed it MUST be answered with `Reject(as_CaseProposal)` instead, with no ledger entry and no case or participant change |
+| [CP-05-008](../../../reference/specs/protocol.md#cp-05-008) | A proposal under a new identifier MUST be admitted and answered on its own; the case is reused only for its owner, and any other proposer gets a separate case; when the owner's case is fully closed the proposal MUST be answered with `Reject(as_CaseProposal)`, with no ledger entry and no case or participant change |
+| [CP-05-007](../../../reference/specs/protocol.md#cp-05-007) | A proposer MUST treat an unanswered proposal as expired at its deadline |
+| [CP-06-003](../../../reference/specs/protocol.md#cp-06-003) | The proposer MUST record the acceptance and await the replica |
+| [CP-06-004](../../../reference/specs/protocol.md#cp-06-004) | The proposer MUST record a refusal and surface its reason where one is given |
+
+The requirement most often read too loosely is CP-05-002.
+"Evaluate and either accept or reject" is not satisfied by a service that always accepts.
+An implementation with no refusal path has no admission policy.
+A case actor service that cannot decline is an open relay: any actor able to reach the inbox obtains a managed case, a canonical ledger, and a default embargo.
+
+---
+
+## Further reading
+
+- [Case Initialization](../../case_lifecycle/case_initialization.md) — why the proposer does not create the case itself
+- [Case Proposal Messages](../../../reference/messages/case_proposal.md) — the `Create`, `Accept`, and `Reject` activities on the wire
+- [Validate report](validate-report.md) — what the owner does once the case replica arrives
+- [Embargo lifecycle](embargo-lifecycle.md) — the default embargo this use case creates, and how it is renegotiated
+- [Capability Model](../../capability_model/index.md#case-admission) — the service contract for the admission call-out point
+- [Glossary](../../../reference/glossary.md) — Participant, call-out point, capability shape, case actor service
+- [Case Handlers](../../../reference/behaviors/case_handlers.md) — the report receiver's `Accept` and `Reject` receive trees

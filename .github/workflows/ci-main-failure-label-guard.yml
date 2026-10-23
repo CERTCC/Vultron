@@ -1,0 +1,28 @@
+# Enforces that the ci:main-failure label is bot-managed.
+# If any actor other than github-actions[bot] applies the label,
+# this workflow removes it immediately to prevent label spoofing
+# that could corrupt the CI failure notification signal.
+# See specs/ci-security.yaml CISEC-05-005.
+
+name: "ci:main-failure label guard"
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+
+jobs:
+  guard:
+    if: github.event.label.name == 'ci:main-failure'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Remove label if not applied by github-actions[bot]
+        if: github.actor != 'github-actions[bot]'
+        run: |
+          gh issue edit "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --remove-label "ci:main-failure"

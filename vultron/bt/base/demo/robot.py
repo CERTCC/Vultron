@@ -27,7 +27,6 @@ The implementation also shows how to use the included bt tree fuzzer to exercise
 
 import logging
 import sys
-from dataclasses import dataclass
 
 import vultron.bt.base.fuzzer as btz
 from vultron.bt.base.blackboard import Blackboard
@@ -44,7 +43,6 @@ from vultron.bt.common import show_graph
 logger = logging.getLogger(__name__)
 
 
-@dataclass(kw_only=True)
 class RobotBlackboard(Blackboard):
     ball_found: bool = False
     ball_close: bool = False
@@ -57,7 +55,7 @@ class RobotBlackboard(Blackboard):
 
 def ball_placed(obj: BtNode) -> bool:
     """Checks whether the ball is placed in the bin"""
-    return obj.bb.ball_placed
+    return bool(obj.bb.ball_placed)
 
 
 BallPlaced = condition_check(
@@ -69,7 +67,7 @@ BallPlaced = condition_check(
 def set_ball_placed(obj: BtNode) -> bool:
     """Records that the ball has been placed in the bin"""
     obj.bb.ball_placed = True
-    return True
+    return bool(obj.bb.ball_placed)
 
 
 SetBallPlaced = action_node(
@@ -97,7 +95,7 @@ EnsureBallPlaced = fallback_node(
 
 def bin_close(obj: BtNode) -> bool:
     """Checks whether the bin is close"""
-    return obj.bb.bin_close
+    return bool(obj.bb.bin_close)
 
 
 BinClose = condition_check(
@@ -109,7 +107,7 @@ BinClose = condition_check(
 def set_bin_close(obj: BtNode) -> bool:
     """Records that the bin is close"""
     obj.bb.bin_close = True
-    return True
+    return bool(obj.bb.bin_close)
 
 
 SetBinClose = action_node(
@@ -136,7 +134,7 @@ EnsureBinClose = fallback_node(
 
 def ball_grasped(obj: BtNode) -> bool:
     """Checks whether the ball is grasped"""
-    return obj.bb.ball_grasped
+    return bool(obj.bb.ball_grasped)
 
 
 BallGrasped = condition_check(
@@ -148,7 +146,7 @@ BallGrasped = condition_check(
 def set_ball_grasped(obj: BtNode) -> bool:
     """Records that the ball has been grasped"""
     obj.bb.ball_grasped = True
-    return True
+    return bool(obj.bb.ball_grasped)
 
 
 SetBallGrasped = action_node(
@@ -175,7 +173,7 @@ EnsureBallGrasped = fallback_node(
 
 def ball_close(obj: BtNode) -> bool:
     """Checks whether the ball is close"""
-    return obj.bb.ball_close
+    return bool(obj.bb.ball_close)
 
 
 BallClose = condition_check(
@@ -187,7 +185,7 @@ BallClose = condition_check(
 def set_ball_close(obj: BtNode) -> bool:
     """Records that the ball is close"""
     obj.bb.ball_close = True
-    return True
+    return bool(obj.bb.ball_close)
 
 
 SetBallClose = action_node(
@@ -216,7 +214,7 @@ EnsureBallClose = fallback_node(
 def set_ball_found(obj: BtNode) -> bool:
     """Records that the ball has been found"""
     obj.bb.ball_found = True
-    return True
+    return bool(obj.bb.ball_found)
 
 
 SetBallFound = action_node(
@@ -235,7 +233,7 @@ FindBall = sequence_node(
 
 def ball_found(obj: BtNode) -> bool:
     """Checks whether the ball is found"""
-    return obj.bb.ball_found
+    return bool(obj.bb.ball_found)
 
 
 BallFound = condition_check(
@@ -255,7 +253,7 @@ EnsureBallFound = fallback_node(
 
 def time_to_ask_for_help(obj: BtNode) -> bool:
     """Checks if it is time to ask for help"""
-    return obj.bb.ticks > 10
+    return bool(obj.bb.ticks > 10)
 
 
 TimeToAskForHelp = condition_check(
@@ -268,7 +266,7 @@ def ask_for_help(obj: BtNode) -> bool:
     """Records that the robot has asked for help"""
     logger.info("I need help!")
     obj.bb.asked_for_help = True
-    return True
+    return bool(obj.bb.asked_for_help)
 
 
 AskForHelp = action_node(
@@ -334,14 +332,26 @@ def main(args):
 
     if bot.bb.asked_for_help:
         logger.info(
-            f"Robot failed to complete its mission after {bot.bb.ticks} ticks."
+            "Robot failed to complete its mission after %s ticks.",
+            bot.bb.ticks,
         )
     elif bot.bb.ball_placed:
-        logger.info(f"Robot completed its mission in {bot.bb.ticks} ticks.")
+        logger.info("Robot completed its mission in %s ticks.", bot.bb.ticks)
     else:
-        logger.info(f"Not sure what happened. {bot.bb}")
+        logger.info("Not sure what happened. %s", bot.bb)
 
 
 if __name__ == "__main__":
+    import argparse
+
+    def _parse_args():
+        parser = argparse.ArgumentParser(description="Robot Demo")
+        parser.add_argument(
+            "--print-tree",
+            action="store_true",
+            help="Print the behavior tree and exit",
+        )
+        return parser.parse_args()
+
     args = _parse_args()
     main(args)

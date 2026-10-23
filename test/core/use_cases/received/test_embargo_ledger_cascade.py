@@ -1,0 +1,373 @@
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Tests for CaseLedgerEntry cascade on embargo received-side handlers (AC-3)."""
+
+from typing import cast
+
+import pytest
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import (
+    activate,
+    propose,
+    write_consent_rows,
+)
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.states.em import EM
+from vultron.core.states.embargo_register import TerminationReason
+from vultron.core.use_cases.received.embargo import (
+    AcceptInviteToEmbargoOnCaseReceivedUseCase,
+    ActivateEmbargoOnCaseReceivedUseCase,
+    InviteToEmbargoOnCaseReceivedUseCase,
+    RejectEmbargoProposalOnCaseReceivedUseCase,
+    RejectInviteToEmbargoOnCaseReceivedUseCase,
+    RemoveEmbargoEventFromCaseReceivedUseCase,
+)
+from vultron.wire.as2.factories import (
+    activate_embargo_activity,
+    em_accept_embargo_activity,
+    em_propose_embargo_activity,
+    em_reject_embargo_activity,
+    reject_embargo_proposal_activity,
+    remove_embargo_from_case_activity,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+from .conftest import grant_case_owner_role, make_embargo_case_with_actor
+
+
+class TestEmbargoLogEntryCascade:
+    """CaseLedgerEntry cascade for each embargo received-side handler (AC-3)."""
+
+    @pytest.mark.spec("CLP-10-006", "EP-09-007")
+    @pytest.mark.parametrize(
+        "factory, use_case, semantic_type",
+        [
+            (
+                activate_embargo_activity,
+                ActivateEmbargoOnCaseReceivedUseCase,
+                "activate_embargo_on_case",
+            ),
+            (
+                reject_embargo_proposal_activity,
+                RejectEmbargoProposalOnCaseReceivedUseCase,
+                "reject_embargo_proposal_on_case",
+            ),
+        ],
+    )
+    def test_owner_decision_commits_log_entry(
+        self, make_payload, factory, use_case, semantic_type
+    ):
+        """The owner's Accept/Reject(EmbargoEvent) commits one CaseLedgerEntry."""
+        author_id = "https://example.org/users/coord"
+        case_id = "https://example.org/cases/em_cas_decide"
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
+            case_id, author_id, case_manager_actor_id=author_id
+        )
+        grant_case_owner_role(dl, case_id, author_id)
+        case_read = cast(VulnerabilityCase, dl.read(case.id_))
+        assert case_read is not None
+        propose(case_read, embargo.id_)
+        dl.save(case_read)
+        write_consent_rows(dl, case_read)
+
+        case_ref = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=case_id
+        )
+        activity = factory(embargo, target=case_ref, actor=author_id)
+        event = make_payload(activity, receiving_actor_id=author_id)
+        sync_port = SyncActivityAdapter(dl)
+        use_case(
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+        assert cast(CaseLedgerEntry, entries[0]).semantic_type == semantic_type
+
+    def test_remove_embargo_event_commits_log_entry(self, make_payload):
+        """RemoveEmbargoEventFromCaseReceivedUseCase commits a CaseLedgerEntry."""
+        import py_trees
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+
+        author_id = "https://example.org/users/coord"
+        case_id = "https://example.org/cases/em_cas_rem"
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
+            case_id, author_id, case_manager_actor_id=author_id
+        )
+        case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert case is not None
+        activate(case, embargo.id_)
+        dl.save(case)
+
+        activity = remove_embargo_from_case_activity(
+            embargo,
+            origin=case.id_,
+            actor=author_id,
+            reason=TerminationReason.EARLY,
+        )
+        event = make_payload(activity, receiving_actor_id=author_id)
+        sync_port = SyncActivityAdapter(dl)
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 1
+        assert cast(CaseLedgerEntry, entries[0]).semantic_type == (
+            "remove_embargo_event_from_case"
+        )
+
+    def test_remove_embargo_commits_log_entry_on_bt_failure(
+        self, make_payload
+    ):
+        """RemoveEmbargoEventFromCaseReceivedUseCase cascades even when BT fails.
+
+        BT FAILURE means "embargo already cleared" — it is not an error. The
+        CaseLedgerEntry MUST be committed regardless so participants learn the
+        current state.
+        """
+        import py_trees
+
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+
+        author_id = "https://example.org/users/coord"
+        case_id = "https://example.org/cases/em_cas_rem_fail"
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
+            case_id, author_id, case_manager_actor_id=author_id
+        )
+        # EM.NONE: no active embargo — BT will FAIL (IsActiveEmbargoNode)
+        case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert case is not None
+        assert case.em_state == EM.NONE
+
+        activity = remove_embargo_from_case_activity(
+            embargo,
+            origin=case.id_,
+            actor=author_id,
+            reason=TerminationReason.EARLY,
+        )
+        event = make_payload(activity, receiving_actor_id=author_id)
+        sync_port = SyncActivityAdapter(dl)
+        RemoveEmbargoEventFromCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
+        ]
+        # Cascade must fire even on BT FAILURE.
+        assert len(entries) == 1
+
+    def test_invite_to_embargo_skips_commit_for_invitee_receiver(
+        self, make_payload
+    ):
+        """InviteToEmbargoOnCaseReceivedUseCase does NOT commit a ledger entry.
+
+        When the invitee receives the invite, the CASE_MANAGER gate inside the
+        guarded-commit subtree of invite_to_embargo_on_case_tree correctly
+        blocks the commit: the invitee is not the Case Manager.  The canonical
+        ledger entry for the invite-sent event is committed by the CaseActor on
+        the trigger side (when the invite is sent), not on the invitee's receive
+        side.
+        """
+        author_id = "https://example.org/users/coord"
+        case_id = "https://example.org/cases/em_cas_invite"
+        invitee_id = "https://example.org/users/vendor"
+        dl, _case_actor, _case, embargo = make_embargo_case_with_actor(
+            case_id,
+            author_id,
+            extra_participants=[invitee_id],
+            case_manager_actor_id=author_id,
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=case_id,
+            actor=author_id,
+            id_=f"{case_id}/embargo_proposals/1",
+        )
+        dl.create(proposal)
+
+        # receiving_actor_id is the invitee — not the CaseActor/Case Manager.
+        event = make_payload(proposal, receiving_actor_id=invitee_id)
+        sync_port = SyncActivityAdapter(dl)
+        InviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        # No canonical ledger entry should be committed on the invitee side.
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
+        ]
+        assert len(entries) == 0, (
+            "Invitee-side receipt must not commit a canonical ledger entry; "
+            "only the CaseActor commits (on the trigger/send side)."
+        )
+
+    def test_accept_invite_to_embargo_commits_log_entry(self, make_payload):
+        """AcceptInviteToEmbargoOnCaseReceivedUseCase commits a CaseLedgerEntry."""
+        coordinator_id = "https://example.org/users/coordinator"
+        case_id = "https://example.org/cases/em_cas_accept"
+        vendor_id = "https://example.org/users/vendor"
+        dl, _case_actor, case, embargo = make_embargo_case_with_actor(
+            case_id,
+            coordinator_id,
+            extra_participants=[vendor_id],
+            case_manager_actor_id=coordinator_id,
+        )
+        case = cast(VulnerabilityCase, dl.read(case.id_))
+        assert case is not None
+        propose(case, embargo.id_)
+        dl.save(case)
+        # Every participant holds a row for the proposal (ADR-0122).
+        write_consent_rows(dl, case)
+
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=case.id_,
+            actor=coordinator_id,
+            to=[vendor_id],
+            id_=f"{case_id}/embargo_proposals/1",
+        )
+        dl.create(proposal)
+
+        # The *vendor* accepts; the CASE_MANAGER receives and commits.  Those are
+        # two different actors on purpose: CLP-07-003 requires the snapshot to
+        # name the asserter, and making the asserter the committing CASE_MANAGER
+        # would model a substitution rather than the flow under test.
+        accept = em_accept_embargo_activity(
+            proposal,
+            context=case.id_,
+            actor=vendor_id,
+            to=[coordinator_id],
+        )
+        # Per ADR-0022 / CLP-10-005: the guarded commit fires when
+        # receiving_actor_id holds CVDRole.CASE_MANAGER.  coordinator_id is
+        # the CASE_MANAGER in this fixture (case_manager_actor_id=coordinator_id).
+        event = make_payload(accept, receiving_actor_id=coordinator_id)
+        sync_port = SyncActivityAdapter(dl)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
+        ]
+        # The answer's entry is its row's entry: no second one follows
+        # (ADR-0122, CLP-07-013).
+        assert [cast(CaseLedgerEntry, e).semantic_type for e in entries] == [
+            "accept_invite_to_embargo_on_case"
+        ]
+
+    def test_reject_invite_to_embargo_commits_log_entry(self, make_payload):
+        """RejectInviteToEmbargoOnCaseReceivedUseCase commits a CaseLedgerEntry."""
+        coordinator_id = "https://example.org/users/coordinator"
+        case_id = "https://example.org/cases/em_cas_reject"
+        vendor_id = "https://example.org/users/vendor"
+        dl, _case_actor, _case, embargo = make_embargo_case_with_actor(
+            case_id,
+            coordinator_id,
+            extra_participants=[vendor_id],
+            case_manager_actor_id=coordinator_id,
+        )
+
+        proposal = em_propose_embargo_activity(
+            embargo,
+            context=case_id,
+            actor=coordinator_id,
+            to=[vendor_id],
+            id_=f"{case_id}/embargo_proposals/1",
+        )
+        dl.create(proposal)
+        # The Reject names an open proposal of the case.
+        case_obj = cast(VulnerabilityCase, dl.read(case_id))
+        propose(case_obj, embargo.id_)
+        dl.save(case_obj)
+        write_consent_rows(dl, case_obj)
+
+        # The vendor rejects; the CASE_MANAGER receives and commits.  See the
+        # accept test above for why the asserter must not be the committer.
+        reject = em_reject_embargo_activity(
+            proposal,
+            context=case_id,
+            actor=vendor_id,
+            to=[coordinator_id],
+        )
+        # coordinator_id holds CASE_MANAGER in this fixture, and the ledger
+        # commit is gated on that role, so it is the receiving actor.
+        event = make_payload(reject, receiving_actor_id=coordinator_id)
+        sync_port = SyncActivityAdapter(dl)
+        RejectInviteToEmbargoOnCaseReceivedUseCase(
+            dl,
+            event,
+            sync_port=sync_port,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        entries = [
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and cast(CaseLedgerEntry, obj).case_id == case_id
+        ]
+        # The answer's entry is its row's entry: no second one follows
+        # (ADR-0122, CLP-07-013).
+        assert [cast(CaseLedgerEntry, e).semantic_type for e in entries] == [
+            "reject_invite_to_embargo_on_case"
+        ]

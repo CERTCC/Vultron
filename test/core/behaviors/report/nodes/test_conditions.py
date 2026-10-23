@@ -1,0 +1,288 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Unit tests for report condition nodes."""
+
+import pytest
+
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import register
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateReceivedOrInvalid,
+    CheckRMStateValid,
+    EnsureEmbargoExists,
+    EvaluateCasePriority,
+    EvaluateReportCredibility,
+    EvaluateReportValidity,
+    _CheckReportPhaseRMStateBase,
+)
+from vultron.core.models.actor import VultronService
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+
+# ---------------------------------------------------------------------------
+# AC-4: _CheckReportPhaseRMStateBase base-class contract
+# ---------------------------------------------------------------------------
+
+
+def test_check_rm_state_valid_is_subclass_of_base() -> None:
+    """CheckRMStateValid inherits _CheckReportPhaseRMStateBase."""
+    assert issubclass(CheckRMStateValid, _CheckReportPhaseRMStateBase)
+
+
+def test_check_rm_state_received_or_invalid_is_subclass_of_base() -> None:
+    """CheckRMStateReceivedOrInvalid inherits _CheckReportPhaseRMStateBase."""
+    assert issubclass(
+        CheckRMStateReceivedOrInvalid, _CheckReportPhaseRMStateBase
+    )
+
+
+def test_check_rm_state_valid_success_when_valid_flag() -> None:
+    """CheckRMStateValid._success_when_valid is True."""
+    assert CheckRMStateValid._success_when_valid is True
+
+
+def test_check_rm_state_received_or_invalid_success_when_valid_flag() -> None:
+    """CheckRMStateReceivedOrInvalid._success_when_valid is False."""
+    assert CheckRMStateReceivedOrInvalid._success_when_valid is False
+
+
+@pytest.mark.spec("BT-03-001")
+def test_check_rm_state_valid_when_valid(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """CheckRMStateValid returns SUCCESS when report is VALID."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.VALID)
+    )
+
+    result = bt_scenario.run(
+        CheckRMStateValid(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_success(result)
+
+
+@pytest.mark.spec("BT-03-001")
+def test_check_rm_state_valid_when_received(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """CheckRMStateValid returns FAILURE when report is RECEIVED."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    )
+
+    result = bt_scenario.run(
+        CheckRMStateValid(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_failure(result)
+
+
+@pytest.mark.spec("BT-03-001")
+def test_check_rm_state_valid_when_no_status(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """CheckRMStateValid returns FAILURE when no status exists."""
+    result = bt_scenario.run(
+        CheckRMStateValid(report_id=report.id_), actor_id=actor.id_
+    )
+    bt_scenario.assert_failure(result)
+
+
+@pytest.mark.spec("BT-03-001")
+def test_check_rm_state_received_or_invalid_when_received(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """CheckRMStateReceivedOrInvalid returns SUCCESS when RECEIVED."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    )
+
+    result = bt_scenario.run(
+        CheckRMStateReceivedOrInvalid(report_id=report.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+
+@pytest.mark.spec("BT-03-001")
+def test_check_rm_state_received_or_invalid_when_invalid(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """CheckRMStateReceivedOrInvalid returns SUCCESS when INVALID."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.INVALID)
+    )
+
+    result = bt_scenario.run(
+        CheckRMStateReceivedOrInvalid(report_id=report.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+
+@pytest.mark.spec("BT-03-001")
+def test_check_rm_state_received_or_invalid_when_valid(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """CheckRMStateReceivedOrInvalid returns FAILURE when VALID."""
+    bt_scenario.seed(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.VALID)
+    )
+
+    result = bt_scenario.run(
+        CheckRMStateReceivedOrInvalid(report_id=report.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_failure(result)
+
+
+@pytest.mark.spec("BT-03-001")
+def test_check_rm_state_received_or_invalid_when_no_status(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """CheckRMStateReceivedOrInvalid returns SUCCESS when no status exists."""
+    result = bt_scenario.run(
+        CheckRMStateReceivedOrInvalid(report_id=report.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+
+def test_ensure_embargo_exists_when_case_has_active_embargo(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """EnsureEmbargoExists returns SUCCESS when the linked case has embargo."""
+    case = VulnerabilityCase(
+        name="Embargoed Case",
+        vulnerability_reports=[report.id_],
+        embargo_register=register(
+            active="https://example.org/embargoes/embargo-001"
+        ),
+        attributed_to=actor.id_,
+    )
+    bt_scenario.seed(case)
+
+    result = bt_scenario.run(
+        EnsureEmbargoExists(report_id=report.id_),
+        actor_id=actor.id_,
+        case_id=case.id_,
+    )
+    bt_scenario.assert_success(result)
+
+
+def test_ensure_embargo_exists_fails_without_case_id(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """EnsureEmbargoExists returns FAILURE with no ``/case_id`` published.
+
+    The node reads the case from the blackboard key that
+    ``RequireCaseForReport`` publishes rather than repeating the lookup
+    (ARCH-15-004), so an unresolved case shows up as a missing key rather than
+    as a second store miss (ARCH-15-001, ISSUE-2548).
+    """
+    result = bt_scenario.run(
+        EnsureEmbargoExists(report_id=report.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_failure(result)
+
+
+def test_ensure_embargo_exists_fails_without_active_embargo(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """EnsureEmbargoExists returns FAILURE when linked case has no embargo."""
+    case = VulnerabilityCase(
+        name="No Embargo Case",
+        vulnerability_reports=[report.id_],
+        attributed_to=actor.id_,
+    )
+    bt_scenario.seed(case)
+
+    result = bt_scenario.run(
+        EnsureEmbargoExists(report_id=report.id_),
+        actor_id=actor.id_,
+        case_id=case.id_,
+    )
+    bt_scenario.assert_failure(result)
+
+
+@pytest.mark.spec("RMB-09-001")
+def test_evaluate_report_credibility(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """EvaluateReportCredibility always returns SUCCESS."""
+    result = bt_scenario.run(
+        EvaluateReportCredibility(report_id=report.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+
+@pytest.mark.spec("RMB-09-001")
+def test_evaluate_report_validity(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+    report: VulnerabilityReport,
+) -> None:
+    """EvaluateReportValidity always returns SUCCESS."""
+    result = bt_scenario.run(
+        EvaluateReportValidity(report_id=report.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)
+
+
+@pytest.mark.spec("RMB-10-001")
+def test_evaluate_case_priority(
+    bt_scenario: BTTestScenario,
+    actor: VultronService,
+) -> None:
+    """EvaluateCasePriority always returns SUCCESS."""
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/case-priority",
+        name="Priority Case",
+        attributed_to=actor.id_,
+    )
+    bt_scenario.seed(case)
+
+    result = bt_scenario.run(
+        EvaluateCasePriority(case_id=case.id_),
+        actor_id=actor.id_,
+    )
+    bt_scenario.assert_success(result)

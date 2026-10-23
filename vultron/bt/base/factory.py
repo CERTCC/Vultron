@@ -2,6 +2,7 @@
 """
 Provides common tools for constructing behavior trees
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,22 +16,39 @@ Provides common tools for constructing behavior trees
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Callable, Type, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar, cast
 
 from vultron.bt.base.bt_node import ActionNode, BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode, ParallelNode, SequenceNode
 from vultron.bt.base.decorators import Invert, RepeatUntilFail
 from vultron.bt.base.fuzzer import FuzzerNode
 
-NodeType = TypeVar("NodeType", bound=Type[BtNode])
+NodeType = TypeVar("NodeType", bound=BtNode)
+
+
+def _set_func(node_cls: type[BtNode], func: Callable[[BtNode], bool]) -> None:
+    """
+    Sets the func attribute of a node_cls to the given function.
+
+    Args:
+        node_cls: a BtNode class
+        func: the function to set as the node_cls's func attribute. Expects a BtNode as an argument and returns a bool
+
+    Returns:
+
+    """
+    if hasattr(node_cls, "func"):
+        # A method override: direct assignment is a type error.
+        setattr(node_cls, "func", func)  # noqa: B010
 
 
 def node_factory(
-    node_type: Type[NodeType],
+    node_type: type[NodeType],
     name: str,
-    docstr: str,
-    *child_classes: Type[BtNode],
-) -> Type[NodeType]:
+    docstr: str | None,
+    *child_classes: type[BtNode],
+) -> type[NodeType]:
     """
     Convenience function to create a node_cls with a docstring.
 
@@ -47,15 +65,15 @@ def node_factory(
     node_cls = type(name, (node_type,), {})
     node_cls.__doc__ = docstr
 
-    if len(child_classes) > 0:
+    if child_classes and hasattr(node_cls, "_children"):
         node_cls._children = child_classes
 
-    return node_cls
+    return cast(type[NodeType], node_cls)
 
 
 def sequence_node(
-    name: str, description: str, *child_classes: Type[BtNode]
-) -> Type[SequenceNode]:
+    name: str, description: str, *child_classes: type[BtNode]
+) -> type[SequenceNode]:
     """
     Convenience function to create a SequenceNode with a docstring.
 
@@ -75,8 +93,8 @@ def sequence_node(
 
 
 def fallback_node(
-    name: str, description: str, *child_classes: Type[BtNode]
-) -> Type[FallbackNode]:
+    name: str, description: str, *child_classes: type[BtNode]
+) -> type[FallbackNode]:
     """
     Convenience function to create a FallbackNode with a docstring.
 
@@ -98,8 +116,8 @@ def fallback_node(
 
 
 def invert(
-    name: str, description: str, *child_classes: Type[BtNode]
-) -> Type[Invert]:
+    name: str, description: str, *child_classes: type[BtNode]
+) -> type[Invert]:
     """
     Convenience function to create an Invert decorator with a docstring.
 
@@ -118,8 +136,10 @@ def invert(
 
 
 def fuzzer(
-    cls: Type[FuzzerNode], name: str, description: str
-) -> Type[FuzzerNode]:
+    cls: type[FuzzerNode],
+    name: str,
+    description: str | None,
+) -> type[FuzzerNode]:
     """
     Convenience function to create a WeightedSuccess fuzzer with a docstring.
 
@@ -143,7 +163,7 @@ def condition_check(
         ],
         bool,
     ],
-) -> Type[ConditionCheck]:
+) -> type[ConditionCheck]:
     """
     Convenience function to create a ConditionCheck node with a docstring.
     The function's docstring will be used as the ConditionCheck's docstring.
@@ -157,7 +177,7 @@ def condition_check(
 
     """
     node_cls = node_factory(ConditionCheck, name, func.__doc__)
-    node_cls.func = func
+    _set_func(node_cls, func)
     return node_cls
 
 
@@ -169,7 +189,7 @@ def action_node(
         ],
         bool,
     ],
-) -> Type[ActionNode]:
+) -> type[ActionNode]:
     """
     Convenience function to create an ActionNode with a docstring.
     The function's docstring will be used as the ActionNode's docstring.
@@ -182,13 +202,13 @@ def action_node(
         An ActionNode class with the given docstring and action function
     """
     node_cls = node_factory(ActionNode, name, func.__doc__)
-    node_cls.func = func
+    _set_func(node_cls, func)
     return node_cls
 
 
 def repeat_until_fail(
-    name: str, description: str, *child_classes: Type[BtNode]
-) -> Type[RepeatUntilFail]:
+    name: str, description: str, *child_classes: type[BtNode]
+) -> type[RepeatUntilFail]:
     """
     Convenience function to create a RepeatUntilFail node with a docstring.
 
@@ -207,8 +227,8 @@ def repeat_until_fail(
 
 
 def parallel_node(
-    name: str, description: str, min_success: int, *child_classes: Type[BtNode]
-) -> Type[ParallelNode]:
+    name: str, description: str, min_success: int, *child_classes: type[BtNode]
+) -> type[ParallelNode]:
     # make sure min_success is a positive integer
     if (
         not isinstance(min_success, int)
@@ -224,5 +244,7 @@ def parallel_node(
         raise ValueError("ParallelNode should have at least two children")
 
     node_cls = node_factory(ParallelNode, name, description, *child_classes)
-    node_cls.min_success = min_success
+    if hasattr(node_cls, "min_success"):
+        cast(Any, node_cls).min_success = min_success
+
     return node_cls

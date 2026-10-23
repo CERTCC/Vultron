@@ -15,19 +15,17 @@
 Provides the transitions between states in the q_rm state machine
 """
 
-from dataclasses import dataclass
-from typing import List
+from collections.abc import Sequence
 
 from vultron.bt.common import EnumStateTransition, state_change
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 
 
-@dataclass
 class RmTransition(EnumStateTransition):
     """Represents a transition between two states in the q_rm state machine"""
 
-    start_states = List[RM]
-    end_state = RM
+    start_states: Sequence[RM]
+    end_state: RM
 
 
 # Create the allowed transitions
@@ -43,7 +41,8 @@ _to_A = RmTransition(
     start_states=[RM.VALID, RM.DEFERRED], end_state=RM.ACCEPTED
 )
 _to_C = RmTransition(
-    start_states=[RM.INVALID, RM.DEFERRED, RM.ACCEPTED], end_state=RM.CLOSED
+    start_states=[RM.RECEIVED, RM.INVALID, RM.DEFERRED, RM.ACCEPTED],
+    end_state=RM.CLOSED,
 )
 
 # Create the state change functions

@@ -1,0 +1,447 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Unit tests for TriggerActivityAdapter embargo-domain methods."""
+
+import json
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from test.support.received import archive_received
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.states.embargo_register import TerminationReason
+from vultron.errors import (
+    VultronActivityConstructionError,
+    VultronNotFoundError,
+)
+from vultron.wire.as2.factories import em_propose_embargo_activity
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+_ACTOR = "https://example.org/actors/coordinator"
+_PEER = "https://example.org/actors/vendor"
+_PROPOSER = "https://example.org/actors/proposer"
+_CASE_ID = "https://example.org/cases/case-001"
+
+
+def _make_embargo(dl) -> as_EmbargoEvent:
+    embargo = as_EmbargoEvent(context=_CASE_ID, end_time=days_from_now_utc(45))
+    dl.create(embargo)
+    return embargo
+
+
+def _make_proposal(adapter, dl) -> tuple[str, str]:
+    """Return (proposal_id, embargo_id)."""
+    embargo = _make_embargo(dl)
+    proposal_id, _ = adapter.propose_embargo(
+        embargo_id=embargo.id_,
+        case_id=_CASE_ID,
+        actor=_ACTOR,
+        to=[_PEER],
+    )
+    return proposal_id, embargo.id_
+
+
+class TestProposeEmbargo:
+    def test_returns_id_and_dict(self, adapter, dl):
+        embargo = _make_embargo(dl)
+
+        activity_id, activity_dict = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+        )
+
+        assert activity_id
+        assert isinstance(activity_dict, str)
+        assert "id" in json.loads(activity_dict)
+
+    def test_persists_invite_activity(self, adapter, dl):
+        embargo = _make_embargo(dl)
+
+        activity_id, _ = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+        )
+
+        assert dl.read(activity_id) is not None
+
+    def test_relayed_proposal_carries_the_proposer_in_attributed_to(
+        self, adapter, dl
+    ):
+        """CM-24-002: a relayed Invite names the proposer, not the sender."""
+        embargo = _make_embargo(dl)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+            attributed_to=_PROPOSER,
+        )
+
+        body = json.loads(blob)
+        assert body["actor"] == _ACTOR
+        assert body["attributedTo"] == _PROPOSER
+
+    def test_a_participants_own_proposal_has_no_attribution(self, adapter, dl):
+        embargo = _make_embargo(dl)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        assert "attributedTo" not in json.loads(blob)
+
+    def test_a_given_activity_id_is_the_invites_id(self, adapter, dl):
+        """EP-04-011: the creation-time relay emits under the id it indexed."""
+        embargo = _make_embargo(dl)
+        given = "urn:uuid:pre-indexed-invite"
+
+        activity_id, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            activity_id=given,
+        )
+
+        assert activity_id == given
+        assert json.loads(blob)["id"] == given
+        assert dl.read(given) is not None
+
+    @pytest.mark.spec("CM-28-012")
+    def test_a_given_rsvp_deadline_is_the_invites_end_time(self, adapter, dl):
+        """The relaying manager's stamp reaches the wire as ``endTime``."""
+        embargo = _make_embargo(dl)
+        published = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+        deadline = published + timedelta(days=7)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+            rsvp_deadline=deadline,
+            published=published,
+        )
+
+        body = json.loads(blob)
+        assert datetime.fromisoformat(body["endTime"]) == deadline
+        assert datetime.fromisoformat(body["published"]) == published
+
+    def test_a_deadline_inside_the_given_floor_is_refused(self, adapter, dl):
+        """The forwarded floor is the one the factory validates (EP-07-002)."""
+        embargo = _make_embargo(dl)
+        published = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+
+        with pytest.raises(
+            VultronActivityConstructionError, match="EP-07-002"
+        ):
+            adapter.propose_embargo(
+                embargo_id=embargo.id_,
+                case_id=_CASE_ID,
+                actor=_ACTOR,
+                to=[_PEER],
+                rsvp_deadline=published + timedelta(days=2),
+                published=published,
+                min_rsvp_window=timedelta(days=3),
+            )
+
+    def test_no_deadline_given_means_no_end_time(self, adapter, dl):
+        """A participant's own proposal carries no manager stamp."""
+        embargo = _make_embargo(dl)
+
+        _, blob = adapter.propose_embargo(
+            embargo_id=embargo.id_, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        assert "endTime" not in json.loads(blob)
+
+
+class TestAcceptEmbargo:
+    def test_returns_id_and_dict(self, adapter, dl):
+        proposal_id, _ = _make_proposal(adapter, dl)
+
+        activity_id, activity_dict = adapter.accept_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+        )
+
+        assert activity_id
+        assert isinstance(activity_dict, str)
+
+    def test_persists_accept_activity(self, adapter, dl):
+        proposal_id, _ = _make_proposal(adapter, dl)
+
+        activity_id, _ = adapter.accept_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+            to=[_ACTOR],
+        )
+
+        assert dl.read(activity_id) is not None
+
+    def test_verbatim_reconstitution_preserves_proposal_as_inline_object(
+        self, adapter, dl
+    ):
+        """Accept(Invite) object_ must embed the original proposal inline.
+
+        DL-06-004: the adapter reads the stored proposal activity and passes
+        it verbatim as ``object_`` of the Accept.  The serialised dict MUST
+        contain the proposal id as ``object.id``, not a bare URI string.
+        """
+        proposal_id, _ = _make_proposal(adapter, dl)
+
+        _, activity_dict = adapter.accept_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+        )
+
+        obj = json.loads(activity_dict).get("object")
+        assert isinstance(obj, dict), (
+            "object_ must be an inline dict, not a URI"
+        )
+        assert obj.get("id") == proposal_id
+
+
+def _received_proposal(dl) -> tuple[str, str]:
+    """Archive an Invite another actor sent, as intake keeps it.
+
+    Nothing is held under the Invite's own id (DL-06-006).  Returns
+    ``(proposal_id, embargo_id)``.
+    """
+    embargo = _make_embargo(dl)
+    invite = em_propose_embargo_activity(
+        embargo, context=_CASE_ID, actor=_PROPOSER, to=[_PEER]
+    )
+    archive_received(dl, invite)
+    assert dl.read(invite.id_) is None
+    return invite.id_, embargo.id_
+
+
+_ANSWER_METHODS = [
+    pytest.param("accept_embargo", "Accept", id="accept"),
+    pytest.param("reject_embargo", "Reject", id="reject"),
+]
+
+
+class TestAnswerReceivedEmbargoInvite:
+    """The answer reads a received Invite from its archive (DL-06-006)."""
+
+    @pytest.mark.spec("DL-06-006")
+    @pytest.mark.spec("DL-06-004")
+    @pytest.mark.parametrize(("method", "verb"), _ANSWER_METHODS)
+    def test_an_invite_held_only_as_received_is_answered(
+        self, adapter, dl, method, verb
+    ):
+        proposal_id, embargo_id = _received_proposal(dl)
+
+        _, blob = getattr(adapter, method)(
+            proposal_id=proposal_id, case_id=_CASE_ID, actor=_PEER
+        )
+
+        body = json.loads(blob)
+        assert body["type"] == verb
+        assert body["object"]["id"] == proposal_id
+        assert body["object"]["actor"] == _PROPOSER
+        assert body["object"]["object"]["id"] == embargo_id
+        assert dl.read(proposal_id) is None
+
+    @pytest.mark.parametrize(("method", "verb"), _ANSWER_METHODS)
+    def test_an_invite_this_store_does_not_hold_is_not_found(
+        self, adapter, dl, method, verb
+    ):
+        with pytest.raises(VultronNotFoundError):
+            getattr(adapter, method)(
+                proposal_id="urn:uuid:never-received",
+                case_id=_CASE_ID,
+                actor=_PEER,
+            )
+
+
+class TestRejectEmbargo:
+    def test_returns_id_and_dict(self, adapter, dl):
+        proposal_id, _ = _make_proposal(adapter, dl)
+
+        activity_id, activity_dict = adapter.reject_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+        )
+
+        assert activity_id
+        assert isinstance(activity_dict, str)
+
+    def test_persists_reject_activity(self, adapter, dl):
+        proposal_id, _ = _make_proposal(adapter, dl)
+
+        activity_id, _ = adapter.reject_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+            to=[_ACTOR],
+        )
+
+        assert dl.read(activity_id) is not None
+
+    def test_verbatim_reconstitution_preserves_proposal_as_inline_object(
+        self, adapter, dl
+    ):
+        """Reject(Invite) object_ must embed the original proposal inline.
+
+        DL-06-004: the adapter reads the stored proposal activity and passes
+        it verbatim as ``object_`` of the Reject.  The serialised dict MUST
+        contain the proposal id as ``object.id``, not a bare URI string.
+        """
+        proposal_id, _ = _make_proposal(adapter, dl)
+
+        _, activity_dict = adapter.reject_embargo(
+            proposal_id=proposal_id,
+            case_id=_CASE_ID,
+            actor=_PEER,
+        )
+
+        obj = json.loads(activity_dict).get("object")
+        assert isinstance(obj, dict), (
+            "object_ must be an inline dict, not a URI"
+        )
+        assert obj.get("id") == proposal_id
+
+
+class TestUndoEmbargoInvite:
+    """The CASE_MANAGER withdraws an Invite it sent (VAM-05-013, ADR-0152)."""
+
+    @pytest.mark.spec("VAM-05-013")
+    @pytest.mark.spec("DL-06-004")
+    def test_embeds_the_sent_invite_and_persists_the_undo(self, adapter, dl):
+        invite_id, embargo_id = _make_proposal(adapter, dl)
+
+        activity_id, blob = adapter.undo_embargo_invite(
+            invite_id=invite_id, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        body = json.loads(blob)
+        assert body["type"] == "Undo"
+        assert body["actor"] == _ACTOR
+        assert body["object"]["id"] == invite_id
+        assert body["object"]["object"]["id"] == embargo_id
+        assert dl.read(activity_id) is not None
+
+    @pytest.mark.spec("ID-04-004")
+    def test_one_invite_is_withdrawn_under_one_id(self, adapter, dl):
+        invite_id, _ = _make_proposal(adapter, dl)
+
+        first, _ = adapter.undo_embargo_invite(
+            invite_id=invite_id, case_id=_CASE_ID, actor=_ACTOR
+        )
+        second, _ = adapter.undo_embargo_invite(
+            invite_id=invite_id, case_id=_CASE_ID, actor=_ACTOR
+        )
+
+        assert first == second
+
+
+class TestAnnounceEmbargo:
+    def test_returns_id_and_dict(self, adapter, dl):
+        embargo = _make_embargo(dl)
+
+        activity_id, activity_dict = adapter.announce_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+        )
+
+        assert activity_id
+        assert isinstance(activity_dict, str)
+
+    def test_persists_announce_activity(self, adapter, dl):
+        embargo = _make_embargo(dl)
+
+        activity_id, _ = adapter.announce_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+        )
+
+        assert dl.read(activity_id) is not None
+
+
+class TestTerminateEmbargo:
+    def test_returns_id_and_dict(self, adapter, dl):
+        embargo = _make_embargo(dl)
+
+        activity_id, activity_dict = adapter.terminate_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            reason=TerminationReason.EARLY,
+        )
+
+        assert activity_id
+        assert isinstance(activity_dict, str)
+
+    def test_persists_remove_activity(self, adapter, dl):
+        embargo = _make_embargo(dl)
+
+        activity_id, _ = adapter.terminate_embargo(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+            reason=TerminationReason.EARLY,
+        )
+
+        assert dl.read(activity_id) is not None
+
+
+@pytest.mark.parametrize(
+    ("method", "verb"),
+    [("activate_embargo", "Accept"), ("reject_embargo_proposal", "Reject")],
+)
+class TestOwnerEmbargoDecision:
+    """The case owner's Accept/Reject of the EmbargoEvent itself (ADR-0122)."""
+
+    def _build(self, adapter, dl, method: str) -> tuple[str, dict, str]:
+        embargo = _make_embargo(dl)
+        activity_id, blob = getattr(adapter, method)(
+            embargo_id=embargo.id_,
+            case_id=_CASE_ID,
+            actor=_ACTOR,
+            to=[_PEER],
+        )
+        return activity_id, json.loads(blob), embargo.id_
+
+    def test_object_is_the_inline_embargo_not_an_invite(
+        self, adapter, dl, method, verb
+    ):
+        _, body, embargo_id = self._build(adapter, dl, method)
+        assert body["type"] == verb
+        assert body["object"]["type"] == "EmbargoEvent"
+        assert body["object"]["id"] == embargo_id
+
+    def test_case_is_target_and_context(self, adapter, dl, method, verb):
+        """``context`` lets the CASE_MANAGER commit it as an entry (VM-08-003)."""
+        _, body, _ = self._build(adapter, dl, method)
+        assert body["target"] == _CASE_ID
+        assert body["context"] == _CASE_ID
+        assert body["to"] == [_PEER]
+
+    def test_persists_activity(self, adapter, dl, method, verb):
+        activity_id, _, _ = self._build(adapter, dl, method)
+        assert dl.read(activity_id) is not None

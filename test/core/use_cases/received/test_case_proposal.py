@@ -1,0 +1,1094 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Unit tests for CaseProposal received-side use cases.
+
+Covers the execute() paths for:
+  - CreateCaseProposalReceivedUseCase (AC-1 through AC-4, CP-05-001 through
+    CP-05-006)
+  - AcceptCaseProposalReceivedUseCase (AC-2, CP-06-001, CP-06-003)
+  - RejectCaseProposalReceivedUseCase (AC-3, CP-06-002, CP-06-004)
+
+Spec: specs/case-proposal.yaml CP-05 through CP-07.
+"""
+
+import logging
+from types import SimpleNamespace
+
+import py_trees
+import pytest
+
+from test.support.ledger import commit_case_manager_closure
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.call_out.bundles.case_proposal import (
+    CaseProposalCallOutBundle,
+)
+from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.received_activity_record import (
+    ReceivedActivityRecord,
+)
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.use_cases.received.case_proposal import (
+    AcceptCaseProposalReceivedUseCase,
+    CreateCaseProposalReceivedUseCase,
+    RejectCaseProposalReceivedUseCase,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Announce,
+    as_Create,
+    as_Reject,
+)
+from vultron.wire.as2.vocab.examples._base import gen_report
+from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+_CASE_ACTOR_URI = "https://example.org/case-actors/svc-1"
+_VENDOR_URI = "https://example.org/vendors/acme"
+_OTHER_URI = "https://example.org/vendors/other"
+
+
+def _make_proposal() -> as_CaseProposal:
+    return as_CaseProposal(
+        attributed_to=_VENDOR_URI,
+        object_=gen_report(),
+        target=_CASE_ACTOR_URI,
+    )
+
+
+def _run_create_proposal(
+    dl, proposal, make_payload, proposer_uri=_VENDOR_URI, **use_case_kwargs
+):
+    """Helper: build and execute CreateCaseProposalReceivedUseCase.
+
+    The event names ``_CASE_ACTOR_URI`` as the receiving actor, so *dl* must be
+    that actor's store: the tree executes as the receiving actor and reads and
+    writes its own store (ADR-0073).  Callers that passed a generic marker
+    actor's store saw the tree run against an empty one — and their assertions
+    were comparative ("no *second* case", "no *new* Accept"), so several passed
+    while nothing happened at all.
+    """
+    activity = as_Create(
+        actor=VultronOrganization(id_=proposer_uri),
+        object_=proposal,
+        to=[_CASE_ACTOR_URI],
+    )
+    event = make_payload(activity)
+    event = event.model_copy(update={"receiving_actor_id": _CASE_ACTOR_URI})
+    use_case_kwargs.setdefault("trigger_activity", TriggerActivityAdapter(dl))
+    use_case_kwargs.setdefault("sync_port", SyncActivityAdapter(dl))
+    return CreateCaseProposalReceivedUseCase(
+        dl, event, wire_render_port=As2WireRenderAdapter(), **use_case_kwargs
+    ).execute()
+
+
+@pytest.mark.spec("CP-05-001")
+@pytest.mark.spec("CP-05-002")
+@pytest.mark.spec("CP-05-003")
+class TestCreateCaseProposalReceivedUseCase:
+    """Tests for CreateCaseProposalReceivedUseCase (CP-05-001 through CP-05-004)."""
+
+    @pytest.mark.spec("CP-05-009")
+    def test_execute_creates_case_and_queues_activities(self, make_payload):
+        """Happy path: case created + Accept + Create(VulnerabilityCase) queued."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        proposal = _make_proposal()
+        activity = as_Create(
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=proposal,
+            to=[_CASE_ACTOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(
+            update={"receiving_actor_id": _CASE_ACTOR_URI}
+        )
+
+        CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        # AC-1: VulnerabilityCase was created
+        cases = [
+            obj
+            for obj in dl.list_objects("VulnerabilityCase")
+            if isinstance(obj, VulnerabilityCase)
+        ]
+        assert len(cases) == 1, (
+            "Expected exactly one VulnerabilityCase to be created"
+        )
+
+        # Accept(CaseProposal) was stored
+        accepts = dl.list_objects("Accept")
+        assert len(accepts) == 1, "Expected one Accept activity"
+
+        # The Accept must carry the full inline proposal (CP-05-003, CP-05-009).
+        accept_obj = dl.read(accepts[0].id_)
+        accept_object_ = getattr(accept_obj, "object_", None)
+        assert accept_object_ is not None, (
+            "Accept.object_ must not be None (CP-05-003)"
+        )
+        # After DataLayer round-trip the dict may be deserialized to an AS2 object;
+        # the key invariant is that it is NOT a bare URI string.
+        assert not isinstance(accept_object_, str), (
+            "Accept.object_ must not be a bare URI string — inline object required (CP-05-009)"
+        )
+        obj_type = getattr(accept_object_, "type_", None) or (
+            accept_object_.get("type")
+            if isinstance(accept_object_, dict)
+            else None
+        )
+        assert obj_type == "CaseProposal", (
+            f"Accept.object_ type should be 'CaseProposal', got {obj_type!r}"
+        )
+
+        # Create(VulnerabilityCase) was stored
+        creates = dl.list_objects("Create")
+        assert len(creates) == 1, (
+            "Expected one Create(VulnerabilityCase) activity"
+        )
+
+        # Both activities appear in the outbox, beside the ledger fan-out:
+        # the CASE_MANAGER announces each entry it commits (SYNC-02-003).
+        queued = [dl.read(item) for item in dl.outbox_list()]
+        protocol = [
+            a
+            for a in queued
+            if not (
+                isinstance(a, as_Announce)
+                and isinstance(a.object_, CaseLedgerEntry)
+            )
+        ]
+        assert sorted(type(a).__name__ for a in protocol) == sorted(
+            [type(accept_obj).__name__, type(creates[0]).__name__]
+        ), f"Expected Accept and Create in the outbox, got {protocol!r}"
+        assert len(protocol) < len(queued), (
+            "ledger entries were not fanned out"
+        )
+
+    def test_execute_report_linked_to_case(self, make_payload):
+        """The report from the proposal is linked to the created case."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        proposal = _make_proposal()
+        activity = as_Create(
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=proposal,
+            to=[_CASE_ACTOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(
+            update={"receiving_actor_id": _CASE_ACTOR_URI}
+        )
+
+        CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        case_rows = dl.list_objects("VulnerabilityCase")
+        assert case_rows, "No VulnerabilityCase created"
+        case_obj = dl.read(case_rows[0].id_)
+        assert isinstance(case_obj, VulnerabilityCase)
+
+        report_obj = proposal.object_
+        assert isinstance(report_obj, as_VulnerabilityReport)
+        report_id = report_obj.id_
+        assert report_id in case_obj.vulnerability_reports, (
+            f"Report '{report_id}' not linked to case"
+        )
+
+    def test_execute_uses_store_owner_when_no_receiving_actor_id(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent, the store owner processes the proposal."""
+
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        proposal = _make_proposal()
+        activity = as_Create(
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=proposal,
+            to=[_CASE_ACTOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": None})
+
+        CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        # The BT runs under the store owner's identity; case creation fires.
+        cases = dl.list_objects("VulnerabilityCase")
+        assert len(cases) == 1, (
+            "Store-owner fallback should have created a case"
+        )
+
+    def test_create_activity_fields_adhere_to_adr_0045(self, make_payload):
+        """Create(VulnerabilityCase) must use context=case_uri, in_reply_to=accept_uri (ADR-0045 / CP-05-003).
+
+        The old assignment (context=accept_uri) caused the inbox deferral router to
+        mistake an activity URI for a case ID, deadlocking the bootstrap flow.
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        proposal = _make_proposal()
+        activity = as_Create(
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=proposal,
+            to=[_CASE_ACTOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(
+            update={"receiving_actor_id": _CASE_ACTOR_URI}
+        )
+
+        CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            wire_render_port=As2WireRenderAdapter(),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        accept_rows = dl.list_objects("Accept")
+        assert accept_rows, "No Accept activity stored"
+        accept_id = accept_rows[0].id_
+
+        case_rows = dl.list_objects("VulnerabilityCase")
+        assert case_rows, "No VulnerabilityCase stored"
+        case_id = case_rows[0].id_
+
+        create_rows = dl.list_objects("Create")
+        assert create_rows, "No Create activity stored"
+        create_obj = dl.read(create_rows[0].id_)
+        # After DataLayer round-trip the object is a wire-layer _CreateCaseActivity.
+        context_val = getattr(create_obj, "context", None)
+        in_reply_to_val = getattr(create_obj, "in_reply_to", None)
+        assert context_val == case_id, (
+            f"Create(VulnerabilityCase).context MUST be the case URI '{case_id}'"
+            f" (ADR-0045); got '{context_val}'"
+        )
+        assert in_reply_to_val == accept_id, (
+            f"Create(VulnerabilityCase).in_reply_to MUST be the Accept URI '{accept_id}'"
+            f" (ADR-0045); got '{in_reply_to_val}'"
+        )
+
+
+@pytest.mark.spec("CP-05-006")
+class TestCreateCaseProposalIdempotency:
+    """Tests for CP-05-006 duplicate-proposal idempotency."""
+
+    def test_duplicate_proposal_does_not_create_second_case(
+        self, make_payload
+    ):
+        """AC-1: Second proposal for same report creates no duplicate case."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        proposal = _make_proposal()
+
+        _run_create_proposal(dl, proposal, make_payload)
+        cases_after_first = list(dl.list_objects("VulnerabilityCase"))
+        assert len(cases_after_first) == 1, (
+            "First proposal must create one case"
+        )
+
+        # Resend the same proposal
+        _run_create_proposal(dl, proposal, make_payload)
+
+        all_cases = [
+            obj
+            for obj in dl.list_objects("VulnerabilityCase")
+            if isinstance(obj, VulnerabilityCase)
+        ]
+        assert len(all_cases) == 1, (
+            "Duplicate proposal must not create a second VulnerabilityCase (AC-1)"
+        )
+
+    @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("ID-04-004")
+    def test_duplicate_proposal_resends_the_original_accept(
+        self, make_payload
+    ):
+        """AC-2: a duplicate proposal is answered with the stored Accept.
+
+        CP-05-006 says the stored ``Accept`` is re-sent unchanged under its
+        original identifier; no second ``Accept`` is created, and the one
+        re-sent still references the existing case.
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_CASE_ACTOR_URI,
+        )
+        proposal = _make_proposal()
+
+        _run_create_proposal(dl, proposal, make_payload)
+        (first_accept,) = list(dl.list_objects("Accept"))
+        first_case_id = next(iter(dl.list_objects("VulnerabilityCase"))).id_
+        while dl.outbox_pop() is not None:  # the drain delivered everything
+            pass
+
+        # Resend with the same proposal
+        _run_create_proposal(dl, proposal, make_payload)
+
+        (accept,) = list(dl.list_objects("Accept"))
+        assert accept.id_ == first_accept.id_, (
+            "Duplicate proposal must not create a second Accept (CP-05-006)"
+        )
+        assert dl.outbox_list().count(first_accept.id_) == 1, (
+            "The original Accept must be re-queued exactly once (CP-05-006)"
+        )
+        raw_result = getattr(accept, "result", None)
+        # After DataLayer round-trip the result field may be deserialized to a
+        # full domain object; extract the id_ in that case.
+        result_val = (
+            raw_result
+            if isinstance(raw_result, str)
+            else getattr(raw_result, "id_", None)
+        )
+        assert result_val == first_case_id, (
+            f"Accept.result should be existing case '{first_case_id}'"
+            f", got {result_val!r} (AC-2, CP-05-006)"
+        )
+
+
+@pytest.mark.spec("CP-05-006")
+class TestCreateCaseProposalIdempotencyIntegration:
+    """Integration tests for CP-05-006 duplicate-proposal idempotency (AC-4).
+
+    These tests use a file-backed SQLite DataLayer to verify that the
+    idempotency behaviour holds across real persistence boundaries.
+    """
+
+    @pytest.mark.integration
+    def test_duplicate_proposal_no_second_case_file_backend(
+        self, make_payload, tmp_path
+    ):
+        """AC-4: No second VulnerabilityCase is created on retry (file-backed DL).
+
+        Uses a real SQLite file to ensure the idempotency guard works with
+        a persistent backend, not just an in-memory one.
+        """
+        db_url = f"sqlite:///{tmp_path / 'test_idempotency.db'}"
+        dl = SqliteDataLayer(db_url, actor_id=_CASE_ACTOR_URI)
+        proposal = _make_proposal()
+
+        _run_create_proposal(dl, proposal, make_payload)
+        cases_after_first = [
+            obj
+            for obj in dl.list_objects("VulnerabilityCase")
+            if isinstance(obj, VulnerabilityCase)
+        ]
+        assert len(cases_after_first) == 1, (
+            "First proposal must create one case"
+        )
+        first_case_id = cases_after_first[0].id_
+
+        # Resend the same proposal (network-retry scenario)
+        _run_create_proposal(dl, proposal, make_payload)
+
+        all_cases = [
+            obj
+            for obj in dl.list_objects("VulnerabilityCase")
+            if isinstance(obj, VulnerabilityCase)
+        ]
+        assert len(all_cases) == 1, (
+            "Duplicate proposal must not create a second VulnerabilityCase (AC-4)"
+        )
+        assert all_cases[0].id_ == first_case_id, (
+            "The surviving case must be the original one (AC-4)"
+        )
+
+        # The duplicate is answered by the stored Accept, not a second one
+        # (CP-05-006, ID-04-004).
+        assert len(list(dl.list_objects("Accept"))) == 1, (
+            "Duplicate proposal must not create a second Accept (AC-4)"
+        )
+        dl.close()
+
+
+@pytest.mark.spec("CP-06-001")
+@pytest.mark.spec("CP-06-003")
+class TestAcceptCaseProposalReceivedUseCase:
+    """Tests for AcceptCaseProposalReceivedUseCase (CP-06-001, CP-06-003)."""
+
+    def test_execute_records_case_actor_uri(self, make_payload):
+        """accept_case_proposal_received updates VultronReportCaseLink.case_manager_id."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+        proposal = _make_proposal()
+        assert isinstance(proposal.object_, as_VulnerabilityReport), (
+            "_make_proposal() must embed a full as_VulnerabilityReport"
+        )
+        report_id = proposal.object_.id_
+
+        # Seed a VultronReportCaseLink so the use case can find it
+        link = VultronReportCaseLink(
+            report_id=report_id,
+            case_creator_id=_CASE_ACTOR_URI,
+        )
+        dl.create(link)
+
+        activity = as_Accept(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
+
+        AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert stored_link.case_manager_id == _CASE_ACTOR_URI, (
+            "case_manager_id should be set to the case-actor URI"
+        )
+
+    def test_execute_no_link_is_non_fatal(self, make_payload):
+        """Missing VultronReportCaseLink causes a warning but not an error (CP-06-003)."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+        proposal = _make_proposal()
+
+        activity = as_Accept(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
+
+        # Should not raise
+        AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    def test_execute_skips_when_no_inner_object_id(self, make_payload):
+        """Missing report_id (inner_object_id) logs a warning and returns early."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+
+        # Build an Accept whose object_ lacks a nested object (pathological case)
+        activity = as_Accept(
+            actor=_CASE_ACTOR_URI,
+            object_="https://example.org/proposals/bare-id-only",
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
+
+        # Should not raise even without a valid inner_object_id
+        AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    def test_execute_uses_store_owner_when_no_receiving_actor_id(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent, the store owner processes the Accept.
+
+        Regression: the old fallback used request.actor_id (the CaseActor sender),
+        routing BT writes into the wrong store partition (silent data loss).
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+        proposal = _make_proposal()
+        assert isinstance(proposal.object_, as_VulnerabilityReport)
+        report_id = proposal.object_.id_
+
+        link = VultronReportCaseLink(
+            report_id=report_id,
+            case_creator_id=_CASE_ACTOR_URI,
+        )
+        dl.create(link)
+
+        activity = as_Accept(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": None})
+
+        AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert stored_link.case_manager_id == _CASE_ACTOR_URI, (
+            "Store-owner fallback must route the BT to the vendor's store"
+            " so the link update is not silently lost"
+        )
+
+
+@pytest.mark.spec("CP-06-002")
+@pytest.mark.spec("CP-06-004")
+class TestRejectCaseProposalReceivedUseCase:
+    """Tests for RejectCaseProposalReceivedUseCase (CP-06-002, CP-06-004)."""
+
+    def test_execute_marks_link_as_rejected(self, make_payload):
+        """Rejection sets proposal_rejected=True on VultronReportCaseLink (CP-06-004)."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+        proposal = _make_proposal()
+        assert isinstance(proposal.object_, as_VulnerabilityReport)
+        report_id = proposal.object_.id_
+
+        # Seed a VultronReportCaseLink so the use case can find it
+        link = VultronReportCaseLink(
+            report_id=report_id,
+            case_creator_id=_CASE_ACTOR_URI,
+        )
+        dl.create(link)
+
+        activity = as_Reject(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
+
+        RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert stored_link.proposal_rejected is True, (
+            "proposal_rejected should be True after rejection"
+        )
+        assert stored_link.rejection_reason is None, (
+            "rejection_reason should be None when not provided"
+        )
+
+    def test_execute_records_rejection_reason(self, make_payload):
+        """When Reject activity carries a summary, it is stored as rejection_reason (CP-06-004)."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+        proposal = _make_proposal()
+        assert isinstance(proposal.object_, as_VulnerabilityReport)
+        report_id = proposal.object_.id_
+
+        link = VultronReportCaseLink(
+            report_id=report_id,
+            case_creator_id=_CASE_ACTOR_URI,
+        )
+        dl.create(link)
+
+        rejection_summary = "Duplicate report; case already exists."
+        activity = as_Reject(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+            summary=rejection_summary,
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
+
+        RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert stored_link.proposal_rejected is True
+        assert stored_link.rejection_reason == rejection_summary, (
+            "rejection_reason should match the Reject activity summary"
+        )
+
+    def test_execute_no_link_is_non_fatal(self, make_payload):
+        """Missing VultronReportCaseLink causes a warning but not an error (CP-06-004)."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+        proposal = _make_proposal()
+
+        activity = as_Reject(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
+
+        # Should not raise even when no VultronReportCaseLink exists
+        RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    def test_execute_logs_rejection(self, make_payload, caplog):
+        """Rejection is surfaced via a warning-level log message (CP-06-004)."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+        proposal = _make_proposal()
+        activity = as_Reject(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": _VENDOR_URI})
+
+        with caplog.at_level(logging.WARNING, logger="vultron"):
+            RejectCaseProposalReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+
+        assert any(
+            "reject" in record.message.lower() for record in caplog.records
+        ), "Expected a rejection log message"
+
+    def test_execute_uses_store_owner_when_no_receiving_actor_id(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent, the store owner processes the Reject.
+
+        Regression: the old fallback used request.actor_id (the CaseActor sender),
+        routing BT writes into the wrong store partition (silent data loss).
+        """
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id=_VENDOR_URI,
+        )
+        proposal = _make_proposal()
+        assert isinstance(proposal.object_, as_VulnerabilityReport)
+        report_id = proposal.object_.id_
+
+        link = VultronReportCaseLink(
+            report_id=report_id,
+            case_creator_id=_CASE_ACTOR_URI,
+        )
+        dl.create(link)
+
+        activity = as_Reject(
+            actor=_CASE_ACTOR_URI,
+            object_=proposal,
+            to=[_VENDOR_URI],
+        )
+        event = make_payload(activity)
+        event = event.model_copy(update={"receiving_actor_id": None})
+
+        RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+        stored_link = dl.read(VultronReportCaseLink.build_id(report_id))
+        assert isinstance(stored_link, VultronReportCaseLink)
+        assert stored_link.proposal_rejected is True, (
+            "Store-owner fallback must route the BT to the vendor's store"
+            " so the rejection flag is not silently lost"
+        )
+
+
+def _declining_bundle() -> CaseProposalCallOutBundle:
+    """An admission policy that refuses every proposal (CP-05-002)."""
+    return CaseProposalCallOutBundle(
+        evaluate_proposal_factory=lambda name: py_trees.behaviours.Failure(  # type: ignore[arg-type]
+            name=name
+        ),
+    )
+
+
+def _vendor_event(make_payload, activity_cls, object_):
+    activity = activity_cls(
+        actor=_CASE_ACTOR_URI, object_=object_, to=[_VENDOR_URI]
+    )
+    return make_payload(activity).model_copy(
+        update={"receiving_actor_id": _VENDOR_URI}
+    )
+
+
+def _seed_vendor_link(dl, proposal: as_CaseProposal) -> None:
+    report = proposal.object_
+    assert isinstance(report, as_VulnerabilityReport)
+    dl.create(
+        VultronReportCaseLink(
+            report_id=report.id_,
+            case_creator_id=_CASE_ACTOR_URI,
+        )
+    )
+
+
+class TestCaseProposalDisposition:
+    """Each exit reports what it did (HP-01-003, #2255)."""
+
+    def _case_actor_dl(self):
+        return SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+
+    @pytest.mark.spec("HP-01-003")
+    def test_admitted_proposal_is_applied(self, make_payload):
+        result = _run_create_proposal(
+            self._case_actor_dl(), _make_proposal(), make_payload
+        )
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CP-05-004")
+    def test_policy_decline_is_refused(self, make_payload):
+        dl = self._case_actor_dl()
+        result = _run_create_proposal(
+            dl,
+            _make_proposal(),
+            make_payload,
+            trigger_activity=TriggerActivityAdapter(dl),
+            call_out=_declining_bundle(),
+        )
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "declined" in result.reason
+        assert list(dl.list_objects("VulnerabilityCase")) == []
+        # CLP-10-018: the refused Create(CaseProposal) is still archived.
+        assert len(list(dl.list_objects("ReceivedActivityRecord"))) == 1
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CP-05-006")
+    def test_redelivered_declined_proposal_is_skipped(self, make_payload):
+        dl = self._case_actor_dl()
+        proposal = _make_proposal()
+        kwargs = {
+            "trigger_activity": TriggerActivityAdapter(dl),
+            "call_out": _declining_bundle(),
+        }
+        _run_create_proposal(dl, proposal, make_payload, **kwargs)
+        result = _run_create_proposal(dl, proposal, make_payload, **kwargs)
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert result.reason and "declined" in result.reason
+
+    @pytest.mark.spec("HP-01-003")
+    @pytest.mark.spec("CP-05-006")
+    @pytest.mark.spec("CM-23-013")
+    def test_proposal_for_a_fully_closed_case_is_refused(self, make_payload):
+        """A redelivery after close is declined; the next one is a duplicate."""
+        dl = self._case_actor_dl()
+        proposal = _make_proposal()
+        _run_create_proposal(dl, proposal, make_payload)
+        (case,) = list(dl.list_objects("VulnerabilityCase"))
+        commit_case_manager_closure(dl, case.id_)
+
+        result = _run_create_proposal(dl, proposal, make_payload)
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "fully closed" in result.reason
+        assert case.id_ in result.reason
+        again = _run_create_proposal(dl, proposal, make_payload)
+        assert again.disposition == HandlerDisposition.SKIPPED
+
+    @pytest.mark.spec("HP-01-006")
+    @pytest.mark.spec("CP-05-010")
+    def test_another_senders_reuse_of_a_proposal_id_is_refused(
+        self, make_payload
+    ):
+        """The proposal id is the sender's choice, so a delivery of an
+        admitted proposal id from another actor is refused before any write
+        (#4719)."""
+        dl = self._case_actor_dl()
+        proposal = _make_proposal()
+        _run_create_proposal(dl, proposal, make_payload)
+        while dl.outbox_pop() is not None:
+            pass
+        reused = proposal.model_copy(update={"attributed_to": _OTHER_URI})
+
+        result = _run_create_proposal(
+            dl, reused, make_payload, proposer_uri=_OTHER_URI
+        )
+
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason and "author" in result.reason
+        assert len(list(dl.list_objects("VulnerabilityCase"))) == 1
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("HP-01-003")
+    def test_decline_without_emit_port_is_refused(self, make_payload):
+        """A decline whose Reject cannot be sent still fails closed (#2255).
+
+        The tree refuses to fall through to the accept arm, and the verdict is
+        read from the tree rather than guessed, so it surfaces as REFUSED.
+        """
+        dl = self._case_actor_dl()
+        result = _run_create_proposal(
+            dl, _make_proposal(), make_payload, call_out=_declining_bundle()
+        )
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert list(dl.list_objects("VulnerabilityCase")) == []
+
+    @pytest.mark.spec("HP-01-003")
+    def test_create_without_proposal_id_is_refused(
+        self, make_payload, tree_runs
+    ):
+        activity = as_Create(
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=_make_proposal(),
+            to=[_CASE_ACTOR_URI],
+        )
+        event = make_payload(activity).model_copy(
+            update={"receiving_actor_id": _CASE_ACTOR_URI, "object_": None}
+        )
+        dl = self._case_actor_dl()
+        result = CreateCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
+        assert result.reason == "Create(CaseProposal) carries no proposal id"
+        # CLP-10-005: the refusal is a guard in the delivery's one tree.
+        assert len(tree_runs) == 1
+        # CLP-10-018: refused before the real tree could be built, yet kept.
+        assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
+
+    @pytest.mark.spec("ARCH-20-001")
+    @pytest.mark.spec("HP-01-003")
+    def test_proposal_without_render_port_is_a_wiring_fault(
+        self, make_payload
+    ):
+        """Core cannot render the proposal itself, so no port means raise.
+
+        The accept path carries the proposal inline in its Accept and needs the
+        AS2 shape to do it; the only route to that shape is the port
+        (ARCH-20-001).  A missing port is this actor's composition fault, not
+        the sender's, so it raises rather than refusing (#2255, ADR-0095), and
+        it does so before any case is created.
+        """
+        from vultron.errors import VultronWiringError
+
+        dl = self._case_actor_dl()
+        activity = as_Create(
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=_make_proposal(),
+            to=[_CASE_ACTOR_URI],
+        )
+        event = make_payload(activity).model_copy(
+            update={"receiving_actor_id": _CASE_ACTOR_URI}
+        )
+        with pytest.raises(VultronWiringError):
+            CreateCaseProposalReceivedUseCase(
+                dl,
+                event,
+                sync_port=SyncActivityAdapter(dl),
+            ).execute()
+        assert list(dl.list_objects("VulnerabilityCase")) == []
+
+    @pytest.mark.spec("HP-01-003")
+    def test_accept_is_applied(self, make_payload):
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+        proposal = _make_proposal()
+        _seed_vendor_link(dl, proposal)
+        event = _vendor_event(make_payload, as_Accept, proposal)
+        result = AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_accept_without_report_link_is_skipped(self, make_payload):
+        """No link to record the answer on (a relay): nothing changed."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+        event = _vendor_event(make_payload, as_Accept, _make_proposal())
+        result = AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert (
+            result.reason is not None
+            and "VultronReportCaseLink" in result.reason
+        )
+
+    @pytest.mark.spec("HP-01-003")
+    def test_accept_without_report_is_refused(self, make_payload):
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+        event = _vendor_event(
+            make_payload, as_Accept, "https://example.org/proposals/bare"
+        )
+        result = AcceptCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_reject_is_applied(self, make_payload):
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+        proposal = _make_proposal()
+        _seed_vendor_link(dl, proposal)
+        event = _vendor_event(make_payload, as_Reject, proposal)
+        result = RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
+
+    @pytest.mark.spec("HP-01-003")
+    def test_reject_without_report_link_is_skipped(self, make_payload):
+        """No link to record the answer on (a relay): nothing changed."""
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+        event = _vendor_event(make_payload, as_Reject, _make_proposal())
+        result = RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition == HandlerDisposition.SKIPPED
+        assert (
+            result.reason is not None
+            and "VultronReportCaseLink" in result.reason
+        )
+
+    @pytest.mark.spec("HP-01-003")
+    def test_reject_without_report_is_refused(self, make_payload):
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_VENDOR_URI)
+        event = _vendor_event(
+            make_payload, as_Reject, "https://example.org/proposals/bare"
+        )
+        result = RejectCaseProposalReceivedUseCase(
+            dl,
+            event,
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+        assert result.disposition == HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("ARCH-20-008")
+@pytest.mark.spec("CP-05-003")
+class TestCoreInlineReport:
+    """``_core_inline_report`` hands the parsed report down unchanged.
+
+    Under ARCH-25-003 (ADR-0099) the ``as_VulnerabilityReport`` the wire parser
+    validated *is* the core ``VulnerabilityReport``, so there is no projection
+    step and none is duck-typed (#3840).  Anything else in the slot yields
+    ``None`` so ``StoreProposalReportNode`` rebuilds from the proposal dict.
+    """
+
+    _LOGGER = "vultron.core.use_cases.received.case_proposal"
+
+    def test_inline_report_is_returned_as_the_core_object(self):
+        proposal = _make_proposal()
+        activity = as_Create(
+            actor=VultronOrganization(id_=_VENDOR_URI),
+            object_=proposal,
+            to=[_CASE_ACTOR_URI],
+        )
+
+        report = CreateCaseProposalReceivedUseCase._core_inline_report(
+            activity, "proposal-1"
+        )
+
+        assert isinstance(report, VulnerabilityReport)
+        assert report is proposal.object_
+
+    def test_bare_iri_in_report_slot_yields_none_and_is_logged(self, caplog):
+        """A reference the parser could not dereference is not a report."""
+        activity = SimpleNamespace(
+            object_=SimpleNamespace(object_="https://example.org/reports/r1")
+        )
+
+        with caplog.at_level(logging.DEBUG, logger=self._LOGGER):
+            report = CreateCaseProposalReceivedUseCase._core_inline_report(
+                activity, "proposal-1"
+            )
+
+        assert report is None
+        assert any(
+            "carries a str" in record.message
+            and record.levelno == logging.DEBUG
+            for record in caplog.records
+        ), caplog.text
+        # The node that rebuilds from the dict owns the WARNING (CP-01-004);
+        # the use case must not double it.
+        assert not [
+            r for r in caplog.records if r.levelno >= logging.WARNING
+        ], caplog.text
+
+    def test_missing_report_yields_none_silently(self, caplog):
+        activity = SimpleNamespace(object_=SimpleNamespace(object_=None))
+
+        with caplog.at_level(logging.DEBUG, logger=self._LOGGER):
+            report = CreateCaseProposalReceivedUseCase._core_inline_report(
+                activity, "proposal-1"
+            )
+
+        assert report is None
+        assert not caplog.records

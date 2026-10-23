@@ -1,0 +1,1134 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+Tests for case prioritization behavior trees (BT-2.1).
+
+Verifies engage_case and defer_case trees correctly update the
+CaseParticipant.participant_status RM state, reflecting the
+participant-specific nature of the RM state machine.
+"""
+
+import pytest
+from py_trees.common import Status
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.received import with_evidence
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.refusal_stage import (
+    PreconditionGuardStage,
+)
+from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
+from vultron.core.behaviors.case.receive_activity_tree import received_stages
+from vultron.core.behaviors.report.prioritize_tree import (
+    create_defer_case_tree,
+    create_engage_case_tree,
+    create_prioritize_subtree,
+)
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.actor import VultronService
+from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.case import (
+    DeferCaseReceivedEvent,
+    EngageCaseReceivedEvent,
+)
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.case.engage_defer import (
+    DeferCaseReceivedUseCase,
+    EngageCaseReceivedUseCase,
+)
+from vultron.enums.roles import CVDRole
+
+DEFER_RULE = DeferCaseReceivedUseCase.sender_entitlement
+
+#: The case's CASE_MANAGER: every engage/defer is addressed to it (PCR-08),
+#: so each copy passes the received tree's addressee door (HP-01-005).
+CASE_MANAGER_ID = "https://example.org/actors/coordinator"
+
+
+def _make_participant_in_valid_state(
+    id_: str, attributed_to: str, context: str
+) -> CaseParticipant:
+    """Create a CaseParticipant pre-seeded with RM.VALID status.
+
+    engage_case and defer_case require the participant to be in VALID state
+    (the precondition for VALID → ACCEPTED or VALID → DEFERRED transitions).
+    """
+    participant = CaseParticipant(
+        id_=id_,
+        attributed_to=attributed_to,
+        context=context,
+        participant_statuses=[
+            ParticipantStatus(
+                attributed_to=attributed_to,
+                context=context,
+                rm=RmDimension(state=RM.RECEIVED),
+            ),
+            ParticipantStatus(
+                attributed_to=attributed_to,
+                context=context,
+                rm=RmDimension(state=RM.VALID),
+            ),
+        ],
+    )
+    return participant
+
+
+def _make_engage_request(
+    case: VulnerabilityCase, actor_id: str
+) -> EngageCaseReceivedEvent:
+    return with_evidence(
+        EngageCaseReceivedEvent(
+            activity_id=f"{case.id_}/activities/engage",
+            actor_id=actor_id,
+            object_=CoreObject(id_=case.id_),
+            semantic_type=MessageSemantics.ENGAGE_CASE,
+            activity=VultronActivity(
+                type_="Announce",
+                actor=actor_id,
+                object_=VulnerabilityCase(
+                    attributed_to=CASE_OWNER_ID, id_=case.id_
+                ),
+                context=case.id_,
+                to=[CASE_MANAGER_ID],
+            ),
+        )
+    )
+
+
+def _make_defer_request(
+    case: VulnerabilityCase, actor_id: str
+) -> DeferCaseReceivedEvent:
+    return with_evidence(
+        DeferCaseReceivedEvent(
+            activity_id=f"{case.id_}/activities/defer",
+            actor_id=actor_id,
+            object_=CoreObject(id_=case.id_),
+            semantic_type=MessageSemantics.DEFER_CASE,
+            activity=VultronActivity(
+                type_="Announce",
+                actor=actor_id,
+                object_=VulnerabilityCase(
+                    attributed_to=CASE_OWNER_ID, id_=case.id_
+                ),
+                context=case.id_,
+                to=[CASE_MANAGER_ID],
+            ),
+        )
+    )
+
+
+@pytest.fixture
+def datalayer(actor_id):
+    """The vendor's own store — the actor almost every tree here executes as."""
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+
+
+@pytest.fixture
+def actor_id():
+    return "https://example.org/actors/vendor"
+
+
+@pytest.fixture
+def case_manager_datalayer(case_manager_actor_id):
+    """The case manager's own store.
+
+    The split-identity test runs the tree under the case manager's identity
+    (BT-17-005), so the replica it reads and writes is the case manager's rather
+    than the vendor's (ADR-0073).
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=case_manager_actor_id)
+    yield dl
+    dl.close()
+
+
+@pytest.fixture
+def actor(datalayer, actor_id):
+    obj = VultronService(id_=actor_id, name="Vendor Co")
+    datalayer.create(obj)
+    return obj
+
+
+@pytest.fixture
+def report(datalayer):
+    obj = VulnerabilityReport(
+        id_="https://example.org/reports/CVE-2024-001",
+        name="Test Report",
+        content="Buffer overflow",
+    )
+    datalayer.create(obj)
+    return obj
+
+
+@pytest.fixture
+def case_with_participant(datalayer, actor_id, actor, report):
+    """Case with the test actor as a CaseParticipant stored as a separate record.
+
+    The participant is pre-seeded to RM.VALID so that engage/defer BTs can
+    apply the VALID → ACCEPTED / VALID → DEFERRED transitions.
+    """
+    participant = _make_participant_in_valid_state(
+        id_="https://example.org/participants/vendor-cp-001",
+        attributed_to=actor_id,
+        context="https://example.org/cases/case-001",
+    )
+    datalayer.create(participant)
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/case-001",
+        name="Test Case",
+        vulnerability_reports=[report.id_],
+        case_participants=[participant.id_],
+        actor_participant_index={actor_id: participant.id_},
+    )
+    datalayer.create(case)
+    return case
+
+
+@pytest.fixture
+def case_without_participant(datalayer, report):
+    """Case with no participants."""
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/case-002",
+        name="Test Case No Participants",
+        vulnerability_reports=[report.id_],
+        case_participants=[],
+    )
+    datalayer.create(case)
+    return case
+
+
+@pytest.fixture
+def bridge(datalayer):
+    from typing import cast
+
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
+
+    return BTBridge(
+        datalayer=datalayer,
+        trigger_activity=TriggerActivityAdapter(
+            cast(CaseOutboxPersistence, datalayer)
+        ),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(datalayer),
+    )
+
+
+@pytest.fixture
+def trigger_activity(datalayer):
+    """Standalone TriggerActivityPort for passing to tree factories."""
+    from typing import cast
+
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.ports.case_outbox import CaseOutboxPersistence
+
+    return TriggerActivityAdapter(cast(CaseOutboxPersistence, datalayer))
+
+
+@pytest.fixture
+def case_manager_actor_id():
+    return CASE_MANAGER_ID
+
+
+@pytest.fixture
+def case_with_manager(
+    datalayer, actor_id, actor, report, case_manager_actor_id
+):
+    """Case with a vendor participant AND a CASE_MANAGER participant.
+
+    The vendor participant is pre-seeded to RM.VALID so engage/defer BTs can
+    apply the VALID → ACCEPTED / VALID → DEFERRED transitions.  The case
+    manager participant is added to ``actor_participant_index`` so that
+    ``ResolveCaseManagerNode`` can locate it (PCR-08-001).
+    """
+    vendor_participant = _make_participant_in_valid_state(
+        id_="https://example.org/participants/vendor-cp-002",
+        attributed_to=actor_id,
+        context="https://example.org/cases/case-manager-001",
+    )
+    datalayer.create(vendor_participant)
+
+    cm_actor = VultronService(id_=case_manager_actor_id, name="Coordinator")
+    datalayer.create(cm_actor)
+
+    cm_participant = CaseParticipant(
+        id_="https://example.org/participants/coordinator-cp-001",
+        attributed_to=case_manager_actor_id,
+        context="https://example.org/cases/case-manager-001",
+        case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
+    )
+    datalayer.create(cm_participant)
+
+    # attributed_to triggers genesis_hash computation (CLP-08-001/002), required
+    # for CommitCaseLedgerEntryNode to succeed in tests that run as CaseManager.
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/case-manager-001",
+        name="Test Case With Manager",
+        attributed_to=case_manager_actor_id,
+        vulnerability_reports=[report.id_],
+        case_participants=[vendor_participant.id_, cm_participant.id_],
+        actor_participant_index={
+            actor_id: vendor_participant.id_,
+            case_manager_actor_id: cm_participant.id_,
+        },
+    )
+    datalayer.create(case)
+    return case
+
+
+@pytest.fixture
+def case_with_manager_in_cm_store(
+    case_manager_datalayer, actor_id, actor, report, case_manager_actor_id
+):
+    """The same case as ``case_with_manager``, in the *case manager's* store.
+
+    A separate fixture rather than a re-scoping of ``case_with_manager`` because
+    that one serves tests which execute as the vendor, and a store belongs to
+    exactly one actor (ADR-0073). The split-identity test executes as the case
+    manager, so it needs the case manager's replica.
+    """
+    vendor_participant = _make_participant_in_valid_state(
+        id_="https://example.org/participants/vendor-cp-002",
+        attributed_to=actor_id,
+        context="https://example.org/cases/case-manager-001",
+    )
+    case_manager_datalayer.create(vendor_participant)
+
+    cm_actor = VultronService(id_=case_manager_actor_id, name="Coordinator")
+    case_manager_datalayer.create(cm_actor)
+
+    cm_participant = CaseParticipant(
+        id_="https://example.org/participants/coordinator-cp-001",
+        attributed_to=case_manager_actor_id,
+        context="https://example.org/cases/case-manager-001",
+        case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
+    )
+    case_manager_datalayer.create(cm_participant)
+
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/case-manager-001",
+        name="Test Case With Manager",
+        attributed_to=case_manager_actor_id,
+        vulnerability_reports=[report.id_],
+        case_participants=[vendor_participant.id_, cm_participant.id_],
+        actor_participant_index={
+            actor_id: vendor_participant.id_,
+            case_manager_actor_id: cm_participant.id_,
+        },
+    )
+    # The CASE_MANAGER holds every report its case names: the engage broadcast
+    # embeds them, and an Announce that cannot is refused (AKM-02-004).
+    case_manager_datalayer.create(report)
+    case_manager_datalayer.create(case)
+    return case
+
+
+# ============================================================================
+# Tree structure tests
+# ============================================================================
+
+
+@pytest.mark.spec("BT-06-002")
+def test_create_engage_case_tree_returns_sequence(
+    case_with_participant, actor_id
+):
+    tree = create_engage_case_tree(
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
+    assert tree is not None
+    assert tree.name == "EngageCaseBT"
+    assert hasattr(tree, "children")
+    # RSH-08-003 (#3814): the RM write, gap note and broadcast now sit inside
+    # one CASE_MANAGER gate, so the top level is intake, the post-close guard
+    # (CM-23-013), the addressee door guard (HP-01-005), the sender guard
+    # (HP-01-008, #4696), the clock decisions (CLP-10-025), the guard stage,
+    # the guarded commit, and that gate.
+    assert len(received_stages(tree)) == 8
+
+
+@pytest.mark.spec("BT-06-002")
+def test_create_defer_case_tree_returns_sequence(
+    case_with_participant, actor_id
+):
+    tree = create_defer_case_tree(
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        sender_rule=DEFER_RULE,
+    )
+    assert tree is not None
+    assert tree.name == "DeferCaseBT"
+    assert hasattr(tree, "children")
+    # RSH-08-003 (#3814): intake, the post-close guard (CM-23-013), the
+    # addressee door guard (HP-01-005), sender guard, the clock decisions
+    # (CLP-10-025), the guard stage, the guarded commit, and the CASE_MANAGER
+    # gate holding the RM write + gap note.
+    assert len(received_stages(tree)) == 8
+
+
+def test_engage_tree_node_names(case_with_participant, actor_id):
+    tree = create_engage_case_tree(
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
+    stages = received_stages(tree)
+    # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
+    assert stages[0].name == "IntakeReceivedActivityNode"
+    assert stages[1].name == "CaseOpenToExternalWrites"
+    # The copy must be addressed to the receiver (HP-01-005) ...
+    assert stages[2].name == "ActivityAddressedToReceiverNode"
+    # The sender must be a participant (HP-01-006), checked by the guard the
+    # factory composes from the declared rule (HP-01-008, #4696) ...
+    assert stages[3].name == "SenderIsParticipantNode"
+    assert stages[4].name == "ClockDecisionsIfCaseManager"
+    # ... and its declaration is adjudicated before the commit (RSH-06-006),
+    # inside the refusal-effects stage (CLP-10-022); a refused regression is
+    # still noted.
+    stage = stages[5]
+    assert isinstance(stage, PreconditionGuardStage)
+    assert [g.name for g in stage.guards.children] == [
+        "AdjudicateRMDeclarationNode",
+    ]
+    assert "EmitRMGapNote" in [n.name for n in stage.refusal.iterate()]
+    # Commit runs before effects (CLP-10-006)
+    assert stages[6].name == "GuardedCommitCaseLedgerEntryBT"
+    # RSH-08-003 (#3814): the RM write, its gap note and the broadcast all run
+    # only at the CASE_MANAGER, so they sit inside one gate; a replica takes
+    # the move from the ledger fan-out.
+    gate = stages[7]
+    assert isinstance(gate, CaseManagerGate)
+    assert gate.name == "EngageEffectsIfCaseManager"
+    body = gate.gated_branch
+    names = [n.name for n in body.children]
+    # Idempotency Selector: skip write when already ACCEPTED (RSH-08-002)
+    # ... then the status it wrote is committed as its own entry
+    # (CLP-07-013)
+    assert names == [
+        "IdempotentTransitionRMtoAccepted",
+        "RecordTransitionRMtoAccepted",
+        "EmitRMGapNote",
+        "CaptureCaseUpdateBroadcastExclusionsNode",
+        "BroadcastCaseUpdateNode",
+    ]
+    assert body.children[0].children[0].name == "AlreadyRecordedAccepted"
+    assert body.children[0].children[1].name == "TransitionRMtoAccepted"
+
+
+def test_defer_tree_node_names(case_with_participant, actor_id):
+    tree = create_defer_case_tree(
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        sender_rule=DEFER_RULE,
+    )
+    stages = received_stages(tree)
+    # Intake records what arrived before any guard (CLP-10-017, ADR-0111)
+    assert stages[0].name == "IntakeReceivedActivityNode"
+    # The case must not be fully closed at the CASE_MANAGER (CM-23-013) ...
+    assert stages[1].name == "CaseOpenToExternalWrites"
+    # The copy must be addressed to the receiver (HP-01-005) ...
+    assert stages[2].name == "ActivityAddressedToReceiverNode"
+    # The sender must be a participant (HP-01-006) ...
+    assert stages[3].name == "SenderIsParticipantNode"
+    # ... then the CASE_MANAGER's clock decisions, the embargo end-time
+    # check among them (CLP-10-025, EMB-13-003) ...
+    assert stages[4].name == "ClockDecisionsIfCaseManager"
+    # ... and its declaration is adjudicated before the commit (RSH-06-006),
+    # inside the refusal-effects stage that notes a refused regression
+    # (CLP-10-022)
+    stage = stages[5]
+    assert isinstance(stage, PreconditionGuardStage)
+    assert [g.name for g in stage.guards.children] == [
+        "AdjudicateRMDeclarationNode"
+    ]
+    # Commit runs before effects (CLP-10-006)
+    assert stages[6].name == "GuardedCommitCaseLedgerEntryBT"
+    # RSH-08-003 (#3814): the RM write and its gap note run only at the
+    # CASE_MANAGER, inside one gate; a replica takes the move from the ledger.
+    gate = stages[7]
+    assert isinstance(gate, CaseManagerGate)
+    assert gate.name == "DeferEffectsIfCaseManager"
+    body = gate.gated_branch
+    names = [n.name for n in body.children]
+    # Idempotency Selector: skip write when already DEFERRED (RSH-08-002)
+    # ... then the status it wrote is committed as its own entry
+    # (CLP-07-013)
+    assert names == [
+        "IdempotentTransitionRMtoDeferred",
+        "RecordTransitionRMtoDeferred",
+        "EmitRMGapNote",
+    ]
+    assert body.children[0].children[0].name == "AlreadyRecordedDeferred"
+    assert body.children[0].children[1].name == "TransitionRMtoDeferred"
+
+
+# ============================================================================
+# Execution tests — engage_case
+# ============================================================================
+
+
+@pytest.mark.spec("RMB-10-001")
+@pytest.mark.spec("RMB-13-002")
+@pytest.mark.spec("BT-03-004")
+def test_engage_case_tree_success(
+    case_manager_datalayer,
+    actor_id,
+    case_manager_actor_id,
+    case_with_manager_in_cm_store,
+):
+    """EngageCaseBT records the sender's RM as ACCEPTED at the CASE_MANAGER.
+
+    RSH-08-003 (#3814): the RM write is now CASE_MANAGER-gated, so the engage
+    is received in the CASE_MANAGER's store with the vendor as the sender.
+    """
+    case = case_with_manager_in_cm_store
+    request = _make_engage_request(case, actor_id)
+    tree = create_engage_case_tree(
+        case_id=case.id_,
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
+    result = BTBridge(
+        datalayer=case_manager_datalayer,
+        trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(case_manager_datalayer),
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=case_manager_actor_id,
+        activity=request,
+        case_id=case.id_,
+    )
+
+    assert result.status == Status.SUCCESS
+
+    participant_id = case.actor_participant_index[actor_id]
+    updated_participant = case_manager_datalayer.read(participant_id)
+    latest_status = updated_participant.participant_statuses[-1]
+    assert latest_status.rm.state == RM.ACCEPTED
+
+
+@pytest.mark.spec("BT-03-001")
+def test_engage_case_tree_fails_no_participant(
+    bridge, datalayer, actor_id, case_without_participant
+):
+    """EngageCaseBT fails when actor has no CaseParticipant in the case."""
+    request = _make_engage_request(case_without_participant, actor_id)
+    tree = create_engage_case_tree(
+        case_id=case_without_participant.id_,
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, activity=request
+    )
+
+    assert result.status == Status.FAILURE
+
+
+@pytest.mark.spec("BT-03-001")
+def test_engage_case_tree_fails_missing_case(bridge, datalayer, actor_id):
+    """EngageCaseBT fails when the case does not exist in the datalayer."""
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/nonexistent",
+        name="Missing Case",
+        vulnerability_reports=[],
+        case_participants=[],
+    )
+    request = _make_engage_request(case, actor_id)
+    tree = create_engage_case_tree(
+        case_id="https://example.org/cases/nonexistent",
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, activity=request
+    )
+
+    assert result.status == Status.FAILURE
+
+
+# ============================================================================
+# Execution tests — defer_case
+# ============================================================================
+
+
+@pytest.mark.spec("RMB-10-001")
+@pytest.mark.spec("RMB-12-001")
+@pytest.mark.spec("BT-03-004")
+def test_defer_case_tree_success(
+    case_manager_datalayer,
+    actor_id,
+    case_manager_actor_id,
+    case_with_manager_in_cm_store,
+):
+    """DeferCaseBT records the sender's RM as DEFERRED at the CASE_MANAGER.
+
+    RSH-08-003 (#3814): the RM write is CASE_MANAGER-gated, so the defer is
+    received in the CASE_MANAGER's store with the vendor as the sender.
+    """
+    case = case_with_manager_in_cm_store
+    request = _make_defer_request(case, actor_id)
+    tree = create_defer_case_tree(
+        case_id=case.id_, actor_id=actor_id, sender_rule=DEFER_RULE
+    )
+    result = BTBridge(
+        datalayer=case_manager_datalayer,
+        trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(case_manager_datalayer),
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=case_manager_actor_id,
+        activity=request,
+        case_id=case.id_,
+    )
+
+    assert result.status == Status.SUCCESS
+
+    participant_id = case.actor_participant_index[actor_id]
+    updated_participant = case_manager_datalayer.read(participant_id)
+    latest_status = updated_participant.participant_statuses[-1]
+    assert latest_status.rm.state == RM.DEFERRED
+
+
+@pytest.mark.spec("BT-03-001")
+def test_defer_case_tree_fails_no_participant(
+    bridge, datalayer, actor_id, case_without_participant
+):
+    """DeferCaseBT fails when actor has no CaseParticipant in the case."""
+    request = _make_defer_request(case_without_participant, actor_id)
+    tree = create_defer_case_tree(
+        case_id=case_without_participant.id_,
+        actor_id=actor_id,
+        sender_rule=DEFER_RULE,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, activity=request
+    )
+
+    assert result.status == Status.FAILURE
+
+
+@pytest.mark.spec("BT-03-001")
+def test_defer_case_tree_fails_missing_case(bridge, datalayer, actor_id):
+    """DeferCaseBT fails when the case does not exist in the datalayer."""
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/nonexistent",
+        name="Missing Case",
+        vulnerability_reports=[],
+        case_participants=[],
+    )
+    request = _make_defer_request(case, actor_id)
+    tree = create_defer_case_tree(
+        case_id="https://example.org/cases/nonexistent",
+        actor_id=actor_id,
+        sender_rule=DEFER_RULE,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, activity=request
+    )
+
+    assert result.status == Status.FAILURE
+
+
+# ============================================================================
+# Multiple participants — participant-specific isolation
+# ============================================================================
+
+
+@pytest.mark.spec("BT-09-001")
+def test_engage_only_affects_target_actor(
+    case_manager_datalayer, actor_id, case_manager_actor_id, report
+):
+    """Engaging updates only the sender's RM state, not other participants.
+
+    RSH-08-003 (#3814): the RM write is CASE_MANAGER-gated, so this runs in the
+    CASE_MANAGER's store.  ``actor_a`` is the engaging sender; ``actor_b`` is a
+    peer participant whose RM must not move.
+    """
+    dl = case_manager_datalayer
+    actor_a = actor_id
+    actor_b = "https://example.org/actors/vendor-b"
+    case_id = "https://example.org/cases/case-multi"
+
+    participant_a = _make_participant_in_valid_state(
+        id_="https://example.org/participants/cp-a",
+        attributed_to=actor_a,
+        context=case_id,
+    )
+    participant_b = _make_participant_in_valid_state(
+        id_="https://example.org/participants/cp-b",
+        attributed_to=actor_b,
+        context=case_id,
+    )
+    cm_participant = CaseParticipant(
+        id_="https://example.org/participants/cp-manager",
+        attributed_to=case_manager_actor_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_MANAGER, CVDRole.COORDINATOR],
+    )
+    cm_actor = VultronService(id_=case_manager_actor_id, name="Coordinator")
+    dl.create(cm_actor)
+    dl.create(participant_a)
+    dl.create(participant_b)
+    dl.create(cm_participant)
+    dl.create(report)
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="Multi-participant case",
+        # attributed_to seeds the genesis hash so the guarded commit succeeds.
+        attributed_to=case_manager_actor_id,
+        vulnerability_reports=[report.id_],
+        case_participants=[
+            participant_a.id_,
+            participant_b.id_,
+            cm_participant.id_,
+        ],
+        actor_participant_index={
+            actor_a: participant_a.id_,
+            actor_b: participant_b.id_,
+            case_manager_actor_id: cm_participant.id_,
+        },
+    )
+    dl.create(case)
+
+    request = _make_engage_request(case, actor_a)
+    tree = create_engage_case_tree(
+        case_id=case.id_,
+        actor_id=actor_a,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
+    result = BTBridge(
+        datalayer=dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=case_manager_actor_id,
+        activity=request,
+        case_id=case.id_,
+    )
+    assert result.status == Status.SUCCESS
+
+    updated_a = dl.read(participant_a.id_)
+    updated_b = dl.read(participant_b.id_)
+    assert updated_a.participant_statuses[-1].rm.state == RM.ACCEPTED
+    # actor_b's RM state must be unchanged (START, from default init)
+    assert updated_b.participant_statuses[-1].rm.state != RM.ACCEPTED
+
+
+# ============================================================================
+# Idempotency tests (BT-2.0.3, BT-2.0.4, BT-2.0.5 — ID-04-004 MUST)
+# ============================================================================
+
+
+@pytest.mark.spec("BT-09-001")
+def test_engage_case_tree_idempotent(
+    case_manager_datalayer,
+    actor_id,
+    case_manager_actor_id,
+    case_with_manager_in_cm_store,
+):
+    """Executing EngageCaseBT twice leaves RM state ACCEPTED, no duplicate entries.
+
+    RSH-08-003 (#3814): run at the CASE_MANAGER, where the gated RM write runs.
+    """
+    case = case_with_manager_in_cm_store
+
+    def _run() -> Status:
+        request = _make_engage_request(case, actor_id)
+        tree = create_engage_case_tree(
+            case_id=case.id_,
+            actor_id=actor_id,
+            sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+        )
+        return (
+            BTBridge(
+                datalayer=case_manager_datalayer,
+                trigger_activity=TriggerActivityAdapter(
+                    case_manager_datalayer
+                ),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(case_manager_datalayer),
+            )
+            .execute_with_setup(
+                tree=tree,
+                actor_id=case_manager_actor_id,
+                activity=request,
+                case_id=case.id_,
+            )
+            .status
+        )
+
+    assert _run() == Status.SUCCESS
+    assert _run() == Status.SUCCESS
+
+    participant_id = case.actor_participant_index[actor_id]
+    participant = case_manager_datalayer.read(participant_id)
+    assert participant.participant_statuses[-1].rm.state == RM.ACCEPTED
+    # Second execution must NOT append a duplicate status entry
+    accepted_entries = [
+        s
+        for s in participant.participant_statuses
+        if s.rm.state == RM.ACCEPTED
+    ]
+    assert len(accepted_entries) == 1
+
+
+@pytest.mark.spec("BT-09-001")
+def test_defer_case_tree_idempotent(
+    case_manager_datalayer,
+    actor_id,
+    case_manager_actor_id,
+    case_with_manager_in_cm_store,
+):
+    """Executing DeferCaseBT twice leaves RM state DEFERRED, no duplicate entries.
+
+    RSH-08-003 (#3814): run at the CASE_MANAGER, where the gated RM write runs.
+    """
+    case = case_with_manager_in_cm_store
+
+    def _run() -> Status:
+        request = _make_defer_request(case, actor_id)
+        tree = create_defer_case_tree(
+            case_id=case.id_, actor_id=actor_id, sender_rule=DEFER_RULE
+        )
+        return (
+            BTBridge(
+                datalayer=case_manager_datalayer,
+                trigger_activity=TriggerActivityAdapter(
+                    case_manager_datalayer
+                ),
+                wire_render_port=As2WireRenderAdapter(),
+                sync_port=SyncActivityAdapter(case_manager_datalayer),
+            )
+            .execute_with_setup(
+                tree=tree,
+                actor_id=case_manager_actor_id,
+                activity=request,
+                case_id=case.id_,
+            )
+            .status
+        )
+
+    assert _run() == Status.SUCCESS
+    assert _run() == Status.SUCCESS
+
+    participant_id = case.actor_participant_index[actor_id]
+    participant = case_manager_datalayer.read(participant_id)
+    assert participant.participant_statuses[-1].rm.state == RM.DEFERRED
+    # Second execution must NOT append a duplicate status entry
+    deferred_entries = [
+        s
+        for s in participant.participant_statuses
+        if s.rm.state == RM.DEFERRED
+    ]
+    assert len(deferred_entries) == 1
+
+
+# ============================================================================
+# Divergent actor_id tests — verifies _target_actor_id invariant (#2300 fix)
+# ============================================================================
+
+
+@pytest.mark.spec("BT-09-001")
+def test_engage_case_tree_targets_constructor_actor_when_blackboard_differs(
+    case_manager_datalayer,
+    actor_id,
+    case_manager_actor_id,
+    case_with_manager_in_cm_store,
+):
+    """TransitionRMtoAccepted uses the constructor actor_id, not the blackboard.
+
+    After the #2300 fix, received-side BTs run under the CaseManager's identity
+    (blackboard actor_id = CaseManager) while the RM transition must still target
+    the engaging actor (constructor actor_id = vendor).  This test exercises the
+    split-identity path: blackboard != constructor.
+
+    The two identities now also select the store: the tree executes as the case
+    manager, so it operates on the case manager's replica, and the vendor's
+    participant record is one of the records *inside* that replica.
+    """
+    case_with_manager = case_with_manager_in_cm_store
+    request = _make_engage_request(case_with_manager, actor_id)
+    tree = create_engage_case_tree(
+        case_id=case_with_manager.id_,
+        actor_id=actor_id,
+        sender_rule=EngageCaseReceivedUseCase.sender_entitlement,
+    )
+    result = BTBridge(
+        datalayer=case_manager_datalayer,
+        trigger_activity=TriggerActivityAdapter(case_manager_datalayer),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(case_manager_datalayer),
+    ).execute_with_setup(
+        tree=tree,
+        actor_id=case_manager_actor_id,
+        activity=request,
+        case_id=case_with_manager.id_,
+    )
+    assert result.status == Status.SUCCESS
+
+    # Vendor's RM state must be ACCEPTED — not the CaseManager's.
+    vendor_participant_id = case_with_manager.actor_participant_index[actor_id]
+    updated_vendor = case_manager_datalayer.read(vendor_participant_id)
+    assert updated_vendor.participant_statuses[-1].rm.state == RM.ACCEPTED
+
+    # CaseManager's participant must not have gained an RM entry.
+    cm_participant_id = case_with_manager.actor_participant_index[
+        case_manager_actor_id
+    ]
+    cm_participant = case_manager_datalayer.read(cm_participant_id)
+    assert not any(
+        s.rm.state == RM.ACCEPTED for s in cm_participant.participant_statuses
+    ), "CaseManager must not have been incorrectly transitioned to ACCEPTED"
+
+
+# ============================================================================
+# create_prioritize_subtree tests (D5-7-BTFIX-1 / D5-7-BTFIX-2)
+# ============================================================================
+
+
+def test_create_prioritize_subtree_returns_selector(
+    case_with_participant, actor_id, trigger_activity
+):
+    """create_prioritize_subtree returns a Selector named PrioritizeBT.
+
+    Verifies the canonical sender-side pattern (PCR-08-001): each path uses
+    engage_case_trigger_bt / defer_case_trigger_bt, which compose
+    TransitionParticipantRM* → SenderSideBT(ResolveCaseManagerNode →
+    ConstructActivitiesNode → QueueToOutboxNode).
+    """
+    tree = create_prioritize_subtree(
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        trigger_activity=trigger_activity,
+    )
+    assert tree is not None
+    assert tree.name == "PrioritizeBT"
+    assert hasattr(tree, "children")
+    assert len(tree.children) == 2
+
+    # Engage path: EvaluateCasePriority → EngageCaseTriggerBT → OnAccept
+    engage_path = tree.children[0]
+    assert engage_path.name == "EngagePath"
+    assert len(engage_path.children) == 3
+    assert engage_path.children[0].name == "EvaluateCasePriority"
+    engage_trigger_bt = engage_path.children[1]
+    assert engage_trigger_bt.name == "EngageCaseTriggerBT"
+    assert len(engage_trigger_bt.children) == 2
+    assert engage_trigger_bt.children[0].name == "ValidateRMtoAccepted"
+    engage_sender = engage_trigger_bt.children[1]
+    assert engage_sender.name == "SenderSideBT"
+    assert len(engage_sender.children) == 3
+    assert engage_sender.children[0].name == "ResolveCaseManagerNode"
+    assert engage_sender.children[1].name == "ConstructActivitiesNode"
+    assert engage_sender.children[2].name == "QueueToOutboxNode"
+    assert engage_path.children[2].name == "OnAccept"
+
+    # Defer path: DeferPath (Sequence) wrapping DeferCaseTriggerBT → OnDefer
+    defer_path = tree.children[1]
+    assert defer_path.name == "DeferPath"
+    assert len(defer_path.children) == 2
+    defer_trigger_bt = defer_path.children[0]
+    assert defer_trigger_bt.name == "DeferCaseTriggerBT"
+    assert len(defer_trigger_bt.children) == 2
+    assert defer_trigger_bt.children[0].name == "ValidateRMtoDeferred"
+    defer_sender = defer_trigger_bt.children[1]
+    assert defer_sender.name == "SenderSideBT"
+    assert len(defer_sender.children) == 3
+    assert defer_sender.children[0].name == "ResolveCaseManagerNode"
+    assert defer_sender.children[1].name == "ConstructActivitiesNode"
+    assert defer_sender.children[2].name == "QueueToOutboxNode"
+    assert defer_path.children[1].name == "OnDefer"
+
+
+@pytest.mark.spec("RMB-10-001")
+@pytest.mark.spec("RMB-13-002")
+@pytest.mark.spec("BT-03-004")
+def test_prioritize_subtree_engages_by_default(
+    bridge, datalayer, actor_id, trigger_activity, case_with_manager
+):
+    """PrioritizeBT engages by default (EvaluateCasePriority is always SUCCESS).
+
+    Verifies:
+    - Tree returns SUCCESS
+    - The actor's participant is left to the CASE_MANAGER: it records the
+      move and the replica copies it from the ledger (RSH-08-003, CM-23-016)
+    - An RmEngageCaseActivity (Join type) is created in the datalayer
+      addressed to the Case Manager (PCR-08-001)
+    - The activity appears in the actor's outbox (D5-7-BTFIX-1)
+    """
+    tree = create_prioritize_subtree(
+        case_id=case_with_manager.id_,
+        actor_id=actor_id,
+        trigger_activity=trigger_activity,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, case_id=case_with_manager.id_
+    )
+
+    assert result.status == Status.SUCCESS
+
+    # The actor writes no status of its own (RSH-08-003, CM-23-016)
+    participant_id = "https://example.org/participants/vendor-cp-002"
+    updated_participant = datalayer.read(participant_id)
+    assert updated_participant.participant_statuses[-1].rm.state == RM.VALID
+
+    # An engage activity must have been created and added to outbox
+    outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
+    assert len(outbox_items) == 1
+
+    engage_activity_id = outbox_items[0]
+    engage_activity = datalayer.read(engage_activity_id)
+    assert engage_activity is not None
+    assert str(engage_activity.type_) == "Join"
+    assert engage_activity.actor == actor_id
+    assert engage_activity.object_.id_ == case_with_manager.id_
+
+
+def test_prioritize_subtree_custom_on_accept_factory_used(
+    case_with_participant, actor_id, trigger_activity
+):
+    """on_accept_factory node appears in the engage path when custom bundle is passed."""
+    import py_trees
+
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PrioritizationCallOutBundle,
+    )
+
+    def custom_on_accept(name):
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomOnAccept")
+
+    bundle = PrioritizationCallOutBundle(on_accept_factory=custom_on_accept)  # type: ignore[arg-type]
+    tree = create_prioritize_subtree(
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        trigger_activity=trigger_activity,
+        call_out=bundle,
+    )
+
+    engage_path = tree.children[0]
+    assert engage_path.children[2].name == "CustomOnAccept"
+
+
+def test_prioritize_subtree_custom_on_defer_factory_used(
+    case_with_participant, actor_id, trigger_activity
+):
+    """on_defer_factory node appears in the defer path when custom bundle is passed."""
+    import py_trees
+
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PrioritizationCallOutBundle,
+    )
+
+    def custom_on_defer(name):
+        class _Marker(py_trees.behaviour.Behaviour):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        return _Marker(name="CustomOnDefer")
+
+    bundle = PrioritizationCallOutBundle(on_defer_factory=custom_on_defer)  # type: ignore[arg-type]
+    tree = create_prioritize_subtree(
+        case_id=case_with_participant.id_,
+        actor_id=actor_id,
+        trigger_activity=trigger_activity,
+        call_out=bundle,
+    )
+
+    defer_path = tree.children[1]
+    assert defer_path.children[1].name == "CustomOnDefer"
+
+
+@pytest.mark.spec("RMB-10-001")
+@pytest.mark.spec("RMB-12-001")
+@pytest.mark.spec("BT-03-004")
+def test_prioritize_subtree_defers_when_engage_path_fails(
+    bridge,
+    datalayer,
+    actor_id,
+    trigger_activity,
+    case_with_manager,
+):
+    """PrioritizeBT falls back to defer when evaluate_priority_factory returns FAILURE."""
+    import py_trees
+
+    from vultron.demo.fuzzer.bundles.prioritization import (
+        PrioritizationCallOutBundle,
+    )
+
+    def _always_fail(name: str) -> py_trees.behaviour.Behaviour:
+        from vultron.core.behaviors.call_out.nodes import AlwaysFail
+
+        return AlwaysFail(name)
+
+    bundle = PrioritizationCallOutBundle(
+        evaluate_priority_factory=_always_fail,  # type: ignore[arg-type]
+    )
+
+    tree = create_prioritize_subtree(
+        case_id=case_with_manager.id_,
+        actor_id=actor_id,
+        trigger_activity=trigger_activity,
+        call_out=bundle,
+    )
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=actor_id, case_id=case_with_manager.id_
+    )
+
+    assert result.status == Status.SUCCESS
+
+    # The actor writes no status of its own (RSH-08-003, CM-23-016)
+    participant_id = "https://example.org/participants/vendor-cp-002"
+    updated_participant = datalayer.read(participant_id)
+    assert updated_participant.participant_statuses[-1].rm.state == RM.VALID
+
+    outbox_items = datalayer.clone_for_actor(actor_id).outbox_list()
+    assert len(outbox_items) == 1
+
+    defer_activity_id = outbox_items[0]
+    defer_activity = datalayer.read(defer_activity_id)
+    assert defer_activity is not None
+    assert str(defer_activity.type_) == "Ignore"
+    assert defer_activity.actor == actor_id
+    assert defer_activity.object_.id_ == case_with_manager.id_

@@ -1,0 +1,286 @@
+---
+source: NOTES-fv-demo--fv-demo-design
+timestamp: '2026-10-12T23:54:38.429260+00:00'
+title: FV demo design note (reference moved to docs; file deleted)
+type: note
+---
+
+Archived from `notes/fv-demo.md` by #4497 (notes sweep); the file is deleted. It was
+reference material, not guidance, and it had drifted from the code: it placed the
+Case Actor in the vendor container, and named a `demo_triggers.py` module and a
+"new" `SvcAddParticipantStatusUseCase` that do not exist. Superseding pointers:
+
+- Message-level trace, actors and topology: `docs/reference/fv-demo-protocol.md`.
+- Scenario narrative: `docs/topics/scenarios/fv.md`; run steps:
+  `docs/tutorials/fv-demo.md`.
+- Workflow and checkpoints (both DataLayers checked): `specs/multi-actor-demo.yaml`
+  (DEMOMA-05, DEMOMA-06, DEMOMA-08 and the FV scenario group); code:
+  `vultron/demo/scenario/fv_demo.py`.
+- Puppeteering constraint: `notes/demo-scenario-authoring.md` and
+  `vultron/demo/AGENTS.md`.
+- CASE_MANAGER role delegation: ADR-0039, `OFFER_CASE_PARTICIPANT_ROLE`.
+
+---
+
+# FV Demo Design
+
+**Source**: 2026-05-07 design session (grill-me).
+
+---
+
+## Purpose
+
+The FV demo is the foundational scenario for the Vultron prototype.
+It demonstrates a complete, clean CVD workflow between a Reporter (Finder) and
+a Vendor, with a dedicated Case Actor managing case state. All other demo
+scenarios build on this one — if it fails, nothing else works.
+
+**Final case state**: `VFDPxa` — Vendor aware, Fix ready, Fix Deployed, Public
+aware, no exploit public, no active attacks.
+
+---
+
+## Actors
+
+| Entity | Role(s) | Container |
+|--------|---------|-----------|
+| Reporter (Finder) | REPORTER | `finder` container |
+| Vendor | VENDOR, CASE_OWNER | `vendor` container |
+| Case Actor | CASE_MANAGER | dedicated `case-actor` container |
+
+**Docker topology**: three containers (`finder`, `vendor`, `case-actor`). The
+Vendor proposes the case to the dedicated container's CaseActor,
+`http://case-actor:7999/api/v2/actors/case-actor` (DEMOMA-06-004, CP-08-008).
+That container holds the canonical case and ledger. After Phase 2 the demo
+checks that it holds the case with its CaseActor as the CASE_MANAGER participant
+(`verify_case_actor_holds_records`). The `case-actor` ledger is dumped from
+there (DEMOMA-06-005). See `notes/case-proposal.md` § "The Dedicated
+Case-Actor Container".
+
+### CASE_MANAGER vs CASE_ACTOR terminology
+
+The **entity** is called the "Case Actor" (it is an ActivityPub Actor with an
+inbox). The **role** it holds within the case is `CASE_MANAGER` (a
+`CVDRole` enum value). This disambiguates entity from role. `CASE_ACTOR` as a
+role name is retired.
+
+See `vultron/enums/roles.py` (`CVDRole.CASE_MANAGER`) and
+`notes/participant-role-management.md`.
+
+---
+
+## Puppeteering Constraint
+
+The demo runner MUST NOT:
+
+- POST raw ActivityStreams JSON directly to any actor's inbox
+- Access or manipulate actor internals directly
+- Spoof activities on behalf of actors
+
+The demo runner MUST only:
+
+- Call trigger endpoints (`POST /actors/{id}/trigger/{behavior}` or
+  `POST /actors/{id}/demo/{behavior}`)
+- Read DataLayer endpoints for milestone verification
+
+See `specs/multi-actor-demo.yaml` DEMOMA-05-001, DEMOMA-05-002.
+
+---
+
+## Complete Workflow
+
+### Phase 0 — Setup
+
+1. Reset both containers to a clean baseline.
+2. Seed actors: Reporter on finder container; Vendor on vendor container;
+   each registered as a known peer on the other container.
+
+### Phase 1 — Report Submission and Case Creation
+
+1. **Demo puppeteers Reporter**: `POST .../demo/submit-report` (or
+   `trigger/submit-report`). Reporter constructs `Offer(VulnerabilityReport)`
+   and delivers it to the Vendor's inbox.
+
+2. **Vendor BT (automatic)**: On receiving the Offer, the Vendor runs the
+   case-creation BT:
+   a. Creates a stub `VulnerabilityCase` with the report attached.
+   b. Adds itself as a participant (roles: VENDOR, CASE_OWNER, CASE_MANAGER).
+   c. Adds the Reporter as a participant (role: REPORTER).
+   d. Spawns the **Case Actor** entity (new actor record in vendor container).
+   e. Adds Case Actor as a participant (role: CASE_MANAGER); removes its own
+      CASE_MANAGER role, retaining only VENDOR and CASE_OWNER.
+   f. Sends `Offer(VulnerabilityCase, context=report_offer_id)` to the Case
+      Actor's inbox — this is a **CASE_MANAGER role delegation** (see below).
+
+3. **Case Actor BT (automatic)**: On receiving the CASE_MANAGER delegation:
+   a. Verifies that the sender holds CASE_OWNER on the case.
+   b. Verifies that itself is listed as a CASE_MANAGER participant.
+   c. Accepts the delegation (sends `Accept(delegation)` back to Vendor).
+   d. Runs the case initialization BT:
+      - Establishes the default embargo from the Vendor's embargo policy.
+      - Marks both Vendor and Reporter `AGREED` to the embargo immediately,
+        making them signatories (no invite/accept round-trip — they were
+        present at case creation).
+      - Updates EM state to ACTIVE.
+
+4. **Vendor (automatic)**: After the Case Actor accepts, Vendor sends
+   `Create(VulnerabilityCase)` to the Reporter. This is the **trust bootstrap**
+   (DEMOMA-08-001): the full case snapshot includes all three participants
+   (Vendor, Reporter, Case Actor), so the Reporter can bind the Case Actor's
+   identity to this case. See `notes/case-bootstrap-trust.md`.
+
+> **Milestone M1**: Case exists in Vendor DataLayer with 3 participants
+> (Vendor, Reporter, Case Actor), EM.ACTIVE, default embargo present.
+> Both Vendor and Reporter DataLayers are checked.
+
+### Phase 2 — Report Validation
+
+1. **Demo puppeteers Vendor**: `POST .../trigger/validate-report`.
+   Vendor's BT advances report RM state RECEIVED → VALID, then automatically
+   cascades to engage-case (VALID → ACCEPTED). Vendor queues
+   state-change activities to outbox; Case Actor receives them and announces
+   log entries.
+
+> **Milestone M2**: Reporter DataLayer contains case replica (outbox delivery
+> confirmed). Both actor DataLayers are checked for matching
+> `actor_participant_index`, `active_embargo`, and log tail hash.
+
+### Phase 3 — Notes Exchange
+
+1. **Demo puppeteers Reporter**: `POST .../demo/add-note-to-case`.
+   Reporter constructs `Add(Note, target=Case)` and sends to Case Actor inbox.
+   Case Actor broadcasts note to all other participants.
+
+2. **Demo puppeteers Vendor**: `POST .../demo/add-note-to-case` (reply note).
+   Same mechanism.
+
+### Phase 4 — Fix Lifecycle
+
+1. **Demo puppeteers Vendor**: `POST .../demo/notify-fix-ready`.
+    Vendor sends `Add(ParticipantStatus(CS.VF), target=Case)` to Case Actor.
+    Case Actor verifies sender is a known participant, updates participant
+    status, announces to all other participants.
+
+> **Milestone M4**: Both Vendor and Reporter replicas show CS state includes
+> `F` (fix ready).
+
+1. **Demo puppeteers Vendor**: `POST .../demo/notify-fix-deployed`.
+    Vendor sends `Add(ParticipantStatus(CS.VFD), target=Case)` to Case Actor.
+
+> **Milestone M5**: Both replicas show CS state includes `D` (fix deployed).
+
+### Phase 5 — Publication and Embargo Teardown
+
+1. **Demo puppeteers Vendor**: `POST .../demo/notify-published`.
+    Vendor sends `Add(ParticipantStatus(CS.VFDPxa), target=Case)` to Case
+    Actor. Case Actor updates participant status and, because the Case Owner
+    has declared CS.P, automatically triggers embargo teardown
+    (`terminate-embargo`).
+
+2. **Case Actor BT (automatic)**: Terminates embargo. Announces embargo
+    termination to all participants. Both Vendor and Reporter receive it and
+    update their local EM states to EXITED.
+
+3. **Demo puppeteers Reporter** (after receiving termination):
+    `POST .../demo/notify-published`. Reporter sends
+    `Add(ParticipantStatus(CS.VFDPxa), target=Case)` to Case Actor.
+
+> **Milestone M6**: Both replicas show CS.VFDPxa and EM terminated.
+
+### Phase 6 — Case Closure
+
+1. **Demo puppeteers Vendor**: `POST .../demo/close-case`.
+    Vendor sends `Add(ParticipantStatus(rm=RM.CLOSED), target=Case)` to Case
+    Actor.
+
+2. **Demo puppeteers Reporter**: `POST .../demo/close-case`.
+    Same for Reporter.
+
+3. **Case Actor BT (automatic)**: Once all participants are RM.CLOSED,
+    Case Actor closes the case (updates case status).
+
+> **Milestone M7**: Both replicas show all participants RM.CLOSED; case is
+> closed. Final CS state: VFDPxa.
+
+---
+
+## CASE_MANAGER Role Delegation
+
+The Vendor delegates operational case management to the Case Actor entity
+using a **CASE_MANAGER delegation** protocol. This is a **distinct mechanism**
+from the existing CASE_OWNER transfer:
+
+| Mechanism | Activity type | Effect |
+|-----------|--------------|--------|
+| `OFFER_CASE_OWNERSHIP_TRANSFER` (existing) | Transfers CASE_OWNER role from one actor to another | The offering actor loses CASE_OWNER |
+| `OFFER_CASE_PARTICIPANT_ROLE` (ADR-0039) | Delegates a CVDRole to a target Actor within a VulnerabilityCase | The offering actor (Vendor) retains CASE_OWNER permanently |
+
+**Note**: `OFFER_CASE_MANAGER_ROLE` was removed in issue #2429 (ADR-0039;
+the retired SE-08-005 recorded it). The canonical replacement is `OFFER_CASE_PARTICIPANT_ROLE` —
+`Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)` — handled
+by `OfferCaseParticipantRoleReceivedUseCase` and the
+`offer_case_participant_role_received_tree`.
+
+`MessageSemantics` values in use:
+
+- `OFFER_CASE_PARTICIPANT_ROLE`
+- `ACCEPT_CASE_PARTICIPANT_ROLE`
+- `REJECT_CASE_PARTICIPANT_ROLE`
+
+---
+
+## ParticipantStatus Trigger Pattern
+
+CS state transitions (F, D, P, X, A) and RM case closure all flow through
+participant status updates, not through dedicated low-level API endpoints.
+
+**Layered implementation** (bottom-up):
+
+1. `SvcAddObjectToCaseUseCase` (existing) — generic Add(object, target=Case)
+2. `SvcAddParticipantStatusUseCase` (new) — builds a `ParticipantStatus` with
+   the requested CS/RM state fields populated, then delegates to
+   `SvcAddObjectToCaseUseCase`
+3. Demo trigger endpoints in `demo_triggers.py` (new):
+   - `POST /actors/{id}/demo/notify-fix-ready` → CS.F
+   - `POST /actors/{id}/demo/notify-fix-deployed` → CS.D
+   - `POST /actors/{id}/demo/notify-published` → CS.P
+   - `POST /actors/{id}/demo/close-case` → RM.CLOSED
+
+**"notify" not "announce"**: The endpoints use `notify` to avoid the
+ActivityStreams verb `Announce`. The underlying activity is
+`Add(ParticipantStatus, target=Case)`, not an `Announce`.
+
+**Case Actor received-side handler**: On receipt of
+`ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`, the Case Actor:
+
+1. Verifies the activity `actor` is a known participant of the case.
+2. Updates the participant's status record.
+3. Announces the update to all other case participants.
+4. If CS.P is newly set by the Case Owner → triggers embargo teardown.
+5. If all participants are RM.CLOSED → closes the case.
+
+---
+
+## Protocol Checkpoint Verification Rules
+
+All checkpoint verifications MUST check **both** the Vendor DataLayer and the
+Reporter (Finder) DataLayer. Direct DataLayer reads are acceptable in demo
+scripts for verification — they are read-only assertions, not puppeteering.
+
+| Checkpoint | What to verify |
+|-----------|---------------|
+| Case creation (EM.ACTIVE) | Vendor: case exists, 3 participants, EM.ACTIVE, embargo present. Reporter: has case replica, matching `actor_participant_index`, matching `active_embargo`. |
+| Replica sync (EM.ACTIVE) | Reporter DataLayer has case ID. Both sides: matching participant index, matching embargo, matching log tail hash (LedgerFanout). |
+| Fix ready (CS.VFd) | Both replicas: participant status includes CS.F. |
+| Fix deployed (CS.VFD) | Both replicas: participant status includes CS.D. |
+| Publicly disclosed (CS.VFDPxa) | Both replicas: CS.VFDPxa; EM state terminated/exited. |
+| Case closed (RM.CLOSED) | Both replicas: all participants RM.CLOSED; case status closed. |
+
+---
+
+## Related Archived Notes
+
+- `archived_notes/demo-review-26042001.md` — archived; point-in-time bug analysis
+  from 2026-04-20 that informed the demo redesign
+- `archived_notes/FV-feedback.md` — detailed bug feedback from
+  earlier demo runs

@@ -2,6 +2,7 @@
 """
 Provides behavior for inbound messaging.
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -14,7 +15,6 @@ Provides behavior for inbound messaging.
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
 
 import logging
 

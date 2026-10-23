@@ -1,0 +1,274 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Build every received-side tree once, from its factory's signature.
+
+Shared by ratchets that ask a question of the *built* tree rather than of the
+factory's source — which node sits under which gate — so a node reached
+through a helper, a local variable or a nested factory is seen exactly as it
+runs.  The factories are the sites
+``test_received_tree_case_manager_gate._receive_calls`` finds: every top-level
+function under ``vultron/core/behaviors/`` that calls
+``create_receive_activity_tree``.
+
+Each factory is called with an argument synthesized per parameter
+(:func:`_argument_for`): a URI for an id, a minimal domain object for a
+domain-typed parameter, a ``MagicMock`` for the received event (factories
+only read ids off it to configure nodes), and the real nodes for a node list
+a use case builds and hands in (:data:`_CALLER_SUPPLIED_NODES`), so those
+are walked where they run.  An optional parameter is
+*supplied*, not left at ``None``, so a node that a factory adds only when the
+argument is present is built and walked too; a ``bool`` or a defaulted
+bundle keeps its default.  A factory the synthesizer cannot build fails the
+build with its name, so a new factory signature is a decision, not a skip.
+"""
+
+import functools
+import importlib
+import inspect
+from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
+from enum import Enum
+from types import UnionType
+from typing import Any, Union, get_args, get_origin
+from unittest.mock import MagicMock
+
+import py_trees
+
+from test.architecture import _corpus
+from test.architecture.test_received_tree_case_manager_gate import (
+    _receive_calls,
+)
+from vultron.core.behaviors.case.nodes.submit_report import (
+    submit_report_received_effects,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    SenderEntitlementKind,
+    SenderRule,
+)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.note import VultronNote
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
+
+_Site = tuple[str, str]
+
+_BASE = "https://example.org/received-tree-ratchet"
+_CASE_ID = f"{_BASE}/cases/case"
+
+
+def _domain_values() -> dict[type, Any]:
+    """One minimal value per domain type a factory parameter names."""
+    return {
+        VulnerabilityCase: VulnerabilityCase(
+            id_=_CASE_ID, attributed_to=f"{_BASE}/actors/owner"
+        ),
+        VultronNote: VultronNote(id_=f"{_BASE}/notes/note", content="note"),
+        VulnerabilityReport: VulnerabilityReport(
+            id_=f"{_BASE}/reports/report", content="report"
+        ),
+        EmbargoEvent: EmbargoEvent(
+            id_=f"{_BASE}/embargoes/embargo",
+            context=_CASE_ID,
+            end_time=datetime(2030, 1, 1, tzinfo=UTC),
+        ),
+        LedgerPosition: LedgerPosition(log_index=0, entry_hash="0" * 64),
+        # A clock reading a clock decision compares a deadline against.
+        datetime: datetime(2030, 1, 1, tzinfo=UTC),
+        RM: RM.ACCEPTED,
+        CVDRole: CVDRole.VENDOR,
+        # The declared rule a migrated tree composes its sender guard from
+        # (HP-01-008); a guard is a condition, so any composable rule will do.
+        # CASE_MANAGER composes for a case known at build time and for one a
+        # ledger activity names at run time alike (LedgerActivityContext).
+        SenderRule: SenderRule.in_case(SenderEntitlementKind.CASE_MANAGER),
+    }
+
+
+def _members(annotation: Any) -> tuple[Any, ...]:
+    """The non-``None`` members of a union annotation, or the annotation."""
+    if get_origin(annotation) in (Union, UnionType):
+        return tuple(a for a in get_args(annotation) if a is not type(None))
+    return (annotation,)
+
+
+def _report_received_effects() -> list[py_trees.behaviour.Behaviour]:
+    return submit_report_received_effects(MagicMock(name="request"))
+
+
+#: Node lists a received use case builds and hands to its tree factory, by
+#: parameter name: the real builder, so the walk sees the nodes that run.
+_CALLER_SUPPLIED_NODES: dict[
+    str, Callable[[], list[py_trees.behaviour.Behaviour]]
+] = {"received_effects": _report_received_effects}
+
+
+def _is_node_sequence(members: tuple[Any, ...]) -> bool:
+    return any(
+        get_origin(m) in (Sequence, list)
+        and any(
+            inspect.isclass(arg)
+            and issubclass(arg, py_trees.behaviour.Behaviour)
+            for arg in get_args(m)
+        )
+        for m in members
+    )
+
+
+def _caller_supplied_nodes(name: str) -> list[py_trees.behaviour.Behaviour]:
+    if name not in _CALLER_SUPPLIED_NODES:
+        raise TypeError(
+            f"no builder for caller-supplied nodes {name!r}; add the use"
+            " case's builder to _CALLER_SUPPLIED_NODES"
+        )
+    return _CALLER_SUPPLIED_NODES[name]()
+
+
+_NO_RULE = object()
+
+
+def _required_scalar(annotation: Any) -> Any:
+    """A value for a required flag, enum or optional parameter.
+
+    A required flag gets ``True``, which adds the node it guards, so the walk
+    sees it.  A required enum (a termination reason) gets its first member,
+    and a required optional value (a claimed time) ``None``: neither selects
+    which nodes exist.  :data:`_NO_RULE` when none applies.
+    """
+    members = _members(annotation)
+    if bool in members:
+        return True
+    enums = [m for m in members if inspect.isclass(m) and issubclass(m, Enum)]
+    if enums:
+        return next(iter(enums[0]))
+    if type(None) in get_args(annotation):
+        return None
+    return _NO_RULE
+
+
+def _empty_collection(members: tuple[Any, ...]) -> list | dict | None:
+    """An empty list or dict for a collection parameter, else ``None``.
+
+    A dict is an output a node fills in (a clock decision's result).
+    """
+    if any(get_origin(m) in (Sequence, list) for m in members):
+        return []
+    if any(get_origin(m) is dict for m in members):
+        return {}
+    return None
+
+
+def _argument_for(param: inspect.Parameter, domain: dict[type, Any]) -> Any:
+    """A value for *param* that builds the factory's fullest tree.
+
+    Raises:
+        TypeError: no synthesis rule covers the parameter's annotation, or
+            a caller-supplied node list has no builder in
+            :data:`_CALLER_SUPPLIED_NODES`.
+    """
+    members = _members(param.annotation)
+    if _is_node_sequence(members):
+        # Nodes a use case hands in run in this tree: build the real ones.
+        return _caller_supplied_nodes(param.name)
+    for member in members:
+        if member in domain:
+            return domain[member]
+    if str in members:
+        return f"{_BASE}/{param.name}"
+    if param.default is not inspect.Parameter.empty:
+        # bool flags, call-out bundles, configs and other wiring keep their
+        # default: they select behaviour, not which nodes exist.
+        return param.default
+    if (value := _required_scalar(param.annotation)) is not _NO_RULE:
+        return value
+    if (
+        any(
+            inspect.isclass(m) and m.__name__.endswith("Event")
+            for m in members
+        )
+        or param.name == "request"
+    ):
+        return MagicMock(name=param.name)
+    if param.name.endswith("_obj"):
+        return MagicMock(name=param.name)
+    if (empty := _empty_collection(members)) is not None:
+        return empty
+    raise TypeError(
+        f"no argument rule for parameter {param.name!r}"
+        f" ({param.annotation!r}); extend _argument_for"
+    )
+
+
+def received_tree_factories() -> dict[_Site, Callable[..., Any]]:
+    """``(module path, function)`` → factory, for every received-tree site."""
+    factories: dict[_Site, Callable[..., Any]] = {}
+    for rel, scope, _ in _receive_calls():
+        module = importlib.import_module(
+            rel.removesuffix(".py").replace("/", ".")
+        )
+        candidate = getattr(module, scope)
+        if inspect.isfunction(candidate):
+            factories[(rel, scope)] = candidate
+    return factories
+
+
+@functools.cache
+@_corpus.gc_paused()
+def built_received_trees() -> dict[_Site, py_trees.behaviour.Behaviour]:
+    """Every received-side tree, built once per process."""
+    domain = _domain_values()
+    trees: dict[_Site, py_trees.behaviour.Behaviour] = {}
+    for site, factory in sorted(received_tree_factories().items()):
+        signature = inspect.signature(factory, eval_str=False)
+        hints = _resolved_hints(factory)
+        kwargs = {
+            name: _argument_for(
+                param.replace(annotation=hints.get(name, param.annotation)),
+                domain,
+            )
+            for name, param in signature.parameters.items()
+        }
+        try:
+            trees[site] = factory(**kwargs)
+        except Exception as error:  # report which factory, then fail
+            raise AssertionError(
+                f"{site[0]}:{site[1]}: cannot build from synthesized"
+                f" arguments ({type(error).__name__}: {error}); extend"
+                " _argument_for"
+            ) from error
+    return trees
+
+
+def _resolved_hints(factory: Callable[..., Any]) -> dict[str, Any]:
+    """The factory's annotations, each resolved where its module can.
+
+    A string annotation naming a ``TYPE_CHECKING``-only import stays a
+    string; :func:`_argument_for` then falls back to the parameter's default
+    or its name.
+    """
+    namespace = vars(inspect.getmodule(factory))
+    hints: dict[str, Any] = {}
+    for name, written in inspect.get_annotations(factory).items():
+        hints[name] = written
+        if isinstance(written, str):
+            try:
+                # How typing.get_type_hints resolves it, one name at a time.
+                hints[name] = eval(written, namespace)  # noqa: S307
+            except NameError:
+                pass
+    return hints

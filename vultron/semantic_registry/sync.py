@@ -1,0 +1,133 @@
+"""Case closure, sync and case-ledger semantic registry entries.
+
+``CLOSE_CASE`` appears here because it follows the embargo entries in the
+original dispatch order and precedes the case-ledger sync entries.
+"""
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.events.case import CloseCaseReceivedEvent
+from vultron.core.models.events.sync import (
+    AnnounceLogEntryReceivedEvent,
+    RejectLogEntryReceivedEvent,
+)
+from vultron.core.use_cases.received.case import CloseCaseReceivedUseCase
+from vultron.core.use_cases.received.sync import (
+    AnnounceLedgerEntryReceivedUseCase,
+    RejectLedgerEntryReceivedUseCase,
+)
+from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    HowToGuide,
+    MessagePage,
+    Occasion,
+)
+from vultron.wire.as2.extractor import (
+    AnnounceLogEntryPattern,
+    CloseCasePattern,
+    RejectLogEntryPattern,
+)
+from vultron.wire.as2.vocab.activities.case import _RmCloseCaseActivity
+from vultron.wire.as2.vocab.activities.sync import (
+    _AnnounceLogEntryActivity,
+    _RejectLogEntryActivity,
+)
+
+ENTRIES: list[SemanticEntry] = [
+    # CLOSE_CASE precedes the sync entries in the original dispatch order
+    # (after all embargo entries, before case-participant management).
+    SemanticEntry(
+        semantics=MessageSemantics.CLOSE_CASE,
+        pattern=CloseCasePattern,
+        event_class=CloseCaseReceivedEvent,
+        use_case_class=CloseCaseReceivedUseCase,
+        phrase="{actor} closed the case",
+        wire_activity_class=_RmCloseCaseActivity,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Participant ends its participation in the case",
+                anchor="close-case",
+                addressee=AddresseeSide.CASE_MANAGER,
+                heading="Close case",
+                description=(
+                    "Leaves the case, moving the sender's RM state to Closed."
+                ),
+                example="close_case",
+                howto=HowToGuide.MANAGE_CASE,
+            ),
+        ),
+        page=MessagePage.CASE_MANAGEMENT,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        pattern=AnnounceLogEntryPattern,
+        event_class=AnnounceLogEntryReceivedEvent,
+        use_case_class=AnnounceLedgerEntryReceivedUseCase,
+        phrase="{actor} announced a ledger entry",
+        wire_activity_class=_AnnounceLogEntryActivity,
+        # Its `to` is what the addressee door guard reads (HP-01-005).
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager has committed a case event to the case "
+                    "ledger"
+                ),
+                anchor="announce-case-ledger-entry",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Announce case ledger entry",
+                description=(
+                    "Fans out the newly committed ledger entry to each active "
+                    "participant."
+                ),
+                example="announce_case_ledger_entry",
+            ),
+        ),
+        page=MessagePage.LEDGER_REPLICATION,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.REJECT_CASE_LEDGER_ENTRY,
+        pattern=RejectLogEntryPattern,
+        event_class=RejectLogEntryReceivedEvent,
+        use_case_class=RejectLedgerEntryReceivedUseCase,
+        phrase="{actor} rejected a ledger entry",
+        wire_activity_class=_RejectLogEntryActivity,
+        # Its `to` is what the addressee door guard reads (HP-01-005).
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a received ledger entry does not chain onto the "
+                    "Participant's own ledger"
+                ),
+                anchor="reject-case-ledger-entry",
+                addressee=AddresseeSide.CASE_MANAGER,
+                heading="Reject case ledger entry",
+                description=(
+                    "Tells the Case Manager that the entry's previous hash "
+                    "does not match the sender's ledger tail, and the Case "
+                    "Manager replays every entry after the last accepted hash."
+                    " This negative acknowledgment serves the purpose of the "
+                    "formal EK and CK messages."
+                ),
+                example="reject_case_ledger_entry",
+                evolved=True,
+            ),
+        ),
+        page=MessagePage.LEDGER_REPLICATION,
+    ),
+]

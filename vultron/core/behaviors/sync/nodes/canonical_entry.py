@@ -1,0 +1,453 @@
+#!/usr/bin/env python
+#
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Canonical-entry validation for the case ledger commit boundary.
+
+Guards every ``CaseLedgerEntry`` before it reaches the hash chain: the
+``payloadSnapshot`` must name its actor, carry its object inline under a
+registered ``(activity_type, object_type)`` signature, name no case but the
+entry's own in ``context``, and — per CLP-07-003 — name a CaseActor actor
+only for signatures the CaseActor is authorized to author.  The snapshot is
+checked, never changed: a received one is the body as it arrived
+(CLP-07-011).
+
+Extracted from ``chain.py`` to keep that module within the BTND-07-004
+500-line leaf limit; grouped here as its own semantic concern per BTND-07-006.
+
+Spec: CLP-07, CLP-12.
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timedelta
+from typing import Any
+
+from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
+from vultron.core.models._helpers import as_utc, now_utc, parse_published
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.wire_keys import wire_key
+from vultron.core.predicates.addressing import snapshot_actor_id
+from vultron.errors import VultronCanonicalEntryError
+
+logger = logging.getLogger(__name__)
+
+#: How CLP-07 spells ``CaseLedgerEntry.payload_snapshot`` in every requirement it
+#: states, read from the field's own alias so the diagnostics below can quote the
+#: spec's spelling without core logic typing an AS2 name (ARCH-25-002, ADR-0099).
+_PAYLOAD_SNAPSHOT = wire_key("payload_snapshot", CaseLedgerEntry)
+
+# Every ``(activity_type, object_type)`` pair that may appear as a canonical
+# ledger ``payloadSnapshot``.  Audited against the CaseActor-authoritative
+# initialization path in ADR-0041 (Issue #1777): the init signatures
+# (``Create(VulnerabilityCase)``, ``Create(EmbargoEvent)``,
+# ``Add(VulnerabilityReport)``, ``Create(CaseParticipant)``,
+# ``Add(ParticipantStatus)``, ``Add(CaseStatus)``) are all still required —
+# ``case_proposal_received_tree`` now commits them natively where the deleted
+# ``WritePrologueLedgerEntriesNode`` used to back-fill them (CM-22-003).  No
+# entry in either collection is prologue-only.
+_CANONICAL_PAYLOAD_SIGNATURES: tuple[tuple[str, str], ...] = (
+    ("Create", "VulnerabilityCase"),
+    ("Offer", "VulnerabilityReport"),
+    # The CASE_MANAGER's ownership-transfer Offer (CM-21-005, ADR-0148).
+    ("Offer", "VulnerabilityCase"),
+    # The Case Owner's ownership-transfer proposal, Offer(Offer(Case)),
+    # committed as received (ADR-0148).  Owner-authored, so not in
+    # ``_CASE_AUTHORED_SIGNATURES``.
+    ("Offer", "Offer"),
+    ("Accept", "Offer"),  # validate_report (RV) — object_ is the Offer
+    ("TentativeReject", "Offer"),  # invalidate_report (RI)
+    # A Reject of an Offer: the ownership transferee's decline (CLP-02-012),
+    # and close_report (RC) entries already in a ledger, though no
+    # Close(Report) on a case is admitted now (CM-23-019).
+    ("Reject", "Offer"),
+    # No ``("Read", "Offer")``: RK is never ledgered (RMB-08-003, CLP-02-013).
+    # The Case Owner's withdrawal of its ownership-transfer proposal
+    # (CM-21-015, ADR-0148).  Owner-authored, so not in
+    # ``_CASE_AUTHORED_SIGNATURES``: an Offer that passes its end_time is
+    # closed by that time alone, with no entry (CM-21-017, ADR-0152).
+    ("Undo", "Offer"),
+    # No ``("Create", "Note")``: a received Create(Note) is not a protocol
+    # message, so ``Add(Note)`` is a note's one entry (VAM-01-011).
+    ("Add", "Note"),
+    ("Remove", "Note"),  # remove_note_from_case
+    ("Add", "VulnerabilityReport"),  # add_report_to_case
+    ("Add", "CaseStatus"),  # add_case_status_to_case
+    ("Add", "ParticipantStatus"),
+    ("Add", "EmbargoEvent"),
+    ("Remove", "EmbargoEvent"),
+    # CASE_MANAGER-authored record of an embargo the case's creation wrote,
+    # carried in full after the genesis entry (create_embargo_event,
+    # CLP-07-013).
+    ("Create", "EmbargoEvent"),
+    ("Offer", "EmbargoEvent"),
+    ("Invite", "EmbargoEvent"),
+    ("Accept", "EmbargoEvent"),
+    ("Reject", "EmbargoEvent"),
+    # A signatory's withdrawal from the embargo in force (MSM-07-010).
+    # Participant-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    ("Leave", "EmbargoEvent"),
+    ("Join", "VulnerabilityCase"),
+    ("Ignore", "VulnerabilityCase"),
+    ("Leave", "VulnerabilityCase"),
+    # The full-case Invite names its case by URI (CM-11-010); the stub Invite
+    # carries the stub, a type of its own (CM-11-013).
+    ("Invite", "VulnerabilityCase"),
+    ("Invite", "VulnerabilityCaseStub"),
+    ("Accept", "Invite"),
+    ("Reject", "Invite"),
+    # The CASE_MANAGER's withdrawal of an embargo Invite it sent, when it
+    # abandons an open proposal (EMB-16-001, ADR-0152).
+    ("Undo", "Invite"),
+    # RI: the full-case Invite's tentative refusal (VAM-04-013).  A stub
+    # Invite has no TentativeReject (CM-11-007).
+    ("TentativeReject", "Invite"),
+    ("Announce", "VulnerabilityCase"),
+    ("Offer", "CaseParticipant"),
+    # Role-delegation offer (ADR-0039, SE-08-003): the CASE_MANAGER records an
+    # ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``
+    # it receives as a protocol-significant assertion (CLP-07-001).  Like its
+    # sibling ``Offer(CaseParticipant)`` recommendation it moves no replica
+    # state — the offer is a proposal, not the grant (CLP-07-005, #3764).
+    ("Offer", "CaseParticipantRole"),
+    ("Add", "CaseParticipant"),
+    # CASE_MANAGER-authored record of the inert participant record it creates
+    # for a stub Invite's invitee (ADR-0114).
+    ("Create", "CaseParticipant"),
+    # The Case Owner's removal request, committed as received (CM-31-005,
+    # ADR-0116).  Owner-authored, so not in ``_CASE_AUTHORED_SIGNATURES``.
+    ("Remove", "CaseParticipant"),
+    # CASE_MANAGER-authored record of a new owner after an ownership
+    # transfer (update_case_owner, CM-21-002, CLP-07-013).
+    ("Update", "VulnerabilityCase"),
+    # CASE_MANAGER-authored change to a participant record, carrying the
+    # record (update_case_participant, CM-21-002, CLP-07-013).
+    ("Update", "CaseParticipant"),
+    # CASE_MANAGER-authored consent rows, each carried in full
+    # (create_embargo_consent, update_embargo_consent; ADR-0122, CLP-07-013).
+    ("Create", "EmbargoConsent"),
+    ("Update", "EmbargoConsent"),
+)
+# Signatures the CaseActor itself is authorized to author (CLP-07-003).  Per
+# CLP-12-002 this MUST be a superset of every pair the CaseActor emits during
+# native case initialization, so that single-actor deployments — where the
+# vendor IS the CaseActor — are not rejected for entries the CaseActor is
+# legitimately responsible for.
+_CASE_AUTHORED_SIGNATURES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("Announce", "VulnerabilityCase"),
+        ("Add", "EmbargoEvent"),
+        ("Remove", "EmbargoEvent"),
+        ("Invite", "EmbargoEvent"),
+        # its withdrawal of an embargo Invite it sent (EMB-16-001, ADR-0152)
+        ("Undo", "Invite"),
+        ("Offer", "CaseParticipant"),
+        ("Invite", "VulnerabilityCase"),
+        ("Invite", "VulnerabilityCaseStub"),
+        ("Offer", "VulnerabilityCase"),
+        ("Leave", "VulnerabilityCase"),
+        ("Accept", "Offer"),
+        ("Reject", "Offer"),
+        ("Add", "CaseParticipant"),
+        ("Create", "CaseParticipant"),
+        # CASE_MANAGER-authored new owner after an ownership transfer
+        # (CM-21-002)
+        ("Update", "VulnerabilityCase"),
+        # CASE_MANAGER-authored participant-record change (CLP-07-013)
+        ("Update", "CaseParticipant"),
+        # CASE_MANAGER-authored consent-row changes (ADR-0122, CLP-07-013)
+        ("Create", "EmbargoConsent"),
+        ("Update", "EmbargoConsent"),
+        # native case-initialization entries (ADR-0041, CM-22-003)
+        ("Create", "VulnerabilityCase"),
+        ("Create", "EmbargoEvent"),  # create_embargo_event (CLP-07-013)
+        ("Add", "VulnerabilityReport"),
+        ("Add", "ParticipantStatus"),
+        ("Add", "CaseStatus"),  # add_case_status_to_case (CLP-12-001, #1767)
+    }
+)
+#: The snapshot slots that carry the object the entry is about.  Its type is
+#: half of the entry's signature, so it must travel inline (AKM-02-004).
+_INLINE_OBJECT_KEYS: frozenset[str] = frozenset({"object", "object_"})
+
+
+def _snapshot_type(snapshot: dict[str, Any]) -> str | None:
+    activity_type = snapshot.get("type") or snapshot.get("type_")
+    return (
+        activity_type
+        if isinstance(activity_type, str) and activity_type
+        else None
+    )
+
+
+_ACTOR_TYPES: frozenset[str] = frozenset(
+    {"Actor", "Application", "Group", "Organization", "Person", "Service"}
+) | {"CoreActor"}
+
+
+def _snapshot_object_type(
+    snapshot: dict[str, Any], case_id: str
+) -> str | None:
+    # Invite(Actor, target=...): object_ is the actor; use target.type so the
+    # signature resolves to ('Invite','VulnerabilityCaseStub') for the stub
+    # Invite, or ('Invite','VulnerabilityCase'), not ('Invite','Org').
+    # A target that is the case URI itself names the same thing, so it
+    # resolves the same way.
+    obj = snapshot.get("object") or snapshot.get("object_")
+    if not isinstance(obj, dict):
+        return None
+    object_type = obj.get("type") or obj.get("type_")
+    if not isinstance(object_type, str) or not object_type:
+        return None
+    if object_type in _ACTOR_TYPES:
+        target = snapshot.get("target")
+        if isinstance(target, dict):
+            target_type = target.get("type") or target.get("type_")
+            if isinstance(target_type, str) and target_type:
+                return target_type
+        if isinstance(target, str) and target == case_id:
+            return "VulnerabilityCase"
+    return object_type
+
+
+def _bare_inline_object_path(
+    payload_snapshot: dict[str, Any], path: str = _PAYLOAD_SNAPSHOT
+) -> str | None:
+    """Return the path of a bare-string ``object``, or ``None``.
+
+    The object an activity is about travels inline: a sender inlines what it
+    introduces (AKM-02-004), and the entry's signature is read from the
+    object's type.  Every other slot is recorded as the sender sent it
+    (CLP-07-006).  A bare reference there names an object the case's replicas
+    hold, such as the case in ``target`` or the participant a status is added
+    to (AKM-02-002), and a replica that lacks it dereferences it; the commit
+    boundary neither inlines nor refuses it.
+    """
+    for key in _INLINE_OBJECT_KEYS:
+        if isinstance(payload_snapshot.get(key), str):
+            return f"{path}.{key}"
+    return None
+
+
+def _validate_entry_timestamps(
+    *,
+    semantic_type: str,
+    payload_snapshot: dict[str, Any],
+    case_published: datetime | None,
+    prev_actor_published: datetime | None,
+    future_tolerance: timedelta | None,
+    staleness_window: timedelta | None,
+    skew_tolerance: timedelta,
+) -> None:
+    """Enforce the claimed-timestamp invariants at the commit boundary.
+
+    Checks ``payloadSnapshot.published`` — the *asserting actor's* claimed
+    event time, as it arrived in the received body for received activities
+    (CLP-07-011) and stamped with the CaseActor's own clock for
+    CaseActor-authored ones.
+
+    This is deliberately a different field from ``CaseLedgerEntry.published``,
+    the CaseActor's commit stamp.  The two invariant families do not belong at
+    the same layer:
+
+    * The **commit**-timestamp invariants — CLP-14-002 (non-null), CLP-14-003
+      (non-decreasing across *all* entries by ``log_index``) and CLP-14-006
+      evaluated against the entry envelope — hold by construction, because a
+      single writer stamps every entry from one clock.  The conformance harness
+      (``check_clp14_timestamp_invariants``) is authoritative over them.
+    * The **claimed**-timestamp invariants checked here cannot hold by
+      construction, because they concern a value an external participant chose.
+
+    Critically, CLP-14-003's cross-entry monotonicity is *not* applied to the
+    claimed timestamp.  Comparing claimed timestamps across different actors is
+    exactly the wall-clock ordering ADR-0079 rejected as option C: two
+    participants' clocks are not comparable, so a later-committed assertion
+    from actor B legitimately carries an earlier claimed time than one from
+    actor A.  The per-stream obligation CLP-15-003 states — non-decreasing
+    *within the same participant's* event stream — is what is enforceable, and
+    ``prev_actor_published`` is scoped to the snapshot actor for that reason.
+
+    Each check is gated independently on the context it needs.  An earlier
+    version gated the whole block on ``case_published is not None`` and was
+    never reached, because the only production call site omitted that argument
+    (ISSUE-2824).
+
+    Args:
+        semantic_type: Ledger semantic type, used to prefix violation messages.
+        payload_snapshot: The candidate ``payloadSnapshot``.
+        case_published: The parent case's own ``published``, or ``None`` when
+            the case is not yet readable (the genesis entry is committed
+            alongside case creation), which skips CLP-14-006.
+        prev_actor_published: Claimed ``published`` of the most recent recorded
+            entry asserted by *this same actor* for this case, or ``None`` when
+            this is that actor's first assertion, which skips CLP-15-003.
+        future_tolerance: CLP-14-007 ceiling; ``None`` disables the check.
+        staleness_window: CLP-14-008 window; ``None`` disables the check.
+        skew_tolerance: Slack allowed on CLP-14-006 for unsynchronised clocks.
+
+    Raises:
+        VultronCanonicalEntryError: On any claimed-timestamp violation.
+    """
+    # parse_published (not as_utc) so an aware non-UTC case_published — the
+    # parent case chose its own offset — is *converted* to UTC, not merely
+    # tagged.  entry_published is always UTC (below), so this keeps the
+    # CLP-14-006 violation message from rendering the two sides in different
+    # offsets, which reads as though the guard compared unlike quantities.
+    # prev_actor_published already arrives UTC from _find_prev_actor_published,
+    # so as_utc is sufficient there.
+    case_published = parse_published(case_published)
+    prev_actor_published = as_utc(prev_actor_published)
+
+    raw_published = payload_snapshot.get("published")
+    if raw_published is None:  # CLP-07-011
+        raise VultronCanonicalEntryError(
+            f"{semantic_type}: CLP-07-011 — payloadSnapshot.published is "
+            "required; a snapshot without it is not the verbatim AS2 activity"
+        )
+    entry_published = parse_published(raw_published)
+    if entry_published is None:  # CLP-07-011 (malformed)
+        raise VultronCanonicalEntryError(
+            f"{semantic_type}: CLP-07-011 — payloadSnapshot.published is not a "
+            "valid ISO 8601 timestamp"
+        )
+    if (  # CLP-14-006
+        case_published is not None
+        and entry_published < case_published - skew_tolerance
+    ):
+        raise VultronCanonicalEntryError(
+            f"{semantic_type}: CLP-14-006 — entry published {entry_published} "
+            f"predates case created {case_published} by more than the "
+            f"{skew_tolerance} clock-skew tolerance"
+        )
+    # CLP-15-003 is reported, never refused.  It places its obligation on the
+    # *participant*, and CLP-15-005 forbids the CaseActor from reconstructing
+    # participant-internal causal order it cannot verify.  Arrival order is not
+    # causal order: the transport offers no ordering guarantee (ADR-0037), so
+    # two assertions from one actor can legitimately be committed in the
+    # reverse of the order they were emitted, and CLP-15-003 constrains only
+    # assertions that are actually causally related.  Refusing on this signal
+    # aborted the whole receive sequence — the guarded commit is ordered before
+    # the effect nodes (CLP-10-006) — and dropped the activity with no ledger
+    # record and no retry.  Recording it and reporting it keeps the signal
+    # without losing the assertion.
+    if (
+        prev_actor_published is not None
+        and entry_published < prev_actor_published
+    ):
+        regression = prev_actor_published - entry_published
+        # Two bands: within the clock-skew budget this is the expected
+        # consequence of unsynchronised clocks and reordered delivery; beyond it
+        # the participant is more likely misbehaving (CLP-15-001/002) and a
+        # human should see it.  Neither is an error — the CaseActor did its job.
+        log = logger.info if regression <= skew_tolerance else logger.warning
+        log(
+            "%s: CLP-15-003 — claimed timestamp %s from actor %s regresses %s "
+            "behind that actor's previous assertion %s (%s tolerance %s). "
+            "Recorded as observed; emission order is the participant's "
+            "obligation and is verified across the scenario, not per "
+            "assertion (CLP-15-005).",
+            semantic_type,
+            entry_published,
+            payload_snapshot.get("actor"),
+            regression,
+            prev_actor_published,
+            "within" if regression <= skew_tolerance else "outside",
+            skew_tolerance,
+        )
+    now = now_utc()
+    if (
+        future_tolerance is not None
+        and entry_published > now + future_tolerance
+    ):
+        raise VultronCanonicalEntryError(  # CLP-14-007
+            f"{semantic_type}: CLP-14-007 — entry published {entry_published} "
+            f"exceeds future tolerance of {future_tolerance}"
+        )
+    if (
+        staleness_window is not None
+        and entry_published < now - staleness_window
+    ):
+        raise VultronCanonicalEntryError(  # CLP-14-008
+            f"{semantic_type}: CLP-14-008 — entry published {entry_published} "
+            f"exceeds staleness window of {staleness_window}"
+        )
+
+
+def _validate_canonical_entry(
+    *,
+    case_id: str,
+    payload_snapshot: dict[str, Any],
+    semantic_type: str,
+    case_published: datetime | None = None,
+    prev_actor_published: datetime | None = None,
+    future_tolerance: timedelta | None = timedelta(minutes=5),
+    staleness_window: timedelta | None = timedelta(days=7),
+    skew_tolerance: timedelta = timedelta(minutes=5),
+) -> None:
+    # Runs before idempotency check so malformed entries never reach the
+    # equivalence lookup (CLP-07).
+    if not payload_snapshot:
+        raise VultronCanonicalEntryError(
+            f"{semantic_type}: recorded canonical entries require a non-empty"
+            f" {_PAYLOAD_SNAPSHOT}"
+        )
+
+    # A received body names its actor as the sender wrote it: a URI, or the
+    # inline profile a Create(CaseProposal) carries (CP-01-010).
+    if snapshot_actor_id(payload_snapshot.get("actor")) is None:
+        raise VultronCanonicalEntryError(
+            f"{semantic_type}: payloadSnapshot.actor must name an actor URI"
+        )
+
+    activity_type = _snapshot_type(payload_snapshot)
+    object_type = _snapshot_object_type(payload_snapshot, case_id)
+    signature = (activity_type or "", object_type or "")
+
+    bare_reference_path = _bare_inline_object_path(payload_snapshot)
+    if bare_reference_path is not None:
+        raise VultronCanonicalEntryError(
+            f"{semantic_type}: {bare_reference_path} must be an inline object, "
+            "not a bare ID string"
+        )
+
+    if signature not in _CANONICAL_PAYLOAD_SIGNATURES:
+        raise VultronCanonicalEntryError(
+            f"{semantic_type}: payloadSnapshot type/object pair {signature!r} "
+            "is not canonical"
+        )
+
+    # The entry names its case on the envelope (``case_id``); the snapshot is
+    # the activity as asserted, so an activity that predates the case carries
+    # no ``context`` (CLP-07-011).  One that names a case names this
+    # one: a snapshot scoped to another case is not this case's event.
+    context = payload_snapshot.get("context")
+    if context is not None and _extract_id_from_field(context) != case_id:
+        raise VultronCanonicalEntryError(
+            f"{semantic_type}: payloadSnapshot.context names"
+            f" {_extract_id_from_field(context)!r}, not the entry's case"
+            f" {case_id!r}"
+        )
+
+    # Claimed-timestamp invariants.  Unconditional for recorded entries: each
+    # individual check gates itself on the context it needs.  Gating the whole
+    # block on an optional argument is what left it dead (ISSUE-2824).
+    _validate_entry_timestamps(
+        semantic_type=semantic_type,
+        payload_snapshot=payload_snapshot,
+        case_published=case_published,
+        prev_actor_published=prev_actor_published,
+        future_tolerance=future_tolerance,
+        staleness_window=staleness_window,
+        skew_tolerance=skew_tolerance,
+    )

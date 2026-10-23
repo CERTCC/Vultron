@@ -1,0 +1,680 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Unit tests for OutboxMonitor (OUTBOX-MON-1).
+
+Tests cover drain_all(), error handling, and start()/stop() lifecycle.
+The asyncio task loop is not exercised directly; only drain_all() and the
+start/stop lifecycle are tested to keep tests deterministic.
+
+Module under test: ``vultron/adapters/driving/fastapi/outbox_monitor.py``
+"""
+
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driving.fastapi.outbox_monitor import OutboxMonitor
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _mock_dl(has_items: bool = False) -> MagicMock:
+    """Return a MagicMock DataLayer with a configurable outbox state."""
+    dl = MagicMock()
+    dl.outbox_list.return_value = ["urn:test:act-001"] if has_items else []
+    return dl
+
+
+def _make_monitor(
+    actor_dls: dict | None = None,
+    emitter: AsyncMock | None = None,
+) -> OutboxMonitor:
+    """Build an OutboxMonitor with injected test doubles."""
+    factory = (lambda: actor_dls) if actor_dls is not None else (lambda: {})
+    return OutboxMonitor(
+        poll_interval=0.01,
+        actor_datalayers_factory=factory,
+        emitter=emitter,
+    )
+
+
+# ---------------------------------------------------------------------------
+# drain_all — happy paths
+# ---------------------------------------------------------------------------
+
+
+def test_drain_all_skips_empty_outbox():
+    """drain_all does nothing when all actor outboxes are empty."""
+    dl = _mock_dl(has_items=False)
+    monitor = _make_monitor(actor_dls={"alice": dl})
+
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ) as mock_handler:
+        asyncio.run(monitor.drain_all())
+
+    mock_handler.assert_not_called()
+
+
+def test_drain_all_calls_outbox_handler_for_actor_with_items():
+    """drain_all calls outbox_handler for actors whose outbox is non-empty."""
+    dl = _mock_dl(has_items=True)
+    monitor = _make_monitor(actor_dls={"alice": dl})
+
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ) as mock_handler:
+        asyncio.run(monitor.drain_all())
+
+    mock_handler.assert_called_once_with("alice", dl, emitter=None)
+
+
+def test_drain_all_skips_empty_and_processes_non_empty():
+    """drain_all processes only actors with pending items."""
+    alice_dl = _mock_dl(has_items=False)
+    bob_dl = _mock_dl(has_items=True)
+    monitor = _make_monitor(actor_dls={"alice": alice_dl, "bob": bob_dl})
+
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ) as mock_handler:
+        asyncio.run(monitor.drain_all())
+
+    mock_handler.assert_called_once_with("bob", bob_dl, emitter=None)
+
+
+def test_drain_all_calls_handler_for_multiple_actors():
+    """drain_all calls outbox_handler once per actor that has pending items."""
+    dls = {f"actor-{i}": _mock_dl(has_items=True) for i in range(3)}
+    monitor = _make_monitor(actor_dls=dls)
+
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ) as mock_handler:
+        asyncio.run(monitor.drain_all())
+
+    assert mock_handler.call_count == 3
+
+
+# ---------------------------------------------------------------------------
+# drain_all — error handling
+# ---------------------------------------------------------------------------
+
+
+def test_drain_all_continues_after_error_for_one_actor(caplog):
+    """drain_all logs errors and continues processing remaining actors."""
+    alice_dl = _mock_dl(has_items=True)
+    bob_dl = _mock_dl(has_items=True)
+    monitor = _make_monitor(actor_dls={"alice": alice_dl, "bob": bob_dl})
+
+    call_count = [0]
+
+    async def sometimes_raises(actor_id, dl, emitter):
+        call_count[0] += 1
+        if actor_id == "alice":
+            raise RuntimeError("delivery failed")
+
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new=sometimes_raises,
+    ):
+        with caplog.at_level("ERROR"):
+            asyncio.run(monitor.drain_all())
+
+    assert call_count[0] == 2
+    assert "alice" in caplog.text
+
+
+def test_drain_all_logs_error_on_exception(caplog):
+    """drain_all logs at ERROR level when outbox_handler raises."""
+    dl = _mock_dl(has_items=True)
+    monitor = _make_monitor(actor_dls={"bad-actor": dl})
+
+    async def always_raises(actor_id, dl, emitter):
+        raise RuntimeError("boom")
+
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new=always_raises,
+    ):
+        with caplog.at_level("ERROR"):
+            asyncio.run(monitor.drain_all())
+
+    assert "bad-actor" in caplog.text
+    assert "ERROR" in caplog.text
+
+
+def test_drain_all_empty_actor_dict_does_nothing():
+    """drain_all with no registered actors is a silent no-op."""
+    monitor = _make_monitor(actor_dls={})
+
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ) as mock_handler:
+        asyncio.run(monitor.drain_all())
+
+    mock_handler.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# start() / stop() lifecycle
+# ---------------------------------------------------------------------------
+
+
+def test_start_creates_asyncio_task():
+    """start() creates an asyncio.Task that is accessible via _task."""
+
+    async def _run():
+        monitor = _make_monitor()
+        monitor.start()
+        assert monitor._task is not None
+        assert not monitor._task.done()
+        monitor.stop()
+        # Allow the cancelled task to propagate
+        await asyncio.sleep(0)
+
+    asyncio.run(_run())
+
+
+def test_stop_cancels_task():
+    """stop() cancels the background task and sets _task to None."""
+
+    async def _run():
+        monitor = _make_monitor()
+        monitor.start()
+        task = monitor._task
+        assert task is not None
+        monitor.stop()
+        assert monitor._task is None
+        # Give the event loop a chance to process the cancellation
+        await asyncio.sleep(0)
+        assert task.cancelled() or task.done()
+
+    asyncio.run(_run())
+
+
+def test_start_twice_is_noop(caplog):
+    """Calling start() a second time while running logs a warning and is safe."""
+
+    async def _run():
+        monitor = _make_monitor()
+        monitor.start()
+        first_task = monitor._task
+        with caplog.at_level("WARNING"):
+            monitor.start()  # second call
+        assert monitor._task is first_task
+        monitor.stop()
+        await asyncio.sleep(0)
+
+    asyncio.run(_run())
+    assert "already running" in caplog.text
+
+
+def test_stop_without_start_is_safe():
+    """stop() before start() does not raise."""
+    monitor = _make_monitor()
+    monitor.stop()  # should not raise
+
+
+def test_start_after_stop_creates_new_task():
+    """start() can be called again after stop() to restart the monitor."""
+
+    async def _run():
+        monitor = _make_monitor()
+        monitor.start()
+        monitor.stop()
+        await asyncio.sleep(0)
+        monitor.start()
+        assert monitor._task is not None
+        assert not monitor._task.done()
+        monitor.stop()
+        await asyncio.sleep(0)
+
+    asyncio.run(_run())
+
+
+# There is no "default shared_dl" test here any more.  `outbox_monitor` no longer
+# references a shared DataLayer at all (ADR-0073), so the fallback this covered
+# does not exist to be exercised.  With the `get_datalayer` patch removed the
+# test asserted exactly what
+# `test_drain_all_calls_outbox_handler_for_actor_with_items` already does —
+# one call per actor, with that actor's own store and no emitter.
+
+
+# ---------------------------------------------------------------------------
+# drain_all — get_all_actor_datalayers default factory
+# ---------------------------------------------------------------------------
+
+
+def test_drain_all_uses_get_all_actor_datalayers_by_default():
+    """OutboxMonitor uses get_all_actor_datalayers() by default."""
+    dl = _mock_dl(has_items=True)
+    monitor = OutboxMonitor(
+        poll_interval=0.01,
+        actor_datalayers_factory=None,
+    )
+
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.get_all_actor_datalayers",
+        return_value={"actor-y": dl},
+    ):
+        with patch(
+            "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+            new_callable=AsyncMock,
+        ) as mock_handler:
+            asyncio.run(monitor.drain_all())
+
+    mock_handler.assert_called_once()
+    call_actor_id = mock_handler.call_args[0][0]
+    assert call_actor_id == "actor-y"
+
+
+# ---------------------------------------------------------------------------
+# run_loop integration — logs started/stopped messages
+# ---------------------------------------------------------------------------
+
+
+def test_run_loop_logs_started_and_stopped(caplog):
+    """OutboxMonitor logs start and stop messages during its run loop."""
+
+    async def _run():
+        monitor = _make_monitor()
+        with caplog.at_level("INFO"):
+            monitor.start()
+            await asyncio.sleep(0.02)
+            monitor.stop()
+            await asyncio.sleep(0)
+
+    asyncio.run(_run())
+    assert "OutboxMonitor started" in caplog.text
+    assert "OutboxMonitor stopped" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "poll_interval",
+    [0.1, 0.5, 1.0, 2.0],
+)
+def test_outbox_monitor_accepts_various_poll_intervals(poll_interval):
+    """OutboxMonitor can be constructed with various poll intervals."""
+    monitor = OutboxMonitor(poll_interval=poll_interval)
+    assert monitor._poll_interval == poll_interval
+
+
+# ---------------------------------------------------------------------------
+# Event-driven wakeup — _notify and _register_new_actors (AC-2, AC-3, AC-4)
+# ---------------------------------------------------------------------------
+
+
+def test_notify_sets_wakeup_event():
+    """_notify() sets the wakeup event so the run loop wakes immediately."""
+
+    async def _run():
+        monitor = _make_monitor()
+        monitor.start()
+        assert monitor._wakeup_event is not None
+        assert not monitor._wakeup_event.is_set()
+        monitor._notify("https://example.org/alice")
+        # Allow call_soon_threadsafe to be processed
+        await asyncio.sleep(0)
+        assert monitor._wakeup_event.is_set()
+        monitor.stop()
+        await asyncio.sleep(0)
+
+    asyncio.run(_run())
+
+
+def test_notify_is_safe_before_start():
+    """_notify() before start() does not raise (event is None)."""
+    monitor = _make_monitor()
+    monitor._notify("https://example.org/alice")  # should not raise
+
+
+def test_register_new_actors_sets_callback_on_sqlite_dl():
+    """_register_new_actors() calls set_enqueue_callback on SqliteDataLayer DLs."""
+    sqlite_dl = MagicMock(spec=SqliteDataLayer)
+    monitor = _make_monitor(actor_dls={"alice": sqlite_dl})
+
+    async def _run():
+        monitor.start()
+        await asyncio.sleep(
+            0
+        )  # let _run_loop start and call _register_new_actors
+        monitor.stop()
+        await asyncio.sleep(0)
+
+    asyncio.run(_run())
+    sqlite_dl.set_enqueue_callback.assert_called_once_with(monitor._notify)
+
+
+def test_register_new_actors_skips_non_sqlite_dl():
+    """_register_new_actors() skips DLs that are not SqliteDataLayer."""
+    plain_dl = MagicMock()  # generic mock, not spec=SqliteDataLayer
+    monitor = _make_monitor(actor_dls={"actor": plain_dl})
+
+    async def _run():
+        monitor.start()
+        await asyncio.sleep(0)
+        monitor.stop()
+        await asyncio.sleep(0)
+
+    asyncio.run(_run())
+    plain_dl.set_enqueue_callback.assert_not_called()
+
+
+def test_register_new_actors_idempotent():
+    """_register_new_actors() only registers each actor once."""
+    sqlite_dl = MagicMock(spec=SqliteDataLayer)
+    monitor = _make_monitor(actor_dls={"alice": sqlite_dl})
+
+    async def _run():
+        monitor.start()
+        # Allow multiple drain cycles
+        await asyncio.sleep(0.05)
+        monitor.stop()
+        await asyncio.sleep(0)
+
+    asyncio.run(_run())
+    sqlite_dl.set_enqueue_callback.assert_called_once_with(monitor._notify)
+
+
+# ---------------------------------------------------------------------------
+# AC-4(a): monitor wakes within one event-loop tick after enqueue
+# ---------------------------------------------------------------------------
+
+
+def test_monitor_wakes_on_enqueue_not_on_poll_timeout():
+    """Monitor drains immediately after enqueue, well before poll timeout.
+
+    AC-4(a): monitor wakes within one event-loop tick after the callback fires.
+    """
+    sqlite_dl = MagicMock(spec=SqliteDataLayer)
+    sqlite_dl.outbox_list.return_value = []
+
+    drain_times: list[float] = []
+
+    async def _run():
+        # Use a long poll interval so drain only happens due to callback
+        monitor = OutboxMonitor(
+            poll_interval=5.0,
+            actor_datalayers_factory=lambda: {"alice": sqlite_dl},
+        )
+        with patch(
+            "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+            new_callable=AsyncMock,
+        ):
+            monitor.start()
+            await asyncio.sleep(0)  # let _run_loop register actors
+
+            # Simulate enqueue by firing _notify directly (callback path)
+            enqueue_start = asyncio.get_event_loop().time()
+            sqlite_dl.outbox_list.return_value = ["urn:test:act-001"]
+            monitor._notify("alice")
+
+            # Wait a short time (much less than 5s poll)
+            await asyncio.sleep(0.1)
+            drain_times.append(asyncio.get_event_loop().time() - enqueue_start)
+            monitor.stop()
+            await asyncio.sleep(0)
+
+    asyncio.run(_run())
+    # Drain should happen well before the 5s poll interval
+    assert drain_times and drain_times[0] < 1.0
+
+
+# ---------------------------------------------------------------------------
+# AC-4(b): safety-net poll fires when no enqueue occurs within interval
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.timeout(5)  # exercises a real asyncio.wait_for timeout
+def test_safety_net_poll_fires_without_enqueue():
+    """Monitor drains via safety-net timeout when no enqueue notification fires.
+
+    AC-4(b): asyncio.wait_for timeout triggers a drain even with no callback.
+    """
+    drain_count = [0]
+
+    async def counting_drain(*args, **kwargs):
+        drain_count[0] += 1
+
+    async def _run():
+        monitor = OutboxMonitor(
+            poll_interval=0.05,
+            actor_datalayers_factory=lambda: {},
+        )
+        with patch(
+            "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+            new=counting_drain,
+        ):
+            monitor.start()
+            # Wait enough time for at least 2 safety-net polls
+            await asyncio.sleep(0.2)
+            monitor.stop()
+            await asyncio.sleep(0)
+
+    asyncio.run(_run())
+    # No actors → handler never called, but the loop iterated (drained empty set)
+    # We verify the loop ran by checking stop() completed cleanly
+    assert drain_count[0] == 0  # no actors to drain
+
+
+# ---------------------------------------------------------------------------
+# AC-4(c): callback injection and clearing roundtrip
+# ---------------------------------------------------------------------------
+
+
+def test_callback_injection_and_clearing_roundtrip():
+    """set_enqueue_callback wires and unwires the wakeup notification.
+
+    AC-4(c): After injection the DL notifies the monitor; after clearing
+    (set_enqueue_callback(None)) no further notification occurs.
+    """
+    dl = SqliteDataLayer(
+        "sqlite:///:memory:", actor_id="https://example.org/alice"
+    )
+
+    notify_calls: list[str] = []
+
+    def mock_notify(actor_id: str) -> None:
+        notify_calls.append(actor_id)
+
+    # Inject callback
+    dl.set_enqueue_callback(mock_notify)
+    dl.outbox_append("urn:test:act-001")
+    assert notify_calls == ["https://example.org/alice"]
+
+    # Clear callback — further enqueues must not call it
+    dl.set_enqueue_callback(None)
+    dl.outbox_append("urn:test:act-002")
+    assert notify_calls == ["https://example.org/alice"]  # unchanged
+
+    dl.clear_all()
+    dl.close()
+
+
+def test_stop_clears_registered_actors():
+    """stop() resets _registered_actors so restart begins fresh."""
+
+    async def _run():
+        monitor = _make_monitor()
+        monitor.start()
+        await asyncio.sleep(0)
+        assert isinstance(monitor._registered_actors, set)
+        monitor.stop()
+        assert monitor._registered_actors == set()
+
+    asyncio.run(_run())
+
+
+def test_stop_clears_loop_reference():
+    """stop() clears the stored event-loop reference."""
+
+    async def _run():
+        monitor = _make_monitor()
+        monitor.start()
+        assert monitor._loop is not None
+        monitor.stop()
+        assert monitor._loop is None
+
+    asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
+# Queue-depth observability — OX-09-004 (DEBUG summary) and OX-09-005 (WARNING)
+# ---------------------------------------------------------------------------
+
+
+def _mock_dl_with_depth(depth: int) -> MagicMock:
+    """Return a mock DataLayer whose outbox_list returns `depth` items."""
+    dl = MagicMock()
+    dl.outbox_list.return_value = [f"urn:test:act-{i}" for i in range(depth)]
+    return dl
+
+
+def test_drain_all_logs_debug_summary_with_no_items(caplog):
+    """drain_all emits a DEBUG log with total=0 when all outboxes are empty."""
+    monitor = _make_monitor(actor_dls={"alice": _mock_dl_with_depth(0)})
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("DEBUG"):
+            asyncio.run(monitor.drain_all())
+
+    debug_msgs = [r.message for r in caplog.records if r.levelname == "DEBUG"]
+    assert any(
+        "drain pass" in m and "total pending: 0" in m for m in debug_msgs
+    )
+
+
+def test_drain_all_logs_debug_summary_with_items(caplog):
+    """drain_all emits a DEBUG log showing total pending count across actors."""
+    monitor = _make_monitor(
+        actor_dls={
+            "alice": _mock_dl_with_depth(3),
+            "bob": _mock_dl_with_depth(2),
+        }
+    )
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("DEBUG"):
+            asyncio.run(monitor.drain_all())
+
+    debug_msgs = [r.message for r in caplog.records if r.levelname == "DEBUG"]
+    assert any("total pending: 5" in m and "2 actors" in m for m in debug_msgs)
+
+
+def test_drain_all_no_warning_when_threshold_not_set(caplog):
+    """drain_all emits no WARNING when depth_warn_threshold is None (default)."""
+    monitor = _make_monitor(actor_dls={"alice": _mock_dl_with_depth(100)})
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("WARNING"):
+            asyncio.run(monitor.drain_all())
+
+    warn_msgs = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert not any("exceeds threshold" in m for m in warn_msgs)
+
+
+def test_drain_all_warns_when_depth_exceeds_threshold(caplog):
+    """drain_all emits a WARNING identifying the actor when depth > threshold."""
+    monitor = OutboxMonitor(
+        poll_interval=0.01,
+        actor_datalayers_factory=lambda: {"alice": _mock_dl_with_depth(5)},
+        depth_warn_threshold=3,
+    )
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("WARNING"):
+            asyncio.run(monitor.drain_all())
+
+    warn_msgs = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert any("alice" in m and "exceeds threshold" in m for m in warn_msgs)
+
+
+def test_drain_all_no_warning_when_depth_equals_threshold(caplog):
+    """drain_all does NOT warn when depth equals (not exceeds) the threshold."""
+    monitor = OutboxMonitor(
+        poll_interval=0.01,
+        actor_datalayers_factory=lambda: {"alice": _mock_dl_with_depth(3)},
+        depth_warn_threshold=3,
+    )
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("WARNING"):
+            asyncio.run(monitor.drain_all())
+
+    warn_msgs = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert not any("exceeds threshold" in m for m in warn_msgs)
+
+
+def test_drain_all_warns_only_for_actors_exceeding_threshold(caplog):
+    """drain_all warns only for actors whose depth exceeds the threshold."""
+    monitor = OutboxMonitor(
+        poll_interval=0.01,
+        actor_datalayers_factory=lambda: {
+            "alice": _mock_dl_with_depth(10),
+            "bob": _mock_dl_with_depth(2),
+        },
+        depth_warn_threshold=5,
+    )
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        with caplog.at_level("WARNING"):
+            asyncio.run(monitor.drain_all())
+
+    warn_msgs = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert any("alice" in m and "exceeds threshold" in m for m in warn_msgs)
+    assert not any("bob" in m and "exceeds threshold" in m for m in warn_msgs)
+
+
+def test_depth_warn_threshold_negative_raises():
+    """Passing a negative depth_warn_threshold raises ValueError at construction."""
+    with pytest.raises(ValueError, match="non-negative"):
+        OutboxMonitor(depth_warn_threshold=-1)
+
+
+def test_drain_all_calls_outbox_list_exactly_once_per_actor():
+    """drain_all calls outbox_list() exactly once per actor, not twice."""
+    dl = _mock_dl_with_depth(2)
+    monitor = _make_monitor(actor_dls={"alice": dl})
+
+    with patch(
+        "vultron.adapters.driving.fastapi.outbox_monitor.outbox_handler",
+        new_callable=AsyncMock,
+    ):
+        asyncio.run(monitor.drain_all())
+
+    dl.outbox_list.assert_called_once()

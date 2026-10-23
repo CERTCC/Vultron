@@ -1,0 +1,197 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Actor policy configuration model.
+
+Provides :class:`ActorConfig`: a minimal Pydantic model that carries CVD-role
+defaults for the local actor without importing from the demo or adapter layers.
+
+``ActorConfig`` imports ``CVDRole`` from ``vultron.enums.roles`` (not from
+``vultron.core``) to satisfy the neutral-module constraint on
+``vultron/config/``.
+
+Per ``specs/configuration.yaml`` CFG-07-001, CFG-07-002, CFG-07-005, CFG-07-006.
+RSVP window fields per ``specs/embargo-policy.yaml`` EP-07-001, EP-07-002.
+Protocol default embargo duration per ``specs/embargo-policy.yaml`` EP-04-005
+(ADR-0096).
+"""
+
+from datetime import timedelta
+from enum import StrEnum
+
+from pydantic import (
+    BaseModel,
+    Field,
+    HttpUrl,
+    field_serializer,
+    field_validator,
+)
+
+from vultron.enums.roles import CVDRole, serialize_roles, validate_roles
+
+PROTOCOL_DEFAULT_EMBARGO_MIN = timedelta(hours=72)
+"""Lower bound on the configurable protocol default embargo (EP-04-005)."""
+
+PROTOCOL_DEFAULT_EMBARGO_MAX = timedelta(days=5)
+"""Upper bound on the configurable protocol default embargo (EP-04-005)."""
+
+
+class PostCloseReply(StrEnum):
+    """What the CASE_MANAGER sends back for a late ``Leave(VulnerabilityCase)``.
+
+    After the CASE_MANAGER commits its own status entry reaching ``RM.CLOSED``
+    (the case is fully closed), it records nothing
+    for any inbound activity on the case and changes no case or participant
+    state (CM-23-013, ADR-0085).  This setting decides only the courtesy reply
+    to a late **Leave**:
+
+    - ``DROP`` — send nothing (the default).
+    - ``REJECT`` — send ``Reject(Leave(VulnerabilityCase))`` to the sender.
+
+    Every other late activity is dropped with no reply under **both** settings.
+    A Reject that wraps most other activities already carries a protocol
+    meaning for its recipient (``Reject(Invite)`` is a declined invitation,
+    ``Reject(Offer(...))`` a declined offer), so a reply to them would be
+    misread.  ``Reject(Leave(VulnerabilityCase))`` already means "close
+    declined" (CM-23-011) and cannot be misread (CM-23-017, ADR-0131).
+    """
+
+    DROP = "drop"
+    REJECT = "reject"
+
+
+DEFAULT_POST_CLOSE_REPLY = PostCloseReply.DROP
+"""The default reply to a late Leave: none (CM-23-013, ADR-0131)."""
+
+
+class ActorConfig(BaseModel):
+    """Minimal, layer-neutral configuration for the local actor.
+
+    Carries the CVD roles the local actor assumes when creating or owning
+    a ``VulnerabilityCase``.  BT nodes use this to parameterize participant
+    creation without importing from the demo or adapter layers (CFG-07-001).
+
+    Attributes:
+        default_case_roles: CVD roles assigned to the local actor when it
+            creates or receives ownership of a ``VulnerabilityCase``.
+            Defaults to an empty list; ``CVDRole.CASE_OWNER`` is always
+            appended at participant-creation time (BTND-05-002).
+        auto_create_case: When ``True`` (default), create a
+            ``VulnerabilityCase`` immediately on ``Offer(Report)`` receipt
+            (CM-15-001 default; CM-12-001, CM-22-001).  When ``False``, defer
+            case creation so the receiver can send a pre-case ACK
+            (``Read(Offer(Report))``, VAM-02-003) before deciding to accept or
+            reject (CM-15-002, CM-15-003; ADR-0015, issue #1133).
+        case_actor_service_url: Base URL of the dedicated CaseActor service
+            (e.g. ``http://case-actor:7999/api/v2``).  The CaseActor's identity is
+            ``{this}/actors/case-actor`` — one per container, no per-case slug
+            (CP-04-003, #1872).  Required for any actor whose BT may run the
+            ``engage-case`` path.  When ``None``, the nodes that need it return
+            ``FAILURE`` with a clear error rather than guessing a base URL, since
+            a guessed identity is one no container hosts (CP-08-001, CP-08-002).
+        protocol_default_embargo_duration: Embargo duration applied at case
+            creation when neither a sender proposal nor an actor default
+            (published ``EmbargoPolicy``) applies.  Constrained to
+            [72 hours, 5 days]; a value outside that range is refused
+            (EP-04-005, ADR-0096).  It never competes under shortest-wins and
+            is never a minimum on agreed terms (EP-04-006, EP-04-007).
+        post_close_reply: The one policy point for replies after the case
+            closes: whether the CASE_MANAGER answers a late
+            ``Leave(VulnerabilityCase)`` with an ``as:Reject`` or drops it.
+            Every other late activity is dropped under either setting
+            (CM-23-013, CM-23-017, ADR-0131).  See :class:`PostCloseReply`.
+    """
+
+    default_case_roles: list[CVDRole] = Field(default_factory=list)
+    auto_create_case: bool = Field(
+        default=True,
+        description=(
+            "When True (default), create a VulnerabilityCase immediately on "
+            "Offer(Report) receipt per ADR-0015. When False, defer case "
+            "creation to allow a pre-case ACK (Read(Offer(Report))) first."
+        ),
+    )
+    case_actor_service_url: HttpUrl | None = Field(
+        default=None,
+        description=(
+            "Base URL of the dedicated CaseActor service "
+            "(e.g. http://case-actor:7999/api/v2). The CaseActor identity is "
+            "{this}/actors/case-actor. Required for actors that create cases; "
+            "absence makes the proposal-sending nodes fail rather than guess "
+            "(CP-08-001, CP-04-003)."
+        ),
+    )
+
+    min_rsvp_window: timedelta = Field(
+        default=timedelta(hours=72),
+        description=(
+            "Minimum time between now and an RSVP deadline on an outbound "
+            "Invite(EmbargoEvent). Outbound invites below this floor are "
+            "refused at construction time (EP-07-002). Inbound invites below "
+            "this floor are clamped up to the floor (EP-07-003). Default: 72 h."
+        ),
+    )
+    default_rsvp_window: timedelta = Field(
+        default=timedelta(days=7),
+        description=(
+            "Fallback RSVP window used when no explicit deadline is provided "
+            "on an outbound Invite(EmbargoEvent) (EP-07-001). Default: 7 days."
+        ),
+    )
+
+    protocol_default_embargo_duration: timedelta = Field(
+        default=PROTOCOL_DEFAULT_EMBARGO_MIN,
+        description=(
+            "Embargo duration applied at case creation when no sender proposal "
+            "and no actor default applies (EP-04-005). Must lie within "
+            "[72 hours, 5 days]. Default: 72 h."
+        ),
+    )
+
+    post_close_reply: PostCloseReply = Field(
+        default=DEFAULT_POST_CLOSE_REPLY,
+        description=(
+            "Reply to a Leave(VulnerabilityCase) that arrives after the "
+            "case is fully closed: 'drop' (default) sends nothing, 'reject' "
+            "sends Reject(Leave(VulnerabilityCase)). Every other late "
+            "activity is dropped under both settings (CM-23-017)."
+        ),
+    )
+
+    @field_validator("protocol_default_embargo_duration")
+    @classmethod
+    def _validate_protocol_default_embargo_duration(
+        cls, value: timedelta
+    ) -> timedelta:
+        if not (
+            PROTOCOL_DEFAULT_EMBARGO_MIN
+            <= value
+            <= PROTOCOL_DEFAULT_EMBARGO_MAX
+        ):
+            raise ValueError(
+                f"protocol_default_embargo_duration {value} is outside the"
+                f" permitted range [{PROTOCOL_DEFAULT_EMBARGO_MIN},"
+                f" {PROTOCOL_DEFAULT_EMBARGO_MAX}] (EP-04-005)"
+            )
+        return value
+
+    @field_serializer("default_case_roles")
+    def _serialize_default_case_roles(self, value: list[CVDRole]) -> list[str]:
+        return serialize_roles(value)
+
+    @field_validator("default_case_roles", mode="before")
+    @classmethod
+    def _validate_default_case_roles(cls, value: object) -> list[CVDRole]:
+        return validate_roles(value)

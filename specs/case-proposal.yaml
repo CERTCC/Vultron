@@ -1,0 +1,1060 @@
+id: CP
+title: CaseProposal Protocol
+description: Requirements for the CaseProposal protocol flow, which separates the act of requesting case initialization from
+  the act of creating the case. Covers the wire vocabulary type, the Create/Accept/Reject message flow, and the corresponding
+  MessageSemantics values and received-side use cases.
+scope:
+- prototype
+- production
+tags:
+- protocol
+- messaging
+groups:
+- id: CP-01
+  title: Wire Vocabulary
+  specs:
+  - id: CP-01-001
+    priority: MUST
+    kind: project
+    statement: The wire layer MUST define an `as_CaseProposal` object type that extends `as_VultronObject`.
+    rationale: A dedicated object type enables pattern-discriminated routing in the semantic extractor and preserves AS2 semantics
+      by separating the proposal object from the eventual `VulnerabilityCase`.
+    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `as_CaseProposal` is declared as
+      a class that extends `as_VultronObject`.
+  - id: CP-01-002
+    priority: MUST
+    kind: project
+    statement: '`as_CaseProposal` MUST include an `id_` field containing a full URI that uniquely identifies the proposal.'
+    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `id_` is inherited from
+      `as_VultronObject` as a required URI field on every `as_CaseProposal` instance.
+  - id: CP-01-003
+    priority: MUST
+    kind: project
+    statement: '`as_CaseProposal` MUST include an `attributed_to` field identifying the report receiver that originated
+      the proposal (the proposer, who becomes the CASE_OWNER if the proposal is accepted).'
+    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `attributed_to` is a required
+      `NonEmptyString` field on `as_CaseProposal`.
+  - id: CP-01-004
+    priority: MUST
+    kind: project
+    statement: '`as_CaseProposal` MUST include an `object_` field containing a fully inline `as_VulnerabilityReport` around
+      which the case is to be created. URI references to the report are NOT permitted (see AKM-03-003).'
+    rationale: The case-actor service needs the vulnerability report to initialize the case. URI references are prohibited
+      because the receiver may not have the referenced object and this codebase does not yet dereference (AKM-05-003, AKM-03-003).
+    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `object_` is typed as
+      `ActivityStreamRequiredRef[as_VulnerabilityReport]`, enforcing an inline report and rejecting bare URI references.
+  - id: CP-01-005
+    priority: MUST
+    kind: project
+    statement: '`as_CaseProposal` MUST include a `target` field containing the URI of the prospective case-actor service to
+      which the proposal is addressed.'
+    verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `target` is a required
+      `NonEmptyString` field on `as_CaseProposal`.
+  - id: CP-01-006
+    priority: MAY
+    kind: protocol
+    statement: '`as_CaseProposal` MAY include an optional `summary` field with a human-readable description of the proposal.'
+  - id: CP-01-007
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: project
+    statement: >-
+      When the proposing actor knows which `Offer(VulnerabilityReport)` brought it the report,
+      `as_CaseProposal` MUST carry that provenance as `offerId` and `offerActorId`, and the case-actor MUST
+      use it for the `offerId` of the canonical `add_report_to_case` ledger entry whenever its own store
+      holds no `OfferRecord` for the report.
+    rationale: >-
+      The canonical `add_report_to_case` entry records which Offer brought the report
+      into the case, so every replica and every auditor of the ledger can trace the
+      report to its submission (SYNC-02-002). The case-actor cannot supply that
+      provenance from storage: the `OfferRecord` belongs to the actor that received the
+      Offer, and a co-located case-actor has its own store with no read into a sibling's
+      (PCR-01-003, DL-07-005). So it travels on the proposal for the same reason and by
+      the same rule as the report itself (CP-01-004). A participant that joined through
+      an Invite does not use it to answer the Offer, which was never sent to it
+      (CM-11-018).
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-004
+    - rel_type: implements
+      spec_id: PCR-01-003
+    verification: >-
+      `test/core/behaviors/case/test_offer_provenance_on_proposal.py`
+    adr:
+    - ADR-0073
+    - ADR-0121
+  - id: CP-01-008
+    priority: MUST
+    kind: project
+    statement: >-
+      When the proposing actor holds the `Offer(VulnerabilityReport)` that brought it the report,
+      `as_CaseProposal` MUST carry that Offer whole, inline, as `inReplyTo`. When both `inReplyTo` and
+      the bare provenance of CP-01-007 are present they MUST name the same Offer. The case-actor MUST
+      read the Reporter's proposed embargo terms (EP-04-004) from the Offer so carried, and MUST NOT
+      fetch or reconstruct them from anywhere else.
+    rationale: >-
+      The case-actor has never seen the Offer, and a sender inlines the objects it introduces
+      (ADR-0107); the bare `offerId` of CP-01-007 lets the case-actor *name* the submission but not
+      read it. Carrying the Offer whole is what lets the Reporter's terms arrive as the Reporter stated
+      them — the same activity the report receiver received, not the receiver's paraphrase of one field — and it
+      is the only path by which EP-04-003's shortest-wins comparison at case creation ever gets a sender
+      candidate. `inReplyTo` is AS2's own name for the relationship: the proposal answers the report
+      submission.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-007
+    - rel_type: implements
+      spec_id: EP-04-004
+    verification: >-
+      `test/wire/as2/test_report_offer_proposed_embargo.py` (parse round trip of an Offer nested in a
+      CaseProposal; provenance/inline consistency) and
+      `test/core/behaviors/case/test_offer_provenance_on_proposal.py`
+      (`TestProposalCarriesTheOfferItself`).
+    adr:
+    - ADR-0096
+    - ADR-0107
+  - id: CP-01-009
+    priority: MAY
+    kind: protocol
+    statement: >-
+      The `actor` of `Create(as_CaseProposal)` MAY be the proposing actor's full actor profile inline,
+      or a reference to that profile which the CASE_MANAGER dereferences by an API call (AKM-05-003,
+      AKM-05-004).
+    rationale: >-
+      The proposing actor becomes the CASE_OWNER (CP-09-001), and its published embargo policy lives
+      on its profile (EP-01-001), in its own store, which the CASE_MANAGER cannot read (PCR-01-003).
+      That policy is the CASE_OWNER's actor default at case creation (EP-04-003), so it has to reach
+      case creation; whether the profile travels inline or is fetched is an implementation choice.
+      This codebase requires the inline form (CP-01-010), a prototype shortcut, not a protocol rule.
+    relationships:
+    - rel_type: depends_on
+      spec_id: EP-04-003
+    - rel_type: depends_on
+      spec_id: EP-01-001
+    - rel_type: depends_on
+      spec_id: AKM-05-003
+    adr:
+    - ADR-0096
+    stories:
+    - story_2022_014
+  - id: CP-01-010
+    priority: MUST
+    kind: project
+    statement: >-
+      In this implementation, the `actor` of `Create(as_CaseProposal)` MUST be the proposing actor's
+      full actor profile inline, carrying its embargo policy when it has published one, and its `id`
+      MUST equal the proposal's `attributed_to`. The CASE_MANAGER MUST read the CASE_OWNER's actor
+      default only from that inline profile, MUST NOT fetch it, and MUST NOT retain it as a candidate
+      for any other case. A proposal whose `actor` is a bare URI, or whose inline profile names a
+      different actor than `attributed_to`, MUST be refused at the parse edge with a reason naming the
+      fault. A profile with no embargo policy means the CASE_OWNER has no actor default.
+    rationale: >-
+      Carrying the profile follows the rule CP-01-008 applies to the Reporter's terms: a sender inlines
+      the objects it introduces (ADR-0107), so case creation never waits on, or fails because of, a
+      fetch. Refusing a bare URI rather than accepting it without an actor default keeps a malformed
+      proposal from silently dropping the owner's published terms. A policy read from one proposal
+      reflects that profile as sent; keeping it for later cases would let a stale policy win
+      shortest-wins.
+    verification: >-
+      Tests of the case-proposal receive path confirm that the actor default comes from the
+      inline `actor` profile's embargo policy, that a profile without one yields no actor
+      default, that a bare-URI `actor` and a profile whose `id` differs from `attributed_to` are
+      refused at parse, and that a policy carried on one proposal does not supply the default for
+      a later case.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-009
+    adr:
+    - ADR-0096
+    - ADR-0107
+  - id: CP-01-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `as_CaseProposal` MUST carry, as `proposerCaseRoles`, the CVD roles the proposing actor
+      holds in a case it owns, copied from its own `ActorConfig.default_case_roles`
+      (CFG-07-002). An absent or empty `proposerCaseRoles` states no role beyond
+      `CASE_OWNER`.
+    rationale: >-
+      The CASE_MANAGER seats the proposer with these roles (CP-09-007) and has no other
+      source for them: it may run in a different container, and it cannot read another
+      actor's configuration or store (ADR-0073). Carrying them follows the rule CP-01-010
+      applies to the proposer's embargo policy.
+    verification: >-
+      Tests confirm that a proposal built by the report receiver carries its
+      `default_case_roles` as `proposerCaseRoles`, and that the field round-trips
+      through the wire form.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-01-001
+    - rel_type: depends_on
+      spec_id: CFG-07-002
+    adr:
+    - ADR-0133
+    stories:
+    - story_2022_063
+  - id: CP-01-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A `Create(as_CaseProposal)` whose `proposerCaseRoles` names `CASE_MANAGER` MUST be
+      refused at the parse edge with a reason naming the fault.
+    rationale: >-
+      Only the CaseActor holds `CASE_MANAGER`. A proposer that could state it would seat
+      itself as the manager of the case it proposes.
+    verification: >-
+      Tests confirm that parsing an `as_CaseProposal` whose `proposerCaseRoles` includes
+      `CASE_MANAGER` raises a validation error naming CP-01-012.
+    relationships:
+    - rel_type: extends
+      spec_id: CP-01-011
+    adr:
+    - ADR-0133
+    stories:
+    - story_2022_063
+- id: CP-02
+  title: MessageSemantics Values
+  specs:
+  - id: CP-02-001
+    priority: MUST
+    kind: project
+    statement: The `MessageSemantics` enum MUST include `CREATE_CASE_PROPOSAL` for the pattern `Create(as_CaseProposal)`.
+    verification: Inspection of `vultron/core/models/events/base.py` confirms `CREATE_CASE_PROPOSAL` is present in
+      `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_create_case_proposal_dispatches_correctly` validates it.
+  - id: CP-02-002
+    priority: MUST
+    kind: project
+    statement: The `MessageSemantics` enum MUST include `ACCEPT_CASE_PROPOSAL` for the pattern `Accept(as_CaseProposal)`.
+    verification: Inspection of `vultron/core/models/events/base.py` confirms `ACCEPT_CASE_PROPOSAL` is present in
+      `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_accept_case_proposal_dispatches_correctly` validates it.
+  - id: CP-02-003
+    priority: MUST
+    kind: project
+    statement: The `MessageSemantics` enum MUST include `REJECT_CASE_PROPOSAL` for the pattern `Reject(as_CaseProposal)`.
+    verification: Inspection of `vultron/core/models/events/base.py` confirms `REJECT_CASE_PROPOSAL` is present in
+      `MessageSemantics`; `test/test_semantic_activity_patterns.py::test_reject_case_proposal_dispatches_correctly` validates it.
+- id: CP-03
+  title: Extractor Patterns
+  specs:
+  - id: CP-03-001
+    priority: MUST
+    kind: project
+    statement: '`SEMANTIC_REGISTRY` MUST contain a pattern entry for `(Create, as_CaseProposal) -> CREATE_CASE_PROPOSAL`.'
+    verification: A unit test in `test/test_semantic_activity_patterns.py::test_create_case_proposal_dispatches_correctly`
+      confirms `(Create, as_CaseProposal)` resolves to `CREATE_CASE_PROPOSAL` via `SEMANTIC_REGISTRY`.
+  - id: CP-03-002
+    priority: MUST
+    kind: project
+    statement: '`SEMANTIC_REGISTRY` MUST contain a pattern entry for `(Accept, as_CaseProposal) -> ACCEPT_CASE_PROPOSAL`.'
+    verification: A unit test in `test/test_semantic_activity_patterns.py::test_accept_case_proposal_dispatches_correctly`
+      confirms `(Accept, as_CaseProposal)` resolves to `ACCEPT_CASE_PROPOSAL` via `SEMANTIC_REGISTRY`.
+  - id: CP-03-003
+    priority: MUST
+    kind: project
+    statement: '`SEMANTIC_REGISTRY` MUST contain a pattern entry for `(Reject, as_CaseProposal) -> REJECT_CASE_PROPOSAL`.'
+    verification: A unit test in `test/test_semantic_activity_patterns.py::test_reject_case_proposal_dispatches_correctly`
+      confirms `(Reject, as_CaseProposal)` resolves to `REJECT_CASE_PROPOSAL` via `SEMANTIC_REGISTRY`.
+  - id: CP-03-004
+    priority: MUST
+    kind: project
+    statement: All three `CaseProposal` extractor patterns MUST appear before any more-general patterns that could match the
+      same activity types (e.g., generic `Accept` or `Reject` catch-all entries), to prevent misrouting (per SE-03-002).
+    verification: A unit test in `test/test_semantic_activity_patterns.py::test_non_overlapping_activity_patterns` confirms
+      all three CaseProposal patterns appear before generic Accept/Reject catch-all entries in `SEMANTIC_REGISTRY`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SE-03-002
+- id: CP-04
+  title: Protocol Flow — Sending
+  specs:
+  - id: CP-04-001
+    priority: MUST
+    kind: protocol
+    statement: A report receiver that wishes to request case initialization at a dedicated case-actor service MUST send `Create(as_CaseProposal)`
+      to the case-actor service's inbox, with `actor` set to the receiver's own URI.
+    rationale: Using `Create` with the report receiver as `actor` accurately declares that the receiver created the proposal object,
+      not the case itself. Sending `Create(VulnerabilityCase)` from the receiver would violate AS2 semantics because the receiver
+      is not the authoritative creator of the case.
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm a report receiver sends
+      `Create(as_CaseProposal)` to the case-actor inbox with its own URI set as `actor`.
+    relationships:
+    - rel_type: implements
+      spec_id: CP-01-001
+    stories:
+    - story_2022_012
+    - story_2022_046
+  - id: CP-04-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The BT node responsible for sending `Create(as_CaseProposal)` MUST be a
+      distinct node (`ProposeReportCaseToActorNode`) separate from
+      `EnsureCaseActorHostedNode`. `EnsureCaseActorHostedNode` is responsible only for
+      making the case-actor a hosted actor; it MUST NOT send a `CaseProposal` activity.
+    rationale: Conflating actor registration with proposal sending violates single responsibility and causes the proposal
+      to be sent before the case-actor service is ready. See `notes/case-proposal.md` for the pitfall.
+  - id: CP-04-003
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `Create(as_CaseProposal)` MUST be addressed to the case-actor *container's* identity —
+      `{case_actor_service_url}/actors/case-actor` — and MUST NOT be addressed to an identity derived
+      per case or per report.
+    rationale: >-
+      A derived identity is unhostable by construction: the sender computes it, so no container has
+      registered it, and delivery answers a permanent 404 (ISSUE-1872). It also cannot be provisioned in
+      advance, because it is not computable until the report exists — by which time the proposal has
+      already been sent. A container identity comes from configuration and can be provisioned once, at
+      seed time. Nothing is lost: which case the proposal concerns is recoverable from its `report_id`,
+      and every later case-scoped message carries `activity.context`.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-04-001
+    - rel_type: refines
+      spec_id: BT-10-002
+    verification: >-
+      `test/core/behaviors/case/test_case_actor_identity.py`;
+      `test/demo/test_rv_demo.py` exercises the full round-trip with no stand-in, which
+      is what a 404 here would break.
+    stories:
+    - story_2022_012
+    - story_2022_046
+  - id: CP-04-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Whatever provisions the case-actor's record MUST write it into the *case-actor's own* store, since
+      the inbox route resolves an actor from the store its URI names. A copy in the sending actor's store
+      does not make the case-actor addressable.
+    rationale: >-
+      Under per-actor storage isolation (ADR-0073) the two writes mean different things: one publishes an
+      endpoint, the other records knowledge of a peer. Writing only the second left the inbox answering
+      `404 Actor not found` (ISSUE-1872). Under the pre-ADR-0073 shared store they were
+      indistinguishable, which is why one write used to suffice.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-04-003
+    - rel_type: refines
+      spec_id: DL-07-001
+    adr:
+    - ADR-0073
+- id: CP-05
+  title: Protocol Flow — Receiving (Case-Actor Side)
+  specs:
+  - id: CP-05-001
+    priority: MUST
+    kind: protocol
+    statement: A `CreateCaseProposalReceivedUseCase` MUST be implemented on the case-actor side to handle incoming `Create(as_CaseProposal)`
+      activities.
+    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms `CreateCaseProposalReceivedUseCase`
+      is implemented and tested in `test/core/behaviors/case/test_case_proposal_received_tree.py`.
+    stories:
+    - story_2022_012
+    - story_2022_046
+  - id: CP-05-002
+    priority: MUST
+    kind: protocol
+    statement: '`CreateCaseProposalReceivedUseCase` MUST evaluate the proposal and either accept or reject it, emitting an
+      `Accept(CaseProposal)` or `Reject(CaseProposal)` activity accordingly.'
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm `CreateCaseProposalReceivedUseCase`
+      evaluates a proposal and emits either `Accept(CaseProposal)` or `Reject(CaseProposal)` in response.
+    stories:
+    - story_2022_006
+    - story_2022_012
+    - story_2022_101
+  - id: CP-05-003
+    priority: MUST
+    kind: protocol
+    statement: 'When accepting a proposal, the case-actor service MUST send two activities in sequence: first `Accept(as_CaseProposal)`
+      (with the `as_CaseProposal`, inline or by reference, as `object_`), then `Create(VulnerabilityCase)` (with `actor` set to the case-actor
+      URI, `context` set to the URI of the new `VulnerabilityCase`, and `in_reply_to` set to the URI of the
+      `Accept(CaseProposal)` activity).'
+    rationale: '`Accept(CaseProposal)` acknowledges the report receiver''s proposal. `Create(VulnerabilityCase)` with `actor=case-actor`
+      preserves AS2 "I created this" semantics: only the authoritative creator MUST be the `actor` of a `Create` activity.
+      `context` MUST be the case URI (consistent with all other case-scoped activities; required for inbox deferral routing).
+      `in_reply_to` carries the causal antecedent (the Accept URI) in the AS2-correct field for responses.
+      See ADR-0045.'
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py::TestCaseProposalRoundTrip::test_case_actor_sends_accept_and_create_case`
+      confirm the two-activity sequence with correct `actor`, `context`, and `in_reply_to` on `Create(VulnerabilityCase)`.
+    stories:
+    - story_2022_012
+    - story_2022_016
+  - id: CP-05-004
+    priority: MUST
+    kind: protocol
+    statement: When rejecting a proposal, the case-actor service MUST send `Reject(as_CaseProposal)` with the `as_CaseProposal`,
+      inline or by reference, as `object_`.
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_admission.py` confirm the reject path emits
+      `Reject(as_CaseProposal)` with the proposal as `object_`.
+    stories:
+    - story_2022_006
+    - story_2022_016
+  - id: CP-05-009
+    priority: MUST
+    kind: project
+    statement: This codebase MUST carry the `as_CaseProposal` inline as the `object_` of the `Accept(as_CaseProposal)`
+      of CP-05-003 and of the `Reject(as_CaseProposal)` of CP-05-004, and the inline object MUST survive the outbox
+      store round-trip rather than dehydrating to a bare URI.
+    rationale: How this codebase meets CP-05-003 and CP-05-004; split from them so they state only what other participants
+      observe (MS-12-010). Carrying the proposal inline rather than by reference is a shortcut of this prototype reference
+      implementation, which does not yet dereference (AKM-05-003), not a protocol rule.
+    verification: '`test/core/use_cases/received/test_case_proposal.py::TestCreateCaseProposalReceivedUseCase::test_execute_creates_case_and_queues_activities`
+      confirms the accept path emits `Accept(as_CaseProposal)` whose `object_` is the typed proposal, not a bare URI string;
+      unit tests in `test/core/behaviors/case/test_case_proposal_admission.py` confirm the reject path emits
+      `Reject(as_CaseProposal)` with the proposal object embedded inline as `object_`; and adapter tests in
+      `test/adapters/driven/trigger_activity_adapter/test_cases.py` confirm the inline object survives the store round-trip
+      rather than dehydrating to a bare URI.'
+    relationships:
+    - rel_type: implements
+      spec_id: CP-05-003
+    - rel_type: implements
+      spec_id: CP-05-004
+  - id: CP-05-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The case-actor service MUST queue `Accept(as_CaseProposal)` and
+      `Create(VulnerabilityCase)` for an accepted proposal together or not at all, and
+      MUST NOT send the `Accept` without the `Create`. Once queued, each one MUST be
+      retried until it is delivered or its delivery attempts are exhausted (OX-13). The
+      `Accept` is irrevocable once sent: a retry or a re-send MUST carry the same
+      `Accept` under its original identifier, never a second one (CP-05-006).
+    rationale: >-
+      The two sends are not atomic on the network, so they are made atomic where they
+      are queued: an `Accept` with no `Create` behind it tells the report receiver of a
+      case nothing announces. Once both are queued, the outbox retries each one, so a
+      failed `Create` needs no retry of its own. A second `Accept` reads as a second,
+      independent decision.
+    verification: >-
+      The `Accept`, the `Create` and the case commit in one DataLayer transaction
+      (ADR-0146, CLP-07-015, CP-09-009). A `Create` that cannot be queued rolls back the
+      `Accept` with it, so no `Accept` is ever sent without its `Create`:
+      `test/core/behaviors/case/test_case_proposal_received_tree.py::TestCreateCaseProposalReceivedBTCreateWiring::test_a_failed_create_emit_rolls_back_the_accept`
+      pins that. After the commit, a `Create` whose first delivery attempt fails
+      is retried by the outbox and delivered, with no marker involved:
+      `TestCreateCaseProposalReceivedBTCreateWiring::test_a_failed_first_delivery_of_the_create_is_retried_by_the_outbox`.
+      The Create's id is derived from the proposal, so a redelivery queues no
+      second `Create(VulnerabilityCase)`; `TestARedeliveryAnnouncesTheCaseOnce`
+      pins this after a late-tree failure and after a full success (#4146).
+    stories:
+    - story_2022_012
+  - id: CP-05-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST handle a duplicate `Create(CaseProposal)` idempotently: if the
+      same proposal (the same proposal identifier) has already been accepted, it MUST
+      re-send the stored `Accept(CaseProposal)` unchanged, with its original identifier, and
+      MUST NOT create a second `VulnerabilityCase`. When that case is fully closed (its
+      ledger holds the CASE_MANAGER's own RM.CLOSED status entry, CM-23-013), it MUST
+      instead answer with `Reject(CaseProposal)`
+      and MUST NOT commit any `CaseLedgerEntry` for the case or change its state
+      (CM-23-013).
+    rationale: >-
+      A duplicate proposal is the only signal the case-actor gets that its acceptance
+      was lost, so answering it is the recovery path CONCERN-2367 found missing.
+      Re-sending the frozen original (VM-08-003) reads as the first acceptance arriving
+      late; a *new* `Accept` is indistinguishable from a second, independent decision,
+      which CP-05-005's irrevocability rule precludes.
+    note: >-
+      Raised from SHOULD to MUST and changed from "a new Accept" to the stored original
+      by ADR-0080 (CONCERN-2367). The duplicate is keyed on the proposal, not the report:
+      the report identifier is chosen by the sender, and a proposal under a new identifier
+      is a new ask the requester is tracking separately, so the stored `Accept` for the old
+      one would answer a proposal the requester may already have expired. A new proposal
+      that names an already-accepted report is governed by CP-05-008 (#3977).
+      The closed-case exception follows CM-23-013: the stored `Accept` would reach the
+      accept path, which writes to the case. The `Reject` declines only the re-delivery; it
+      does not revoke the stored `Accept` (CP-05-005), and the case that `Accept` created
+      still exists, closed. It cannot be read as a reversal: the re-delivering proposer
+      already holds the `Accept`, and the `Reject` tells it only that nothing more will be
+      done for the proposal. That proposer is usually the Case Owner who closed the case;
+      after an ownership transfer it may be a former owner, and the reading is the same
+      (#4464). Whether a closed case can be reopened, or a new case created for its report,
+      is the reopen design (#3066), not this requirement.
+    verification: A duplicate `Create(as_CaseProposal)` after acceptance produces an outbound `Accept(as_CaseProposal)`
+      identical to the stored original including its `id`, and no second `VulnerabilityCase`. A duplicate after the case is
+      fully closed produces `Reject(as_CaseProposal)`, no outbound `Accept`, no new `CaseLedgerEntry` for the case, and no
+      change to case or participant state.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: refines
+      spec_id: ASK-08-001
+    - rel_type: depends_on
+      spec_id: CM-23-013
+    lint_suppress:
+    - missing_story_reference
+  - id: CP-05-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A report receiver that has sent `Create(CaseProposal)` and received neither
+      `Accept(CaseProposal)` nor `Reject(CaseProposal)` by the proposal's deadline MUST
+      treat the proposal as expired and MUST NOT continue waiting indefinitely.
+    rationale: >-
+      CONCERN-2367 found that a silently lost `Accept` stalls the handshake
+      permanently, because no party holds a timeout. The proposal is an ask
+      (ASK-01-001), so it carries a deadline (ASK-03-004) and sits in the receiver's
+      outstanding-ask register (ASK-04-001), which is actor-scoped and therefore works
+      before a case exists. Re-proposal is a later decision, not an automatic retry
+      (ASK-05-004) — and it is also what lets the case-actor recover (CP-05-006).
+    verification: With no reply recorded past the proposal's deadline, the receiver's proposal register entry is expired and
+      the receiver emits no further activity until a behaviour decides to re-propose.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: depends_on
+      spec_id: ASK-05-001
+    lint_suppress:
+    - missing_story_reference
+  - id: CP-05-008
+    priority: MUST
+    kind: protocol
+    statement: A `Create(as_CaseProposal)` under a new proposal identifier is a new request even when it names a report that
+      already has a case. The case-actor service MUST subject it to the admission decision (CP-05-002) and MUST answer it with
+      its own `Accept(as_CaseProposal)` or `Reject(as_CaseProposal)`. When the proposer is that case's owner it MUST reuse the
+      existing case and MUST NOT create a second `VulnerabilityCase`, unless that case is fully closed (its ledger holds
+      the CASE_MANAGER's own RM.CLOSED status entry), in which case it MUST answer with
+      `Reject(as_CaseProposal)` and MUST NOT commit any
+      `CaseLedgerEntry` for the case or change its state (CM-23-013). For any other proposer it MUST create a separate case
+      and MUST NOT add that proposer to the existing case.
+    rationale: >-
+      The report identifier is chosen by the sender. A reuse keyed on the report alone lets a
+      proposer join another party's case by naming its report, and collapses the one-case-per-recipient
+      rule (CBT-06-002) into a shared case. The proposer is the second half of the key that
+      makes the reuse safe: the same proposer re-proposing after its first proposal expired
+      (CP-05-007) converges on its own case, and a different proposer gets its own.
+    note: >-
+      A fully closed case accepts no further writes (CM-23-013, ADR-0085), so the owner's
+      new proposal is declined rather than answered from the closed case; reopening it, or
+      creating a fresh case for the report, is left to the reopen design (#3066, #4464).
+      The record of the decline is keyed on the proposal, not the case, so writing it is
+      neither a `CaseLedgerEntry` nor a change to case or participant state, and CM-23-013
+      does not bar it. The case's closure is part of the admission decision: the reference
+      CASE_MANAGER checks it before the `EvaluateCaseProposal` call-out point and does not
+      tick that point, because no answer from it can change the `Reject`.
+    verification: A second proposal from the case's owner, under a new identifier, yields a new `Accept` naming the existing
+      case and no second case. A proposal for the same report from a different proposer yields a separate case owned by that
+      proposer, and the first case gains no participant. A new proposal from the owner of a fully closed case yields
+      `Reject(as_CaseProposal)`, no `Accept`, no new case, no new `CaseLedgerEntry` for the closed case, and no change to case
+      or participant state.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: refines
+      spec_id: CP-05-002
+    - rel_type: depends_on
+      spec_id: CM-23-013
+    stories:
+    - story_2022_006
+    - story_2022_012
+    - story_2022_101
+  - id: CP-05-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST act on a `Create(CaseProposal)` whose proposal
+      identifier it has already recorded, by admitting, declining or storing that
+      proposal, only when the sender is the proposer it recorded for that
+      identifier. A delivery of that identifier from any other sender MUST be
+      refused, with no case created, no proposal-keyed record written and nothing
+      sent. A proposal identifier it has not recorded is a new proposal, which any
+      actor may send (CP-05-002).
+    rationale: >-
+      The proposal identifier is chosen by the sender, and every proposal-keyed
+      record is keyed on it alone. Without this rule, another actor that reuses an
+      admitted identifier is treated as a redelivery: it gets a stray case, or a
+      closed case's decline is recorded on the original proposer's identifier
+      (#4719).
+    note: >-
+      This is the sender clause for `Create(CaseProposal)` (HP-01-006). The
+      proposer is the proposal's author, so the use case declares the `AUTHOR`
+      kind for an actor outside any case (HP-01-009). Whether the sender must also
+      be the report receiver once CaseActors are spawned is #812.
+    verification: >-
+      Tests marked `CP-05-010` admit, decline and close a proposal, deliver its
+      identifier again from another actor, and assert `REFUSED`, no new case, no
+      new or changed proposal-keyed record, and an empty outbox.
+      `test/core/behaviors/test_sender_guard.py::test_author_kind_admits_only_a_proposals_recorded_proposer`
+      covers a stored proposal read on its own: another sender is refused.
+    stories:
+    - story_2022_035
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CP-05-006
+    adr:
+    - ADR-0115
+- id: CP-06
+  title: Protocol Flow — Receiving (Report-Receiver Side)
+  specs:
+  - id: CP-06-001
+    priority: MUST
+    kind: protocol
+    statement: An `AcceptCaseProposalReceivedUseCase` MUST be implemented on the report-receiver side to handle incoming `Accept(as_CaseProposal)`
+      activities.
+    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
+      `AcceptCaseProposalReceivedUseCase` is implemented with an `execute()` method.
+    stories:
+    - story_2022_012
+    - story_2022_088
+  - id: CP-06-002
+    priority: MUST
+    kind: protocol
+    statement: A `RejectCaseProposalReceivedUseCase` MUST be implemented on the report-receiver side to handle incoming `Reject(as_CaseProposal)`
+      activities.
+    verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
+      `RejectCaseProposalReceivedUseCase` is implemented with an `execute()` method.
+    stories:
+    - story_2022_006
+    - story_2022_088
+  - id: CP-06-003
+    priority: MUST
+    kind: protocol
+    statement: '`AcceptCaseProposalReceivedUseCase` MUST update the report receiver''s local state to reflect that the case-actor service
+      has accepted the proposal (e.g., record the case-actor URI and await the subsequent `Create(VulnerabilityCase)`).'
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm
+      `AcceptCaseProposalReceivedUseCase` updates the receiver's local state to record the case-actor acceptance.
+    stories:
+    - story_2022_074
+    - story_2022_088
+  - id: CP-06-004
+    priority: MUST
+    kind: protocol
+    statement: '`RejectCaseProposalReceivedUseCase` MUST update the report receiver''s local state to reflect the rejection (e.g.,
+      mark the pending case as rejected and surface the rejection reason if present).'
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm
+      `RejectCaseProposalReceivedUseCase` updates the receiver's local state to reflect the rejection.
+    stories:
+    - story_2022_074
+    - story_2022_088
+  - id: CP-06-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The vendor MUST record the actor it addressed a `CaseProposal` to, and MUST act on
+      `Accept(CaseProposal)` or `Reject(CaseProposal)` only when the sender is that actor.
+      Once a case is established for the report, a reply MUST NOT replace the trusted
+      CASE_MANAGER. A reply from any other sender MUST be refused with the report's case
+      link unchanged.
+    rationale: >-
+      The accept handler sets the trusted CASE_MANAGER to whoever replied, and routing and
+      `Announce` trust both read that field; any actor that knows a report id can redirect
+      the vendor's case traffic to itself. See #3733.
+    verification: >-
+      A test marked `CP-06-005`
+      sends the Accept from an actor the proposal was not addressed to and asserts `REFUSED`
+      with the trusted CASE_MANAGER unchanged.
+    stories:
+    - story_2022_035
+    - story_2022_074
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    - rel_type: refines
+      spec_id: CP-06-004
+    adr:
+    - ADR-0115
+- id: CP-07
+  title: Testing
+  specs:
+  - id: CP-07-001
+    priority: MUST
+    kind: project
+    statement: Unit tests MUST cover pattern matching for all three `CaseProposal` extractor patterns (`CREATE_CASE_PROPOSAL`,
+      `ACCEPT_CASE_PROPOSAL`, `REJECT_CASE_PROPOSAL`).
+    verification: Unit tests `test_create_case_proposal_dispatches_correctly`, `test_accept_case_proposal_dispatches_correctly`,
+      and `test_reject_case_proposal_dispatches_correctly` in `test/test_semantic_activity_patterns.py` cover all three patterns.
+  - id: CP-07-002
+    priority: MUST
+    kind: project
+    statement: Unit tests MUST cover `CreateCaseProposalReceivedUseCase`, `AcceptCaseProposalReceivedUseCase`, and `RejectCaseProposalReceivedUseCase`
+      execute() paths.
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` cover the `execute()` paths of
+      `CreateCaseProposalReceivedUseCase`, `AcceptCaseProposalReceivedUseCase`, and `RejectCaseProposalReceivedUseCase`.
+  - id: CP-07-003
+    priority: MUST
+    kind: project
+    statement: Integration tests MUST cover the full `Create(CaseProposal)` → `Accept(CaseProposal)` + `Create(VulnerabilityCase)`
+      round-trip between a report receiver and a case-actor service.
+    verification: Integration tests in
+      `test/demo/test_case_proposal_round_trip.py::TestCaseProposalDemo::test_demo_round_trip`
+      confirm the full
+      `Create(CaseProposal)` → `Accept(CaseProposal)` + `Create(VulnerabilityCase)` round-trip completes successfully.
+- id: CP-08
+  title: Case-Actor Service URL Configuration
+  specs:
+  - id: CP-08-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Every actor that may trigger the `engage-case` BT path (i.e., any actor that
+      creates a `VulnerabilityCase` on behalf of another actor) MUST supply a
+      `case_actor_service_url` value in its `ActorConfig`.
+    rationale: >-
+      `ResolveCaseActorUrlsNode` previously derived the CaseActor service URL by
+      prepending `server_base_url` (the running container's own base URL) to a
+      case slug. This hard-wires a co-location assumption: the CaseActor is assumed
+      to live on the same host as the BT executor. In a multi-container topology
+      (DEMOMA-01-001), the CaseActor has its own container and URL; using
+      `server_base_url` routes proposals to the wrong endpoint. Actor URLs are
+      opaque endpoint identifiers; whether they are host-local or host-remote is
+      irrelevant to callers. The only correct source for the CaseActor service URL
+      is explicit configuration. This is a TEMPORARY per-actor config field pending
+      a proper actor-ID-to-endpoint resolution mechanism (see issues #1189, #1092).
+    relationships:
+    - rel_type: implements
+      spec_id: CP-01-005
+  - id: CP-08-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The `case_actor_service_url` field in `ActorConfig` MUST be a valid `HttpUrl`.
+    rationale: >-
+      A non-URL value cannot be used to construct a valid inbox endpoint address, so
+      validation at configuration load time is required to surface errors early.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-001
+  - id: CP-08-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Absence of `case_actor_service_url` in `ActorConfig` MUST produce a runtime
+      `FAILURE` at `ResolveCaseActorUrlsNode` with a clear error message identifying
+      the missing configuration, not a silently mis-routed proposal.
+    rationale: >-
+      Silent mis-routing sends the proposal to the wrong endpoint without any
+      observable error signal, making the failure hard to diagnose.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-001
+  - id: CP-08-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      `ResolveCaseActorUrlsNode` MUST read `case_actor_service_url` from
+      `ActorConfig` (via `get_config().actor.case_actor_service_url`) to derive the
+      CaseActor service URL.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-001
+  - id: CP-08-006
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      `ResolveCaseActorUrlsNode` MUST NOT use `server_base_url` from the blackboard
+      or from the server configuration to construct `case_actor_id`.
+    rationale: >-
+      Using `server_base_url` hard-wires a co-location assumption; in a multi-container
+      topology the CaseActor has its own container and URL.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-002
+  - id: CP-08-007
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The `server_base_url` blackboard key MUST NOT be registered or read in
+      `ResolveCaseActorUrlsNode.setup()`.
+    rationale: >-
+      Reading `server_base_url` in setup() would reintroduce the co-location coupling
+      that CP-08-002 and CP-08-006 prohibit.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-002
+  - id: CP-08-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      In all multi-container demo scenarios, every actor whose BT may run the
+      `engage-case` path MUST have `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` set
+      in its Docker Compose environment block (or equivalent config mechanism).
+    rationale: >-
+      Demo containers are "omniscient" about all actor URLs in the deployment at
+      boot time (in lieu of a directory service, issues #1189, #1092). The env-var
+      approach mirrors the `VULTRON_SERVER__BASE_URL` pattern and requires no new
+      discovery mechanism.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-001
+  - id: CP-08-008
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` value MUST be the full base URL of
+      the dedicated CaseActor container (e.g., `http://case-actor:7999/api/v2`).
+    rationale: >-
+      A partial URL or path-only value cannot be used to construct a valid inbox
+      endpoint; the full base URL is required to route proposals correctly.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-003
+  - id: CP-08-009
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: Demo scripts MUST NOT rely on `server_base_url` derivation for the CaseActor identity.
+    rationale: >-
+      `server_base_url` is the running container's own base URL and does not identify a
+      separate CaseActor container; relying on it silently routes proposals to the wrong endpoint.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-08-003
+- id: CP-09
+  title: CASE_MANAGER-Authoritative Initialization on Accept(CaseProposal)
+  description: >-
+    Requirements for the CASE_MANAGER to perform all case initialization natively
+    when accepting a CaseProposal, per ADR-0041.  These replace the
+    receiver-side case-creation and prologue back-fill that ADR-0015 introduced.
+  specs:
+  - id: CP-09-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER accepts a `Create(as_CaseProposal)`, it MUST create
+      the `VulnerabilityCase` object with `attributed_to` set to the proposing
+      actor (the report receiver, who becomes the CASE_OWNER), and MUST itself be
+      the `actor` of the `Create(VulnerabilityCase)` it emits. It MUST NOT set
+      `attributed_to` to its own actor ID.
+    rationale: >-
+      `VulnerabilityCase.attributed_to` records the case owner (CM-02-008), and
+      ownership checks and ownership transfer read and write it as such (MSM-07-008,
+      CM-21-002). AS2's "I created this" is carried by the `actor` of `Create(X)`
+      (ADR-0023), not by the created object's `attributedTo`, so the CASE_MANAGER
+      creating the case and the report receiver owning it are both recorded without
+      conflict (ADR-0041).
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the created
+      `VulnerabilityCase` has `attributed_to` set to the proposing actor's URI and that the emitted
+      `Create(VulnerabilityCase)` has the CASE_MANAGER as `actor`.
+    relationships:
+    - rel_type: implements
+      spec_id: CP-05-001
+    - rel_type: refines
+      spec_id: CM-02-008
+    adr:
+    - ADR-0023
+    - ADR-0041
+    stories:
+    - story_2022_012
+    - story_2022_046
+  - id: CP-09-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER creates the `VulnerabilityCase` on proposal acceptance,
+      it MUST add the report receiver as a `CASE_OWNER` participant at
+      `RM.RECEIVED` and the reporter as a participant at `RM.ACCEPTED` in the
+      CASE_MANAGER's DataLayer.
+    rationale: >-
+      The receiver's replica is seeded from the embedded participant objects in
+      `Create(VulnerabilityCase)`.  If participants are absent at emission time
+      the replica starts with no participant records and downstream operations
+      that require them (e.g. embargo consent, role guards) fail.  Hard-coding
+      `CVDRole.VENDOR` for the receiver additionally mislabels coordinators,
+      which makes VFD fix-lifecycle checks demand a fix they never produce.
+    verification: Unit tests `test_owner_participant_created` and `test_reporter_participant_created` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm both participants are seeded with correct RM states and roles.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-001
+    stories:
+    - story_2022_012
+    - story_2022_013
+  - id: CP-09-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The report receiver and reporter participant records MUST be created in the
+      CASE_MANAGER's DataLayer before the CASE_MANAGER emits `Create(VulnerabilityCase)`
+      to the receiver.
+    rationale: >-
+      The receiver's replica is seeded from participant objects embedded in
+      `Create(VulnerabilityCase)`; participants absent at emission time leave the
+      replica without the records required for role guards and embargo consent.
+    verification: Unit tests `test_owner_participant_created` and `test_reporter_participant_created` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm participants exist before `Create(VulnerabilityCase)` is emitted.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-002
+    stories:
+    - story_2022_013
+    - story_2022_088
+  - id: CP-09-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Any additional CVD roles the report receiver holds MUST be the ones its proposal states
+      in `proposerCaseRoles` (CP-01-011), which come from the receiver's own
+      `ActorConfig.default_case_roles` (CFG-07-002). The CASE_MANAGER MUST NOT take them from
+      its own configuration.
+    rationale: >-
+      Explicit role configuration is the only reliable source; a report receiver
+      may be a coordinator rather than a vendor, so role inference is unsound. The
+      configuration is the receiver's, and the CASE_MANAGER may run in another
+      container, so its own configuration says nothing about the receiver (ADR-0133).
+    verification: Unit tests `test_vendor_proposal_yields_vendor_role`, `test_coordinator_proposal_does_not_yield_vendor_role`
+      and `test_case_actor_config_does_not_supply_owner_roles` in
+      `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm the roles come from the proposal.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-002
+    - rel_type: depends_on
+      spec_id: CP-01-011
+    adr:
+    - ADR-0133
+    stories:
+    - story_2022_063
+    - story_2022_093
+  - id: CP-09-008
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: Additional CVD roles for the report receiver MUST NOT be inferred.
+    rationale: >-
+      Inferring roles (e.g. hard-coding `CVDRole.VENDOR`) mislabels coordinators
+      and causes VFD fix-lifecycle checks to demand a fix they never produce.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-002
+  - id: CP-09-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST initialize the default embargo for the new case before
+      emitting `Create(VulnerabilityCase)`.
+    rationale: >-
+      Embargo state is protocol-significant.  Deferring initialization to the
+      report receiver or to a later message would produce a window in which
+      embargo-gated operations are undefined (ADR-0041).
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py::TestADR0041EmbargoInit::test_active_embargo_set`
+      confirm the default embargo is initialized before `Create(VulnerabilityCase)` is emitted.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-001
+    adr:
+    - ADR-0041
+    stories:
+    - story_2022_014
+    - story_2022_023
+  - id: CP-09-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `Create(VulnerabilityCase)` activity emitted by the CASE_MANAGER
+      MUST carry the case's participant records, inline or by reference, so
+      that the report receiver can seed its replica's participants (CP-09-002).
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm `Create(VulnerabilityCase)`
+      carries the case's participant objects; `test_owner_participant_created` verifies the owner's `CaseParticipant` is present.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-002
+    stories:
+    - story_2022_013
+    - story_2022_045
+  - id: CP-09-010
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST embed the participant objects of the CASE_MANAGER's
+      `Create(VulnerabilityCase)` inline, not as bare ID strings, so that the
+      report receiver's `CreateCaseReceivedUseCase` can seed its local
+      participant records without a DataLayer round-trip to the CASE_MANAGER.
+    rationale: >-
+      How this codebase meets CP-09-004 (split per MS-12-010). Embedding the
+      participants inline is a shortcut of this prototype, which does not yet
+      dereference (AKM-05-003), not a protocol rule. `store_embedded_participants`
+      parses embedded participant objects. Bare IDs produce empty participant records on the receiver's
+      replica, causing role-guard failures for operations that require
+      `CASE_OWNER` or `CASE_MANAGER` checks.
+    verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm `Create(VulnerabilityCase)`
+      embeds participant objects inline.
+    relationships:
+    - rel_type: implements
+      spec_id: CP-09-004
+  - id: CP-09-005
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      Inspection of `receive_report_case_tree` confirms it stores the inbound report,
+      writes a pending `VultronReportCaseLink` and sends `Create(as_CaseProposal)`
+      without creating a `VulnerabilityCase` in the receiver's DataLayer.
+    statement: >-
+      The report receiver MUST NOT create a `VulnerabilityCase` object in its
+      own DataLayer before receiving `Create(VulnerabilityCase)` from the
+      CASE_MANAGER.  The receiver's `receive_report_case_tree` MUST store the
+      inbound report and write a pending `VultronReportCaseLink`, then send
+      `Create(as_CaseProposal)` and wait.
+    rationale: >-
+      Creating a receiver-local `VulnerabilityCase` before the CASE_MANAGER responds
+      produces a second, non-authoritative case object and forces a back-fill
+      workaround to reconcile the two copies.  This was the root cause of
+      `WritePrologueLedgerEntriesNode` (Issue #1688) and of Issue #1767
+      (ADR-0041).
+    relationships:
+    - rel_type: refines
+      spec_id: CP-09-001
+    adr:
+    - ADR-0041
+  - id: CP-09-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER accepts a `Create(as_CaseProposal)`, it MUST enqueue
+      `Accept(as_CaseProposal)` and `Create(VulnerabilityCase)` before it fans out
+      any `Announce(CaseLedgerEntry)` for the new case. The canonical ledger
+      entries that record the initialization are committed after the
+      `Create(VulnerabilityCase)` is queued, so that every recipient holds the case
+      object before its first ledger entry arrives.
+    rationale: >-
+      The outbox is FIFO (OX-01-002), so enqueue order is wire order. A ledger
+      commit ahead of the Create hands each recipient entries for a case it does
+      not hold yet: each takes the SYNC-15 pre-genesis path (buffer, `Reject`,
+      from-genesis replay) while the Create waits behind the whole fan-out. That
+      made pre-genesis recovery the normal path of every case creation, and the
+      Create's queue position timed out the replica gates in the rv and rcv-reject
+      scenarios (#3033) and congested the CaseActor outbox in rcvcv (#2898). This
+      is CM-14-011's rule applied to the CASE_MANAGER-authoritative path: the
+      receiver's system must hold the case object before any fan-out that references
+      it. It is also SYNC-09-002's order: the entries record a case whose creation
+      was sent, and only the `Announce(CaseLedgerEntry)` fan-out follows its
+      commit. The create-case trigger takes the same order. On both paths the
+      case, its records, the queued `Accept` and `Create` and every creation entry
+      are written in one DataLayer transaction (ADR-0146), so any creation entry
+      that fails rolls all of them back before delivery is told of either
+      activity (DL-02-004, CLP-07-013). Holding the `Create` back until after the
+      commit would put the genesis entry's fan-out ahead of it, which is the
+      pre-genesis path this rule exists to avoid.
+    verification: >-
+      `test/core/behaviors/case/test_case_proposal_received_tree.py::test_accept_and_create_are_queued_before_any_ledger_fanout`
+      runs the accept tree with a real sync adapter and asserts the outbox order is
+      Accept, Create, then every Announce;
+      `test_a_genesis_commit_failure_queues_neither_accept_nor_create` asserts a
+      failed genesis leaves a non-APPLIED verdict, an empty outbox and no case,
+      and `TestADR0041GenesisCommitFailure::test_each_creation_entry_that_fails_leaves_nothing_of_the_case`
+      fails each creation entry in turn and asserts nothing of the case is kept.
+    relationships:
+    - rel_type: refines
+      spec_id: CP-05-003
+    - rel_type: depends_on
+      spec_id: CM-14-011
+    - rel_type: depends_on
+      spec_id: OX-01-002
+    adr:
+    - ADR-0041
+    stories:
+    - story_2022_013
+    - story_2022_088

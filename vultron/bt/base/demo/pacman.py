@@ -15,11 +15,10 @@
 This is a demo of the bt tree library. It is a stub implementation of a bot that plays Pacman.
 """
 
-
+import argparse
 import logging
 import random
 import sys
-from dataclasses import dataclass, field
 
 import vultron.bt.base.composites as bt
 import vultron.bt.base.fuzzer as btz
@@ -45,17 +44,16 @@ GHOST_INC = 2
 GHOST_NAMES = ["Blinky", "Pinky", "Inky", "Clyde"]
 
 
-@dataclass(kw_only=True)
 class PacmanBlackboard(Blackboard):
     dots: int = 240
     score: int = 0
     per_ghost: int = 200
     ghosts_scared: bool = False
-    ghosts_remaining: list = field(default_factory=lambda: GHOST_NAMES.copy())
+    ghosts_remaining: list = GHOST_NAMES.copy()
     ticks: int = 0
 
 
-### Action Nodes
+# Action Nodes
 
 
 def eat_pill(obj: BtNode) -> bool:
@@ -74,7 +72,7 @@ EatPill = action_node("EatPill", eat_pill)
 def inc_ghost_score(obj: BtNode) -> bool:
     """increments the score for the next ghost."""
     obj.bb.per_ghost *= GHOST_INC
-    logger.info(f"Ghost score is now {obj.bb.per_ghost}")
+    logger.info("Ghost score is now %s", obj.bb.per_ghost)
     return True
 
 
@@ -95,7 +93,7 @@ ScoreGhost = action_node("ScoreGhost", score_ghost)
 def decr_ghost_count(obj: BtNode) -> bool:
     """decrements the ghost count"""
     ghost = obj.bb.ghosts_remaining.pop()
-    logger.info(f"{ghost} was caught!")
+    logger.info("%s was caught!", ghost)
     return True
 
 
@@ -105,12 +103,12 @@ DecrGhostCount = action_node(
 )
 
 
-### Condition Check Nodes
+# Condition Check Nodes
 
 
 def ghosts_remain(obj: BtNode) -> bool:
     """checks if there are any ghosts remaining."""
-    return len(obj.bb.ghosts_remaining) > 0
+    return bool(len(obj.bb.ghosts_remaining) > 0)
 
 
 GhostsRemain = condition_check(
@@ -121,7 +119,7 @@ GhostsRemain = condition_check(
 
 def ghosts_scared(obj: BtNode) -> bool:
     """checks if a ghost is scared."""
-    return obj.bb.ghosts_scared
+    return bool(obj.bb.ghosts_scared)
 
 
 GhostsScared = condition_check(
@@ -130,7 +128,7 @@ GhostsScared = condition_check(
 )
 
 
-### Fuzzer Nodes
+# Fuzzer Nodes
 
 
 GhostClose = fuzzer(
@@ -140,7 +138,7 @@ ChaseGhost = fuzzer(btz.OftenSucceed, "ChaseGhost", "chases a ghost.")
 AvoidGhost = fuzzer(btz.OftenSucceed, "AvoidGhost", "avoids a ghost.")
 
 
-### Composite Nodes
+# Composite Nodes
 
 NoMoreGhosts = invert(
     "NoMoreGhosts", "inverts the result of GhostsRemain.", GhostsRemain
@@ -200,7 +198,7 @@ MaybeEatPills = sequence_node(
 def do_tick(bot, ticks):
     bb = bot.bb
 
-    logger.info(f"=== Tick {ticks} ===")
+    logger.info("=== Tick %s ===", ticks)
 
     # maybe make the ghosts scared
     # note this also demonstrates the world changing outside the bot
@@ -215,7 +213,8 @@ def do_tick(bot, ticks):
     # die on the first failure
     if bot.status == bt.NodeStatus.FAILURE:
         logger.info(
-            f"Pacman died! He was eaten by {random.choice(bb.ghosts_remaining)}!"
+            "Pacman died! He was eaten by %s!",
+            random.choice(bb.ghosts_remaining),
         )
     if bb.dots <= 0:
         logger.info("Pacman cleared the board!")
@@ -245,9 +244,9 @@ def main(args):
         if result == bt.NodeStatus.FAILURE:
             break
 
-    logger.info(f"Final score: {bot.bb.score}")
-    logger.info(f"Ticks: {ticks}")
-    logger.info(f"Dots Remaining: {bot.bb.dots}")
+    logger.info("Final score: %s", bot.bb.score)
+    logger.info("Ticks: %s", ticks)
+    logger.info("Dots Remaining: %s", bot.bb.dots)
 
     nghosts = len(bot.bb.ghosts_remaining)
     if nghosts > 0:
@@ -255,7 +254,17 @@ def main(args):
         ghosts = f"({ghosts})"
     else:
         ghosts = ""
-    logger.info(f"Ghosts Remaining: {nghosts} {ghosts}")
+    logger.info("Ghosts Remaining: %s %s", nghosts, ghosts)
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Pacman Bot Demo")
+    parser.add_argument(
+        "--print-tree",
+        action="store_true",
+        help="Print the behavior tree and exit",
+    )
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

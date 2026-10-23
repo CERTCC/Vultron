@@ -1,0 +1,102 @@
+id: DR
+title: Dispatch Routing
+description: >-
+  After semantic extraction, the dispatcher routes `VultronEvent` domain objects to the appropriate
+  use-case class. The dispatcher may execute use cases synchronously (DirectActivityDispatcher)
+  or asynchronously (queue-based).
+scope:
+- prototype
+- production
+tags:
+- messaging
+groups:
+- id: DR-01
+  title: Dispatcher Protocol
+  specs:
+  - id: DR-01-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: All dispatcher implementations MUST implement ActivityDispatcher protocol
+  - id: DR-01-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Dispatchers MUST construct use-case instances with the complete `VultronEvent` and `DataLayer`
+      before calling `execute()`, so that `execute()` takes no arguments
+  - id: DR-01-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Dispatchers MUST perform semantic type validation at dispatch time using the configured
+      semantics-to-use-case mapping
+- id: DR-02
+  title: Handler Lookup
+  specs:
+  - id: DR-02-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The system MUST look up use-case classes by semantic type using the mapping returned
+      by `use_case_map()`
+    relationships:
+    - rel_type: derives_from
+      spec_id: HP-03-001
+  - id: DR-02-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The mapping returned by `use_case_map()` MUST contain an entry for every
+      `MessageSemantics` value whose `SEMANTIC_REGISTRY` entry names a use case, and
+      none for a value the registry recognizes but no use case handles (SE-05-002)
+    relationships:
+    - rel_type: derives_from
+      spec_id: SE-05-002
+- id: DR-03
+  title: Direct Dispatch Implementation
+  specs:
+  - id: DR-03-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The DirectActivityDispatcher MUST execute handlers synchronously
+  - id: DR-03-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The DirectActivityDispatcher MUST NOT catch handler exceptions. It MUST let
+      every exception a handler raises propagate to its caller. A semantic type with
+      no use case raises nothing: the dispatcher reports it as a `REFUSED` "no use
+      case found" verdict, logged at INFO (SE-05-002).
+    rationale: >-
+      Catching and logging belongs at the adapter boundary that decides what a
+      failure means for the inbox item (IE-06-004), not in core: a blanket catch in
+      the dispatcher would break CS-23-001 (no broad `except` outside a BT node's
+      `update()`) and HP-05-001 (handlers raise for unrecoverable errors), and would
+      turn a programming error into a silent verdict. The dispatcher routes by semantics
+      alone, so an activity that names no case reaches its handler, which refuses it
+      (HP-05-002).
+    verification: >-
+      `test/test_behavior_dispatcher.py::test_dispatch_lets_a_handler_exception_propagate`
+      asserts a `RuntimeError` raised inside a use case's `execute()` escapes
+      `dispatch()` unchanged.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CS-23-001
+    - rel_type: depends_on
+      spec_id: HP-05-001
+- id: DR-04
+  title: Async Dispatch Implementation
+  specs:
+  - id: DR-04-001
+    priority: SHOULD
+    kind: project
+    statement: An async dispatcher SHOULD queue activities for processing
+  - id: DR-04-002
+    priority: SHOULD
+    kind: project
+    statement: An async dispatcher SHOULD process activities in FIFO order

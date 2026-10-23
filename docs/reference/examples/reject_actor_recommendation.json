@@ -1,12 +1,45 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Reject",
-  "id": "https://for.example/4f3fb489-6038-437d-a0ea-4cf7bee527c0",
-  "name": "https://vultron.example/organizations/vendor Reject https://vultron.example/organizations/coordinator to https://vultron.example/cases/VDR-20991514",
-  "context": "https://vultron.example/cases/VDR-20991514",
+  "type": "Reject",
+  "id": "urn:uuid:c44936e5-93be-4ad1-887f-f588b234513d",
+  "name": "https://vultron.example/case-actors/vendorco-case-actor Reject https://vultron.example/users/finndervul Offer Coordinator LLC to urn:uuid:39b69f6a-d76f-494b-ab49-8698ed88d4d8 to urn:uuid:39b69f6a-d76f-494b-ab49-8698ed88d4d8",
+  "context": "urn:uuid:39b69f6a-d76f-494b-ab49-8698ed88d4d8",
+  "inReplyTo": "urn:uuid:bcc38938-ee1e-44be-94c6-25f3f2c37f11",
   "content": "We're declining your recommendation to add Coordinator LLC to the case. Thanks anyway.",
-  "to": "https://vultron.example/users/finn",
-  "actor": "https://vultron.example/organizations/vendor",
-  "target": "https://vultron.example/cases/VDR-20991514",
-  "object": "https://vultron.example/organizations/coordinator"
+  "to": "https://vultron.example/users/finndervul",
+  "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+  "target": "urn:uuid:39b69f6a-d76f-494b-ab49-8698ed88d4d8",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Offer",
+    "id": "urn:uuid:bcc38938-ee1e-44be-94c6-25f3f2c37f11",
+    "name": "https://vultron.example/users/finndervul Offer Coordinator LLC to urn:uuid:39b69f6a-d76f-494b-ab49-8698ed88d4d8",
+    "context": "urn:uuid:39b69f6a-d76f-494b-ab49-8698ed88d4d8",
+    "published": "2026-10-19T16:06:13+00:00",
+    "updated": "2026-10-19T16:06:13+00:00",
+    "content": "I'm recommending we add Coordinator LLC to the case.",
+    "to": "https://vultron.example/case-actors/vendorco-case-actor",
+    "actor": "https://vultron.example/users/finndervul",
+    "target": "urn:uuid:39b69f6a-d76f-494b-ab49-8698ed88d4d8",
+    "object": {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "Organization",
+      "id": "https://vultron.example/organizations/coordinator",
+      "name": "Coordinator LLC",
+      "published": "2026-10-19T16:06:12+00:00",
+      "updated": "2026-10-19T16:06:12+00:00",
+      "inbox": {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "OrderedCollection",
+        "id": "https://vultron.example/organizations/coordinator/inbox",
+        "items": []
+      },
+      "outbox": {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "OrderedCollection",
+        "id": "https://vultron.example/organizations/coordinator/outbox",
+        "items": []
+      }
+    }
+  }
 }

@@ -1,0 +1,56 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Reject",
+  "id": "urn:uuid:656601c9-41ea-4070-9a1e-38cbdef8d33b",
+  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:eaa0a5ed-57b7-4bd2-9ace-86f3f3c47f12 to Coordinator LLC",
+  "context": "urn:uuid:39e6d4b7-ad4c-4310-aa08-23c7e148357f",
+  "content": "We're declining the role you offered.",
+  "to": [
+    "https://vultron.example/case-actors/vendorco-case-actor"
+  ],
+  "actor": "https://vultron.example/organizations/coordinator",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Offer",
+    "id": "urn:uuid:1bd52b02-ce9c-4cee-abb0-aafc0dbc60e1",
+    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer urn:uuid:eaa0a5ed-57b7-4bd2-9ace-86f3f3c47f12 to Coordinator LLC",
+    "context": "urn:uuid:39e6d4b7-ad4c-4310-aa08-23c7e148357f",
+    "inReplyTo": "urn:uuid:3969e26f-66c0-4e60-b340-b6b434fddf9b",
+    "published": "2026-10-16T14:01:43+00:00",
+    "updated": "2026-10-16T14:01:43+00:00",
+    "content": "We're offering the coordinator role on case VendorCo Case #68056456 to Coordinator LLC.",
+    "to": [
+      "https://vultron.example/organizations/coordinator"
+    ],
+    "attributedTo": "https://vultron.example/organizations/vendorco",
+    "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+    "target": {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "Organization",
+      "id": "https://vultron.example/organizations/coordinator",
+      "name": "Coordinator LLC",
+      "published": "2026-10-16T14:01:35+00:00",
+      "updated": "2026-10-16T14:01:35+00:00",
+      "inbox": {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "OrderedCollection",
+        "id": "https://vultron.example/organizations/coordinator/inbox",
+        "items": []
+      },
+      "outbox": {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "OrderedCollection",
+        "id": "https://vultron.example/organizations/coordinator/outbox",
+        "items": []
+      }
+    },
+    "object": {
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+      "type": "CaseParticipantRole",
+      "id": "urn:uuid:eaa0a5ed-57b7-4bd2-9ace-86f3f3c47f12",
+      "published": "2026-10-16T14:01:43+00:00",
+      "updated": "2026-10-16T14:01:43+00:00",
+      "role": "coordinator"
+    }
+  }
+}

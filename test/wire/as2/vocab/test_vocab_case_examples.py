@@ -1,0 +1,415 @@
+#  Copyright (c) 2024-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+import unittest
+from typing import cast
+
+import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Add,
+    as_Announce,
+    as_Create,
+    as_Ignore,
+    as_Join,
+    as_Leave,
+    as_Offer,
+    as_Reject,
+    as_Update,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+
+class TestVocabCaseObjectExamples(unittest.TestCase):
+    def test_case(self):
+        case = examples.case()
+        self.assertIsInstance(case, as_VulnerabilityCase)
+
+        json = case.model_dump_json(exclude_none=True, by_alias=True)
+        self.assertIsInstance(json, str)
+
+    def test_case_has_genesis_hash(self):
+        case = examples.case()
+        self.assertIsInstance(case, as_VulnerabilityCase)
+        self.assertTrue(
+            case.genesis_hash,
+            "examples.case() genesis_hash must be non-empty (CLP-08-003)",
+        )
+
+    def test_case_random_id_has_genesis_hash(self):
+        case = examples.case(random_id=True)
+        self.assertIsInstance(case, as_VulnerabilityCase)
+        self.assertTrue(
+            case.genesis_hash,
+            "examples.case(random_id=True) genesis_hash must be non-empty (CLP-08-003)",
+        )
+
+    def test_create_case(self):
+        create_case = examples.create_case()
+        self.assertIsInstance(create_case, as_Activity)
+        vendor = examples.vendor()
+        report = examples.gen_report()
+
+        self.assertIsInstance(create_case, as_Create)
+        self.assertEqual(create_case.type_, "Create")
+        self.assertEqual(create_case.actor, vendor.id_)
+
+        case_from_activity = cast(as_VulnerabilityCase, create_case.object_)
+        # Each call to create_case() uses a fresh random-ID case, so we assert
+        # the id is non-empty rather than equal to the shared singleton.
+        self.assertTrue(case_from_activity.id_)
+        # The report travels inline too: the receiver seeds its replica from
+        # this one activity (CBT-01-012, AKM-02-004).
+        carried_report = case_from_activity.vulnerability_reports[0]
+        self.assertIsInstance(carried_report, as_VulnerabilityReport)
+        self.assertEqual(
+            cast(as_VulnerabilityReport, carried_report).id_, report.id_
+        )
+        # Inline participants, not bare URIs: CBT-01-012 says a bare URI "MUST
+        # NOT be used" here, and use_cases/received/case/create.py refuses one.
+        # The as-delivered change asserted ``str`` to match an example that had
+        # been switched to IDs in order to dodge a validation failure.
+        self.assertTrue(len(case_from_activity.case_participants) > 0)
+        self.assertIsInstance(
+            case_from_activity.case_participants[0], CaseParticipant
+        )
+
+    def test_create_case_multiple_calls_do_not_raise(self):
+        # Regression: create_case() must not raise VultronValidationError when
+        # called more than once in the same process (issue #1328 — shared
+        # _CASE singleton was mutated, causing add_participant to fail on the
+        # second call).
+        examples.create_case()
+        examples.create_case()
+        examples.create_case()
+
+    def test_add_report_to_case(self):
+        add_report_to_case = examples.add_report_to_case()
+        self.assertIsInstance(add_report_to_case, as_Activity)
+        vendor = examples.vendor()
+        case = examples.case()
+        report = examples.gen_report()
+
+        self.assertIsInstance(add_report_to_case, as_Add)
+        self.assertEqual(add_report_to_case.type_, "Add")
+        self.assertEqual(add_report_to_case.actor, vendor.id_)
+        self.assertEqual(add_report_to_case.object_, report)
+        self.assertEqual(add_report_to_case.target, case.id_)
+
+
+class TestVocabCaseParticipantExamples(unittest.TestCase):
+    def test_add_vendor_participant_to_case(self):
+        activity = examples.add_vendor_participant_to_case()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Add)
+        self.assertEqual(activity.type_, "Add")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.target, case.id_)
+
+        participant = cast(as_CaseParticipant, activity.object_)
+        self.assertEqual(participant.attributed_to, vendor.id_)
+        self.assertEqual(participant.name, vendor.name)
+        self.assertEqual(participant.context, case.id_)
+
+    def test_add_finder_participant_to_case(self):
+        activity = examples.add_finder_participant_to_case()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        finder = examples.finder()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Add)
+        self.assertEqual(activity.type_, "Add")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.target, case.id_)
+
+        participant = cast(as_CaseParticipant, activity.object_)
+        self.assertEqual(participant.attributed_to, finder.id_)
+        self.assertEqual(participant.name, finder.name)
+        self.assertEqual(participant.context, case.id_)
+
+    def test_add_coordinator_participant_to_case(self):
+        activity = examples.add_coordinator_participant_to_case()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        coordinator = examples.coordinator()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Add)
+        self.assertEqual(activity.type_, "Add")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.target, case.id_)
+
+        participant = cast(as_CaseParticipant, activity.object_)
+        self.assertEqual(participant.attributed_to, coordinator.id_)
+        self.assertEqual(participant.name, coordinator.name)
+        self.assertEqual(participant.context, case.id_)
+
+
+class TestVocabCaseLifecycleExamples(unittest.TestCase):
+    def test_engage_case(self):
+        activity = examples.engage_case()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Join)
+        self.assertEqual(activity.type_, "Join")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.object_, case)
+
+    def test_close_case(self):
+        activity = examples.close_case()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Leave)
+        self.assertEqual(activity.type_, "Leave")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.object_, case)
+
+    def test_defer_case(self):
+        activity = examples.defer_case()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Ignore)
+        self.assertEqual(activity.type_, "Ignore")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.object_, case)
+
+    def test_reengage_case(self):
+        activity = examples.reengage_case()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Join)
+        self.assertEqual(activity.type_, "Join")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.object_, case)
+
+    def test_update_case(self):
+        activity = examples.update_case()
+        self.assertIsInstance(activity, as_Activity)
+        case_actor = examples.case_actor()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Update)
+        self.assertEqual(activity.type_, "Update")
+
+        self.assertEqual(activity.actor, case_actor.id_)
+        self.assertEqual(activity.object_, case)
+        self.assertIsNone(activity.content)
+
+
+class TestVocabCaseNoteExamples(unittest.TestCase):
+    def test_note(self):
+        note = examples.note()
+        self.assertIsInstance(note, as_Note)
+
+        self.assertTrue(hasattr(note, "to_json"))
+        self.assertIn("This is a note", note.content)
+
+    def test_add_note_to_case(self):
+        activity = examples.add_note_to_case()
+        self.assertIsInstance(activity, as_Activity)
+        finder = examples.finder()
+        case = examples.case()
+        note = examples.note()
+
+        self.assertIsInstance(activity, as_Add)
+        self.assertEqual(activity.type_, "Add")
+
+        self.assertEqual(activity.actor, finder.id_)
+        self.assertEqual(activity.target, case.id_)
+
+        add_note = cast(as_Note, activity.object_)
+        self.assertEqual(add_note.context, case.id_)
+        self.assertEqual(add_note.content, note.content)
+
+
+class TestVocabCaseOwnershipExamples(unittest.TestCase):
+    def test_propose_case_ownership_transfer(self):
+        """The owner's proposal nests the Offer it asks for (ADR-0148)."""
+        activity = examples.propose_case_ownership_transfer()
+        vendor = examples.vendor()
+        coordinator = examples.coordinator()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Offer)
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.context, case.id_)
+        self.assertEqual(activity.to, [examples.case_actor().id_])
+        inner = activity.object_
+        assert isinstance(inner, as_Offer)
+        self.assertIsInstance(inner.target, as_Actor)
+        self.assertEqual(cast(as_Actor, inner.target).id_, coordinator.id_)
+        self.assertEqual(
+            cast(as_VulnerabilityCase, inner.object_).id_, case.id_
+        )
+
+    def test_offer_case_ownership_transfer(self):
+        activity = examples.offer_case_ownership_transfer()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        coordinator = examples.coordinator()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Offer)
+        self.assertEqual(activity.type_, "Offer")
+
+        # The CASE_MANAGER makes the Offer on the owner's behalf (CM-24-001,
+        # CM-24-002, ADR-0148).
+        self.assertEqual(activity.actor, examples.case_actor().id_)
+        self.assertEqual(activity.attributed_to, vendor.id_)
+        # DL-08-003: the transferee travels inline, not as a bare id.
+        self.assertIsInstance(activity.target, as_Actor)
+        self.assertEqual(cast(as_Actor, activity.target).id_, coordinator.id_)
+
+        transfer_case = cast(as_VulnerabilityCase, activity.object_)
+        for k, v in transfer_case.model_dump().items():
+            if isinstance(v, list):
+                continue
+            self.assertEqual(v, case.model_dump()[k])
+
+    def test_accept_case_ownership_transfer(self):
+        activity = examples.accept_case_ownership_transfer()
+        self.assertIsInstance(activity, as_Activity)
+        coordinator = examples.coordinator()
+
+        self.assertIsInstance(activity, as_Accept)
+        self.assertEqual(activity.type_, "Accept")
+
+        self.assertEqual(activity.actor, coordinator.id_)
+        self.assertIsInstance(activity.object_, as_Offer)
+
+    def test_reject_case_ownership_transfer(self):
+        activity = examples.reject_case_ownership_transfer()
+        self.assertIsInstance(activity, as_Activity)
+        coordinator = examples.coordinator()
+
+        self.assertIsInstance(activity, as_Reject)
+        self.assertEqual(activity.type_, "Reject")
+
+        self.assertEqual(activity.actor, coordinator.id_)
+        self.assertIsInstance(activity.object_, as_Offer)
+
+    def test_undo_case_ownership_transfer(self):
+        activity = examples.undo_case_ownership_transfer()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+
+        self.assertEqual(activity.type_, "Undo")
+        # The owner withdraws its own proposal (CM-21-015, ADR-0148).
+        self.assertEqual(activity.actor, vendor.id_)
+        proposal = activity.object_
+        assert isinstance(proposal, as_Offer)
+        self.assertEqual(proposal.actor, vendor.id_)
+        self.assertIsInstance(proposal.object_, as_Offer)
+
+    def test_announce_case(self):
+        activity = examples.announce_case()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+
+        self.assertIsInstance(activity, as_Announce)
+        self.assertEqual(activity.type_, "Announce")
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertIsInstance(activity.object_, as_VulnerabilityCase)
+
+
+class TestVocabCaseStatusExamples(unittest.TestCase):
+    def test_case_status(self):
+        obj = examples.case_status()
+        self.assertIsInstance(obj, as_CaseStatus)
+        self.assertIn(obj.em.state, EM)
+        self.assertIn(obj.pxa.state, CS_pxa)
+
+    def test_add_case_status_to_case(self):
+        activity = examples.add_status_to_case()
+        self.assertIsInstance(activity, as_Activity)
+        # Only the CASE_MANAGER sends it, to a participant (RSH-04-005).
+        case_actor = examples.case_actor()
+        finder = examples.finder()
+        case = examples.case()
+        status = examples.case_status()
+
+        self.assertIsInstance(activity, as_Add)
+        self.assertEqual(activity.type_, "Add")
+
+        self.assertEqual(activity.actor, case_actor.id_)
+        self.assertEqual(activity.to, [finder.id_])
+        self.assertEqual(activity.target, case.id_)
+        self.assertEqual(activity.object_, status)
+
+
+class TestCaseKwargsOverlapGuard(unittest.TestCase):
+    def test_case_kwargs_overlap_name_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(name="My Vuln")
+
+    def test_case_kwargs_overlap_id_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(id_="custom-id")
+
+    def test_case_kwargs_overlap_attributed_to_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(
+                attributed_to="urn:uuid:00000000-0000-0000-0000-000000000000"
+            )
+
+    def test_case_random_id_kwargs_overlap_name_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(random_id=True, name="My Vuln")
+
+    def test_case_random_id_kwargs_overlap_id_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            examples.case(random_id=True, id_="custom-id")
+
+    def test_case_random_id_kwargs_overlap_attributed_to_raises_value_error(
+        self,
+    ):
+        with self.assertRaises(ValueError):
+            examples.case(
+                random_id=True,
+                attributed_to="urn:uuid:00000000-0000-0000-0000-000000000000",
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

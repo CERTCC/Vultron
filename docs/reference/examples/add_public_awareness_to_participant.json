@@ -1,0 +1,34 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Add",
+  "id": "urn:uuid:10f8de8c-b487-4d51-93b1-ae27724fa4b9",
+  "name": "https://vultron.example/organizations/finder Add ACCEPTED NONE Pxa to https://vultron.example/cases/1/participants/finder",
+  "actor": "https://vultron.example/organizations/finder",
+  "target": "https://vultron.example/cases/1/participants/finder",
+  "object": {
+    "id": "https://vultron.example/cases/1/participants/finder/status/5",
+    "type": "ParticipantStatus",
+    "name": "ACCEPTED NONE Pxa",
+    "context": "https://vultron.example/cases/1",
+    "published": "2026-06-01T19:12:00+00:00",
+    "updated": "2026-06-01T19:12:00+00:00",
+    "attributedTo": "https://vultron.example/organizations/finder",
+    "rmState": "ACCEPTED",
+    "caseEngagement": true,
+    "cvdRole": [
+      "REPORTER"
+    ],
+    "caseStatus": {
+      "id": "https://vultron.example/cases/1/status/5",
+      "type": "CaseStatus",
+      "name": "NONE Pxa",
+      "context": "https://vultron.example/cases/1",
+      "published": "2026-06-01T19:12:00+00:00",
+      "updated": "2026-06-01T19:12:00+00:00",
+      "emState": "NONE",
+      "pxaState": "Pxa",
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    },
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+  }
+}

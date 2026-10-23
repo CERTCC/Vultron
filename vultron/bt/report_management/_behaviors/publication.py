@@ -2,6 +2,7 @@
 """
 Provides publication behaviors.
 """
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -29,8 +30,6 @@ from vultron.bt.base.factory import fallback_node, sequence_node
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
-
 from vultron.bt.case_state.conditions import CSinStateVendorAwareAndFixReady
 from vultron.bt.case_state.transitions import q_cs_to_P
 from vultron.bt.common import show_graph
@@ -57,7 +56,6 @@ from vultron.bt.report_management.fuzzer.publication import (
     ReprioritizeFix,
     ReprioritizeReport,
 )
-
 
 _ReadyExploitForPublication = fallback_node(
     "_ReadyExploitForPublication",

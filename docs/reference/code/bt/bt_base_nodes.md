@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Behavior Tree Basic Node Types
 
 We have defined a number of basic node types.

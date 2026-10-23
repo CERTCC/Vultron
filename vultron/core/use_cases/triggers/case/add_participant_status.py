@@ -1,0 +1,169 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import logging
+from typing import Any, cast, cast as typing_cast
+
+import py_trees.behaviour
+
+from vultron.core.behaviors.case.add_participant_status_trigger_tree import (
+    add_participant_status_trigger_bt,
+)
+from vultron.core.behaviors.case.nodes.participant import (
+    resolve_participant_state_from_dl,
+)
+from vultron.core.models.use_case_result import StatusResult
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.core.states.cs import CS_d, CS_vf
+from vultron.core.states.rm import RM
+from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases.triggers._helpers import (
+    resolve_actor,
+    resolve_case,
+)
+from vultron.core.use_cases.triggers.requests import (
+    AddParticipantStatusTriggerRequest,
+)
+from vultron.errors import VultronNotFoundError
+
+logger = logging.getLogger(__name__)
+
+
+def vf_steps_to(
+    dl: CasePersistence, *, actor_id: str, case_id: str, target: CS_vf
+) -> list[CS_vf]:
+    """The VF steps *actor_id* still takes to reach *target*, in order.
+
+    Each step is one adjacent move on the ``vf → Vf → VF`` ladder, measured
+    from the actor's current ``vf`` in *dl*, so a step the actor has already
+    taken is not sent again as a no-change confirmation (#5125).  The list
+    never starts with ``vf``, the ladder's initial state, and is empty when
+    the actor is already at or past *target*.
+
+    An actor, case or participant record *dl* does not hold gets the whole
+    ladder: the trigger that sends the first step is the one that refuses it
+    and says why, as it does for any other request (ADR-0087).
+
+    Raises:
+        VultronValidationError: the actor's latest status is not core-shaped
+            (ARCH-15-001).
+    """
+    ladder = list(CS_vf)
+    current_vf: CS_vf | None = None
+    try:
+        actor = resolve_actor(actor_id, dl)
+        case = resolve_case(case_id, dl)
+    except VultronNotFoundError:
+        actor = case = None
+    participant_id = (
+        case.actor_participant_index.get(actor.id_)
+        if actor is not None and case is not None
+        else None
+    )
+    if participant_id is not None:
+        current_vf = resolve_participant_state_from_dl(dl, participant_id)[1]
+    # A participant with no ``vf`` has no step to leave; its first is ``Vf``.
+    start = ladder.index(current_vf if current_vf is not None else CS_vf.vf)
+    return ladder[start + 1 : ladder.index(target) + 1]
+
+
+class SvcAddParticipantStatusUseCase(SvcBTTriggerBase[StatusResult]):
+    """Self-report actor RM/VF/D/PXA state to the Case Manager.
+
+    Delegates validating and storing the ParticipantStatus snapshot to
+    :class:`~vultron.core.behaviors.case.nodes.participant\
+.CreateParticipantStatusNode` via BTBridge (BT-15-001), then emits an
+    ``Add(ParticipantStatus, target=CaseParticipant)`` activity addressed
+    to the Case Manager (DEMOMA-07-001).  The snapshot is not appended to the
+    actor's record: the CASE_MANAGER appends it, and the actor's replica
+    copies that from the ledger (RSH-08-003, CM-23-016).
+
+    BT-15-001 audit: ``ParticipantStatus`` writes with explicit
+    ``rm_state``/``vf_state``/``d_state`` are protocol-significant behavior
+    and are performed inside the BT, not directly in ``execute()``.
+    """
+
+    def _prepare(self) -> None:
+        request = cast(AddParticipantStatusTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._case_id = resolve_case(request.case_id, self._dl).id_
+        self._rm_state = request.rm_state
+        self._vf_state = request.vf_state
+        self._d_state = request.d_state
+        self._pxa_state = request.pxa_state
+        self._follows = (
+            [request.follows_status_id] if request.follows_status_id else None
+        )
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        def _build_activities(case_manager_id: str) -> list[str]:
+            status_id = self._result_out.get("status_id")
+            participant_id = self._result_out.get("participant_id")
+            if not isinstance(status_id, str) or not isinstance(
+                participant_id, str
+            ):
+                raise RuntimeError(  # noqa: TRY004  # ruff-baseline #3353
+                    "CreateParticipantStatusNode did not populate result_out"
+                    " before activity_builder was called"
+                )
+            activity_id = self._factory.add_participant_status_to_participant(
+                status_id=status_id,
+                participant_id=participant_id,
+                actor=self._actor_id,
+                to=[case_manager_id],
+            )
+            self._result_out["activity_id"] = activity_id
+            return [activity_id]
+
+        return add_participant_status_trigger_bt(
+            case_id=self._case_id,
+            actor_id=self._actor_id,
+            rm_state=self._rm_state,
+            vf_state=self._vf_state,
+            d_state=self._d_state,
+            pxa_state=self._pxa_state,
+            result_out=self._result_out,
+            activity_builder=_build_activities,
+            follows=self._follows,
+        )
+
+    def _extra_execute_kwargs(self) -> dict[str, Any]:
+        return {"case_id": self._case_id}
+
+    def _handle_result(self) -> None:
+        logger.info(
+            "Actor '%s' reported status in case '%s'",
+            self._actor_id,
+            self._case_id,
+        )
+
+    def _build_result(self) -> StatusResult:
+        """The ids of the ``Add(ParticipantStatus)`` activity and the record."""
+        return StatusResult(
+            activity_id=self._output_id("activity_id"),
+            status_id=self._output_id("status_id"),
+        )
+
+    def _resolve_current_participant_state(
+        self,
+        dl: CaseOutboxPersistence,
+        participant_id: str,
+    ) -> tuple[RM, CS_vf | None, CS_d | None]:
+        """Return (current_rm, current_vf, current_d) from the participant's latest status."""
+        return resolve_participant_state_from_dl(
+            typing_cast(CasePersistence, dl), participant_id
+        )

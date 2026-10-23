@@ -1,11 +1,13 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Vultron Case States Module
 
-::: vultron.case_states
+::: vultron.core.case_states
 
-::: vultron.case_states.hypercube
+::: vultron.core.case_states.hypercube
 
-::: vultron.case_states.states
+::: vultron.core.states.cs
 
-::: vultron.case_states.validations
-
-::: vultron.case_states.errors
+::: vultron.core.case_states.validations

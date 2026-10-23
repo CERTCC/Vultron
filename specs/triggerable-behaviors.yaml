@@ -1,0 +1,739 @@
+id: TRIG
+title: Triggerable Behaviors
+description: Requirements for the trigger API that allows an actor to initiate protocol behaviors based on its own internal
+  state, rather than reacting to an inbound ActivityStreams message. Triggerable behaviors are the outgoing counterpart to
+  the inbound handler pipeline and are required to demonstrate the full CVD protocol.
+scope:
+- prototype
+- production
+tags:
+- messaging
+- protocol
+groups:
+- id: TRIG-01
+  title: Endpoint Format
+  specs:
+  - id: TRIG-01-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The system MUST expose trigger endpoints using the path pattern `POST /actors/{actor_id}/trigger/{behavior-name}`
+  - id: TRIG-01-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Trigger endpoints MUST return HTTP 202 on successful acceptance
+    relationships:
+    - rel_type: depends_on
+      spec_id: HTTP-01-003
+  - id: TRIG-01-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Trigger endpoints MUST return a structured error response when the actor, case, or report referenced in the
+      request body cannot be resolved
+    relationships:
+    - rel_type: depends_on
+      spec_id: EH-05-001
+  - id: TRIG-01-004
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: Trigger endpoint processing MUST NOT block the HTTP response; long-running behavior execution MUST run as a
+      background task
+    relationships:
+    - rel_type: depends_on
+      spec_id: IE-03-001
+- id: TRIG-02
+  title: Candidate RM Behaviors
+  specs:
+  - id: TRIG-02-001
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      The following RM behaviors SHOULD be individually triggerable via the trigger
+      API: validate-report, invalidate-report, reject-report, submit-report,
+      ack-report
+    rationale: >-
+      Once a case holds a report, a case refuses `Close(Report)` from every sender
+      (CM-23-019, ADR-0144) and an actor closes by leaving the case (TRIG-13-001), so
+      no report trigger closes a report a case holds. A report no case holds is
+      closed with reject-report (ADR-0145).
+    adr:
+    - ADR-0145
+  - id: TRIG-02-002
+    priority: SHOULD
+    kind: protocol
+    statement: 'The following EM behaviors SHOULD be individually triggerable via the trigger API: propose-embargo, accept-embargo, reject-embargo, propose-embargo-revision, terminate-embargo'
+  - id: TRIG-02-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      The following CS state-notification behaviors SHOULD be individually
+      triggerable via the general-purpose trigger API (TRIG-08-003):
+      notify-fix-ready, notify-fix-deployed, notify-published,
+      notify-public-exploit, notify-attacks-observed. notify-published records
+      that the actor has become Public Aware (it has learned the vul is public,
+      by whatever means); it does not assert that the actor published anything.
+    rationale: >-
+      An actor learns each of these facts either because an outside party tells it (a
+      person or tool invokes the trigger) or because its own behavior tree asks an
+      outside source through a call-out point (e.g.
+      `DevelopFixCallOutBundle.create_fix_factory`). Both are legitimate in production,
+      so these are general-purpose triggers (TRIG-08-002). Only three exist today, under
+      `/demo/`; #4159 owns exposing all five.
+  - id: TRIG-02-004
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      The following case management behaviors SHOULD be individually triggerable
+      via the trigger API: engage-case, defer-case, leave-case, add-object-to-case,
+      create-case, add-report-to-case
+    adr:
+    - ADR-0145
+  - id: TRIG-02-005
+    priority: SHOULD
+    kind: protocol
+    statement: 'The following participant management behaviors SHOULD be individually triggerable via the trigger API: suggest-actor-to-case, accept-case-invite, reject-case-invite, invite-actor-to-case, accept-actor-recommendation'
+  - id: TRIG-02-006
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      Inspection of the router mounting confirms add-note-to-case and
+      sync-log-entry are mounted only under `/demo/` and only when demo mode is enabled.
+    statement: >-
+      The following behaviors exist only to support demo and prototype scenarios.
+      They are exposed under the `/demo/` URL prefix (see TRIG-09-001) and MUST NOT
+      be mounted in production mode (see TRIG-09-002): add-note-to-case,
+      sync-log-entry
+    rationale: >-
+      Leaving a case is an actor decision, not a demo puppeteering step, so it is
+      the general-purpose leave-case trigger (TRIG-13-001), not a demo verb
+      (ADR-0145).
+    adr:
+    - ADR-0145
+  - id: TRIG-02-007
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Actors holding the CASE_OWNER role SHOULD be able to trigger the following role
+      delegation behaviors via the trigger API: offer-case-manager-role,
+      offer-case-participant-role, offer-case-ownership-transfer,
+      accept-case-ownership-transfer.
+- id: TRIG-03
+  title: Request Body
+  specs:
+  - id: TRIG-03-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Each trigger request body MUST include at least one of `case_id` (for
+      case-scoped behaviors) or `offer_id` (for offer-response behaviors).
+      Full per-behavior field requirements are defined in the API schema.
+  - id: TRIG-03-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Unknown fields in the request body MUST be ignored (forward-compatibility)
+  - id: TRIG-03-003
+    priority: SHOULD
+    kind: project
+    statement: The trigger endpoint request body SHOULD support an optional `note` field containing free-text content that
+      will be embedded in the outgoing ActivityStreams activity (e.g., rationale for embargo proposal, reason for deferral)
+  - id: TRIG-03-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The `reject-report` trigger request body MUST include a `note` field (reason required); the `note` value SHOULD
+      be non-empty
+    rationale: Hard-close decisions are irreversible and warrant documented justification for audit purposes
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-03-003
+    - rel_type: depends_on
+      spec_id: CS-08-001
+- id: TRIG-04
+  title: Response Body
+  specs:
+  - id: TRIG-04-001
+    priority: SHOULD
+    kind: project
+    statement: 'A successful trigger response SHOULD include the resulting ActivityStreams activity in the response body under
+      an `activity` key:'
+  - id: TRIG-04-002
+    priority: MAY
+    kind: project
+    statement: When a trigger initiates a long-running behavior, the response MAY return a job object per `AR-04-001` instead
+      of the activity directly
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: AR-04-001
+  - id: TRIG-04-003
+    priority: MUST
+    kind: project
+    statement: When a triggered behavior terminates because it emitted an authorization request rather than completing the
+      requested action, the trigger response MUST identify the request it emitted.
+    rationale: >-
+      A trigger returns 202 and runs the behavior in the background, so a caller cannot
+      otherwise distinguish "done" from "waiting on someone else's decision"
+      (CONCERN-2369). Under ASK-01-002 success means the request was emitted, so success
+      alone is ambiguous; naming the request lets the caller resolve the outcome against
+      the outstanding-ask collection (ASK-04-009).
+    note: >-
+      This closes the CONCERN-2369 gap only for behaviors that stop to ask. Outcomes of
+      behaviors that fail for other reasons remain unobservable and are tracked
+      separately on CONCERN-2369.
+    verification: A trigger whose behavior emits an authorization request returns a response identifying that request, and the
+      identified request is retrievable from the actor's outstanding-ask collection.
+    adr:
+    - ADR-0080
+    relationships:
+    - rel_type: depends_on
+      spec_id: ASK-04-009
+- id: TRIG-05
+  title: BT Integration
+  specs:
+  - id: TRIG-05-001
+    priority: SHOULD
+    kind: protocol
+    statement: Trigger endpoint implementations SHOULD reuse existing BT trees rather than duplicating behavior logic
+    stories:
+    - story_2022_086
+  - id: TRIG-05-002
+    priority: SHOULD
+    kind: project
+    statement: The trigger endpoint SHOULD invoke the BT tree via the bridge layer (`vultron/core/behaviors/bridge.py`) using
+      the same pattern as existing BT-using handlers
+    relationships:
+    - rel_type: depends_on
+      spec_id: BT-05-001
+- id: TRIG-06
+  title: Per-Actor DataLayer
+  specs:
+  - id: TRIG-06-001
+    priority: MUST
+    kind: project
+    statement: Trigger endpoints MUST resolve the correct per-actor DataLayer instance using the `actor_id` path parameter
+    rationale: >-
+      Trigger endpoints are this codebase's local REST surface for driving its own
+      actors, not messages between implementations, and per-actor stores are how
+      this codebase isolates them (ADR-0073). Only this codebase must obey it, so it
+      is `project` (ADR-0134).
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that each trigger
+      endpoint resolves its DataLayer instance keyed on the `actor_id` path
+      parameter.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-01-001
+    stories:
+    - story_2022_088
+    - story_2022_106
+  - id: TRIG-06-002
+    priority: MUST
+    kind: project
+    statement: Trigger endpoint implementations MUST accept the DataLayer instance via dependency injection to allow per-actor
+      isolation to be retrofitted without changing endpoint contracts
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that the DataLayer
+      instance is injected via a FastAPI dependency rather than constructed inside
+      the endpoint handler.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-01-001
+- id: TRIG-07
+  title: Outbox Activity
+  specs:
+  - id: TRIG-07-001
+    priority: MUST
+    kind: protocol
+    statement: A successfully executed trigger MUST produce an outgoing ActivityStreams activity added to the actor's outbox
+    verification: >-
+      Integration tests in `test/demo/` confirm that each successfully executed
+      trigger adds a new activity to the actor's outbox.
+    relationships:
+    - rel_type: depends_on
+      spec_id: OX-02-001
+    stories:
+    - story_2022_039
+    - story_2022_081
+- id: TRIG-08
+  title: Trigger Classification
+  specs:
+  - id: TRIG-08-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: 'The application MUST define a `RunMode` StrEnum with at least two values: `PROTOTYPE` and `PROD`'
+  - id: TRIG-08-002
+    priority: MUST
+    kind: project
+    statement: A trigger is **general-purpose** if it represents either a legitimate external stimulus (e.g., a finder submitting
+      a report) or an intentional actor decision that a human operator or agentic client might initiate (e.g., validating
+      a report, proposing an embargo). A trigger is **demo-only** if the only reason it exists is to let a demo script puppeteer
+      an actor through a step the actor's own BT would handle autonomously in a real deployment.
+    verification: >-
+      Every row of the trigger registry (TRIG-12-004) declares its `exposure`
+      (general-purpose or demo-only), so the classification is a data-table fact
+      per verb rather than a docstring judgment; the route-to-registry test
+      (`test/adapters/driving/fastapi/test_trigger_registry_routes.py`) asserts
+      each row is mounted under the prefix its exposure names. Which exposure a
+      verb *deserves* is still a review question answered against this
+      requirement's definitions when the row is added.
+  - id: TRIG-08-003
+    priority: MUST
+    kind: project
+    statement: General-purpose triggers MUST be exposed under the path prefix `/actors/{actor_id}/trigger/{behavior-name}`
+      (TRIG-01-001)
+    verification: >-
+      Every row of the trigger registry (TRIG-12-004) declares its exposure; the
+      route-to-registry test asserts that each general-purpose row is mounted
+      under `/actors/{actor_id}/trigger/` and that no route under that prefix
+      lacks a general-purpose row.
+  - id: TRIG-08-004
+    priority: MUST
+    kind: project
+    statement: Demo-only triggers MUST be exposed under the path prefix `/actors/{actor_id}/demo/{behavior-name}` (see TRIG-09-001)
+    verification: >-
+      Every row of the trigger registry (TRIG-12-004) declares its exposure; the
+      route-to-registry test asserts that each demo-only row is mounted under
+      `/actors/{actor_id}/demo/` and that no route under that prefix lacks a
+      demo-only row.
+  - id: TRIG-08-005
+    priority: MUST
+    kind: project
+    statement: '`RunMode` MUST be stored as `ServerConfig.run_mode` within `AppConfig` (CFG-04-001) with a default of `RunMode.PROTOTYPE`'
+    verification: >-
+      Inspection of `vultron/core/` confirms that `ServerConfig.run_mode` is typed
+      as `RunMode` within `AppConfig` and defaults to `RunMode.PROTOTYPE`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CFG-04-001
+- id: TRIG-09
+  title: Demo Trigger Endpoints
+  specs:
+  - id: TRIG-09-001
+    priority: MUST
+    kind: project
+    statement: Demo-only trigger endpoints MUST use the URL path pattern `POST /actors/{actor_id}/demo/{behavior-name}`
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that the demo
+      router registers all demo-only endpoints under the
+      `POST /actors/{actor_id}/demo/{behavior-name}` path pattern.
+  - id: TRIG-09-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: 'The demo router MUST be conditionally mounted: it MUST be included in the FastAPI application only when `get_config().server.run_mode
+      == RunMode.PROTOTYPE`'
+  - id: TRIG-09-003
+    priority: MUST
+    kind: project
+    statement: When `run_mode == RunMode.PROD`, any request to a path under `/demo/` MUST return HTTP 404 (the routes are
+      not mounted; no custom error message is required)
+    verification: >-
+      Integration tests in `test/demo/` confirm that, when `run_mode` is set to
+      `RunMode.PROD`, any request to a path under `/demo/` returns HTTP 404.
+    relationships:
+    - rel_type: depends_on
+      spec_id: TRIG-09-002
+  - id: TRIG-09-004
+    priority: MUST
+    kind: project
+    statement: Demo trigger endpoints MUST share the same per-actor DataLayer injection pattern as general-purpose trigger
+      endpoints (TRIG-06-001, TRIG-06-002)
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that demo trigger
+      endpoint handlers receive their DataLayer instance via the same FastAPI
+      dependency as general-purpose triggers.
+  - id: TRIG-09-005
+    priority: MUST
+    kind: project
+    statement: Demo trigger endpoints MUST use an OpenAPI tag that visually distinguishes them from general-purpose triggers
+      in the Swagger UI (e.g., `tags=["Demo Triggers"]` vs `tags=["Triggers"]`)
+    verification: >-
+      Inspection of the FastAPI application's OpenAPI schema confirms that demo
+      trigger endpoints carry a distinct tag (e.g., "Demo Triggers") separate
+      from the tag used by general-purpose endpoints.
+- id: TRIG-10
+  title: Generalized Object Triggers and Type-Specific Wrappers
+  specs:
+  - id: TRIG-10-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The system MUST expose an `add-object-to-case` general trigger at
+      `POST /actors/{actor_id}/trigger/add-object-to-case` that accepts any object type the protocol
+      routes as `Add(object, target=VulnerabilityCase)`, except a type whose addition the protocol
+      carries by its own flow (`EmbargoEvent`, `CaseParticipant`, `CaseStatus`). It MUST refuse with
+      HTTP 422, queuing nothing, an object whose `Add` no receive-side pattern matches or whose type is
+      one of those exceptions.
+    rationale: >-
+      Adding content to a case is a legitimate operator action for more than one object type; a Note
+      is the most common use but not the only one. The `Add` is a participant's request to the
+      CASE_MANAGER (PCR-08-005), so an object type the CASE_MANAGER cannot route would be delivered and
+      dropped on arrival while the caller was told 202. Refusing it at the trigger keeps the response
+      truthful. An embargo proposal is an `Invite` relayed by the CASE_MANAGER (EP-09-001), and
+      participants and status changes have role-gated flows of their own, so a general `Add` of those
+      types would bypass the gates that govern them.
+    verification: >-
+      Router tests under `test/adapters/driving/fastapi/routers/` confirm that a POST with a routable
+      non-Note object returns 202 and queues an `Add` addressed to the CASE_MANAGER, and that a POST
+      with an object type no `Add`-to-case pattern matches, or with an `EmbargoEvent`, returns 422 and
+      leaves the outbox unchanged.
+    stories:
+    - story_2022_074
+    - story_2022_102
+  - id: TRIG-10-002
+    priority: MUST
+    kind: project
+    statement: Type-specific convenience triggers (e.g., `add-report-to-case`) MUST delegate to the corresponding general
+      trigger after performing type-specific validation
+    verification: >-
+      Inspection of `vultron/adapters/driving/fastapi/` confirms that type-specific
+      trigger handlers call the `add-object-to-case` general trigger after
+      performing type-specific input validation.
+  - id: TRIG-10-003
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_demo_triggers.py::TestDemoAddNoteToCaseNotAtTriggerPrefix`
+      confirms add-note-to-case is absent from the `/trigger/` path.
+    statement: '`add-note-to-case` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be moved to `/demo/add-note-to-case`
+      as a demo-only convenience wrapper around `add-object-to-case`'
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-08-004
+  - id: TRIG-10-004
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_demo_triggers.py::TestDemoSyncLogEntry::test_returns_202_with_the_entry_identity`
+      confirms sync-log-entry is served under `/demo/`; inspection of the trigger router
+      confirms it is not mounted under `/trigger/`.
+    statement: '`sync-log-entry` MUST NOT be exposed as a general `/trigger/` endpoint; it MUST be moved to `/demo/sync-log-entry`'
+    rationale: In a correct implementation, SYNC log entries are committed automatically as a cascade effect of every state-changing
+      operation. An explicit trigger exists only to let the demo script inject entries manually. A future production "force-sync"
+      recovery operation would require a protocol-level mechanism for a peer to advertise its current log tail hash before
+      entries are replayed (SYNC-03-004)
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-08-004
+- id: TRIG-11
+  title: Case Ownership Transfer Triggers
+  specs:
+  - id: TRIG-11-001
+    priority: MUST
+    kind: protocol
+    statement: The system MUST expose an `offer-case-ownership-transfer` trigger at `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`
+      that accepts a `case_id` and `transferee_id` in its request body and emits
+      the requesting Case Owner's proposal, `Offer(Offer(VulnerabilityCase))`, to
+      the case's CASE_MANAGER, which offers the case to the specified transferee
+      (CM-21-005). The response's `activity` is the proposal.
+    rationale: Without this trigger, demo scripts must inject ownership-transfer offers directly into the transferee's inbox,
+      which bypasses the offering actor's BT execution and violates DEMOMA-05-001. A trigger endpoint ensures the full hexagonal
+      stack is exercised for both sides of the handshake.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a POST to
+      `/actors/{actor_id}/trigger/offer-case-ownership-transfer` with a valid
+      `case_id` and `transferee_id` emits the proposal and that the transferee then
+      receives the CASE_MANAGER's `Offer(VulnerabilityCase)`.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-01-001
+    - rel_type: refines
+      spec_id: TRIG-02-004
+    stories:
+    - story_2022_050
+  - id: TRIG-11-002
+    priority: MUST
+    kind: protocol
+    statement: The system MUST expose an `accept-case-ownership-transfer` trigger at `POST /actors/{actor_id}/trigger/accept-case-ownership-transfer`
+      that accepts an `offer_id` in its request body and emits an `Accept(Offer(VulnerabilityCase))` (ownership transfer variant)
+      from the requesting actor, addressed to the CASE_MANAGER (CM-21-006).
+    rationale: 'Symmetry with TRIG-11-001: the accepting actor must also be puppeteered through a trigger so that its BT execution
+      is exercised, consistent with DEMOMA-05-001.'
+    verification: >-
+      Integration tests in `test/demo/` confirm that a POST to
+      `/actors/{actor_id}/trigger/accept-case-ownership-transfer` with a valid
+      `offer_id` emits an `Accept(Offer(VulnerabilityCase))` activity.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-01-001
+    - rel_type: refines
+      spec_id: TRIG-02-004
+    - rel_type: refines
+      spec_id: CM-21-006
+    stories:
+    - story_2022_048
+    - story_2022_050
+  - id: TRIG-11-003
+    priority: SHOULD
+    kind: protocol
+    statement: The `offer-case-ownership-transfer` trigger request body SHOULD accept an optional `content` field (free-text
+      message) to include in the offer activity, consistent with the factory function signature for `offer_case_ownership_transfer_activity`.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-11-001
+  - id: TRIG-11-004
+    priority: MUST
+    kind: project
+    statement: Every ownership-transfer trigger MUST return an `activity` field in its response body containing the emitted
+      ActivityStreams object, consistent with the response contract for all other trigger endpoints (TRIG-05-001).
+    verification: >-
+      Integration tests in `test/demo/` confirm that every ownership-transfer
+      trigger response includes an `activity` field containing the emitted
+      ActivityStreams object.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-11-001
+    - rel_type: refines
+      spec_id: TRIG-11-002
+    - rel_type: refines
+      spec_id: TRIG-11-005
+  - id: TRIG-11-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The system MUST expose a `reject-case-ownership-transfer` trigger at
+      `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer` that accepts an
+      `offer_id` in its request body and emits a `Reject(Offer(VulnerabilityCase))`
+      (ownership transfer variant) from the requesting actor, addressed to the
+      CASE_MANAGER (CM-21-010).
+    rationale: >-
+      Symmetry with TRIG-11-002. Without it the only way to decline a transfer is to
+      build the Reject by hand and post it into the CASE_MANAGER's inbox, which is
+      what the transfer-ownership exchange demo does and DEMOMA-05-001 forbids.
+    verification: >-
+      A test marked `TRIG-11-005` confirms the route is registered; integration tests
+      in `test/demo/` confirm a POST with a valid `offer_id` emits the Reject addressed
+      to the CASE_MANAGER.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-01-001
+    - rel_type: refines
+      spec_id: TRIG-11-002
+    - rel_type: refines
+      spec_id: CM-21-010
+    stories:
+    - story_2022_050
+  - id: TRIG-11-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The system MUST expose a `withdraw-case-ownership-transfer` trigger at
+      `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer` that
+      accepts an `offer_id` in its request body, naming the requesting Case
+      Owner's own proposal (the activity TRIG-11-001 returned), and emits
+      `Undo(Offer(Offer(VulnerabilityCase)))` of that proposal, addressed to the
+      CASE_MANAGER (CM-21-015).
+    rationale: >-
+      Symmetry with TRIG-11-002 and TRIG-11-005: the offerer withdraws through a
+      trigger, so the withdrawal runs the same behavior tree a real client would
+      (DEMOMA-05-001).
+    verification: >-
+      A test marked `TRIG-11-006` confirms the route is registered.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-01-001
+    - rel_type: refines
+      spec_id: CM-21-015
+    stories:
+    - story_2022_050
+  - id: TRIG-11-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `offer-case-ownership-transfer` trigger (TRIG-11-001) MUST accept an
+      optional `end_time` in its request body and, when given, set it as the
+      `end_time` of the proposal's inner Offer, which the CASE_MANAGER carries
+      to the Offer it makes as the deadline to answer (CM-21-016). Without it
+      the Offer carries no `end_time`.
+    rationale: >-
+      The owner is the party that knows how long it can wait for an answer, so
+      the deadline is set where the transfer is proposed.
+    verification: >-
+      A test marked `TRIG-11-007` confirms the trigger's request model has an
+      optional `end_time` field.
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-11-001
+    - rel_type: refines
+      spec_id: CM-21-016
+    stories:
+    - story_2022_050
+- id: TRIG-12
+  title: Trigger API Contract Stability and Dispatch Registry
+  specs:
+  - id: TRIG-12-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Every trigger endpoint (`/trigger/` and `/demo/`) MUST declare a
+      `response_model` naming the `TriggerResult` subtype its verb returns, so
+      the OpenAPI document describes the real response body of each verb.
+    rationale: >-
+      Trigger routes returned bare `dict` for the whole prototype period, so
+      OpenAPI documented no response body and five distinct body shapes were
+      invisible to clients and to review.
+    verification: >-
+      A test iterates the FastAPI app's routes under `/actors/{actor_id}/trigger/`
+      and `/actors/{actor_id}/demo/` and fails on any whose `response_model` is
+      `None`.
+    adr:
+    - ADR-0110
+  - id: TRIG-12-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The response body of every trigger verb MUST be pinned to an exact key
+      set by a test parametrized over the trigger registry (TRIG-12-004), and
+      `response_model` serialization MUST keep FastAPI's defaults for
+      `response_model_exclude_none`, `_exclude_unset`, `_exclude_defaults`, and
+      `_by_alias`, so a key whose value is `null` is still emitted.
+    rationale: >-
+      `activity` is `null` whenever the BT captured nothing; excluding `None`
+      would silently drop a key clients receive today. Pinning the exact set,
+      rather than asserting one key is present, is what turns a body change
+      into a failing test.
+    verification: >-
+      The parametrized test asserts `set(response.json()) == expected_keys` for
+      each registry row; a route that adds or drops a key fails it.
+    adr:
+    - ADR-0110
+  - id: TRIG-12-003
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The trigger API contract — paths, `operation_id`s, status codes, summaries,
+      descriptions, and request schemas — MUST NOT change without a deliberate
+      update to a committed golden OpenAPI snapshot. The snapshot MUST be
+      captured before any trigger route is rewritten, so it freezes the shipped
+      contract rather than whatever a rewrite happened to emit.
+    rationale: >-
+      Adding `response_model` and collapsing the route bodies touches every
+      trigger endpoint at once. A snapshot taken first is the only mechanical
+      evidence the client-visible contract did not move; one taken afterwards
+      proves nothing.
+    verification: >-
+      A test compares `app.openapi()` for the trigger and demo paths against
+      the committed snapshot and fails on any difference; the snapshot's commit
+      predates the first route change in history.
+    adr:
+    - ADR-0110
+  - id: TRIG-12-004
+    priority: MUST
+    kind: project
+    statement: >-
+      A single verb-keyed trigger registry MUST be the sole source mapping each
+      trigger verb to its request model, use-case class, result type, and
+      exposure (general-purpose or demo-only). Every trigger route MUST
+      correspond to exactly one registry row and every row to exactly one
+      route; every `Svc*UseCase` class under `vultron/core/use_cases/triggers/`
+      MUST appear in exactly one row. The registry holds data and a lookup
+      only; it MUST NOT contain per-verb behavior.
+    rationale: >-
+      The registry exists for enumeration, not routing — a route already knows
+      its verb. Enumeration is what lets TRIG-08-003/004, TRIG-12-001, and
+      TRIG-12-002 be asserted as tests instead of by inspection, and what
+      catches an unrouted use case (`SvcAddOnBehalfStatusUseCase` was reachable
+      only from its own tests). Keeping behavior out of it is what keeps it
+      from becoming the per-verb facade it replaces (ADR-0110).
+    verification: >-
+      Architecture tests assert the route-to-registry bijection and the
+      use-case-to-row bijection, both as exact set equalities (ARCH-18-001).
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-08-003
+    - rel_type: refines
+      spec_id: TRIG-08-004
+    adr:
+    - ADR-0110
+- id: TRIG-13
+  title: Leaving a Case
+  specs:
+  - id: TRIG-13-001
+    priority: MUST
+    kind: project
+    statement: >-
+      The system MUST expose a general-purpose `leave-case` trigger at
+      `POST /actors/{actor_id}/trigger/leave-case` that accepts a `case_id` and
+      sends `Leave(VulnerabilityCase)` from the requesting actor, addressed to the
+      case's CASE_MANAGER. It accepts a call from any participant of the case; what
+      the Leave means for the case is decided by the CASE_MANAGER on receipt
+      (CM-23-002, CM-23-003).
+    verification: >-
+      `test/core/use_cases/triggers/case/test_leave.py` runs `leave-case` for a
+      participant that is not the owner and for the Case Owner, and asserts one
+      `Leave(VulnerabilityCase)` addressed to the CASE_MANAGER in each actor's
+      outbox; `test/adapters/driving/fastapi/routers/test_trigger_case.py` POSTs
+      `trigger/leave-case` and asserts the same. `test/test_trigger_registry.py`
+      asserts the `leave-case` row is general-purpose and that no `close-report` or
+      demo `close-case` row exists, and
+      `test/adapters/driving/fastapi/routers/test_trigger_report.py` asserts the
+      `close-report` route is gone.
+    rationale: >-
+      A participant that has joined a case closes its part in it by leaving the case
+      (CM-23-001), never by `Close(Report)`, which a case refuses from every sender
+      (CM-23-019, ADR-0144). A production deployment needs a trigger for it: the
+      demo verb was not mounted in production mode (TRIG-09-002). The verb is named
+      for the message, because for a participant that is not the owner the case
+      stays open (ADR-0145).
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-02-004
+    - rel_type: depends_on
+      spec_id: CM-23-001
+    adr:
+    - ADR-0145
+  - id: TRIG-13-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The `leave-case` trigger MUST run the pre-close Actuator call-out
+      (`PreCloseAction`) for every caller before it sends the Leave. When the
+      call-out fails, the trigger MUST fail with nothing sent.
+    verification: >-
+      Trigger tests in `test/core/use_cases/triggers/case/test_leave.py` with a
+      recording `PreCloseAction` backend assert it ran before the Leave was queued,
+      for a participant that is not the owner and for the Case Owner; one with a
+      failing backend asserts the trigger fails with nothing queued.
+    rationale: >-
+      The pre-close step is the leaving actor's own integration work, such as
+      closing its ticket, so it runs where that actor decides to leave. Running it
+      when the actor's replica applies its closure entry would put local policy into
+      replica application, which CM-23-016 forbids (ADR-0145).
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-13-001
+    adr:
+    - ADR-0145
+  - id: TRIG-13-003
+    priority: MUST
+    kind: project
+    statement: >-
+      When the actor calling `leave-case` is the Case Owner and its replica records
+      an active embargo (EM.ACTIVE or EM.REVISE), the trigger MUST fail before the
+      pre-close call-out runs and before anything is sent, with an error that says
+      to terminate the embargo first.
+    verification: >-
+      Trigger tests in `test/core/use_cases/triggers/case/test_leave.py` call
+      `leave-case` as the Case Owner with the embargo in EM.ACTIVE and in EM.REVISE,
+      and assert the trigger fails, the pre-close call-out did not run, and nothing
+      was queued; they also assert a participant that is not the owner is not
+      blocked. `test/adapters/driving/fastapi/routers/test_trigger_case.py` asserts
+      the route answers 409.
+    rationale: >-
+      The CASE_MANAGER declines the Case Owner's Leave while an embargo is active
+      (CM-23-011). Checking first keeps the owner's own systems from acting on a
+      close that would be declined (ADR-0145).
+    relationships:
+    - rel_type: refines
+      spec_id: TRIG-13-002
+    - rel_type: depends_on
+      spec_id: CM-23-011
+    adr:
+    - ADR-0145

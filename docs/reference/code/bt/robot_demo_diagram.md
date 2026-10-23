@@ -1,5 +1,5 @@
 ```mermaid
-graph LR
+flowchart LR
   Robot_1["? Robot"]
   BallPlaced_2(["#11052; BallPlaced"])
   Robot_1 --> BallPlaced_2

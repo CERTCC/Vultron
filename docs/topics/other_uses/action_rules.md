@@ -1,3 +1,11 @@
+---
+stakeholder_type: [process-researcher]
+level: 400
+page_type: explanation
+description: >
+  Actions a role can take from each subset of states, and the transition each action causes.
+---
+
 # Recommended Action Rules for CVD
 
 {% include-markdown "../../includes/not_normative.md" %}

@@ -1,0 +1,616 @@
+id: CS
+title: Code Style Specifications
+description: Defines code formatting, import organization, and coding style standards for Python code in the Vultron project.
+scope:
+- prototype
+- production
+tags:
+- code-style
+groups:
+- id: CS-01
+  title: Code Formatting
+  specs:
+  - id: CS-01-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Code MUST follow PEP 8 style guidelines
+  - id: CS-01-004
+    priority: SHOULD
+    kind: project
+    statement: Functions and methods SHOULD have docstrings following PEP 257 conventions
+  - id: CS-01-005
+    priority: SHOULD
+    kind: project
+    statement: Docstrings SHOULD follow Google style for structured sections
+- id: CS-02
+  title: Import Organization
+  specs:
+  - id: CS-02-001
+    priority: SHOULD
+    kind: project
+    statement: 'Imports SHOULD be organized in three groups: standard library, third-party libraries, local application'
+  - id: CS-02-002
+    priority: SHOULD
+    kind: project
+    statement: Import statements SHOULD be placed at the top of the file after module comments or docstrings
+  - id: CS-02-003
+    priority: SHOULD
+    kind: project
+    statement: Multi-line import statements SHOULD use parentheses for readability
+- id: CS-03
+  title: Import Practices
+  specs:
+  - id: CS-03-001
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: Wildcard imports (e.g., `from module import *`) MUST NOT be used
+  - id: CS-03-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Unused imports MUST be removed
+  - id: CS-03-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: When importing more than 10 items from a module, import the module itself instead
+    rationale: Reduces line noise and makes module boundaries clearer
+  - id: CS-03-004
+    priority: SHOULD
+    kind: project
+    statement: In test modules, avoid multiple imports from the module under test; consider importing the module and using
+      attribute access for clarity.
+- id: CS-04
+  title: Import Style Preferences
+  specs:
+  - id: CS-04-001
+    priority: MAY
+    kind: project
+    statement: Relative imports MAY be used for local application imports when appropriate
+  - id: CS-04-002
+    priority: MAY
+    kind: project
+    statement: Module imports MAY use aliases for clarity or to avoid naming conflicts
+- id: CS-05
+  title: Circular Import Prevention
+  specs:
+  - id: CS-05-001
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: Core modules SHALL NOT import from application layer modules
+    relationships:
+    - rel_type: derives_from
+      spec_id: ARCH-01-001
+  - id: CS-05-002
+    priority: SHOULD
+    kind: project
+    statement: A circular dependency SHOULD be resolved by reorganization first (a neutral module per CS-05-003, or moving
+      the shared symbol to the side of the cycle that owns it). Deferring the import into a function body is a **last
+      resort** that hides the cycle rather than removing it, and every such deferral is tracked toward structural removal
+      (CS-05-005).
+    rationale: 'A measurement while planning #2199 (recorded in ADR-0094) found function-local imports throughout the
+      tree. A follow-up measurement for #3350 (hoisting every one in `vultron/` and importing every module) showed that
+      only a handful actually break a cycle; the rest were habit. "Last resort" therefore describes the design correctly, and the gap was enforcement, not
+      the requirement. The resolution is tracked from #3350.'
+    verification: With `PLC0415` (`import-outside-top-level`) selected in `[tool.ruff.lint]` of `pyproject.toml`, every
+      function-local import in production code is either absent or carries a marker per CS-05-005; the count of markers
+      is the size of the remaining cycle backlog.
+  - id: CS-05-005
+    priority: MUST
+    kind: project
+    statement: 'In production code under `vultron/`, a function-local import MUST exist only to break an import cycle
+      that reorganization has not yet removed, and MUST carry a `# noqa: PLC0415` marker whose trailing comment names the
+      issue that tracks its structural removal (the IMPLTS-07-020 baseline form). A function-local import with no cycle
+      to break MUST be hoisted to module level. A `TYPE_CHECKING`-guarded import is not a function-local import and
+      needs no marker.'
+    rationale: Enabling the rule makes the exception the visible, reviewable artifact. Because `RUF100` (`unused-noqa`)
+      stays selected, a marker whose cycle has been removed fails lint, so the backlog can only shrink and the last marker
+      cannot be left as decoration. Growth fails, silent progress fails, and completion forces the marker's deletion,
+      which is the ratchet property set ADR-0064 requires (ADR-0094 chose `RUF100` as that forcing function).
+    verification: '`ruff check` invoked with no path operands (IMPLTS-07-021) reports no `PLC0415` finding; each surviving
+      marker in `vultron/` cites an open issue.'
+    relationships:
+    - rel_type: refines
+      spec_id: CS-05-002
+    - rel_type: depends_on
+      spec_id: IMPLTS-07-020
+  - id: CS-05-006
+    priority: MAY
+    kind: project
+    statement: Test modules under `test/` MAY import inside test functions and fixtures. This idiom is exempted from
+      `PLC0415` through a `per-file-ignores` entry for `test/**` rather than through per-site markers.
+    rationale: A test-local import scopes a dependency to the one test that needs it and keeps a module-under-test out of
+      collection-time import order (`isolated_core_registries`, `monkeypatch` of module attributes). It is an isolation
+      idiom, not a cycle break, so CS-05-002 does not govern it and CS-05-005's marker discipline would add noise without
+      a backlog to drain.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-05-005
+  - id: CS-05-003
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: Shared types and errors SHALL be placed in neutral modules
+  - id: CS-05-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Before adding imports between modules, trace the import chain to prevent cycles
+- id: CS-06
+  title: Module Size
+  specs:
+  - id: CS-06-001
+    priority: SHOULD
+    kind: project
+    statement: Prefer modules that are < ~400 lines; split large modules by responsibility and avoid single-file catchalls
+- id: CS-07
+  title: '`as_` Field Prefix Policy'
+  specs:
+  - id: CS-07-001
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: use the `as_` prefix on Pydantic **field names** anywhere in the codebase. Class names (e.g., `as_Activity`,
+      `as_Object`) retain the `as_` prefix as an ActivityStreams provenance marker.
+  - id: CS-07-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: 'For fields whose plain name collides with a Python builtin or reserved word (e.g., `object`, `type`, `id`,
+      `context`), use a trailing underscore: `object_`, `type_`, `id_`, `context_`'
+    rationale: Idiomatic Python (PEP 8); keeps models readable and decoupled from AS2 naming conventions.
+  - id: CS-07-003
+    priority: MUST
+    kind: project
+    statement: Do not introduce new `as_`-prefixed field names anywhere. All wire-layer and core-layer field names use the
+      trailing-underscore convention where needed. Class names retain `as_`.
+    verification: Inspection of `vultron/` confirms no Pydantic field name (as opposed to class name) begins with `as_`;
+      the `as_` prefix convention applies only to class names.
+- id: CS-08
+  title: Optional Field Non-Emptiness
+  specs:
+  - id: CS-08-001
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: Optional string fields MUST NOT contain empty strings when present; the invariant is "if present, then non-empty"
+    rationale: Distinguishes "not provided" from "provided but blank", avoiding ambiguous database states.
+  - id: CS-08-002
+    priority: SHOULD
+    kind: project
+    statement: Non-empty string validation SHOULD be consolidated into a shared type alias rather than duplicated per-field
+      validators
+    rationale: Reduces boilerplate and makes the invariant visible in the type signature rather than buried in a per-field
+      validator.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-08-001
+- id: CS-09
+  title: Code Reuse
+  specs:
+  - id: CS-09-001
+    priority: SHOULD_NOT
+    kind: architecture
+    statement: New code SHOULD NOT duplicate logic already present elsewhere; prefer extracting shared logic into reusable
+      helpers, base classes, or type aliases
+    rationale: Duplication inflates maintenance cost and allows bug fixes to be applied inconsistently
+  - id: CS-09-002
+    priority: SHOULD
+    kind: project
+    statement: Pydantic request and response models for API endpoints SHOULD be reused or inherited rather than duplicated
+    rationale: Duplicated models diverge silently over time; a hierarchy makes the relationship explicit and reduces boilerplate
+- id: CS-10
+  title: Port and Adapter Data Exchange
+  specs:
+  - id: CS-10-001
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: Data passed across port/adapter boundaries MUST use named, domain-typed objects rather than type-erased containers
+      (plain maps, untyped base classes, or equivalent). Port interface signatures MUST declare parameters and return values
+      as specific domain types, not as generic base types or untyped collections.
+    rationale: Ports that accept or return type-erased containers (dicts, bare base models) serve as machine-readable contracts
+      in name only — the type system cannot enforce what passes through them. Naming the specific domain type at the boundary
+      makes the contract explicit, enables static verification, and surfaces layer-coupling violations at compile/analysis
+      time rather than runtime.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-08-001
+  - id: CS-10-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: In this Python codebase, port boundary types MUST be named Pydantic model classes (e.g., `VulnerabilityCase`,
+      `CaseParticipant`), not plain `dict`s or bare `BaseModel` subclasses without semantic meaning. Port `Protocol` signatures
+      MUST declare parameters and return values as these specific domain types.
+    rationale: 'Prior to domain-typed core objects, "use Pydantic `BaseModel`" was the correct guidance (vs. plain `dict`s).
+      With named domain types in place the standard is higher: bare `BaseModel` at a port is equivalent to `dict` from a contract-clarity
+      perspective. See also ARCH-08-001 for the port Protocol obligation.'
+    relationships:
+    - rel_type: refines
+      spec_id: CS-10-001
+      note: Python/Pydantic-specific application of the typed-port-boundary pattern
+    - rel_type: refines
+      spec_id: ARCH-08-001
+  - id: CS-10-002
+    priority: SHOULD
+    kind: protocol
+    statement: Wire-level ActivityStreams payload classes SHOULD carry the `Activity` suffix; domain event classes SHOULD
+      carry the `Event` suffix
+    rationale: Distinguishes wire representation from domain intent, prevents accidental coupling between layers, and makes
+      the translation point explicit. See `notes/wire-core-boundary.md` for the rationale.
+- id: CS-11
+  title: Type Annotations
+  specs:
+  - id: CS-11-001
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: Code MUST NOT use `Any` in type hints when the type can be determined
+    rationale: '`Any` defeats static type checking, obscures API contracts, and hides bugs at the boundary between typed and
+      untyped code'
+- id: CS-12
+  title: Domain Model Naming
+  specs:
+  - id: CS-12-001
+    priority: SHOULD
+    kind: protocol
+    statement: Core domain model class names SHOULD reflect the domain concept they represent, not a parallel to a wire-format
+      class name
+    rationale: Generic wire-mirroring names obscure what an object actually represents in the CVD domain. Domain-centric names
+      make the code self-documenting and reduce reliance on comments to explain intent.
+  - id: CS-12-002
+    priority: SHOULD
+    kind: project
+    statement: 'Use-case class names SHOULD carry a suffix that reflects their origin: classes handling inbound received messages SHOULD use the `Received` suffix (e.g., `ValidateReportReceived`); classes expressing local actor-initiated triggers SHOULD use the `Trigger` suffix (e.g., `PublishAdvisoryTrigger`).'
+    rationale: Distinguishes messages received from external parties from actions the local actor has decided to take. This
+      distinction is fundamental to the Vultron protocol model (see `notes/activitystreams-semantics.md`) and prevents accidentally
+      treating incoming messages as local commands.
+- id: CS-13
+  title: Datetime and Timezone Conventions
+  specs:
+  - id: CS-13-001
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: All datetime values produced by the application MUST be timezone-aware and MUST use UTC
+    rationale: Naive datetimes are ambiguous in a distributed system where actors may run in different timezones; UTC eliminates
+      this ambiguity
+  - id: CS-13-002
+    priority: MUST
+    kind: project
+    verification: >-
+      `test_application_code_reads_the_clock_only_through_now_utc` in
+      `test/core/models/test_helpers.py` parses every module under `vultron/`
+      except the `vultron/metadata/` repo tooling and fails on any
+      `datetime.now()`, `utcnow()` or `date.today()` call outside the body
+      of `now_utc` itself.
+    statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.core.models._helpers`
+  - id: CS-13-003
+    priority: SHOULD
+    kind: architecture
+    statement: All datetime values SHOULD be stored at second precision (microseconds set to zero)
+  - id: CS-13-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Embargo deadline datetimes MUST be computed using the `from_now_utc(delta)` / `days_from_now_utc(n)` helpers in `vultron.core.models._helpers` rather than inline arithmetic
+  - id: CS-13-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A wire timestamp this node generates MUST serialize with a UTC offset (`Z` or
+      `+00:00`). A timestamp carried from a peer MUST serialize with the explicit
+      offset it arrived with, which need not be UTC (CLP-15-007).
+    rationale: >-
+      UTC is the form every node can write without configuration. A carried timestamp
+      is part of an activity recorded verbatim (CLP-07-011) and compared byte for byte
+      across replicas, so converting `+05:00` to `Z` would keep the instant and break
+      the record. #4164 owns pinning both halves (resolves CONCERN-3808). That every
+      wire timestamp carries an explicit offset at all is the ActivityStreams rule
+      CS-13-006 holds, split from this spec (MS-12-010).
+    verification: >-
+      `test_carried_non_utc_offset_round_trips_through_storage` asserts that an
+      inbound `+05:00` `endTime` round-trips through parse, storage and
+      serialization unchanged, and `test_minted_timestamp_serialises_with_a_utc_offset`
+      asserts a time this node mints serializes with `Z` or `+00:00`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CLP-15-007
+    - rel_type: depends_on
+      spec_id: CLP-07-011
+    lint_suppress:
+    - missing_story_reference
+  - id: CS-13-006
+    priority: MUST
+    kind: foundation
+    statement: >-
+      Wire-format datetime fields MUST serialize as RFC 3339 date-times with an
+      explicit offset; a naive or offset-free value MUST NOT reach the wire.
+    rationale: >-
+      ActivityStreams 2.0 requires every date-time value to follow RFC 3339's
+      `date-time` form, whose offset is mandatory. An explicit offset is what makes
+      timestamps comparable as instants. Split from CS-13-005 (MS-12-010), which keeps
+      Vultron's rules on which offset a timestamp carries.
+    verification: >-
+      In `test/wire/as2/test_timestamp_offsets.py`,
+      `test_a_naive_time_reaches_the_wire_as_an_rfc3339_date_time` and
+      `test_a_naive_inbound_time_is_serialised_with_an_offset` assert that a naive
+      value, built locally or received, serializes as an RFC 3339 date-time with an
+      offset, and `test_minted_timestamp_serialises_with_a_utc_offset` asserts the
+      same of a time this node mints. The CS-13-001 tests assert a naive value is
+      normalized to UTC before it can reach the wire.
+    relationships:
+    - rel_type: constrains
+      spec_id: CS-13-005
+      note: split from it (MS-12-010); CS-13-005 picks which offset, within this rule
+    tags:
+    - as2
+- id: CS-14
+  title: Wire Model Configuration
+  specs:
+  - id: CS-14-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Wire-layer Pydantic models (classes in `vultron/wire/as2/vocab/`) MUST inherit `model_config` from `as_Base`,
+      which sets `alias_generator=to_camel`, `validate_by_name=True`, and `validate_by_alias=True`
+  - id: CS-14-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Core/domain-layer Pydantic models (classes in `vultron/core/models/`) MUST set `populate_by_name=True` in their
+      `model_config`
+  - id: CS-14-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Domain event subclasses MUST narrow the `semantic_type` field to a `Literal[MessageSemantics.FOO]` type with
+      the corresponding default value
+    relationships:
+    - rel_type: refines
+      spec_id: CS-10-002
+- id: CS-15
+  title: No Compatibility Shims
+  specs:
+  - id: CS-15-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: When a module, function, variable, or symbol is refactored or replaced, the old symbol MUST be deleted. Compatibility
+      aliases, re-exports, and shims that exist solely to avoid updating call sites are prohibited.
+    rationale: The codebase is in prototype development; there are no external downstream consumers that require stable import
+      paths. Leaving old symbols in place accumulates technical debt and makes the codebase harder to navigate.
+- id: CS-16
+  title: Method and Variable Naming Safety
+  specs:
+  - id: CS-16-001
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: Methods and class-level variables MUST NOT be named after Python built-in types (`list`, `dict`, `set`, `tuple`,
+      `type`, `object`, `int`, `str`, `float`, `bool`, `bytes`, etc.)
+    rationale: >-
+      Defining `def list(self, ...)` in a class body shadows the built-in `list` type for all
+      subsequent annotations and expressions in that class scope. Any annotation like `list[str]` that
+      appears after the method definition resolves to the method (a function), producing a `TypeError`
+      at runtime. A `# type: ignore` comment suppresses mypy but does NOT prevent the runtime error.
+      Rename the method to avoid the collision (e.g., `list_objects`).
+- id: CS-17
+  title: Pydantic Models for Structured Data
+  specs:
+  - id: CS-17-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: CLI tools and any code that reads or writes structured files (YAML frontmatter, JSON, structured config) MUST
+      define a Pydantic model for the file structure rather than using `dict.get()` with fallback defaults.
+    rationale: Ad-hoc `metadata.get("field", "")` access makes it impossible to distinguish "absent field" from "empty field",
+      silently allows invalid data through, and scatters validation logic across callers. A Pydantic model with `ValidationError`
+      on missing required fields is the single source of truth and forces callers to handle the error path explicitly.
+- id: CS-18
+  title: Module Size and Organization
+  specs:
+  - id: CS-18-001
+    priority: SHOULD
+    kind: project
+    statement: A Python source file SHOULD NOT exceed 500 lines when it mixes multiple distinct responsibilities.
+      When the 500-line threshold is crossed, the module MUST be split into a subpackage whose submodules are grouped by semantic
+      concern.
+    rationale: Large, multi-responsibility files accumulate technical debt, slow review cycles, and make targeted test coverage
+      difficult. High-churn large files are especially prone to merge conflicts. The 500-line threshold is a practical signal,
+      not a hard language constraint — a coherent single-responsibility module MAY exceed it if all concerns are tightly related.
+      The key signal is mixed responsibility.
+    verification: 'Any production source file exceeding 500 lines SHOULD be reviewed for mixed-responsibility concerns. A
+      codebase scan MAY flag such files for triage. Applies to all layers: core, wire, adapters, use cases, and demo.'
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-001
+  - id: CS-18-002
+    priority: MUST
+    kind: project
+    statement: 'When a module is split into a subpackage, the resulting submodules MUST themselves comply with CS-18-001.
+      The split pattern applies recursively: a submodule that exceeds 500 lines and mixes responsibilities MUST be further
+      decomposed.'
+    rationale: Splitting a god module into a package does not eliminate the problem if individual submodules re-accumulate
+      size. A recursive constraint closes this loophole.
+    verification: After any split, confirm that each resulting submodule is below 500 lines or has a single well-defined responsibility.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-18-001
+  - id: CS-18-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: A subpackage created by splitting a flat module MUST re-export all previously public names from its `__init__.py`
+      to preserve import compatibility with callers.
+    rationale: Callers that previously imported `from vultron.foo.nodes import SomeNode` MUST continue to work without modification.
+      Exposing all names via `__init__.py` prevents a split from becoming a breaking change.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-15-001
+  - id: CS-18-004
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The test suite for a subpackage created by splitting a flat module SHOULD mirror the subpackage
+      structure: a `test/…/nodes/` (or equivalent) directory with one `test_<submodule>.py` per submodule.
+    rationale: A monolithic test file grows in parallel with the flat module and inherits the same blast-radius problem. Mirrored
+      test files scope failures to the affected concern and make it easier to add focused per-unit tests.
+    relationships:
+    - rel_type: refines
+      spec_id: BTND-07-002
+- id: CS-20
+  title: Protocol and Type-Guard Hygiene
+  specs:
+  - id: CS-20-001
+    priority: MUST
+    kind: project
+    statement: When a field or method is removed from a concrete class that structurally conforms to a `Protocol`, the matching
+      declaration MUST also be removed from the Protocol (and vice versa). Protocol members that no longer exist on any conforming
+      concrete class MUST NOT be left as stale declarations.
+    rationale: 'Static type checkers (mypy, pyright) verify the concrete→Protocol direction only: they confirm that the concrete
+      class satisfies the Protocol, but they do NOT flag Protocol members that have been removed from every concrete implementation.
+      A stale Protocol member silently breaks future callers that accept a `Protocol`-typed parameter and access the removed
+      attribute — typically surfacing only at runtime. Issue #792 exposed this gap when `CaseModel.events` was left in `protocols.py`
+      after `VulnerabilityCase.events` was removed.'
+    verification: Diff any PR that removes a field or method from a Protocol-conforming class; confirm the matching Protocol
+      declaration is also removed.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-11-001
+      note: Explicit typing must stay accurate; stale Protocol members are a form of inaccurate type annotation
+  - id: CS-20-002
+    priority: MUST
+    kind: project
+    statement: '`TypeGuard` discriminator functions (e.g., `is_case_model()`) MUST use only fields or methods that are explicitly
+      declared on the target `Protocol` as their `hasattr`/`isinstance` checks. Using a method or field that is NOT in the
+      Protocol as a discriminator is forbidden.'
+    rationale: 'If a discriminator tests a method that later gets removed from the concrete class (and not from the Protocol),
+      the guard silently starts returning `False` for valid objects. Issue #888 caused `is_case_model()` to return `False`
+      for all stored cases when `record_event()` — which was never a Protocol member — was removed from `VulnerabilityCase`.
+      440 tests failed downstream before the root cause was traced. Using only Protocol-declared members as discriminators
+      ensures the guard stays correct as long as the Protocol itself is maintained (per CS-20-001).'
+    verification: Inspect each `TypeGuard` function; confirm every `hasattr(obj, "x")` check uses an attribute `x` that is
+      declared on the target `Protocol`.
+    relationships:
+    - rel_type: refines
+      spec_id: CS-20-001
+- id: CS-19
+  title: Test Fixtures Mirroring Production Enums
+  specs:
+  - id: CS-19-001
+    priority: MUST
+    kind: project
+    statement: A test fixture or constant that enumerates the same value set as a production enum (e.g., a list of expected
+      semantic-type strings mirroring `MessageSemantics`) MUST derive its values from the
+      enum at import/collection time rather than duplicating them as
+      separately-maintained literals.
+    rationale: '`EXPECTED_SEMANTIC_TYPES` in the case-ledger invariant harness (now
+      `test/ci/invariants/`) hardcoded values that silently diverged
+      from `MessageSemantics` (issue #998/#1020): five of ten values used legacy names that no longer matched the enum. The
+      mismatch produced no failure on its own — it only surfaced when the invariant using it was audited by hand. Deriving
+      the fixture from the enum makes the two sets impossible to drift apart; a rename in the enum either propagates automatically
+      or fails loudly at collection time.'
+    verification: Grep test fixtures for literal string lists that parallel a production enum's member names; replace with
+      `[e.value for e in EnumName]` or equivalent, narrowed with an explicit exclusion list where the fixture intentionally
+      covers a subset.
+- id: CS-21
+  title: Collection-Typed Pydantic Field Defaults
+  specs:
+  - id: CS-21-001
+    priority: MUST_NOT
+    kind: project
+    statement: 'Pydantic model fields whose type is a collection (`dict`, `set`, `list`, or any generic alias thereof) MUST
+      NOT use `None` as their default value when the intent is "empty collection if not provided". Use `Field(default_factory=list)`,
+      `Field(default_factory=dict)`, or `Field(default_factory=set)` matching the field''s collection type. `None` is only acceptable as a field
+      default when it is an intentional sentinel meaning "absent" (as distinct from "empty"), and that distinction must be
+      observable in the model''s behaviour or serialisation. Plain function and method parameters are out of scope for this
+      rule: `param: set[str] | None = None` with an `x or set()` guard in the body is the correct idiom for optional collection
+      parameters, as it avoids the Python mutable-default-argument hazard (`= set()` shares a single object across all calls
+      that omit the argument).'
+    rationale: 'Pydantic v2 does not copy mutable class-level defaults — a field declared as `roles: list[str] = []` on a
+      BaseModel gives every instance a reference to the same list. `Field(default_factory=list)` ensures each instance gets
+      its own fresh collection. Plain function parameters are different: the conventional `None` sentinel with an inline `x
+      or set()` guard is safe and idiomatic Python, and avoids the mutable-default aliasing hazard that `= set()` introduces.
+      Issue #1359 identified the Pydantic-field pattern; issue #1371 initially over-applied the rule to plain function parameters
+      — corrected by PR #1410.'
+    verification: 'Grep `vultron/` for Pydantic `BaseModel` subclass field declarations that use a bare mutable literal as
+      a default (e.g., `field: list[str] = []`, `field: dict[str, Any] = {}`). Each such hit is a violation; replace with
+      `Field(default_factory=list)` etc. Plain function/method parameter defaults (`param: set[str] | None = None`) are exempt
+      from this check.'
+    exceptions:
+    - '`None` is permitted as a Pydantic field default when it is a genuine sentinel distinguishing "not provided" from "empty",
+      provided the distinction is observable in the model''s behaviour or serialisation (e.g., `BTExecutionResult.errors:
+      list[str] | None` where `None` means "no error list was collected" vs `[]` meaning "errors were collected but none occurred").
+      AS2 wire-layer fields that use `None` to omit keys from the serialised payload are a common example.'
+
+- id: CS-22
+  title: Extract Before Reuse
+  specs:
+  - id: CS-22-001
+    priority: SHOULD
+    kind: project
+    statement: >-
+      Shared logic SHOULD be extracted to a dedicated helper module before it
+      is used in a second location. Three similar lines of code is a signal to
+      extract; copy-pasting a function body is not acceptable. DRY is a project
+      standard.
+    rationale: >-
+      Every piece of code written by copying an existing implementation
+      propagates latent bugs alongside valid patterns. Reactive DRY-up (e.g.,
+      PR #1629 extracting five helper modules after five scenarios had already
+      been written) is more expensive and less reliable than proactive
+      extraction. Extraction-first keeps the codebase clean incrementally.
+
+- id: CS-23
+  title: Exception Handler Breadth
+  specs:
+  - id: CS-23-001
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A blanket `except Exception` (or a bare `except:`) MUST NOT be used to
+      wrap domain logic in `vultron/`. An exception handler MUST catch the
+      narrowest concrete exception type(s) it can meaningfully handle, so that
+      an unexpected error surfaces loudly instead of being silently absorbed.
+      The one sanctioned broad-catch boundary is a behavior-tree node's
+      `update()` method, where converting an unexpected error into
+      `Status.FAILURE` is the documented node contract (BT-HELPER-01). Any
+      other broad catch is permitted only at a genuine framework or execution
+      boundary (e.g., the `BTBridge` execution boundary, py_trees
+      `setup()`/`initialise()`); such a site MUST be narrowed to the narrowest
+      type that covers the boundary and MUST carry an inline comment stating
+      what it guards and why.
+    rationale: >-
+      In this codebase an undocumented broad catch is more likely to be masking
+      a defect than handling a real case; the absence of a rationale is itself
+      the signal. Two witnesses established the pattern — #3217 (a parser
+      `except Exception` that fired 52 times with one wire/core layering cause,
+      not the stubs it appeared to tolerate) and #3192 (a lookup returning an
+      arbitrary `Service`, reporting SUCCESS under a different identity). Both
+      were single bug-shaped causes. Source: CONCERN-3295.
+    verification: >-
+      Enforced for `vultron/core/behaviors/` by
+      `test/architecture/test_no_broad_except_outside_bt_update.py`: an AST scan
+      that fails on any `except Exception` outside a node's `update()` method.
+      Genuine framework boundaries are recorded in that test's
+      `_DECLARED_EXCLUSIONS` allow-list, one reason per entry, held as an exact
+      pinned exemption set (ARCH-18-005). When it is genuinely unclear whether a
+      broad catch is load-bearing, apply the instrument-and-count method from #3217 (log the
+      class, keys, and error reaching the handler; run the full suite; group by
+      cause) before deciding to narrow, delete, or justify it.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-15-002
+      note: ARCH-15 forbids silent-None fail-open; CS-23 forbids the broad-catch form of the same masking failure
+    exceptions:
+    - A behavior-tree node's `update()` method MAY use `except Exception` to
+      convert an unexpected error into `Status.FAILURE` (BT-HELPER-01).
+    - A genuine framework/execution boundary MAY catch broadly when narrowed to
+      the narrowest covering type and accompanied by an inline comment stating
+      what it guards and why; such sites are enumerated in the enforcing test's
+      `_DECLARED_EXCLUSIONS` allow-list.

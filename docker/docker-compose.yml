@@ -1,0 +1,103 @@
+services:
+  base:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: base
+    image: ${PROJECT_NAME}-base:latest
+
+  dependencies:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: dependencies
+    image: ${PROJECT_NAME}-dependencies:latest
+    depends_on:
+      - base
+
+  test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: test
+    image: ${PROJECT_NAME}-test:latest
+    depends_on:
+      - dependencies
+    volumes:
+      # Bind mount the vultron and test directories to allow for live code changes during development
+      - "../vultron:/app/vultron"
+      - "../test:/app/test"
+      # create a volume for the virtual environment to persist between restarts that is not bind-mounted to the host
+      - "/app/.venv"
+
+  docs:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: docs
+    image: ${PROJECT_NAME}-docs:latest
+    depends_on:
+      - dependencies
+    ports:
+      - "8000:8000"
+
+  vultrabot-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: vultrabot_demo
+    image: ${PROJECT_NAME}-vultrabot-demo:latest
+    depends_on:
+      - dependencies
+
+  api-dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: api-dev
+    image: ${PROJECT_NAME}-api-dev:latest
+    depends_on:
+      - dependencies
+    ports:
+      - "7999:7999"
+    volumes:
+      - "../vultron:/app/vultron"
+      # create a volume for the virtual environment to persist between restarts that is not bind-mounted to the host
+      - "/app/.venv"
+    environment:
+      - PYTHONPATH=/app
+    networks:
+      - vultron-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7999/api/v2/health/live"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      # Startup budget, not a fixed delay: see the actor healthcheck in
+      # docker-compose-multi-actor.yml (#4621).
+      start_period: 90s
+      start_interval: 2s
+
+  demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: demo
+    image: ${PROJECT_NAME}-demo:latest
+    depends_on:
+      api-dev:
+        condition: service_healthy
+    volumes:
+      - "../vultron:/app/vultron"
+      - "/app/.venv"
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_API_BASE_URL=http://api-dev:7999/api/v2
+    networks:
+      - vultron-network
+    stdin_open: true
+    tty: true
+
+networks:
+  vultron-network:
+    driver: bridge

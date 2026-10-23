@@ -1,0 +1,1224 @@
+id: DF
+title: Diátaxis documentation requirements
+description: >-
+  Brief requirements for organizing project documentation according to the Diátaxis framework.
+scope:
+- prototype
+- production
+tags:
+- documentation
+groups:
+- id: DF-01
+  title: General architecture
+  specs:
+  - id: DF-01-001
+    priority: SHOULD
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      Each reader-facing page SHOULD be one of the four Diátaxis content types —
+      tutorial, how-to guide, explanation or reference — and declare it as its
+      `page_type` (DF-11-018); the content types label pages and need not organize the
+      site's navigation.
+    rationale: >-
+      A reader arriving from search learns what kind of page they landed on from the
+      page itself, while the navigation is free to group pages by subject and reader
+      (ADR-0136). Keeping Diátaxis as a per-page property preserves its authoring
+      discipline (DF-01-002 through DF-01-004) without making it the site's top level.
+  - id: DF-01-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Ensure each documentation page maps to exactly one of the four user needs (Learning,
+      Goals, Information, or Understanding).
+  - id: DF-01-003
+    priority: SHOULD_NOT
+    kind: process
+    statement: 'Documentation pages SHOULD NOT combine multiple Diataxis content types within a single page or section; where a combined view is temporarily unavoidable, the parts MUST be clearly separated and each part MUST link to the canonical full page of the appropriate type.'
+  - id: DF-01-004
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Use hyperlinks to connect related but distinct content types instead of embedding cross-type
+      content.
+  - id: DF-01-005
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Write documentation in Markdown and prepare it for the MkDocs site defined by `mkdocs.yml`.
+- id: DF-02
+  title: Documentation maintenance
+  specs:
+  - id: DF-02-001
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Build the documentation architecture iteratively from the inside-out by improving pages
+      until their Diátaxis category is clear.
+  - id: DF-02-002
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Maintain navigation structure to avoid link breakage when moving or renaming files.
+- id: DF-03
+  title: Tutorials
+  specs:
+  - id: DF-03-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Author tutorials as practical lessons that help learners acquire new skills through
+      guided, hands-on experience.
+  - id: DF-03-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Require that each tutorial is an activity where the learner learns by doing.
+  - id: DF-03-003
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Ensure tutorials produce visible results early and often to maintain learner confidence.
+  - id: DF-03-004
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Use first-person plural ("we") in the tutorial narrative to establish tutor/learner
+      rapport.
+  - id: DF-03-005
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Forbid alternative learning paths within a single tutorial's primary flow; present a
+      single prescribed learning path.
+  - id: DF-03-006
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Exclude in-depth explanations and theoretical discussions from the body of tutorials;
+      link to explanatory pages for background.
+  - id: DF-03-007
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Require every tutorial step to produce a comprehensible result that gives immediate
+      feedback.
+  - id: DF-03-008
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      State at the start of each tutorial exactly what the learner will have accomplished.
+  - id: DF-03-009
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Point out specific signs or changes the learner should notice during the tutorial.
+  - id: DF-03-010
+    priority: SHOULD
+    kind: process
+    statement: >-
+      provide explicit links to the related Reference and Explanation pages (prerequisites,
+      background, deeper rationale). Keep these resources out of the tutorial body.
+  - id: DF-03-011
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Tutorials MUST reserve first-person plural ("we") for the shared journey and use second
+      person ("you") for the learner's own actions, possessions, and state.
+    rationale: >-
+      DF-03-004 establishes "we" as the tutorial voice but does not say what it covers. The
+      division of labor is what makes the voice work: "we" affirms the tutor/learner
+      relationship, while "you" identifies who is acting and what they now have. Writing "we
+      need Docker installed" misattributes the learner's prerequisite to the tutor, and
+      pervasive "you should understand that" signals a tutorial drifting into Explanation.
+- id: DF-04
+  title: How-to guides
+  specs:
+  - id: DF-04-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Present how-to guides as goal-oriented directions that resolve a specific real-world
+      task or problem.
+  - id: DF-04-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Assume the reader is a competent user with required basic skills; surface prerequisites
+      explicitly rather than embedding lessons.
+  - id: DF-04-003
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Require how-to titles to state exactly what the guide shows the user how to do (e.g.,
+      start with "How to ...").
+  - id: DF-04-004
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Use conditional imperatives (e.g., "If you want X, do Y") when the step applies only under a specific condition.
+  - id: DF-04-005
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Exclude pedagogical teaching, background history, and extended lessons from how-to bodies.
+  - id: DF-04-006
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Prefer concise branching ("if this, then that") to prepare users for real-world complexity.
+  - id: DF-04-007
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Omit unnecessary steps that do not contribute directly to the specified goal.
+  - id: DF-04-008
+    priority: SHOULD
+    kind: process
+    statement: >-
+      provide a short "Prerequisites" or "Starting points" section (or link to one) that handles
+      different starting states and messy real-world setups instead of embedding multiple
+      alternative flows.
+  - id: DF-04-009
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A how-to guide MAY cover the same demonstration as a tutorial. When it does, it
+      SHOULD lead with the task — what the reader's actor sends, in order, with its
+      branches, and how to verify the result — and place the demonstration's invocation
+      last, as confirmation. A how-to guide with nothing to place before the
+      demonstration's invocation SHOULD be a tutorial instead.
+    rationale: >-
+      Overlap across quadrants is not duplication when each page answers its own
+      reader's question: "I need my actor to propose an embargo" is work, answered by
+      the activities to send; "I want to see an embargo negotiation happen" is study,
+      answered by the demo. Leading a how-to with the command the tutorial opens with
+      writes it to the tutorial's question. DF-01-003 forbids mixing quadrants within a
+      page and says nothing about two pages; this item covers the pair.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-01-003
+  - id: DF-04-010
+    priority: SHOULD
+    kind: process
+    statement: >-
+      When a how-to guide and a tutorial show the same demonstration, the section both
+      pages show SHOULD be one `{% include-markdown %}` fragment that both include, and
+      the how-to guide's `level` SHOULD be higher than the tutorial's.
+    rationale: >-
+      Two copies of a demo invocation and its expected result drift apart; one fragment
+      cannot (DF-10-002), and placement stays with each host page, so DF-04-009's
+      ordering survives. A fragment with two hosts satisfies both hosts' quadrant rules
+      (DF-09-008). A how-to assumes a competent reader (DF-04-002), and the tutorial is
+      where that competence comes from, so the how-to sits above it and may link down to
+      it (DF-11-002).
+    relationships:
+    - rel_type: refines
+      spec_id: DF-04-009
+    - rel_type: depends_on
+      spec_id: DF-11-002
+- id: DF-05
+  title: Reference
+  specs:
+  - id: DF-05-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Produce reference material that is neutral, objective, and technical in tone.
+  - id: DF-05-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Structure reference content to mirror the physical or logical architecture of the system
+      or code being described.
+  - id: DF-05-003
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Keep reference content dry and free from instruction, discussion, or opinion.
+  - id: DF-05-004
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: State facts about behaviors, commands, parameters, versions, and limitations.
+  - id: DF-05-005
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Use consistent, standard patterns and formatting in reference documents to make information
+      easy to find.
+  - id: DF-05-006
+    priority: MAY
+    kind: process
+    statement: >-
+      Allow brief code examples in reference material only to illustrate usage, not to provide
+      step-by-step instruction.
+  - id: DF-05-007
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Reference material MUST make the system, not the reader, the grammatical subject of its
+      descriptive sentences.
+    rationale: >-
+      DF-05-001 and DF-05-003 require neutral, instruction-free description without saying how to
+      achieve it. Naming the grammatical subject is the operational test: "A value of `0`
+      disables the timeout" describes the machinery, while "Set `timeout` to `0` to disable it"
+      has crossed into instruction and belongs in a How-to guide. The subject test catches the
+      drift that "be neutral" alone does not.
+- id: DF-06
+  title: Explanation
+  specs:
+  - id: DF-06-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Provide explanatory material that focuses on understanding and context for a topic.
+  - id: DF-06-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Address "Why?" questions by discussing history, design decisions, or technical constraints.
+  - id: DF-06-003
+    priority: MAY
+    kind: process
+    statement: >-
+      Permit opinion, perspective, and weighing of approaches in explanatory documents.
+  - id: DF-06-004
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Exclude practical instructions and dry technical descriptions that belong in Tutorials,
+      How-to, or Reference.
+  - id: DF-06-005
+    priority: SHOULD
+    kind: process
+    statement: Prefer titles that can be read as "About X" for explanatory topics.
+  - id: DF-06-006
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Weave connections to related topics to build a web of understanding.
+  - id: DF-06-007
+    priority: MAY
+    kind: process
+    statement: >-
+      Explanation MAY use first-person plural ("we") for the author's reasoning and second person
+      ("you") to invite the reader to consider a point.
+    rationale: >-
+      DF was silent on Explanation voice, which left the most-used voice in the corpus formally
+      unaddressed. Explanation is discursive and DF-06-003 already permits opinion and
+      perspective, so both pronouns are legitimate here — "we chose a state-machine model
+      because…" and "you might expect this to behave like a queue; it does not" each do work that
+      impersonal prose cannot.
+- id: DF-08
+  title: File metadata
+  specs:
+  - id: DF-08-001
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Name Diátaxis specification files using snake_case and concise topic descriptors.
+  - id: DF-08-002
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Place cross-reference sources only in the header metadata and use inline links for cross-spec
+      references.
+- id: DF-09
+  title: Prose style
+  description: >-
+    Requirements governing the prose itself, as distinct from the architecture of the
+    documentation set. The detailed rules, their `SG-nn` identifiers, and their worked examples
+    live in `.claude/skills/shared/docs-style-guide.md`; these entries make that file normative
+    and give reviewers citable IDs.
+  specs:
+  - id: DF-09-001
+    priority: MUST
+    kind: process
+    statement: >-
+      Hand-written prose under `docs/` MUST follow the documentation style guide at
+      `.claude/skills/shared/docs-style-guide.md`.
+    rationale: >-
+      Style rules are numerous, example-heavy, and change more often than requirements do, so
+      they are maintained as a guide rather than as several dozen spec entries. This entry is the
+      anchor that gives the guide normative force and lets `lint-docs` findings cite a spec ID.
+      Generated trees (`docs/reference/code/`, `docs/reference/case_states/`) and `docs/adr/` are
+      outside the guide's scope; fix the generator or the template instead.
+    verification: >-
+      A `lint-docs` run over a hand-written `docs/` page reports findings that each cite a
+      style-guide rule ID, and pages outside the guide's scope are excluded from the target set.
+  - id: DF-09-002
+    priority: MUST
+    kind: process
+    statement: >-
+      Domain terminology in `docs/` MUST match the canonical term in `docs/reference/glossary.md`,
+      with `docs/reference/vultron-taxonomy.md` canonical for Vultron concept names.
+    rationale: >-
+      "Avoid jargon" and "use domain language" are the same rule with the glossary as arbiter: a
+      term in the glossary is domain language and should be used, and a term in neither the
+      glossary nor the taxonomy is jargon that must be expanded, replaced, or registered. Naming
+      one arbiter also prevents the three overlapping term sources from drifting further apart.
+    verification: >-
+      Inspection of a `docs/` page confirms each domain term used matches the canonical spelling in
+      `docs/reference/glossary.md`, or in `docs/reference/vultron-taxonomy.md` for Vultron concepts.
+  - id: DF-09-003
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0092
+    statement: >-
+      Acronyms MUST be expanded on first use on each rendered `docs/` page, where "page"
+      means the page as published rather than the source file it was authored in. Site
+      navigation rendered by the theme (the sidebar and tabs) is not page content and is
+      exempt. In a generated listing of child pages, each entry is one unit: an acronym
+      in an entry's link label is expanded on first use when that entry's own
+      description expands it.
+    rationale: >-
+      First use resets per page because readers arrive from search results and deep
+      links rather than by reading in nav order. Site-wide `abbr` tooltips do not
+      survive print output and are invisible in raw Markdown. "Page" names the rendered
+      artifact because an assembled page has one first use, not one per fragment
+      (DF-09-007). A generated listing reuses navigation labels as link text, so each
+      entry's description carries the expansion.
+    verification: >-
+      Inspection of a page assembled from `{% include-markdown %}` fragments confirms
+      each acronym is expanded once in the rendered output, and inspection of a
+      generated landing page confirms each entry whose label carries an acronym expands
+      it in its description.
+  - id: DF-09-004
+    priority: MUST
+    kind: process
+    statement: >-
+      Every acronym used in `docs/` MUST be registered in `docs/_acronyms/index.md`.
+    rationale: >-
+      `pymdownx.snippets` auto-appends that file to every page, so a registered acronym gets a
+      hover definition everywhere it appears. An unregistered one silently gets nothing.
+    verification: >-
+      Every acronym appearing in `docs/` resolves to an entry in `docs/_acronyms/index.md`, and the
+      rendered page shows a hover definition for it.
+  - id: DF-09-005
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A `docs/` page SHOULD introduce, define, or link out for each concept before the sections
+      that depend on it.
+    rationale: >-
+      Prose is a directed acyclic graph of topics. A forward reference forces the reader to hold
+      an undefined term until the page explains it, or to leave the page to find out. Across
+      pages the dependency edge is a hyperlink from first use to the concept's canonical
+      introduction, so the glossary and the taxonomy serve as the concept registry and no
+      separate dependency file is required.
+  - id: DF-09-006
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Every diagram in `docs/` SHOULD be accompanied by prose stating what the diagram shows.
+    rationale: >-
+      The page must stay comprehensible when the Mermaid render fails, in print-site output, and
+      to a screen reader. The accompanying sentence also disciplines the author: a diagram whose
+      point cannot be stated in a sentence usually has not earned its place.
+  - id: DF-09-007
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0092
+    statement: >-
+      Style rules whose scope is a page MUST be evaluated against the rendered page, and style
+      rules whose scope is a sentence or a block MUST be evaluated against the source file that
+      contains them, including source files that are `{% include-markdown %}` fragments rather
+      than pages in their own right.
+    rationale: >-
+      A fragment is prose, so exempting it leaves it unchecked: roughly 2,800 lines of the Protocol
+      Specification went uncovered because its filenames carried a nav-exclusion prefix. But a
+      fragment is not a page, so page-scoped rules applied to one yield artifacts of the split
+      rather than prose defects — acronym first use (DF-09-003), concept order (DF-09-005), and
+      any rule naming the H1 or nav label. `.markdownlint-cli2.yaml` set the precedent by
+      disabling MD041 for this reason.
+    verification: >-
+      Resolving the lint target set over a directory of `{% include-markdown %}` fragments yields
+      a non-empty list, and findings cite the fragment's own line numbers.
+  - id: DF-09-008
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0092
+    statement: >-
+      The Diátaxis quadrant of an `{% include-markdown %}` fragment MUST be taken from the pages
+      that include it, and a fragment with more than one host MUST satisfy the quadrant rules of
+      each host.
+    rationale: >-
+      Quadrant selects the voice rules (DF-03-004, DF-04-004, DF-05-001, DF-06-007), and a
+      fragment's own path does not determine it. `docs/tutorials/worked_example.md` and
+      `docs/topics/measuring_cvd/possible_histories.md` are both included into the reference
+      Protocol Specification's annexes, and `includes/_rm-states-table.md` has four host pages.
+      Inferring quadrant from the fragment's directory would apply tutorial voice rules to
+      reference content and vice versa.
+    verification: >-
+      Inspection confirms each fragment's voice is assessed against the quadrant of every page
+      that includes it, not against its own directory.
+  - id: DF-09-009
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0092
+    statement: >-
+      A documentation check that acts as a blocking gate MUST report an empty target set as a
+      distinct failure, and MUST NOT report success when it has resolved no targets.
+    rationale: >-
+      A gate that checks nothing and reports success is worse than no gate, because it produces a
+      false clean signal that suppresses the review the gate replaced. This is not hypothetical:
+      the `lint-docs` gate in `check-docs-sync` resolved to zero targets for every fragment of
+      the Protocol Specification and passed, and an American-spelling regression reached `main`
+      through it.
+    verification: >-
+      Invoking the gate on a path with no lintable targets reports the empty target set and does
+      not report success.
+
+  - id: DF-09-010
+    priority: MUST
+    kind: process
+    statement: >-
+      Reader-facing `docs/` MUST name a protocol activity by its formal protocol message name and
+      code paired with its AS2 wire form — "Report Valid (RV) is implemented in ActivityStreams as
+      `Accept(Offer(VulnerabilityReport))`" — and MUST NOT name it by its prototype class name.
+      Where a shorthand has no formal name, or one shorthand expands across several activities, the
+      plain-English name from the corresponding `docs/reference/messages/` heading stands in for the
+      formal name. The prototype class name MAY survive only as a non-rendered identifier, such as a
+      mermaid node id.
+    rationale: >-
+      Three layers name every activity — the formal protocol message, the prototype class, and the
+      AS2 wire form — and only the first and last are reader-facing. The protocol semantics are not
+      recoverable from the wire form: `Accept(Offer(VulnerabilityReport))`,
+      `TentativeReject(Offer(VulnerabilityReport))` and `Reject(Offer(VulnerabilityReport))` are
+      valid, invalid and closed, and nothing in the wire form says which. So substituting the wire
+      form for the protocol name deletes a layer rather than translating one — the premise #3456 was
+      originally filed on, and rejected. The prototype class name is dropped instead, because an
+      implementer building a conformant peer in another language has no `RmValidateReport`. Naming
+      the pairing here gives the ratchet in `test/architecture/test_docs_activity_verbs.py` a spec ID
+      to cite, the same anchoring DF-09-001 provides for the style guide.
+    verification: >-
+      `test/architecture/test_docs_activity_verbs.py` derives each activity's wire form from the
+      registered `ActivityPattern` and fails when a guide's mermaid label or prose states a form no
+      pattern produces, when a labelled node resolves to no known activity, or when the scan
+      resolves fewer targets than the corpus carries.
+
+- id: DF-10
+  title: Sweep verification
+  description: >-
+    Requirements that apply whenever a documentation sweep (naming sweep, Diátaxis extraction,
+    page split, or any mechanical pass that moves or republishes existing prose) touches content
+    in `docs/`. Faithful copying is insufficient — re-reading content in a new context is a
+    different act from reading it in place, and a sweep carries source errors forward with full
+    authority unless each moved claim is actively verified.
+  specs:
+  - id: DF-10-001
+    priority: MUST
+    kind: process
+    statement: >-
+      When a claim is moved, extracted, or republished in a new `docs/` location, it MUST be
+      verified against its authority (source code, `specs/*.yaml` entry, or `docs/reference/`
+      page) before the change is committed. Faithful copying is not verification.
+    rationale: >-
+      A sweep's success criterion is usually "all content accounted for," which a faithful copy
+      satisfies perfectly while propagating a false statement to a second location with more
+      authority than it had in the first. Such a defect is invisible in the source context and
+      becomes falsifiable only once it is read as a first-class assertion in the destination. Two
+      sessions confirmed the mechanism (#3002 under `docs/`, #3342 over `specs/`).
+    verification: >-
+      For any diff that adds a block to a `docs/` page which appears verbatim or near-verbatim
+      elsewhere under `docs/` (or removes it from another page in the same change), each claim in
+      that block is traceable to a code path, spec entry, or reference page that confirms it. The
+      check is driven by the diff, not by whether the change describes itself as a sweep.
+  - id: DF-10-002
+    priority: SHOULD
+    kind: process
+    statement: >-
+      When the same content is needed in more than one `docs/` location, use an
+      `{% include-markdown %}` fragment instead of copying prose — one authoritative source,
+      multiple render points.
+    rationale: >-
+      Copied prose drifts silently: one copy is updated, the other is not, and both pass lint
+      because neither is wrong by itself. DRY is already a project standard (CS-22-001) and the
+      tree already assembles pages from fragments, so this names the existing mechanism as the
+      required one. An extracted fragment stays in `lint-docs`' target set for sentence- and
+      block-scoped rules (DF-09-007), but the claims it carries are still verified at the moment
+      of the move (DF-10-001). Placement and include-path mechanics:
+      `notes/documentation-sweeps.md`.
+    verification: >-
+      Inspection confirms that content appearing on more than one page either (a) uses
+      `{% include-markdown %}` with a path relative to each including file or (b) has a documented
+      reason why a shared fragment is inappropriate for that case.
+- id: DF-11
+  title: Site information architecture — stakeholder types, levels, and routing
+  specs:
+  - id: DF-11-001
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      Every reader-facing `docs/` page MUST declare an audience `stakeholder_type` and a
+      prerequisite `level` in its YAML frontmatter, where `stakeholder_type` is a list whose
+      members are drawn from cvd-practitioner, platform-developer, process-researcher, and
+      project-contributor — or the bare scalar `ALL`, never `[ALL]`, which MUST be used in
+      place of a list naming every type — and `level` is one of 100, 200, 300, 400, or 500.
+      A reader-facing page is a published page under `docs/` that is neither a project
+      working-record page (DF-11-003) nor an `{% include-markdown %}` fragment (DF-11-010).
+    rationale: >-
+      Both axes must be machine readable so ordering can be checked and landing
+      pages generated rather than hand-maintained. The key is list-valued because
+      a page may serve exactly two audiences; requiring `ALL` over a full
+      enumeration stops one fact having two forms. No member is a `CVDRole` value,
+      making the reader-type versus case-role conflation structurally impossible.
+      This item is the normative enumeration; its derivation chain is in
+      `notes/site-information-architecture.md`.
+    verification: >-
+      A frontmatter validator resolves every reader-facing page under `docs/` and confirms
+      each declares both keys with permitted values, rejecting a `stakeholder_type` list that
+      enumerates every type instead of using `ALL` and rejecting `[ALL]`. Project
+      working-record pages declare `[project-contributor]` and are confirmed to declare no
+      `level` per DF-11-003.
+  - id: DF-11-002
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A `docs/` page MUST NOT depend on a page whose declared `level` is higher than its
+      own, where depending means using a concept the higher-level page introduces without
+      introducing, defining, or linking out for it.
+    rationale: >-
+      This is the rule levels exist to support, and the reviewable ordering rationale that
+      was previously absent: before it, no ordering decision could be shown to be wrong,
+      so none could be reviewed and drift was undetectable. A violation means the page is
+      misplaced, its prerequisites are unstated, or it is doing two jobs. It extends
+      DF-09-005 from within a page to between pages, and SG-11's rule that a cross-page
+      concept edge is a hyperlink supplies the escape: linking out satisfies the rule.
+    verification: >-
+      A check compares each page's declared `level` against the levels of the pages it
+      depends on and fails on any dependency whose level is higher. `docs-level-order`
+      implements it: a page that is a glossary term's canonical introduction declares
+      the term in `introduces:`, and the first unlinked prose use of the term on a
+      lower-level page is a finding at `path:line:col`, with pre-existing violations in
+      a shrink-only baseline that names a reason for each.
+  - id: DF-11-003
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      Project working-record pages — decision records, generated code documentation,
+      exhaustively enumerated state pages, retained design-history pages, individual
+      requirements-traceability records (the `docs/reference/user_stories/` story pages and the
+      traceability matrix that routes them, but not the stories' reader-facing index), and agent- and
+      contributor-facing material such as `docs/agents/`, `docs/developer/` and
+      `docs/reference/codebase/` — MUST be excluded from the reader-facing navigation while
+      remaining published and reachable.
+    rationale: >-
+      The working record is a different kind of content, not a greater depth of the same
+      content. It is also the bulk of the navigated site, which is what makes the tree read as
+      accretion. Research pages are *not* working record — they
+      are reader-facing material for `process-researcher` and do carry a level (ADR-0102) — so
+      they are outside this requirement. User stories are working record because each one
+      records a requirement the implementation was traced against, read when a question
+      about that requirement arises rather than in sequence; the reader-facing index that
+      introduces them stays leveled (#3526). Exclusion is demotion, not retirement (#3281).
+    verification: >-
+      `uv run docs-frontmatter` fails when a page matched by `WORKING_RECORD_PATTERNS`
+      (`vultron/metadata/docs/page_schema.py`) is listed in the `mkdocs.yml` nav or matched
+      by no `not_in_nav` pattern, and
+      `test/metadata/docs/test_working_record_routing.py` fails when a working-record page
+      is not reached by following links from `docs/about/project_record.md`.
+  - id: DF-11-012
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A project working-record page (DF-11-003) MUST declare
+      `stakeholder_type: [project-contributor]` and MUST NOT be assigned a `level`.
+    rationale: >-
+      Split from DF-11-003 because that item is verified against `mkdocs.yml`
+      while this one is verified against page frontmatter, and bundling them let a
+      tree satisfy the navigation half with every declaration still missing. A
+      level on the working record is a category error, but it is addressed to
+      somebody, so it declares a type. The absent level is then a property of one
+      audience's material, not an exemption.
+    verification: >-
+      The frontmatter validator confirms each working-record page declares
+      `[project-contributor]` and enforces the absence of `level` rather than defaulting one.
+  - id: DF-11-004
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A page's own `level` MUST NOT appear in its rendered content or in the site
+      navigation. Documenting the level ladder itself — in the glossary, in an ADR, or in a
+      shared fragment they include — is not a page declaring its own level and is
+      unaffected.
+    rationale: >-
+      Levels describe prerequisite depth, which is a property of the content, while readers
+      sort themselves by goal: someone wiring a scanner into report validation thinks "how
+      do I plug this in", not "I need a 300-level page". Exposing levels would ask a
+      newcomer to rank their own knowledge before their first click, which is the same
+      self-classification problem the Study/Work split already has. The reader sees a linear
+      flow; the hierarchy that produced it belongs to the author.
+    verification: >-
+      Inspection of rendered output and of `mkdocs.yml` confirms no level value or
+      level-derived label is presented to readers.
+  - id: DF-11-005
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      Section landing pages that enumerate their section's contents MUST be generated from
+      page frontmatter and gated by a check mode, and MUST NOT be hand-maintained. Every
+      `index.md` that opens a navigation group, or that is the only navigation entry for a
+      directory holding reader pages the navigation omits, MUST declare in its frontmatter
+      which of three shapes it is: `generated`, the enumeration above; `routing`, an index
+      whose links to its members are part of its framing or of a themed grouping that is
+      editorial content, which is exempt from generation and MUST instead be checked to link
+      every member of its section; or `rendered`, an enumeration produced at build time from
+      a registry (DEMOCI-11-009), which is exempt because nothing is committed to drift.
+    rationale: >-
+      Every section landing page was a hand-written duplicate of the navigation and every
+      one had drifted from it — children missing, order disagreeing, and one describing a
+      retired taxonomy to readers. The defect class is the duplication, so correcting
+      individual omissions does not prevent recurrence. Two existing tools supply the
+      pattern: `vultron/metadata/adr/index_gen.py` and `demo-scenarios-sync` (ADR-0098).
+      The two exempt shapes exist because generation fixes an index that under-routes and
+      cannot express an argument or a theme; what a routing page owes instead is
+      completeness, which is derivable and therefore checked — the split DEMOCI-11-007
+      already makes between what is generated and what is checked. The declaration is
+      required rather than defaulted so a sub-section cannot be left undecided by omission.
+      Each index's decision is its `contents:` frontmatter, pinned by
+      `test/metadata/docs/test_site_sync.py`.
+    verification: >-
+      The generator's `--check` mode (`uv run docs-site --check`) runs as a pre-commit hook
+      and in CI, failing when a generated landing page differs from what frontmatter
+      implies, when a section index declares no shape or an unknown one, or when a routing
+      index does not link a member of its section — the group's navigation members plus any
+      reader page in its own directory the navigation omits. A link counts when the index
+      writes it or carries it in a fragment it includes uncut (no `start=` or `end=`), so
+      cards shared with another page route both (DF-10-002). Per DF-09-009 the check fails
+      rather than passes when it resolves no generated page.
+      `test/metadata/docs/test_site_sync.py` pins the committed set of generated, routing,
+      and rendered indexes.
+  - id: DF-11-006
+    priority: SHOULD
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A set of sibling leaf pages that is too large to browse SHOULD be reached through a
+      routing page that links each member, with the navigation carrying the group rather
+      than enumerating the members.
+    rationale: >-
+      The pattern is already proven here and applied inconsistently:
+      `docs/reference/user_stories/` keeps its whole story set out of the
+      navigation and reaches it through `traceability.md`. The same navigation
+      meanwhile enumerates the decision records, the case states and the generated
+      code pages inline. Same shape of content, opposite treatment; the routing-
+      page treatment is the one to generalize.
+    verification: >-
+      Inspection of `mkdocs.yml` confirms large sibling leaf sets appear as a single group
+      entry, and that a routing page links every member so no page becomes unreachable.
+  - id: DF-11-007
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A rendered `docs/` page MUST remain self-sufficient for a reader arriving directly
+      at it; repeated openings, restated prerequisites, and re-expanded acronyms on
+      adjacent pages MUST NOT be removed from the rendered page in order to make those
+      pages read as a continuous sequence. Sourcing a repeated block from one
+      `{% include-markdown %}` fragment that each page includes satisfies this
+      requirement.
+    rationale: >-
+      Readers arrive from search results and deep links rather than in navigation order
+      (DF-09-003, SG-12), so a block repeated between neighbors is usually the rule
+      working, and removing it degrades every deep-link arrival. Nav order carries
+      dependency and prominence, not narrative. The requirement is on what the reader
+      sees, not on the source: a block one authority owns, such as a banner, a pointer,
+      or a shared prerequisite list, is sourced once (DF-10-002) and still renders on
+      every page.
+    verification: >-
+      Inspection of any change that removes an opening, a prerequisite statement, or an
+      acronym expansion from a rendered page confirms the page still stands alone for a
+      reader who did not read its predecessor. A change that replaces such a block with
+      an include of a fragment carrying it is not a removal.
+  - id: DF-11-008
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A `stakeholder_type` × `level` coverage matrix MUST be generated from page frontmatter
+      into an unpublished location outside `docs/` and gated by a check mode that fails when
+      the committed matrix disagrees with the tree. The check MUST NOT fail because a cell is
+      empty.
+    rationale: >-
+      The matrix turns "we do not serve audience X" from an impression into a
+      recorded fact planning can act on. Gating currency rather than fullness
+      keeps it a checked object rather than an advisory one; requiring fullness
+      would harden into "every type at every level", which the divergence-
+      above-100 shape contradicts. It sits outside `docs/` because it is a
+      planning artifact, and a per-page level table shown to readers would defeat
+      DF-11-004 page by page.
+    verification: >-
+      The generator's `--check` mode runs as a pre-commit hook and in CI, failing when the
+      committed matrix differs from what page frontmatter implies, and passing a tree in which
+      one or more cells are empty. Per DF-09-009 the check fails rather than passes when it
+      resolves no targets.
+  - id: DF-11-009
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      A page's own `stakeholder_type` MUST NOT appear in its rendered content or in the site
+      navigation, and a routing page generated for a stakeholder type MUST be titled by the
+      reader's situation instead. Documenting the vocabulary itself — in the glossary, in an
+      ADR, or in a shared fragment they include — is not a page declaring its own audience and
+      is unaffected.
+    rationale: >-
+      Extends DF-11-004's reasoning one step. A reader should not have to classify themselves
+      before their first click, and a situation is recognizable without asking anyone to
+      identify with a label. It also keeps the enumeration free to change: `cvd-practitioner`
+      may be split later on evidence, and a reader never taught the term loses nothing when it
+      happens, whereas a published label would make the split a change to something readers
+      had been taught.
+    verification: >-
+      Inspection of rendered output and of `mkdocs.yml` confirms no page presents its own
+      stakeholder type or a label derived from it, and that each generated routing page's title
+      states a reader situation.
+  - id: DF-11-010
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      An `{% include-markdown %}` fragment MUST NOT declare `stakeholder_type` or `level` of
+      its own; both are taken from the pages that include it, and a fragment with more than
+      one host is governed by each host's declarations.
+    rationale: >-
+      A fragment is not a page, so a page-scoped declaration applied to one yields
+      artifacts of the authoring split rather than facts about a reader — the same
+      reason DF-09-008 takes a fragment's quadrant from its hosts. Without this
+      the validator's target set is ambiguous for the published-but-unnavved
+      fragments under `docs/includes/`, and `stakeholder_types.md` would have to
+      declare an audience for a table with no reader.
+    verification: >-
+      The frontmatter validator's resolved target set excludes `{% include-markdown %}`
+      fragments, and a fragment carrying either key is reported as a finding.
+  - id: DF-11-011
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0102
+    statement: >-
+      The shared fragment defining the `stakeholder_type` members MUST be generated from the
+      frontmatter schema and gated by a check mode, and MUST NOT be hand-maintained.
+    rationale: >-
+      Split from DF-11-005 because it is a different artifact with a different source: a
+      landing page is generated from the frontmatter of many pages, while this fragment is
+      generated from the schema that defines the vocabulary. Bundling them let an
+      implementation satisfy one and leave the other neither met nor unmet. Generating it is
+      what keeps DF-11-001's normative enumeration and the list published to readers from
+      disagreeing, which hand-maintenance cannot guarantee.
+    verification: >-
+      The generator's `--check` mode runs as a pre-commit hook and in CI, failing when the
+      committed fragment differs from what the schema implies. Per DF-09-009 the check fails
+      rather than passes when it resolves no targets.
+  - id: DF-11-013
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A reading-path thread MUST be declared once, as data in the frontmatter of the
+      start page that opens it, one thread per start page, as an ordered list of stages,
+      where each stage has a title naming the reader's goal, may be marked as a stopping
+      point, and is either an unordered set of reader-facing pages or an ordered chain of
+      them, each member carrying its page path and a blurb written for this thread.
+    rationale: >-
+      A reader's route through the site is a partial order: at some points order
+      matters, and at others any of several pages will do. Ordered stages of sets or
+      chains express that directly without forcing a sequence, and cannot contain a
+      cycle. Declaring the thread once is what lets the start-page listing and every
+      member page's directions be renders of one source (DF-10-002) instead of copies
+      that drift.
+    verification: >-
+      The frontmatter validator parses each start page's thread declaration against the
+      stage schema and reports a malformed stage, an empty stage, a stage with no title,
+      a member with no blurb, or a member that is not a page path as a finding.
+  - id: DF-11-014
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A start page's listing of its thread MUST be generated from the thread's data and
+      gated by a check mode, and MUST NOT be hand-maintained; framing prose outside the
+      generated block stays hand-written.
+    rationale: >-
+      The listing is an enumeration of the thread, the defect class DF-11-005 exists to
+      remove when it is hand-maintained. Generating it into the committed source keeps
+      the diff showing what readers will see, the way generated landing pages do.
+    verification: >-
+      The generator's check mode runs as a pre-commit hook and in CI, failing when a
+      start page's committed generated block differs from what its thread data implies.
+  - id: DF-11-015
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      Every page that is a member of a thread MUST show, for each thread it belongs to,
+      the set of thread pages immediately before it, the set immediately after it, and a
+      link to the thread's start page, titled by the reader's situation rather than by
+      `stakeholder_type` (DF-11-009), and the rendered page MUST be the same for every
+      reader. The set before a page is the preceding member of its chain, or else the
+      previous stage's exit pages; the set after it is the next member of its chain, or
+      else the next stage's entry pages. A set stage's entry and exit pages are all its
+      members; a chain's entry page is its first member and its exit page its last.
+    rationale: >-
+      A reader who followed a thread into a page needs directions onward without being
+      forced down one next page, so predecessors and successors are sets. A page on
+      several threads lists each, so it never needs to know which thread a reader is
+      on: no query parameter, script or referrer is involved, the page renders the same
+      on a deep link, and it still stands alone (DF-11-007).
+    verification: >-
+      A test builds a fixture tree with a page on two threads, one in a chain and one in
+      a set stage, and confirms the rendered page carries one entry per thread with the
+      expected before and after sets, a title taken from the start page's situation, a
+      link to each start page, no `stakeholder_type` or `level` value, no script
+      element, and no link carrying a query string.
+  - id: DF-11-016
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A thread check MUST fail when a thread lists a page that does not exist or is not
+      reader-facing (DF-11-001), when a page appears more than once in one thread, or
+      when it resolves no threads at all (DF-09-009).
+    rationale: >-
+      A thread that routes a reader to a missing or working-record page is a broken
+      route, and a page listed twice in one thread has two places in a partial order.
+      The build's broken-link check catches only the first, and only on the start page.
+    verification: >-
+      Unit tests cover each failure — a missing page, a working-record page, a duplicate
+      member, and an empty set of threads — and the check runs as a pre-commit hook and
+      in CI.
+  - id: DF-11-017
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A page that is a member of a thread MUST NOT show the theme's navigation-order
+      previous and next footer.
+    rationale: >-
+      The footer follows navigation order, not the thread, so on a member page it would
+      offer a second "next" link that can disagree with the thread's own directions
+      (DF-11-015).
+    verification: >-
+      The DF-11-015 fixture test confirms the rendered member page carries no
+      navigation-order footer, and that a page on no thread still carries it.
+  - id: DF-11-018
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      Every reader-facing `docs/` page (DF-11-001) MUST declare exactly one `page_type`
+      in its YAML frontmatter, one of `tutorial`, `how-to`, `explanation`,
+      `reference` or `routing`, where `routing` is for a page that mainly gives
+      directions — the home page, the start pages, and indexes that only route. A
+      page's `page_type` is independent of its `contents:` shape (DF-11-005): an index
+      whose prose mostly explains is `explanation`. A project working-record page
+      (DF-11-003) and an `{% include-markdown %}` fragment (DF-11-010) MUST NOT declare
+      a `page_type`.
+    rationale: >-
+      Once the navigation stops grouping pages by Diátaxis type, the type survives
+      only as a declaration on the page. A required key makes a missing one a fault
+      rather than a silent gap, for the same reason `contents:` is required on landing
+      pages. The working record's door already says what kind of page it is, and a
+      fragment takes its declarations from its hosts.
+    verification: >-
+      `test/metadata/docs/test_page_frontmatter.py::TestPageTypeSchema` covers the
+      permitted values and rejects every other spelling;
+      `TestCheck::test_reader_facing_page_without_a_page_type_fails`,
+      `TestCheck::test_working_record_page_with_a_page_type_fails` and
+      `TestFragments::test_fragment_declaring_a_page_type_is_reported` cover the
+      check; `test_committed_tree_passes` runs it over the committed tree, and
+      `docs-frontmatter` runs as a pre-commit hook and in CI.
+  - id: DF-11-019
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      The built site MUST show, on every reader-facing page whose `page_type`
+      (DF-11-018) is not `routing`, a badge naming that type, rendered from the page's
+      own frontmatter, and MUST show no badge on a `routing` page. A page-type badge
+      MUST NOT be written by hand beside a link unless a check fails when it differs
+      from the linked page's declared `page_type`.
+    rationale: >-
+      A badge tells a reader arriving from search what kind of page they landed on. A
+      badge read from the page's own declaration cannot drift from it; a hand-written
+      badge beside a link restates the target's declaration and drifts silently when
+      the target changes type. A routing page only gives directions, so a badge there
+      would be noise.
+    verification: >-
+      `test/metadata/docs/test_page_type_badge.py` renders the badge template for
+      every `page_type`, confirming the label for each rendered type and no output for
+      `routing`, an undeclared page or a malformed value; confirms a stylesheet rule
+      for every rendered type, that the theme override includes the template in the
+      content block every page renders, and that no reader-facing page replaces that
+      template; and fails on any `docs/` Markdown file that writes the badge markup
+      by hand. With
+      `test/metadata/docs/test_page_frontmatter.py::test_committed_tree_passes`
+      (every reader-facing page declares a valid `page_type`), a page that rendered
+      the wrong badge or none would fail one of these.
+  - id: DF-11-020
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      A navigation section MUST NOT hold both a page about the Vultron protocol and a
+      page about the reference implementation.
+    rationale: >-
+      A reader who wants the protocol must be able to trust that every page in a
+      protocol section binds them or explains what binds them; a reference-
+      implementation page beside them reads as part of the protocol. The nav is the
+      only place the two are grouped together. The Diátaxis-type sections predate
+      the rule and mix the two until #4684 replaces them; until #4946 adds a check
+      over the nav, it is a review rule for new and moved pages.
+    verification_debt: '#2571'
+    tracking_issue: '#4946'
+  - id: DF-11-021
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      The site MUST have one lookup page, linked from the home page and from every
+      start page, that lists the reader-facing pages whose `page_type` (DF-11-018) is
+      `reference`, grouped by top-level navigation section in navigation order, each
+      with its `description:`. The lookup page MUST NOT be a start page (DF-11-013).
+      A reference page inside a navigation group below the top level MUST be listed
+      once, through the `index.md` that opens the outermost such group containing it;
+      a reference page with no such group, or whose groups below the top level have
+      no opening `index.md`, is listed on its own. A reference page the navigation
+      omits MUST be placed by the navigation-reachable `index.md` of its own
+      directory and then follow the same rule. The listing MUST be generated and
+      gated by a check mode that also fails when a reference page has no such entry
+      or when the home page or a start page does not link the lookup page.
+    rationale: >-
+      Once Reference is no longer a top-level tab (ADR-0136), a returning reader
+      loses the view by type. One generated page gives it back without a type-based
+      top level. Listing a subgroup through its index keeps the page short enough
+      to scan (DF-11-006), and deriving it from the nav and frontmatter keeps it
+      from drifting (DF-11-005).
+    verification_debt: '#2571'
+    tracking_issue: '#5150'
+- id: DF-12
+  title: Protocol Specification normative text rendered from the requirement tiers
+  description: >-
+    The Protocol Specification presents the `protocol` and `foundation` requirement
+    tiers of `specs/*.yaml` as rendered content, never as restated prose, so the
+    specification cannot state a requirement differently from the YAML and presents
+    every one of them; the normative banner marks exactly the normative set
+    (ADR-0136, ADR-0147).
+  specs:
+  - id: DF-12-001
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The Protocol Specification MUST contain a Requirements Catalog body section,
+      placed after the Conformance section and before the back matter, that renders
+      every requirement of kind `protocol` or `foundation` exactly once. A catalog
+      subsection MUST be one requirement file, and `foundation` requirements MUST be
+      rendered on a catalog page of their own.
+    rationale: >-
+      The specification is the complete normative text only if every rule a
+      conformant implementation must obey renders in it, and normative content
+      belongs in the body rather than in an annex, which the specification declares
+      informative. Keeping the inherited `foundation` rules apart keeps visible what
+      Vultron adds and what it takes unchanged from the standards beneath it.
+    verification: >-
+      A test loads the requirement registry and the catalog's placement table and
+      fails when any `protocol` or `foundation` requirement renders in the catalog
+      zero times or more than once, when a catalog subsection holds requirements from
+      more than one requirement file, or when a `foundation` requirement renders on a
+      page other than the inherited-requirements page; a test over the specification's
+      navigation fails when the catalog section is not placed directly after the
+      Conformance section and before the back matter. Not yet written; owned by
+      #4895 (placement and rendering) and #4901 (section placement).
+    tracking_issue: '#4895'
+  - id: DF-12-002
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The anchor of a `protocol` or `foundation` requirement MUST be defined only by
+      its Requirements Catalog row and by that row's copy in the single-page edition
+      of the specification (`full.md`), which includes the catalog in document order.
+      Every other page that shows or links the requirement, including the inline
+      callouts of DF-12-003 and the requirement pages for the other kinds, MUST link
+      to that row; on the single-page edition the link MUST target the in-page copy.
+    rationale: >-
+      A requirement with two published anchors gives two answers to where it lives,
+      and links written against either can disagree. One home also lets the
+      retired per-kind pages for the two tiers redirect to a single place.
+    verification: >-
+      A test fails when a rendered page other than a catalog page or the single-page
+      edition defines a requirement anchor, and a test fails when a rendered
+      requirement link on any page does not resolve to its catalog row (or, on the
+      single-page edition, to the in-page copy). Both tests read the rendered output,
+      because links printed by an exec block are invisible to the strict build. Not
+      yet written; owned by #4901.
+    tracking_issue: '#4901'
+  - id: DF-12-003
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      Outside the Requirements Catalog, the Protocol Specification MUST present a
+      normative requirement only as a callout rendered by ID from its YAML entry, in
+      the catalog's row format. Rendering a callout MUST fail the documentation build
+      when an ID names no requirement of kind `protocol` or `foundation`.
+    rationale: >-
+      A callout shows the YAML's own words, so the narrative cannot paraphrase a rule
+      into something different. Failing on a non-normative ID stops the
+      specification from presenting a Project or Architecture rule as protocol.
+    verification: >-
+      A test renders a callout for a `protocol` ID and checks its text equals the
+      YAML statement and links the catalog row, and renders one for a `project` ID
+      and checks that it raises. Not yet written; owned by #4895.
+    tracking_issue: '#4895'
+  - id: DF-12-004
+    priority: MUST_NOT
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      A fragment of the Protocol Specification MUST NOT contain an RFC 2119 keyword
+      outside a rendered requirement block, except in the §1.4 Document Conventions
+      paragraph that states the keyword convention. A check MUST enforce this, and
+      MUST report an empty target set as a failure (DF-09-009).
+    rationale: >-
+      Every hand-written normative sentence is a restatement that can drift from the
+      YAML, and an unlabeled one may have no YAML counterpart at all. Banning the
+      keywords in prose makes the YAML the only place a normative sentence can be
+      written.
+    verification: >-
+      The check runs in the test suite over the specification's fragments and fails
+      on a keyword in prose, passes on the same keyword inside a rendered block or
+      the convention paragraph, and fails when it resolves no fragments. Not yet
+      written; owned by #4895 (the check, over reconciled fragments) and #4902 (every
+      fragment).
+    tracking_issue: '#4895'
+  - id: DF-12-005
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0147
+    statement: >-
+      The placement of requirement files on Requirements Catalog pages MUST be
+      declared once, on the documentation side, without a field in the requirement
+      files. A check MUST fail when a requirement file that holds `protocol` or
+      `foundation` requirements is placed on no catalog page, or on more than one
+      catalog page for the same tier.
+    rationale: >-
+      A new requirement file would otherwise be silently missing from the catalog.
+      Declaring the placement where it is rendered keeps the requirement file format
+      unchanged, and one declaration lets callouts and the other kinds' pages find
+      the catalog page that holds a requirement.
+    verification: >-
+      A test fails when a requirement file holding either tier is absent from the
+      placement table, or appears in it twice for one tier. Not yet written; owned by
+      #4895.
+    tracking_issue: '#4895'
+  - id: DF-12-006
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+      - ADR-0147
+    statement: >-
+      Every page of the normative set — the Protocol Specification's body section
+      pages and the `protocol` and `foundation` requirement-tier pages, but not the
+      specification's landing page, its single-page full view, its annexes or its
+      open-questions page — MUST include the shared normative banner
+      (`docs/includes/normative.md`) in the page itself, not through a shared
+      fragment, and every other page MUST NOT include it except the page that
+      documents the banners. The normative-set pages MUST be declared once, in the
+      check that enforces this, and the check MUST fail when a declared page does
+      not exist.
+    rationale: >-
+      A banner a reader trusts must be true. Hand-placed banners drifted: 19 pages
+      outside the normative set still called themselves normative after ADR-0136
+      and ADR-0147 fixed what the set is. Failing on a missing declared page keeps
+      the list current when the Requirements Catalog replaces the per-tier pages.
+    verification: >-
+      A check over the `include-markdown` directives in `docs/` fails, naming
+      `path:line`, when a declared page does not include the banner, when any other
+      page or a shared fragment includes it, when a declared page is missing, or
+      when it resolves no targets: `docs-normative-banner`, run as a pre-commit
+      hook and by `test/metadata/docs/test_normative_banner.py`.
+  - id: DF-12-007
+    priority: SHOULD
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      An informative page that explains the protocol's design SHOULD carry the shared
+      "specification governs" banner, which states that the page is informative and
+      that where it differs from the Protocol Specification the specification
+      governs, instead of the not-normative banner, which says a page is not part of
+      the protocol.
+    rationale: >-
+      Pages such as Formal Protocol and the RM, EM and CS process models still
+      explain how the protocol is defined, but they predate the specification and
+      may lag it. Neither the normative banner nor the not-normative banner is true
+      of them; a precedence statement keeps their standing and names the tiebreaker.
+    verification: >-
+      Partly checked: `test/metadata/docs/test_normative_banner.py` checks that the
+      banner states the precedence without an RFC 2119 keyword and that the
+      Formal Protocol and process-model pages carry it. #4946 adds the check that
+      requires it on every informative protocol-design page, which a
+      `subject: protocol` key alone does not single out from the protocol-floor
+      companions.
+    tracking_issue: '#4946'

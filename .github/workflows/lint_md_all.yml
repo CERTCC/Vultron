@@ -1,15 +1,47 @@
-name: "Lint Markdown (all)"
+name: "Lint Markdown"
 
-on: 
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "**/*.md"
+      - .github/workflows/lint_md_all.yml
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "**/*.md"
+      - .github/workflows/lint_md_all.yml
   workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: DavidAnson/markdownlint-cli2-action@v19
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: ./.github/actions/debounce-main-push
+    - uses: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff # v24.2.0
       with:
-        globs: |
-          *.md
-          !test/*.md
+        globs: "**/*.md"
+        config: .markdownlint-cli2.yaml
+    - name: Notify CI failure
+      if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
+      uses: ./.github/actions/notify-failure
+      with:
+        mode: notify
+        workflow-label: ci:workflow-lint-md
+        token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Close CI failure issue
+      if: success() && (github.event_name == 'push' || github.event_name == 'schedule')
+      uses: ./.github/actions/notify-failure
+      with:
+        mode: close
+        workflow-label: ci:workflow-lint-md
+        token: ${{ secrets.GITHUB_TOKEN }}

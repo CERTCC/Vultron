@@ -1,0 +1,701 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+Unit tests for vultron.wire.as2.factories.embargo.
+
+Spec coverage:
+- AF-01-002: Factory functions return plain AS2 base types.
+- AF-01-003: Explicit, domain-typed parameters for protocol-significant fields.
+- AF-04-001: Factory functions wrap ValidationError in
+  VultronActivityConstructionError.
+- AF-04-002: All factory functions re-exported from factories/__init__.py.
+"""
+
+import json
+from datetime import UTC, datetime, timedelta
+from typing import cast
+
+import pytest
+from pydantic import ValidationError
+
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.received_activity_view import ReceivedActivityView
+from vultron.core.states.embargo_register import TerminationReason
+from vultron.wire.as2.factories import (
+    VultronActivityConstructionError,
+    activate_embargo_activity,
+    announce_embargo_activity,
+    em_accept_embargo_activity,
+    em_propose_embargo_activity,
+    em_reject_embargo_activity,
+    em_undo_embargo_invite_activity,
+    reject_embargo_proposal_activity,
+    remove_embargo_from_case_activity,
+    withdraw_from_embargo_activity,
+)
+from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Announce,
+    as_Invite,
+    as_Leave,
+    as_Reject,
+    as_Remove,
+    as_Undo,
+)
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+_ACTOR_URI = "https://example.org/actors/alice"
+_CASE_URI = "https://example.org/cases/case-001"
+
+
+@pytest.fixture
+def sample_embargo() -> as_EmbargoEvent:
+    return as_EmbargoEvent(context=_CASE_URI, end_time=days_from_now_utc(45))
+
+
+@pytest.fixture
+def sample_proposal(sample_embargo) -> as_Invite:
+    """EmProposeEmbargoActivity — used for Accept/Reject tests."""
+    return em_propose_embargo_activity(
+        embargo=sample_embargo, context=_CASE_URI, actor=_ACTOR_URI
+    )
+
+
+# ---------------------------------------------------------------------------
+# em_propose_embargo_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-005")
+@pytest.mark.spec("MSM-02-001")
+def test_em_propose_embargo_returns_invite(sample_embargo):
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Invite)
+
+
+def test_em_propose_embargo_object_is_embargo(sample_embargo):
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_embargo
+
+
+def test_em_propose_embargo_context_is_set(sample_embargo):
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo, context=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert result.context == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_em_propose_embargo_invalid_raises(sample_embargo):
+    # No actor: the wire class's ValidationError is wrapped.
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        em_propose_embargo_activity(embargo=sample_embargo)
+    assert exc_info.value.__cause__ is not None
+
+
+@pytest.mark.spec("VAM-01-010")
+def test_em_propose_embargo_refuses_terms_by_uri():
+    """This codebase sends the terms inline, though a received Invite may
+    name them by URI (ADR-0123)."""
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        em_propose_embargo_activity(
+            embargo="https://example.org/embargoes/1",  # type: ignore[arg-type]
+            actor=_ACTOR_URI,
+        )
+    assert "EmbargoEvent" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# em_propose_embargo_activity — RSVP deadline (AC-1, AC-4; issue #2211)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CM-28-001")
+def test_em_propose_embargo_rsvp_deadline_sets_end_time(sample_embargo):
+    """AC-1: rsvp_deadline is placed on activity-level end_time."""
+    deadline = datetime.now(tz=UTC) + timedelta(days=5)
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        rsvp_deadline=deadline,
+        actor=_ACTOR_URI,
+    )
+    assert result.end_time == deadline
+
+
+@pytest.mark.spec("CM-28-001")
+def test_em_propose_embargo_no_rsvp_deadline_end_time_is_none(sample_embargo):
+    """AC-7 (absent): no rsvp_deadline → end_time not set on activity."""
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+    )
+    assert result.end_time is None
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_rsvp_below_min_window_raises(sample_embargo):
+    """AC-4: deadline below minimum window raises VultronActivityConstructionError."""
+    deadline = datetime.now(tz=UTC) + timedelta(hours=1)
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=deadline,
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_naive_deadline_raises(sample_embargo):
+    """AC-3 (outbound): naive rsvp_deadline raises VultronActivityConstructionError."""
+    naive_deadline = datetime.now() + timedelta(days=5)  # noqa: DTZ005 — deliberately naive
+    with pytest.raises(
+        VultronActivityConstructionError, match="timezone-aware"
+    ):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=naive_deadline,
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_custom_min_window_respected(sample_embargo):
+    """AC-4: custom min_rsvp_window is enforced."""
+    deadline = datetime.now(tz=UTC) + timedelta(hours=25)
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=deadline,
+            min_rsvp_window=timedelta(days=2),
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_rsvp_deadline_overrides_caller_end_time(
+    sample_embargo,
+):
+    """rsvp_deadline is authoritative when both it and end_time are provided."""
+    rsvp = datetime.now(tz=UTC) + timedelta(days=5)
+    raw_end_time = datetime.now(tz=UTC) + timedelta(days=10)
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        rsvp_deadline=rsvp,
+        end_time=raw_end_time,
+        actor=_ACTOR_URI,
+    )
+    assert result.end_time == rsvp
+
+
+@pytest.mark.spec("EP-07-006")
+def test_em_propose_embargo_deadline_after_embargo_end_raises():
+    """The sender refuses a deadline the receiver would clamp down."""
+    embargo = as_EmbargoEvent(
+        context=_CASE_URI,
+        end_time=datetime.now(tz=UTC) + timedelta(days=10),
+    )
+    with pytest.raises(VultronActivityConstructionError, match="EP-07-006"):
+        em_propose_embargo_activity(
+            embargo=embargo,
+            rsvp_deadline=embargo.end_time + timedelta(seconds=1),
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-002")
+@pytest.mark.spec("EP-07-006")
+def test_em_propose_embargo_minimum_is_remaining_embargo_when_shorter():
+    """Two days left: a deadline at the embargo's end is not below minimum."""
+    embargo = as_EmbargoEvent(
+        context=_CASE_URI,
+        end_time=datetime.now(tz=UTC) + timedelta(days=2),
+    )
+    result = em_propose_embargo_activity(
+        embargo=embargo,
+        rsvp_deadline=embargo.end_time,
+        actor=_ACTOR_URI,
+    )
+    assert result.end_time == embargo.end_time
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_minimum_measured_from_published(sample_embargo):
+    """The 72 h minimum runs from the invite's ``published`` time."""
+    published = datetime.now(tz=UTC) + timedelta(days=1)
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=published + timedelta(hours=71),
+            published=published,
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_minimum_measured_from_stamped_published(
+    sample_embargo,
+):
+    """The ``published`` the sender measures from is the one it stamps."""
+    result = em_propose_embargo_activity(
+        embargo=sample_embargo,
+        rsvp_deadline=datetime.now(tz=UTC) + timedelta(days=5),
+        actor=_ACTOR_URI,
+    )
+    assert result.published is not None and result.end_time is not None
+    assert result.end_time - result.published >= timedelta(hours=72)
+
+
+@pytest.mark.spec("EP-07-002")
+def test_em_propose_embargo_string_published_is_measured_from(
+    sample_embargo,
+):
+    """An ISO 8601 ``published`` string is honored, not replaced by now."""
+    published = datetime.now(tz=UTC) + timedelta(days=1)
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=published + timedelta(hours=71),
+            published=published.isoformat(),
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-002")
+@pytest.mark.spec("CS-13-001")
+def test_em_propose_embargo_naive_published_datetime_is_read_as_utc(
+    sample_embargo,
+):
+    """A naive ``published`` datetime object is normalised at this edge.
+
+    ``resolve_rsvp_deadline`` no longer guards its inputs (#3784), so the one
+    input not read from a validated object is normalised here — the result
+    is the EP-07-002 refusal, not a ``TypeError`` from comparing naive and
+    aware values.
+    """
+    published = (datetime.now(tz=UTC) + timedelta(days=1)).replace(tzinfo=None)
+    with pytest.raises(VultronActivityConstructionError, match="minimum"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=published.replace(tzinfo=UTC) + timedelta(hours=71),
+            published=published,
+            actor=_ACTOR_URI,
+        )
+
+
+def test_em_propose_embargo_unparseable_published_raises(sample_embargo):
+    with pytest.raises(VultronActivityConstructionError, match="ISO 8601"):
+        em_propose_embargo_activity(
+            embargo=sample_embargo,
+            rsvp_deadline=datetime.now(tz=UTC) + timedelta(days=5),
+            published="not-a-date",
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("EP-07-006")
+def test_em_propose_embargo_naive_embargo_end_is_read_as_utc():
+    """A naive embargo end is compared as UTC, not raised as ``TypeError``."""
+    aware_end = datetime.now(tz=UTC) + timedelta(days=10)
+    embargo = as_EmbargoEvent(
+        context=_CASE_URI, end_time=aware_end.replace(tzinfo=None)
+    )
+    with pytest.raises(VultronActivityConstructionError, match="EP-07-006"):
+        em_propose_embargo_activity(
+            embargo=embargo,
+            rsvp_deadline=aware_end + timedelta(seconds=1),
+            actor=_ACTOR_URI,
+        )
+
+
+# ---------------------------------------------------------------------------
+# em_accept_embargo_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-006")
+@pytest.mark.spec("MSM-02-002")
+def test_em_accept_embargo_returns_accept(sample_proposal):
+    result = em_accept_embargo_activity(
+        proposal=sample_proposal, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Accept)
+
+
+def test_em_accept_embargo_object_is_proposal(sample_proposal):
+    result = em_accept_embargo_activity(
+        proposal=sample_proposal, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_proposal
+
+
+def test_em_accept_embargo_context_is_set(sample_proposal):
+    result = em_accept_embargo_activity(
+        proposal=sample_proposal, context=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert result.context == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_em_accept_embargo_plain_invite_raises(sample_embargo):
+    """A plain as_Invite (not from em_propose_embargo_activity) must fail."""
+    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_embargo)
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        em_accept_embargo_activity(proposal=plain_invite)
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# em_reject_embargo_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-007")
+@pytest.mark.spec("MSM-02-006")
+def test_em_reject_embargo_returns_reject(sample_proposal):
+    result = em_reject_embargo_activity(
+        proposal=sample_proposal, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Reject)
+
+
+def test_em_reject_embargo_object_is_proposal(sample_proposal):
+    result = em_reject_embargo_activity(
+        proposal=sample_proposal, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_proposal
+
+
+def test_em_reject_embargo_context_is_set(sample_proposal):
+    result = em_reject_embargo_activity(
+        proposal=sample_proposal, context=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert result.context == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_em_reject_embargo_plain_invite_raises(sample_embargo):
+    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_embargo)
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        em_reject_embargo_activity(proposal=plain_invite)
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# em_undo_embargo_invite_activity — the CASE_MANAGER withdraws an Invite it
+# sent (ADR-0152)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-013")
+def test_em_undo_embargo_invite_returns_undo_of_the_invite(sample_proposal):
+    result = em_undo_embargo_invite_activity(
+        invite=sample_proposal, context=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Undo)
+    assert result.object_ == sample_proposal
+    assert result.context == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_em_undo_embargo_invite_plain_invite_raises(sample_embargo):
+    plain_invite = as_Invite(actor=_ACTOR_URI, object_=sample_embargo)
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        em_undo_embargo_invite_activity(invite=plain_invite)
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# activate_embargo_activity / reject_embargo_proposal_activity — the case
+# owner's decision, Accept/Reject(EmbargoEvent, target=Case) (ADR-0122)
+# ---------------------------------------------------------------------------
+
+_OWNER_DECISIONS = [
+    pytest.param(activate_embargo_activity, as_Accept, id="activate"),
+    pytest.param(reject_embargo_proposal_activity, as_Reject, id="reject"),
+]
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
+def test_owner_decision_returns_plain_verb(factory, verb, sample_embargo):
+    result = factory(embargo=sample_embargo, actor=_ACTOR_URI)
+    assert isinstance(result, verb)
+
+
+@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
+def test_owner_decision_object_is_the_embargo_itself(
+    factory, verb, sample_embargo
+):
+    """The object is the EmbargoEvent, never the Invite that proposed it."""
+    result = factory(embargo=sample_embargo, actor=_ACTOR_URI)
+    assert result.object_ == sample_embargo
+    assert not isinstance(result.object_, as_Invite)
+
+
+@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
+def test_owner_decision_target_is_the_case(factory, verb, sample_embargo):
+    result = factory(
+        embargo=sample_embargo, target=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert result.target == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+@pytest.mark.parametrize(("factory", "verb"), _OWNER_DECISIONS)
+def test_owner_decision_invalid_raises(factory, verb):
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        factory(embargo="not-an-embargo")  # type: ignore[arg-type]
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# withdraw_from_embargo_activity — a signatory's withdrawal from the embargo
+# in force, Leave(EmbargoEvent)[context=Case] (MSM-07-010)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("MSM-07-010")
+def test_withdraw_from_embargo_is_a_leave_of_the_embargo(sample_embargo):
+    result = withdraw_from_embargo_activity(
+        embargo=sample_embargo, context=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Leave)
+    assert result.object_ == sample_embargo
+    assert result.context == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_withdraw_from_embargo_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        withdraw_from_embargo_activity(embargo="not-an-embargo")  # type: ignore[arg-type]
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# announce_embargo_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-004")
+def test_announce_embargo_returns_announce(sample_embargo):
+    result = announce_embargo_activity(
+        embargo=sample_embargo, actor=_ACTOR_URI
+    )
+    assert isinstance(result, as_Announce)
+
+
+def test_announce_embargo_object_is_embargo(sample_embargo):
+    result = announce_embargo_activity(
+        embargo=sample_embargo, actor=_ACTOR_URI
+    )
+    assert result.object_ == sample_embargo
+
+
+def test_announce_embargo_context_is_set(sample_embargo):
+    result = announce_embargo_activity(
+        embargo=sample_embargo, context=_CASE_URI, actor=_ACTOR_URI
+    )
+    assert result.context == _CASE_URI
+
+
+@pytest.mark.spec("AF-04-001")
+def test_announce_embargo_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        announce_embargo_activity(
+            embargo="not-an-embargo"  # type: ignore[arg-type]
+        )
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# remove_embargo_from_case_activity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("VAM-05-003")
+@pytest.mark.spec("MSM-02-007")
+def test_remove_embargo_from_case_returns_remove(sample_embargo):
+    result = remove_embargo_from_case_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        reason=TerminationReason.EARLY,
+    )
+    assert isinstance(result, as_Remove)
+
+
+def test_remove_embargo_from_case_object_is_embargo(sample_embargo):
+    result = remove_embargo_from_case_activity(
+        embargo=sample_embargo,
+        actor=_ACTOR_URI,
+        reason=TerminationReason.EARLY,
+    )
+    assert result.object_ == sample_embargo
+
+
+def test_remove_embargo_from_case_origin_is_set(sample_embargo):
+    """Uses ``origin`` (not ``target``) for the case reference."""
+    result = remove_embargo_from_case_activity(
+        embargo=sample_embargo,
+        origin=_CASE_URI,
+        actor=_ACTOR_URI,
+        reason=TerminationReason.EARLY,
+    )
+    assert result.origin == _CASE_URI
+
+
+def test_remove_embargo_from_case_target_not_used(sample_embargo):
+    """Confirm target is NOT set (origin is the correct field)."""
+    result = remove_embargo_from_case_activity(
+        embargo=sample_embargo,
+        origin=_CASE_URI,
+        actor=_ACTOR_URI,
+        reason=TerminationReason.EARLY,
+    )
+    assert result.target is None
+
+
+@pytest.mark.spec("AF-04-001")
+def test_remove_embargo_from_case_invalid_raises():
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        remove_embargo_from_case_activity(
+            embargo="not-an-embargo",  # type: ignore[arg-type]
+            reason=TerminationReason.EARLY,
+        )
+    assert exc_info.value.__cause__ is not None
+
+
+# ---------------------------------------------------------------------------
+# __init__.py re-exports (AF-04-002)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("AF-04-002")
+def test_all_embargo_factories_importable_from_package():
+    from vultron.wire.as2.factories import (  # noqa: F401
+        activate_embargo_activity,
+        announce_embargo_activity,
+        em_accept_embargo_activity,
+        em_propose_embargo_activity,
+        em_reject_embargo_activity,
+        reject_embargo_proposal_activity,
+        remove_embargo_from_case_activity,
+    )
+
+
+def _received(activity: as_Invite, **extra: object) -> as_Invite:
+    """*activity* as a receiver parses it from the body its sender sent.
+
+    *extra* adds keys to that body, as a sender that names more than this
+    receiver's vocabulary would.
+    """
+    body = activity.model_dump(
+        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
+    )
+    body.update(extra)
+    return cast(as_Invite, parse_activity(body))
+
+
+@pytest.mark.spec("DL-06-004")
+@pytest.mark.parametrize(
+    "factory", [em_accept_embargo_activity, em_reject_embargo_activity]
+)
+def test_answer_embeds_the_invite_as_its_sender_sent_it(
+    sample_proposal, factory
+):
+    """A received Invite, parsed from its archived body, is embedded as that
+    body, verbatim: its RSVP deadline, its ``cc`` and a key no vocabulary
+    names all survive into the answer (ADR-0149)."""
+    end_time = "2031-02-03T04:05:06+00:00"
+    received = _received(
+        sample_proposal,
+        endTime=end_time,
+        cc=["https://example.org/actors/observer"],
+        fooBar={"kept": True},
+    )
+
+    result = factory(proposal=received, context=_CASE_URI, actor=_ACTOR_URI)
+
+    assert result.object_.id_ == sample_proposal.id_
+    assert result.object_.object_.id_ == sample_proposal.object_.id_
+    # Dumped as the outbox seals an outbound body (OUTBOUND_DUMP_KWARGS).
+    embedded = json.loads(
+        result.model_dump_json(
+            by_alias=True, exclude_none=True, serialize_as_any=True
+        )
+    )["object"]
+    assert embedded == received.received_evidence
+    assert embedded["endTime"] == end_time
+    assert embedded["cc"] == ["https://example.org/actors/observer"]
+    assert embedded["fooBar"] == {"kept": True}
+
+
+@pytest.mark.spec("DL-06-004")
+def test_answer_refuses_core_s_view_of_the_invite(sample_proposal):
+    """A reply embeds what arrived, never a re-dump of core's view of it."""
+    from vultron.semantic_registry import extract_received_activity
+
+    view = ReceivedActivityView(
+        extract_received_activity(_received(sample_proposal))
+    )
+
+    with pytest.raises(VultronActivityConstructionError):
+        em_accept_embargo_activity(
+            proposal=cast(as_Invite, view),
+            context=_CASE_URI,
+            actor=_ACTOR_URI,
+        )
+
+
+@pytest.mark.spec("AF-04-001")
+@pytest.mark.parametrize(
+    "factory", [em_accept_embargo_activity, em_reject_embargo_activity]
+)
+def test_answer_refuses_a_received_activity_that_is_not_an_embargo_invite(
+    factory,
+):
+    """A received activity of another shape fails validation, wrapped."""
+    from vultron.wire.as2.factories import rm_invite_to_case_activity
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCaseStub,
+    )
+
+    case_invite = rm_invite_to_case_activity(
+        "https://example.org/actors/invitee",
+        target=as_VulnerabilityCaseStub(case_id=_CASE_URI, summary="A case"),
+        actor=_ACTOR_URI,
+    )
+
+    with pytest.raises(VultronActivityConstructionError) as exc_info:
+        factory(
+            proposal=_received(case_invite),
+            context=_CASE_URI,
+            actor=_ACTOR_URI,
+        )
+    cause = exc_info.value.__cause__
+    # as_answered's validation of the parsed Invite refused it.
+    assert isinstance(cause, ValidationError)
+    assert cause.title == "_EmProposeEmbargoActivity"

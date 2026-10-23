@@ -1,0 +1,415 @@
+#!/usr/bin/env python
+"""Integration tests for CommitLogEntryBT."""
+
+from unittest.mock import MagicMock
+
+import py_trees
+import pytest
+from py_trees.common import Status
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
+from vultron.core.behaviors.sync.nodes import (
+    CheckLedgerFreshnessNode,
+    CreateLogEntryNode,
+    DeclineForeignLedgerCommitNode,
+    RequireSyncPortNode,
+)
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
+from vultron.core.models._helpers import now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.errors import VultronUnhostedActorError
+
+_ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
+
+OWNER_ACTOR_ID = "https://example.org/actors/vendor"
+PEER_ID = "https://example.org/actors/reporter"
+CASE_ID = "https://example.org/cases/case-sync"
+
+
+def _canonical_note_snapshot(actor_id: str, note_id: str) -> dict[str, object]:
+    return {
+        "type": "Add",
+        "actor": actor_id,
+        # CLP-07-011: recorded snapshots carry the asserter's claimed timestamp.
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "Note",
+            "id": note_id,
+            "context": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+
+
+@pytest.fixture
+def datalayer():
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=OWNER_ACTOR_ID,
+    )
+
+
+@pytest.fixture
+def bridge(datalayer):
+    return BTBridge(datalayer=datalayer)
+
+
+@pytest.fixture
+def case_obj(datalayer):
+    case = VulnerabilityCase(
+        id_=CASE_ID,
+        attributed_to=OWNER_ACTOR_ID,
+        actor_participant_index={
+            OWNER_ACTOR_ID: f"{CASE_ID}/participants/vendor",
+            PEER_ID: f"{CASE_ID}/participants/reporter",
+        },
+    )
+    # The fan-out reads each roster entry's record (CM-10-007).
+    for actor_id, pid in case.actor_participant_index.items():
+        datalayer.save(
+            CaseParticipant(id_=pid, attributed_to=actor_id, context=CASE_ID)
+        )
+    datalayer.save(case)
+    return case
+
+
+def _make_entry(log_index: int, prev_hash: str):
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=log_index,
+            object_id=f"https://example.org/activities/log-{log_index}",
+            semantic_type="test_event",
+            payload_snapshot={},
+            prev_log_hash=prev_hash,
+        )
+    )
+
+
+@pytest.mark.spec("CLP-02-001")
+@pytest.mark.spec("BT-05-006")
+def test_create_commit_log_entry_tree_guards_the_mint():
+    """The commit nodes sit behind the ledger-authority guard (ADR-0073).
+
+    The port guard runs first in the mint, before anything is written
+    (SYNC-02-003, #4113).
+    """
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-1",
+        semantic_type="case_created",
+    )
+    assert tree.name == "CommitLogEntryBT"
+    guard, mint = tree.children
+    assert isinstance(guard, DeclineForeignLedgerCommitNode)
+    assert mint.name == "MintAndFanOutLogEntry"
+    port_guard, freshness_node = mint.children[:2]
+    assert isinstance(port_guard, RequireSyncPortNode)
+    assert isinstance(freshness_node, CheckLedgerFreshnessNode)
+    assert len(mint.children) == 6
+
+
+@pytest.mark.spec("CLP-02-001")
+@pytest.mark.spec("SYNC-01-002")
+@pytest.mark.spec("SYNC-01-003")
+@pytest.mark.spec("SYNC-02-001")
+@pytest.mark.spec("SYNC-02-003")
+@pytest.mark.spec("CLP-08-004")
+def test_commit_tree_persists_entry_and_fans_out(bridge, datalayer, case_obj):
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-1",
+        semantic_type="case_created",
+        payload_snapshot=_canonical_note_snapshot(
+            PEER_ID, "https://example.org/notes/note-1"
+        ),
+    )
+
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    entries = list(datalayer.list_objects("CaseLedgerEntry"))
+    assert len(entries) == 1
+    assert entries[0].log_index == 0
+    assert entries[0].prev_log_hash == case_obj.genesis_hash
+    assert len(entries[0].prev_log_hash) == 64
+    sync_port.send_announce_log_entry.assert_called_once()
+    call_kwargs = sync_port.send_announce_log_entry.call_args.kwargs
+    assert call_kwargs["to"] == [PEER_ID]
+
+
+@pytest.mark.spec("SYNC-02-003")
+@pytest.mark.spec("BT-14-001")
+def test_commit_tree_without_sync_port_is_a_wiring_fault(
+    bridge, datalayer, case_obj
+):
+    """A commit with no sync port fails loudly, before minting (#4113).
+
+    An entry persisted but never announced reaches the replicas only through
+    catch-up replay.  That is the silent skip BT-14-001 rules out, and a
+    missing port is a composition fault, so the bridge reports an internal
+    error naming the port rather than SUCCESS, and no entry is written.
+    """
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-1",
+        semantic_type="case_created",
+        payload_snapshot=_canonical_note_snapshot(
+            PEER_ID, "https://example.org/notes/note-1"
+        ),
+    )
+
+    result = bridge.execute_with_setup(tree=tree, actor_id=OWNER_ACTOR_ID)
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert "sync_port" in result.feedback_message
+    assert datalayer.list_objects("CaseLedgerEntry") == []
+
+
+@pytest.mark.spec("SYNC-01-002")
+@pytest.mark.spec("SYNC-01-003")
+def test_commit_tree_uses_existing_tail_hash(bridge, datalayer, case_obj):
+    first_entry = _make_entry(0, case_obj.genesis_hash)
+    datalayer.save(first_entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = bridge.execute_with_setup(
+        tree=create_commit_log_entry_tree(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-2",
+            semantic_type="case_updated",
+            payload_snapshot=_canonical_note_snapshot(
+                PEER_ID, "https://example.org/notes/note-2"
+            ),
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    entries = sorted(
+        datalayer.list_objects("CaseLedgerEntry"),
+        key=lambda entry: entry.log_index,
+    )
+    assert len(entries) == 2
+    assert entries[1].log_index == 1
+    assert entries[1].prev_log_hash == first_entry.entry_hash
+
+
+@pytest.mark.spec("SYNC-03-003")
+@pytest.mark.spec("CLP-07-002")
+def test_commit_tree_reuses_equivalent_entry(bridge, datalayer, case_obj):
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-3",
+        semantic_type="case_updated",
+        payload_snapshot=_canonical_note_snapshot(
+            PEER_ID, "https://example.org/notes/note-3"
+        ),
+    )
+
+    first = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+    second = bridge.execute_with_setup(
+        tree=create_commit_log_entry_tree(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-3",
+            semantic_type="case_updated",
+            payload_snapshot=_canonical_note_snapshot(
+                PEER_ID, "https://example.org/notes/note-3"
+            ),
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+
+    assert first.status == Status.SUCCESS
+    assert second.status == Status.SUCCESS
+    entries = [
+        entry
+        for entry in datalayer.list_objects("CaseLedgerEntry")
+        if entry.case_id == CASE_ID
+    ]
+    assert len(entries) == 1
+
+
+@pytest.mark.spec("CLP-07-011")
+def test_create_commit_log_entry_tree_default_payload_snapshot_is_empty_dict():
+    """Omitting payload_snapshot passes an empty dict through to CreateLogEntryNode."""
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-cs21",
+        semantic_type="case_created",
+    )
+    create_node = next(
+        c for c in tree.iterate() if isinstance(c, CreateLogEntryNode)
+    )
+    assert create_node.payload_snapshot == {}
+    assert create_node.payload_snapshot is not None
+
+
+_FOREIGN_CASE_ACTOR = "https://other.example.net/actors/case-actor"
+
+
+def _tick_with_blackboard(tree, datalayer, actor_id, sync_port):
+    """Tick *tree* with the blackboard written directly, bypassing BTBridge.
+
+    ``BTBridge`` already refuses a foreign executing actor before any tree
+    ticks (BT-05-005), so reaching the guard as one needs the blackboard set
+    by hand — the shape of a node that misused it.
+    """
+    blackboard = py_trees.blackboard.Client(name="ForeignCommitTest")
+    for key, value in (
+        ("datalayer", datalayer),
+        ("actor_id", actor_id),
+        ("sync_port", sync_port),
+    ):
+        blackboard.register_key(key=key, access=py_trees.common.Access.WRITE)
+        setattr(blackboard, key, value)
+    bt = py_trees.trees.BehaviourTree(root=tree)
+    bt.setup()
+    try:
+        bt.tick()
+    finally:
+        for key in ("datalayer", "actor_id", "sync_port"):
+            py_trees.blackboard.Blackboard.storage.pop(f"/{key}", None)
+
+
+@pytest.mark.spec("BT-05-006")
+@pytest.mark.spec("CLP-08-005")
+@pytest.mark.spec("CLP-10-014")
+def test_commit_tree_raises_for_a_foreign_ledger(datalayer, case_obj):
+    """A commit as an actor this store does not host raises, writing nothing.
+
+    This was the post-handoff shape from #2626: the case owner emitted as a
+    CaseActor on another container, and the commit declined silently while a
+    ``cc:`` copy carried the activity to the real log.  ADR-0109 retired both:
+    no sanctioned path executes a tree as an unhosted actor, so the guard
+    raises (CLP-10-014), before the port guard, the persist or the fan-out.
+    """
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-remote",
+        semantic_type="invite_actor_to_case",
+        payload_snapshot=_canonical_note_snapshot(
+            PEER_ID, "https://example.org/notes/note-remote"
+        ),
+    )
+
+    with pytest.raises(VultronUnhostedActorError):
+        _tick_with_blackboard(tree, datalayer, _FOREIGN_CASE_ACTOR, sync_port)
+
+    assert list(datalayer.list_objects("CaseLedgerEntry")) == []
+    sync_port.send_announce_log_entry.assert_not_called()
+
+
+@pytest.mark.spec("CLP-10-014")
+def test_commit_tree_as_a_foreign_actor_is_an_internal_error(
+    bridge, datalayer, case_obj
+):
+    """Through the bridge the refusal is an internal error, still writing nothing."""
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-remote",
+        semantic_type="invite_actor_to_case",
+    )
+
+    result = bridge.execute_with_setup(
+        tree=tree, actor_id=_FOREIGN_CASE_ACTOR, sync_port=sync_port
+    )
+
+    assert result.status == Status.FAILURE
+    assert result.internal_error is True
+    assert list(datalayer.list_objects("CaseLedgerEntry")) == []
+    sync_port.send_announce_log_entry.assert_not_called()
+
+
+@pytest.mark.spec("BT-05-006")
+@pytest.mark.spec("CLP-10-014")
+@pytest.mark.parametrize(
+    "actor_id",
+    [
+        # This store's own actor, and a CaseActor co-hosted with it: the bridge
+        # can hand the tree that actor's store, so the mint is this store's to
+        # make and the guard stands aside.
+        OWNER_ACTOR_ID,
+        "https://example.org/actors/case-actor",
+    ],
+)
+def test_ledger_store_guard_stands_aside_for_a_hosted_actor(bridge, actor_id):
+    """SUCCESS means "this store holds the log — go commit"."""
+    result = bridge.execute_with_setup(
+        tree=DeclineForeignLedgerCommitNode(name="Guard"),
+        actor_id=actor_id,
+    )
+
+    assert result.status == Status.SUCCESS
+
+
+@pytest.mark.spec("CLP-10-014")
+def test_ledger_store_guard_raises_for_a_foreign_actor(datalayer):
+    """The guard itself is the fail-fast invariant, not a decline."""
+    with pytest.raises(VultronUnhostedActorError):
+        _tick_with_blackboard(
+            DeclineForeignLedgerCommitNode(name="Guard"),
+            datalayer,
+            _FOREIGN_CASE_ACTOR,
+            MagicMock(spec=SyncActivityPort),
+        )
+
+
+@pytest.mark.spec("SYNC-10-001")
+@pytest.mark.spec("SYNC-10-002")
+def test_commit_tree_blocked_when_ledger_has_gap(bridge, datalayer, case_obj):
+    """CommitLogEntryBT MUST NOT mint a new entry when the committed prefix has a gap.
+
+    Simulates a post-restart scenario where the DataLayer contains entries
+    0 and 2 but is missing entry 1, leaving a gap in the hash-chain prefix.
+    CheckLedgerFreshnessNode returns FAILURE and no new entry is persisted.
+    """
+    entry0 = _make_entry(0, case_obj.genesis_hash)
+    datalayer.save(entry0)
+    # Skip index 1 — create a gap by writing entry 2 with a fabricated prev hash.
+    entry2 = _make_entry(2, _ZERO_HASH)
+    datalayer.save(entry2)
+
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-gap",
+        semantic_type="case_updated",
+    )
+
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=OWNER_ACTOR_ID,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    # No new entry was appended; still just entries 0 and 2.
+    entries = sorted(
+        datalayer.list_objects("CaseLedgerEntry"),
+        key=lambda e: e.log_index,
+    )
+    assert len(entries) == 2
+    sync_port.send_announce_log_entry.assert_not_called()

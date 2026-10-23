@@ -1,0 +1,47 @@
+name: Check site publication
+description: >
+  Checks a built `site/` against what the project has decided about
+  publication, so a build cannot ship a withheld artifact or a dead internal
+  reference, or drop a URL an earlier publish served. Shared by every workflow
+  that builds the site (docs-build-check.yml, deploy_site.yml) so the checks
+  cannot drift apart, and in particular so the publishing workflow is gated by
+  exactly what the pull-request workflow is (DOCBW-03-006, DOCBW-03-007,
+  DOCBW-03-008). Run it after the build, and in deploy_site.yml before the
+  Pages upload.
+
+runs:
+  using: composite
+  steps:
+    # DOCBW-03-005: every artifact declared withheld produced no files in
+    # site/. The `docs/ns/` case is why this exists — the page claimed
+    # `draft: true` and shipped anyway, because nothing compared the claim to
+    # the output.
+    - name: Check withheld artifacts are unpublished
+      shell: bash
+      run: |
+        # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
+        # distinguishable by shellcheck, which flags the bare form as SC1007.
+        PYTHONPATH='' uv run docs-withheld
+
+    # DOCBW-03-008: every URL an earlier publish served still resolves, as a
+    # page or a redirect, unless a withheld declaration withdraws it. Once
+    # `publish` advances, a dropped URL is a 404 for everyone who cited it.
+    # Runs even when the withheld check failed, so one run reports both.
+    - name: Check published URLs still resolve
+      if: ${{ !cancelled() }}
+      shell: bash
+      run: |
+        PYTHONPATH='' uv run docs-legacy-urls
+
+    # DOCBW-03-007: every internal href/src/srcset on every built page resolves
+    # to a file the build produced. It walks the whole tree rather than
+    # crawling from index.html, so pages nothing links to are read too, and it
+    # checks the bytes emitted, so links printed by markdown-exec blocks (which
+    # --strict never sees) are covered. The page that advertises a path and the
+    # config that withholds it can live in different files, so no path filter
+    # predicts a break: this runs on every trigger.
+    - name: Check internal references resolve
+      if: ${{ !cancelled() }}
+      shell: bash
+      run: |
+        PYTHONPATH='' uv run docs-links

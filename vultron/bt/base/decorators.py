@@ -14,6 +14,7 @@
 """
 This module defines a number of Behavior Tree Decorator Nodes.
 """
+
 import logging
 
 from vultron.bt.base.bt_node import BtNode
@@ -46,7 +47,7 @@ class Invert(BtDecorator):
 
         if child_status == NodeStatus.FAILURE:
             return NodeStatus.SUCCESS
-        elif child_status == NodeStatus.SUCCESS:
+        if child_status == NodeStatus.SUCCESS:
             return NodeStatus.FAILURE
         return NodeStatus.RUNNING
 
@@ -87,7 +88,7 @@ class ForceSuccess(BtDecorator):
     def _tick(self, depth=0):
         only_child = self.children[0]
         child_status = only_child.tick(depth + 1)
-        logger.debug(f"Child {only_child.name} returns {child_status}")
+        logger.debug("Child %s returns %s", only_child.name, child_status)
         return NodeStatus.SUCCESS
 
 
@@ -99,7 +100,7 @@ class ForceFailure(BtDecorator):
     def _tick(self, depth=0):
         only_child = self.children[0]
         child_status = only_child.tick(depth + 1)
-        logger.debug(f"Child {only_child.name} returns {child_status}")
+        logger.debug("Child %s returns %s", only_child.name, child_status)
         return NodeStatus.FAILURE
 
 
@@ -111,7 +112,7 @@ class ForceRunning(BtDecorator):
     def _tick(self, depth=0):
         only_child = self.children[0]
         child_status = only_child.tick(depth + 1)
-        logger.debug(f"Child {only_child.name} returns {child_status}")
+        logger.debug("Child %s returns %s", only_child.name, child_status)
         return NodeStatus.RUNNING
 
 
@@ -140,7 +141,7 @@ class RetryN(LoopDecorator):
 
     def _tick(self, depth=0):
         only_child = self.children[0]
-        for i in range(self.n):
+        for _i in range(self.n):
             child_status = only_child.tick(depth + 1)
             self.count += 1
             if child_status == NodeStatus.FAILURE:
@@ -162,7 +163,7 @@ class RepeatN(LoopDecorator):
 
     def _tick(self, depth=0):
         only_child = self.children[0]
-        for i in range(self.n):
+        for _i in range(self.n):
             child_status = only_child.tick(depth + 1)
             self.count += 1
             if child_status == NodeStatus.SUCCESS:

@@ -1,0 +1,636 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""The activity-typed RM handlers apply the RM rule of Add(ParticipantStatus).
+
+Report valid / invalid and engage / defer each declare one RM state for their
+sender.  The CASE_MANAGER adjudicates that declaration exactly as it
+adjudicates the ``rmState`` of an ``Add(ParticipantStatus)``: a forward move is
+recorded, a non-adjacent one included and flagged with the RSH-06-004 note; a
+backward one is refused and the recorded state kept (RSH-06-006).
+
+Every case comes from the table in ``test/support/rm_declaration.py`` that
+``test/core/behaviors/status/test_participant_status_acceptance.py`` runs
+the ``Add(ParticipantStatus)`` path against, so the two paths are asserted
+against the same rows (#3813 AC-4).
+
+The handlers run as the CASE_MANAGER, in its store; the subject of every write
+is the sender (RSH-08-001).  ``Close(Report)`` declares no RM state the
+CASE_MANAGER adjudicates: on a case every sender's is refused (CM-23-019,
+``test/core/use_cases/received/test_close_report_on_case.py``).
+"""
+
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass
+from itertools import pairwise
+from typing import Any, cast
+
+import pytest
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import (
+    activate,
+    agree_to_active_embargo,
+    write_consent_rows,
+)
+from test.support.rm_declaration import (
+    ACTOR_ID,
+    CASE_ID,
+    CASE_MANAGER_ID,
+    CM_PARTICIPANT_ID,
+    PARTICIPANT_ID,
+    REPORT_ID,
+    STRANGER_ID,
+    RMDeclarationCase,
+    assert_anomaly_flagged_and_noted,
+    cases_declaring,
+    committed_since,
+    current_status,
+    note_content,
+    recorded_notes,
+    recorded_rm,
+    seed_case,
+    status_count,
+)
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.status.add_participant_status_tree import (
+    add_participant_status_tree,
+)
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.cs import CS_pxa, CS_vf
+from vultron.core.states.rm import RM, RMDeclaration
+from vultron.core.sync_helpers import ledger_tail_position
+from vultron.core.use_cases.received.case.engage_defer import (
+    DeferCaseReceivedUseCase,
+    EngageCaseReceivedUseCase,
+)
+from vultron.core.use_cases.received.report import (
+    InvalidateReportReceivedUseCase,
+    ValidateReportReceivedUseCase,
+)
+from vultron.core.use_cases.received.status import (
+    AddParticipantStatusToParticipantReceivedUseCase,
+)
+from vultron.wire.as2.factories import (
+    add_status_to_participant_activity,
+    rm_defer_case_activity,
+    rm_engage_case_activity,
+    rm_invalidate_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
+)
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+
+def _offer() -> Any:
+    return rm_submit_report_activity(
+        as_VulnerabilityReport(id_=REPORT_ID, name="Shared RM table report"),
+        to=ACTOR_ID,
+        actor="https://example.org/actors/finder",
+    )
+
+
+def _case_ref() -> as_VulnerabilityCase:
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Issue 2235 Case"
+    )
+
+
+@dataclass(frozen=True)
+class _Handler:
+    """One activity-typed RM handler: the RM it declares and how to send it."""
+
+    declared: RM
+    use_case: type
+    build: Callable[[str], Any]
+
+
+_HANDLERS: dict[RM, _Handler] = {
+    RM.VALID: _Handler(
+        RM.VALID,
+        ValidateReportReceivedUseCase,
+        lambda actor: rm_validate_report_activity(
+            _offer(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
+    ),
+    RM.INVALID: _Handler(
+        RM.INVALID,
+        InvalidateReportReceivedUseCase,
+        lambda actor: rm_invalidate_report_activity(
+            _offer(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
+    ),
+    RM.ACCEPTED: _Handler(
+        RM.ACCEPTED,
+        EngageCaseReceivedUseCase,
+        lambda actor: rm_engage_case_activity(
+            _case_ref(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
+    ),
+    RM.DEFERRED: _Handler(
+        RM.DEFERRED,
+        DeferCaseReceivedUseCase,
+        lambda actor: rm_defer_case_activity(
+            _case_ref(), actor=actor, to=[CASE_MANAGER_ID]
+        ),
+    ),
+}
+
+
+def _seed(dl: SqliteDataLayer, current: RM) -> None:
+    """The CASE_MANAGER's replica, with the sender recorded at *current*."""
+    seed_case(dl, current_status(current, CS_vf.Vf, CS_pxa.pxa), None)
+    # DUR-07-004: the validate path needs an embargo on the case.  The
+    # CASE_MANAGER's store holds the embargo and the report the case names,
+    # so a broadcast to the active sender can carry them (EMB-18-003).
+    dl.create(
+        VulnerabilityReport(id_=REPORT_ID, name="Shared RM table report")
+    )
+    embargo = EmbargoEvent(
+        id_=f"{CASE_ID}/embargoes/shared-table",
+        context=CASE_ID,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(embargo)
+    case = cast(VulnerabilityCase, dl.read(CASE_ID))
+    activate(case, embargo)
+    dl.save(case)
+    write_consent_rows(dl, case)
+    # The sender acts on the case, so it must be an active participant: a
+    # signatory to the embargo in force (CM-10-004, CM-23-018).
+    agree_to_active_embargo(dl, case, ACTOR_ID)
+
+
+def _deliver(
+    dl: SqliteDataLayer, declared: RM, make_payload, sender: str = ACTOR_ID
+) -> Any:
+    handler = _HANDLERS[declared]
+    event = make_payload(handler.build(sender))
+    return handler.use_case(
+        dl,
+        event,
+        trigger_activity=TriggerActivityAdapter(dl),
+        sync_port=SyncActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+    ).execute()
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestActivityTypedHandlersApplyTheSharedRule:
+    """Each handler, against every row of the shared table that it declares."""
+
+    @pytest.mark.spec("RSH-06-001")
+    @pytest.mark.spec("RSH-06-002")
+    @pytest.mark.spec("RSH-06-006")
+    @pytest.mark.spec("RSH-08-001")
+    @pytest.mark.parametrize("case", cases_declaring(*_HANDLERS))
+    def test_records_what_the_rule_accepts(
+        self, case: RMDeclarationCase, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, case.current)
+        before = status_count(dl)
+
+        result = _deliver(dl, case.declared, make_payload)
+
+        assert recorded_rm(dl) == case.expected_rm
+        if case.verdict is RMDeclaration.CONFIRMATION:
+            assert status_count(dl) == before, (
+                "a confirmation is recorded once (RSH-08-002)"
+            )
+            # Engage still runs the CASE_MANAGER's broadcast, and validate
+            # skips only on its report-link latch (absent in this store), so
+            # neither is a pure no-op; the rest report the restatement as
+            # skipped.
+            if case.declared in (RM.ACCEPTED, RM.VALID):
+                assert result.disposition is HandlerDisposition.APPLIED, (
+                    result.reason
+                )
+            else:
+                assert result.disposition is HandlerDisposition.SKIPPED, (
+                    result.reason
+                )
+        elif case.accepted:
+            assert result.disposition is HandlerDisposition.APPLIED, (
+                result.reason
+            )
+            assert status_count(dl) == before + 1, "one move, one record"
+        else:
+            assert result.disposition is HandlerDisposition.REFUSED
+            assert status_count(dl) == before, "a refusal writes nothing"
+
+    @pytest.mark.spec("RSH-06-003")
+    @pytest.mark.spec("RSH-06-004")
+    @pytest.mark.spec("RSH-06-005")
+    @pytest.mark.parametrize("case", cases_declaring(*_HANDLERS))
+    def test_flags_and_notes_the_same_anomalies(
+        self, case: RMDeclarationCase, store_for, make_payload, caplog
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, case.current)
+
+        with caplog.at_level(logging.WARNING):
+            _deliver(dl, case.declared, make_payload)
+
+        # Same as the Add(ParticipantStatus) path.
+        assert_anomaly_flagged_and_noted(case, dl, caplog.records)
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestClosedSenderIsRefusedBeforeTheRule:
+    """A sender at RM CLOSED may not act, so the rule never runs (CM-23-018).
+
+    Its declaration is refused by the sender guard: nothing is recorded,
+    nothing is committed, and no RSH-06-004 note is sent.
+    """
+
+    @pytest.mark.spec("CM-23-018")
+    @pytest.mark.parametrize(
+        "case", cases_declaring(*_HANDLERS, sender_closed=True)
+    )
+    def test_closed_sender_is_refused_with_nothing_sent(
+        self, case: RMDeclarationCase, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, case.current)
+        before = status_count(dl)
+        tail = ledger_tail_position(CASE_ID, dl)
+
+        outbox_before = list(dl.outbox_list())
+
+        result = _deliver(dl, case.declared, make_payload)
+
+        assert result.disposition is HandlerDisposition.REFUSED, result.reason
+        assert "CM-23-018" in (result.reason or ""), result.reason
+        assert list(dl.outbox_list()) == outbox_before
+        assert recorded_rm(dl) == RM.CLOSED
+        assert status_count(dl) == before, "a refusal writes nothing"
+        assert ledger_tail_position(CASE_ID, dl) == tail, "nothing committed"
+        assert recorded_notes(dl) == []
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestSenderMustBeAParticipant:
+    """Every activity-typed RM handler refuses a non-participant (HP-01-006)."""
+
+    @pytest.mark.spec("HP-01-006")
+    @pytest.mark.parametrize(
+        "declared", list(_HANDLERS), ids=lambda rm: rm.name
+    )
+    def test_non_participant_sender_is_refused(
+        self, declared: RM, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.RECEIVED)
+        before = status_count(dl)
+        manager_before = status_count(dl, CM_PARTICIPANT_ID)
+
+        result = _deliver(dl, declared, make_payload, sender=STRANGER_ID)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert status_count(dl) == before
+        # Not the receiver's either: the receiver is not the mover (RSH-08-001).
+        assert status_count(dl, CM_PARTICIPANT_ID) == manager_before
+
+
+def _run_status_declaration(dl: SqliteDataLayer, rm: RM, make_payload) -> Any:
+    """Deliver ``Add(ParticipantStatus)`` declaring *rm* for the sender."""
+    status = as_ParticipantStatus(
+        id_=f"{PARTICIPANT_ID}/statuses/declared-{rm.name.lower()}",
+        context=CASE_ID,
+        attributed_to=ACTOR_ID,
+        rm=RmDimension(state=rm),
+    )
+    dl.create(status)
+    activity = add_status_to_participant_activity(
+        status=status,
+        target=as_CaseParticipant(
+            id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+        ),
+        actor=ACTOR_ID,
+        to=[CASE_MANAGER_ID],
+        context=_case_ref(),
+    )
+    event = make_payload(activity)
+    bridge = BTBridge(
+        datalayer=dl,
+        trigger_activity=TriggerActivityAdapter(dl),
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    )
+    return bridge.execute_with_setup(
+        tree=add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        ),
+        actor_id=CASE_MANAGER_ID,
+        activity=event,
+    )
+
+
+def _rm_history(dl: SqliteDataLayer) -> list[RM]:
+    participant = cast(CaseParticipant, dl.read(PARTICIPANT_ID))
+    return [s.rm.state for s in participant.participant_statuses]
+
+
+def _transitions(history: list[RM]) -> list[tuple[RM, RM]]:
+    return [(a, b) for a, b in pairwise(history) if a != b]
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestActAndDeclarationAreOneMove:
+    """An act and its matching status declaration are one move (RSH-08-002)."""
+
+    @pytest.mark.spec("RSH-08-002")
+    def test_act_then_declaration_is_a_confirmation(
+        self, store_for, make_payload, caplog
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.RECEIVED)
+        seeded = len(_rm_history(dl)) - 1
+
+        with caplog.at_level(logging.WARNING):
+            act = _deliver(dl, RM.INVALID, make_payload)
+            declaration = _run_status_declaration(dl, RM.INVALID, make_payload)
+
+        assert act.disposition is HandlerDisposition.APPLIED, act.reason
+        assert declaration.status.name == "SUCCESS"
+        assert _transitions(_rm_history(dl)[seeded:]) == [
+            (RM.RECEIVED, RM.INVALID)
+        ]
+        assert recorded_notes(dl) == []
+        assert not [r for r in caplog.records if "RM " in r.getMessage()]
+
+    @pytest.mark.spec("RSH-08-002")
+    def test_declaration_then_act_is_a_confirmation(
+        self, store_for, make_payload, caplog
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.RECEIVED)
+        seeded = len(_rm_history(dl)) - 1
+
+        _run_status_declaration(dl, RM.INVALID, make_payload)
+        before = status_count(dl)
+        with caplog.at_level(logging.WARNING):
+            act = _deliver(dl, RM.INVALID, make_payload)
+
+        assert act.disposition is HandlerDisposition.SKIPPED, act.reason
+        assert status_count(dl) == before, "a confirmation is recorded once"
+        assert _transitions(_rm_history(dl)[seeded:]) == [
+            (RM.RECEIVED, RM.INVALID)
+        ]
+        assert recorded_notes(dl) == []
+        assert not [
+            r for r in caplog.records if "declared by" in r.getMessage()
+        ]
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestAnomalyFlagDoesNotLeakAcrossRuns:
+    """A gap flagged by one run posts no note in a later run (RSH-06-004).
+
+    ``BB_RM_ANOMALY`` lives on py_trees' process-global blackboard, so the
+    guard must clear it on every tick; otherwise a later confirmation would
+    re-post the earlier run's clarification note.
+    """
+
+    @pytest.mark.spec("RSH-06-004")
+    @pytest.mark.spec("RSH-08-002")
+    def test_confirmation_after_a_gap_posts_no_note(
+        self, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.RECEIVED)
+        _deliver(dl, RM.DEFERRED, make_payload)
+        assert len(recorded_notes(dl)) == 1, "precondition: one gap note"
+
+        # The sender is now recorded DEFERRED: a restated DEFERRED confirms.
+        result = _deliver(dl, RM.DEFERRED, make_payload)
+
+        assert result.disposition is HandlerDisposition.SKIPPED, result.reason
+        assert len(recorded_notes(dl)) == 1, "the confirmation posts no note"
+
+
+def _status_declaration(
+    rm: RM, sender_id: str = ACTOR_ID, to: str = CASE_MANAGER_ID
+) -> Any:
+    """``Add(ParticipantStatus)`` declaring *rm* for the participant.
+
+    *sender_id* sends it to *to*: the participant itself to the CASE_MANAGER
+    by default, or the CASE_MANAGER relaying it to a replica (PCR-03-001).
+    """
+    status = as_ParticipantStatus(
+        id_=f"{PARTICIPANT_ID}/statuses/declared-{rm.name.lower()}",
+        context=CASE_ID,
+        attributed_to=ACTOR_ID,
+        rm=RmDimension(state=rm),
+    )
+    return status, add_status_to_participant_activity(
+        status=status,
+        target=as_CaseParticipant(
+            id_=PARTICIPANT_ID, context=CASE_ID, attributed_to=ACTOR_ID
+        ),
+        actor=sender_id,
+        to=[to],
+        context=_case_ref(),
+    )
+
+
+@pytest.mark.executes_as(CASE_MANAGER_ID)
+class TestRefusedRegressionIsNoted:
+    """A wholly refused backward declaration still gets its note (#4310).
+
+    The refusal ends the tree before the commit, so the RSH-06-004 note
+    comes from the factory's refusal-effects stage (CLP-10-022): once per
+    received activity, at the CASE_MANAGER, which commits nothing of the
+    declaration and only its own note.
+    """
+
+    @pytest.mark.spec("RSH-06-004")
+    @pytest.mark.spec("CLP-10-022")
+    def test_status_path_refuses_commits_nothing_and_notes(
+        self, store_for, make_payload
+    ):
+        from vultron.core.use_cases.received.status import (
+            AddParticipantStatusToParticipantReceivedUseCase,
+        )
+
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.ACCEPTED)
+        status, activity = _status_declaration(RM.VALID)
+        dl.create(status)
+        tail = ledger_tail_position(CASE_ID, dl)
+
+        result = AddParticipantStatusToParticipantReceivedUseCase(
+            dl,
+            make_payload(activity),
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert recorded_rm(dl) == RM.ACCEPTED
+        assert committed_since(dl, tail.log_index) == ["add_note_to_case"], (
+            "only the CASE_MANAGER's note is committed"
+        )
+        notes = recorded_notes(dl)
+        assert len(notes) == 1
+        assert "backward" in note_content(notes[0])
+
+    @pytest.mark.spec("RSH-06-004")
+    @pytest.mark.spec("CLP-10-022")
+    def test_activity_typed_refusal_commits_nothing_and_notes(
+        self, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.ACCEPTED)
+        tail = ledger_tail_position(CASE_ID, dl)
+
+        result = _deliver(dl, RM.INVALID, make_payload)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert recorded_rm(dl) == RM.ACCEPTED
+        assert committed_since(dl, tail.log_index) == ["add_note_to_case"], (
+            "only the CASE_MANAGER's note is committed"
+        )
+        assert len(recorded_notes(dl)) == 1
+
+    @pytest.mark.spec("CLP-10-022")
+    @pytest.mark.parametrize("declared", [RM.VALID, RM.INVALID])
+    def test_a_redelivered_refusal_posts_no_second_note(
+        self, declared: RM, store_for, make_payload
+    ):
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.ACCEPTED)
+        event = make_payload(_HANDLERS[declared].build(ACTOR_ID))
+
+        def deliver() -> Any:
+            return (
+                _HANDLERS[declared]
+                .use_case(
+                    dl,
+                    event,
+                    trigger_activity=TriggerActivityAdapter(dl),
+                    sync_port=SyncActivityAdapter(dl),
+                    wire_render_port=As2WireRenderAdapter(),
+                )
+                .execute()
+            )
+
+        first = deliver()
+        assert first.disposition is HandlerDisposition.REFUSED
+        assert len(recorded_notes(dl)) == 1, "the first delivery is noted"
+
+        second = deliver()
+
+        assert second.disposition is HandlerDisposition.REFUSED
+        assert len(recorded_notes(dl)) == 1, "the redelivery is not"
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_second_refused_activity_gets_its_own_note(
+        self, store_for, make_payload
+    ):
+        """The redelivery skip is per activity, not per sender or case."""
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.ACCEPTED)
+
+        first = _deliver(dl, RM.VALID, make_payload)
+        second = _deliver(dl, RM.INVALID, make_payload)
+
+        assert first.disposition is HandlerDisposition.REFUSED
+        assert second.disposition is HandlerDisposition.REFUSED
+        assert len(recorded_notes(dl)) == 2
+
+    @pytest.mark.spec("BT-17-008")
+    @pytest.mark.spec("CLP-10-022")
+    def test_only_the_case_manager_answers_a_refusal(
+        self, store_for, make_payload
+    ):
+        # The vendor's own replica: a participant, not the CASE_MANAGER.  A
+        # replica takes the update from the CASE_MANAGER alone (PCR-03-001),
+        # so the CASE_MANAGER relays it and it reaches the adjudication.
+        dl = store_for(ACTOR_ID)
+        _seed(dl, RM.ACCEPTED)
+        status, activity = _status_declaration(
+            RM.VALID, sender_id=CASE_MANAGER_ID, to=ACTOR_ID
+        )
+        dl.create(status)
+        event = make_payload(activity)
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+
+        tree = add_participant_status_tree(
+            request=event,
+            case_id=CASE_ID,
+            sender_rule=AddParticipantStatusToParticipantReceivedUseCase.sender_entitlement,
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+
+        assert result.status.name == "FAILURE"
+        # The refusal is the adjudication's, so the refusal stage ran and
+        # only the CASE_MANAGER gate kept the note back.
+        reason = BTBridge.get_failure_reason(tree)
+        assert "rm: ACCEPTED → VALID moves RM backwards" in reason, reason
+        assert recorded_notes(dl) == []
+
+    @pytest.mark.spec("CLP-10-022")
+    def test_a_refusal_ahead_of_the_adjudication_posts_no_stale_note(
+        self, store_for, make_payload
+    ):
+        """An earlier run's anomaly does not leak into a later refusal.
+
+        A stranger's declaration is refused by the participant guard, ahead
+        of the adjudication; the regression flagged by the run before it must
+        not be noted again.
+        """
+        dl = store_for(CASE_MANAGER_ID)
+        _seed(dl, RM.ACCEPTED)
+        _deliver(dl, RM.VALID, make_payload)
+        assert len(recorded_notes(dl)) == 1, (
+            "precondition: one regression note"
+        )
+
+        result = _deliver(dl, RM.INVALID, make_payload, sender=STRANGER_ID)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert len(recorded_notes(dl)) == 1

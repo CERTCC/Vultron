@@ -1,0 +1,771 @@
+id: HP
+title: Handler Protocol
+description: Handler use-case classes process `VultronEvent` domain objects and implement protocol business logic. All handlers
+  follow a common contract defined by the `UseCase` Protocol.
+scope:
+- prototype
+- production
+tags:
+- messaging
+- protocol
+groups:
+- id: HP-00
+  title: Protocol Semantics
+  specs:
+  - id: HP-00-001
+    priority: MUST
+    kind: protocol
+    statement: Handlers MUST interpret received activities as assertions about the sender's state, not as commands to perform
+      work
+    verification: Inspection of all handler `execute()` methods confirms they update local state machine records from
+      the received `VultronEvent` payload and issue no imperative outbound commands in direct response to receipt.
+    stories:
+    - story_2022_002
+  - id: HP-00-002
+    priority: MUST
+    kind: protocol
+    statement: Handlers MUST update local RM/EM/CS state to reflect the state transition asserted by the received activity
+    verification: Integration tests in `test/demo/` confirm that each inbound activity type results in the expected
+      RM, EM, or CS state change in the receiver's DataLayer after the handler completes.
+    stories:
+    - story_2022_074
+    - story_2022_088
+- id: HP-01
+  title: Handler Signature
+  specs:
+  - id: HP-01-001
+    priority: MUST
+    kind: project
+    statement: >-
+      All handler use-case classes MUST accept `(dl, request)` as `__init__`
+      parameters — `dl` a narrow persistence port (`CasePersistence` or
+      `CaseOutboxPersistence`, DL-07) and `request` the handler's concrete
+      `VultronEvent` subclass — and their `execute()` method MUST take no arguments
+    verification: >-
+      `test/architecture/test_use_case_execute_returns_result.py` reads every
+      `execute()` under `vultron/core/use_cases/` (outside `triggers/`) and
+      fails on one that takes any parameter beyond `self` or lacks a
+      `UseCaseResult` return annotation;
+      `test/test_semantic_registry.py::test_each_use_case_accepts_the_event_class_its_semantics_route`
+      checks that each handler's `__init__` annotates `request` as the
+      `VultronEvent` subclass its `SEMANTIC_REGISTRY` entry pairs it with. The
+      `(dl, request)` constructor shape is declared by the `UseCase` Protocol in
+      `vultron/core/ports/use_case.py`.
+  - id: HP-01-002
+    priority: MUST
+    kind: project
+    statement: >-
+      Handler use-case `execute` methods MUST return `HandlerResult`; `None` is not a
+      permitted return type
+    rationale: >-
+      The return value has a consumer: the handler's `HandlerDisposition` is the
+      only thing that can tell `InboxOutcome` whether an inbound assertion was
+      applied, skipped, deferred, or refused (ADR-0095). A permitted `-> None`
+      would be ambiguous between "nothing to report" and "not yet migrated" and
+      would contradict UCORG-05-002.
+    verification: >-
+      `test/architecture/test_use_case_execute_returns_result.py` resolves every
+      received-side `execute()` return annotation and fails unless it is
+      `UseCaseResult` or a subtype; `DispatcherBase._handle()` raises when a
+      handler returns anything other than a `HandlerResult`.
+    relationships:
+    - rel_type: implements
+      spec_id: UCORG-05-002
+    adr:
+    - ADR-0095
+  - id: HP-01-003
+    priority: MUST
+    kind: project
+    statement: >-
+      A handler MUST report a `HandlerDisposition` of `REFUSED` only when it rejected the
+      inbound assertion; it MUST report `SKIPPED` for a legitimate no-op such as a duplicate
+      or already-present record, and `DEFERRED` when it parked the item for later replay
+      rather than declining it. A benign skip or a deferral MUST NOT be reported as `REFUSED`
+    rationale: >-
+      Not every behavior-tree FAILURE is a refusal, and not every SUCCESS is applied work.
+      `received/status.py` already special-cases `CASE_STATUS_ALREADY_PRESENT` to keep an
+      idempotent skip from reading as a failure, and the ledger-sync buffer nodes return
+      SUCCESS for an entry they have only parked. Conflating either with a refusal would
+      promote it to `InboxOutcome.status == "rejected"` and produce false alarms; conflating
+      a deferral with `APPLIED` or `SKIPPED` hides the fact that a replay is pending. See
+      ADR-0095 and issue #2255.
+    verification: >-
+      `test/core/ports/test_use_case.py::TestUnknownUseCase::test_execute_refuses_unrecognized_activity`
+      and the `HP-01-003`-marked tests under `test/core/use_cases/received/` drive each
+      handler through its skip, defer, and refuse exits and assert the disposition each one
+      earns — a redelivered duplicate is `SKIPPED`, a parked item is `DEFERRED`, and only a
+      refused assertion is `REFUSED`;
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` carries each disposition
+      through the dispatcher to `InboxOutcome`.
+    adr:
+    - ADR-0095
+  - id: HP-01-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      Handler use cases MUST NOT return or reference `InboxOutcome` or its
+      `processed`/`deferred`/`rejected` vocabulary; mapping `HandlerDisposition` onto
+      `InboxOutcome` is owned by `DispatchNode`
+    rationale: >-
+      Keeps the inbox-pipeline vocabulary out of the core use-case layer. A handler reports
+      what *it* did, in its own vocabulary; whether that becomes `processed`, `deferred`, or
+      `rejected` is a pipeline concern, and two dispositions already collapse onto
+      `processed`. Note this is a layering rule, not a claim about which outcomes a handler
+      can cause: a handler can produce a deferral (`HandlerDisposition.DEFERRED`), it just
+      must not say so in `InboxOutcome`'s words.
+    verification: >-
+      `test/architecture/test_use_cases_no_inbox_outcome.py` fails when any module under
+      `vultron/core/use_cases/` names `InboxOutcome` or `InboxOutcomeStatus` (exact
+      `KNOWN_VIOLATIONS` set, ARCH-18-001);
+      `test/core/behaviors/inbox/test_process_payload.py::TestProcessPayloadHandlerDisposition`
+      shows `DispatchNode` alone mapping each `HandlerDisposition` onto `InboxOutcome.status`.
+    adr:
+    - ADR-0095
+  - id: HP-01-005
+    priority: MUST
+    kind: project
+    statement: >-
+      A handler that receives a message it holds no role or addressing to act on MUST report
+      `REFUSED` with a reason naming the missing role or addressing. That covers a
+      CASE_MANAGER-addressed message at an actor that is not the case's CASE_MANAGER, and a copy
+      of an activity whose `to` does not name the receiving actor. `cc`, `bto` and `bcc` address
+      no Vultron recipient (OX-08-001, ADR-0109), so a `cc`-only receiver is such a copy, of an
+      `Offer(Report)` (HP-09-001, HP-09-002, HP-10-001) as of any other. Such a receipt is not a
+      legitimate no-op and MUST NOT be reported as `SKIPPED`; `SKIPPED` is reserved for a
+      duplicate or otherwise idempotent re-delivery of a message the receiver was entitled to
+      act on
+    rationale: >-
+      A role gate skips as SUCCESS so that the CASE_MANAGER's own failure stays distinguishable
+      from a non-manager's no-op (BTND-07-005), and several handlers read that skip as "not my
+      job" and reported `SKIPPED`, which `DispatchNode` records as `processed`. The receiver's
+      inbox then showed a misaddressed message as a successful receipt. The disposition is the
+      receiver's own report on its own handling (HP-01-004): it never says anything about
+      another actor. A message the receiver could not act on was addressed to the wrong party
+      by its sender — or, for a courtesy copy the protocol gives it no standing to act on,
+      addressed in a way that asked nothing of it — and `REFUSED` with a reason is the record
+      that says so. Under the narrowed `SKIPPED`, an addressee's first receipt of a message
+      that is now pending its own decision (the Case Owner and `Offer(CaseParticipant)`) is
+      `APPLIED`: it is neither a duplicate nor a refusal. So is a participant's first receipt
+      of the CASE_MANAGER's direct notice that it was removed or reinstated (CM-31-006,
+      CM-31-011): the participant is the notice's rightful addressee, stores it, and applies
+      the move from its ledger entry (CM-31-007). See #3752 and #5010.
+    verification: >-
+      The `HP-01-005`-marked tests under `test/core/use_cases/received/` drive each affected
+      handler at a receiver that is not the CASE_MANAGER, or not an entitled addressee, and
+      assert `REFUSED` with no protocol effect: an empty outbox and no case-state write.
+      There are two deliberate retentions. One is `Offer(Report)`, whose handler stores the
+      report and the Offer before the addressing check so that a receiver with
+      `auto_create_case` off keeps the data for a later explicit decision (CM-15-002); the
+      refused receipt still proposes no case. The other is a `Join(VulnerabilityCase)`
+      carrying a case snapshot, whose embargo is held before the CASE_MANAGER gate
+      (EMB-18-003); the refused receipt still records and sends nothing. A control test per
+      handler shows the CASE_MANAGER or entitled addressee still acts.
+    adr:
+    - ADR-0095
+  - id: HP-01-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A handler MUST establish that the sender of a received activity is entitled to make
+      its assertion before any write, outbound activity or ledger commit, and MUST report
+      `REFUSED` with a reason naming the missing entitlement when it cannot. Entitlement is
+      the sender's standing, not the receiver's: the governing group's sender clause names
+      it per message (CM-11-017, CM-16-019, CM-21-011, CM-30-001, CM-30-002, CM-33-002,
+      CM-33-004, CM-33-005, CP-06-005, HP-01-010, RMB-08-004, SYNC-03-005), and a receiver
+      role check such as the CASE_MANAGER gate (BT-17-001) never satisfies it.
+    rationale: >-
+      A received activity is an assertion about the sender's state (HP-00-001), so the
+      first question is whether the sender may assert it. An audit found handlers that let
+      any actor claim ownership, admit itself, or obtain the full ledger, each behind a
+      CASE_MANAGER gate that checked only the receiver. See #3733 and ADR-0115.
+    verification: >-
+      A test marked `HP-01-006`
+      drives a received handler with a sender that holds no entitlement and asserts
+      `REFUSED` with no case-state write. Per-message coverage is under the sender clauses
+      this entry names.
+    stories:
+    - story_2022_035
+    - story_2022_036
+    relationships:
+    - rel_type: depends_on
+      spec_id: HP-00-001
+    - rel_type: refines
+      spec_id: HP-01-005
+    adr:
+    - ADR-0115
+  - id: HP-01-007
+    priority: MUST
+    kind: architecture
+    statement: >-
+      Every received use case MUST declare its sender entitlement exactly once, as either a
+      sender rule (HP-01-008) or an exemption carrying a reason, and the receive-tree
+      factory MUST compose the matching guard from the single sender-entitlement module into
+      the tree's guard stage. A handler MUST NOT implement its own sender predicate, and the module
+      MUST NOT have a twin.
+    rationale: >-
+      Sender checks already existed in seven near-duplicate forms across `behaviors/` and
+      `use_cases/` before this rule, and the handlers that lacked one were found only by a
+      manual audit. One declaration read by the factory and by a ratchet makes a missing
+      check a test failure and makes the remaining gaps a visible exemption list. See
+      ADR-0115.
+    verification: >-
+      An architecture test under `test/architecture/` walks `SEMANTIC_REGISTRY`, fails on a
+      received use case with no entitlement declaration, and fails on a sender predicate
+      defined outside the sender-entitlement module.
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0115
+  - id: HP-01-008
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A declared sender entitlement MUST state the full rule the receiver applies: it MUST
+      be composed of entitlement kinds, MAY require any one of several kinds, and MUST state
+      the standing required for each addressee the activity is sent to: the CASE_MANAGER, a
+      participant, or, for an activity sent before a case exists, an actor outside any
+      case. The receive-tree factory MUST compose the guard from the declaration alone, and a tree
+      MUST NOT add a sender check narrower than its declaration.
+    rationale: >-
+      When this was written, `Remove(Note)` declared "an active participant" while CM-30-001
+      entitles only the note's author or the Case Owner, and the embargo Invite declared one
+      kind while its check is two-sided; the full rules lived inside the trees. A
+      declaration that is only a floor is a second sender predicate in disguise, and
+      anything derived from it, such as the occasion table's "Sent by" (MSM-08-005),
+      understates who may send. See ADR-0129.
+    verification: >-
+      A unit test composes a guard from an any-of declaration and from a two-sided
+      declaration and asserts each side admits exactly its kinds. The HP-01-007 ratchet also
+      fails on a sender-entitlement condition node composed inside a tree rather than by the
+      factory from the declaration, and on a non-exempt declaration that states no side for
+      an addressee one of its use case's occasions names (MSM-08-009).
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-007
+    adr:
+    - ADR-0115
+    - ADR-0129
+  - id: HP-01-009
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The entitlement kinds MUST be the closed vocabulary of sender standings, covering both
+      roles a participant holds and positions held within one exchange (such as the invitee,
+      the addressee of a request and the author of an object). A position MUST NOT be added
+      to `CVDRole`, and a position a new rule needs MUST be added as an entitlement kind.
+      The addressee of a request MUST be one kind whatever the request, except that the
+      invitee of a recorded Invite is its own kind.
+    rationale: >-
+      A `CVDRole` value is a durable fact stored on a participant record, while a position
+      is held relative to one exchange; the same coordinator receives one report and sends
+      the next, and a report precedes any case. Keeping positions as kinds means a position
+      named in the docs is always one a receiver enforces. One addressee kind keeps one
+      guard per check mechanism; the request it names is supplied when it is worded
+      (MSM-08-010). The invitee is checked against the recorded Invite itself rather than
+      against an addressee the receiver recorded, and is the protocol's established term
+      (EP-09-010), so it stays a kind of its own. See ADR-0129.
+    verification: >-
+      A unit test asserts that no position kind's name is a `CVDRole` member (the role
+      kinds, `CASE_MANAGER` and `CASE_OWNER`, are named for the roles they check), and that
+      every sender-entitlement condition node in the sender-entitlement module is the guard
+      of exactly one declared kind, so a position checked by a node no kind names fails.
+    lint_suppress:
+    - phantom_path_ref
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-007
+    adr:
+    - ADR-0129
+  - id: HP-01-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST accept a new report, sent as `Offer(VulnerabilityReport)` (`RS`) or
+      `Create(VulnerabilityReport)`, from any actor, whether or not that actor takes part
+      in any case, and MUST NOT refuse it on the sender's standing. Only the addressing
+      rules apply to it (HP-01-005, HP-09-001).
+    rationale: >-
+      A report precedes any case, so the sender has no participant record or role to hold,
+      and anyone who finds a vulnerability must be able to report it. Decided by the
+      maintainer on #4325.
+    verification: >-
+      Tests marked `HP-01-010` drive the report-creation and report-submission handlers
+      with a sender that is not a participant of the receiver's case and assert the report
+      is kept and the handler reports `APPLIED`.
+    stories:
+    - story_2022_012
+    - story_2022_038
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-006
+    adr:
+    - ADR-0115
+  - id: HP-01-011
+    priority: MUST
+    kind: project
+    statement: >-
+      `CreateReportReceivedUseCase` and `SubmitReportReceivedUseCase` MUST declare the
+      `ANY_ACTOR` entitlement kind for HP-01-010, not an exemption, and no other received
+      use case MAY declare it.
+    rationale: >-
+      `ANY_ACTOR` states a decided rule with no guard to compose, so it is a kind rather
+      than an exemption: the occasion table's "Sent by" can render it (MSM-08-005), and the
+      exemption list keeps only the checks that are still missing. Restricting it to the
+      two new-report use cases stops it from becoming an exemption under another name.
+    verification: >-
+      The HP-01-007 ratchet in `test/architecture/test_sender_entitlement_ratchet.py`,
+      marked `HP-01-011`, asserts that exactly these two received use cases declare
+      `ANY_ACTOR`.
+    relationships:
+    - rel_type: implements
+      spec_id: HP-01-010
+    - rel_type: refines
+      spec_id: HP-01-007
+    adr:
+    - ADR-0115
+    - ADR-0129
+  - id: HP-01-012
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The receive-tree factory MUST place the HP-01-005 addressee check in every received
+      tree it builds, after intake and the post-close boundary and before the sender guard,
+      and every check of whether an activity is addressed to the receiver MUST read one
+      shared definition: the receiver sent it, is named in `to`, or is an active
+      participant (CM-10-004) of a case whose participants collection `to` names. An
+      `Offer(Report)`'s case-creation check reads its `to` part alone (HP-09-001). A tree
+      MAY leave the check out only by naming a registered exemption that states why, and
+      MUST NOT write its own copy of the check.
+    rationale: >-
+      HP-01-005 binds every handler, but the check was opt-in per tree: only the embargo
+      trees asked for it, the others did not check at all, and one use case checked in
+      Python ahead of its tree. A check written once in the factory cannot be
+      forgotten, and a closed, reasoned exemption list makes each tree that differs a
+      visible decision (CS-22-001).
+    verification: >-
+      `test/architecture/test_received_tree_addressee_guard.py` builds every received tree,
+      fails on one without the guard whose site is not a pinned exemption, holds the
+      exemption uses equal to the registry, and fails on a received-side `to` comparison
+      outside the shared definition's module; `test/core/behaviors/case/nodes/test_addressee.py`
+      covers the shared definition; `test/adapters/driving/fastapi/test_unaddressed_copy_sweep.py`
+      delivers every example activity to a store it was not addressed to and asserts it is
+      refused, archived, and acts on nothing.
+    relationships:
+    - rel_type: implements
+      spec_id: HP-01-005
+    - rel_type: refines
+      spec_id: CLP-10-010
+- id: HP-02
+  title: Semantic Verification
+  specs:
+  - id: HP-02-001
+    priority: MUST
+    kind: architecture
+    statement: All handlers MUST have semantic type verification before execution
+    verification: >-
+      `test/test_behavior_dispatcher.py::test_dispatch_refuses_a_semantics_with_no_registered_use_case`
+      shows `DispatcherBase._handle()` resolving the handler from `event.semantic_type`
+      before any `execute()` runs and returning a `REFUSED` "no use case found" verdict
+      when the semantics has no entry (SE-05-002);
+      `test/test_semantic_registry.py::test_use_case_map_holds_exactly_the_handled_entries`
+      pins the routing table to the registry entries that name a use case.
+    relationships:
+    - rel_type: depends_on
+      spec_id: DR-01-003
+  - id: HP-02-002
+    priority: MUST
+    kind: architecture
+    statement: The verification mechanism MUST check that the activity's semantic type matches the handler's expected type
+    rationale: Prevents routing errors where wrong handler processes an activity
+    verification: >-
+      `test/test_semantic_registry.py::test_each_use_case_accepts_the_event_class_its_semantics_route`
+      checks, for every `SEMANTIC_REGISTRY` entry, that the routed handler's `__init__`
+      annotates `request` as that entry's `event_class`, so the `semantic_type` the
+      dispatcher keys on and the typed event the handler reads are the same registry row.
+    relationships:
+    - rel_type: refines
+      spec_id: DR-01-003
+- id: HP-03
+  title: Handler Registration
+  specs:
+  - id: HP-03-001
+    priority: MUST
+    kind: architecture
+    statement: All handlers MUST be discoverable via a handler registry mechanism
+    verification: >-
+      `test/test_semantic_registry.py::test_registry_covers_all_semantics` and
+      `::test_use_case_map_holds_exactly_the_handled_entries` fail when a
+      `MessageSemantics` value has no `SEMANTIC_REGISTRY` entry or the routing table
+      omits an entry that names a handler class.
+  - id: HP-03-002
+    priority: MUST
+    kind: architecture
+    statement: Registry keys MUST match handler semantic verification types
+    verification: >-
+      `test/test_semantic_registry.py::test_use_case_map_holds_exactly_the_handled_entries`
+      asserts each key of `use_case_map()` routes to its own entry's handler, and
+      `::test_each_use_case_accepts_the_event_class_its_semantics_route` asserts each key's
+      handler accepts the event class registered under that same key.
+    relationships:
+    - rel_type: refines
+      spec_id: DR-02-002
+- id: HP-04
+  title: Payload Access
+  specs:
+  - id: HP-04-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Handlers MUST read activity data as typed fields of their `VultronEvent`
+      subclass — including the core `VultronActivity` carried on `activity` when
+      the semantic entry sets `include_activity` — and MUST NOT re-parse,
+      re-extract, or otherwise re-read the inbound wire activity. Extraction and
+      validation happen once, in the wire layer, before dispatch.
+    rationale: >-
+      The dispatcher hands a handler a fully validated domain event, so every
+      field the handler needs is already typed, and required where the subclass
+      declares it required. Reading the wire payload again would duplicate the
+      single extraction seam (ARCH-03-001, ARCH-07-001) and reintroduce the
+      optional-field guards that validate-at-edge removed (ADR-0032); core does
+      not re-read wire activities for semantics (ADR-0035).
+    verification: >-
+      `test/architecture/test_core_no_wire_imports.py` (ARCH-01-001) confirms no
+      module under `vultron/core/` imports the wire layer, so a handler cannot
+      reach the AS2 parser or the semantic extractor; its
+      `test_vultron_event_activity_is_the_core_activity_type` and
+      `test_every_event_subclass_carries_a_core_activity` resolve the `activity`
+      annotation of `VultronEvent` (`vultron/core/models/events/base.py`) and of
+      every subclass and fail unless it is the core `VultronActivity` (optional
+      on the base, narrowed to required by subclasses that always carry one),
+      never a wire class.
+    adr:
+    - ADR-0032
+    - ADR-0035
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-07-001
+    - rel_type: depends_on
+      spec_id: ARCH-08-002
+- id: HP-05
+  title: Error Handling
+  specs:
+  - id: HP-05-001
+    priority: MUST
+    kind: architecture
+    statement: Handlers MUST raise exceptions for unrecoverable errors
+    verification: >-
+      `test/test_behavior_dispatcher.py::test_dispatch_rejects_a_use_case_that_returns_no_handler_result`
+      shows a contract breach raising `TypeError` rather than returning;
+      `test/architecture/test_no_broad_except_outside_bt_update.py` (CS-23-001)
+      fails on any `except Exception` outside a BT node's `update()` under
+      `vultron/core/behaviors/`, so a handler's tree cannot swallow an unexpected error.
+  - id: HP-05-002
+    priority: MUST
+    kind: architecture
+    statement: Handlers MUST log expected errors without raising exceptions
+    verification: >-
+      `test/core/ports/test_use_case.py::TestUnknownUseCase::test_execute_logs_warning`,
+      `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_receiving_actor_in_cc_logs_warning_no_case`,
+      and
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py::test_remove_embargo_naming_no_case_is_refused_by_its_handler`
+      each drive an expected condition (unrecognised activity, `cc`-only addressing,
+      an activity that names no case), assert the log record or refusal it produces,
+      and complete with no exception escaping the handler or `dispatch()`.
+- id: HP-06
+  title: Logging
+  specs:
+  - id: HP-06-001
+    priority: MUST
+    kind: project
+    statement: Handler entry MUST be logged at DEBUG level with the handler class name
+    rationale: >-
+      `DispatcherBase._handle()` emits the entry line immediately before it calls
+      `execute()`, so every handler gets it from one place and no handler carries
+      its own copy.
+    verification: >-
+      `test/test_behavior_dispatcher.py::test_dispatch_logs_handler_entry_at_debug_with_handler_name`
+      dispatches to a handler and asserts one DEBUG record naming the handler class, the
+      activity id, and the semantics.
+  - id: HP-06-002
+    priority: MUST
+    kind: project
+    statement: Handlers MUST log state transitions at INFO level with before/after states
+    verification: >-
+      `test/core/behaviors/test_narrative_log.py` (`TestLogCsTransition`,
+      `TestLogRmTransition`, `TestLogEmTransition`) asserts each `log_*_transition()`
+      helper emits one INFO record naming the before and after states and nothing for a
+      no-op; `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_rm_transition_logged_at_info`, `test_vf_transition_logged_at_info`,
+      `test_pxa_transition_logged_at_info`) asserts the record is emitted through the
+      state-write nodes a handler's tree runs.
+  - id: HP-06-003
+    priority: MUST
+    kind: project
+    statement: Handlers MUST log errors at ERROR level with full context
+    verification: >-
+      `test/core/behaviors/inbox/test_process_payload.py::TestDispatchNodeFaults::test_dispatch_raise_is_logged_with_its_traceback`
+      asserts the one ERROR record for a dispatch that raised carries the activity id,
+      the actor id, and the traceback.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SL-03-001
+    - rel_type: depends_on
+      spec_id: SL-04-001
+- id: HP-07
+  title: Idempotency
+  specs:
+  - id: HP-07-001
+    priority: SHOULD
+    kind: architecture
+    statement: Handlers SHOULD be idempotent to support retries
+    relationships:
+    - rel_type: depends_on
+      spec_id: ID-04-001
+  - id: HP-07-002
+    priority: MUST
+    kind: architecture
+    statement: Handlers MUST complete execution within 30 seconds
+    rationale: Prevents indefinite blocking of background task queue
+    verification: >-
+      Every handler test in the unit tier runs under the 30-second per-test ceiling set by
+      `[tool.pytest.ini_options] timeout` in `pyproject.toml`, so a handler whose
+      `execute()` blocks past it fails that test by name (`timeout_method = "signal"`,
+      TB-14-002);
+      `test/test_integration_timeout_tier.py::TestApplyIntegrationTimeout::test_unit_item_is_left_at_the_global_default`
+      pins that the unit tier keeps that ceiling.
+    scope:
+    - production
+- id: HP-08
+  title: Data Model Persistence
+  specs:
+  - id: HP-08-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Persistence writes made on a handler's behalf MUST go through the
+      persistence port's typed object methods — `dl.save(obj)` (upsert) or
+      `dl.create(obj)` (insert) with a domain object — which validate and
+      dehydrate the model; they MUST NOT build records by hand
+      (`object_to_record()`) or call the record-level `update(id_, record)`
+      compatibility method.
+    rationale: >-
+      `save()` and `create()` are the write paths that keep the stored record
+      consistent with the domain model and that `dl.read()` can rehydrate
+      (ADR-0034). The record-level method is retained only as a compatibility
+      shim for the adapter layer and for the legacy generic `UpdateObject` /
+      `CreateObject` BT nodes in `vultron/core/behaviors/helpers.py`.
+    verification: >-
+      `test/architecture/test_no_record_level_persistence_in_core.py` scans
+      `vultron/core/use_cases/` and `vultron/core/behaviors/` for a reference to
+      `object_to_record`, a hand-built `StorableRecord(...)`, or a record-level
+      `.update(id_, record)` call and pins the one legacy site
+      (`vultron/core/behaviors/helpers.py`) in an exact `KNOWN_VIOLATIONS` set
+      (ARCH-18-001). A record-level `create(record)` is caught through the
+      `StorableRecord(...)` it must first build, since by call shape alone it is
+      indistinguishable from the typed `dl.create(obj)`.
+  - id: HP-08-002
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A handler's `execute()` MUST NOT mutate the DataLayer directly (`save`,
+      `create`, `update`, `delete`); the write runs inside a BT leaf node reached
+      through `BTBridge`, so it sits on the audited ledger-commit path
+      (CLP-10-005, BT-15-001).
+    verification: >-
+      `test/architecture/test_no_dl_mutations_in_execute.py` scans every
+      `execute()` under `vultron/core/use_cases/` — and, on the received side,
+      every helper it reaches inside the use-case package (CLP-10-020) — for a
+      DataLayer mutation call and pins the pre-existing sites in an exact
+      `KNOWN_VIOLATIONS` set (ARCH-18-001).
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-005
+    - rel_type: refines
+      spec_id: BT-15-001
+  - id: HP-08-003
+    priority: MUST_NOT
+    kind: project
+    statement: Pydantic validators MUST NOT overwrite existing field values during deserialization
+    verification: >-
+      `test/core/models/test_case_participant.py::TestSetNameIfEmpty::test_explicit_name_preserved`
+      and `::TestInitParticipantStatusIfEmpty::test_pre_populated_list_preserved` construct
+      a `CaseParticipant` with `name` and `participant_statuses` already set and assert the
+      defaulting validators leave them untouched.
+  - id: HP-08-004
+    priority: MUST
+    kind: project
+    statement: The DataLayer and handlers MUST treat object IDs as opaque URI strings
+    verification: >-
+      `test/adapters/driven/test_sqlite_crud.py::test_create_wire_shaped_storable_record_reads_back_as_core`
+      and `::test_update_wire_shaped_storable_record_reads_back_as_core` store and read
+      objects under `urn:uuid:` ids, and `::test_read_returns_none_for_missing_id` looks
+      one up — round trips that hold only if the store keys on the id string as given;
+      MV-05-002 states the same rule for the wire layer.
+  - id: HP-08-005
+    priority: MUST
+    kind: project
+    statement: Handlers that add status updates MUST append full status objects (not bare ID strings) to the case/participant
+      status history lists
+    verification: >-
+      `test/core/models/test_case.py::TestVulnerabilityCaseAddCaseStatus` and
+      `test/core/models/test_case_participant.py::TestAddParticipantStatus` show the only
+      history mutators (`add_case_status`, `add_participant_status`) accepting a core
+      status object and raising on anything else;
+      `test/core/behaviors/status/nodes/test_case_status.py::TestEmitCaseStatusUpdateNode::test_happy_path_appends_new_case_status`
+      and
+      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_to_participant_appends_status`
+      drive the appends through the handler's tree.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-03-006
+  - id: HP-08-006
+    priority: MUST
+    kind: project
+    statement: >-
+      The `AddNoteToCaseReceivedUseCase` handler MUST append the note's id to
+      `VulnerabilityCase.notes` (a list of note ids) and commit the attachment as a
+      ledger entry, persisting the Note object the `Add(Note)` carries before it
+      appends the id. An `Add(Note)` introduces a new note: when a note is already
+      stored under the note's id, the handler MUST refuse the `Add` before the
+      commit, whatever the carried note says, unless the case's ledger already
+      records that same `Add`, which it MUST report as a `SKIPPED` redelivery. It
+      MUST NOT replace a stored note; a change to one would be an `Update(Note)`,
+      which this implementation does not route.
+    rationale: >-
+      Notes are persisted and linked to cases, consistent with the case management
+      data model. The refusal keys on the id alone because the inbox's routing
+      rebuild hands the handler the note stored under the id in place of the
+      carried one (IO-03-004), so a rule comparing the two copies could never see
+      a difference on the inbox path; that is how an `Add` naming another case's
+      note attached it and sent its content to the target case's participants
+      (#4831).
+    relationships:
+    - rel_type: depends_on
+      spec_id: IO-03-004
+    verification: >-
+      In `test/core/use_cases/received/test_note.py::TestNoteUseCases`,
+      `test_add_note_to_case_appends_note` runs the handler at the CASE_MANAGER and
+      asserts the note id is in the re-read case's `notes`;
+      `test_add_note_to_case_stores_the_inline_note` asserts an `Add(Note)` carrying
+      a note the CASE_MANAGER has never seen persists that note;
+      `test_redelivered_add_note_is_skipped` asserts a redelivery is `SKIPPED` and
+      appends the note once; `test_new_add_naming_an_attached_note_is_refused`
+      asserts a second `Add` naming the same note is refused;
+      `test_add_note_to_case_refuses_to_overwrite_a_different_note` and
+      `test_add_note_through_ingress_with_a_taken_id_is_refused` assert a
+      different note under a stored id is refused with no entry and no overwrite,
+      directly and through the inbox ingress;
+      `test_add_note_through_ingress_naming_another_cases_note_is_refused` asserts
+      the same through the ingress for a note stored for another case.
+  - id: HP-08-007
+    priority: MUST
+    kind: project
+    statement: >-
+      A received `Add(Note)` or `Add(CaseStatus)` whose object's `context` is not
+      the `Add`'s target case, or names no case, MUST be refused before the
+      commit. The object checked is the one the handler would attach: the record
+      stored under the object's id when one is held, else the carried copy.
+    rationale: >-
+      A note or status belongs to one case; attaching another case's object would
+      commit it to the target case's ledger and send it to that case's
+      participants (#4831). Checking the stored record matches what the inbox
+      routes (IO-03-004).
+    relationships:
+    - rel_type: refines
+      spec_id: HP-08-006
+    verification: >-
+      `test/core/behaviors/case/nodes/test_carried_object_case.py` drives
+      `CarriedObjectInTargetCaseNode` with an object of the target case, of another
+      case, of no case, and a stored record of another case under the carried
+      id. `test/core/use_cases/received/test_note.py::TestNoteUseCases::test_add_note_whose_case_is_not_the_target_is_refused`
+      and `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_case_status_of_another_case_is_refused`
+      assert each handler refuses such an `Add` with no entry and no attachment.
+  - id: HP-08-008
+    priority: MUST
+    kind: project
+    statement: >-
+      A received `Add(ParticipantStatus)` MUST act on the case named by the
+      `context` of the receiver's stored record of the target participant, never
+      on a case the status's `context` or the activity's `context` names. A
+      status whose `context` is not that case MUST be refused before the commit,
+      as HP-08-007 refuses an object of another case. When the receiver holds no
+      record of the target participant, or the record names no case, the `Add`
+      has no case and MUST be refused before the commit.
+    rationale: >-
+      The status is appended to the participant record the receiver holds, so the
+      case that owns that record is the one changed. Letting the sender's status
+      pick the case ran the sender guard, the commit and the case-status update
+      against one case while the status landed on another case's participant
+      (#4961).
+    relationships:
+    - rel_type: refines
+      spec_id: HP-08-007
+    - rel_type: depends_on
+      spec_id: IO-03-004
+    verification: >-
+      `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_through_ingress_naming_another_case_is_refused`
+      drives, through the inbox ingress, an `Add` whose status names case B and
+      whose target is case A's participant, sent by a participant of both, and
+      asserts it is refused with no entry and no appended status;
+      `::test_add_participant_status_to_an_unheld_participant_is_refused` asserts
+      an `Add` targeting a participant the receiver does not hold is refused with
+      no entry.
+- id: HP-09
+  title: Offer Recipient Addressing
+  specs:
+  - id: HP-09-001
+    priority: MUST
+    kind: protocol
+    statement: Handlers processing an inbound `Offer` activity MUST determine case-creation eligibility from the `to` field
+      only
+    verification: >-
+      `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics`
+      drives `SubmitReportReceivedUseCase` with the receiver in `to`, in `cc` only, and in
+      neither, and asserts a case is proposed only from `to`;
+      `::test_offer_target_not_consulted_to_wins` and
+      `::test_offer_target_set_but_not_in_to_no_case` show `target` never changes that
+      outcome.
+    stories:
+    - story_2022_002
+    - story_2022_012
+    - story_2022_038
+  - id: HP-09-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: The `target` field MUST NOT be used to determine case-creation eligibility for `Offer` activities
+    verification: >-
+      `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_offer_target_not_consulted_to_wins`
+      and `::test_offer_target_set_but_not_in_to_no_case` set `target` to a case-eligible
+      actor with and without that actor in `to` and assert eligibility follows `to` alone.
+    relationships:
+    - rel_type: depends_on
+      spec_id: VAM-01-008
+    stories:
+    - story_2022_002
+    - story_2022_012
+    - story_2022_038
+- id: HP-10
+  title: Unsupported Addressing Fields
+  specs:
+  - id: HP-10-001
+    priority: MUST
+    kind: protocol
+    statement: When a receiving actor finds itself in the `cc` field of an inbound `Offer(Report)` activity, the handler MUST
+      log a WARNING and discard the activity without creating a case
+    verification: >-
+      `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_receiving_actor_in_cc_logs_warning_no_case`
+      asserts a WARNING record naming `cc` and that no case is created;
+      `::TestSubmitReportDisposition::test_cc_only_is_refused` asserts the handler reports
+      `REFUSED` with a reason naming `cc`.
+    rationale: '`cc` addressing has no defined handler semantics in the current protocol version. Implementing an "informational
+      receive" use case for `cc` recipients would require defining what "informational only" means, which is deferred. Deliberate
+      simplification.'
+    relationships:
+    - rel_type: refines
+      spec_id: HP-09-001
+    stories:
+    - story_2022_002
+    - story_2022_012

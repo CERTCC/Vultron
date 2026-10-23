@@ -1,0 +1,271 @@
+id: SM
+title: State Machine
+description: 'Requirements governing how the RM (Report Management), EM (Embargo Management), and CS (CVD Case State: VFD
+  and PXA axes) protocol state machines are defined, represented, and executed at runtime. Each participant maintains its
+  own RM state; the CASE_MANAGER maintains shared EM and Case State. Within CS, the PXA axis is shared across participants while
+  the VFD axis is per-participant.'
+scope:
+- prototype
+- production
+tags:
+- state-machine
+- protocol
+groups:
+- id: SM-01
+  title: State Enum Design
+  specs:
+  - id: SM-01-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: All protocol state axes (RM, EM, VFD, PXA) MUST be defined using Python `StrEnum`
+  - id: SM-01-002
+    priority: SHOULD
+    kind: protocol
+    statement: State enums SHOULD provide both a full descriptive name and a short single-character alias for each state
+  - id: SM-01-003
+    priority: MUST
+    kind: project
+    statement: State enum values are the authoritative definition of valid states
+    verification: Inspection confirms all state validation and transition guards reference enum values (e.g.,
+      `RM.RECEIVED`, `EM.ACTIVE`) rather than raw strings or integer literals.
+- id: SM-02
+  title: State Machine Definitions
+  specs:
+  - id: SM-02-001
+    priority: SHOULD
+    kind: protocol
+    statement: Each state axis SHOULD have a corresponding `create_*_machine()` factory function that produces a `transitions`
+      library `Machine` instance for the axis
+  - id: SM-02-002
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      Inspection confirms production use-case and handler code calls no
+      `create_*_machine()` factory for runtime state changes.
+    statement: '`create_*_machine()` factory functions MUST NOT be called for runtime state changes in production use-case
+      or handler code'
+    relationships:
+    - rel_type: extends
+      spec_id: SM-02-001
+  - id: SM-02-003
+    priority: SHOULD
+    kind: project
+    statement: Trigger names for `transitions` library machines SHOULD be defined as a companion `StrEnum` (e.g., `RM_Trigger`)
+      using `auto()` so that trigger strings remain stable and are not inlined as string literals scattered across the codebase
+- id: SM-03
+  title: Transition Definitions
+  specs:
+  - id: SM-03-001
+    priority: SHOULD
+    kind: protocol
+    statement: Each state transition SHOULD be expressed as a typed `TransitionBase` subclass with `trigger`, `source`, and
+      `dest` fields typed to the appropriate enums
+  - id: SM-03-002
+    priority: SHOULD
+    kind: protocol
+    statement: Transition definitions SHOULD be stored as a module-level list in the same module that defines the state enum
+  - id: SM-03-003
+    priority: MUST
+    kind: project
+    statement: 'Every valid (source → dest) pair that the protocol describes MUST have a corresponding transition entry.'
+    verification: The transition list for each axis (RM, EM, VFD, PXA) is compared against the protocol's valid
+      (source, dest) pairs; inspection confirms no valid pair is absent.
+- id: SM-04
+  title: Runtime State Changes
+  specs:
+  - id: SM-04-001
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: Runtime state changes MUST be guarded by an explicit precondition check before the state value is written
+    rationale: >-
+      The precondition check MUST be contextually appropriate — it verifies that
+      the intended transition is valid for the specific domain situation, not merely
+      that it passes a strict adjacency test. For example, when the CASE_MANAGER sets
+      a reporter participant to `RM.ACCEPTED` at bootstrap time, the guard does not
+      check strict RM adjacency (the reporter's intermediate states were never
+      observed and MUST NOT be inserted into the ledger); it checks instead that
+      the transition is a legitimate bootstrap-forward move — which is valid because
+      a report submitter can only be at `RM.ACCEPTED` at the time of submission
+      (see CBT-01-008). Treating `is_valid_rm_transition` as the only acceptable
+      precondition form would block valid bootstrap paths while blocking invalid
+      state bypasses is the actual goal.
+  - id: SM-04-002
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: State-changing handlers MUST be idempotent with respect to repeated application of the same transition
+    relationships:
+    - rel_type: implements
+      spec_id: HP-07-001
+      note: handler-protocol.md
+- id: SM-05
+  title: State History
+  specs:
+  - id: SM-05-001
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: Persisted state for both case-level and participant-level axes MUST use an append-only history list
+  - id: SM-05-002
+    priority: MUST
+    kind: protocol
+    statement: The `current_status` property (or equivalent) MUST return the single most-recently-timestamped entry from the
+      history list
+    verification: A unit test confirms `current_status` returns the entry with the latest timestamp when the history
+      list contains multiple entries; a single-entry history returns that entry.
+    relationships:
+    - rel_type: implements
+      spec_id: CM-03-006
+      note: case-management.md
+    stories:
+    - story_2022_074
+    - story_2022_088
+  - id: SM-05-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Status history entries MUST record a trusted server-side timestamp (`received_at` or `updated`) set via `now_utc()`
+      at write time
+    relationships:
+    - rel_type: implements
+      spec_id: CM-02-009
+      note: case-management.md
+  - id: SM-05-004
+    priority: SHOULD
+    kind: architecture
+    statement: The case state log SHOULD store references (IDs) to entries in the main case history log rather than duplicating
+      full record content
+- id: SM-06
+  title: In-Memory (Transient) State
+  specs:
+  - id: SM-06-001
+    priority: SHOULD
+    kind: protocol
+    statement: Transient state used only during a single request (e.g., for tracking report status during validation processing)
+      SHOULD be clearly separated from persisted state
+  - id: SM-06-002
+    priority: MUST
+    kind: protocol
+    statement: RM state for reports MUST be persisted as participant-level state in `CaseParticipant` records. In-memory transient
+      RM state is not permitted.
+    verification: Inspection of all RM state write paths confirms they persist to `ParticipantStatus` records via
+      `dl.save()`; no module-level or request-scoped variable carries RM state across request boundaries.
+    stories:
+    - story_2022_074
+    - story_2022_088
+    adr:
+    - ADR-0013
+- id: SM-07
+  title: State Subsets and Guards
+  specs:
+  - id: SM-07-001
+    priority: SHOULD
+    kind: project
+    statement: Commonly used groups of states that define validity zones for transitions SHOULD be defined as module-level
+      constants (tuples or frozensets) in the same module as the state enum
+  - id: SM-07-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: State subset constants MUST be derived from enum values, not raw strings, to prevent silent mismatches when
+      enum values change
+- id: SM-08
+  title: Wire and DataLayer Compatibility
+  specs:
+  - id: SM-08-001
+    priority: MUST
+    kind: protocol
+    statement: State enum values MUST be stored and transmitted as their string value (not as Python enum names or as integers)
+    verification: DataLayer round-trip tests and wire-activity inspection confirm RM, EM, VFD, and PXA values
+      serialize as string values (e.g., `"RECEIVED"`, `"ACTIVE"`) not as Python enum names or integers.
+    stories:
+    - story_2022_088
+  - id: SM-08-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: When deserializing state values from the DataLayer or from wire payloads, the receiving Pydantic model MUST
+      declare the state field with the `StrEnum` type so that Pydantic coerces the incoming string to the correct enum member
+- id: SM-09
+  title: CS Forced Transitions and Reachable States
+  specs:
+  - id: SM-09-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: 'The CS state machine MUST enforce two forced (ephemeral) transitions at validation time: (1) `pX → PX` — exploit-public
+      forces public-aware; (2) `vP → VP` — public-aware forces vendor-aware. Any incoming CS state that contains `pX` or `vP`
+      MUST be promoted to the forced form before being persisted.'
+    rationale: 'These transitions are protocol-correctness invariants, not optional normalizations. A CS state of `pXa` (exploit
+      public, public unaware) is semantically impossible — the exploit being public implies the vulnerability is public.
+      Implementors MUST use `is_ephemeral_cs_state()` and `required_next_cs_events()` from
+      `vultron/core/states/cs_invariants.py` to enforce this rule at the persistence boundary. This requirement governs
+      the *persistence* boundary only; CSB-17-003 and CSB-17-005 cover trajectory validation, where an ephemeral state is a
+      legal prefix terminus.'
+    lint_suppress:
+    - rationale_too_long
+    relationships:
+    - rel_type: implements
+      spec_id: VP-14-001
+      note: exploit/attack public implies embargo termination, not just awareness
+  - id: SM-09-002
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: The CS state machine MUST NOT allow states in the `vF*` pattern (fix-ready, vendor-unaware) or `*fD*` pattern
+      (fix-deployed, fix-not-ready). These 32 states are structurally impossible and MUST be rejected at validation time.
+    rationale: 'A vendor cannot have deployed a fix (`D`) without first having one ready (`F`); a fix cannot be ready (`F`)
+      if the vendor is unaware (`v`) of the vulnerability. Together, SM-09-001 and this rule reduce the theoretical 64-state
+      CS space to the 32 reachable CS states: 4 valid VFD combinations (vfd, Vfd, VFd, VFD) × 8 PXA combinations. See `docs/reference/formal_protocol/states.md`
+      for the formal derivation. Note: the "40-state" figure in the formal protocol paper refers to the global case state
+      space (`8 PXA × 5 EM`), not to CS alone.'
+    relationships:
+    - rel_type: refines
+      spec_id: SM-09-001
+- id: SM-10
+  title: State Scoping Rules
+  specs:
+  - id: SM-10-001
+    priority: MUST
+    kind: protocol
+    statement: 'RM and VFD state transitions MUST update the sending actor''s `ParticipantStatus` record for the affected
+      `CaseParticipant`. These axes are participant-specific: each participant''s RM and VFD state evolves independently.'
+    verification: Integration tests confirm that processing an RM or VFD state message updates the sending actor's
+      `ParticipantStatus` in the CaseActor's DataLayer before the handler exits.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-04-001
+    - rel_type: refines
+      spec_id: CM-04-002
+    stories:
+    - story_2022_074
+    - story_2022_088
+    - story_2022_107
+  - id: SM-10-002
+    priority: MUST
+    kind: protocol
+    statement: 'EM and PXA state transitions MUST update the shared `CaseStatus` record for the associated `VulnerabilityCase`.
+      These axes are participant-agnostic: a single shared value covers all participants in the case.'
+    verification: Integration tests confirm that processing an EM or PXA message updates `CaseStatus.em.state`
+      or `CaseStatus.pxa.state` on the shared `VulnerabilityCase` before the handler exits.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-04-003
+    - rel_type: refines
+      spec_id: CM-04-004
+    stories:
+    - story_2022_014
+    - story_2022_081
+    - story_2022_088
+  - id: SM-10-003
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: Handlers MUST NOT apply a participant-specific axis transition (RM, VFD) to the shared `CaseStatus`, and MUST
+      NOT apply a participant-agnostic axis transition (EM, PXA) to a participant's `ParticipantStatus`. Mixing axes is a
+      protocol correctness violation.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-04-006

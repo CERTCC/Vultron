@@ -1,0 +1,335 @@
+id: IO
+title: Inbox Orchestration
+description: Testable requirements for the core BT-backed inbox orchestration module, covering the InboxOutcome model, BT
+  sequence invariants, adapter injection rules, caller interface constraints, and error/outcome behavior.
+scope:
+- prototype
+- production
+tags:
+- messaging
+- behavior-tree
+groups:
+- id: IO-01
+  title: InboxOutcome Model
+  specs:
+  - id: IO-01-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The inbox orchestration module MUST define an InboxOutcome Pydantic model as the sole return type of process_payload.
+    rationale: A typed return model makes outcome inspection safe and self-documenting for all callers (FastAPI, CLI, tests).
+    tags:
+    - messaging
+    - protocol
+  - id: IO-01-002
+    priority: MUST
+    kind: project
+    statement: 'InboxOutcome MUST include a status field typed as the InboxOutcomeStatus StrEnum, whose members are processed,
+      deferred, and rejected. When dispatch ran, the status MUST be derived from the handler''s HandlerResult disposition
+      (UCORG-05-011): APPLIED and SKIPPED yield processed, DEFERRED yields deferred, and REFUSED yields rejected. It MUST NOT
+      be inferred from dispatch merely not raising.'
+    rationale: 'Three statuses cover the outcome space: dispatched, held for replay, and not processable. Deferred has two
+      producers — the pre-dispatch defer check (case not yet known) and a handler returning DEFERRED — and both keep working.
+      The mapping lives only in the pipeline''s dispatch node, so handlers never name this vocabulary (HP-01-004). A dispatch
+      where no handler ran is never processed (UCORG-05-012).'
+    verification: test/adapters/driving/fastapi/test_inbox_outcome_chain.py drives
+      each disposition and unhandled semantics through the real dispatch adapters and
+      process_payload, asserting the resulting status.
+    tags:
+    - messaging
+    relationships:
+    - rel_type: depends_on
+      spec_id: UCORG-05-011
+  - id: IO-01-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: InboxOutcome MUST include a context_id field (nullable string) carrying the case or activity context identifier,
+      when available.
+    rationale: Callers need context identity for logging, telemetry, and pending-queue management.
+    tags:
+    - messaging
+  - id: IO-01-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: InboxOutcome MUST include a failure_reason field (nullable string) carrying a human-readable explanation when
+      status is rejected or deferred. When a handler returns REFUSED, failure_reason MUST be the handler's HandlerResult reason.
+    rationale: Explicit failure reasons support triage without log scraping. A REFUSED HandlerResult always carries a reason
+      (ADR-0095), so a handler refusal is always explained.
+    tags:
+    - messaging
+    - observability
+  - id: IO-01-005
+    priority: MUST
+    kind: project
+    statement: >-
+      InboxOutcome MUST include an `unhandled` field (boolean, default false) that is true
+      only for a rejected outcome whose semantic type no use case handles ("no use case
+      found", SE-05-002), and the driving adapter MUST log such an outcome at INFO rather
+      than at the WARNING it uses for other rejections (UCORG-05-013).
+    rationale: >-
+      A receiver that does not handle a message has not found the message invalid
+      (ADR-0140 item 5), so a recognized-but-unhandled activity is a normal operation,
+      not a recoverable anomaly (SL-03-001). The flag is set from the dispatcher's own
+      verdict, not read from the reason text.
+    verification: >-
+      A test drives an activity whose semantic type has no use case through the inbox
+      pipeline and confirms a rejected outcome with `unhandled` true, and that no record
+      at WARNING or above is logged by any logger.
+    relationships:
+    - rel_type: refines
+      spec_id: UCORG-05-013
+    - rel_type: depends_on
+      spec_id: SE-05-002
+    tags:
+    - messaging
+    - observability
+- id: IO-02
+  title: BT Orchestration Module
+  specs:
+  - id: IO-02-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The inbox orchestration module MUST be located at `vultron/core/behaviors/inbox/`.
+    rationale: Placement in core/ satisfies the hexagonal architecture constraint that core imports no framework
+      (ARCH-01-001, ADR-0009) and enables the module
+      to be used by FastAPI, CLI, and test adapters equally.
+    tags:
+    - code-style
+    references:
+    - docs/adr/0009-hexagonal-architecture.md
+    - docs/adr/0020-inbox-bt-orchestration.md
+    adr:
+    - ADR-0009
+  - id: IO-02-001b
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: The inbox orchestration module MUST NOT import from `vultron/adapters/` or any web framework package.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-02-001
+    tags:
+    - code-style
+    adr:
+    - ADR-0009
+  - id: IO-02-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: 'The BT implementation MUST enforce the following fixed node ordering via BT Sequence nodes: (1) parse inbound
+      payload, (2) rehydrate Activity, (3) extract MessageSemantics, (4) defer-eligibility check, (5) dispatch to use-case
+      path, (6) build typed outcome.'
+    rationale: Fixed BT ordering makes the inbound pipeline auditable and prevents callers from accidentally invoking steps
+      out of order.
+    tags:
+    - behavior-tree
+    - protocol
+  - id: IO-02-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The `process_payload` function MUST be the sole caller-facing entry point of the inbox orchestration module.
+    rationale: Encapsulating intermediate steps preserves depth and prevents shallow reimplementations of parts of the pipeline.
+    tags:
+    - protocol
+  - id: IO-02-003b
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Intermediate behavior-tree nodes used internally by `process_payload` MUST NOT be exported as
+      public API symbols.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-02-003
+    tags:
+    - protocol
+  - id: IO-02-004
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: The inbox orchestration module MUST NOT instantiate or call a use-case class directly inside a behavior-tree node `update()` method.
+    rationale: Use cases create BTs; BT nodes are leaves. Calling a use case from a node creates a prohibited BT-UseCase-BT
+      chain (BT-06-006).
+    tags:
+    - behavior-tree
+    - code-style
+- id: IO-03
+  title: Adapter Injection
+  specs:
+  - id: IO-03-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: 'process_payload MUST accept exactly two injected adapters: an ingress payload adapter (raw input to as_Activity)
+      and a dispatch adapter (VultronEvent to use-case execution). The dispatch adapter MUST return the handler''s HandlerResult
+      (UCORG-05-010), which is the only channel by which the verdict reaches InboxOutcome.'
+    rationale: Two well-named adapters keep the seam explicit and prevent the adapter matrix from growing large enough to
+      make the module shallow again. Returning the HandlerResult through the adapter, rather than through a blackboard key
+      a handler would have to write, keeps InboxOutcome's vocabulary out of handlers (HP-01-004).
+    tags:
+    - tooling
+    relationships:
+    - rel_type: depends_on
+      spec_id: UCORG-05-010
+    references:
+    - docs/adr/0020-inbox-bt-orchestration.md
+  - id: IO-03-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Pending-queue management MUST be provided to the inbox orchestration module via an injected port dependency.
+    rationale: Injecting the pending-queue port keeps core/ free of adapter dependencies and aligns with hexagonal architecture.
+    tags:
+    - tooling
+    - code-style
+  - id: IO-03-002b
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: The inbox orchestration module MUST NOT access pending-queue storage directly from `vultron/adapters/`.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-03-002
+    tags:
+    - tooling
+    - code-style
+  - id: IO-03-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The FastAPI inbox path MUST supply adapter implementations to `process_payload` at construction time.
+    rationale: Policy logic in the router binds it to the web framework, against the hexagonal layering that keeps policy in a
+      framework-free core (ARCH-01-001, ADR-0009), and makes the orchestration untestable without a running
+      FastAPI app.
+    tags:
+    - tooling
+    adr:
+    - ADR-0009
+  - id: IO-03-003b
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The FastAPI inbox path MUST NOT contain inbox policy logic; all such logic MUST reside in the
+      core inbox orchestration module. Exception: a synchronous guard that refuses an inbound
+      Activity before the HTTP 202 is returned (and before the background task is scheduled) MAY
+      live at the route level when synchronous refusal is required — see IE-11-001 and ADR-0068.
+    rationale: >-
+      Policy in the router binds it to the web framework, against the hexagonal layering that keeps
+      policy in a framework-free core (ARCH-01-001, ADR-0009), and makes the orchestration untestable without
+      a running FastAPI app. The narrow exception for synchronous pre-202 guards exists because such
+      guards must act before the background task is scheduled, which requires route-level placement.
+      ADR-0068 documents this tradeoff.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-03-003
+    tags:
+    - tooling
+    adr:
+    - ADR-0009
+    - ADR-0068
+  - id: IO-03-004
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The ingress payload adapter MUST NOT write an object inlined in a received
+      activity to the receiving actor's DataLayer as a record readable by that object's
+      id, on receipt or for a deferred replay. To rebuild the routed activity it MAY
+      stage the inline objects in a holding area outside that DataLayer that answers a
+      read only when the DataLayer holds nothing under the id and keeps nothing past the
+      delivery. For an activity the inbox defers, it MAY keep the activity itself, as
+      the received body the parser sealed (VM-08-002), beside the staged rows in one
+      opaque record keyed by the activity, deleted by the replay or by the queue's
+      expiry. A held out-of-order `Announce(CaseLedgerEntry)` (SYNC-14-001) is kept in
+      the same record, deleted by its replay or by the holding area's bound
+      (SYNC-14-006). A handler therefore sees the receiver's record of any id it holds, never
+      the carried copy, so a guard keys on the stored record (HP-08-006).
+    rationale: >-
+      A stored inline object is the receiver's own record of it: a stored case is the
+      receiver's replica, so storing one at receipt let a sender's snapshot name the
+      sender as CASE_MANAGER and pass the trust check that should refuse it (PCR-03-004,
+      CBT-01-011). Routing still needs the inline object, because the rebuilt activity
+      names it by id and a bare id matches the wrong pattern. The deferred record holds
+      the activity too: no copy under its sender's id remains to replay (DL-06-006).
+      The receiver's record wins on purpose; a carried case winning broke
+      rebuild-from-ledger (#4831).
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the routed
+      activity carries its inline object while the receiver's store holds none, that the
+      receiver's own copy wins over the staged one, and that a deferred activity is held
+      whole, its body and rows, for its replay and deleted by the replay or by expiry.
+      `test/adapters/driving/fastapi/test_inbox_outcome_chain.py` drives an untrusted
+      `Announce(VulnerabilityCase)` and retired `Create`s through the real inbox and
+      asserts nothing from the inline object is stored.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-10-017
+    tags:
+    - tooling
+    adr:
+    - ADR-0111
+- id: IO-04
+  title: Caller Interface
+  specs:
+  - id: IO-04-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      `process_payload` MUST always return an `InboxOutcome` instance, regardless of payload
+      validity.
+    rationale: Typed outcomes allow callers to handle all cases uniformly without exception-driven control flow at the integration
+      boundary.
+    tags:
+    - protocol
+    - error-handling
+  - id: IO-04-001b
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      `process_payload` MUST NOT raise an exception for protocol-invalid payloads; all error
+      conditions MUST be encoded in the returned `InboxOutcome`.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-04-001
+    tags:
+    - protocol
+    - error-handling
+  - id: IO-04-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Tests for `process_payload` MUST assert on `InboxOutcome.status` and
+      `InboxOutcome.failure_reason` fields.
+    rationale: Interface-level test assertions are resilient to internal refactors and validate the contract rather than the
+      implementation.
+    tags:
+    - testing
+  - id: IO-04-002b
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Tests for `process_payload` MUST NOT patch internal behavior-tree node helper methods to
+      verify pipeline behavior.
+    relationships:
+    - rel_type: refines
+      spec_id: IO-04-002
+    tags:
+    - testing
+  - id: IO-04-003
+    priority: SHOULD
+    kind: project
+    statement: Both a production ASGI adapter and an in-memory test adapter SHOULD implement the ingress payload adapter interface,
+      so that the same process_payload seam is used in both runtime and test contexts.
+    rationale: Shared interface across runtime and test adapters validates real-world behavior and reduces adapter-specific
+      test scaffolding.
+    tags:
+    - testing
+    - tooling

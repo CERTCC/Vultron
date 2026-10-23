@@ -2,6 +2,7 @@
 """
 Provides outbound messaging behaviors for Vultron.
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,50 +16,51 @@ Provides outbound messaging behaviors for Vultron.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import logging
-from typing import Callable
+from collections.abc import Callable
+from typing import Any, cast
 
-from vultron.bt.base.bt_node import ActionNode
+from vultron.bt.base.bt_node import ActionNode, BtNode
 from vultron.bt.base.factory import action_node
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
+from vultron.bt.messaging.message import Message
 from vultron.bt.messaging.states import MessageTypes, MessageTypes as MT
-from vultron.sim.messages import Message
 
 logger = logging.getLogger(__name__)
 
 # keep track of all emitters
-_emitters = set()
+_emitters: set[type[ActionNode]] = set()
 
 
 def _emitter_func(
     msg_type: MessageTypes, body: str = "msg_body"
-) -> Callable[[ActionNode], bool]:
-    def func(obj: ActionNode) -> bool:
-        f"""Emit a message of type {msg_type}."""
-
-        msg = Message(sender=obj.bb.name, msg_type=msg_type, body=body)
-        emit = obj.bb.emit_func
+) -> Callable[[BtNode], bool]:
+    def func(obj: BtNode) -> bool:
+        action_obj = cast(ActionNode, obj)
+        msg = Message(sender=action_obj.bb.name, msg_type=msg_type, body=body)
+        emit = action_obj.bb.emit_func
         if emit is not None:
             emit(msg)
         else:
             logger.debug("Emitter not set")
 
         # append history
-        obj.bb.msg_history.append(msg)
-        obj.bb.msgs_emitted_this_tick.append(msg.msg_type)
-        incoming_message(obj.bb, msg)
+        action_obj.bb.msg_history.append(msg)
+        action_obj.bb.msgs_emitted_this_tick.append(msg.msg_type)
+        incoming_message(action_obj.bb, msg)
 
         return True
 
+    # A docstring cannot be an f-string; the node factory reads __doc__.
+    func.__doc__ = f"Emit a message of type {msg_type}."
     return func
 
 
 def emitter(msg_type, body="msg_body"):
     node_cls = action_node(f"Emit_{msg_type}", _emitter_func(msg_type, body))
     node_cls.name_pfx = "!"
-    node_cls.msg_type = msg_type
+    cast(Any, node_cls).msg_type = msg_type
 
     _emitters.add(node_cls)
 

@@ -1,0 +1,101 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""EmbargoLifecycle service — consolidated EM + PEC state management.
+
+This service is the single authoritative place for all Embargo Management (EM)
+and Participant Embargo Consent (PEC) state transitions.  Callers — trigger use
+cases, received use cases, and BT nodes — inject an ``EmbargoLifecycle`` instance
+and call named operations; they never apply an embargo register step to a case
+themselves.  EM is derived from the register (ADR-0122).
+
+Usage::
+
+    from vultron.core.services.embargo_lifecycle import (
+        EmbargoLifecycle,
+        EmbargoLifecycleResult,
+        TransitionMode,
+    )
+
+    lifecycle = EmbargoLifecycle(persistence=dl)
+    result = lifecycle.propose_embargo(
+        case_id=case.id_,
+        embargo_id=embargo.id_,
+        actor_id=actor.id_,
+    )
+    # result.em_before, result.em_after, result.case_changed, ...
+
+Package layout (CS-18, #3760) — one module per responsibility, all composed
+into :class:`EmbargoLifecycle` in ``service.py``:
+
+- ``results.py``    — ``TransitionMode``, ``EmbargoLifecycleResult``,
+  ``ParticipantConsentChange``
+- ``base.py``       — persistence handle, case lookup, P/X/A guard, EM driver
+- ``pec.py``        — participant-consent side effects of EM transitions,
+  including the shorter-revision carry-over (EP-05-001)
+- ``proposals.py``  — ``propose_embargo``
+- ``answers.py``    — ``accept_embargo_invite`` (a sender's consent),
+  ``reject_embargo_proposal`` (the case owner's decision, ADR-0122)
+- ``activation.py`` — ``activate_embargo``
+  (the case owner's decision, ADR-0122)
+- ``activation_decision.py`` — ``decide_activation``, the CASE_MANAGER's
+  decision of an activation before it commits (ADR-0124)
+- ``creation.py``   — ``initialize_creation_embargo`` (EP-04-002), which
+  commits through ``staged_persistence.py``'s ``StagedCasePersistence``
+- ``consent.py``    — ``record_participant_consent``,
+  ``record_embargo_rejection``, ``record_embargo_withdrawal`` (MSM-07-010),
+  ``assert_embargo_eligible``
+- ``expiry.py``     — ``assess_invite_expiry``, ``pending_invitations``,
+  ``overdue_invitations`` (CM-28-015), ``detect_and_apply_expiry`` (EMB-17)
+
+Tracked in: https://github.com/CERTCC/Vultron/issues/538
+Scaffold (#746); full operations (#747)
+"""
+
+from vultron.core.services.embargo_lifecycle.activation import (
+    decide_termination,
+    embargo_end_time_passed,
+    embargo_in_force,
+    termination_timing_violations,
+)
+from vultron.core.services.embargo_lifecycle.activation_decision import (
+    ActivationDecision,
+)
+from vultron.core.services.embargo_lifecycle.pec import (
+    embargo_withdrawal_refusal,
+    owner_declined_embargo,
+    participant_consent_row,
+    reject_is_withdrawal_refusal,
+)
+from vultron.core.services.embargo_lifecycle.results import (
+    EmbargoLifecycleResult,
+    ParticipantConsentChange,
+    TransitionMode,
+)
+from vultron.core.services.embargo_lifecycle.service import EmbargoLifecycle
+
+__all__ = [
+    "ActivationDecision",
+    "EmbargoLifecycle",
+    "embargo_withdrawal_refusal",
+    "owner_declined_embargo",
+    "participant_consent_row",
+    "reject_is_withdrawal_refusal",
+    "EmbargoLifecycleResult",
+    "ParticipantConsentChange",
+    "TransitionMode",
+    "decide_termination",
+    "embargo_end_time_passed",
+    "embargo_in_force",
+    "termination_timing_violations",
+]

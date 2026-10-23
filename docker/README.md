@@ -1,0 +1,294 @@
+# Docker Setup for Vultron
+
+## Before you start
+
+Create a `.env` file from the example before running any `docker compose`
+command:
+
+```bash
+cp docker/.env.example docker/.env
+```
+
+The `.env` file sets the Docker Compose project name and is required for
+container, network, and volume naming to work correctly.
+
+## Available Services
+
+This docker-compose setup provides the following containerized services:
+
+- **api-dev**: Development API server running on port 7999
+- **demo**: Unified demo runner for all Vultron demo scripts
+- **test**: Run the pytest test suite
+- **docs**: MkDocs documentation server on port 8000
+- **vultrabot-demo**: Standalone Vultrabot behaviour-tree demonstration
+
+## Running the API Server
+
+To start just the API server:
+
+```bash
+docker-compose up api-dev
+```
+
+The API server will be accessible at `http://localhost:7999`.
+
+## Running Demos
+
+All demos are provided through the unified `demo` service, which uses the
+`vultron-demo` CLI entry point. The `demo` service waits for the API server
+to be healthy before running.
+
+### Run a specific demo non-interactively
+
+Set the `DEMO` environment variable to the name of the demo sub-command:
+
+```bash
+DEMO=receive-report docker-compose up api-dev demo
+```
+
+Available demo sub-commands:
+
+- `acknowledge`
+- `all` (run every demo in sequence)
+- `establish-embargo`
+- `initialize-case`
+- `initialize-participant`
+- `invite-actor`
+- `manage-case`
+- `manage-embargo`
+- `manage-participants`
+- `receive-report`
+- `status-updates`
+- `suggest-actor`
+- `transfer-ownership`
+- `trigger`
+- `vultrabot`
+
+### Run demos interactively
+
+Without the `DEMO` variable, the container drops into an interactive shell
+where you can run any demo manually:
+
+```bash
+docker-compose run --rm demo
+# Inside the container:
+vultron-demo receive-report
+vultron-demo all
+```
+
+The API server must be running before starting the demo container in
+interactive mode:
+
+```bash
+docker-compose up -d api-dev
+docker-compose run --rm demo
+```
+
+## Multi-Actor Demo Setup
+
+`docker-compose-multi-actor.yml` defines four isolated actor services
+(`reporter`, `vendor`, `coordinator`, `case-actor`) plus a `demo-runner` for
+multi-actor demo scenarios (D5-2 and later).
+
+### Services and port mappings
+
+| Service       | Host port override      | Docker-internal URL                  |
+|:--------------|:------------------------|:-------------------------------------|
+| `reporter`      | `${REPORTER_HOST_PORT:-0}`     | `http://reporter:7999/api/v2/`    |
+| `vendor`      | `${VENDOR_HOST_PORT:-0}`     | `http://vendor:7999/api/v2/`    |
+| `coordinator` | `${COORDINATOR_HOST_PORT:-0}`| `http://coordinator:7999/api/v2/` |
+| `case-actor`  | `${CASE_ACTOR_HOST_PORT:-0}` | `http://case-actor:7999/api/v2/`|
+| `demo-runner` | —                       | (no host port; uses vultron-network) |
+
+A default value of `0` means Docker will publish the container port on an
+ephemeral host port chosen at runtime. Set the corresponding environment
+variable to use a fixed host port, or inspect the assigned port with
+`docker compose port <service> 7999` or `docker ps`.
+
+### Required environment variables
+
+| Variable              | Default value             | Purpose                               |
+|:----------------------|:--------------------------|:--------------------------------------|
+| `PROJECT_NAME`        | `vultron`                 | Docker resource name prefix           |
+| `COMPOSE_PROJECT_NAME`| `vultron`                 | Docker Compose project name           |
+| `VULTRON_SERVER__BASE_URL` | *(set per service)*       | Container's own API base URL          |
+| `VULTRON_DATABASE__DB_URL` | `sqlite:////app/data/mydb.sqlite` | SQLAlchemy connection URL for the DataLayer |
+| `VULTRON_ACTOR_ID`    | *(set per service)*       | Deterministic full actor URI          |
+| `VULTRON_SEED_CONFIG` | *(set per service)*       | Seed config JSON for local + peers    |
+| `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL` | `http://case-actor:7999/api/v2` | The dedicated CaseActor every container proposes cases to (CP-08-008) |
+
+### The dedicated `case-actor` container
+
+Every scenario's cases are created and managed by the CaseActor on the
+`case-actor` container: each actor container sends its
+`Create(CaseProposal)` to `http://case-actor:7999/api/v2/actors/case-actor`,
+and that container holds the canonical case and ledger. The demo runner
+resets it with the other containers and then re-seeds that CaseActor
+identity, so it must be running in every scenario. See
+`notes/case-proposal.md` § "The Dedicated Case-Actor Container".
+
+### Run the D5-2 `rv` acceptance scenario
+
+The `demo-runner` service now performs the D5-2 scenario end to end:
+it waits for healthy actor services, resets container state to a clean
+baseline, re-seeds the CaseActor and seeds Reporter/Vendor, runs the workflow,
+verifies final state, and exits non-interactively.
+
+```bash
+# From the docker/ directory:
+docker compose -f docker-compose-multi-actor.yml up --abort-on-container-exit demo-runner
+```
+
+This is the canonical single-command acceptance run for the current
+`rv` scenario.
+
+### Run the RVV scenario
+
+The RVV scenario (Reporter + Vendor + Vendor2, no Coordinator) runs the Reporter,
+both vendor containers and the `case-actor` container:
+
+```bash
+# From the docker/ directory:
+DEMO=rvv docker compose -f docker-compose-multi-actor.yml \
+    up --abort-on-container-exit demo-runner
+```
+
+### Run the RVCV-extension or RVCV-handoff scenario
+
+The RVCV scenarios use all five actor services (Reporter, Vendor, Coordinator,
+Vendor2, CaseActor):
+
+```bash
+# From the docker/ directory:
+DEMO=rvcv-extension docker compose -f docker-compose-multi-actor.yml \
+    up --abort-on-container-exit demo-runner
+
+DEMO=rvcv-handoff docker compose -f docker-compose-multi-actor.yml \
+    up --abort-on-container-exit demo-runner
+```
+
+### Automated multi-actor integration tests
+
+Each scenario can also be run via the integration test script, which builds
+the images, runs the full stack, verifies the exit code, and removes all
+volumes on exit for a clean baseline:
+
+```bash
+# From the repository root:
+./integration_tests/demo/run_multi_actor_integration_test.sh rv
+./integration_tests/demo/run_multi_actor_integration_test.sh rvv
+./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-extension
+./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-handoff
+```
+
+Or via the Makefile targets:
+
+```bash
+make integration-test-multi-actor    # rv
+make integration-test-rvv            # rvv
+make integration-test-rvcv-extension # rvcv-extension
+make integration-test-rvcv-handoff   # rvcv-handoff
+```
+
+See `integration_tests/README.md` for full usage notes and isolation tips.
+
+### Start the multi-actor services manually
+
+```bash
+# From the docker/ directory:
+docker compose -f docker-compose-multi-actor.yml up -d \
+    reporter vendor coordinator case-actor
+```
+
+All three services expose `/api/v2/health/ready` and will be marked healthy
+once their DataLayer is reachable.
+
+### Seed actor records
+
+Each API server starts without any actor records in its DataLayer.  Run the
+`vultron-demo seed` command against each container to create the local actor
+and register peer actors:
+
+```bash
+# Seed each actor service from the demo-runner container:
+docker compose -f docker-compose-multi-actor.yml run --rm \
+    -e VULTRON_API_BASE_URL=http://reporter:7999/api/v2 demo-runner \
+    vultron-demo seed
+
+docker compose -f docker-compose-multi-actor.yml run --rm \
+    -e VULTRON_API_BASE_URL=http://vendor:7999/api/v2 demo-runner \
+    vultron-demo seed
+
+docker compose -f docker-compose-multi-actor.yml run --rm \
+    -e VULTRON_API_BASE_URL=http://coordinator:7999/api/v2 demo-runner \
+    vultron-demo seed
+
+docker compose -f docker-compose-multi-actor.yml run --rm \
+    -e VULTRON_API_BASE_URL=http://case-actor:7999/api/v2 demo-runner \
+    vultron-demo seed
+```
+
+The current demo scenarios reset state and handle peer registration
+automatically. Manual seeding remains useful for debugging or for future
+scenarios that do not use the `demo-runner` workflow.
+
+### Reset actor state between runs
+
+Named volumes (`reporter-data`, `vendor-data`, `case-actor-data`) persist the
+SQLite database files across container restarts.  To wipe all state and start fresh:
+
+```bash
+docker compose -f docker-compose-multi-actor.yml down -v
+```
+
+## Networking
+
+The containers communicate via a dedicated Docker bridge network
+(`vultron-network`). The demo container accesses the API server using the
+service name `api-dev` as the hostname, which Docker resolves internally.
+
+For multi-actor setups, each container uses its service name as the hostname
+in `VULTRON_SERVER__BASE_URL` (e.g., `http://reporter:7999/api/v2/`) so that peer
+containers can derive inbox URLs that route correctly on the Docker network.
+
+## Customizing the docker setup
+
+We use a project name to namespace the docker containers, networks, and
+volumes created by docker-compose. By default, this is derived from the
+name of the directory containing the `docker-compose.yml` file.
+To avoid naming conflicts, you can customize the project name in one of the
+following ways:
+
+### Create a `.env` file
+
+Copy the `.env.example` file to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+The file contains:
+
+```dotenv
+# Environment Variables for Docker Setup
+PROJECT_NAME=vultron
+COMPOSE_PROJECT_NAME=vultron
+```
+
+Both variables are set for compatibility with different docker-compose
+versions.
+
+### Set a different project name at runtime
+
+To avoid or override a `.env`, you can invoke docker-compose with
+
+```bash
+PROJECT_NAME=vultron docker-compose up
+```
+
+or export the variable in your shell session
+
+```bash
+export PROJECT_NAME=vultron
+docker-compose up
+```

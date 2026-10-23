@@ -1,0 +1,52 @@
+---
+stakeholder_type: [project-contributor]
+---
+
+# How to run maintainer tests
+
+Use this guide when you need CI-aligned test execution from a maintainer
+workflow.
+
+## Default command (maintainer baseline)
+
+Run:
+
+```bash
+uv run pytest -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+```
+
+This is the default local maintainer command.
+`-n auto` runs the tests on parallel `pytest-xdist` workers, one per CPU the container may use.
+The worker count comes from the container's CPU and memory limits, not from `nproc`, so a worktree slot gets one worker per CPU it is capped at (`SLOT_CPUS`), memory permitting.
+Set `PYTEST_XDIST_AUTO_NUM_WORKERS` to choose a different count.
+
+If a worker process dies, for example when the container runs out of memory, the run stops at once and reports `worker 'gwN' crashed while running <test>`.
+The named test is the one the worker was running, which is not always the cause.
+A test that runs past its per-test timeout fails on its own with `Failed: Timeout`, and the rest of the run goes on.
+
+## Run a focused file while iterating
+
+If you need faster feedback during implementation, run:
+
+```bash
+uv run pytest test/test_semantic_activity_patterns.py -v
+```
+
+Replace the test path with your target file.
+
+## Include integration tests when required
+
+If you touched any file under `vultron/demo/` or `test/demo/`, run:
+
+```bash
+uv run pytest -m "" -n auto --tb=short > /tmp/last-test-run.log 2>&1; rc=$?; tail -5 /tmp/last-test-run.log; echo "exit: $rc"; (exit $rc)
+```
+
+Use this to mirror CI behavior for demo/integration-sensitive changes.
+
+## Troubleshooting
+
+- If pytest selection is surprising, check markers in test files and rerun with
+  explicit `-m` as needed.
+- If local output differs from CI, rerun with the integration-inclusive command
+  above.

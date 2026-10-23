@@ -1,0 +1,88 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import json
+import logging
+from typing import cast
+
+import py_trees.behaviour
+
+from vultron.core.behaviors.case.engage_defer_trigger_tree import (
+    engage_case_trigger_bt,
+)
+from vultron.core.behaviors.narrative_log import log_case_engagement
+from vultron.core.states.rm import RM
+from vultron.core.use_cases._helpers import current_participant_rm_state
+from vultron.core.use_cases.triggers._base import SvcActivityTriggerBase
+from vultron.core.use_cases.triggers._helpers import (
+    resolve_actor,
+    resolve_case,
+)
+from vultron.core.use_cases.triggers.requests import EngageCaseTriggerRequest
+
+logger = logging.getLogger(__name__)
+
+
+class SvcEngageCaseUseCase(SvcActivityTriggerBase):
+    """Engage a case (RM → ACCEPTED).
+
+    Checks that the actor may move to ACCEPTED, then sends an Engage(Case)
+    activity to the CASE_MANAGER via SenderSideBT (PCR-08-001).  The actor's
+    replica takes the recorded move from the ledger (RSH-08-003, CLP-07-013).
+    """
+
+    def _prepare(self) -> None:
+        request = cast(EngageCaseTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        case = resolve_case(request.case_id, self._dl)
+        self._case_id = case.id_
+        # Captured before the BT runs so the narrative log can report the
+        # actual RM transition rather than only the target state (SL-04-006).
+        self._rm_before = current_participant_rm_state(
+            case, self._actor_id, self._dl
+        )
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        def _build_activities(case_manager_id: str) -> list[str]:
+            activity_id, activity_dict = self._factory.engage_case(
+                case_id=self._case_id,
+                actor=self._actor_id,
+                to=[case_manager_id],
+            )
+            self._captured["activity"] = json.loads(activity_dict)
+            return [activity_id]
+
+        return engage_case_trigger_bt(
+            case_id=self._case_id,
+            actor_id=self._actor_id,
+            activity_builder=_build_activities,
+            result_out=self._result_out,
+        )
+
+    def _extra_execute_kwargs(self) -> dict:
+        return {"case_id": self._case_id}
+
+    def _handle_result(self) -> None:
+        # The engagement the actor sent; an actor already at ACCEPTED sends a
+        # confirmation, and the narrative line claims no transition for it
+        # (SL-04-006, SL-04-007).
+        log_case_engagement(
+            logger,
+            self._actor_id,
+            self._case_id,
+            self._rm_before,
+            RM.ACCEPTED,
+        )

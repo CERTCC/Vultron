@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Per-semantic inbound domain event types for LedgerFanout/LedgerReconciliation log replication."""
+
+from typing import Literal, cast
+
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.events.base import MessageSemantics, VultronEvent
+
+
+class AnnounceLogEntryReceivedEvent(VultronEvent):
+    """CaseActor announced a canonical CaseLedgerEntry for log replication.
+
+    Spec: SYNC-02-003, SYNC-03-001, SYNC-03-002, SYNC-03-003.
+    """
+
+    semantic_type: Literal[MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY] = (
+        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY
+    )
+
+    @property
+    def log_entry(self) -> CaseLedgerEntry | None:
+        """Return the received :class:`CaseLedgerEntry`, or ``None``."""
+        if self.object_ is None:
+            return None
+        return cast(CaseLedgerEntry, self.object_)
+
+    @property
+    def log_entry_id(self) -> str | None:
+        """Return the ID of the received log entry."""
+        return self.object_id
+
+
+class RejectLogEntryReceivedEvent(VultronEvent):
+    """Participant rejected an ``Announce(CaseLedgerEntry)`` due to hash-chain mismatch.
+
+    The ``context`` field of the wire activity carries the last applied hash
+    as a plain string.  The extractor wraps it in a minimal ``CoreObject``
+    whose ``id_`` is the hash string, so ``event.context_id`` returns it.
+
+    Spec: SYNC-03-001, SYNC-03-002.
+    """
+
+    semantic_type: Literal[MessageSemantics.REJECT_CASE_LEDGER_ENTRY] = (
+        MessageSemantics.REJECT_CASE_LEDGER_ENTRY
+    )
+
+    @property
+    def rejected_entry(self) -> CaseLedgerEntry | None:
+        """Return the rejected :class:`CaseLedgerEntry`, or ``None``."""
+        if self.object_ is None:
+            return None
+        return cast(CaseLedgerEntry, self.object_)
+
+    @property
+    def rejected_case_id(self) -> str | None:
+        """The case the rejection is about, or ``None``.
+
+        The rejected entry's case, or, for the Reject that names no entry
+        because the peer holds none and asks for a replay from genesis, the
+        case its ``target`` names (SYNC-16-007).
+        """
+        entry = self.rejected_entry
+        if entry is not None:
+            return entry.case_id
+        return self.target_id
+
+    @property
+    def last_accepted_hash(self) -> str:
+        """Return the last applied hash reported by the peer.
+
+        Falls back to ``""`` (empty string) when no context is present,
+        signalling that the peer has not acknowledged any entry yet and
+        replay should start from the beginning of the recorded projection
+        (CLP-08-005).
+        """
+        ctx = self.context_id
+        if ctx:
+            return ctx
+        return ""

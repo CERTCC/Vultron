@@ -1,0 +1,202 @@
+id: OID
+title: Object ID
+description: Requirements for the format and handling of object identifiers throughout the Vultron system. Establishes full-URI
+  IDs as the canonical form for all ActivityStreams objects and DataLayer records.
+scope:
+- prototype
+- production
+tags:
+- wire-format
+- protocol
+groups:
+- id: OID-01
+  title: ID Format
+  specs:
+  - id: OID-01-001
+    priority: MUST
+    kind: foundation
+    statement: All ActivityStreams object IDs MUST use full URI form
+    rationale: >-
+      ActivityPub requires every object it distributes to carry a publicly
+      dereferenceable URI as its identifier, which a relative or bare identifier is
+      not. ActivityStreams 2.0 alone only says relative references SHOULD NOT be
+      used. Vultron inherits the ActivityPub rule.
+    verification: Integration tests in `test/demo/` confirm that all `as_id` fields on created objects contain full URI
+      strings with a scheme and authority component.
+    relationships:
+    - rel_type: implements
+      spec_id: VP-16-002
+    - rel_type: implements
+      spec_id: VP-16-003
+    stories:
+    - story_2022_029
+    - story_2022_030
+    - story_2022_034
+    - story_2022_045
+    adr:
+    - ADR-0010
+    tags:
+    - activitypub
+  - id: OID-01-002
+    priority: MUST
+    kind: foundation
+    statement: IDs MUST be unique within the issuing actor's deployment; cross-deployment uniqueness is achieved by requiring
+      full URI form (OID-01-001) with a deployment-controlled authority component.
+    rationale: >-
+      Restates ActivityPub's identifier rule: an object's URI has an authority
+      belonging to the server that originated it, so that server keeps it unique and
+      uniqueness across deployments follows from the full URI form.
+    verification: Inspection of `vultron/core/` confirms that ID generation embeds a UUID in full-URI form, guaranteeing
+      uniqueness within the deployment.
+    stories:
+    - story_2022_029
+    - story_2022_030
+    tags:
+    - activitypub
+  - id: OID-01-003
+    priority: MUST
+    kind: project
+    statement: The canonical base URI for locally created objects MUST be configurable via an environment variable (`VULTRON_BASE_URL`
+      or equivalent)
+    rationale: >-
+      How a deployment sets the base of the IDs it mints is an operating choice of
+      this codebase; a peer sees only the resulting IDs. Only this codebase must obey
+      it, so it is `project` (ADR-0134).
+    verification: A unit test confirms that the ID helper reads the base URI from `VULTRON_BASE_URL` (or its configured
+      equivalent) rather than a hardcoded value.
+    stories:
+    - story_2022_029
+    adr:
+    - ADR-0010
+  - id: OID-01-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Helper functions for constructing full-URI IDs from UUIDs MUST be provided in a shared utility module (e.g.,
+      `vultron.as_vocab.utils.make_id`)
+    adr:
+    - ADR-0010
+  - id: OID-01-005
+    priority: MUST
+    kind: project
+    statement: Actor IDs MUST be normalized to full URI form at the point of first establishment — actor creation, seed data
+      loading, or session initialization
+    rationale: >-
+      When this codebase normalizes an actor ID is an internal choice. What a peer
+      observes, an `id` that is a full IRI, is ActivityStreams' rule (MV-05-001). Only
+      this codebase must obey the normalization point, so it is `project` (ADR-0134).
+    verification: Integration tests confirm that after actor creation or seed data loading, the actor's `as_id` field is
+      a full URI rather than a bare UUID or short identifier.
+    relationships:
+    - rel_type: depends_on
+      spec_id: OID-01-003
+    stories:
+    - story_2022_034
+    - story_2022_035
+  - id: OID-01-006
+    priority: MUST
+    kind: project
+    statement: >-
+      A receiver MUST store and ledger a received activity as received, and MUST
+      normalise every actor id it extracts from that activity to act on — to look up,
+      compare with a stored id, or store as a key — at the point of extraction, by
+      stripping a trailing slash
+    rationale: >-
+      File the letter as received; normalise what you copy out of it. The stored activity
+      and the ledger postmark are evidence of what the sender wrote (ADR-0107), so they
+      keep the sender's spelling. The values the receiver works with must have one
+      spelling, or exact lookups miss records written in the other: a peer that spells
+      its id with a trailing slash stopped matching its own CASE_OWNER records once the
+      proposal tree stored the canonical spelling (#4775). Normalising where the value is
+      extracted, not where it is compared, lets core trust one spelling (ADR-0032).
+    verification: >-
+      A received activity whose actor ids carry a trailing slash is stored with the
+      slash, its ledger entry's `payloadSnapshot.actor` keeps the slash, and the case
+      records the use case writes from it hold the ids without one.
+    relationships:
+    - rel_type: refines
+      spec_id: OID-01-005
+      note: >-
+        Extends normalisation at first establishment to ids extracted from received
+        activities.
+    adr:
+    - ADR-0032
+    - ADR-0107
+  - id: OID-01-007
+    priority: MUST
+    kind: project
+    statement: >-
+      The wire extractor MUST normalise a received activity's sender id before it
+      builds the received event, and a received event MUST refuse at construction a
+      sender id that ends in a trailing slash
+    rationale: >-
+      The sender id reaches every received use case, so normalising it once at the edge
+      replaces a trailing-slash-tolerant comparison at each of its uses. Refusing an
+      unnormalised id at construction makes a path that skips the extractor (a trigger, a
+      test fixture) fail where it builds the event instead of storing the other spelling
+      (ARCH-10-001). An id the sender wrote elsewhere in the activity keeps its spelling
+      until it is extracted (OID-01-006), so comparing it with the sender id still needs
+      `same_actor_id` (CLP-10-021). The normalising function must be importable from
+      `vultron/wire/` and `vultron/core/models/`, which may not import
+      `vultron/core/predicates/` (ARCH-22-001).
+    verification: >-
+      An extractor unit test shows a sender id written with a trailing slash reaches
+      the event without it, and a model test shows constructing a received event with
+      such a sender id raises a validation error.
+    relationships:
+    - rel_type: refines
+      spec_id: OID-01-006
+    - rel_type: depends_on
+      spec_id: ARCH-10-001
+    - rel_type: depends_on
+      spec_id: ARCH-22-001
+    adr:
+    - ADR-0032
+- id: OID-02
+  title: DataLayer Handling
+  specs:
+  - id: OID-02-001
+    priority: MUST
+    kind: project
+    statement: The DataLayer MUST store and retrieve objects using their full-URI `as_id` as the primary key
+    verification: A unit test confirms that `DataLayer.save(obj)` and `DataLayer.get(obj.as_id)` round-trip correctly
+      using the full-URI key.
+  - id: OID-02-002
+    priority: MUST
+    kind: project
+    statement: '`object_to_record()` MUST preserve the full-URI `as_id` when serializing objects to the DataLayer'
+    verification: A unit test confirms that `object_to_record(obj)` includes the full-URI `as_id` value in the serialized
+      record.
+  - id: OID-02-003
+    priority: MUST
+    kind: project
+    statement: '`record_to_object()` MUST reconstruct objects using the full-URI `as_id` stored in the record'
+    verification: A unit test confirms that `record_to_object(record)` produces an object whose `as_id` matches the full
+      URI stored in the record.
+  - id: OID-02-004
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      Inspection confirms DataLayer lookups key on full-URI ids and that no lookup path
+      resolves a bare UUID.
+    statement: DataLayer lookups MUST accept full-URI IDs; bare UUIDs MUST NOT be accepted as valid lookup keys
+- id: OID-03
+  title: Blackboard Key Handling
+  specs:
+  - id: OID-03-001
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: Behavior Tree blackboard keys derived from object IDs MUST NOT use the raw full URI as the key
+    relationships:
+    - rel_type: refines
+      spec_id: BT-03-003
+- id: OID-04
+  title: Migration Requirements
+  specs:
+  - id: OID-04-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Any migration of existing bare-UUID records MUST be accompanied by a migration script or documented manual
+      steps

@@ -1,0 +1,579 @@
+# Vultron API v2 Specifications
+
+## Overview
+
+This directory contains formal, testable specifications for the Vultron
+API v2 implementation as structured YAML files validated by Pydantic
+models in `vultron/metadata/specs/`.  Each specification defines
+requirements using RFC 2119 keywords (MUST, SHOULD, MAY) with unique
+requirement IDs and verification criteria.
+
+**How to read specifications**: See `meta-specifications.yaml` for style
+guide and conventions.
+
+---
+
+## Agent Loading Guide
+
+Specs are stored as `specs/*.yaml` files validated by Pydantic models in
+`vultron/metadata/specs/`.  Agents can consume specs in two ways:
+
+### Option A: LLM-Optimized JSON (recommended)
+
+Use the registry's LLM export for a flat, inheritance-resolved projection:
+
+```bash
+# All specs as compact JSON
+python -m vultron.metadata.specs.render --format llm-json specs/
+
+# Single topic (by file ID prefix)
+python -m vultron.metadata.specs.render --format llm-json --topic CM specs/
+```
+
+The output is a single JSON object with `files`, `requirements`, and
+`edges` arrays.  Each requirement has resolved `kind`/`scope` values,
+denormalized `file`/`group` provenance, a `type` discriminator, and
+inline `relationships`.
+
+### Option B: Load YAML files directly
+
+When an agent consumes specs directly, load files in two tiers to minimize
+token overhead while ensuring full coverage.
+
+### Always Load (any implementation task)
+
+These 12 files (~82 KB) apply to virtually every code change:
+
+| File | Covers |
+|------|--------|
+| `architecture.yaml` | Layer separation rules, adapter injection, wire boundary |
+| `code-style.yaml` | Formatting, naming, import organization, type strictness |
+| `tech-stack.yaml` | Approved runtime, tools, and dependency constraints |
+| `handler-protocol.yaml` | Handler use-case contract and implementation patterns |
+| `testability.yaml` | Test coverage requirements, test organization rules |
+| `error-handling.yaml` | Exception hierarchy and error categories |
+| `object-ids.yaml` | Object ID format (full URI) and blackboard key conventions |
+| `use-case-organization.yaml` | Package layout for `vultron/core/use_cases/` |
+| `prototype-shortcuts.yaml` | Permissible shortcuts at the prototype stage |
+| `http-protocol.yaml` | HTTP status codes, Content-Type, error response format |
+| `structured-logging.yaml` | Log format, correlation IDs, log levels |
+| `idempotency.yaml` | Duplicate detection and idempotent processing |
+
+### Load Contextually (by topic)
+
+Load additional files only when the task touches the relevant area. See the
+**Specification Structure** section below for the full topic index.
+
+| Topic | Files to add |
+|-------|-------------|
+| Inter-actor communication / knowledge model | `actor-knowledge-model.yaml` |
+| Case bootstrap trust establishment | `case-bootstrap-trust.yaml`, `participant-case-replica.yaml`, `actor-knowledge-model.yaml` |
+| DataLayer adapter | `datalayer.md` |
+| Handler pipeline | `inbox-endpoint.yaml`, `message-validation.yaml`, `semantic-extraction.yaml`, `dispatch-routing.yaml` |
+| Inbox pipeline testability | `inbox-pipeline.yaml` |
+| Inbox orchestration (core BT module + InboxOutcome seam) | `inbox-orchestration.yaml` |
+| Behavior Trees | `behavior-tree-integration.yaml`, `behavior-tree-node-design.yaml`, `bt-composability.yaml`, `triggerable-behaviors.yaml`, `vultron/core/use_cases/triggers/AGENTS.md` |
+| Case / state management | `case-management.yaml`, `state-machine.yaml`, `case-ledger-processing.yaml` |
+| Lifecycle-staged domain types | `lifecycle-staged-types.yaml`, `notes/lifecycle-staged-types.md` |
+| Status dimension objects (per-machine EM/PXA/RM/VFD/PEC decomposition) | `status-dimension-objects.yaml`, `notes/status-dimension-objects.md` |
+| Received-side status authorization (StatusAdoptionGate, EmbargoTeardownAuthorizationGate, ThreatTerminationBranchNode) | `received-status-handling.yaml`, `notes/received-status-authorization.md` |
+| CaseProposal protocol (distributed case actor initialization) | `case-proposal.yaml` |
+| Protocol asks (ask-and-terminate, outstanding-ask registers, expiry, processing faults) | `protocol-asks.yaml`, `notes/protocol-asks.md` |
+| Protocol conformance | `vultron-protocol-spec.yaml`, `vultron-as2-mapping.yaml`, `message-semantics-mapping.yaml` |
+| Wire vocabulary | `vocabulary-model.yaml` |
+| Activity factory functions | `activity-factories.yaml` |
+| Response generation / outbox | `response-format.yaml`, `outbox.yaml` |
+| Synchronization | `sync-ledger-replication.yaml` |
+| Sync behavior trees (AnnounceLogEntry, RejectLogEntry, CommitLogEntry BTs) | `sync-behavior-trees.yaml` |
+| Participant case replica lifecycle | `participant-case-replica.yaml` |
+| Participant role management (add/remove/has_role) | `participant-role-management.yaml` |
+| Embargo / duration | `embargo-policy.yaml`, `duration.yaml` |
+| Embargo default semantics | `embargo-policy.yaml`, `notes/embargo-default-semantics.md` |
+| Configuration | `configuration.yaml` |
+| Demo / CLI | `demo-cli.yaml`, `multi-actor-demo.yaml` |
+| Demo scenario report tool | `demo-report.yaml` |
+| Event-driven control flow / cascade model | `event-driven-control-flow.yaml`, `notes/event-driven-control-flow.md` |
+| Observability | `observability.yaml` |
+| Security / CI | `ci-security.yaml`, `encryption.yaml` |
+| Demo CI / GitHub Actions demo workflow | `demo-ci.yaml` |
+| Docs build and link-check CI workflow | `docs-build-workflow.yaml`, `notes/docs-build-workflow.md` |
+| Agentic API | `agentic-readiness.yaml` |
+| Documentation work | `diataxis-requirements.yaml`, `project-documentation.yaml`, `traceability.yaml` |
+| Build/bugfix workflow / learnings queue | `build-workflow.yaml` |
+| Plan organization / priorities | `project-documentation.yaml`, `notes/plan-organization.md` |
+| Task granularity / GitHub Issues workflow | `project-documentation.yaml`, `notes/work-granularity.md` |
+| Parallel agentic development / multi-agent coordination | `parallel-development.yaml`, `notes/parallel-development.md` |
+| History file management / append-history tool | `history-management.yaml` |
+| Notes frontmatter / metadata tooling | `notes-frontmatter.yaml` |
+| Spec registry / YAML requirement files | `spec-registry.yaml` |
+| Spec vs. ADR delineation / when to write each | `meta-specifications.yaml`, `notes/specs-vs-adrs.md` |
+
+---
+
+## Specification Structure
+
+Specifications are organized by topic with minimal overlap. Cross-references link
+related requirements across files.
+
+### Core Architecture
+
+**System Architecture**:
+
+- **`architecture.yaml`** - Hexagonal architecture (Ports and Adapters): layer
+  separation rules, SemanticIntent placement, extractor isolation, adapter
+  injection (including `SyncActivityPort` Protocol contract), connector
+  plugins, wire replaceability, review checklist, ARCH-01-001 violation
+  remediation audit
+  (ARCH-01 through ARCH-12; ARCH-01-004, ARCH-04-002 added to track sync
+  port and broader wire-import violations in core/)
+- **`configuration.yaml`** - Unified YAML + Pydantic configuration management:
+  `AppConfig` structure, `get_config()` / `reload_config()` API, env var
+  naming conventions, `SeedConfig` alignment, `ActorConfig` abstraction with
+  `default_case_roles`, testing patterns (note: CFG-06-003 requires
+  `clear_config_cache()` in test teardown — NOT `reload_config()`)
+  (CFG-01 through CFG-07)
+- **`event-driven-control-flow.yaml`** - Event-driven processing model: primary
+  event and cascade definitions, cascade chain, external decision nodes,
+  BT-as-cascade-mechanism requirements, and demo script constraints
+  (EDF-01 through EDF-05)
+- **`vultron-protocol-spec.yaml`** - Requirements extracted from Vultron
+  Protocol documentation: participant state tracking, RM/EM/CS messaging,
+  model interactions, and implementation guidance
+
+**Handler Pipeline** (message processing flow):
+
+1. **`inbox-endpoint.yaml`** - FastAPI HTTP endpoint accepting ActivityStreams activities
+2. **`message-validation.yaml`** - ActivityStreams 2.0 structure and semantic validation
+3. **`semantic-extraction.yaml`** - Pattern matching to determine message semantics
+4. **`dispatch-routing.yaml`** - Routing DispatchEvent to handler functions
+5. **`handler-protocol.yaml`** - Handler function contract and implementation patterns
+
+- **`inbox-pipeline.yaml`** - `InboxPipeline` class contract and `build_test_pipeline()`
+  factory that surface the `inbox_handler → dispatcher` seam as a testable unit;
+  routing-safety-net test coverage requirements (IBP-01 through IBP-04)
+
+- **`inbox-orchestration.yaml`** - Core BT-backed inbox orchestration module:
+  `InboxOutcome` model requirements, BT sequence ordering invariants, adapter
+  injection rules, caller interface constraints, and typed error/outcome
+  behavior (IO-01 through IO-04). Derived from GitHub issue #977 and ADR-0020.
+
+**DataLayer Port**:
+
+- **`datalayer.md`** — DataLayer port requirements: auto-rehydration on read
+  (DL-01), type-safe writes (DL-02), port isolation (DL-03). Formal requirements
+  for the DL-REHYDRATE implementation task.
+
+**Wire Vocabulary and Rehydration**:
+
+- **`vocabulary-model.yaml`** - AS2 vocabulary registration, base model configuration
+  (`alias_generator`, `validate_by_name`, `validate_by_alias`), type inference, Literal
+  type narrowing, and the rehydration contract (`rehydrate(obj, dl)`) (VM-01 through VM-07)
+
+- **`activity-factories.yaml`** - Factory function pattern for constructing outbound
+  Vultron protocol activities; module structure under `vultron/wire/as2/factories/`,
+  import boundary enforcement, error handling, TypeAlias cleanup, and migration
+  requirements (AF-01 through AF-08)
+
+**Semantic–Wire Mapping**:
+
+- **`message-semantics-mapping.yaml`** - Normative bridge from protocol message
+  shorthand labels (RS, EP, CV, etc.) used in behavioral conformance specs
+  (RMB, EMB, CSB) to their `MessageSemantics` enum values and corresponding AS2
+  wire-format entries in `vultron-as2-mapping.yaml`. Closes the three-hop traceability
+  chain: shorthand → `MessageSemantics` → VAM spec ID. The correspondence is
+  many-to-many in both directions — several shorthands may collapse onto one wire
+  activity, and one shorthand may expand across several. Shorthands with no
+  dedicated dispatch entry (RE, EE, EK, CE, CK, GK, GE) are not unimplemented:
+  MSM-05 specifies the mechanisms that serve them, partitioning faults by failure
+  mode and acknowledging ledger-replicated state cumulatively via hash-chain
+  continuity. MSM-06 requires the reference pages under `docs/reference/messages/`
+  to render their mapping tables from the registries rather than by hand. MSM-08
+  specifies occasions, the unit of the message lookup table (ADR-0128).
+  (MSM-01 through MSM-08; see ADR-0083 and `notes/message-type-reference.md`)
+
+- **`vultron-as2-mapping.yaml`** - Authoritative mapping from each `MessageSemantics`
+  enum value to its ActivityStreams 2.0 wire representation: activity type,
+  object type, target/context constraints, and nested-pattern conventions
+  (VAM-01 through VAM-09). Foundational for hexagonal-architecture wire
+  replaceability (ARCH-07-001). MSM items record `derives_from` or
+  `depends_on` links to the VAM wire forms they name (SR-13-012).
+
+**Behavior Tree Integration** (optional for complex workflows):
+
+- **`behavior-tree-integration.yaml`** - BT execution model, bridge layer, DataLayer
+  integration, BT failure diagnosis (BT-13: MUST use `BTBridge.get_failure_reason()`
+  — `result.feedback_message` is always empty on a Sequence root)
+- **`behavior-tree-node-design.yaml`** - BT node parameterization, composability, reuse,
+  blackboard interface contracts, actor-config-driven roles, `AddOwnerParticipantNode`
+  node design, and `CVDRoles.CASE_OWNER` requirement (BTND-01 through BTND-05)
+- **`bt-composability.yaml`** - Simulator reference workflow (lookup before implementing),
+  pre-definition requirement (core/behaviors/ as structure home), BT idioms over
+  procedural code, and fractal composability principle at all depths
+  (BTC-01 through BTC-04)
+- **`triggerable-behaviors.yaml`** - Trigger API for actor-initiated behaviors (PRIORITY
+  30): endpoint format, RM/EM candidate behaviors, request/response schema, BT
+  integration, per-actor DataLayer dependency, outbox activity requirement, trigger
+  classification (general vs demo-only), `RunMode` StrEnum, demo endpoint prefix,
+  `add-object-to-case` generalization (TRIG-01 through TRIG-10)
+
+- **`actor-knowledge-model.yaml`** - Actor Knowledge Model: DataLayer isolation
+  invariant, Actor knowledge boundaries, full-inline-object rule, stub-object
+  exception, future object-tracking optimization (AKM-01 through AKM-04)
+
+### Case and Actor Management
+
+- **`case-management.yaml`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state
+  model, object model relationships (Report/Case/CaseReference/VulnerabilityRecord),
+  case update broadcast, CVD action rules API, redacted case view (CM-09),
+  per-participant embargo acceptance tracking (CM-10), invitation acceptance lifecycle
+  (CM-11), case creation timing (CM-12), embargo acceptance ownership (CM-13), case
+  initialization sequence (CM-14)
+- **`case-bootstrap-trust.yaml`** - Trust establishment for non-owner
+  participants: creator-signed `Create(VulnerabilityCase)` bootstrap on the
+  original report path, invite-based trust establishment for late joiners,
+  pre-bootstrap queue / replay rules, and trusted CaseActor persistence
+  (CBT-01 through CBT-05)
+- **`participant-role-management.yaml`** - Role read/mutation API on
+  `CaseParticipant`: `add_role()`, `remove_role()`,
+  `has_role()`, `roles` property, core-layer no-direct-mutation rule, wire-layer
+  interface parity, and test requirements
+  (PRM-01 through PRM-05)
+- **`case-ledger-processing.yaml`** - Participant assertions, CaseActor-authored
+  `CaseLedgerEntry` objects, case audit scope, recorded-history projection, and
+  replication rules for recorded vs rejected log outcomes (CLP-01 through
+  CLP-05)
+
+**State Machines**:
+
+- **`state-machine.yaml`** - RM/EM/CS/VFD state enum design, machine definitions, runtime
+  transition guards, append-only history, state subsets, and wire/DataLayer compatibility
+  (SM-01 through SM-08)
+
+### Object Identifiers
+
+- **`object-ids.yaml`** - Object ID format (full URI), DataLayer handling, blackboard key
+  conventions, ADR requirement
+
+### Cross-Cutting Concerns
+
+**HTTP Protocol**:
+
+- **`http-protocol.yaml`** - Status codes, Content-Type, size limits, error response format
+
+**Logging and Observability**:
+
+- **`structured-logging.yaml`** - Log format, correlation IDs, log levels, audit trail
+- **`observability.yaml`** - Health check endpoints
+
+**Error Handling**:
+
+- **`error-handling.yaml`** - Exception hierarchy and error categories
+
+**Quality Attributes**:
+
+- **`idempotency.yaml`** - Duplicate detection and idempotent processing
+- **`testability.yaml`** - Test coverage requirements, test organization,
+  architecture boundary tests (TB-10, `PROD_ONLY`)
+
+### Response Generation
+
+**Future Implementation**:
+
+- **`response-format.yaml`** - ActivityStreams response generation (Accept, Reject, etc.)
+- **`outbox.yaml`** - Actor outbox structure, delivery, and addressing
+  (OX-01 through OX-08)
+
+### Synchronization
+
+**Future Implementation**:
+
+- **`sync-ledger-replication.yaml`** - Append-only case event log, replication
+  transport, conflict handling, per-peer state, and retry semantics
+  (SYNC-01 through SYNC-07)
+- **`sync-behavior-trees.yaml`** - Behavior-tree requirements for sync
+  protocol flows: AnnounceLogEntryReceivedBT (with case-actor vs
+  non-case-actor branching), RejectLogEntryReceivedBT, CommitLogEntryBT,
+  and port-injection-via-blackboard pattern
+  (SBT-01 through SBT-05)
+- **`participant-case-replica.yaml`** - Participant case replica lifecycle:
+  replica identity, single-writer update authority, case-context routing,
+  reporter case discovery, and unknown-context handling; see
+  `case-bootstrap-trust.yaml` for non-owner trust establishment
+  (PCR-01 through PCR-07)
+
+### Demo and Tooling
+
+- **`demo-cli.yaml`** - Unified demo CLI: Click-based entry point, demo isolation, Docker,
+  unit and integration test requirements
+- **`multi-actor-demo.yaml`** - Multi-actor demo scenarios: Docker Compose orchestration,
+  actor isolation, acceptance tests, scenario coverage (DEMOMA-01 through DEMOMA-04)
+- **`demo-ci.yaml`** - GitHub Actions workflow for running demo containers on PRs:
+  demo runner failure signalling (DemoFailureError, 404 detection, error accumulation),
+  workflow trigger and path-filter rules, Dependabot skip condition, Docker layer caching,
+  log artifact on failure, extensibility pattern for future scenarios
+  (DEMOCI-01 through DEMOCI-03)
+- **`demo-report.yaml`** - Read-only tool that parses demo-run JSONL case-ledger
+  files into a human-readable report: input discovery, the distilled
+  `CaseTimelineEvent` model, markdown and self-contained HTML rendering, the
+  per-actor replica-presence matrix, friendly (non-URI) naming, and test
+  requirements (DRPT-01 through DRPT-05)
+
+### Actor Profiles and Policies
+
+- **`embargo-policy.yaml`** - Actor embargo policy record format, API, and
+  default embargo semantics: tacit acceptance rule, PROPOSE+ACCEPT atomic
+  transition, shortest-embargo-wins at case creation
+  (EP-01 through EP-04)
+- **`duration.yaml`** - Canonical ISO 8601 duration format for embargo
+  policy fields: restricted grammar, validation rules, Pydantic mapping
+  (DUR-01 through DUR-07)
+
+### Security
+
+- **`ci-security.yaml`** - GitHub Actions security: SHA pinning, secrets
+  management, artifact integrity (CISEC-01 through CISEC-04)
+- **`docs-build-workflow.yaml`** - Docs Build and Link Check workflow:
+  trigger conditions, job structure, docs-changed filter, link-check
+  conditionality, and security compliance (DOCBW-01 through DOCBW-05)
+- **`encryption.yaml`** - ActivityPub encryption and key management (`PROD_ONLY`)
+
+### Code Standards
+
+- **`code-style.yaml`** - Python formatting, import organization, circular import
+  prevention, optional-field non-emptiness (CS-08-001), code reuse (CS-09-001),
+  typed port/adapter interfaces (CS-10-001), domain event naming convention
+  (`FooActivity` vs `FooEvent`, CS-10-002), type annotation strictness
+  (no `Any`, CS-11-001), domain-centric class naming (CS-12-001)
+- **`tech-stack.yaml`** - Normative technology constraints: runtime, persistence,
+  tooling, code quality tooling (including pyright gradual adoption, IMPLTS-*),
+  and Python runtime upgrade policy (IMPLTS-01-007)
+- **`use-case-organization.yaml`** - Package layout for `vultron/core/use_cases/`
+  (received/ vs triggers/), registry synchronization, test mirroring, and
+  information flow documentation (UCORG-01 through UCORG-04)
+- **`meta-specifications.yaml`** - How to write and maintain specifications:
+  file structure, requirement format, ID scheme, writing rules, lifecycle,
+  quality criteria, and spec vs. ADR delineation guidelines
+
+### Documentation Content and Organization
+
+- **`diataxis-requirements.yaml`** - Requirements for organizing project
+  documentation according to the Diátaxis framework (requirement IDs: `DF-NN-NNN`)
+- **`traceability.yaml`** - Traceability matrix requirements: user story → spec
+  mapping, coverage gaps, and maintenance cadence (TRACE-01 through TRACE-02)
+
+### Project and Agent Guidance
+
+- **`build-workflow.yaml`** - Content policy for `plan/incoming/learnings/`:
+  individual per-entry files replacing the legacy shared `BUILD_LEARNINGS.md`,
+  file naming and format requirements, how the `learn` skill archives entries
+  via `uv run append-history --from-file`, the `--from-file` CLI flag
+  behaviour, and skill documentation update requirements (BW-01 through BW-06)
+- **`parallel-development.yaml`** - Multi-agent coordination via GitHub Issues:
+  issue hierarchy (Epic/Task/Subtask), label taxonomy (`size:`,
+  `stale-claim`, `needs-rebase`, `specs-notes`, `needs-info`,
+  `ready-for-human`), task claiming protocol (GitHub branch as distributed
+  lock), size labeling (AC count + diff-based update), auto-merge rules,
+  fresh-agent pre-push review and the post-push delta triage, stale-claim sweeper,
+  merge conflict recovery, and the two paths through Project #24 (`Schedule`
+  on Epics; mirrored `Status` and PR `Ship stage`). See also
+  `notes/parallel-development.md`.
+  Distinct from `agentic-readiness.yaml` (AR), which covers making the
+  Vultron protocol code integrable with external agentic tools.
+- **`project-documentation.yaml`** - Documentation file structure and purpose;
+  includes append-only history write protocol (PD-05) for `plan/*HISTORY.md`,
+  plan section organization rules (PD-06): priority/plan decoupling; and task
+  granularity / GitHub Issues coordination (PD-09): PR-sized issue scoping and
+  sub-issue linking
+- **`history-management.yaml`** - Chunked per-entry history file system:
+  `plan/history/YYMM/<type>/<entry-id>.md` structure, `HistoryEntryType`
+  StrEnum, `append-history` CLI tool (`vultron/metadata/history/`), monthly
+  README generation, legacy file migration, and agent context boundary rules
+  (HM-01 through HM-05)
+- **`prototype-shortcuts.yaml`** - Permissible shortcuts for the prototype stage,
+  including performance testing deferral (PROTO-07) and backward-compatibility
+  / change-completeness policy (PROTO-08)
+- **`agentic-readiness.yaml`** - API and CLI requirements for automated agent integration
+- **`notes-frontmatter.yaml`** - YAML frontmatter schema for `notes/*.md` files:
+  required fields (`title`, `status`), optional relationship fields, Pydantic
+  loader in `vultron/metadata/notes/`, validation enforcement (pytest +
+  pre-commit), migration requirements, and future registry/query tool notes
+  (NF-01 through NF-07)
+- **`spec-registry.yaml`** - YAML spec registry: converting `specs/*.md` to
+  `specs/*.yaml` governed by Pydantic models in `vultron/metadata/specs/`;
+  StrEnum vocabularies, discriminated union spec models, registry loader,
+  linter, pytest marker integration, pre-commit hook, and context generation
+  tool (SR-01 through SR-08)
+
+---
+
+## Reading Order
+
+**For new contributors**:
+
+1. Start with `meta-specifications.yaml` to understand spec structure
+2. Read handler pipeline specs in order (inbox → validation → extraction → dispatch → handler)
+3. Consult cross-cutting specs as needed
+
+**For implementing features**:
+
+1. Identify relevant specifications from structure above
+2. Read requirements with verification criteria
+3. Follow cross-references for related requirements
+4. Check [open GitHub Issues](https://github.com/CERTCC/Vultron/issues) for
+   implementation status
+
+**For reviewing code**:
+
+1. Verify requirements are met per verification criteria
+2. Check cross-referenced specs for related constraints
+3. Ensure tests cover verification scenarios
+
+---
+
+## Requirement ID Format
+
+Each requirement has a unique ID: `PREFIX-NN-NNN`
+
+- **PREFIX**: Specification abbreviation (e.g., `HP` = Handler Protocol, `IE` = Inbox Endpoint)
+- **NN**: Category number within specification
+- **NNN**: Requirement number within category
+
+Example: `HP-04-001` = Handler Protocol, category 4 (Payload Access), requirement 1
+
+**Note**: The `HP-` prefix is reserved for `handler-protocol.yaml`. The
+`http-protocol.yaml` file uses the `HTTP-` prefix to avoid ambiguity. The
+`diataxis-requirements.yaml` file uses the `DF-` prefix. The
+`triggerable-behaviors.yaml` file uses the `TRIG-` prefix (not `TB-`, which
+is reserved for `testability.yaml`).
+
+### Prefix Registry
+
+| Prefix | Specification file |
+|--------|--------------------|
+| `ARCH` | `architecture.yaml` |
+| `AKM` | `actor-knowledge-model.yaml` |
+| `AR` | `agentic-readiness.yaml` |
+| `ASK` | `protocol-asks.yaml` |
+| `BT` | `behavior-tree-integration.yaml` |
+| `BTC` | `bt-composability.yaml` |
+| `BTND` | `behavior-tree-node-design.yaml` |
+| `BW` | `build-workflow.yaml` |
+| `CISEC` | `ci-security.yaml` |
+| `DOCBW` | `docs-build-workflow.yaml` |
+| `CLP` | `case-ledger-processing.yaml` |
+| `CM` | `case-management.yaml` |
+| `CP` | `case-proposal.yaml` |
+| `CS` | `code-style.yaml` |
+| `DC` | `demo-cli.yaml` |
+| `DEMOMA` | `multi-actor-demo.yaml` |
+| `DRPT` | `demo-report.yaml` |
+| `DF` | `diataxis-requirements.yaml` |
+| `DL` | `datalayer.md` |
+| `EH` | `error-handling.yaml` |
+| `EP` | `embargo-policy.yaml` |
+| `HP` | `handler-protocol.yaml` |
+| `HTTP` | `http-protocol.yaml` |
+| `IBP` | `inbox-pipeline.yaml` |
+| `IO` | `inbox-orchestration.yaml` |
+| `IE` | `inbox-endpoint.yaml` |
+| `IMPLTS` | `tech-stack.yaml` |
+| `MSM` | `message-semantics-mapping.yaml` |
+| `MV` | `message-validation.yaml` |
+| `NF` | `notes-frontmatter.yaml` |
+| `SR` | `spec-registry.yaml` |
+| `OB` | `observability.yaml` |
+| `OID` | `object-ids.yaml` |
+| `OX` | `outbox.yaml` |
+| `PAD` | `parallel-development.yaml` |
+| `PD` | `project-documentation.yaml` |
+| `PROTO` | `prototype-shortcuts.yaml` |
+| `RF` | `response-format.yaml` |
+| `SE` | `semantic-extraction.yaml` |
+| `RSH` | `received-status-handling.yaml` |
+| `SDO` | `status-dimension-objects.yaml` |
+| `SM` | `state-machine.yaml` |
+| `SL` | `structured-logging.yaml` |
+| `PCR` | `participant-case-replica.yaml` |
+| `PRM` | `participant-role-management.yaml` |
+| `SYNC` | `sync-ledger-replication.yaml` |
+| `TB` | `testability.yaml` |
+| `AF` | `activity-factories.yaml` |
+| `TRACE` | `traceability.yaml` |
+| `TRIG` | `triggerable-behaviors.yaml` |
+| `UCORG` | `use-case-organization.yaml` |
+| `VAM` | `vultron-as2-mapping.yaml` |
+| `VM` | `vocabulary-model.yaml` |
+
+## Requirement Tags
+
+Some requirements carry special tags to indicate scope or applicability:
+
+- **`PROD_ONLY`**: Requirement may be deferred during the prototype stage.
+  See `prototype-shortcuts.yaml` PROTO-04-001 for the deferral policy.
+  Tagged requirements have `scope: [production]` in their YAML definition.
+
+  Common categories of `PROD_ONLY` requirements include:
+  - Authentication and authorization (per PROTO-01-001)
+  - Federation and cross-server delivery (per PROTO-02-001/02-002)
+  - Rate limiting and request size enforcement
+  - Correlation ID propagation and structured log format
+  - Audit and data access logging
+  - Execution timeout enforcement
+  - Future performance optimizations
+
+---
+
+Some specifications consolidate requirements from multiple sources to create a single
+source of truth:
+
+- **`actor-knowledge-model.yaml`** consolidates Actor isolation and inline-object
+  requirements from `case-management.yaml` (CM-01-001) and
+  `message-validation.yaml` (MV-09-001, removed — now AKM-03-001); it is the
+  authoritative basis for both.
+- **`http-protocol.yaml`** consolidates HTTP requirements from `inbox-endpoint.yaml`,
+  `message-validation.yaml`, `error-handling.yaml`, and `agentic-readiness.yaml`
+- **`structured-logging.yaml`** consolidates logging requirements from `observability.yaml`,
+  `error-handling.yaml`, `inbox-endpoint.yaml`
+- **`idempotency.yaml`** consolidates duplicate detection requirements from
+  `inbox-endpoint.yaml`, `message-validation.yaml`, `handler-protocol.yaml`,
+  `response-format.yaml`
+- **`case-management.yaml`** consolidates case state and actor isolation requirements
+  from `behavior-tree-integration.yaml` (BT-09, BT-10), `notes/case-state-model.md`,
+  and `plan/PRIORITIES.md` (Priority 100, 200); also captures domain model
+  architecture guidance (CM-08)
+
+When requirements appear consolidated, the consolidating spec is the authoritative
+source.
+
+---
+
+## Implementation Status
+
+See [open GitHub Issues](https://github.com/CERTCC/Vultron/issues) for
+current implementation status by specification.
+
+---
+
+## Updating Specifications
+
+When updating specifications:
+
+1. Follow `meta-specifications.yaml` style guide
+2. Keep requirements atomic and testable
+3. Update verification criteria when changing requirements
+4. Add cross-references for related requirements
+5. Update this README if adding/removing specifications
+6. Consider consolidation to reduce redundancy
+
+---
+
+## Related Documentation
+
+- **Open Issues**: [CERTCC/Vultron Issues](https://github.com/CERTCC/Vultron/issues)
+- **Architecture Decisions**: `docs/adr/*.md`
+- **Design Insights**: `notes/` — durable design insights and lessons learned
+- **ActivityPub Workflows**: `docs/howto/activitypub/activities/*.md`
+- **Agent Instructions**: `AGENTS.md` (AI coding agent guidance)
+- **Copilot Instructions**: Embedded in system context (development guidance)
+- **Diátaxis requirements**: `diataxis-requirements.yaml` — requirements for organizing
+  project documentation according to the Diátaxis framework.

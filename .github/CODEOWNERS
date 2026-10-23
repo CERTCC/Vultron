@@ -1,6 +1,8 @@
 # default
 * @ahouseholder
 
+# .github folder specifically
+.github/ @ahouseholder
 
 # all the python
 *.py @ahouseholder
@@ -9,6 +11,9 @@
 /docs/ @ahouseholder
 /vultron/ @ahouseholder
 /test/ @ahouseholder
+/specs/ @ahouseholder
+/notes/ @ahouseholder
+
 
 # site config
 mkdocs.yml @ahouseholder

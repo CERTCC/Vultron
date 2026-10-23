@@ -1,0 +1,61 @@
+# Creates a quarterly snapshot tag on the default branch.
+# Tags are named snapshot-YYYYQn (e.g., snapshot-2026Q2).
+# Runs at 00:00 UTC on the 1st of January, April, July, and October.
+
+name: Quarterly snapshot tag
+
+on:
+  schedule:
+    - cron: '0 0 1 1,4,7,10 *'
+  workflow_dispatch: # Allow manual trigger for testing
+
+jobs:
+  tag:
+    name: Create quarterly tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Compute quarter
+        id: quarter
+        run: |
+          MONTH=$(date +%-m)
+          YEAR=$(date +%Y)
+          QUARTER=$(( (MONTH - 1) / 3 + 1 ))
+          echo "tag=snapshot-${YEAR}Q${QUARTER}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        env:
+          TAG: ${{ steps.quarter.outputs.tag }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists — skipping."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "Created and pushed tag: $TAG"
+          fi
+
+      - name: Notify CI failure
+        if: failure() && github.event_name == 'schedule'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-quarterly-tag
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success() && github.event_name == 'schedule'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-quarterly-tag
+          token: ${{ secrets.GITHUB_TOKEN }}

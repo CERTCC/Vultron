@@ -1,0 +1,817 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+Tests for the report trigger endpoints
+(POST /actors/{actor_id}/trigger/{validate,invalidate,reject,close}-report).
+
+Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
+"""
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from fastapi import FastAPI, status
+from fastapi.testclient import TestClient
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import register
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
+from vultron.adapters.driving.fastapi.routers import (
+    trigger_report as trigger_report_router,
+)
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+    as_ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+# ---------------------------------------------------------------------------
+# Module-level outbox suppression
+# ---------------------------------------------------------------------------
+
+
+#: The route runs through ``run_trigger``, so the flush it schedules is the
+#: helper's ``outbox_handler`` reference, not the router module's.
+_FLUSH = "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler"
+
+
+@pytest.fixture(autouse=True)
+def _no_outbox_delivery():
+    """Suppress real outbox delivery for every test in this module.
+
+    ``outbox_handler`` uses HTTP with exponential-backoff retries.  When
+    tests run with non-existent recipient URLs the retry sleeps add ~3.5 s
+    per test.  Patching to a no-op ``AsyncMock`` eliminates that overhead;
+    that the flush is queued at all is asserted once for every verb in
+    ``test_trigger_routes_contract.py`` (TRIG-07-001).
+    """
+    with patch(_FLUSH, new_callable=AsyncMock):
+        yield
+
+
+@pytest.fixture
+def client_triggers(dl):
+    """The report router over the ``dl`` store: one override reaches both the
+    dispatcher and the flush (TRIG-06-002)."""
+    app = FastAPI()
+    app.include_router(trigger_report_router.router)
+    app.dependency_overrides[get_trigger_dl] = lambda: dl
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides = {}
+
+
+@pytest.fixture
+def report(dl, actor):
+    report_obj = as_VulnerabilityReport(
+        name="Test Vulnerability",
+        content="Test content",
+    )
+    dl.create(report_obj)
+    return report_obj
+
+
+@pytest.fixture
+def reporter(dl):
+    reporter_obj = as_Service(name="Finder Co")
+    dl.create(reporter_obj)
+    return reporter_obj
+
+
+@pytest.fixture
+def offer(dl, report, actor, reporter):
+    offer_obj = as_Offer(
+        actor=reporter.id_,
+        object_=report.id_,
+        target=actor.id_,
+    )
+    dl.create(offer_obj)
+    offer_record = VultronOfferRecord(
+        offer_id=offer_obj.id_,
+        report_id=report.id_,
+        offer_actor_id=reporter.id_,
+        offer_to=[actor.id_],
+    )
+    dl.create(offer_record)
+    return offer_obj
+
+
+@pytest.fixture
+def received_report(dl, actor, report):
+    """Pre-create a VulnerabilityCase with embargo for the report at RM.RECEIVED.
+
+    ADR-0041: vendor tree no longer creates VulnerabilityCase.  Create one
+    directly to satisfy EnsureEmbargoExists in the validate_report BT.
+    """
+    from vultron.core.models.case import VulnerabilityCase
+
+    embargo_id = f"{actor.id_}/embargoes/test-embargo"
+    case_obj = VulnerabilityCase(
+        id_=f"{actor.id_}/cases/test-case-received",
+        name="Test Case at Received",
+        attributed_to=actor.id_,
+        vulnerability_reports=[report.id_],
+        embargo_register=register(active=embargo_id),
+    )
+    dl.create(case_obj)
+    case_actor = as_Service(name=f"Case Actor for {case_obj.name}")
+    dl.create(case_actor)
+    case_manager_participant = as_CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case_obj.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(case_manager_participant)
+    case_obj.actor_participant_index[case_actor.id_] = (
+        case_manager_participant.id_
+    )
+    case_obj.case_participants.append(case_manager_participant.id_)
+    # RM.VALID is case-scoped: this actor must be a participant of its own case
+    # replica, which is what Create(VulnerabilityCase) delivers (ADR-0041,
+    # CBT-01-002).  Without it the validate-report BT correctly refuses to act
+    # rather than latching a transition that never happened (ISSUE-2548).
+    self_participant = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case_obj.id_,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case_obj.id_,
+                rm=RmDimension(state=RM.RECEIVED),
+            )
+        ],
+    )
+    dl.create(self_participant)
+    case_obj.actor_participant_index[actor.id_] = self_participant.id_
+    case_obj.case_participants.append(self_participant.id_)
+    dl.save(case_obj)
+    dl.create(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    )
+    return report
+
+
+@pytest.fixture
+def invalid_report(dl, report, actor):
+    """Pre-seed RM.INVALID for reject triggers (INVALID→CLOSED is valid per BTND-10-001)."""
+    dl.create(VultronReportCaseLink(report_id=report.id_, rm_state=RM.INVALID))
+    return report
+
+
+def _seed_owner_case(dl, actor_id, report_id):
+    """Seed a VulnerabilityCase where *actor_id* is CASE_OWNER with a CASE_MANAGER for routing."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    owner_p = CaseParticipant(
+        attributed_to=actor_id,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    manager_actor = as_Service(name="Case Manager")
+    manager_p = CaseParticipant(
+        attributed_to=manager_actor.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="Owner Case for Close"
+    )
+    case.vulnerability_reports.append(report_id)
+    case.actor_participant_index[actor_id] = owner_p.id_
+    case.actor_participant_index[manager_actor.id_] = manager_p.id_
+    dl.create(manager_actor)
+    dl.create(owner_p)
+    dl.create(manager_p)
+    dl.create(case)
+
+
+@pytest.fixture
+def owner_case_report(dl, report, actor):
+    """A report a case holds; actor is its CASE_OWNER at RM.ACCEPTED."""
+    _seed_owner_case(dl, actor.id_, report.id_)
+    dl.create(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.ACCEPTED)
+    )
+    return report
+
+
+@pytest.fixture
+def non_report_object(dl):
+    """An as_EmbargoEvent stored in the datalayer — not an Offer."""
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    obj = as_EmbargoEvent(
+        context="urn:uuid:some-case", end_time=days_from_now_utc(45)
+    )
+    dl.create(obj)
+    return obj
+
+
+# ===========================================================================
+# Tests for trigger/validate-report
+# ===========================================================================
+
+
+def test_trigger_validate_report_returns_202(
+    client_triggers, actor, offer, received_report
+):
+    """TB-01-002: POST /actors/{id}/trigger/validate-report returns HTTP 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/validate-report",
+        json={"offer_id": offer.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_validate_report_response_contains_activity_key(
+    client_triggers, actor, offer, received_report
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/validate-report",
+        json={"offer_id": offer.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+
+
+def test_trigger_validate_report_missing_offer_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing offer_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/validate-report",
+        json={},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_validate_report_ignores_unknown_fields(
+    client_triggers, actor, offer, received_report
+):
+    """TB-03-002: Unknown fields in request body are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/validate-report",
+        json={
+            "offer_id": offer.id_,
+            "unknown_field_xyz": "should_be_ignored",
+            "another_unknown": 42,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_validate_report_unknown_actor_returns_404(client_triggers):
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
+    resp = client_triggers.post(
+        "/actors/nonexistent-actor/trigger/validate-report",
+        json={"offer_id": "urn:uuid:any-offer"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert "detail" in data
+    assert data["detail"]["status"] == 404
+    assert data["detail"]["error"] == "NotFound"
+    assert "message" in data["detail"]
+    assert data["detail"]["activity_id"] is None
+
+
+def test_trigger_validate_report_unknown_offer_returns_404(
+    client_triggers, actor
+):
+    """HTTP-03-005: Unknown offer_id returns HTTP 404 with structured body."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/validate-report",
+        json={"offer_id": "urn:uuid:nonexistent-offer"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_validate_report_with_note_returns_202(
+    client_triggers, actor, offer, received_report
+):
+    """TB-03-003: Optional note field is accepted and does not cause errors."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/validate-report",
+        json={"offer_id": offer.id_, "note": "Validated after review."},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+@pytest.mark.spec("RSH-08-006")
+def test_trigger_validate_report_sends_to_case_manager_and_writes_nothing(
+    client_triggers, dl, actor, offer, received_report
+):
+    """TB-07-001: validate-report sends the move to the CASE_MANAGER.
+
+    The trigger checks RM.RECEIVED → RM.VALID and sends; it writes nothing
+    of its own, so the report link stays at RM.RECEIVED.  The CASE_MANAGER
+    latches its link and records VALID when it accepts the validation
+    (RSH-08-006, CM-23-016).
+    """
+    from vultron.core.participants.authority import resolve_case_manager_id
+
+    case_obj = dl.find_case_by_report_id(offer.object_)
+    assert case_obj is not None
+    case_manager_id = resolve_case_manager_id(case_obj, dl)
+    assert case_manager_id is not None
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/validate-report",
+        json={"offer_id": offer.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    sent = set(dl.outbox_list()) - outbox_before
+    assert len(sent) == 1
+    activity = dl.read(next(iter(sent)))
+    assert activity is not None
+    assert getattr(activity, "to", None) == [case_manager_id]
+
+    link_id = VultronReportCaseLink.build_id(offer.object_)
+    link = dl.read(link_id)
+    assert (
+        isinstance(link, VultronReportCaseLink)
+        and link.rm_state == RM.RECEIVED
+    ), "The validate-report trigger must not latch its own report link"
+
+
+def test_trigger_validate_report_non_report_offer_returns_404(
+    client_triggers, actor, non_report_object
+):
+    """validate-report returns 404 when no VultronOfferRecord exists for the offer_id.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; a non-offer
+    ID has no record → VultronNotFoundError → HTTP 404.
+    """
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/validate-report",
+        json={"offer_id": non_report_object.id_},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+# ===========================================================================
+# Tests for trigger/invalidate-report
+# ===========================================================================
+
+
+def test_trigger_invalidate_report_returns_202(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-01-002: POST /actors/{id}/trigger/invalidate-report returns HTTP 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/invalidate-report",
+        json={"offer_id": offer.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_invalidate_report_response_contains_activity_key(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/invalidate-report",
+        json={"offer_id": offer.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_invalidate_report_missing_offer_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing offer_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/invalidate-report",
+        json={},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_invalidate_report_ignores_unknown_fields(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-03-002: Unknown fields in request body are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/invalidate-report",
+        json={"offer_id": offer.id_, "unknown_xyz": "ignored"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_invalidate_report_unknown_actor_returns_404(client_triggers):
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
+    resp = client_triggers.post(
+        "/actors/nonexistent/trigger/invalidate-report",
+        json={"offer_id": "urn:uuid:any"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_invalidate_report_unknown_offer_returns_404(
+    client_triggers, actor
+):
+    """HTTP-03-005: Unknown offer_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/invalidate-report",
+        json={"offer_id": "urn:uuid:nonexistent"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_invalidate_report_adds_activity_to_outbox(
+    client_triggers, dl, actor, offer, invalid_report
+):
+    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/invalidate-report",
+        json={"offer_id": offer.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    outbox_after = set(dl.outbox_list())
+    assert len(outbox_after - outbox_before) >= 1
+
+
+def test_trigger_invalidate_report_with_note_returns_202(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-03-003: Optional note field is accepted."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/invalidate-report",
+        json={
+            "offer_id": offer.id_,
+            "note": "Soft-closing; needs more info.",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_invalidate_report_non_report_offer_returns_404(
+    client_triggers, actor, non_report_object
+):
+    """invalidate-report returns 404 when no VultronOfferRecord exists for the offer_id.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; a non-offer
+    ID has no record → VultronNotFoundError → HTTP 404.
+    """
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/invalidate-report",
+        json={"offer_id": non_report_object.id_},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+# ===========================================================================
+# Tests for trigger/reject-report
+# ===========================================================================
+
+
+def test_trigger_reject_report_returns_202(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-01-002: POST /actors/{id}/trigger/reject-report returns HTTP 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-report",
+        json={"offer_id": offer.id_, "note": "Out of scope."},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_reject_report_response_contains_activity_key(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-report",
+        json={"offer_id": offer.id_, "note": "Out of scope."},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_reject_report_missing_note_returns_422(
+    client_triggers, actor, offer, invalid_report
+):
+    """TRIG-03-004: reject-report without note field returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-report",
+        json={"offer_id": offer.id_},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_reject_report_empty_note_emits_warning(
+    client_triggers, actor, offer, invalid_report, caplog
+):
+    """TRIG-03-004: reject-report with empty note emits a WARNING."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/reject-report",
+            json={"offer_id": offer.id_, "note": ""},
+        )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert any("empty" in r.message.lower() for r in caplog.records)
+
+
+def test_trigger_reject_report_missing_offer_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing offer_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-report",
+        json={"note": "Some reason."},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_reject_report_ignores_unknown_fields(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-03-002: Unknown fields in request body are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-report",
+        json={"offer_id": offer.id_, "note": "Reason.", "extra_field": 42},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_reject_report_unknown_actor_returns_404(client_triggers):
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
+    resp = client_triggers.post(
+        "/actors/nonexistent/trigger/reject-report",
+        json={"offer_id": "urn:uuid:any", "note": "Reason."},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_reject_report_unknown_offer_returns_404(
+    client_triggers, actor
+):
+    """HTTP-03-005: Unknown offer_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-report",
+        json={"offer_id": "urn:uuid:nonexistent", "note": "Reason."},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_reject_report_adds_activity_to_outbox(
+    client_triggers, dl, actor, offer, invalid_report
+):
+    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-report",
+        json={"offer_id": offer.id_, "note": "Definitively out of scope."},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    outbox_after = set(dl.outbox_list())
+    assert len(outbox_after - outbox_before) >= 1
+
+
+def test_trigger_reject_report_non_report_offer_returns_404(
+    client_triggers, actor, non_report_object
+):
+    """reject-report returns 404 when no VultronOfferRecord exists for the offer_id.
+
+    Per ADR-0035: _resolve_offer_and_report reads VultronOfferRecord; a non-offer
+    ID has no record → VultronNotFoundError → HTTP 404.
+    """
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-report",
+        json={"offer_id": non_report_object.id_, "note": "Not a report."},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.spec("CM-23-019")
+def test_trigger_reject_report_on_an_owner_case_returns_409_and_queues_nothing(
+    client_triggers, dl, actor, offer, owner_case_report
+):
+    """Once a case holds the report, even its Case Owner's reject-report is 409.
+
+    The owner closes the case by ``Leave(VulnerabilityCase)`` through
+    ``leave-case``, never by ``Close(Report)``, so nothing is queued.
+    """
+    outbox_before = set(dl.outbox_list())
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/reject-report",
+        json={"offer_id": offer.id_, "note": "Closing."},
+    )
+    assert resp.status_code == status.HTTP_409_CONFLICT
+    data = resp.json()
+    assert data["detail"]["error"] == "Conflict"
+    assert "leave-case" in str(data["detail"])
+    assert set(dl.outbox_list()) == outbox_before
+
+
+# ===========================================================================
+# trigger/close-report is retired (ADR-0145)
+# ===========================================================================
+
+
+@pytest.mark.spec("TRIG-13-001")
+def test_trigger_close_report_route_is_gone(client_triggers, actor, offer):
+    """No close-report route: an actor leaves a case with leave-case."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/close-report",
+        json={"offer_id": offer.id_},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+# ===========================================================================
+# Tests for trigger/submit-report
+# ===========================================================================
+
+
+def test_trigger_submit_report_returns_202(client_triggers, actor):
+    """TB-04-001: submit-report trigger returns 202 with offer payload."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "Remote Code Execution in Widget",
+            "report_content": "A critical RCE vulnerability was found.",
+            "recipient_id": "https://example.org/actors/vendor",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    body = resp.json()
+    assert "offer" in body
+    assert body["offer"]["type"] == "Offer"
+
+
+def test_trigger_submit_report_creates_report_in_datalayer(
+    client_triggers, actor, dl
+):
+    """submit-report trigger persists a as_VulnerabilityReport in the DataLayer."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "Stored XSS in Dashboard",
+            "report_content": "An attacker can inject scripts via the search box.",
+            "recipient_id": "https://example.org/actors/vendor",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    offer_id = resp.json()["offer"]["id"]
+
+    # The offer should be fetchable from the DataLayer.
+    stored_offer = dl.read(offer_id)
+    assert stored_offer is not None
+
+
+def test_trigger_submit_report_creates_offer_in_outbox(
+    client_triggers, actor, dl
+):
+    """TB-07-001: submit-report adds the offer to the actor's outbox."""
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "SQL Injection",
+            "report_content": "A SQL injection was found in the login form.",
+            "recipient_id": "https://example.org/actors/vendor",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    outbox_after = set(dl.outbox_list())
+    assert len(outbox_after - outbox_before) >= 1
+
+
+def test_trigger_submit_report_missing_field_returns_422(
+    client_triggers, actor
+):
+    """submit-report rejects a body missing required fields."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/submit-report",
+        json={
+            "report_name": "Missing content",
+            # report_content and recipient_id are missing
+        },
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_submit_report_logs_report_and_offer(
+    client_triggers, actor, caplog
+):
+    """submit-report trigger emits INFO logs for report creation and offer."""
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="vultron"):
+        client_triggers.post(
+            f"/actors/{actor.id_}/trigger/submit-report",
+            json={
+                "report_name": "Heap Buffer Overflow",
+                "report_content": "Heap buffer overflow in network parser.",
+                "recipient_id": "https://example.org/actors/vendor",
+            },
+        )
+
+    messages = [r.message for r in caplog.records]
+    assert any("Created VulnerabilityReport" in m for m in messages)
+    assert any("Offering report" in m for m in messages)
+
+
+# ===========================================================================
+# submit-report — proposed_embargo_end_time (EP-04-004, #3971)
+# ===========================================================================
+
+
+class TestSubmitReportProposedEmbargo:
+    _BODY = {
+        "report_name": "Remote Code Execution in Widget",
+        "report_content": "A critical RCE vulnerability was found.",
+        "recipient_id": "https://example.org/actors/vendor",
+    }
+
+    @pytest.mark.spec("EP-04-004")
+    @pytest.mark.spec("TRIG-04-001")
+    def test_the_offer_in_the_response_carries_the_proposed_terms(
+        self, client_triggers, actor
+    ):
+        end = days_from_now_utc(10)
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/submit-report",
+            json={**self._BODY, "proposed_embargo_end_time": end.isoformat()},
+        )
+
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        offer = resp.json()["offer"]
+        assert offer["proposedEmbargo"]["context"] == offer["object"]["id"]
+        assert offer["proposedEmbargo"]["endTime"].startswith(
+            end.strftime("%Y-%m-%dT%H:%M:%S")
+        )
+
+    def test_without_the_field_the_offer_carries_no_terms(
+        self, client_triggers, actor
+    ):
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/submit-report", json=self._BODY
+        )
+
+        assert resp.status_code == status.HTTP_202_ACCEPTED
+        assert "proposedEmbargo" not in resp.json()["offer"]
+
+    @pytest.mark.spec("HTTP-03-009")
+    @pytest.mark.parametrize(
+        "bad",
+        ["2030-01-01T00:00:00", "2020-01-01T00:00:00+00:00", "soon"],
+        ids=["naive", "past", "not-a-datetime"],
+    )
+    def test_a_bad_end_time_is_422(self, client_triggers, actor, bad):
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/submit-report",
+            json={**self._BODY, "proposed_embargo_end_time": bad},
+        )
+
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

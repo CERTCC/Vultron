@@ -1,0 +1,245 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Background outbox-drain loop (OUTBOX-MON-1).
+
+Implements an ``OutboxMonitor`` that drains all registered actor-scoped
+DataLayer instances when woken by an enqueue notification — or after a
+safety-net polling interval elapses with no notification.
+
+The monitor is started inside the FastAPI lifespan (``app.py``) and runs as
+a background asyncio task for the lifetime of the process.  Stopping the
+monitor (at shutdown) cancels the task cleanly.
+
+Spec coverage:
+- OUTBOX-MON-1: Background outbox-drain loop; periodically drains all
+  actor outboxes without a manual trigger.
+- OX-09-001: Monitor wakes immediately on enqueue via callback.
+- OX-09-002: Safety-net poll interval retained for missed notifications.
+- OX-09-003: Callback injected as Callable; no monitor import in DL layer.
+- OX-09-004: DEBUG-level queue-depth summary on each drain pass.
+- OX-09-005: WARNING when any actor's outbox exceeds depth_warn_threshold.
+"""
+
+import asyncio
+import logging
+from collections.abc import Callable
+
+from vultron.adapters.driven.datalayer import get_all_actor_datalayers
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.ports.emitter import ActivityEmitter
+
+logger = logging.getLogger(__name__)
+
+
+class OutboxMonitor:
+    """Background outbox-drain loop for all registered actors (OUTBOX-MON-1).
+
+    Wakes immediately when any actor enqueues an outbox item (via injected
+    callback) and drains all pending outboxes.  A safety-net polling interval
+    ensures eventual delivery even when a notification is missed.
+
+    Lifecycle::
+
+        monitor = OutboxMonitor()
+        monitor.start()   # call from within a running asyncio event loop
+        ...
+        monitor.stop()    # call at shutdown
+
+    The ``actor_datalayers_factory`` and ``emitter`` parameters allow
+    injection of test doubles without patching module globals.
+
+    Args:
+        poll_interval: Maximum seconds between drain passes (default 1.0).
+            The monitor may drain more frequently when actors enqueue items.
+        actor_datalayers_factory: Callable returning the current
+            ``{actor_id: DataLayer}`` mapping.  Defaults to
+            :func:`~vultron.adapters.driven.datalayer_sqlite.get_all_actor_datalayers`.
+        emitter: ``ActivityEmitter`` implementation for HTTP delivery.
+            Defaults to ``HttpDeliveryAdapter`` (resolved inside
+            :func:`outbox_handler`).
+        depth_warn_threshold: When set, emit a WARNING log for any actor
+            whose outbox depth exceeds this value on a drain pass.  ``None``
+            (default) disables the warning (OX-09-005).
+    """
+
+    def __init__(
+        self,
+        poll_interval: float = 1.0,
+        actor_datalayers_factory: (
+            Callable[[], dict[str, SqliteDataLayer]] | None
+        ) = None,
+        emitter: ActivityEmitter | None = None,
+        depth_warn_threshold: int | None = None,
+    ) -> None:
+        if depth_warn_threshold is not None and depth_warn_threshold < 0:
+            raise ValueError(
+                f"depth_warn_threshold must be non-negative, got {depth_warn_threshold}"
+            )
+        self._poll_interval = poll_interval
+        self._actor_datalayers_factory = actor_datalayers_factory
+        self._emitter = emitter
+        self._depth_warn_threshold = depth_warn_threshold
+        self._task: asyncio.Task | None = None
+        self._running = False
+        self._wakeup_event: asyncio.Event | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._registered_actors: set[str] = set()
+
+    async def drain_all(self) -> None:
+        """Process all registered actor outboxes once.
+
+        Logs total pending items at DEBUG level on every pass (OX-09-004).
+        Emits a WARNING for any actor whose depth exceeds
+        ``depth_warn_threshold`` when that parameter is set (OX-09-005).
+
+        Skips actors whose outbox is empty.  Delivery errors for a single
+        actor are caught, logged at ERROR level, and do not abort processing
+        for other actors.
+        """
+        factory = (
+            self._actor_datalayers_factory
+            if self._actor_datalayers_factory is not None
+            else get_all_actor_datalayers
+        )
+        actor_dls = factory()
+
+        depths: dict[str, int] = {
+            actor_id: len(dl.outbox_list())
+            for actor_id, dl in actor_dls.items()
+        }
+        total = sum(depths.values())
+        logger.debug(
+            "OutboxMonitor: drain pass - total pending: %d across %d actors",
+            total,
+            len(actor_dls),
+        )
+        if self._depth_warn_threshold is not None:
+            for actor_id, depth in depths.items():
+                if depth > self._depth_warn_threshold:
+                    logger.warning(
+                        "OutboxMonitor: actor '%s' outbox depth %d"
+                        " exceeds threshold %d",
+                        actor_id,
+                        depth,
+                        self._depth_warn_threshold,
+                    )
+
+        for actor_id, dl in actor_dls.items():
+            if not depths[actor_id]:
+                continue
+            try:
+                await outbox_handler(
+                    actor_id,
+                    dl,
+                    emitter=self._emitter,
+                )
+            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+                logger.error(  # noqa: TRY400  # ruff-baseline #3353
+                    "OutboxMonitor: unhandled error draining outbox"
+                    " for actor '%s': %s",
+                    actor_id,
+                    exc,
+                )
+
+    def _notify(self, actor_id: str) -> None:
+        """Wakeup callback — called by SqliteDataLayer when an item is enqueued.
+
+        Safe to call from any thread (uses :meth:`asyncio.loop.call_soon_threadsafe`
+        so it is compatible with both on-loop and off-loop callers).
+
+        Args:
+            actor_id: The actor whose outbox received a new item.
+        """
+        if self._wakeup_event is not None and self._loop is not None:
+            self._loop.call_soon_threadsafe(self._wakeup_event.set)
+
+    def _register_new_actors(self) -> None:
+        """Register _notify with any newly seen SqliteDataLayer instances.
+
+        Called once at loop startup and again after each drain pass to pick
+        up actors that were registered while the monitor was running.
+        """
+        factory = (
+            self._actor_datalayers_factory
+            if self._actor_datalayers_factory is not None
+            else get_all_actor_datalayers
+        )
+        actor_dls = factory()
+        for actor_id, dl in actor_dls.items():
+            if actor_id not in self._registered_actors and isinstance(
+                dl, SqliteDataLayer
+            ):
+                dl.set_enqueue_callback(self._notify)
+                self._registered_actors.add(actor_id)
+
+        # No shared-DataLayer registration: the wakeup callback used to be
+        # registered there so that record_outbox_item() on the shared DL would
+        # wake the monitor.  Both are gone — every DataLayer is actor-scoped and
+        # registers its own callback above (ADR-0073).
+
+    async def _run_loop(self) -> None:
+        """Main drain loop — wakes on enqueue or safety-net timeout."""
+        logger.info(
+            "OutboxMonitor started (poll_interval=%.1fs).",
+            self._poll_interval,
+        )
+        event = self._wakeup_event
+        assert event is not None  # guaranteed by start()
+        self._register_new_actors()
+        try:
+            while self._running:
+                try:
+                    await asyncio.wait_for(
+                        event.wait(), timeout=self._poll_interval
+                    )
+                except TimeoutError:
+                    pass
+                event.clear()
+                self._register_new_actors()
+                await self.drain_all()
+        except asyncio.CancelledError:
+            pass
+        logger.info("OutboxMonitor stopped.")
+
+    def start(self) -> None:
+        """Start the background drain loop as an asyncio task.
+
+        Must be called from within a running asyncio event loop (e.g.,
+        inside a FastAPI lifespan coroutine).  Calling ``start()`` while
+        the monitor is already running is a no-op (logged at WARNING level).
+        """
+        if self._task is not None and not self._task.done():
+            logger.warning(
+                "OutboxMonitor.start() called while already running; ignoring."
+            )
+            return
+        self._loop = asyncio.get_running_loop()
+        self._wakeup_event = asyncio.Event()
+        self._running = True
+        self._task = asyncio.create_task(self._run_loop())
+
+    def stop(self) -> None:
+        """Signal the drain loop to stop and cancel the asyncio task.
+
+        Safe to call even if the monitor was never started.
+        """
+        self._running = False
+        self._loop = None
+        if self._task is not None and not self._task.done():
+            self._task.cancel()
+        self._task = None
+        self._registered_actors.clear()

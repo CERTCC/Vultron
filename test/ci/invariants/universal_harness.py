@@ -1,0 +1,551 @@
+"""Factory for the universal case-ledger invariant test functions.
+
+Each scenario harness calls::
+
+    globals().update(
+        make_universal_invariant_tests(
+            replicas_fixture="<scenario>_replicas",
+            chain_actors=_CHAIN_ACTORS,
+            expected_semantic_types=_XXX_EXPECTED_SEMANTIC_TYPES,
+        )
+    )
+
+to inject every universal test function without copying their
+implementations (ISSUE-2007, AC-1).  The returned ``result`` dict below is
+the definitive inventory — do not restate its size in prose, here or in
+docs, because that number is what goes stale (ISSUE-3337).
+
+The injected functions use ``request.getfixturevalue(replicas_fixture)``
+to retrieve the calling module's scenario-specific replicas fixture at
+pytest collection time.
+
+Diagnostic guidance per invariant (which layer to check first, which
+``xfail`` markers are live and who owns them) lives in
+``notes/demo-ci-diagnostics.md`` § "Per-Invariant Diagnostic Map", which
+``test/ci/invariants/test_diagnostic_map_sync.py`` ratchets against this
+factory.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from test.ci.invariants.common import (
+    check_causal_edges,
+    check_clp14_timestamp_invariants,
+    check_cross_actor_hash_agreement,
+    check_cross_actor_payload_actor_agreement,
+    check_cs_state_transitions_observed,
+    check_genesis_entry_present,
+    check_hash_chain,
+    check_log_starts_at_genesis,
+    check_nested_objects_inlined,
+    check_no_gaps_in_log_indices,
+    check_no_participant_act_after_case_closure,
+    check_no_rejected_invite_entries,
+    check_no_rm_state_oscillation,
+    check_non_empty_payload_snapshots,
+    check_participant_status_schema_completeness,
+    check_payload_context_uses_case_uri,
+    check_per_actor_replica_cs_state_transitions_observed,
+    check_per_actor_replica_no_rm_state_oscillation,
+    check_per_actor_replica_participant_status_schema_completeness,
+    check_per_actor_replica_rm_closed_termination,
+    check_rm_closed_termination,
+    check_semantic_type_count,
+    check_semantic_type_is_registry_label,
+    check_semantic_type_present,
+    check_status_entries_record_changes,
+    check_unique_payload_snapshot_ids,
+    load_actor_names,
+    load_narrative_edges,
+)
+
+
+def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested test closure; each is simple
+    replicas_fixture: str,
+    chain_actors: list,
+    expected_semantic_types: list,
+    check_fix_ready: bool = True,
+    *,
+    narrative_path: str | None = None,
+    joined_invitees: int = 0,
+) -> dict[str, Any]:
+    """Return the universal invariant test functions keyed by name.
+
+    Parameters
+    ----------
+    replicas_fixture:
+        Name of the module-scoped fixture in the calling harness that
+        returns ``dict[str, list[dict]]`` — e.g. ``"rv_replicas"``.
+    chain_actors:
+        Per-scenario ``_CHAIN_ACTORS`` list (``pytest.param`` entries or
+        plain strings) passed to ``@pytest.mark.parametrize``.
+    expected_semantic_types:
+        Per-scenario ``_XXX_EXPECTED_SEMANTIC_TYPES`` list passed to
+        ``@pytest.mark.parametrize``.
+    check_fix_ready:
+        Forwarded to ``check_cs_state_transitions_observed`` and its
+        replica-side counterpart
+        ``check_per_actor_replica_cs_state_transitions_observed``; set to
+        ``False`` for the ``rcv-reject`` scenario where Vendor never advances
+        the VFD state machine.
+    narrative_path:
+        Repo-relative path to the scenario narrative Markdown page that
+        carries the machine-readable ``causal_edges:`` front-matter block.
+        When provided, injects ``test_invariant_16_causal_edges_in_ledger_order``.
+        When absent, that test is omitted (DEMOMA-22-005).
+    joined_invitees:
+        How many actors the scenario invites to join the case (each accepts
+        its stub Invite).  When positive, injects
+        ``test_invariant_17_every_joined_invitee_judged_the_case``: the
+        ledger holds a full-case Invite and a reply to it for each of them
+        (CM-11-010, CM-11-011), whatever the invitee's role.
+    """
+    calling_module = sys._getframe(1).f_globals.get("__name__", __name__)
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.parametrize("actor_name", chain_actors)
+    def test_invariant_1_local_hash_chain_consistent(
+        actor_name: str,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Within each contiguous logIndex fragment, hashes chain correctly."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        entries = replicas.get(actor_name)
+        if entries is None:
+            pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
+        violations = check_hash_chain(actor_name, entries)
+        assert not violations, "\n".join(violations)
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_2_cross_actor_hash_agreement(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """All actors agree on entryHash for every shared logIndex."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_cross_actor_hash_agreement(replicas)
+        assert not violations, (
+            f"Cross-actor hash mismatches at {len(violations)} logIndex(es):\n"
+            + "\n".join(violations[:20])
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_3_cross_actor_payload_actor_agreement(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """All actors agree on payloadSnapshot.actor for every shared logIndex."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_cross_actor_payload_actor_agreement(replicas)
+        assert not violations, (
+            "Cross-actor payloadSnapshot.actor mismatches:\n"
+            + "\n".join(violations[:20])
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_4_non_empty_payload_snapshot(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Every recorded canonical entry has a non-empty payloadSnapshot."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_non_empty_payload_snapshots(replicas)
+        assert not violations, (
+            f"Found {len(violations)} recorded entries with empty payloadSnapshot:\n"
+            + "\n".join(violations[:20])
+        )
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.parametrize("semantic_type_val", expected_semantic_types)
+    def test_invariant_5_expected_semantic_types_present(
+        semantic_type_val: str,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Each expected protocol semanticType appears at least once."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_semantic_type_present(replicas, semantic_type_val)
+        assert not violations, violations[0] if violations else ""
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_6_no_rm_state_oscillation(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """No participant changes RM state after first reaching CLOSED."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_no_rm_state_oscillation(replicas)
+        assert not violations, (
+            "RM state oscillation after CLOSED:\n" + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_7_log_terminates_all_rm_closed(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """The log terminates with every participant in RM=CLOSED."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_rm_closed_termination(replicas)
+        assert not violations, (
+            f"Participants not in RM=CLOSED at log end: {violations}"
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_18_no_participant_act_after_case_closure(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Nothing a participant does is recorded after the case closes.
+
+        CM-23-013, CM-23-015: every participant leaves before the Case Owner,
+        so the CASE_MANAGER's ledger holds one status entry recording its own
+        ``RM.CLOSED``, the write boundary, and no later entry records a
+        participant's act.
+        """
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_no_participant_act_after_case_closure(
+            replicas, load_actor_names(request.module._DEMO_NAME)
+        )
+        assert not violations, (
+            "Post-close write boundary violated:\n" + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_9_participant_status_schema_completeness(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Every ParticipantStatus snapshot includes a cvdRole list."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_participant_status_schema_completeness(replicas)
+        assert not violations, (
+            f"{len(violations)} ParticipantStatus entries missing required fields:\n"
+            + "\n".join(violations[:20])
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_10_nested_objects_inlined_in_payload(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """payloadSnapshot.object is an inline dict, not a bare ID string."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_nested_objects_inlined(replicas)
+        assert not violations, (
+            f"payloadSnapshot.object is a bare ID string in {len(violations)} entries:\n"
+            + "\n".join(violations[:20])
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_11_payload_context_uses_case_uri(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """payloadSnapshot.context matches the entry's case_id for recorded entries."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_payload_context_uses_case_uri(replicas)
+        assert not violations, (
+            f"payloadSnapshot.context != case_id in {len(violations)} entries:\n"
+            + "\n".join(violations[:20])
+        )
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.parametrize("actor_name", chain_actors)
+    def test_invariant_12_genesis_entry_present(
+        actor_name: str,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """logIndex=0 is present in the actor's log."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        entries = replicas.get(actor_name)
+        if entries is None:
+            pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
+        violations = check_genesis_entry_present(actor_name, entries)
+        assert not violations, "\n".join(violations)
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.parametrize("actor_name", chain_actors)
+    def test_invariant_13_log_starts_at_genesis(
+        actor_name: str,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """The first entry in the actor's sorted log has logIndex=0."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        entries = replicas.get(actor_name)
+        if entries is None:
+            pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
+        violations = check_log_starts_at_genesis(actor_name, entries)
+        assert not violations, "\n".join(violations)
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.parametrize("actor_name", chain_actors)
+    def test_invariant_14_no_gaps_in_log_indices(
+        actor_name: str,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """No gaps within the actor's present logIndex range."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        entries = replicas.get(actor_name)
+        if entries is None:
+            pytest.skip(f"No log found for actor {actor_name!r} in devlogs/")
+        violations = check_no_gaps_in_log_indices(actor_name, entries)
+        assert not violations, "\n".join(violations)
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_15_cs_state_transitions_observed(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """All key CS transitions are recorded in the authoritative log."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_cs_state_transitions_observed(
+            replicas, check_fix_ready=check_fix_ready
+        )
+        assert not violations, (
+            "Missing CS-transition observations:\n" + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_clp13_no_rejected_invite_entries(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """No invite_actor_to_case entries carry a stale disposition field (CLP-13-001, CLP-04-007)."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_no_rejected_invite_entries(replicas)
+        assert not violations, (
+            f"Found {len(violations)} stale-disposition invite_actor_to_case"
+            f" entries (CLP-13-001/CLP-04-007 violation):\n"
+            + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("CLP-07-002")
+    def test_invariant_clp07_unique_payload_snapshot_ids(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """No replica records one activity twice (CLP-07-002, ADR-0109)."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_unique_payload_snapshot_ids(replicas)
+        assert not violations, (
+            f"{len(violations)} activity id(s) recorded more than once on a"
+            f" replica (CLP-07-002 violation):\n" + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("CLP-07-013")
+    def test_invariant_clp07_status_entries_record_changes(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """No ``CaseStatus`` entry repeats the previous one unchanged
+        (CLP-07-013).  A same-state ``ParticipantStatus`` is allowed
+        (BTND-10-001), so it is not checked here."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_status_entries_record_changes(replicas)
+        assert not violations, (
+            f"{len(violations)} CaseStatus entr(ies) that change nothing or"
+            " are mislabelled (CLP-07-013):\n" + "\n".join(violations[:20])
+        )
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("SE-02-001")
+    @pytest.mark.spec("CLP-02-014")
+    def test_invariant_semantic_type_is_registry_label(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Each entry's semanticType is the registry's label for its payload (ADR-0140)."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_semantic_type_is_registry_label(replicas)
+        assert not violations, (
+            f"{len(violations)} entr(ies) whose semanticType is not the"
+            " registry's label for the payload (ADR-0140):\n"
+            + "\n".join(violations[:20])
+        )
+
+    @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("CLP-14-002")
+    @pytest.mark.spec("CLP-14-003")
+    @pytest.mark.spec("CLP-14-005")
+    @pytest.mark.spec("CLP-14-006")
+    @pytest.mark.spec("CLP-14-010")
+    def test_invariant_clp14_timestamp_invariants(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Commit timestamps are non-null, unique-indexed, and non-decreasing.
+
+        The commit-timestamp half of ADR-0079 § "Validation".  These are the
+        invariants on ``CaseLedgerEntry.published`` — the CaseActor's own stamp
+        — as distinct from the claimed-timestamp checks the commit boundary
+        applies to ``payloadSnapshot.published``
+        (``_validate_entry_timestamps``).  ADR-0079 asserted these ran in
+        ``test/ci/invariants/common.py``; the check existed but no scenario ever
+        invoked it (ISSUE-2824).
+        """
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_clp14_timestamp_invariants(replicas)
+        assert not violations, (
+            f"{len(violations)} CLP-14 timestamp invariant violation(s):\n"
+            + "\n".join(violations[:20])
+        )
+
+    # Replica-side counterparts of invariants 6, 7, 9 and 15.  These four were
+    # one aggregate test, ``test_invariant_per_actor_replica_divergence``, until
+    # ISSUE-3385: a single marker over four independent properties meant an
+    # xfail scoped to one of them silenced all four, and a failure reported one
+    # undifferentiated violation list.  Each now carries its own marker and its
+    # own row in the diagnostic map.
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_per_actor_replica_no_rm_state_oscillation(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """No non-case-actor replica records an RM change after CLOSED."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_per_actor_replica_no_rm_state_oscillation(replicas)
+        assert not violations, (
+            f"{len(violations)} replica-side RM-oscillation violation(s):\n"
+            + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_per_actor_replica_rm_closed_termination(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Each leaver's replica ends at its own closure, itself RM=CLOSED.
+
+        CM-23-004: a closed participant is sent nothing after the entries
+        that record its own closure, so no replica holds every closure;
+        invariant 7 checks every participant on the ``case-actor`` log.
+        """
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_per_actor_replica_rm_closed_termination(
+            replicas, load_actor_names(request.module._DEMO_NAME)
+        )
+        assert not violations, (
+            f"{len(violations)} replica-side RM-termination violation(s):\n"
+            + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_per_actor_replica_participant_status_schema_completeness(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Every ParticipantStatus snapshot on every replica carries the required fields."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = (
+            check_per_actor_replica_participant_status_schema_completeness(
+                replicas
+            )
+        )
+        assert not violations, (
+            f"{len(violations)} replica-side ParticipantStatus schema"
+            " violation(s):\n" + "\n".join(violations)
+        )
+
+    @pytest.mark.case_ledger_invariants
+    def test_invariant_per_actor_replica_cs_state_transitions_observed(
+        request: pytest.FixtureRequest,
+    ) -> None:
+        """Each non-case-actor replica observed all key CS transitions."""
+        replicas = request.getfixturevalue(replicas_fixture)
+        violations = check_per_actor_replica_cs_state_transitions_observed(
+            replicas, check_fix_ready=check_fix_ready
+        )
+        assert not violations, (
+            f"{len(violations)} replica-side CS-transition violation(s):\n"
+            + "\n".join(violations)
+        )
+
+    result = {
+        "test_invariant_1_local_hash_chain_consistent": test_invariant_1_local_hash_chain_consistent,
+        "test_invariant_2_cross_actor_hash_agreement": test_invariant_2_cross_actor_hash_agreement,
+        "test_invariant_3_cross_actor_payload_actor_agreement": test_invariant_3_cross_actor_payload_actor_agreement,
+        "test_invariant_4_non_empty_payload_snapshot": test_invariant_4_non_empty_payload_snapshot,
+        "test_invariant_5_expected_semantic_types_present": test_invariant_5_expected_semantic_types_present,
+        "test_invariant_6_no_rm_state_oscillation": test_invariant_6_no_rm_state_oscillation,
+        "test_invariant_7_log_terminates_all_rm_closed": test_invariant_7_log_terminates_all_rm_closed,
+        "test_invariant_18_no_participant_act_after_case_closure": test_invariant_18_no_participant_act_after_case_closure,
+        "test_invariant_9_participant_status_schema_completeness": test_invariant_9_participant_status_schema_completeness,
+        "test_invariant_10_nested_objects_inlined_in_payload": test_invariant_10_nested_objects_inlined_in_payload,
+        "test_invariant_11_payload_context_uses_case_uri": test_invariant_11_payload_context_uses_case_uri,
+        "test_invariant_12_genesis_entry_present": test_invariant_12_genesis_entry_present,
+        "test_invariant_13_log_starts_at_genesis": test_invariant_13_log_starts_at_genesis,
+        "test_invariant_14_no_gaps_in_log_indices": test_invariant_14_no_gaps_in_log_indices,
+        "test_invariant_15_cs_state_transitions_observed": test_invariant_15_cs_state_transitions_observed,
+        "test_invariant_clp13_no_rejected_invite_entries": test_invariant_clp13_no_rejected_invite_entries,
+        "test_invariant_clp07_unique_payload_snapshot_ids": test_invariant_clp07_unique_payload_snapshot_ids,
+        "test_invariant_clp14_timestamp_invariants": test_invariant_clp14_timestamp_invariants,
+        "test_invariant_semantic_type_is_registry_label": test_invariant_semantic_type_is_registry_label,
+        "test_invariant_per_actor_replica_no_rm_state_oscillation": test_invariant_per_actor_replica_no_rm_state_oscillation,
+        "test_invariant_per_actor_replica_rm_closed_termination": test_invariant_per_actor_replica_rm_closed_termination,
+        "test_invariant_per_actor_replica_participant_status_schema_completeness": test_invariant_per_actor_replica_participant_status_schema_completeness,
+        "test_invariant_per_actor_replica_cs_state_transitions_observed": test_invariant_per_actor_replica_cs_state_transitions_observed,
+    }
+
+    if narrative_path is not None:
+        _narrative_path = narrative_path
+
+        @pytest.mark.case_ledger_invariants
+        def test_invariant_16_causal_edges_in_ledger_order(
+            request: pytest.FixtureRequest,
+        ) -> None:
+            """Every declared causal edge appears in the ledger in causal order (DEMOMA-22-005).
+
+            Reads the scenario narrative page's YAML front-matter to obtain the
+            machine-readable ``causal_edges:`` list, then verifies that for each
+            observable edge (antecedent, consequent) there exists at least one
+            antecedent entry that precedes at least one consequent entry in the
+            authoritative log, and that the consequent entries considered are
+            those whose recorded actor is the edge's ``consequent_actor``.
+            """
+            replicas = request.getfixturevalue(replicas_fixture)
+            edges = load_narrative_edges(_narrative_path)
+            violations = check_causal_edges(
+                replicas,
+                edges,
+                load_actor_names(Path(_narrative_path).stem),
+            )
+            assert not violations, (
+                f"{len(violations)} causal-edge ordering violation(s):\n"
+                + "\n".join(violations)
+            )
+
+        test_invariant_16_causal_edges_in_ledger_order.__module__ = (
+            calling_module
+        )
+        result["test_invariant_16_causal_edges_in_ledger_order"] = (
+            test_invariant_16_causal_edges_in_ledger_order
+        )
+
+    if joined_invitees > 0:
+        _joined_invitees = joined_invitees
+
+        @pytest.mark.case_ledger_invariants
+        @pytest.mark.parametrize(
+            "semantic_type",
+            ["invite_actor_to_full_case", "accept_invite_actor_to_full_case"],
+        )
+        def test_invariant_17_every_joined_invitee_judged_the_case(
+            semantic_type: str,
+            request: pytest.FixtureRequest,
+        ) -> None:
+            """Each joined invitee is sent the full-case Invite and replies to it.
+
+            After an invitee accepts its stub Invite the CASE_MANAGER sends the
+            full-case Invite, and the invitee judges the case by accepting it
+            (CM-11-010, CM-11-011).  The scenario invites
+            ``joined_invitees`` actors, so each semantic type appears exactly
+            that many times: a floor alone is satisfied by a double commit
+            for one invitee while another is never sent the Invite (#4120).
+            """
+            replicas = request.getfixturevalue(replicas_fixture)
+            violations = check_semantic_type_count(
+                replicas,
+                semantic_type,
+                min_count=_joined_invitees,
+                max_count=_joined_invitees,
+            )
+            assert not violations, violations[0] if violations else ""
+
+        result["test_invariant_17_every_joined_invitee_judged_the_case"] = (
+            test_invariant_17_every_joined_invitee_judged_the_case
+        )
+
+    for fn in result.values():
+        fn.__module__ = calling_module
+    return result

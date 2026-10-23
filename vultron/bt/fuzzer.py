@@ -1,8 +1,6 @@
 #!/usr/bin/env python
-"""file: cvd_proto_fuzzer
-author: adh
-created_at: 4/26/22 10:59 AM
-"""
+"""This module provides behavior tree fuzzers"""
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -16,13 +14,11 @@ created_at: 4/26/22 10:59 AM
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import random
 
-from vultron.cvd_states.states import all_states
-
-from vultron.bt.embargo_management.states import EM
-from vultron.bt.report_management.states import RM_UNCLOSED
+from vultron.core.states.cs import all_states
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM_UNCLOSED
 
 
 def random_state():

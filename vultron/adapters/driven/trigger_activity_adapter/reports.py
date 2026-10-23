@@ -1,0 +1,230 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Report-domain trigger activity construction for TriggerActivityAdapter."""
+
+import logging
+from typing import Any
+
+from vultron.adapters.received_archive import read_held_as_received
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.errors import VultronAlreadyExistsError, VultronNotFoundError
+from vultron.wire.as2.factories import (
+    rm_close_report_activity,
+    rm_invalidate_report_activity,
+    rm_read_report_activity,
+    rm_submit_report_activity,
+    rm_validate_report_activity,
+)
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+from ._base import (
+    _create_and_seal,
+    _seal,
+    _to_wire,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _reconstitute_offer(
+    offer_id: str, dl: "CaseOutboxPersistence"
+) -> Any | None:
+    """Reconstitute a wire Offer from VultronOfferRecord + VulnerabilityReport.
+
+    Per ADR-0035 DL-06-004: the adapter layer MAY read stored activity only
+    via the wire/adapter-owned seam that never interprets it (for wire envelope
+    reconstitution).  When the wire Offer is absent (e.g. for invite-path
+    actors who never received it directly), the domain facts recorded in
+    VultronOfferRecord are sufficient to reconstitute the Offer envelope.
+
+    Uses rm_submit_report_activity (AF-03-001) to stay within the factory
+    boundary — passing id_=offer_id preserves the original offer's identity.
+
+    Returns None if the necessary records are not available.
+    """
+    offer_record = dl.read(VultronOfferRecord.build_id(offer_id))
+    if not isinstance(offer_record, VultronOfferRecord):
+        return None
+    report = _to_wire(dl.read(offer_record.report_id), as_VulnerabilityReport)
+    if report is None:
+        logger.debug(
+            "_reconstitute_offer: report '%s' not found in DataLayer"
+            " — cannot reconstitute offer '%s'",
+            offer_record.report_id,
+            offer_id,
+        )
+        return None
+    to = (
+        offer_record.offer_to[0]
+        if offer_record.offer_to
+        else offer_record.offer_actor_id
+    )
+    try:
+        return rm_submit_report_activity(
+            report=report,
+            to=to,
+            actor=offer_record.offer_actor_id,
+            id_=offer_id,
+        )
+    except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
+        logger.warning(
+            "_reconstitute_offer: failed to reconstitute offer '%s': %s",
+            offer_id,
+            exc,
+        )
+        return None
+
+
+class _ReportsMixin:
+    """Trigger activity methods for as_VulnerabilityReport objects."""
+
+    _dl: CaseOutboxPersistence
+
+    def submit_report(
+        self,
+        report_id: str,
+        actor: str,
+        to: str,
+        target: str,
+        proposed_embargo_id: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Offer(as_VulnerabilityReport)`` activity.
+
+        *proposed_embargo_id* names the Reporter's stored ``EmbargoEvent`` for
+        the report; the factory carries it as ``proposedEmbargo`` and refuses
+        one whose ``context`` is not the report (EP-04-009).  A name that
+        resolves to nothing raises ``VultronNotFoundError``: the use case
+        stored the event a moment ago, so its absence is a fault, not a
+        proposal to drop quietly.
+        """
+        report = _to_wire(self._dl.read(report_id), as_VulnerabilityReport)
+        proposed_embargo = (
+            _to_wire(self._dl.read(proposed_embargo_id), as_EmbargoEvent)
+            if proposed_embargo_id is not None
+            else None
+        )
+        activity = rm_submit_report_activity(
+            report=report,
+            to=to,
+            actor=actor,
+            target=target,
+            proposed_embargo=proposed_embargo,
+        )
+        try:
+            self._dl.create(activity)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "submit_report: activity '%s' already exists — skipping",
+                activity.id_,
+            )
+        offer_record = VultronOfferRecord(
+            offer_id=activity.id_,
+            report_id=report_id,
+            offer_actor_id=actor,
+            offer_to=[to] if isinstance(to, str) else list(to),
+        )
+        try:
+            self._dl.create(offer_record)
+        except VultronAlreadyExistsError:
+            logger.warning(
+                "submit_report: offer record '%s' already exists — skipping",
+                offer_record.id_,
+            )
+        except Exception:
+            # Compensating delete: remove the Offer activity so the pair is
+            # never left in a half-written state. If the delete itself fails,
+            # log and re-raise the original error so the caller sees it.
+            try:
+                self._dl.delete(activity.type_, activity.id_)
+            except Exception:
+                logger.exception(
+                    "submit_report: compensating delete of activity '%s' also"
+                    " failed; DataLayer may be in inconsistent state",
+                    activity.id_,
+                )
+            raise
+        return _seal(self._dl, activity)
+
+    def _resolve_offer(self, offer_id: str) -> Any:
+        """Read the Offer as this actor holds it; else rebuild it from its record.
+
+        A received Offer is parsed from the body its intake archived, never
+        read under the id its sender chose (DL-06-006), so the reply embeds
+        it as the Reporter sent it (DL-06-004); an Offer this actor sent is
+        held under its own id (:func:`read_held_as_received`).  When neither
+        is held, the Offer is reconstituted from its ``VultronOfferRecord``.
+        """
+        try:
+            return read_held_as_received(
+                self._dl, offer_id, "Offer(VulnerabilityReport)"
+            )
+        except VultronNotFoundError:
+            return _reconstitute_offer(offer_id, self._dl)
+
+    def validate_report(
+        self,
+        offer_id: str,
+        report_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(Offer)`` validate-report activity."""
+        offer = self._resolve_offer(offer_id)
+        activity = rm_validate_report_activity(offer=offer, actor=actor, to=to)
+        return _create_and_seal(self._dl, activity, "validate_report")
+
+    def close_report(
+        self,
+        offer_id: str,
+        report_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Offer)`` Report Closed (RC) activity."""
+        offer = self._resolve_offer(offer_id)
+        activity = rm_close_report_activity(offer=offer, actor=actor, to=to)
+        return _create_and_seal(self._dl, activity, "close_report")
+
+    def invalidate_report(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``TentativeReject(Offer)`` activity."""
+        offer = self._resolve_offer(offer_id)
+        activity = rm_invalidate_report_activity(
+            offer=offer, actor=actor, to=to
+        )
+        return _create_and_seal(self._dl, activity, "invalidate_report")
+
+    def ack_report(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        content: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Read(Offer(Report))`` ack-report activity."""
+        offer = self._resolve_offer(offer_id)
+        activity = rm_read_report_activity(
+            offer, actor=actor, to=to, content=content
+        )
+        return _create_and_seal(self._dl, activity, "ack_report")

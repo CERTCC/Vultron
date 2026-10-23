@@ -1,0 +1,592 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Tests for the core VulnerabilityCase domain model (step 6 of issue #699)."""
+
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from pydantic import ValidationError
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.clock import SteppingClock
+from test.support.embargo_register import activate, terminate
+from vultron.core.models import _helpers
+from vultron.core.models.base import CoreObject
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import (
+    CaseParticipant,
+    ReporterParticipant,
+)
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.registry import CORE_VOCABULARY
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
+from vultron.errors import VultronValidationError
+
+_ACTOR = "https://example.org/actor"
+_CASE_ID = "urn:uuid:case-test"
+
+
+@pytest.fixture
+def case() -> VulnerabilityCase:
+    return VulnerabilityCase(
+        id_=_CASE_ID,
+        attributed_to=_ACTOR,
+    )
+
+
+class TestVulnerabilityCaseBasics:
+    """VulnerabilityCase is a CoreObject with the canonical type."""
+
+    def test_inherits_core_object(self):
+        assert issubclass(VulnerabilityCase, CoreObject)
+
+    def test_type_literal(self, case: VulnerabilityCase):
+        assert case.type_ == "VulnerabilityCase"
+
+    def test_id_preserved(self, case: VulnerabilityCase):
+        assert case.id_ == _CASE_ID
+
+    def test_id_auto_generated_when_not_given(self):
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        assert c.id_.startswith("urn:uuid:")
+
+    def test_attributed_to_stored(self, case: VulnerabilityCase):
+        assert case.attributed_to == _ACTOR
+
+    def test_default_fields_empty(self, case: VulnerabilityCase):
+        assert case.case_participants == []
+        assert case.vulnerability_reports == []
+        assert case.notes == []
+        assert case.case_activity == []
+        assert case.parent_cases == []
+        assert case.child_cases == []
+        assert case.sibling_cases == []
+
+
+class TestVulnerabilityCaseInitialStatus:
+    """An initial CaseStatus is seeded when attributed_to is set."""
+
+    def test_case_statuses_seeded_with_attributed_to(
+        self, case: VulnerabilityCase
+    ):
+        assert len(case.case_statuses) == 1
+        assert isinstance(case.case_statuses[0], CaseStatus)
+
+    def test_initial_status_context_is_case_id(self, case: VulnerabilityCase):
+        status = case.case_statuses[0]
+        assert isinstance(status, CaseStatus)
+        assert status.context == _CASE_ID
+
+    def test_initial_status_attributed_to_is_actor(
+        self, case: VulnerabilityCase
+    ):
+        status = case.case_statuses[0]
+        assert isinstance(status, CaseStatus)
+        assert status.attributed_to == _ACTOR
+
+
+class TestVulnerabilityCaseRequiresOwner:
+    """Every case has an owner: construction and loading refuse one without.
+
+    The genesis hash, and so the whole ledger chain, is computed from the
+    owner (CLP-08-002/003), so an ownerless case is refused (ARCH-10-001).
+    """
+
+    def test_construction_without_attributed_to_raises(self):
+        with pytest.raises(ValidationError, match="attributedTo"):
+            VulnerabilityCase(id_=_CASE_ID)
+
+    @pytest.mark.parametrize("blank", ["", "   "])
+    def test_construction_with_blank_attributed_to_raises(self, blank: str):
+        with pytest.raises(ValidationError, match=r"attributed_?[tT]o"):
+            VulnerabilityCase(id_=_CASE_ID, attributed_to=blank)
+
+    def test_loading_stored_case_without_owner_raises(
+        self, case: VulnerabilityCase
+    ):
+        stored = case.model_dump(mode="json")
+        del stored["attributed_to"]
+        with pytest.raises(ValidationError, match="attributedTo"):
+            VulnerabilityCase.model_validate(stored)
+
+    def test_assigning_none_owner_raises(self, case: VulnerabilityCase):
+        with pytest.raises(ValidationError):
+            case.attributed_to = None  # type: ignore[assignment]
+
+    def test_genesis_hash_always_computed(self, case: VulnerabilityCase):
+        assert case.genesis_hash
+
+    def test_blank_carried_genesis_hash_is_recomputed(self):
+        c = VulnerabilityCase(
+            id_=_CASE_ID, attributed_to=CASE_OWNER_ID, genesis_hash=""
+        )
+        assert c.genesis_hash
+
+    @pytest.mark.parametrize("by_alias", [True, False])
+    def test_schema_shows_no_stand_in_default(self, by_alias: bool):
+        """The refused stand-in defaults stay out of the published schema."""
+        properties = VulnerabilityCase.model_json_schema(by_alias=by_alias)[
+            "properties"
+        ]
+        for name in (
+            ("genesisHash", "ledgerPosition")
+            if by_alias
+            else (
+                "genesis_hash",
+                "ledger_position",
+            )
+        ):
+            assert "default" not in properties[name]
+
+
+class TestVulnerabilityCaseRegistration:
+    """VulnerabilityCase auto-registers in CORE_VOCABULARY — ADR-0017."""
+
+    def test_registered_in_core_vocabulary(self):
+        assert "VulnerabilityCase" in CORE_VOCABULARY
+        assert CORE_VOCABULARY["VulnerabilityCase"] is VulnerabilityCase
+
+
+class TestVulnerabilityCaseCurrentStatus:
+    """current_status returns the most recent materialized CaseStatus."""
+
+    def test_current_status_returns_case_status(self, case: VulnerabilityCase):
+        assert isinstance(case.current_status, CaseStatus)
+
+    def test_case_status_property_alias(self, case: VulnerabilityCase):
+        assert case.case_status is case.current_status
+
+    def test_current_status_raises_when_no_materialized(self):
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c.case_statuses = ["urn:uuid:some-id"]  # only str refs
+        with pytest.raises(ValueError, match="no materialized CaseStatus"):
+            _ = c.current_status
+
+    def test_current_status_raises_when_empty(self):
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c.case_statuses = []
+        with pytest.raises(ValueError):
+            _ = c.current_status
+
+    def test_current_status_prefers_newer_timestamp_over_id_scheme(self):
+        """A newer ``updated`` wins even when its ``id_`` sorts lower.
+
+        Guards CM-29-001: the ``id_`` scheme must never arbitrate recency. A
+        urn:uuid ID (``'u'``) sorts lexically above an https ID (``'h'``), so
+        this catches any regression that reintroduced ``id_`` as a tiebreaker
+        overriding an authoritative timestamp.
+        """
+        older = CaseStatus(
+            id_="urn:uuid:00000000-0000-0000-0000-000000000001",
+            context=_CASE_ID,
+            updated=datetime(2020, 1, 1, tzinfo=UTC),
+        )
+        newer = CaseStatus(
+            id_="https://coord.example/status/1",
+            context=_CASE_ID,
+            updated=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c.case_statuses = [older, newer]
+        assert c.current_status is newer
+
+    @pytest.mark.parametrize(
+        "stamp",
+        [datetime(2026, 1, 1, tzinfo=UTC), None],
+        ids=["equal", "absent"],
+    )
+    def test_current_status_tie_goes_to_the_last_appended(
+        self, stamp: datetime | None
+    ):
+        """Equal or absent timestamps resolve to the last-appended status.
+
+        Received statuses carry the sender's time or none at all
+        (ISSUE-3257), so ties are ordinary.  ``max`` kept the *first* maximal
+        element, so a new status sharing the previous one's time never
+        became current.
+        """
+        first = CaseStatus(
+            id_="urn:uuid:00000000-0000-0000-0000-000000000002",
+            context=_CASE_ID,
+            published=stamp,
+            updated=stamp,
+        )
+        second = CaseStatus(
+            id_="https://coord.example/status/1",
+            context=_CASE_ID,
+            published=stamp,
+            updated=stamp,
+        )
+        c = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
+        c.case_statuses = [first, second]
+        assert c.current_status is second
+
+
+class TestVulnerabilityCaseAddReport:
+    """add_report appends a report ID to vulnerability_reports."""
+
+    def test_add_report_appends_id(self, case: VulnerabilityCase):
+        report_id = "urn:uuid:report-1"
+        case.add_report(report_id)
+        assert report_id in case.vulnerability_reports
+
+    def test_add_multiple_reports(self, case: VulnerabilityCase):
+        case.add_report("urn:uuid:report-1")
+        case.add_report("urn:uuid:report-2")
+        assert len(case.vulnerability_reports) == 2
+
+
+class TestVulnerabilityCaseAddParticipant:
+    """add_participant updates case_participants and actor_participant_index."""
+
+    def test_add_participant_appends(self, case: VulnerabilityCase):
+        p = ReporterParticipant(
+            id_="urn:uuid:part-1",
+            attributed_to="https://example.org/finder",
+        )
+        case.add_participant(p)
+        assert p.id_ in case.case_participants
+
+    def test_add_participant_updates_index(self, case: VulnerabilityCase):
+        p = ReporterParticipant(
+            id_="urn:uuid:part-1",
+            attributed_to="https://example.org/finder",
+        )
+        case.add_participant(p)
+        assert (
+            case.actor_participant_index.get("https://example.org/finder")
+            == "urn:uuid:part-1"
+        )
+
+    def test_add_participant_without_attributed_to_no_index(
+        self, case: VulnerabilityCase
+    ):
+        p = ReporterParticipant(id_="urn:uuid:part-2")
+        case.add_participant(p)
+        assert "urn:uuid:part-2" not in case.actor_participant_index
+
+    def test_add_participant_raises_on_actor_index_divergence(
+        self, case: VulnerabilityCase
+    ):
+        actor_id = "https://example.org/finder"
+        case.actor_participant_index[actor_id] = "urn:uuid:part-existing"
+        participant = ReporterParticipant(
+            id_="urn:uuid:part-new",
+            attributed_to=actor_id,
+        )
+        with pytest.raises(VultronValidationError, match="divergence"):
+            case.add_participant(participant)
+
+
+class TestVulnerabilityCaseActiveEmbargoView:
+    """active_embargo is a view of the register's ACTIVE entry (ADR-0122)."""
+
+    def test_activation_makes_the_embargo_active(
+        self, case: VulnerabilityCase
+    ):
+        activate(case, "urn:uuid:embargo-1")
+        assert case.active_embargo == "urn:uuid:embargo-1"
+        assert case.active_embargo_id == "urn:uuid:embargo-1"
+        assert case.em_state == EM.ACTIVE
+
+    def test_termination_leaves_no_active_embargo(
+        self, case: VulnerabilityCase
+    ):
+        activate(case, "urn:uuid:embargo-1")
+        terminate(case)
+        assert case.active_embargo is None
+        assert case.em_state == EM.EXITED
+
+
+class TestVulnerabilityCaseRecordActivity:
+    """record_activity appends activity IDs idempotently."""
+
+    def test_record_activity_appends(self, case: VulnerabilityCase):
+        case.record_activity("urn:uuid:activity-1")
+        assert "urn:uuid:activity-1" in case.case_activity
+
+    def test_record_activity_is_idempotent(self, case: VulnerabilityCase):
+        case.record_activity("urn:uuid:activity-1")
+        case.record_activity("urn:uuid:activity-1")
+        assert case.case_activity.count("urn:uuid:activity-1") == 1
+
+    def test_record_multiple_activities(self, case: VulnerabilityCase):
+        case.record_activity("urn:uuid:activity-1")
+        case.record_activity("urn:uuid:activity-2")
+        assert len(case.case_activity) == 2
+
+
+class TestVulnerabilityCaseAddCaseStatus:
+    """add_case_status validates shape and appends to case_statuses (CM-27-003)."""
+
+    def test_add_case_status_appends(self, case: VulnerabilityCase):
+        initial_len = len(case.case_statuses)
+        status = CaseStatus(context=_CASE_ID, attributed_to=_ACTOR)
+        case.add_case_status(status)
+        assert len(case.case_statuses) == initial_len + 1
+        assert case.case_statuses[-1] is status
+
+    def test_add_case_status_rejects_wire_shaped(
+        self, case: VulnerabilityCase
+    ):
+        from vultron.wire.as2.vocab.objects.case_status import (
+            as_CaseStatus,
+        )
+
+        # ``as_CaseStatus`` *is* ``CaseStatus`` (ARCH-25-003, ADR-0099), so there is no
+        # wire-shaped status left to reject — the object is exactly what the slot
+        # wants and is appended.  The guard against a genuinely wrong type is still
+        # covered by ``test_add_case_status_rejects_non_case_status`` below.
+        wire_status = as_CaseStatus(context=_CASE_ID)
+        case.add_case_status(wire_status)
+        assert case.case_statuses[-1] is wire_status
+
+    def test_add_case_status_rejects_non_case_status(
+        self, case: VulnerabilityCase
+    ):
+        with pytest.raises(VultronValidationError):
+            case.add_case_status("not-a-status")  # type: ignore[arg-type]
+
+
+class TestWireVulnerabilityCaseFieldParity:
+    """Wire VulnerabilityCase must not have fields absent from core VulnerabilityCase.
+
+    Enforces ARCH-14-001 / ARCH-09-001: core domain models MUST be as rich as
+    or richer than wire counterparts (core >= wire).  Wire-only fields are a
+    violation; extra core-only fields are permitted and expected.
+    """
+
+    def test_wire_vulnerability_case_field_names_match_core(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase as WireVC,
+        )
+
+        core_fields = set(VulnerabilityCase.model_fields.keys())
+        wire_fields = set(WireVC.model_fields.keys())
+
+        wire_only = wire_fields - core_fields
+        assert not wire_only, (
+            f"Wire VulnerabilityCase has fields not in core VulnerabilityCase "
+            f"(ARCH-09-001 violation): {sorted(wire_only)}"
+        )
+
+
+class TestVulnerabilityCaseWireRoundTrip:
+    """as_VulnerabilityCase IS VulnerabilityCase (ARCH-25-003, ADR-0099, issue #3487)."""
+
+    def test_to_core_produces_vulnerability_case(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase as WireVC,
+        )
+
+        assert WireVC is VulnerabilityCase
+        wire_case = WireVC(
+            id_="urn:uuid:vc-roundtrip",
+            attributed_to="https://example.org/actor",
+        )
+        assert isinstance(wire_case, VulnerabilityCase)
+        assert wire_case.id_ == "urn:uuid:vc-roundtrip"
+
+    def test_from_core_preserves_id(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase as WireVC,
+        )
+
+        assert WireVC is VulnerabilityCase
+        core_case = VulnerabilityCase(
+            id_="urn:uuid:vc-fromcore",
+            attributed_to="https://example.org/actor",
+        )
+        assert core_case.id_ == "urn:uuid:vc-fromcore"
+
+    def test_round_trip_preserves_active_embargo(self):
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase as WireVC,
+        )
+
+        assert WireVC is VulnerabilityCase
+        core_case = VulnerabilityCase(
+            id_="urn:uuid:vc-rt",
+            attributed_to="https://example.org/actor",
+        )
+        activate(core_case, "urn:uuid:embargo-1")
+        assert core_case.active_embargo == "urn:uuid:embargo-1"
+        restored = VulnerabilityCase.model_validate(
+            core_case.model_dump(by_alias=True)
+        )
+        assert restored.active_embargo_id == "urn:uuid:embargo-1"
+        assert restored.em_state == EM.ACTIVE
+
+
+# ---------------------------------------------------------------------------
+# Every participant holds a row for every register entry (ADR-0122)
+# ---------------------------------------------------------------------------
+
+_E1 = "https://example.org/embargoes/e1"
+_E2 = "https://example.org/embargoes/e2"
+
+
+def _case_with_register() -> VulnerabilityCase:
+    from test.support.embargo_register import propose
+
+    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
+    activate(case, _E1)
+    propose(case, _E2)
+    return case
+
+
+@pytest.mark.spec("CM-18-001")
+def test_add_participant_writes_an_uninvited_row_per_register_entry() -> None:
+    from vultron.core.states.participant_embargo_consent import (
+        EmbargoConsentState,
+    )
+
+    case = _case_with_register()
+    participant = CaseParticipant(
+        attributed_to="https://example.org/actors/joiner", context=case.id_
+    )
+    assert case.add_participant(participant) is True
+    assert [(r.embargo_id, r.state) for r in participant.embargo_consents] == [
+        (_E1, EmbargoConsentState.UNINVITED),
+        (_E2, EmbargoConsentState.UNINVITED),
+    ]
+    # Adding again is idempotent: one row per entry, never two, and it
+    # reports that nothing was written.
+    assert case.add_participant(participant) is False
+    assert [r.embargo_id for r in participant.embargo_consents] == [_E1, _E2]
+    assert case.case_participants == [participant.id_]
+
+
+def test_add_participant_returns_false_on_an_empty_register() -> None:
+    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
+    participant = CaseParticipant(
+        attributed_to="https://example.org/actors/joiner", context=case.id_
+    )
+    # No register entry, so no row to write: the participant is still added
+    # and indexed, but the return value says its record gained nothing.
+    assert case.add_participant(participant) is False
+    assert participant.embargo_consents == []
+    assert case.case_participants == [participant.id_]
+    assert case.actor_participant_index == {
+        "https://example.org/actors/joiner": participant.id_
+    }
+
+
+def test_add_participant_reports_a_row_for_a_later_register_entry() -> None:
+    from test.support.embargo_register import propose
+
+    case = VulnerabilityCase(attributed_to="https://example.org/actors/owner")
+    activate(case, _E1)
+    participant = CaseParticipant(
+        attributed_to="https://example.org/actors/joiner", context=case.id_
+    )
+    assert case.add_participant(participant) is True
+    propose(case, _E2)
+    # Re-adding writes only the row for the new entry and reports it.
+    assert case.add_participant(participant) is True
+    assert [r.embargo_id for r in participant.embargo_consents] == [_E1, _E2]
+    assert case.case_participants == [participant.id_]
+
+
+def test_embargo_register_status_raises_for_an_unregistered_embargo() -> None:
+    from vultron.core.states.embargo_register import EmbargoRegisterStatus
+    from vultron.errors import VultronNotFoundError
+
+    case = _case_with_register()
+    assert case.embargo_register_status(_E1) is EmbargoRegisterStatus.ACTIVE
+    with pytest.raises(VultronNotFoundError):
+        case.embargo_register_status("https://example.org/embargoes/none")
+
+
+@pytest.mark.spec("CM-18-001")
+def test_a_case_refuses_an_inline_participant_missing_a_row() -> None:
+    from pydantic import ValidationError
+
+    from test.support.embargo_register import register
+
+    rowless = CaseParticipant(
+        attributed_to="https://example.org/actors/p", context="urn:case"
+    )
+    with pytest.raises(ValidationError, match="no consent row"):
+        VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_="urn:case",
+            embargo_register=register(active=_E1),
+            case_participants=[rowless],
+        )
+    rowless.write_uninvited_rows([_E1])
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="urn:case",
+        embargo_register=register(active=_E1),
+        case_participants=[rowless],
+    )
+    assert case.active_participants == []
+
+
+def _status_at(case: VulnerabilityCase, index: int) -> CaseStatus:
+    status = case.case_statuses[index]
+    assert isinstance(status, CaseStatus)
+    return status
+
+
+class TestVulnerabilityCaseAppendCaseStatusClock:
+    """append_case_status stamps via now_utc() and stays ordered (CS-13-002/003)."""
+
+    _PINNED = datetime(2026, 5, 4, 12, 0, 0, 123456, tzinfo=UTC)
+
+    @pytest.fixture
+    def frozen_clock(self, monkeypatch: pytest.MonkeyPatch) -> datetime:
+        monkeypatch.setattr(
+            _helpers,
+            "datetime",
+            SteppingClock(self._PINNED, step=timedelta(0)),
+        )
+        return self._PINNED.replace(microsecond=0)
+
+    def test_append_case_status_takes_its_time_from_now_utc(
+        self, frozen_clock: datetime
+    ) -> None:
+        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        case.current_status.updated = frozen_clock - timedelta(hours=1)
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        appended = _status_at(case, -1)
+        assert appended.updated == frozen_clock
+        assert appended.published == frozen_clock
+
+    def test_same_second_appends_stay_strictly_ordered_at_second_precision(
+        self, frozen_clock: datetime
+    ) -> None:
+        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        case.append_case_status(pxa=CS_pxa.PXa)
+        first, second = _status_at(case, -2), _status_at(case, -1)
+        assert first.updated is not None and second.updated is not None
+        assert first.updated < second.updated
+        for stamp in (first.updated, second.updated):
+            assert stamp.microsecond == 0
+        assert case.current_status is second
+
+    def test_bump_from_a_sub_second_latest_lands_on_a_whole_second(
+        self, frozen_clock: datetime
+    ) -> None:
+        case = VulnerabilityCase(id_=_CASE_ID, attributed_to=_ACTOR)
+        latest = frozen_clock + timedelta(microseconds=500)
+        case.current_status.updated = latest
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        stamp = _status_at(case, -1).updated
+        assert stamp is not None
+        assert stamp > latest
+        assert stamp.microsecond == 0

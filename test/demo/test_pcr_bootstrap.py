@@ -1,0 +1,640 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Integration tests for PCR-07-006: full case-replica bootstrap sequence.
+
+Verifies: CaseActor sends Announce(as_VulnerabilityCase) → participant creates
+local replica → subsequent case-scoped activities route without deferral.
+
+These tests exercise the full inbox dispatch path against a real in-memory
+SQLite DataLayer — use cases are not mocked.  They are auto-marked as
+``@pytest.mark.integration`` by the conftest hook in ``test/demo/``.
+
+Coverage approach
+-----------------
+AC-1 tests (``TestBootstrapSequence.test_announce_creates_case_replica`` and
+``test_case_fields_preserved_in_replica``) use a **two-app setup** where a
+separate owner app creates a case by processing a submitted report and then
+validates it.  Validation triggers the CaseActor to emit
+``Announce(as_VulnerabilityCase)`` via the outbox, which is routed to the
+participant app via ``_TestClientRouter``.  This exercises the full
+create-case → emit-Announce path, catching regressions where case creation
+no longer sends the announcement (PCR-07-006).
+
+AC-2 tests (``test_subsequent_case_scoped_activity_routes_without_deferral``)
+seed the replica directly in the participant's store (faster, sufficient
+for routing coverage) and then verify both the absence of deferral *and* the presence of
+the handler's side effect (note appended to ``replica.notes``).
+"""
+
+import pytest
+
+from test.demo.conftest import (
+    _TestClientRouter,
+    create_isolated_actor_app,
+    submit_report_through_reporter,
+)
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import activate
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import (
+    add_note_to_case_activity,
+)
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+    as_ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+# ---------------------------------------------------------------------------
+# Constants — all IDs use HTTP-routable URIs
+# ---------------------------------------------------------------------------
+
+# Base URLs for the two-app (AC-1) tests.
+_OWNER_BASE = "http://owner-bootstrap.test"
+_PARTICIPANT_BASE = "http://participant-bootstrap.test"
+
+# Fixed IDs for the single-app (AC-2) seeding path.
+_DIRECT_CASE_ID = "http://owner-bootstrap.test/api/v2/cases/pcr-07-006-ac2"
+_DIRECT_OWNER_ACTOR_ID = (
+    "http://owner-bootstrap.test/api/v2/actors/owner-bootstrap"
+)
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def participant_setup():
+    """One isolated participant app for the AC-2 routing test.
+
+    The test seeds the case replica directly in the participant's store
+    (fast, sufficient for routing coverage).
+    The ``_TestClientRouter`` is installed as the default emitter so that any
+    outbound deliveries from the participant stay in-process (ADR-0042).
+
+    Yields:
+        Tuple of (IsolatedActorApp, TestClient).
+    """
+    from vultron.adapters.driving.fastapi.outbox_handler import (
+        configure_default_emitter,
+        get_default_emitter,
+    )
+
+    router = _TestClientRouter()
+    participant_isolated = create_isolated_actor_app(
+        base_url=_PARTICIPANT_BASE,
+        router=router,
+    )
+    previous_emitter = get_default_emitter()
+    configure_default_emitter(router)  # type: ignore[arg-type]
+    with participant_isolated.client as participant_tc:
+        yield participant_isolated, participant_tc
+    configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+    participant_isolated.dl.close()
+
+
+@pytest.fixture
+def two_app_setup():
+    """Owner app + participant app wired for end-to-end bootstrap delivery.
+
+    Uses two isolated FastAPI app instances each with their own in-memory
+    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
+    deliveries between the apps in-process so the full
+    outbox → inbox → inbox-handler chain is exercised.
+
+    Lifecycle:
+      1. Enters both TestClient contexts (triggers lifespan startup).
+      2. Configures the module-level default emitter to the shared router so
+         all outbox_handler deliveries POST to each target TestClient inbox
+         instead of making real HTTP requests (ADR-0042).
+      3. Registers the config-default base_url with the router so that
+         deliveries to the CaseActor (whose ID uses that URL) are routed
+         correctly.
+      4. Yields the two ``IsolatedActorApp`` instances and their test clients.
+      5. On teardown restores the previous default emitter and closes DLs.
+
+    Yields:
+        Tuple of (owner_iso, participant_iso, owner_tc, participant_tc).
+    """
+    from vultron.adapters.driving.fastapi.outbox_handler import (
+        configure_default_emitter,
+        get_default_emitter,
+    )
+    from vultron.config import get_config
+
+    router = _TestClientRouter()
+    owner_iso = create_isolated_actor_app(
+        base_url=_OWNER_BASE,
+        router=router,
+    )
+    participant_iso = create_isolated_actor_app(
+        base_url=_PARTICIPANT_BASE,
+        router=router,
+    )
+
+    # Register the config-default base_url (e.g. http://localhost:7999) with
+    # the router so that deliveries to CaseActor IDs (which use this URL)
+    # are routed to the owner's TestClient inbox.
+    config_base_url = get_config().server.base_url.rstrip("/")
+    router.register(config_base_url, owner_iso.client)
+
+    # Replace the module-level default emitter so outbox_handler calls from
+    # trigger endpoints use the router instead of HttpDeliveryAdapter (real
+    # HTTP with retry backoff).
+    previous_emitter = get_default_emitter()
+    configure_default_emitter(router)  # type: ignore[arg-type]
+
+    with owner_iso.client as owner_tc:
+        with participant_iso.client as participant_tc:
+            yield owner_iso, participant_iso, owner_tc, participant_tc
+
+    # Restore previous emitter to avoid polluting other tests.
+    configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
+    owner_iso.dl.close()
+    participant_iso.dl.close()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _create_actor(client, base_api: str, slug: str, name: str) -> str:
+    """Create an Organization actor and return its full ID."""
+    actor_id = f"{base_api}/actors/{slug}"
+    resp = client.post(
+        "/api/v2/actors/",
+        json={"type": "Organization", "name": name, "id": actor_id},
+    )
+    assert resp.status_code in (
+        200,
+        201,
+    ), f"Actor creation failed ({resp.status_code}): {resp.text}"
+    return actor_id
+
+
+def _register_peer(client, host_slug: str, peer_id: str, name: str) -> None:
+    """Register a peer in the hosted actor's address book (ADR-0081)."""
+    resp = client.post(
+        f"/api/v2/actors/{host_slug}/peers/",
+        json={"id": peer_id, "name": name, "actor_type": "Organization"},
+    )
+    assert resp.status_code in (
+        200,
+        201,
+    ), f"Peer registration failed ({resp.status_code}): {resp.text}"
+
+
+def _post_to_inbox(client, actor_slug: str, activity) -> None:
+    """POST *activity* JSON to ``/api/v2/actors/{actor_slug}/inbox/``."""
+    resp = client.post(
+        f"/api/v2/actors/{actor_slug}/inbox/",
+        content=activity.model_dump_json(by_alias=True, exclude_none=True),
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 202, (
+        f"Inbox POST returned {resp.status_code}: {resp.text}"
+    )
+
+
+def _actor_slug(actor_id: str) -> str:
+    """Return the last path segment of *actor_id*."""
+    return actor_id.rstrip("/").rsplit("/", 1)[-1]
+
+
+def _bootstrap_case_for_participant(
+    owner_iso,
+    participant_iso,
+    owner_tc,
+    participant_tc,
+    owner_slug: str,
+    participant_slug: str,
+) -> tuple[str, str, str]:
+    """Set up a case on owner's app and deliver Announce to participant.
+
+    Exercises the full bootstrap sequence for PCR-07-006 AC-1:
+
+    1. Participant submits a report through its own ``submit-report``
+       trigger, which records its trust anchor and delivers the Offer to the
+       owner's inbox; the ``create_receive_report_case_tree`` BT there creates
+       the preliminary ``as_VulnerabilityCase`` with embargo.
+    2. Owner validates the report (``trigger/validate-report``), which
+       triggers the ``create_validate_report_tree`` BT and causes the
+       CaseActor to emit ``Announce(as_VulnerabilityCase)`` to participant.
+    3. The Announce is delivered via the outbox → ``_TestClientRouter`` →
+       participant inbox chain.
+    4. Participant's inbox handler processes the ``Announce``.
+
+    Args:
+        owner_iso: Owner's ``IsolatedActorApp``.
+        participant_iso: Participant's ``IsolatedActorApp``.
+        owner_tc: Owner's ``TestClient``.
+        participant_tc: Participant's ``TestClient``.
+        owner_slug: Short slug for the owner actor (last URL path segment).
+        participant_slug: Short slug for the participant actor.
+
+    Returns:
+        ``(case_id, owner_actor_id, participant_actor_id)``.  The actor ids are
+        returned alongside the case because a caller wanting either actor's *view*
+        of the case has to open that actor's own store, and both actors are created
+        here under per-test slugs the caller would otherwise have to reconstruct.
+    """
+    owner_base_api = owner_iso.base_url + "/api/v2"
+    participant_base_api = participant_iso.base_url + "/api/v2"
+
+    owner_actor_id = _create_actor(
+        owner_tc, owner_base_api, owner_slug, "Owner"
+    )
+    participant_actor_id = _create_actor(
+        participant_tc, participant_base_api, participant_slug, "Participant"
+    )
+
+    # Register participant as peer on owner's app so the router can deliver there.
+    _register_peer(owner_tc, owner_slug, participant_actor_id, "Participant")
+
+    _register_peer(participant_tc, participant_slug, owner_actor_id, "Owner")
+
+    # The participant submits through its own trigger, which writes its trust
+    # anchor (the pending ReportCaseLink naming the owner) and delivers the
+    # Offer to the owner's inbox.  That runs create_receive_report_case_tree,
+    # which creates the preliminary as_VulnerabilityCase with embargo needed
+    # by the validate-report step below.
+    report, offer = submit_report_through_reporter(
+        participant_tc,
+        participant_actor_id,
+        owner_actor_id,
+        report_name="PCR-07-006 bootstrap test report",
+        report_content=(
+            "A critical remote code execution vulnerability was discovered "
+            "during integration testing for PCR-07-006."
+        ),
+    )
+
+    # ADR-0041: receive_report_case_tree writes a VultronReportCaseLink and
+    # sends Create(as_CaseProposal) to CaseActor — no VulnerabilityCase yet.
+    # Simulate the CaseActor's Create(VulnerabilityCase) response by calling
+    # trigger/create-case directly.  Pass participant as `to` so the outbound
+    # Create(VulnerabilityCase) satisfies OX-08-001.
+    resp = owner_tc.post(
+        f"/api/v2/actors/{_actor_slug(owner_actor_id)}/trigger/create-case",
+        json={
+            "name": "PCR-07-006 bootstrap test case",
+            "content": "Case seeded by trigger/create-case (ADR-0041).",
+            "report_id": report.id_,
+            "to": [participant_actor_id],
+        },
+    )
+    assert resp.status_code == 202, (
+        f"trigger/create-case failed ({resp.status_code}): {resp.text}"
+    )
+
+    # Find the case that the CaseActor created for this report.
+    # Under ADR-0041, case_proposal_received_tree creates the canonical case
+    # when Create(as_CaseProposal) is processed; trigger/create-case above
+    # may add a second case — find by report_id to avoid ambiguity.
+    # The owner's own store, not `owner_iso.dl`: this test creates its actor
+    # under a per-test slug, while `dl` is the app's default-slug store, so
+    # reading `dl` reports an empty store and the assertion fails for the wrong
+    # reason (ADR-0073 — a store is exactly one actor's).
+    owner_dl = owner_iso.store_for(owner_actor_id)
+
+    case_from_proposal = owner_dl.find_case_by_report_id(report.id_)
+    case_id: str
+    if case_from_proposal is not None:
+        case_id = str(case_from_proposal.id_)
+    else:
+        all_cases = owner_dl.get_all("VulnerabilityCase")
+        assert len(all_cases) >= 1, (
+            "Expected at least one as_VulnerabilityCase in owner's DataLayer "
+            "after trigger/create-case, but none was found."
+        )
+        case_id = str(all_cases[0]["id_"])
+
+    # trigger/create-case is a shortcut around the real ADR-0041 path, so the
+    # case it leaves behind is missing two things a delivered
+    # Create(VulnerabilityCase) replica always carries.  Both are now load-bearing
+    # on the validate path (ISSUE-2548), where the checks moved upstream of every
+    # write instead of running after the RM.VALID latch had already been written:
+    #
+    #   - an active embargo, without which RM.VALID is refused (DUR-07-004);
+    #   - a CaseParticipant for the owner, reachable through
+    #     actor_participant_index (CM-19-003), without which the case-scoped half
+    #     of the RM.VALID transition has nothing to advance.
+    #
+    # Seed both here, alongside the trust anchor below.
+    case_obj = owner_dl.read(case_id)
+    assert case_obj is not None, (
+        f"case {case_id!r} not readable from the owner's own store"
+    )
+    activate(case_obj, f"{case_id}/embargoes/bootstrap-embargo")
+
+    # The owner submitted the CaseProposal, so it holds CASE_OWNER — a role never
+    # delegated to the CaseActor.  RM.RECEIVED is the state it holds after taking
+    # in the report; RECEIVED → VALID is the legal move validate-report makes.
+    owner_participant = as_CaseParticipant(
+        attributed_to=owner_actor_id,
+        context=case_id,
+        case_roles=[CVDRole.CASE_OWNER],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=owner_actor_id,
+                context=case_id,
+                rm=RmDimension(state=RM.RECEIVED),
+            )
+        ],
+    )
+    owner_dl.create(owner_participant)
+    case_obj.actor_participant_index[owner_actor_id] = owner_participant.id_
+    if owner_participant.id_ not in case_obj.case_participants:
+        case_obj.case_participants.append(owner_participant.id_)
+    owner_dl.save(case_obj)
+
+    # In this test the owner also acts as the CaseActor (its
+    # case_actor_service_url points at its own base).  Register that identity in
+    # the VultronReportCaseLink so `_find_case_actor_id` can resolve it: the case
+    # was made by trigger/create-case, which does not register a CASE_MANAGER
+    # participant, so the trust anchor is the only route to the case actor and
+    # validate-report otherwise fails with "no routable recipients".
+    for link in owner_dl.list_objects("ReportCaseLink"):
+        if isinstance(link, VultronReportCaseLink):
+            link.case_id = case_id
+            link.case_manager_id = owner_actor_id
+            owner_dl.save(link)
+            break
+
+    # Owner validates the report: this triggers the validate-report BT
+    # and causes the CaseActor to emit Announce(as_VulnerabilityCase) to
+    # participant via the outbox → _TestClientRouter → inbox chain.
+    resp = owner_tc.post(
+        f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
+        "/trigger/validate-report",
+        json={"offer_id": offer.id_},
+    )
+    assert resp.status_code == 202, (
+        f"validate-report trigger failed ({resp.status_code}): {resp.text}"
+    )
+
+    return case_id, owner_actor_id, participant_actor_id
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("PCR-07-006")
+class TestBootstrapSequence:
+    """PCR-07-006: CaseActor Announce creates replica; routing follows.
+
+    Three tests cover the acceptance criteria from the GitHub issue:
+
+    - AC-1a: Announce creates a case replica with the correct ID.
+    - AC-1b: The seeded replica preserves case fields from the Announce payload.
+    - AC-2:  Subsequent case-scoped activity routes without deferral.
+    """
+
+    def test_announce_creates_case_replica(self, two_app_setup):
+        """AC-1: Announce(as_VulnerabilityCase) creates a local replica.
+
+        Exercises the full bootstrap sequence: participant submits a report →
+        owner validates it → CaseActor emits ``Announce(as_VulnerabilityCase)``
+        via the outbox → participant's inbox receives and processes the
+        Announce.
+
+        The participant's ``DataLayer`` must contain a local case replica
+        after the full delivery chain completes (PCR-07-006 AC-1).  The actor
+        inbox queue being drained confirms the inbox handler ran and dispatch
+        completed, not just that the activity arrived.
+        """
+        owner_iso, participant_iso, owner_tc, participant_tc = two_app_setup
+
+        assert participant_iso.dl.get_all("VulnerabilityCase") == [], (
+            "Prerequisite: participant's DataLayer must have no cases before "
+            "the bootstrap sequence begins."
+        )
+
+        case_id, _owner_actor_id, participant_actor_id = (
+            _bootstrap_case_for_participant(
+                owner_iso,
+                participant_iso,
+                owner_tc,
+                participant_tc,
+                owner_slug="owner-pcr-006-ac1",
+                participant_slug="participant-pcr-006-ac1",
+            )
+        )
+
+        # The participant actor's inbox queue must be empty: the inbox handler
+        # ran and processed the Announce (dispatch chain completed).
+        # The participant's own store, not the app's default-slug `dl`: the actor
+        # is created under a per-test slug, and a store belongs to exactly one
+        # actor (ADR-0073), so `dl` is a different (empty) database.
+        actor_dl = participant_iso.store_for(participant_actor_id)
+        # No `close()` on it.  This is the participant's *live* store, shared with
+        # the running app — not a throwaway clone.  An in-memory store is named, so
+        # disposing the engine destroys the database every other holder is using
+        # and the next read fails with "no such table: vultron_objects".
+        assert actor_dl.inbox_list() == [], (
+            "Participant actor's inbox queue was not drained after "
+            "processing Announce(as_VulnerabilityCase).  The inbox handler "
+            "may not have run (PCR-07-006 AC-1)."
+        )
+
+        replica = actor_dl.read(case_id)
+        assert replica is not None, (
+            f"Expected as_VulnerabilityCase '{case_id}' in participant's "
+            f"DataLayer after Announce(as_VulnerabilityCase) delivery, but "
+            f"DataLayer has no record of it.  Bootstrap sequence may be "
+            f"broken (PCR-07-006 AC-1)."
+        )
+
+    @pytest.mark.spec("CBT-01-005", "CBT-01-006")
+    def test_participant_accepts_the_owners_create_on_the_trusted_route(
+        self, two_app_setup
+    ):
+        """The owner, acting as CASE_MANAGER, introduces the case (#4472).
+
+        The participant's own link, written when it submitted the report,
+        names the owner, so the owner's ``Create(VulnerabilityCase)`` takes
+        the trusted route and binds that link to the case (CBT-01-006).
+        """
+        owner_iso, participant_iso, owner_tc, participant_tc = two_app_setup
+
+        case_id, owner_actor_id, participant_actor_id = (
+            _bootstrap_case_for_participant(
+                owner_iso,
+                participant_iso,
+                owner_tc,
+                participant_tc,
+                owner_slug="owner-pcr-006-trusted",
+                participant_slug="participant-pcr-006-trusted",
+            )
+        )
+
+        actor_dl = participant_iso.store_for(participant_actor_id)
+        [link] = [
+            link
+            for link in actor_dl.list_objects("ReportCaseLink")
+            if isinstance(link, VultronReportCaseLink)
+        ]
+        assert link.case_creator_id == owner_actor_id
+        assert link.case_id == case_id
+        assert link.case_manager_id == owner_actor_id
+
+    def test_case_fields_preserved_in_replica(self, two_app_setup):
+        """AC-1 (fields): The seeded replica retains fields from the Announce.
+
+        After the full bootstrap sequence, the case replica in participant's
+        DataLayer must preserve the ``name`` of the case as set by the owner.
+        """
+        owner_iso, participant_iso, owner_tc, participant_tc = two_app_setup
+
+        case_id, owner_actor_id, participant_actor_id = (
+            _bootstrap_case_for_participant(
+                owner_iso,
+                participant_iso,
+                owner_tc,
+                participant_tc,
+                owner_slug="owner-pcr-006-fields",
+                participant_slug="participant-pcr-006-fields",
+            )
+        )
+
+        replica = participant_iso.store_for(participant_actor_id).read(case_id)
+        assert replica is not None, (
+            f"No as_VulnerabilityCase replica found for '{case_id}' in "
+            "participant's DataLayer after bootstrap sequence."
+        )
+
+        owner_case = owner_iso.store_for(owner_actor_id).read(case_id)
+        expected_name = getattr(owner_case, "name", None)
+        # Under ADR-0041 the CaseActor creates the case without a name;
+        # field-preservation still holds (None == None is valid).
+        assert getattr(replica, "name", None) == expected_name, (
+            f"Case replica name mismatch: expected {expected_name!r}, "
+            f"got {getattr(replica, 'name', '<missing>')!r} "
+            f"(PCR-07-006 AC-1 field preservation)."
+        )
+
+    def test_subsequent_case_scoped_activity_routes_without_deferral(
+        self, participant_setup
+    ):
+        """AC-2: Case-scoped activity routes directly after replica exists.
+
+        After the case replica is seeded directly in the store, a
+        subsequent ``Add(Note, context=case_id)`` delivered to the same inbox
+        must be dispatched immediately — it must NOT be placed into
+        ``VultronPendingCaseInbox`` (the pre-bootstrap deferral queue).
+
+        Seeding the replica directly (rather than via the full owner →
+        participant chain) is intentional: this test specifically covers the
+        routing decision after a replica exists.  End-to-end emission coverage
+        is provided by the AC-1 tests above.
+
+        Two handler side-effects are asserted in addition to the non-deferral
+        check:
+
+        - The note's ID appears in the replica's ``notes`` list, confirming
+          the ``AddNoteToCaseReceivedUseCase`` ran to completion.
+        - The actor's inbox queue is drained, confirming the inbox handler
+          dispatched the ``Add(Note)`` activity rather than silently dropping
+          or re-queuing it.
+        """
+        participant_iso, participant_tc = participant_setup
+        base = participant_iso.base_url + "/api/v2"
+
+        actor_id = _create_actor(
+            participant_tc, base, "pcr-006-ac2", "Participant"
+        )
+
+        # Seed the replica directly in the actor's store.  An inbox Announce
+        # from a sender this actor never trusted is refused and stores
+        # nothing (PCR-03-004, #4674), so it cannot seed a replica.
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=_DIRECT_CASE_ID,
+            name="PCR-07-006 Test Case",
+        )
+        # The store of the actor just created, not the app's default-slug `dl`
+        # (ADR-0073).
+        actor_dl = participant_iso.store_for(actor_id)
+        actor_dl.create(case)
+        assert actor_dl.read(_DIRECT_CASE_ID) is not None, (
+            "Prerequisite: case replica must exist before routing test."
+        )
+
+        # Post a case-scoped Add(Note) with context = case_id.
+        note = as_Note(name="Routing check note for PCR-07-006")
+        note_activity = add_note_to_case_activity(
+            note,
+            target=case,
+            actor=_DIRECT_OWNER_ACTOR_ID,
+            context=_DIRECT_CASE_ID,
+        )
+        _post_to_inbox(participant_tc, _actor_slug(actor_id), note_activity)
+
+        # Assert 1: The note activity must NOT have been deferred.
+        pending_id = VultronPendingCaseInbox.build_id(_DIRECT_CASE_ID)
+        pending = actor_dl.read(pending_id)
+        deferred = isinstance(pending, VultronPendingCaseInbox) and (
+            note_activity.id_ in pending.activity_ids
+        )
+        assert not deferred, (
+            f"Case-scoped activity '{note_activity.id_}' was placed in "
+            f"VultronPendingCaseInbox even though case replica "
+            f"'{_DIRECT_CASE_ID}' already exists. "
+            f"Activity was incorrectly deferred (PCR-07-006 AC-2)."
+        )
+
+        # Assert 2: Non-CaseActors must NOT attach the note to their replica.
+        # In the new protocol model (ADR-0022), note attachment is gated by
+        # CheckIsCaseManagerNode — only the CaseActor attaches the note to its
+        # case replica.  Non-CaseActor participants receive the note update
+        # exclusively via Announce(CaseLedgerEntry) fan-out from the CaseActor
+        # (SYNC-02-002).  The BT still returns SUCCESS (via the fallback path),
+        # so the handler ran to completion — demonstrated by Assert 3 below.
+        replica = actor_dl.read(_DIRECT_CASE_ID)
+        assert replica is not None
+        replica_note_ids = [
+            getattr(n, "id_", n) if not isinstance(n, str) else n
+            for n in getattr(replica, "notes", [])
+        ]
+        assert note.id_ not in replica_note_ids, (
+            f"Note '{note.id_}' was unexpectedly attached to a non-CaseActor "
+            f"case replica. Non-CaseActors must not update replica notes "
+            f"directly from Add(Note, Case) messages (SYNC-02-002, ADR-0022). "
+            f"Replica notes: {replica_note_ids!r}"
+        )
+
+        # Assert 3: The actor's inbox queue must be drained, confirming
+        # inbox_handler ran and dispatched the Add(Note) activity.
+        # `actor_dl` above is already this actor's store, and it is the app's
+        # live one — no `close()`, which would dispose the shared in-memory
+        # engine out from under the app.
+        assert actor_dl.inbox_list() == [], (
+            f"Actor '{actor_id}' inbox queue was not drained after "
+            f"Add(Note) was processed. The inbox handler may not have "
+            f"run or may have re-queued the activity (PCR-07-006 AC-2)."
+        )

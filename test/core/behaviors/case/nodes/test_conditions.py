@@ -1,0 +1,215 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+Unit tests for case condition nodes.
+
+Covers CheckCaseExistsForReport.
+Per specs/idempotency.yaml ID-04-004.
+
+Also covers the construction-time guarantee that VulnerabilityCase rejects
+invalid id_ values (ARCH-10-001), which made the former ValidateCaseObject
+BT node redundant (removed in issue #716).
+
+Note: TestCheckCaseAlreadyExists was removed in issue #4353 because
+CheckCaseAlreadyExists was orphaned by create_create_case_tree's removal.
+"""
+
+import pytest
+from py_trees.common import Status
+from pydantic import ValidationError
+
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
+from vultron.config.actor import ActorConfig
+from vultron.core.behaviors.case.nodes.conditions import (
+    CheckAutoCaseCreationEnabledNode,
+    CheckCaseExistsForReport,
+)
+from vultron.core.models.actor import VultronService
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import VulnerabilityReport
+from vultron.enums.roles import CVDRole
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def actor_id() -> str:
+    return "https://example.org/actors/vendor"
+
+
+@pytest.fixture
+def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronService:
+    obj = VultronService(id_=actor_id, name="Vendor Co")
+    bt_scenario.dl.create(obj)
+    return obj
+
+
+@pytest.fixture
+def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
+    obj = VulnerabilityReport(
+        name="TEST-001", content="Test vulnerability report"
+    )
+    bt_scenario.dl.create(obj)
+    return obj
+
+
+@pytest.fixture
+def case_obj(
+    bt_scenario: BTTestScenario, report: VulnerabilityReport
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/case-001",
+        name="Test Case",
+        vulnerability_reports=[report.id_],
+    )
+    bt_scenario.dl.create(case)
+    return case
+
+
+@pytest.fixture
+def participant(
+    bt_scenario: BTTestScenario,
+    case_obj: VulnerabilityCase,
+    actor_id: str,
+) -> CaseParticipant:
+    p = CaseParticipant(
+        attributed_to=actor_id,
+        context=case_obj.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    bt_scenario.dl.create(p)
+    case_obj.case_participants.append(p.id_)
+    bt_scenario.dl.save(case_obj)
+    return p
+
+
+# ---------------------------------------------------------------------------
+# CheckCaseExistsForReport
+# ---------------------------------------------------------------------------
+
+
+class TestCheckCaseExistsForReport:
+    """ID-04-004: idempotency guard — case by report — with/without participants."""
+
+    def test_returns_failure_when_no_case_for_report(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronService,
+        actor_id: str,
+        report: VulnerabilityReport,
+    ) -> None:
+        result = bt_scenario.run(
+            CheckCaseExistsForReport(report_id=report.id_),
+            actor_id=actor_id,
+        )
+        assert result.status == Status.FAILURE
+
+    def test_returns_failure_when_case_has_no_participants(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronService,
+        actor_id: str,
+        case_obj: VulnerabilityCase,
+        report: VulnerabilityReport,
+    ) -> None:
+        """Case linked to report exists but has no participants → FAILURE."""
+        result = bt_scenario.run(
+            CheckCaseExistsForReport(report_id=report.id_),
+            actor_id=actor_id,
+        )
+        assert result.status == Status.FAILURE
+
+    def test_returns_success_when_case_has_participants(
+        self,
+        bt_scenario: BTTestScenario,
+        actor: VultronService,
+        actor_id: str,
+        case_obj: VulnerabilityCase,
+        report: VulnerabilityReport,
+        participant: CaseParticipant,
+    ) -> None:
+        """Case linked to report with participants → SUCCESS."""
+        result = bt_scenario.run(
+            CheckCaseExistsForReport(report_id=report.id_),
+            actor_id=actor_id,
+        )
+        assert result.status == Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# VulnerabilityCase construction-time id_ contract (ARCH-10-001)
+# ---------------------------------------------------------------------------
+
+
+class TestVultronCaseIdContract:
+    """VulnerabilityCase rejects invalid id_ at construction time (ARCH-10-001).
+
+    This guarantees that any VulnerabilityCase object that exists at runtime already
+    has a valid non-empty id_, making a runtime BT validation node redundant
+    (see issue #716).
+    """
+
+    @pytest.mark.parametrize("key", ["id_", "id"])
+    @pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
+    def test_blank_id_is_refused_as_the_id(self, key: str, blank: str) -> None:
+        """The refusal names the id, not a status seeded from it (CS-08-001)."""
+        with pytest.raises(ValidationError) as excinfo:
+            VulnerabilityCase.model_validate(
+                {"attributed_to": CASE_OWNER_ID, key: blank}
+            )
+        locs = {error["loc"][0] for error in excinfo.value.errors()}
+        assert key in locs
+        assert "context" not in locs
+
+    def test_auto_generated_id_is_nonempty(self) -> None:
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        assert case.id_ and case.id_.strip()
+
+
+class TestCheckAutoCaseCreationEnabledNode:
+    """CheckAutoCaseCreationEnabledNode gates case creation on the policy.
+
+    Per specs/case-management.yaml CM-15-001. The node reads the policy from
+    its constructor argument (not the blackboard), so it can be exercised by
+    direct ticking without any DataLayer setup.
+    """
+
+    def test_success_when_auto_create_enabled(self) -> None:
+        node = CheckAutoCaseCreationEnabledNode(
+            actor_config=ActorConfig(auto_create_case=True)
+        )
+        assert node.update() == Status.SUCCESS
+
+    def test_failure_when_auto_create_disabled(self) -> None:
+        node = CheckAutoCaseCreationEnabledNode(
+            actor_config=ActorConfig(auto_create_case=False)
+        )
+        assert node.update() == Status.FAILURE
+
+    def test_defaults_to_success_when_no_config(self) -> None:
+        """No ActorConfig supplied → default enabled (CM-15-001)."""
+        node = CheckAutoCaseCreationEnabledNode(actor_config=None)
+        assert node.update() == Status.SUCCESS
+
+    def test_defaults_to_success_with_default_actor_config(self) -> None:
+        """A default ActorConfig has auto_create_case=True."""
+        node = CheckAutoCaseCreationEnabledNode(actor_config=ActorConfig())
+        assert node.update() == Status.SUCCESS

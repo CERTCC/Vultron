@@ -1,0 +1,334 @@
+id: RF
+title: Response Format
+description: >-
+  The Vultron protocol uses ActivityStreams activities for both requests and responses. When
+  handlers process inbound activities, they generate response activities (Accept, Reject,
+  Update, etc.) sent to the originating actor or other participants.
+scope:
+- prototype
+- production
+tags:
+- wire-format
+groups:
+- id: RF-01
+  title: Response Activity Structure
+  specs:
+  - id: RF-01-001
+    priority: MUST
+    kind: foundation
+    statement: Response activities MUST conform to ActivityStreams 2.0
+    verification: Integration tests in `test/demo/` confirm that response activities produced by handlers are valid AS2
+      objects, and unit tests in `test/wire/as2/vocab/test_actvitities/test_activities.py` confirm they inherit from the
+      AS2 base hierarchy.
+    stories:
+    - story_2022_017
+    - story_2022_039
+    - story_2022_058
+    - story_2022_060
+    tags:
+    - as2
+- id: RF-02
+  title: Accept Response
+  specs:
+  - id: RF-02-001
+    priority: MUST
+    kind: protocol
+    statement: Accept responses MUST use `Accept` activity type
+    verification: Unit tests in `test/wire/as2/factories/test_case_factories.py` confirm that accept-response factories
+      return objects with `type_` equal to `'Accept'`.
+    relationships:
+    - rel_type: implements
+      spec_id: VP-06-004
+    stories:
+    - story_2022_016
+    - story_2022_047
+    - story_2022_048
+    - story_2022_050
+    - story_2022_051
+    - story_2022_054
+    - story_2022_059
+  - id: RF-02-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Accept responses MUST include `object` field referencing accepted activity or object
+    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
+      constructing an `Accept` response without an `object` field raises a Pydantic validation error at construction
+      time.
+    stories:
+    - story_2022_048
+    - story_2022_054
+  - id: RF-02-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Accepting an Offer of an object MUST reference the Offer activity in the `object` field
+      of the Accept response
+    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
+      `Accept` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+    stories:
+    - story_2022_048
+    - story_2022_054
+  - id: RF-02-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When accepting an offered object, the `object` of the `Accept` activity MUST be the
+      Offer activity itself, carried inline or by reference, not the underlying object being
+      offered.
+    verification: >-
+      In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
+      `test_accept_refuses_the_offered_object_in_place_of_the_offer` confirms that an
+      `Accept` given the offered object instead of the Offer raises a validation error, and
+      `TestInlineTypedObjectAccepted` confirms that an `Accept` of the Offer is accepted.
+    stories:
+    - story_2022_048
+    - story_2022_054
+  - id: RF-02-006
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry the Offer inline as the `object` of an `Accept`, and MUST
+      reject a bare string ID there at construction time; the Offer is passed as an inline
+      typed activity object (for example `RmSubmitReportActivity` or
+      `EmProposeEmbargoActivity`).
+    rationale: >-
+      How this codebase meets RF-02-004; split from it so RF-02-004 states only what other
+      participants observe (MS-12-010). Carrying the Offer inline rather than by reference
+      is a shortcut of this prototype reference implementation, not a protocol rule.
+    verification: >-
+      Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`
+      confirm that passing a bare string ID as the `object` of an `Accept` activity raises a
+      validation error at construction time.
+    relationships:
+    - rel_type: implements
+      spec_id: RF-02-004
+  - id: RF-02-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When accepting an Invite, the `object` of the `Accept` activity MUST be the Invite
+      activity itself, carried inline or by reference, not the case, embargo, or any other
+      domain object.
+    verification: >-
+      In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
+      `test_accept_refuses_the_offered_object_in_place_of_the_offer` confirms that the case
+      or embargo in place of the Invite raises a validation error, and
+      `TestInlineTypedObjectAccepted` confirms that an `Accept` of the Invite is accepted.
+    relationships:
+    - rel_type: refines
+      spec_id: RF-02-002
+    stories:
+    - story_2022_048
+    - story_2022_054
+  - id: RF-02-007
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry the Invite inline as the `object` of an `Accept` of an
+      Invite, as a full inline typed activity object (for example `RmInviteToCaseActivity`
+      or `EmInviteToEmbargoOnCaseActivity`), and MUST reject a bare string ID there at
+      construction time.
+    rationale: >-
+      How this codebase meets RF-02-005; split from it so RF-02-005 states only what other
+      participants observe (MS-12-010). Carrying the Invite inline rather than by reference
+      is a shortcut of this prototype reference implementation, not a protocol rule.
+    verification: >-
+      In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
+      `TestInlineTypedObjectAccepted` confirms that an `Accept` of an `Invite` carries the
+      full inline Invite, and `TestBareStringObjectRejected` confirms that a bare string ID
+      raises a validation error.
+    relationships:
+    - rel_type: implements
+      spec_id: RF-02-005
+- id: RF-03
+  title: Reject Response
+  specs:
+  - id: RF-03-001
+    priority: MUST
+    kind: protocol
+    statement: Reject responses MUST use `Reject` activity type
+    verification: Unit tests in `test/wire/as2/factories/test_case_factories.py` confirm that reject-response factories
+      return objects with `type_` equal to `'Reject'`.
+    relationships:
+    - rel_type: implements
+      spec_id: VP-06-004
+    stories:
+    - story_2022_048
+    - story_2022_054
+  - id: RF-03-002
+    priority: SHOULD
+    kind: protocol
+    statement: Reject responses SHOULD include reason in `content` field
+  - id: RF-03-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Rejecting an Offer of an object MUST reference the Offer activity in the `object` field
+      of the Reject response
+    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
+      `Reject` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+    stories:
+    - story_2022_048
+    - story_2022_054
+  - id: RF-03-004
+    priority: MUST
+    kind: project
+    statement: >-
+      When rejecting an offered object, the `object` field of the `Reject` activity MUST reference
+      the Offer activity itself, not the underlying object being offered. The Offer activity
+      MUST be passed as an inline typed object, not as a bare string ID — bare string IDs
+      are rejected at construction time
+    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
+      passing a bare string ID as the `object` of a `Reject` activity raises a validation error at construction time.
+- id: RF-04
+  title: TentativeReject Response
+  specs:
+  - id: RF-04-001
+    priority: MUST
+    kind: protocol
+    statement: TentativeReject responses MUST use `TentativeReject` activity type
+    verification: Unit tests in `test/wire/as2/factories/test_embargo_factories.py` confirm that `TentativeReject`
+      response factories produce objects with `type_` equal to `'TentativeReject'`.
+    relationships:
+    - rel_type: implements
+      spec_id: VP-06-004
+    stories:
+    - story_2022_014
+  - id: RF-04-002
+    priority: SHOULD
+    kind: protocol
+    statement: TentativeReject responses SHOULD include reason in `content` field
+  - id: RF-04-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Tentatively Rejecting an Offer of an object MUST reference the Offer activity in the
+      `object` field of the TentativeReject response
+    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
+      `TentativeReject` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
+    stories:
+    - story_2022_014
+  - id: RF-04-004
+    priority: MUST
+    kind: project
+    statement: >-
+      When tentatively rejecting an offered object, the `object` field of the `Tentative Reject`
+      activity MUST reference the Offer activity itself, not the underlying object being offered.
+      The Offer activity MUST be passed as an inline typed object, not as a bare string ID
+      — bare string IDs are rejected at construction time
+    verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
+      passing a bare string ID as the `object` of a `TentativeReject` activity raises a validation error at construction
+      time.
+- id: RF-05
+  title: Error Response
+  specs:
+  - id: RF-05-001
+    priority: SHOULD
+    kind: protocol
+    statement: Error responses SHOULD use ActivityStreams error extensions
+    relationships:
+    - rel_type: implements
+      spec_id: VP-03-010
+    - rel_type: implements
+      spec_id: VP-03-011
+    - rel_type: implements
+      spec_id: VP-11-005
+- id: RF-06
+  title: Response Delivery
+  specs:
+  - id: RF-06-001
+    priority: MUST
+    kind: foundation
+    statement: Response activities MUST be delivered to the relevant actors' inboxes
+    rationale: >-
+      ActivityPub delivers every activity to the inboxes of its addressees; a response
+      is no exception. Which actor a response goes to is Vultron's rule (RF-06-002).
+    verification: Integration tests in `test/demo/` confirm that response activities (Accept, Reject, etc.) appear in the
+      intended recipients' inboxes after processing the original inbound activity.
+    stories:
+    - story_2022_039
+    - story_2022_040
+    tags:
+    - activitypub
+  - id: RF-06-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Response activities MUST be addressed to the INITIATING actor's inbox, not to the inbox
+      that received the original activity
+    rationale: >-
+      Activities are state-change assertions; the initiator must receive the response to update
+      their model of the case state
+    verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm that response activities are
+      addressed to and delivered at the initiating actor's inbox, not the inbox that received the original activity.
+    stories:
+    - story_2022_040
+- id: RF-07
+  title: Response Timing
+  specs:
+  - id: RF-07-001
+    priority: MUST_NOT
+    kind: project
+    statement: Response generation MUST NOT delay inbox acknowledgment
+    verification: >-
+      Inspection of `post_actor_inbox` in
+      `vultron/adapters/driving/fastapi/routers/actors/_routes.py` confirms the endpoint
+      schedules `run_inbox_pipeline`, which runs the handlers and then drains the outbox,
+      with `BackgroundTasks.add_task` and returns without awaiting it;
+      `test/adapters/driving/fastapi/test_inbox_orchestration_offloop.py::test_event_loop_keeps_serving_while_a_payload_is_processed`
+      confirms the inbox keeps serving requests while a payload is processed.
+- id: RF-08
+  title: Response Correlation
+  specs:
+  - id: RF-08-001
+    priority: MUST
+    kind: protocol
+    statement: Response activities MUST include `inReplyTo` field
+    verification: Unit tests in `test/wire/as2/factories/test_case_factories.py` and
+      `test/wire/as2/factories/test_embargo_factories.py` confirm that response activity factories automatically
+      populate `in_reply_to` from the source activity's `id_`.
+    relationships:
+    - rel_type: implements
+      spec_id: VP-03-009
+    - rel_type: implements
+      spec_id: VP-11-004
+    - rel_type: implements
+      spec_id: VP-11-005
+    stories:
+    - story_2022_016
+    - story_2022_059
+  - id: RF-08-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The `inReplyTo` field requirement MUST be enforced at the Pydantic model level via a
+      `model_validator` on `Accept`, `Reject`, and other response activity classes, not by
+      call-site convention. The validator MUST reject a response object that has a `None` or
+      missing `inReplyTo` at construction time.
+    rationale: >-
+      Call-site convention (setting `inReplyTo` manually at every factory call site) is
+      fragile: new factory paths can forget it, and there is no compile-time or model-validation
+      enforcement. A `model_validator` makes the invariant intrinsic to the type and
+      impossible to bypass silently.
+    verification: Unit tests in `test/wire/as2/factories/test_case_factories.py` confirm that constructing an `Accept`
+      or `Reject` activity with `None` or missing `in_reply_to` raises a Pydantic validation error enforced by the
+      `model_validator` on the class.
+    relationships:
+    - rel_type: refines
+      spec_id: RF-08-001
+- id: RF-09
+  title: Idempotent Responses
+  specs:
+  - id: RF-09-001
+    priority: MUST
+    kind: protocol
+    statement: Response generation MUST be idempotent
+    verification: Integration tests in `test/demo/` confirm that processing the same inbound activity twice produces the
+      same response without additional state changes, and `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py`
+      confirms that re-delivering an outbox item does not cause duplicate side effects.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ID-02-001
+    lint_suppress:
+    - missing_story_reference

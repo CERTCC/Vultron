@@ -1,0 +1,104 @@
+"""
+Fixtures for test/core/behaviors/case tests.
+
+Imports as_VulnerabilityCase (and related wire-layer types) as a side effect so
+that the global vocabulary registry is populated before any test in this
+directory runs.  Without this import the registry may be empty when tests run
+in isolation, causing TinyDB's record_to_object() to fall back to returning a
+raw Document instead of a deserialized domain object.
+
+Shared fixtures for receive-report case-tree tests are also defined here so
+that multiple tree test files can reuse them without redefinition.
+"""
+
+import pytest
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.models.actor import VultronService
+from vultron.wire.as2.factories import rm_submit_report_activity
+
+# imported for vocabulary registration side-effect
+from vultron.wire.as2.vocab.objects.vulnerability_case import (  # noqa: F401
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+
+@pytest.fixture
+def datalayer(actor_id):
+    """The vendor's own store — the actor these trees execute as (ADR-0073).
+
+    Scoped to ``actor_id`` rather than a generic test actor because a BT's store
+    follows its executing actor: these trees run as the vendor, so the vendor's
+    store is the one they read and write.  ``reporter_actor_id`` appears here
+    only as a peer being addressed; a test that needs the *reporter* to act must
+    give it its own store rather than reuse this one.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+
+
+@pytest.fixture
+def actor_id():
+    """Vendor (receiver) actor ID."""
+    return "https://example.org/actors/vendor"
+
+
+@pytest.fixture
+def reporter_actor_id():
+    """Reporter actor ID."""
+    return "https://example.org/actors/reporter"
+
+
+@pytest.fixture
+def actor(datalayer, actor_id):
+    """Create vendor actor in the DataLayer with an outbox."""
+    obj = VultronService(id_=actor_id, name="Vendor Co")
+    datalayer.create(obj)
+    return obj
+
+
+@pytest.fixture
+def reporter_actor(datalayer, reporter_actor_id):
+    """Create reporter actor in the DataLayer."""
+    obj = VultronService(id_=reporter_actor_id, name="Reporter Co")
+    datalayer.create(obj)
+    return obj
+
+
+@pytest.fixture
+def report(datalayer):
+    """Create test as_VulnerabilityReport."""
+    obj = as_VulnerabilityReport(
+        id_="https://example.org/reports/CVE-2024-001",
+        name="Test Vulnerability Report",
+        content="Buffer overflow in component X",
+    )
+    datalayer.create(obj)
+    return obj
+
+
+@pytest.fixture
+def offer(datalayer, report, actor_id, reporter_actor_id):
+    """Create test Offer activity (reporter submits report to vendor)."""
+    obj = rm_submit_report_activity(
+        report=report,
+        actor=reporter_actor_id,
+        to=actor_id,
+    )
+    datalayer.create(obj)
+    return obj
+
+
+@pytest.fixture
+def bridge(datalayer):
+    """BT bridge for tree execution (includes TriggerActivityAdapter)."""
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    return BTBridge(
+        datalayer=datalayer, trigger_activity=TriggerActivityAdapter(datalayer)
+    )

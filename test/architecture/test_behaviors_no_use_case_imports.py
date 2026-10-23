@@ -1,0 +1,123 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Architecture boundary test: behaviors layer must not import from use_cases layer.
+
+``vultron/core/behaviors/`` MUST NOT import from ``vultron/core/use_cases/`` —
+neither at module level nor via deferred (local) imports.  The permitted
+direction is one-way: use-cases drive BT trees; BT nodes are the implementation
+layer of use-cases, not their consumers.
+
+Spec: BTND-04-003
+
+Ratchet pattern
+---------------
+``KNOWN_VIOLATIONS`` documents every pre-existing violation awaiting
+migration.  The test asserts::
+
+    actual_violations == KNOWN_VIOLATIONS
+
+This means:
+
+* **Adding a new violation** causes the test to **fail** immediately.
+* **Fixing a violation** also causes the test to **fail** until the resolved
+  entry is removed from ``KNOWN_VIOLATIONS``.
+
+Remove entries from ``KNOWN_VIOLATIONS`` one by one as each violation is fixed.
+When the set is empty the boundary is completely clean.
+"""
+
+import ast
+
+from test.architecture import _corpus
+
+_USE_CASES_MODULE = "vultron.core.use_cases"
+
+_BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
+
+
+def _imports_from_use_cases(tree: ast.AST) -> bool:
+    """Return True if *tree* contains any import from vultron.core.use_cases.
+
+    Detects both top-level and deferred (local) imports, catching violations
+    like the former ``from vultron.core.use_cases.received.case._helpers import
+    _ensure_reporter_participant`` placed inside ``update()`` method bodies.
+    """
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module == _USE_CASES_MODULE or module.startswith(
+                _USE_CASES_MODULE + "."
+            ):
+                return True
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == _USE_CASES_MODULE or alias.name.startswith(
+                    _USE_CASES_MODULE + "."
+                ):
+                    return True
+    return False
+
+
+def _collect_violations() -> frozenset[str]:
+    """Return repo-relative paths of behaviors files that import from use_cases."""
+    violations: set[str] = set()
+    for py_file, tree in _corpus.files_mentioning(
+        _USE_CASES_MODULE, under=_BEHAVIORS_ROOT
+    ):
+        if _imports_from_use_cases(tree):
+            violations.add(py_file.relative_to(_corpus.REPO_ROOT).as_posix())
+    return frozenset(violations)
+
+
+# ---------------------------------------------------------------------------
+# Known pre-existing violations awaiting migration (BTND-04-003).
+# Remove entries here one by one as each violation is fixed.
+# Issue #1428 tracks the next batch of fixes.
+# ---------------------------------------------------------------------------
+KNOWN_VIOLATIONS: frozenset[str] = frozenset(
+    [
+        # Remaining violations import helpers other than _as_id /
+        # _report_phase_status_id (fixed by #1428) — tracked for future
+        # migration.
+        "vultron/core/behaviors/embargo/nodes/emit.py",
+        "vultron/core/behaviors/sender/nodes/actions.py",
+    ]
+)
+
+
+def test_behaviors_does_not_import_use_cases():
+    """vultron/core/behaviors/ must not import from vultron/core/use_cases/.
+
+    Spec: BTND-04-003
+
+    See module docstring for the ratchet strategy.
+    """
+    actual = _collect_violations()
+    new_violations = actual - KNOWN_VIOLATIONS
+    resolved = KNOWN_VIOLATIONS - actual
+
+    diff_lines: list[str] = []
+    if new_violations:
+        diff_lines.append(
+            "NEW violations (behaviors/ must not import from use_cases/):"
+        )
+        diff_lines.extend(f"  + {v}" for v in sorted(new_violations))
+    if resolved:
+        diff_lines.append(
+            "RESOLVED violations (remove these entries from KNOWN_VIOLATIONS):"
+        )
+        diff_lines.extend(f"  - {v}" for v in sorted(resolved))
+
+    assert actual == KNOWN_VIOLATIONS, "\n\n" + "\n".join(diff_lines)

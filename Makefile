@@ -1,0 +1,116 @@
+PROJECT_HOME := .
+VULTRON_DIR := $(PROJECT_HOME)/vultron
+TEST_DIR := $(PROJECT_HOME)/test
+
+# Load environment variables from .env file if it exists
+ifneq (,$(wildcard .env))
+  include .env
+  export
+endif
+
+PROJECT_NAME ?= vultron
+
+# Display help information about available targets
+.PHONY: help
+help:  ## Show this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(filter-out .env,$(MAKEFILE_LIST)) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+
+# set up dev environment
+.PHONY: setup_dev
+setup_dev:  ## Set up development environment
+	uv sync --dev
+
+# upgrade dev dependencies
+.PHONY: upgrade_dev
+upgrade_dev:  ## Upgrade dev dependencies
+	uv sync --upgrade --dev
+
+# upgrade dependencies
+.PHONY: upgrade_deps
+upgrade_deps:  ## Upgrade all dependencies
+	uv sync --upgrade
+
+# run tests locally
+.PHONY: test
+test:  ## Run tests locally
+	uv run pytest test
+
+# ruff code formatting; scope comes from [tool.ruff] in pyproject.toml
+.PHONY: format
+format:  ## Format code with ruff
+	uv run ruff format
+
+# markdownlint-cli2 code formatting
+.PHONY: mdlint
+mdlint:  ## Lint markdown files
+	./mdlint.sh
+
+# ruff code linting
+.PHONY: ruff
+ruff:  ## Lint code with ruff
+	# edit [tool.ruff] in $(PROJECT_HOME)/pyproject.toml to configure ruff
+	uv run ruff check
+
+# mypy type checking
+.PHONY: mypy
+mypy:  ## Run mypy for type checking
+	# edit $(PROJECT_HOME)/.mypy.ini to configure mypy options
+	uv run mypy
+
+# pyright static type checking
+.PHONY: pyright
+pyright:  ## Run pyright for static type checking
+	uv run pyright
+
+# run all linters
+.PHONY: lint
+lint: format ruff mdlint mypy ## Run all linters (ruff, markdownlint, mypy)
+
+# serve docs locally
+.PHONY: docs
+docs:  ## Serve documentation locally
+	uv run mkdocs serve
+
+# build docker images
+.PHONY: docker_build
+docker_build:  ## Build docker images
+	cd docker && docker-compose build
+
+# docker compose up
+.PHONY: docker_up
+docker_up:  ## Start docker containers
+	cd docker && docker-compose up -d
+
+# rebuild docker images and up
+.PHONY: docker_rebuild
+docker_rebuild:  ## Rebuild and restart docker containers
+	cd docker && docker-compose up -d --build --force-recreate
+
+
+.PHONY: api_dev
+api_dev:  ## Start API server in development mode
+	uv run uvicorn vultron.api:app --reload --port 7999
+
+.PHONY: docker_api_dev
+docker_api_dev: docker_up  ## Start API server in Docker in development mode
+	cd docker && docker-compose up api-dev
+
+.PHONY: integration-test
+integration-test:  ## Run demo integration tests (requires Docker)
+	./integration_tests/demo/run_demo_integration_test.sh
+
+.PHONY: integration-test-multi-actor
+integration-test-multi-actor:  ## Run rv multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh rv
+
+.PHONY: integration-test-rvv
+integration-test-rvv:  ## Run RVV multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh rvv
+
+.PHONY: integration-test-rvcv-extension
+integration-test-rvcv-extension:  ## Run RVCV-extension multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-extension
+
+.PHONY: integration-test-rvcv-handoff
+integration-test-rvcv-handoff:  ## Run RVCV-handoff multi-actor integration test (requires Docker)
+	./integration_tests/demo/run_multi_actor_integration_test.sh rvcv-handoff

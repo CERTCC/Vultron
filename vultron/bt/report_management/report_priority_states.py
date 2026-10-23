@@ -15,7 +15,6 @@
 Provides a report priority enumeration class to reflect basic defer/act priority
 """
 
-
 import enum
 
 

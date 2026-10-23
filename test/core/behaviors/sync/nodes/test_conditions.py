@@ -1,0 +1,275 @@
+#!/usr/bin/env python
+"""Unit tests for sync conditions nodes."""
+
+import pytest
+from py_trees.common import Status
+
+from test.core.behaviors.sync.nodes.conftest import (
+    CASE_ID,
+    OWNER_ACTOR_ID,
+    _make_entry,
+    _make_event,
+)
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.sync.nodes import (
+    CheckLedgerFreshnessNode,
+    IsAddNoteEventNode,
+    IsCreateCaseParticipantEventNode,
+    IsInviteAcceptEventNode,
+    IsInviteRejectEventNode,
+    IsParticipantStatusEventNode,
+    IsRemoveEmbargoEventNode,
+    IsRemoveNoteEventNode,
+)
+from vultron.core.behaviors.sync.nodes.event_conditions import (
+    _ADD_NOTE_TO_CASE_EVENT,
+    _ADD_PARTICIPANT_STATUS_EVENT,
+    _REMOVE_EMBARGO_EVENT,
+    _REMOVE_NOTE_FROM_CASE_EVENT,
+)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.participant_semantic_types import (
+    CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+)
+
+
+@pytest.mark.parametrize(
+    "node_cls, matching_semantic_type",
+    [
+        (IsRemoveEmbargoEventNode, _REMOVE_EMBARGO_EVENT),
+        (IsParticipantStatusEventNode, _ADD_PARTICIPANT_STATUS_EVENT),
+        (IsAddNoteEventNode, _ADD_NOTE_TO_CASE_EVENT),
+        (IsRemoveNoteEventNode, _REMOVE_NOTE_FROM_CASE_EVENT),
+        (
+            IsCreateCaseParticipantEventNode,
+            CREATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        ),
+        (IsInviteAcceptEventNode, "accept_invite_actor_to_case"),
+        (IsInviteRejectEventNode, "reject_invite_actor_to_case"),
+    ],
+)
+class TestPositiveLedgerEntryConditionNodes:
+    """Tests for positive-precondition Is* condition nodes (BTND-08-001)."""
+
+    @pytest.mark.spec("SYNC-12-001")
+    def test_succeeds_on_matching_semantic_type(
+        self, bridge, case_actor, node_cls, matching_semantic_type
+    ):
+        entry = _make_entry(0)
+        entry = entry.model_copy(
+            update={"semantic_type": matching_semantic_type}
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=node_cls(name=node_cls.__name__),
+            actor_id=OWNER_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("SYNC-12-001")
+    def test_fails_on_non_matching_semantic_type(
+        self, bridge, case_actor, node_cls, matching_semantic_type
+    ):
+        entry = _make_entry(0)
+        # use any semantic_type that is NOT the matching one
+        other_event = "some_other_semantic_type"
+        assert other_event != matching_semantic_type
+        entry = entry.model_copy(update={"semantic_type": other_event})
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=node_cls(name=node_cls.__name__),
+            actor_id=OWNER_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.FAILURE
+
+
+@pytest.mark.spec("RSH-08-004", "VAM-01-011")
+def test_a_create_note_entry_attaches_no_note(bridge, case_actor):
+    """Only an ``add_note_to_case`` entry attaches a note (#4707).
+
+    The retired ``create_note`` semantic type no longer reaches the note slot.
+    """
+    entry = _make_entry(0).model_copy(update={"semantic_type": "create_note"})
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    result = bridge.execute_with_setup(
+        tree=IsAddNoteEventNode(name="IsAddNoteEventNode"),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.status == Status.FAILURE
+
+
+@pytest.fixture
+def datalayer():
+    """The owner's own store: every tree in this file executes as the owner.
+
+    Shadows the package fixture, which is the participant's store.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
+
+
+class TestCheckLedgerFreshnessNodeWithCaseIdArg:
+    """Tests using a case_id constructor arg (no blackboard key needed)."""
+
+    @pytest.mark.spec("SYNC-10-005")
+    def test_empty_ledger_is_fresh(self, bridge):
+        """SYNC-10-005: empty prefix is trivially fresh."""
+        result = bridge.execute_with_setup(
+            tree=CheckLedgerFreshnessNode(
+                case_id=CASE_ID, name="CheckFreshness"
+            ),
+            actor_id=OWNER_ACTOR_ID,
+        )
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("SYNC-10-004")
+    def test_contiguous_chain_is_fresh(self, bridge, datalayer, case_obj):
+        e0 = _make_entry(0, case_obj.genesis_hash)
+        datalayer.save(e0)
+        e1 = _make_entry(1, e0.entry_hash)
+        datalayer.save(e1)
+
+        result = bridge.execute_with_setup(
+            tree=CheckLedgerFreshnessNode(
+                case_id=CASE_ID, name="CheckFreshness"
+            ),
+            actor_id=OWNER_ACTOR_ID,
+        )
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("SYNC-10-004")
+    def test_gap_in_ledger_is_stale(self, bridge, datalayer):
+        """SYNC-10-004: any gap blocks the gate."""
+        e0 = _make_entry(0)
+        datalayer.save(e0)
+        # Skip index 1; jump to index 2
+        e2 = CaseLedgerEntry(
+            case_id=CASE_ID,
+            log_index=2,
+            log_object_id="https://example.org/activities/log-2",
+            semantic_type="test_event",
+            payload_snapshot={"log_index": 2},
+            prev_log_hash=e0.entry_hash,
+            entry_hash="f" * 64,
+        )
+        datalayer.save(e2)
+
+        result = bridge.execute_with_setup(
+            tree=CheckLedgerFreshnessNode(
+                case_id=CASE_ID, name="CheckFreshness"
+            ),
+            actor_id=OWNER_ACTOR_ID,
+        )
+        assert result.status == Status.FAILURE
+
+    @pytest.mark.spec("SYNC-10-004")
+    def test_hash_mismatch_is_stale(self, bridge, datalayer):
+        """SYNC-10-004: hash mismatch at any link is stale."""
+        e0 = _make_entry(0)
+        datalayer.save(e0)
+        bad_e1 = CaseLedgerEntry(
+            case_id=CASE_ID,
+            log_index=1,
+            log_object_id="https://example.org/activities/log-1",
+            semantic_type="test_event",
+            payload_snapshot={"log_index": 1},
+            prev_log_hash="0" * 64,  # wrong: does not match e0.entry_hash
+            entry_hash="1" * 64,
+        )
+        datalayer.save(bad_e1)
+
+        result = bridge.execute_with_setup(
+            tree=CheckLedgerFreshnessNode(
+                case_id=CASE_ID, name="CheckFreshness"
+            ),
+            actor_id=OWNER_ACTOR_ID,
+        )
+        assert result.status == Status.FAILURE
+
+    @pytest.mark.spec("SYNC-10-002")
+    def test_stale_result_emits_warning(self, bridge, datalayer, caplog):
+        """SYNC-10-002: stale gate MUST surface an explicit stale condition."""
+        import logging
+
+        # Create a gap
+        e0 = _make_entry(0)
+        datalayer.save(e0)
+        e2 = CaseLedgerEntry(
+            case_id=CASE_ID,
+            log_index=2,
+            log_object_id="https://example.org/activities/log-2",
+            semantic_type="test_event",
+            payload_snapshot={"log_index": 2},
+            prev_log_hash=e0.entry_hash,
+            entry_hash="a" * 64,
+        )
+        datalayer.save(e2)
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="vultron.core.behaviors.sync.nodes.conditions",
+        ):
+            bridge.execute_with_setup(
+                tree=CheckLedgerFreshnessNode(
+                    case_id=CASE_ID, name="CheckFreshness"
+                ),
+                actor_id=OWNER_ACTOR_ID,
+            )
+
+        assert any(
+            "NOT fresh" in r.message or "stale" in r.message.lower()
+            for r in caplog.records
+            if r.levelno == logging.WARNING
+        )
+
+    @pytest.mark.spec("SYNC-10-001")
+    def test_fresh_result_no_warning(self, bridge, caplog):
+        """Happy path emits no WARNING."""
+        import logging
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="vultron.core.behaviors.sync.nodes.conditions",
+        ):
+            bridge.execute_with_setup(
+                tree=CheckLedgerFreshnessNode(
+                    case_id=CASE_ID, name="CheckFreshness"
+                ),
+                actor_id=OWNER_ACTOR_ID,
+            )
+
+        warning_msgs = [
+            r for r in caplog.records if r.levelno == logging.WARNING
+        ]
+        assert not warning_msgs
+
+
+class TestCheckLedgerFreshnessNodeWithBlackboard:
+    """Tests where case_id is read from the blackboard."""
+
+    @pytest.mark.spec("SYNC-10-001")
+    def test_blackboard_case_id_fresh(self, bridge):
+        result = bridge.execute_with_setup(
+            tree=CheckLedgerFreshnessNode(name="CheckFreshness"),
+            actor_id=OWNER_ACTOR_ID,
+            case_id=CASE_ID,
+        )
+        assert result.status == Status.SUCCESS
+
+    @pytest.mark.spec("SYNC-10-002")
+    def test_missing_blackboard_case_id_fails(self, bridge):
+        """No case_id on blackboard and none at construction → FAILURE."""
+        result = bridge.execute_with_setup(
+            tree=CheckLedgerFreshnessNode(name="CheckFreshness"),
+            actor_id=OWNER_ACTOR_ID,
+            # case_id intentionally omitted
+        )
+        assert result.status == Status.FAILURE

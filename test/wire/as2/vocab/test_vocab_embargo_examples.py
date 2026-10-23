@@ -1,0 +1,207 @@
+#  Copyright (c) 2024-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+import datetime
+import unittest
+from typing import cast
+
+import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Announce,
+    as_Invite,
+    as_Offer,
+    as_Reject,
+    as_Remove,
+)
+
+
+class TestVocabEmbargoExamples(unittest.TestCase):
+    def test_embargo_event(self):
+        obj = examples.embargo_event()
+        self.assertIsInstance(obj, EmbargoEvent)
+
+        self.assertIsNotNone(obj.id_)
+        self.assertIsNotNone(obj.name)
+        self.assertIsNotNone(obj.context)
+
+        self.assertIsNotNone(obj.end_time)
+        self.assertIsInstance(obj.end_time, datetime.datetime)
+        self.assertIsNotNone(obj.end_time.tzinfo)
+
+        if obj.start_time is not None:
+            self.assertIsNotNone(obj.start_time)
+            self.assertIsInstance(obj.start_time, datetime.datetime)
+            self.assertIsNotNone(obj.start_time.tzinfo)
+            self.assertLessEqual(obj.start_time, obj.end_time)
+
+    def test_propose_embargo(self):
+        activity = examples.propose_embargo()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        case = examples.case()
+        embargo = examples.embargo_event()
+
+        self.assertIsInstance(activity, as_Invite)
+        self.assertEqual(activity.type_, "Invite")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.object_, embargo)
+        self.assertEqual(activity.context, case.id_)
+
+    def test_accept_embargo(self):
+        activity = examples.accept_embargo()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        proposal = examples.propose_embargo()
+
+        self.assertIsInstance(activity, as_Accept)
+        self.assertEqual(activity.type_, "Accept")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertIsNotNone(activity.context)
+        self.assertIsNotNone(activity.to)
+        accepted_proposal = cast(as_Offer, activity.object_)
+        self.assertEqual(accepted_proposal.id_, proposal.id_)
+
+    def test_reject_embargo(self):
+        activity = examples.reject_embargo()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        proposal = examples.propose_embargo()
+
+        self.assertIsInstance(activity, as_Reject)
+        self.assertEqual(activity.type_, "Reject")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertIsNotNone(activity.context)
+        self.assertIsNotNone(activity.to)
+        rejected_proposal = cast(as_Offer, activity.object_)
+        self.assertEqual(rejected_proposal.id_, proposal.id_)
+
+    def test_activate_embargo(self):
+        """The owner's Accept of the EmbargoEvent itself (ADR-0122)."""
+        activity = examples.activate_embargo()
+        vendor = examples.vendor()
+        case = examples.case()
+        embargo = examples.embargo_event()
+
+        self.assertIsInstance(activity, as_Accept)
+        self.assertEqual(activity.type_, "Accept")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.target, case.id_)
+        self.assertEqual(activity.object_, embargo)
+
+    def test_reject_embargo_proposal(self):
+        """The owner's Reject of the EmbargoEvent itself (ADR-0122)."""
+        activity = examples.reject_embargo_proposal()
+        vendor = examples.vendor()
+        case = examples.case()
+        embargo = examples.embargo_event()
+
+        self.assertIsInstance(activity, as_Reject)
+        self.assertEqual(activity.type_, "Reject")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.target, case.id_)
+        self.assertEqual(activity.object_, embargo)
+
+    def test_announce_embargo(self):
+        activity = examples.announce_embargo()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        case = examples.case()
+        embargo = examples.embargo_event(days=90)
+
+        self.assertIsInstance(activity, as_Announce)
+        self.assertEqual(activity.type_, "Announce")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.context, case.id_)
+        self.assertEqual(activity.object_, embargo)
+        self.assertIsNotNone(activity.to)
+
+    def test_announce_embargo_termination(self):
+        """The CASE_MANAGER's announcement after it applies a termination."""
+        activity = examples.announce_embargo_termination()
+        self.assertIsInstance(activity, as_Announce)
+
+        self.assertEqual(activity.actor, examples.case_actor().id_)
+        self.assertEqual(
+            activity.to,
+            [
+                examples.vendor().id_,
+                examples.coordinator().id_,
+                examples.finder().id_,
+            ],
+        )
+        self.assertEqual(activity.context, examples.case().id_)
+        self.assertEqual(activity.object_, examples.embargo_event(90))
+
+    def test_remove_embargo(self):
+        activity = examples.remove_embargo()
+        self.assertIsInstance(activity, as_Activity)
+        vendor = examples.vendor()
+        case = examples.case()
+
+        self.assertIsInstance(activity, as_Remove)
+        self.assertEqual(activity.type_, "Remove")
+
+        self.assertEqual(activity.actor, vendor.id_)
+        self.assertEqual(activity.origin, case.id_)
+        self.assertIsNone(activity.target)
+        # Extract the embargo from the returned activity rather than
+        # recreating it independently to avoid flakiness from time-based
+        # ID generation (BUG-FLAKY-1).
+        embargo_raw = activity.object_
+        self.assertIsNotNone(embargo_raw)
+        self.assertIsInstance(embargo_raw, EmbargoEvent)
+        embargo = cast(EmbargoEvent, embargo_raw)
+        self.assertEqual(embargo.context, case.id_)
+
+    def test_relay_embargo_proposal(self):
+        """The CASE_MANAGER's relay of a proposal to one participant."""
+        activity = examples.relay_embargo_proposal()
+        self.assertIsInstance(activity, as_Invite)
+        case = examples.case()
+        embargo = examples.embargo_event()
+
+        self.assertEqual(activity.actor, examples.case_actor().id_)
+        self.assertEqual(activity.attributed_to, examples.vendor().id_)
+        self.assertEqual(activity.to, [examples.coordinator().id_])
+        self.assertEqual(activity.context, case.id_)
+        self.assertEqual(activity.object_, embargo)
+        # The relay always carries the RSVP deadline the CASE_MANAGER
+        # stamped, inside the embargo (CM-28-012, EP-07-006).
+        assert activity.end_time is not None
+        assert activity.published is not None
+        self.assertGreater(activity.end_time, activity.published)
+        self.assertLessEqual(activity.end_time, embargo.end_time)
+
+    def test_notify_embargo_termination(self):
+        """The CASE_MANAGER's termination notice to one participant."""
+        activity = examples.notify_embargo_termination()
+        self.assertIsInstance(activity, as_Remove)
+        case = examples.case()
+
+        self.assertEqual(activity.actor, examples.case_actor().id_)
+        self.assertEqual(activity.attributed_to, examples.vendor().id_)
+        self.assertEqual(activity.to, [examples.coordinator().id_])
+        self.assertEqual(activity.origin, case.id_)
+        self.assertIsInstance(activity.object_, EmbargoEvent)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,3 +1,7 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Robot Behavior Tree Demo
 
 This is a demo of a behavior tree for a robot.

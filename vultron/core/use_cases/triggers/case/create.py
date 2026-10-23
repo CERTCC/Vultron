@@ -1,0 +1,110 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import logging
+from typing import cast
+
+import py_trees.behaviour
+
+from vultron.core.behaviors.case.create_case_trigger_tree import (
+    create_case_trigger_bt,
+)
+from vultron.core.models.activity_ids import derived_activity_id
+from vultron.core.models.use_case_result import CaseResult
+from vultron.core.use_cases.triggers._base import SvcBTTriggerBase
+from vultron.core.use_cases.triggers._helpers import resolve_actor
+from vultron.core.use_cases.triggers.requests import CreateCaseTriggerRequest
+from vultron.errors import VultronNotFoundError, VultronValidationError
+
+logger = logging.getLogger(__name__)
+
+#: Kind label of the trigger's ``Create(VulnerabilityCase)`` derived id.
+CREATE_CASE_ID_KIND = "create-vulnerability-case"
+
+
+class SvcCreateCaseUseCase(SvcBTTriggerBase[CaseResult]):
+    """Create a new VulnerabilityCase and emit a CreateCaseActivity.
+
+    The actor creates a local case and queues the activity for delivery to
+    the recipients named in ``to``.  With no ``to`` the case is created
+    locally and nothing is queued, because the outbox refuses an activity
+    addressed to no one (OX-08-001).  An optional report_id links an existing
+    VulnerabilityReport to the new case.
+
+    BT-15-001 audit: protocol-observable case creation and outbound activity
+    emission are delegated to a trigger-side BT.
+    """
+
+    def _prepare(self) -> None:
+        request = cast(CreateCaseTriggerRequest, self._request)
+        actor = resolve_actor(request.actor_id, self._dl)
+        self._actor_id = actor.id_
+        self._case_name: str = request.name
+        self._case_content: str = request.content
+
+        report_id = request.report_id
+        if report_id is not None:
+            raw = self._dl.read(report_id)
+            if raw is None:
+                raise VultronNotFoundError("VulnerabilityReport", report_id)
+            if getattr(raw, "type_", "") != "VulnerabilityReport":
+                raise VultronValidationError(
+                    f"'{report_id}' is not a VulnerabilityReport"
+                )
+            report_id = getattr(raw, "id_", None) or report_id
+        self._report_id: str | None = report_id
+        self._to: list[str] | None = request.to
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        to = self._to
+
+        def _build_activity(case_id: str) -> tuple[str, str]:
+            # One Create per case, its id derived from the case it creates
+            # (ID-04-004, OX-06-002).
+            return self._factory.create_case(
+                case_id=case_id,
+                actor=self._actor_id,
+                to=to,
+                id_=derived_activity_id(
+                    CREATE_CASE_ID_KIND, self._actor_id, case_id
+                ),
+            )
+
+        return create_case_trigger_bt(
+            actor_id=self._actor_id,
+            case_name=self._case_name,
+            case_content=self._case_content,
+            report_id=self._report_id,
+            result_out=self._result_out,
+            activity_builder=_build_activity,
+            queue_for_delivery=bool(to),
+        )
+
+    def _handle_result(self) -> None:
+        self._captured["activity"] = self._result_out.get("activity")
+        self._captured["case_id"] = self._result_out.get("case_id")
+        activity = self._captured.get("activity")
+        logger.info(
+            "Actor '%s' created case '%s' (CreateCaseActivity '%s')",
+            self._actor_id,
+            self._result_out.get("case_id"),
+            activity.get("id") if isinstance(activity, dict) else None,
+        )
+
+    def _build_result(self) -> CaseResult:
+        """The activity body plus the id of the case the tree created."""
+        return CaseResult(
+            **self._activity_fields(), case_id=self._captured.get("case_id")
+        )

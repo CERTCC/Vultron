@@ -1,0 +1,74 @@
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import pytest
+
+from test.demo._helpers import (
+    expect_trusted_introductions,
+    route_exchange_demo_at_testclient,
+)
+from vultron.demo.exchange import (
+    initialize_case_demo as init_demo,
+    manage_embargo_demo as demo,
+)
+
+
+@pytest.fixture(scope="module")
+def demo_env(client):
+    """Routes the demo's clients at the in-process TestClient."""
+    with route_exchange_demo_at_testclient(client, demo, init_demo):
+        yield
+
+
+@pytest.mark.parametrize(
+    "demo_fn",
+    [demo.demo_activate_then_terminate, demo.demo_reject_then_repropose],
+    ids=["activate_terminate", "reject_repropose"],
+)
+def test_demo(demo_env, demo_fn, caplog):
+    """
+    Tests that the manage_embargo demo workflows complete successfully.
+
+    For the activate/terminate path, verifies:
+    - Case initialized with vendor and coordinator participants
+    - Coordinator proposes embargo → vendor inbox
+    - Vendor accepts embargo → coordinator inbox
+    - Vendor activates embargo on case
+    - Vendor announces embargo
+    - Case has active embargo (mid-point check)
+    - Vendor removes (terminates) embargo from case
+    - Case has no active embargo (final check)
+
+    For the reject/repropose path, verifies:
+    - Case initialized with vendor and coordinator participants
+    - Coordinator proposes first embargo → vendor inbox
+    - Vendor rejects first proposal → coordinator inbox
+    - Case has no active embargo after rejection
+    - Coordinator proposes revised embargo → vendor inbox
+    - Vendor accepts revised proposal
+    - Vendor activates revised embargo on case
+    - Case has active embargo (final check)
+    """
+    import logging
+
+    # WARNING, not ERROR: a refused case introduction (CBT-01-011) is
+    # logged at WARNING, and the run must log none (#4675).
+    with (
+        caplog.at_level(logging.WARNING),
+        expect_trusted_introductions(caplog),
+    ):
+        demo.main(skip_health_check=True, demos=[demo_fn])
+
+    assert "ERROR SUMMARY" not in caplog.text, (
+        "Expected demo to succeed, but got errors:\n" + caplog.text
+    )

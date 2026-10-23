@@ -2,6 +2,7 @@
 """
 Provides messaging conditions for use in Vultron BTs.
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,9 +16,7 @@ Provides messaging conditions for use in Vultron BTs.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import logging
-from typing import Type
 
 from vultron.bt.base.bt_node import BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode
@@ -41,7 +40,7 @@ MsgQueueEmpty = invert(
 )
 
 
-def check_msg_type(msg_t: MessageTypes) -> Type[ConditionCheck]:
+def check_msg_type(msg_t: MessageTypes) -> type[ConditionCheck]:
     """Given a message type, return a condition check class for that message type"""
 
     if msg_t not in MessageTypes:
@@ -49,7 +48,7 @@ def check_msg_type(msg_t: MessageTypes) -> Type[ConditionCheck]:
 
     def func(obj: BtNode) -> bool:
         """True if the current message type is {msg_t}""" ""
-        return obj.bb.current_message.msg_type == msg_t
+        return bool(obj.bb.current_message.msg_type == msg_t)
 
     node_cls = condition_check(f"IsMsgType_{msg_t}", func)
 

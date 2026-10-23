@@ -1,0 +1,70 @@
+"""
+CLI driving adapter.
+
+Translates command-line invocations into core use-case calls by routing
+ActivityStreams JSON through the same parse → rehydrate → extract → dispatch
+pipeline used by the HTTP inbox adapter.
+
+Usage:
+    python -m vultron.adapters.driving.cli deliver ACTOR_ID [ACTIVITY_JSON]
+    vultron-cli deliver ACTOR_ID < activity.json
+"""
+
+import json
+import logging
+import sys
+
+import click
+
+from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driving.fastapi.inbox_handler import (
+    handle_inbox_item,
+    init_dispatcher,
+)
+from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.rehydration import rehydrate
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+
+logger = logging.getLogger(__name__)
+
+
+@click.group()
+def cli():
+    """Vultron CLI driving adapter — deliver activities directly to use cases."""
+
+
+@cli.command()
+@click.argument("actor_id")
+@click.argument("activity_json", type=click.File("r"), default="-")
+def deliver(actor_id: str, activity_json) -> None:
+    """Deliver an AS2 activity JSON to an actor's inbox.
+
+    Runs the same parse → rehydrate → extract → dispatch pipeline as
+    the HTTP inbox adapter, but without going through HTTP.
+
+    ACTOR_ID  The actor receiving the activity.
+    ACTIVITY_JSON  Path to a JSON file (or '-' for stdin).
+    """
+    raw = json.load(activity_json)
+    # The receiving actor is named on the command line, so its own store is
+    # what this pipeline must read and write (ADR-0073).
+    dl = get_datalayer(canonical_actor_uri(actor_id))
+    init_dispatcher()
+
+    try:
+        activity = parse_activity(raw)
+    except Exception as e:  # noqa: BLE001  # ruff-baseline #3326
+        click.echo(f"Parse error: {e}", err=True)
+        sys.exit(1)
+
+    rehydrated = rehydrate(activity, dl=dl)
+    if not isinstance(rehydrated, as_Activity):
+        click.echo("Rehydrated object is not an activity.", err=True)
+        sys.exit(1)
+    handle_inbox_item(actor_id=actor_id, obj=rehydrated, dl=dl)
+    click.echo("Activity delivered.")
+
+
+if __name__ == "__main__":
+    cli()

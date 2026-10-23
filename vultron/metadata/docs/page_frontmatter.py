@@ -1,0 +1,468 @@
+"""Validate the ``stakeholder_type``, ``level`` and ``page_type`` of ``docs/`` pages.
+
+Requirements: specs/diataxis-requirements.yaml DF-11-001, DF-11-003,
+DF-11-010, DF-11-012, DF-11-013, DF-11-018, DF-09-009; attribution per MS-17 via
+:mod:`vultron.metadata.file_loading`. Schema:
+:mod:`vultron.metadata.docs.page_schema`.
+
+Every ``docs/**/*.md`` file is one of three things:
+
+* an **include fragment** — a file some page pulls in whole with
+  ``{% include-markdown %}`` and that is not itself in the nav, or a
+  ``pymdownx.snippets`` ``auto_append`` file. It has no reader of its own, so it
+  is excluded from the target set and reported if it declares any of the
+  three keys (DF-11-010, DF-11-018); its hosts' declarations govern it.
+* a **working-record page** — matched by
+  :data:`~vultron.metadata.docs.page_schema.WORKING_RECORD_PATTERNS`. It
+  declares ``[project-contributor]``, no ``level`` (DF-11-012) and no
+  ``page_type`` (DF-11-018), and it is
+  absent from the ``mkdocs.yml`` nav and matched by ``not_in_nav``
+  (DF-11-003).
+* a **reader-facing page** — everything else. It declares all three keys
+  (DF-11-001, DF-11-018).
+
+A start page (``docs/start/*.md`` other than its ``index.md``) also declares
+its reading-path ``thread:``, and no other page may (DF-11-013).
+
+A file matched by ``exclude_docs`` that no page includes is none of the three:
+MkDocs never builds it, so it has no reader until a page pulls it in. The
+generated occasion fragments wait there for their hosts (ADR-0128).
+
+A page included only from a ``start=`` marker (a user story on its
+traceability page, a worked example quoted by the specification's annexes) is
+still a page: it has a URL and readers of its own. A page included *whole* has
+its frontmatter copied into its host, which would render its declarations
+there (DF-11-004), so such a page that declares any of the keys is reported
+too.
+
+Every page declares: an undeclared page is a failure. The shrink-only
+baseline that let this check land before the content audit (#3526) reached
+zero and was retired.
+
+Usage::
+
+    uv run docs-frontmatter   # check (pre-commit, CI)
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from collections import defaultdict
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from pathspec.gitignore import GitIgnoreSpec
+
+from vultron.metadata.base import (
+    excluded_docs_spec,
+    mkdocs_config,
+    nav_exclusion_fault,
+    nav_paths,
+    not_in_nav_spec,
+    repo_root as _find_repo_root,
+)
+from vultron.metadata.docs.page_schema import (
+    START_DIR,
+    THREAD_KEY,
+    PageFrontmatter,
+    ThreadDeclaration,
+    WorkingRecordFrontmatter,
+    is_start_page,
+    is_working_record,
+)
+from vultron.metadata.file_loading import (
+    FailureCollector,
+    MetadataLoadError,
+    load_frontmatter,
+    validate,
+)
+
+#: The three keys this check owns. Any other frontmatter key belongs to another
+#: schema and is ignored here.
+DECLARATION_KEYS: tuple[str, ...] = ("stakeholder_type", "level", "page_type")
+
+# ``{% include-markdown "path" ... %}`` and the plugin's plain ``include``.
+_INCLUDE_RE = re.compile(
+    r"\{%-?\s*include(?:-markdown)?\s+(?:\"(?P<dq>[^\"]+)\"|'(?P<sq>[^']+)')"
+    r"(?P<opts>.*?)-?%\}",
+    re.DOTALL,
+)
+# Only ``start=`` skips the top of the file. An include with just ``end=``
+# copies from line 1, frontmatter included, so it is still a whole include.
+_START_OPTION_RE = re.compile(r"\bstart\s*=")
+# Either marker can cut a link out of what renders.
+_CUT_OPTION_RE = re.compile(r"\b(?:start|end)\s*=")
+_TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z_][\w-]*)\s*:")
+
+
+@dataclass(frozen=True)
+class DocsTree:
+    """How each ``docs/**/*.md`` file is classified.
+
+    Attributes:
+        pages: ``docs/``-relative paths in the target set.
+        fragments: Excluded fragments, each mapped to the pages hosting it.
+        whole_includes: Every file included whole, mapped to its hosts.
+        navved: Every path the ``mkdocs.yml`` nav references.
+        not_in_nav: The ``mkdocs.yml`` ``not_in_nav`` patterns.
+    """
+
+    pages: tuple[str, ...]
+    fragments: Mapping[str, tuple[str, ...]]
+    whole_includes: Mapping[str, tuple[str, ...]]
+    navved: frozenset[str] = frozenset()
+    not_in_nav: GitIgnoreSpec = field(
+        default_factory=lambda: GitIgnoreSpec.from_lines([])
+    )
+
+
+@dataclass
+class CheckResult:
+    """What a passing check saw, for its summary line."""
+
+    reader_pages: int = 0
+    working_record_pages: int = 0
+    fragments: int = 0
+
+
+def include_directives(
+    host_path: Path,
+    docs_dir: Path,
+    *,
+    uncut: bool = False,
+    existing: bool = True,
+) -> Iterator[tuple[int, str, bool]]:
+    """Yield ``(offset, target, whole)`` for each ``.md`` file *host_path* includes.
+
+    A target opening ``./`` or ``../`` resolves against the including file;
+    any other resolves against ``docs/``, matching the include-markdown
+    plugin. Globs expand. Targets outside ``docs/`` and non-Markdown targets
+    are not pages and are skipped. *offset* is where the directive starts in
+    the host's source, and *target* is ``docs/``-relative. *whole* means no
+    ``start=``, so the target's frontmatter renders; with *uncut* it also
+    means no ``end=``, so every link in the target renders. With
+    *existing* false, a target that does not exist yet is yielded too, so a
+    generator can read the directives naming a file it is about to write.
+    """
+    docs_resolved = docs_dir.resolve()
+    text = host_path.read_text(encoding="utf-8", errors="replace")
+    for match in _INCLUDE_RE.finditer(text):
+        spec = match.group("dq") or match.group("sq")
+        if "://" in spec:
+            continue
+        base = host_path.parent if spec.startswith(("./", "../")) else docs_dir
+        candidates = (
+            sorted(base.glob(spec))
+            if any(c in spec for c in "*?[")
+            else [base / spec]
+        )
+        cut_re = _CUT_OPTION_RE if uncut else _START_OPTION_RE
+        whole = not cut_re.search(match.group("opts"))
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if (
+                resolved.suffix == ".md"
+                and (resolved.is_file() or not existing)
+                and resolved.is_relative_to(docs_resolved)
+            ):
+                target = resolved.relative_to(docs_resolved).as_posix()
+                yield match.start(), target, whole
+
+
+def _include_targets(docs_dir: Path) -> dict[str, dict[str, bool]]:
+    """Map each included ``.md`` file to ``{host: included_whole}``."""
+    targets: dict[str, dict[str, bool]] = defaultdict(dict)
+    for host_path in sorted(docs_dir.rglob("*.md")):
+        host = host_path.relative_to(docs_dir).as_posix()
+        for _, target, whole in include_directives(host_path, docs_dir):
+            targets[target][host] = targets[target].get(host, False) or whole
+    return targets
+
+
+def _auto_appended(root: Path, docs_dir: Path) -> set[str]:
+    """``docs/``-relative files ``pymdownx.snippets`` appends to every page."""
+    found: set[str] = set()
+    extensions = mkdocs_config(root).get("markdown_extensions") or []
+    if not isinstance(extensions, list):
+        return found
+    for entry in extensions:
+        if not isinstance(entry, dict):
+            continue
+        options = entry.get("pymdownx.snippets")
+        if not isinstance(options, dict):
+            continue
+        for item in options.get("auto_append") or []:
+            path = (root / str(item)).resolve()
+            if path.is_relative_to(docs_dir.resolve()):
+                found.add(path.relative_to(docs_dir.resolve()).as_posix())
+    return found
+
+
+def classify_docs_tree(root: Path) -> DocsTree:
+    """Split ``docs/**/*.md`` into target pages and excluded fragments."""
+    docs_dir = root / "docs"
+    every = sorted(
+        p.relative_to(docs_dir).as_posix() for p in docs_dir.rglob("*.md")
+    )
+    navved = nav_paths(root)
+    includes = _include_targets(docs_dir)
+    whole_includes = {
+        target: tuple(sorted(h for h, whole in hosts.items() if whole))
+        for target, hosts in includes.items()
+        if any(hosts.values())
+    }
+    fragments: dict[str, tuple[str, ...]] = {
+        target: hosts
+        for target, hosts in whole_includes.items()
+        if target not in navved
+    }
+    for appended in _auto_appended(root, docs_dir):
+        fragments.setdefault(appended, ("every page (snippets auto_append)",))
+    # An excluded file is never built, so it has no reader of its own; until
+    # a page includes it (and it becomes a fragment above) it is neither.
+    # This holds for every `exclude_docs` pattern, not only the occasion
+    # fragments: a page excluded by mistake also leaves DF-11's scope, so
+    # widen `exclude_docs` only for files that are never pages.
+    excluded = excluded_docs_spec(mkdocs_config(root))
+    return DocsTree(
+        pages=tuple(
+            p
+            for p in every
+            if p not in fragments and not excluded.match_file(p)
+        ),
+        fragments=fragments,
+        whole_includes=whole_includes,
+        navved=navved,
+        not_in_nav=not_in_nav_spec(root),
+    )
+
+
+def frontmatter_key_lines(path: Path) -> dict[str, int]:
+    """1-based line of each top-level key in *path*'s frontmatter block."""
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    found: dict[str, int] = {}
+    if not lines or lines[0].strip() != "---":
+        return found
+    for number, line in enumerate(lines[1:], start=2):
+        if line.strip() == "---":
+            break
+        match = _TOP_LEVEL_KEY_RE.match(line)
+        if match:
+            found.setdefault(match.group(1), number)
+    return found
+
+
+def _declarations(metadata: Mapping[str, object]) -> dict[str, object]:
+    return {k: metadata[k] for k in DECLARATION_KEYS if k in metadata}
+
+
+def _check_declarations(
+    path: Path,
+    rel: str,
+    metadata: Mapping[str, object],
+    working: bool,
+    tree: DocsTree,
+    root: Path,
+) -> None:
+    """Validate the declarations a page makes (DF-11-001, DF-11-012).
+
+    Raises:
+        MetadataLoadError: If the page declares none of the keys, is included
+            whole by another page, or its declarations do not validate.
+    """
+    declared = _declarations(metadata)
+    if not declared:
+        wanted = (
+            "stakeholder_type: [project-contributor] (working record, "
+            "no level or page_type; DF-11-012, DF-11-018)"
+            if working
+            else "stakeholder_type, level (DF-11-001) and page_type "
+            "(DF-11-018)"
+        )
+        raise MetadataLoadError(
+            f"declares none of the keys; add {wanted}",
+            path=f"docs/{rel}",
+        )
+
+    key_lines = frontmatter_key_lines(path)
+    including = tree.whole_includes.get(rel)
+    if including:
+        key = next(iter(declared))
+        raise MetadataLoadError(
+            f"is included whole by {', '.join(including)}, which would "
+            f"render its {key} into that page (DF-11-004); include "
+            f"it between start=/end= markers instead",
+            path=f"docs/{rel}",
+            line=key_lines.get(key),
+        )
+    model = WorkingRecordFrontmatter if working else PageFrontmatter
+    validate(
+        model,
+        declared,
+        path=path,
+        root=root,
+        key_lines=key_lines,
+    )
+
+
+def validate_thread(
+    path: Path, metadata: Mapping[str, object], root: Path
+) -> ThreadDeclaration:
+    """Validate the ``thread:`` in a start page's *metadata* (DF-11-013).
+
+    The one validation both ``docs-frontmatter`` and the thread loader
+    (:func:`~vultron.metadata.docs.threads.load_threads`) run, so the two
+    cannot read a thread two ways; each needs it, because neither can work
+    from a thread that does not validate.
+
+    Raises:
+        MetadataLoadError: If the thread does not validate, located at the
+            ``thread:`` key's line.
+    """
+    return validate(
+        ThreadDeclaration,
+        {THREAD_KEY: metadata.get(THREAD_KEY)},
+        path=path,
+        root=root,
+        key_lines=frontmatter_key_lines(path),
+    )
+
+
+def _check_thread(
+    path: Path, rel: str, metadata: Mapping[str, object], root: Path
+) -> None:
+    """Check the ``thread:`` key a page declares, if any (DF-11-013).
+
+    Only a start page opens a thread, so the key anywhere else is a finding.
+    Whether each member is an existing reader-facing page is the separate
+    ``docs-threads`` check (DF-11-016).
+
+    Raises:
+        MetadataLoadError: If a page other than a start page declares a
+            thread, or a start page's thread does not validate.
+    """
+    if THREAD_KEY not in metadata:
+        return
+    if not is_start_page(rel):
+        raise MetadataLoadError(
+            f"declares `{THREAD_KEY}:` but is not a start page; a thread is "
+            f"declared once, on the docs/{START_DIR}/ page that opens it "
+            "(DF-11-013)",
+            path=f"docs/{rel}",
+            line=frontmatter_key_lines(path).get(THREAD_KEY),
+        )
+    validate_thread(path, metadata, root)
+
+
+def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
+    """Validate every page's declarations and every fragment's absence of them.
+
+    Args:
+        repo_root: Repository root. Defaults to the enclosing checkout.
+
+    Returns:
+        Counts for a summary line.
+
+    Raises:
+        MetadataLoadError: If no page resolves under ``docs/`` (DF-09-009).
+        MetadataLoadErrors: Carrying every finding, each attributed to its
+            file as ``path:line:col`` where the fault has a position.
+    """
+    root = repo_root or _find_repo_root()
+    docs_dir = root / "docs"
+    tree = (
+        classify_docs_tree(root) if docs_dir.is_dir() else DocsTree((), {}, {})
+    )
+    if not tree.pages:
+        raise MetadataLoadError(
+            "resolved no pages to check; an empty target set is a failure, "
+            "not a pass (DF-09-009)",
+            path="docs",
+        )
+
+    result = CheckResult(fragments=len(tree.fragments))
+    collector = FailureCollector()
+
+    def shown(rel: str) -> str:
+        return f"docs/{rel}"
+
+    for rel, hosts in sorted(tree.fragments.items()):
+        with collector.attempt():
+            path = docs_dir / rel
+            declared = _declarations(
+                load_frontmatter(path, root=root).metadata
+            )
+            if declared:
+                key = next(iter(declared))
+                raise MetadataLoadError(
+                    f"an include fragment must not declare {key}; it takes "
+                    f"its declarations from the pages hosting it "
+                    f"({', '.join(hosts)}) (DF-11-010, DF-11-018)",
+                    path=shown(rel),
+                    line=frontmatter_key_lines(path).get(key),
+                )
+
+    for rel in tree.pages:
+        working = is_working_record(rel)
+        misplaced = working and nav_exclusion_fault(
+            rel, tree.navved, tree.not_in_nav
+        )
+        if misplaced:
+            # Its own attempt, so a page that is also mis-declared reports both.
+            with collector.attempt():
+                raise MetadataLoadError(
+                    f"is project working record but {misplaced}, and link it "
+                    f"from the routing page for its group (DF-11-003)",
+                    path=shown(rel),
+                )
+        metadata: Mapping[str, object] | None = None
+        with collector.attempt():
+            path = docs_dir / rel
+            if working:
+                result.working_record_pages += 1
+            else:
+                result.reader_pages += 1
+
+            metadata = load_frontmatter(path, root=root).metadata
+            _check_declarations(path, rel, metadata, working, tree, root)
+        if metadata is not None:
+            # Its own attempt, so a page that is also mis-declared reports
+            # both; a page whose frontmatter did not parse was reported once.
+            with collector.attempt():
+                _check_thread(docs_dir / rel, rel, metadata, root)
+
+    collector.raise_if_any(
+        summary=(
+            f"{len(collector.failures)} docs frontmatter finding(s) (DF-11):"
+        )
+    )
+    return result
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Entry point for the ``docs-frontmatter`` command."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Validate stakeholder_type, level and page_type in docs/ "
+            "frontmatter."
+        )
+    )
+    parser.parse_args(argv)
+
+    try:
+        result = check_docs_frontmatter()
+    except ValueError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(
+        f"Checked {result.reader_pages} reader-facing and "
+        f"{result.working_record_pages} working-record page(s); "
+        f"{result.fragments} include fragment(s) excluded."
+    )
+
+
+if __name__ == "__main__":
+    main()

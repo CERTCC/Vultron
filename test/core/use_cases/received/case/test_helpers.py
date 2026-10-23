@@ -1,0 +1,268 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute
+#    to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype
+#  is licensed under a MIT (SEI)-style license, please see LICENSE.md
+#  distributed with this Software or contact permission@sei.cmu.edu for full
+#  terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Tests for bootstrap helpers and protocol-error enforcement.
+
+Covers:
+  CBT-05-007  Bootstrap Create stores the reporter participant at RM.ACCEPTED
+              when a fully inline participant object is provided (CBT-01-008).
+  CBT-05-008  Bootstrap Create is refused with a protocol-error reason when
+              a participant arrives as a bare URI string (#2736, #2808).
+  CBT-01-011  Bootstrap Create from an actor no local anchor names is refused,
+              whatever its snapshot claims (#4472).
+"""
+
+import pytest
+
+from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.case_participant import (
+    CaseParticipant,
+    CaseParticipant as CoreCaseParticipant,
+)
+from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.states.rm import RM
+from vultron.core.use_cases.received.case.create import (
+    CreateCaseReceivedUseCase,
+)
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import create_case_activity
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+# ---------------------------------------------------------------------------
+# CBT-05-007: Reporter participant stored at RM.ACCEPTED when inline (#589)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CBT-05-007")
+def test_reporter_participant_stored_at_accepted_when_inline(make_payload):
+    """Reporter participant at RM.ACCEPTED in inline payload is preserved (#589).
+
+    CBT-01-008 requires the sender to include the reporter's participant inline
+    at RM.ACCEPTED.  CBT-05-008 requires the receiver to reject bare-string
+    participants.  This test confirms that when the sender complies (fully
+    inline participant at RM.ACCEPTED), the receiver stores it correctly via
+    store_embedded_participants so subsequent Add(ParticipantStatus) calls can
+    read it at RM.ACCEPTED.
+    """
+    from vultron.core.models.participant_status import ParticipantStatus as PS
+
+    _VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt05007"
+    _FINDER_ID = "https://finder.example.org/actors/finder-cbt05007"
+    _CASE_ID = "https://example.org/cases/case-cbt05007"
+    _REPORT_ID = "https://example.org/reports/report-cbt05007"
+    _FINDER_PARTICIPANT_ID = f"{_CASE_ID}/participants/finder-cbt05007"
+    _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-cbt05007"
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
+    report = VulnerabilityReport(id_=_REPORT_ID, attributed_to=_FINDER_ID)
+    dl.create(report)
+    link = VultronReportCaseLink(
+        report_id=_REPORT_ID,
+        case_creator_id=_VENDOR_ID,
+    )
+    dl.save(link)
+    vendor_participant = CaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
+        id_=_VENDOR_PARTICIPANT_ID,
+        attributed_to=_VENDOR_ID,
+        context=_CASE_ID,
+    )
+    finder_participant = CaseParticipant(
+        id_=_FINDER_PARTICIPANT_ID,
+        attributed_to=_FINDER_ID,
+        context=_CASE_ID,
+        participant_statuses=[
+            PS(
+                context=_CASE_ID,
+                attributed_to=_FINDER_ID,
+                rm=RmDimension(state=RM.ACCEPTED),
+            )
+        ],
+    )
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="CBT-05-007 inline participant test",
+        vulnerability_reports=[_REPORT_ID],
+        case_participants=[vendor_participant, finder_participant],
+    )
+    case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
+    case.actor_participant_index[_FINDER_ID] = _FINDER_PARTICIPANT_ID
+    activity = create_case_activity(case, actor=_VENDOR_ID, to=[_FINDER_ID])
+    event = make_payload(activity, receiving_actor_id=_FINDER_ID)
+
+    CreateCaseReceivedUseCase(dl, event).execute()
+
+    stored = dl.read(_FINDER_PARTICIPANT_ID)
+    assert stored is not None, (
+        "Reporter participant must exist after bootstrap"
+    )
+    statuses = getattr(stored, "participant_statuses", [])
+    assert statuses, "Reporter participant must have at least one status"
+    assert statuses[-1].rm.state == RM.ACCEPTED, (
+        f"Reporter participant must be at RM.ACCEPTED after bootstrap;"
+        f" got {statuses[-1].rm.state!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CBT-05-008: Bare-URI participant MUST raise a protocol error, not silently
+# fall back to domain-knowledge inference.  Tracked by #2736.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CBT-05-008")
+@pytest.mark.spec("CBT-05-009")
+def test_bootstrap_bare_uri_participant_is_refused(make_payload):
+    """Bootstrap with a bare-URI participant is refused (CBT-05-008)."""
+    _VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt05008"
+    _FINDER_ID = "https://finder.example.org/actors/finder-cbt05008"
+    _CASE_ID = "https://example.org/cases/case-cbt05008"
+    _REPORT_ID = "https://example.org/reports/report-cbt05008"
+    _FINDER_PARTICIPANT_ID = f"{_CASE_ID}/participants/finder-cbt05008"
+    _VENDOR_PARTICIPANT_ID = f"{_CASE_ID}/participants/vendor-cbt05008"
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
+    report = VulnerabilityReport(id_=_REPORT_ID, attributed_to=_FINDER_ID)
+    dl.create(report)
+    link = VultronReportCaseLink(
+        report_id=_REPORT_ID,
+        case_creator_id=_VENDOR_ID,
+    )
+    dl.save(link)
+    case_actor_participant = CoreCaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
+        id_=_VENDOR_PARTICIPANT_ID,
+        attributed_to=_VENDOR_ID,
+        context=_CASE_ID,
+    )
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="CBT-05-008 bare URI test",
+        vulnerability_reports=[_REPORT_ID],
+        case_participants=[
+            case_actor_participant,
+            _FINDER_PARTICIPANT_ID,  # bare string — protocol violation
+        ],
+    )
+    case.actor_participant_index[_VENDOR_ID] = _VENDOR_PARTICIPANT_ID
+    case.actor_participant_index[_FINDER_ID] = _FINDER_PARTICIPANT_ID
+    activity = create_case_activity(case, actor=_VENDOR_ID, to=[_FINDER_ID])
+    event = make_payload(activity, receiving_actor_id=_FINDER_ID)
+    result = CreateCaseReceivedUseCase(dl, event).execute()
+
+    # Rejected before any write, as a refusal the inbox reports (#2255).
+    assert result.disposition == HandlerDisposition.REFUSED
+    assert result.reason is not None and "CBT-05-008" in result.reason
+    assert dl.read(_CASE_ID) is None
+
+
+# ---------------------------------------------------------------------------
+# CBT-01-011: a bootstrap from an actor no local anchor names is refused, even
+# when its snapshot names the sender CASE_MANAGER (ADR-0132).
+# ---------------------------------------------------------------------------
+
+
+_CBT01011_VENDOR_ID = "https://vendor.example.org/actors/vendor-cbt01011"
+_CBT01011_REPORT_ID = "https://example.org/reports/report-cbt01011"
+
+
+def _anchors_naming_another_sender() -> list[VultronReportCaseLink]:
+    # The finder sent the report to the vendor and is waiting for its case.
+    return [
+        VultronReportCaseLink(
+            report_id=_CBT01011_REPORT_ID, case_creator_id=_CBT01011_VENDOR_ID
+        )
+    ]
+
+
+def _anchor_already_bound() -> list[VultronReportCaseLink]:
+    # The finder's only link already names the vendor's case.
+    return [
+        VultronReportCaseLink(
+            report_id=_CBT01011_REPORT_ID,
+            case_id="https://example.org/cases/vendor-case-cbt01011",
+            case_creator_id=_CBT01011_VENDOR_ID,
+        )
+    ]
+
+
+@pytest.mark.spec("CBT-01-011", "CBT-05-002", "HP-01-006")
+@pytest.mark.parametrize(
+    "anchors",
+    [
+        pytest.param(
+            _anchors_naming_another_sender,
+            id="pending-link-names-another-actor",
+        ),
+        pytest.param(list, id="no-link-at-all"),
+        pytest.param(_anchor_already_bound, id="only-link-already-bound"),
+    ],
+)
+def test_bootstrap_from_an_actor_no_anchor_names_is_refused(
+    make_payload, anchors
+):
+    """A snapshot that names its sender CASE_MANAGER does not make it trusted.
+
+    Whatever anchors the receiver holds, none names this sender, so the
+    ``Create`` is refused and nothing is stored (#4472, ADR-0132).
+    """
+    _IMPOSTOR_ID = "https://impostor.example.org/actors/mgr-cbt01011"
+    _FINDER_ID = "https://finder.example.org/actors/finder-cbt01011"
+    _CASE_ID = "https://example.org/cases/case-cbt01011"
+
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_FINDER_ID)
+    dl.create(
+        VulnerabilityReport(id_=_CBT01011_REPORT_ID, attributed_to=_FINDER_ID)
+    )
+    for link in anchors():
+        dl.save(link)
+    impostor = CoreCaseParticipant(
+        case_roles=[CVDRole.CASE_MANAGER],
+        id_=f"{_CASE_ID}/participants/impostor",
+        attributed_to=_IMPOSTOR_ID,
+        context=_CASE_ID,
+    )
+    finder = CoreCaseParticipant(
+        case_roles=[CVDRole.REPORTER],
+        id_=f"{_CASE_ID}/participants/finder",
+        attributed_to=_FINDER_ID,
+        context=_CASE_ID,
+    )
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_=_CASE_ID,
+        name="CBT-01-011 unanchored sender",
+        vulnerability_reports=[_CBT01011_REPORT_ID],
+        case_participants=[impostor, finder],
+    )
+    case.actor_participant_index[_IMPOSTOR_ID] = impostor.id_
+    case.actor_participant_index[_FINDER_ID] = finder.id_
+    activity = create_case_activity(case, actor=_IMPOSTOR_ID, to=[_FINDER_ID])
+    event = make_payload(activity, receiving_actor_id=_FINDER_ID)
+
+    result = CreateCaseReceivedUseCase(dl, event).execute()
+
+    assert result.disposition == HandlerDisposition.REFUSED
+    assert result.reason is not None
+    assert _IMPOSTOR_ID in result.reason
+    assert "CBT-01-011" in result.reason
+    assert dl.read(_CASE_ID) is None

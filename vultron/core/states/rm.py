@@ -1,0 +1,363 @@
+#!/usr/bin/env python
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+Provides an enumeration of Report Management states.
+"""
+
+import logging
+from enum import StrEnum, auto
+
+from transitions import Machine
+
+from vultron.core.states.common import TransitionBase, mermaid_machine
+
+logger = logging.getLogger(__name__)
+
+
+class RM(StrEnum):
+    """
+    Report Management States
+
+    START: Report has not yet been received
+    RECEIVED: Report has been received but not yet validated
+    INVALID: Report has been received but is invalid
+    VALID: Report has been received and is valid
+    DEFERRED: Report has been received and is valid but has been deferred
+    ACCEPTED: Report has been received, is valid, and has been accepted
+    CLOSED: Report has been closed
+    """
+
+    # convenience aliases
+    START = "START"
+    RECEIVED = "RECEIVED"
+    INVALID = "INVALID"
+    VALID = "VALID"
+    DEFERRED = "DEFERRED"
+    ACCEPTED = "ACCEPTED"
+    CLOSED = "CLOSED"
+
+    REPORT_MANAGEMENT_START = START
+    REPORT_MANAGEMENT_RECEIVED = RECEIVED
+    REPORT_MANAGEMENT_INVALID = INVALID
+    REPORT_MANAGEMENT_VALID = VALID
+    REPORT_MANAGEMENT_DEFERRED = DEFERRED
+    REPORT_MANAGEMENT_ACCEPTED = ACCEPTED
+    REPORT_MANAGEMENT_CLOSED = CLOSED
+
+    S = START
+    R = RECEIVED
+    I = INVALID  # noqa: E741
+    V = VALID
+    D = DEFERRED
+    A = ACCEPTED
+    C = CLOSED
+
+
+# Report Management States that can be closed by a single transition.
+# RM.VALID is deliberately absent (VP-02-004): a Valid report is accepted or
+# deferred before it closes (RMB-14-004).
+RM_CLOSABLE = (
+    RM.RECEIVED,
+    RM.INVALID,
+    RM.DEFERRED,
+    RM.ACCEPTED,
+)
+
+# Report Management States that are not closed
+RM_UNCLOSED = (
+    RM.START,
+    RM.RECEIVED,
+    RM.INVALID,
+    RM.VALID,
+    RM.DEFERRED,
+    RM.ACCEPTED,
+)
+
+# Report Management States that are active
+RM_ACTIVE = (
+    RM.RECEIVED,
+    RM.VALID,
+    RM.ACCEPTED,
+)
+
+# States at or past RM.VALID on the valid path (the "validated ratchet").
+# RM.CLOSED is excluded because it is also reachable from RM.INVALID without
+# passing through validation.
+RM_VALIDATED = (
+    RM.VALID,
+    RM.DEFERRED,
+    RM.ACCEPTED,
+)
+
+
+class RM_Trigger(StrEnum):
+    """
+    Enumerates Report Management State Triggers
+
+    RECEIVE: when a report is received
+    VALIDATE: when a report is validated
+    INVALIDATE: when a report is invalidated
+    ACCEPT: when a report is accepted
+    DEFER: when a report is deferred (soft close, may be reopened)
+    CLOSE: when a report is closed (hard close, no reopening)
+    """
+
+    # auto() makes these lowercase when stringified
+    RECEIVE = auto()
+    VALIDATE = auto()
+    INVALIDATE = auto()
+    ACCEPT = auto()
+    DEFER = auto()
+    CLOSE = auto()
+
+
+class RmTransition(TransitionBase):
+    trigger: RM_Trigger
+    source: RM
+    dest: RM
+
+
+_transitions = [
+    RmTransition(
+        trigger=RM_Trigger.RECEIVE, source=RM.START, dest=RM.RECEIVED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.VALIDATE, source=RM.RECEIVED, dest=RM.VALID
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.INVALIDATE, source=RM.RECEIVED, dest=RM.INVALID
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.VALIDATE, source=RM.INVALID, dest=RM.VALID
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.ACCEPT, source=RM.VALID, dest=RM.ACCEPTED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.ACCEPT, source=RM.DEFERRED, dest=RM.ACCEPTED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.DEFER, source=RM.VALID, dest=RM.DEFERRED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.DEFER, source=RM.ACCEPTED, dest=RM.DEFERRED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.CLOSE, source=RM.RECEIVED, dest=RM.CLOSED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.CLOSE, source=RM.ACCEPTED, dest=RM.CLOSED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.CLOSE, source=RM.INVALID, dest=RM.CLOSED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.CLOSE, source=RM.DEFERRED, dest=RM.CLOSED
+    ).model_dump(),
+]
+
+
+def is_valid_rm_transition(source: RM, dest: RM) -> bool:
+    """Return True if (source → dest) is a valid RM state transition."""
+    return any(
+        t["source"] == source and t["dest"] == dest for t in _transitions
+    )
+
+
+def is_rm_write_permitted(current: RM, target: RM) -> bool:
+    """Return True if an RM write may move *current* to *target*.
+
+    A write that keeps the state (a status confirmation) is permitted, and so
+    is one along an edge of the RM transition function (RMB-15-001).  Every
+    other move is refused, whatever its direction.
+    """
+    return current == target or is_valid_rm_transition(current, target)
+
+
+# The ordinary transitions an RM closure writes, from each source state
+# (RMB-14-005, CM-23-012).  Every closable state closes in one step; RM.VALID
+# has no close edge (VP-02-004), so it closes through RM.DEFERRED; RM.START
+# has not yet received the report, so it receives it first.  Pinned against
+# ``_transitions`` by ``test/core/states/test_rm_close_from_received.py``.
+_RM_CLOSURE_PATHS: dict[RM, tuple[RM, ...]] = {
+    RM.START: (RM.RECEIVED, RM.CLOSED),
+    RM.RECEIVED: (RM.CLOSED,),
+    RM.INVALID: (RM.CLOSED,),
+    RM.VALID: (RM.DEFERRED, RM.CLOSED),
+    RM.DEFERRED: (RM.CLOSED,),
+    RM.ACCEPTED: (RM.CLOSED,),
+    RM.CLOSED: (),
+}
+
+# Every state an RM closure path writes, in path order (for pre-building the
+# writers a closure node needs, BTND-10-004).
+RM_CLOSURE_RUNGS: tuple[RM, ...] = tuple(
+    dict.fromkeys(rung for path in _RM_CLOSURE_PATHS.values() for rung in path)
+)
+
+
+def rm_closure_path(source: RM) -> tuple[RM, ...]:
+    """Return the RM states a closure from *source* writes, in order.
+
+    Each consecutive pair, starting from *source*, is a transition the RM
+    transition function permits, so a closure never overrides the table
+    (RMB-14-005).  A ``Leave`` from ``VALID`` is therefore recorded as
+    ``V → D → C`` (CM-23-012), and a closure from ``CLOSED`` writes nothing.
+
+    Examples::
+
+        rm_closure_path(RM.RECEIVED)  # (RM.CLOSED,)
+        rm_closure_path(RM.VALID)     # (RM.DEFERRED, RM.CLOSED)
+        rm_closure_path(RM.CLOSED)    # ()
+    """
+    return _RM_CLOSURE_PATHS[source]
+
+
+# Progress values for each RM state: higher = closer to CLOSED.
+_RM_PROGRESS: dict[RM, int] = {
+    RM.START: 0,
+    RM.RECEIVED: 1,
+    RM.INVALID: 2,
+    RM.VALID: 2,
+    RM.DEFERRED: 3,
+    RM.ACCEPTED: 3,
+    RM.CLOSED: 4,
+}
+
+
+def is_monotonic_rm_forward(source: RM, dest: RM) -> bool:
+    """Return True if *dest* is strictly further toward CLOSED than *source*.
+
+    Used to accept legitimate sender-authoritative forward jumps (e.g.
+    RECEIVED → ACCEPTED when intermediate transitions occurred locally)
+    while still rejecting regressions (e.g. CLOSED → RECEIVED).
+    """
+    return _RM_PROGRESS.get(dest, 0) > _RM_PROGRESS.get(source, 0)
+
+
+class RMDeclaration(StrEnum):
+    """How a received RM declaration relates to the sender's recorded state.
+
+    The classification behind the received-side RM acceptance rule (RSH-06-001
+    to RSH-06-003, RSH-06-006), applied whichever wire activity carried the
+    declaration:
+
+    - ``CONFIRMATION`` — the declared state is the recorded one; a restated
+      move, not an anomaly (RSH-08-002).
+    - ``ADVANCE`` — an edge of the RM transition function.
+    - ``GAP`` — a non-adjacent forward move; accepted, but anomalous
+      (RSH-06-001).
+    - ``REGRESSION`` — anything else: a backward move, a sideways move between
+      states of equal progress, or any move out of ``CLOSED``; refused, and
+      anomalous (RSH-06-002).
+    """
+
+    CONFIRMATION = auto()
+    ADVANCE = auto()
+    GAP = auto()
+    REGRESSION = auto()
+
+
+def classify_rm_declaration(current: RM, declared: RM) -> RMDeclaration:
+    """Classify a received RM declaration against the recorded *current* state.
+
+    Examples::
+
+        classify_rm_declaration(RM.RECEIVED, RM.RECEIVED)  # CONFIRMATION
+        classify_rm_declaration(RM.RECEIVED, RM.VALID)     # ADVANCE
+        classify_rm_declaration(RM.VALID, RM.CLOSED)       # GAP
+        classify_rm_declaration(RM.ACCEPTED, RM.INVALID)   # REGRESSION
+        classify_rm_declaration(RM.CLOSED, RM.RECEIVED)    # REGRESSION
+    """
+    if declared == current:
+        return RMDeclaration.CONFIRMATION
+    if current == RM.CLOSED:
+        return RMDeclaration.REGRESSION
+    if is_valid_rm_transition(current, declared):
+        return RMDeclaration.ADVANCE
+    if is_monotonic_rm_forward(current, declared):
+        return RMDeclaration.GAP
+    return RMDeclaration.REGRESSION
+
+
+class RMRule(StrEnum):
+    """Which RM rule a ``ParticipantStatus`` write is held to.
+
+    - ``TRANSITION`` — an actor moving its own RM, or the bootstrap of a
+      participant record: the declared state must be the current one or an
+      edge of the RM transition function (CSB-16-001).
+    - ``DECLARATION`` — a received-side write recording the state the sender
+      declared about itself (RSH-08-001): the acceptance rule of
+      :func:`classify_rm_declaration`, which also admits a non-adjacent
+      forward move (RSH-06-001, RSH-06-006).  Adjacency-only validation is
+      never the receive-side rule.
+    """
+
+    TRANSITION = auto()
+    DECLARATION = auto()
+
+
+def is_rm_at_least(state: RM, threshold: RM) -> bool:
+    """Return True if *state* is at or beyond *threshold* on the RM progress scale.
+
+    Used to guard "already at ACCEPTED or beyond" checks without coupling call
+    sites to the private ``_RM_PROGRESS`` mapping.
+
+    Examples::
+
+        is_rm_at_least(RM.ACCEPTED, RM.ACCEPTED)  # True
+        is_rm_at_least(RM.CLOSED,   RM.ACCEPTED)  # True
+        is_rm_at_least(RM.START,    RM.ACCEPTED)  # False
+    """
+    return _RM_PROGRESS.get(state, 0) >= _RM_PROGRESS.get(threshold, 0)
+
+
+def is_rm_validated(state: RM) -> bool:
+    """Return True if *state* is on the validated path (VALID, DEFERRED, or ACCEPTED).
+
+    RM.CLOSED is excluded because it is reachable via RM.INVALID without passing
+    through validation; use ``is_rm_at_least(state, RM.VALID)`` when you need to
+    include CLOSED in a broader "at-or-past" check.
+
+    Examples::
+
+        is_rm_validated(RM.VALID)     # True
+        is_rm_validated(RM.ACCEPTED)  # True
+        is_rm_validated(RM.DEFERRED)  # True
+        is_rm_validated(RM.CLOSED)    # False
+        is_rm_validated(RM.INVALID)   # False
+    """
+    return state in RM_VALIDATED
+
+
+def create_rm_machine() -> Machine:
+    """
+    Generates a new Report Management State Machine object
+
+    Returns:
+        A transitions Machine object representing the Report Management state machine
+
+    """
+    return Machine(
+        states=RM,
+        transitions=_transitions,
+        initial=RM.START,
+        auto_transitions=False,
+        name="RM FSM",
+    )
+
+
+if __name__ == "__main__":
+    M = create_rm_machine()
+    print(mermaid_machine(M))

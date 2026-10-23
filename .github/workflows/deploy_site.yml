@@ -14,6 +14,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  issues: write
 
 # Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
 # However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
@@ -30,35 +31,57 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 50
+          fetch-depth: 0
           fetch-tags: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
         with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -e .
+          uv-sync-args: "--no-dev"
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
+      # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
+      # anchors, pages missing from the nav) fail the deploy instead of
+      # publishing (DOCBW-03-009). Never add --quiet (DOCBW-03-010): it hides
+      # the warnings --strict counts, so the build passes over them.
       - name: Build Site
         run: |
-          mkdocs build --verbose --clean --config-file mkdocs.yml       
+          uv run mkdocs build --strict --clean --config-file mkdocs.yml
+
+      # This is the workflow that actually publishes, so it is the one the
+      # publication checks have to gate. It must sit between Build Site and
+      # Upload artifact: after the build so site/ exists, before the upload so
+      # a withheld artifact, a dead internal reference or a dropped URL cannot
+      # reach Pages. Same action as docs-build-check.yml (DOCBW-03-006,
+      # DOCBW-03-007, DOCBW-03-008).
+      - name: Check site publication
+        uses: ./.github/actions/check-site-publication
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           # Upload entire repository
           path: 'site'
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      - name: Notify CI failure
+        if: failure() && github.event_name == 'push'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-deploy-site
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close CI failure issue
+        if: success() && github.event_name == 'push'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-deploy-site
+          token: ${{ secrets.GITHUB_TOKEN }}

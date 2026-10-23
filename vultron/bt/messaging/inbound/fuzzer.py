@@ -2,6 +2,7 @@
 """
 Provides fuzzer classes for inbound message handling
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,14 +16,12 @@ Provides fuzzer classes for inbound message handling
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 import random
-from typing import Union
 
-from vultron.bt.base.blackboard import Blackboard
+from vultron.bt.messaging.message import Message
 from vultron.bt.messaging.states import MessageTypes
-from vultron.bt.report_management.states import RM
-from vultron.sim.messages import Message
+from vultron.bt.states import ActorState
+from vultron.core.states.rm import RM
 
 
 def _message_gen(msg_type: MessageTypes) -> Message:
@@ -43,11 +42,10 @@ def random_external_event_message() -> Message:
     return _message_gen(MessageTypes.CX)
 
 
-def generate_inbound_message(state: Blackboard) -> Union[Message, None]:
+def generate_inbound_message(state: ActorState) -> Message | None:
     # if no report yet, receive a report
-    if state.q_rm == RM.START:
-        if random.random() < 0.4:
-            return _message_gen(MessageTypes.RS)
+    if state.q_rm == RM.START and random.random() < 0.4:
+        return _message_gen(MessageTypes.RS)
 
     # otherwise, with 1 in 5 chance, maybe something happened out in the world
     if random.random() < 0.10:

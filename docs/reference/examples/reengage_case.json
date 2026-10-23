@@ -1,20 +1,47 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
-  "type": "Undo",
-  "id": "https://for.example/3768cb6c-c7cf-41db-acd7-ad499615aff9",
-  "name": "https://vultron.example/organizations/vendor Undo https://vultron.example/organizations/vendor Ignore https://vultron.example/cases/VDR-20991514",
-  "context": "https://vultron.example/cases/VDR-20991514",
+  "type": "Join",
+  "id": "urn:uuid:13534ef4-acf3-49a7-b238-67872888b81f",
+  "name": "https://vultron.example/organizations/vendorco Join VendorCo Case #25584766",
   "content": "We're reengaging this case.",
-  "actor": "https://vultron.example/organizations/vendor",
+  "actor": "https://vultron.example/organizations/vendorco",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
-    "asType": "Ignore",
-    "id": "https://for.example/1023bfc2-414a-4edf-a37a-063ea569f5f8",
-    "name": "https://vultron.example/organizations/vendor Ignore https://vultron.example/cases/VDR-20991514",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
-    "content": "We're deferring this case.",
-    "actor": "https://vultron.example/organizations/vendor",
-    "object": "https://vultron.example/cases/VDR-20991514"
+    "id": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
+    "type": "VulnerabilityCase",
+    "name": "VendorCo Case #25584766",
+    "published": "2026-10-22T14:04:23+00:00",
+    "updated": "2026-10-22T14:04:23+00:00",
+    "attributedTo": "https://vultron.example/organizations/vendorco",
+    "caseParticipants": [],
+    "actorParticipantIndex": {},
+    "vulnerabilityReports": [],
+    "caseStatuses": [
+      {
+        "id": "urn:uuid:ae3f6696-f263-43a8-83ea-34aae0fe6683",
+        "type": "CaseStatus",
+        "name": "NONE pxa",
+        "context": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
+        "published": "2026-10-22T14:04:23+00:00",
+        "updated": "2026-10-22T14:04:23+00:00",
+        "attributedTo": "https://vultron.example/organizations/vendorco",
+        "emState": "NONE",
+        "pxaState": "pxa",
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+      }
+    ],
+    "notes": [],
+    "embargoRegister": [],
+    "pendingEmbargoProposalIndex": {},
+    "caseActivity": [],
+    "genesisHash": "5b4e8bd4b5d2e94c1d1269ef9c189010cf6f315f113b8151201f6e5b42eb3c8d",
+    "ledgerPosition": {
+      "logIndex": -1,
+      "entryHash": "5b4e8bd4b5d2e94c1d1269ef9c189010cf6f315f113b8151201f6e5b42eb3c8d"
+    },
+    "parentCases": [],
+    "childCases": [],
+    "siblingCases": [],
+    "activeParticipants": [],
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

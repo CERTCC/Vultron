@@ -1,0 +1,290 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Ledger effect nodes for add_participant_status_to_participant entries.
+
+Provides :class:`ApplyParticipantStatusFromLedgerNode`, which copies the
+status an ``add_participant_status_to_participant`` ledger entry carries onto
+the local participant record (CM-23-016, ADR-0124), refusing one that
+describes an impossible composite state (RSH-09-006).
+
+Provides :class:`EmitImpossibleStateFaultNode`, which emits
+``Create(ProcessingFault)`` with failure class
+``StatusAssertionRefused/ImpossibleState`` to the CaseActor when the Apply node
+returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree.py``
+to guarantee that either the status is applied successfully or a fault is emitted.
+
+Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
+specs/sync-ledger-replication.yaml SYNC-02-002, and
+specs/received-status-handling.yaml RSH-09-006.
+"""
+
+from __future__ import annotations
+
+import logging
+
+from py_trees.common import Status
+
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _require_log_entry,
+)
+from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
+from vultron.core.models._helpers import (
+    _as_id,
+    project_wire_snapshot_to_core,
+)
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
+)
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.composite_state_invariants import (
+    composite_state_violations,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class ApplyParticipantStatusFromLedgerNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
+    """Apply an ``add_participant_status_to_participant`` ledger entry locally.
+
+    When a non-Case-Actor participant receives
+    ``Announce(CaseLedgerEntry)`` and the entry's ``semantic_type`` is
+    ``add_participant_status_to_participant``, this node reconstructs the
+    :class:`~vultron.core.models.participant_status.ParticipantStatus` from
+    the entry's ``payload_snapshot`` and appends it to the matching
+    :class:`~vultron.core.models.case_participant.CaseParticipant` in the
+    local DataLayer.
+
+    The entry carries the status the CASE_MANAGER stored, in full, so this
+    node copies it — id, times and every dimension as carried — and derives
+    nothing from the replica's own state (CM-23-016, ADR-0124).  The
+    CASE_MANAGER adjudicated the move before committing it, so the replica
+    does not re-run the RM transition rules, and it does not carry a local RM
+    value forward over the entry's: a replica applies the ledger in order, and
+    two replicas at the same position hold the same statuses.
+
+    Idempotency is preserved — if the status ID is already present in the
+    participant's list, the node returns SUCCESS without modifying the
+    DataLayer.
+
+    Lenient on missing data: if the participant is not found in the local
+    DataLayer (this actor may have a partial view of the case), or the
+    payload snapshot is incomplete, the node returns SUCCESS without error to
+    avoid blocking the ``Announce`` processing flow.  An entry describing an
+    impossible composite state yields FAILURE (RSH-09-006).
+
+    Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
+    specs/sync-ledger-replication.yaml SYNC-02-002.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        entry = _require_log_entry(self.activity, self.name)
+        snapshot = entry.payload_snapshot
+
+        status_data = snapshot.get("object")
+        target_data = snapshot.get("target")
+
+        status_id = _extract_id_from_field(status_data)
+        participant_id = _extract_id_from_field(target_data)
+
+        if not status_id or not participant_id:
+            self.logger.debug(
+                "%s: payload_snapshot missing 'object' or 'target' id"
+                " — skipping status apply (non-fatal)",
+                self.name,
+            )
+            return Status.SUCCESS
+
+        participant = self.datalayer.read(participant_id)
+        if not isinstance(participant, CaseParticipant):
+            self.logger.debug(
+                "%s: participant '%s' not found in local DataLayer"
+                " — skipping (non-fatal, partial case view)",
+                self.name,
+                participant_id,
+            )
+            return Status.SUCCESS
+
+        existing_ids = [_as_id(s) for s in participant.participant_statuses]
+        if status_id in existing_ids:
+            self.logger.debug(
+                "%s: status '%s' already present on participant '%s'"
+                " — idempotent no-op",
+                self.name,
+                status_id,
+                participant_id,
+            )
+            return Status.SUCCESS
+
+        if not isinstance(status_data, dict):
+            self.logger.warning(
+                "%s: payload_snapshot 'object' is not a dict"
+                " — cannot reconstruct ParticipantStatus for '%s'",
+                self.name,
+                status_id,
+            )
+            return Status.SUCCESS
+
+        try:
+            # Projected, not validated raw: the snapshot is AS2-shaped, and its
+            # absent timestamps are absences to carry rather than gaps for this
+            # replica's clock to fill (CLP-15-007).
+            status_obj = ParticipantStatus.model_validate(
+                project_wire_snapshot_to_core(ParticipantStatus, status_data)
+            )
+        except Exception as exc:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.warning(
+                "%s: failed to reconstruct ParticipantStatus from"
+                " payload_snapshot for '%s': %s",
+                self.name,
+                status_id,
+                exc,
+            )
+            return Status.SUCCESS
+
+        rm = status_obj.rm.state
+        vf = status_obj.vf.state if status_obj.vf is not None else None
+        d = status_obj.d.state if status_obj.d is not None else None
+        violations = composite_state_violations(rm, vf, d)
+        if violations:
+            # Report every violation, not the first (EH-07-001).
+            self.feedback_message = "; ".join(v.message for v in violations)
+            self.logger.warning(
+                "%s: ledger entry '%s' for participant '%s' describes an"
+                " impossible composite state (rm=%s, vf=%s, d=%s):"
+                " %s — refusing to apply (RSH-09-006)",
+                self.name,
+                status_id,
+                participant_id,
+                rm.name,
+                vf.name if vf is not None else "None",
+                d.name if d is not None else "None",
+                self.feedback_message,
+            )
+            return Status.FAILURE
+
+        self.datalayer.save(status_obj)
+
+        participant.add_participant_status(status_obj)
+        self.datalayer.save(participant)
+
+        self.logger.info(
+            "%s: applied ledger status update '%s' to participant '%s'"
+            " (DEMOMA-07-003 step 3 receiver-side)",
+            self.name,
+            status_id,
+            participant_id,
+        )
+        return Status.SUCCESS
+
+
+class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
+    """Emit ``Create(ProcessingFault)`` when the Apply node fails.
+
+    This node is the fallback in the Selector that wraps
+    :class:`ApplyParticipantStatusFromLedgerNode`.  The Apply node fails only
+    when the entry describes an impossible composite state (RSH-09-006), so
+    this node emits ``StatusAssertionRefused/ImpossibleState``.
+
+    After emitting it returns FAILURE, so the Selector's FAILURE propagates up
+    to block ``PersistReceivedLogEntry`` (SYNC-12-001, RSH-09-006).
+
+    The fault is omitted gracefully when no ``TriggerActivityPort`` is wired
+    (integration tests, demo runners without a trigger factory), so the tree
+    still fails correctly without raising.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.activity = self.get_input("activity")
+
+    def update(self) -> Status:
+        activity = self.activity
+        if activity is None or self.actor_id is None:
+            self.logger.warning(
+                "%s: missing activity or actor_id — cannot emit ProcessingFault",
+                self.name,
+            )
+            return Status.FAILURE
+
+        failed_id = getattr(activity, "activity_id", None)
+        sender_id = getattr(activity, "actor_id", None)
+        case_id = getattr(activity, "context_id", None)
+
+        if self.trigger_activity_factory is None:
+            self.logger.warning(
+                "%s: no TriggerActivityPort — ProcessingFault not emitted"
+                " for failed activity '%s' (RSH-09-006)",
+                self.name,
+                failed_id,
+            )
+            return Status.FAILURE
+
+        failure_class = (
+            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE
+        )
+        if failed_id and sender_id:
+            self.trigger_activity_factory.emit_processing_fault(
+                actor=self.actor_id,
+                failed_activity_id=failed_id,
+                failure_class=failure_class,
+                to=[sender_id],
+                case_id=case_id,
+            )
+            class_label = failure_class.rsplit("/", 1)[-1]
+            self.logger.info(
+                "%s: emitted ProcessingFault/%s to '%s'"
+                " for failed activity '%s'",
+                self.name,
+                class_label,
+                sender_id,
+                failed_id,
+            )
+
+        return Status.FAILURE

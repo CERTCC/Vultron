@@ -1,0 +1,367 @@
+---
+name: pr-triage
+description: >
+  Pure-discovery phase of the PR review pipeline. Runs the 12 inspection
+  phases (orient through merge state), produces a machine-readable finding list
+  at .claude/pr-{number}-triage.json, and posts a human-readable PR comment.
+  Makes NO code changes. Use as the first step of /pr-ship, standalone for a
+  full finding inventory, or with --pre-push from build's fresh review
+  subagent before a branch's first push; a PR with a pre-push record gets only
+  the live-PR phases plus the delta.
+---
+
+# Skill: PR Triage
+
+## Purpose
+
+Triage closes the finding list before any mutation occurs. Every inspection
+phase the mode selects (§ "Modes") runs to completion; then and only then is
+the artifact written and the comment posted. `pr-execute` reads the artifact —
+it never re-runs discovery.
+
+Merge conflicts are discovered here (Phase 12) but re-checked authoritatively in
+`pr-verify`, because conflicts can appear *after* triage runs — either from
+execute's own fixes or from another PR landing on the base branch mid-pipeline.
+Triage's merge-state finding is a heads-up, not the gate.
+
+## Finding Severity
+
+This skill uses the three-category system from
+`.claude/skills/shared/completeness-doctrine.md`.
+
+| Verdict | Meaning | Required action |
+|---|---|---|
+| **FAIL** | Broken: won't work correctly, spec violated, changed behavior untested | Must be fixed before merge |
+| **IMPROVE** | Works but incomplete: missing adjacent test, stale doc, obvious gap in scope | Fix in the same session |
+| **NEW-ISSUE** | A finding that warrants its own record: an "also" excursion, or a premise inversion | Apply the decision tree below (`fix-now-file`, `defer-ask`, or `inversion-halt`) — filing a record is **not** the same as deferring the work |
+
+### Decision-Tree Outcomes
+
+Each finding is tagged with one of four outcomes. Triage records the outcome
+but does NOT act on it — `pr-execute` acts. **Fix-now is the default**; the FILE
+decision and the DEFER decision are separate (see
+`.claude/skills/shared/completeness-doctrine.md` § "Filing Is Not Deferring").
+
+| Outcome | Condition | What execute does |
+|---|---|---|
+| `fix-now` | Anything the agent can just do, and which is *not* an "also" excursion | Fix inline, no issue filed — the diff is the record |
+| `fix-now-file` | An "also" excursion (fails the "also" test) that the agent still fixes now | Fix inline **and** file an issue the PR closes; add a one-line "why" |
+| `defer-ask` | Work genuinely too big to finish now — must be *earned* with evidence | Gate 1: file, present a **measured remainder** in plain language, ask. On silence, fix it now |
+| `inversion-halt` | The work inverts a premise from the issue *or its backing specs/ADRs* | Gate 2: explain the overturned premise, ask if/what to file. On silence, **halt** the PR |
+
+**The "also" test** decides filing (breadth surprise): if explaining why you
+fixed both the original thing and the discovered thing needs the word "also,"
+it is a genuine excursion → file it. If you can explain both in one sentence
+*without* "also," it is just doing the task → do not file; the diff is the
+record.
+
+**Depth cap**: `defer-ask` is only legal for *second-order* findings (revealed
+while fixing an excursion). *First-order* findings (revealed by the original
+work) are always "just do it" — never `defer-ask`.
+
+There is no `new-issue-no-ask`: silent deferral does not exist. There is no
+`fix-now-expand-scope`: size is not a constraint, so an "also" excursion that
+grows the PR is simply `fix-now-file` (see the doctrine § "Clarity Over Size").
+
+## Quick Start
+
+```bash
+# Triage the current branch's open PR
+/pr-triage
+
+# Triage a specific PR
+/pr-triage 1234
+
+# Pre-push review of the current branch (build Phase 7, in a fresh subagent)
+/pr-triage --pre-push <issue> [<issue>...] --body <draft-body-file>
+```
+
+## Modes
+
+Every phase runs once per change: before the push on the reviewed diff, and
+after the push on what the PR adds to it (PAD-07-007, ADR-0139). The mode
+decides which phases run on which diff.
+
+| Mode | When | Phases | Diff |
+|---|---|---|---|
+| **pre-push** | `--pre-push`, from `build` Phase 7 | 1 (orient only), 2 (scope against the issues), 4–8, 9 (steps 1–4, and step 5's page determination), 10 | `origin/main...HEAD` |
+| **delta** | `prepush-delta.sh` exits 0 on the PR branch, and the PR does not carry `needs-rebase` | 1–3, 9 step 5's `Docs:` comparison, 11, 12; then 2 (scope), 4–10 on the delta files alone; then the carry-forward check below | the delta files |
+| **full** | `prepush-delta.sh` exits 3 (for any cause PAD-07-008 lists, named in its `reason=`), or the PR carries `needs-rebase` | 1–12 | the PR diff |
+
+**Choosing post-push.** After Phase 1 identifies the PR, run
+`bash .agents/skills/pr-triage/prepush-delta.sh origin/<base_ref>` on the PR
+branch. Exit 0 means delta mode, with one `delta_file=` line per file to
+review; exit 3 means full mode, with `reason=` saying why. Exit 2 means the
+script could not compare (a detached checkout, `jq` missing, or no merge base
+with an unfetched base): fetch the base, check out the PR branch and re-run;
+if it still exits 2, run full mode and name the cause in the comment header.
+A `needs-rebase` PR is full mode whatever the script says: its conflict was
+resolved by hand after the review.
+
+**Carry-forward check (delta mode).** For each pre-push finding, read its
+`resolution`, recorded by `build`. Confirm the fix is on the PR head the way
+`pr-verify` spot-checks a claimed fix: the cited file and line now meet the
+finding, not just a commit touching the file. A finding whose fix is absent is
+re-emitted with its pre-push `id`; a finding with no `resolution` is checked
+the same way. A `fix-now-file` finding also needs its filed issue on the PR's
+closing list (Phase 2). Findings that check out are
+not re-emitted, so `pr-execute` sees only what still stands.
+
+## Workflow
+
+### Phase 1 — Orient
+
+1. Invoke `orient-agent` to load baseline context.
+
+   **Pre-push mode** stops this phase here: there is no PR. The branch, the
+   issue numbers and the draft body file come from the arguments; record
+   `reviewed_base_sha` (`git merge-base origin/main HEAD`) and
+   `reviewed_head_sha` (`git rev-parse HEAD`). Read the closed issues as
+   Phase 2 would, and the Spec manifest from the draft body's `## Specs`.
+2. Identify the target PR:
+   - If a PR number was provided, use it.
+   - Otherwise detect the PR for the current branch:
+     `gh pr view --json number,title,body,headRefName,headRefOid,baseRefName,files`
+3. Fetch PR metadata: title, body, linked issues, changed files, CI status.
+   Record `headRefOid` as `pr_metadata.head_sha` — the commit triage judged.
+   `pr-verify` treats every non-merge commit after it as an execute fix
+   commit.
+
+### Phase 2 — Issue Linkage
+
+1. Extract closing references (`Closes #N`, `Fixes #N`) from the PR body.
+2. Fetch each linked issue: `gh issue view N --json title,body,labels`.
+3. Assess: does implementation scope match what the issue describes?
+   Emit findings for scope creep (PR does more than the issue), scope gaps
+   (issue requirements not addressed), and missing issue links.
+
+### Phase 3 — PR Body Format
+
+Run the mechanical rules first (PAD-20-004), in a checkout at the PR's head
+commit (the tool reads the changed files there and exits 2 on any other
+commit):
+
+```bash
+gh pr view <number> --json body,baseRefName,headRefOid \
+  | PYTHONPATH= uv run pr-body-lint --pr-json - --stage final
+```
+
+Add `--closes-work-item` when a closed issue is a `Task`, `Feature` or `Bug` and
+the PR changes no `.py`. Each line it prints is a finding named by rule ID
+(`.agents/skills/shared/pr-body-guide.md` § "Mechanical Checks"). A misplaced
+closing reference (PRB-01, PRB-02), a missing or placeholder `Docs:` line
+(PRB-08) and a missing or unfilled `## Spec amended` block (PRB-09) are
+**FAIL**; the rest are **IMPROVE**. Exit 2 is a setup error: report it, never read
+it as a pass. Do not re-check by hand what it checks. Then judge what it cannot:
+
+- Test counts in Verification are real numbers, not placeholders
+- The Changes section describes the diff, and each closed issue maps to a hunk
+- **`## Spec amended`** — run `bash .agents/skills/shared/spec-amendments.sh
+  origin/<base_ref>`. Exit `1` lists requirements whose `statement:` or
+  `priority:` the diff changed or removed; `pr-body-lint` already checked that
+  the body carries a `## Spec amended` block for each with no `<TODO>` (PRB-09).
+  Judge each block's Before, After and Reason against the diff
+  (`pr-body-guide.md` § "Spec amended"). A change to what a requirement
+  *obliges* with no recorded user approval → **FAIL**. Applies to every PR
+  type, docs-only included.
+
+The `Docs:` line itself is judged in Phase 9, against the diff.
+
+### Phase 4 — Domain Context
+
+1. Identify domains from changed file paths (e.g., `wire/as2/`, `core/behaviors/`,
+   `adapters/`, `demo/`).
+2. Invoke `deepen-context` with hints matching those domains. Pass as the
+   **spec floor** the IDs on the PR's Spec manifest `Loaded` lines (in its
+   `## Specs` section) plus the closed issues' `Governing specs:` lines;
+   `deepen-context` adds targeted `--topic`/`--group` loads for the changed
+   domains. Do not run `spec-dump` with no filters.
+3. **Flag a missing or placeholder Spec manifest** (IMPROVE). Then, on the PR
+   branch, save the manifest to a file and run
+   `PYTHONPATH= uv run spec-backstop --base origin/<base> --manifest <file>`.
+   Each unresolved **MUST** group is a selection gap (IMPROVE): load it with
+   `spec-dump --group <G> --text` and check the diff against it in Phase 5.
+   With no manifest, run it without `--manifest` and treat every MUST group
+   as unresolved. Exit 0 does not discharge this check: the tool only sees
+   what the diff already names, so a requirement the change should have
+   honored but never references stays invisible to it.
+4. Record the domain list in `pr_metadata.domains` — execute re-uses these hints.
+
+### Phase 5 — Spec and Notes Conformance
+
+With specs loaded, check changed code against requirements. See
+[REFERENCE.md](REFERENCE.md) § "Spec Conformance Criteria" for the per-domain
+checklist. Pay particular attention to:
+
+- AGENTS.md Common Pitfalls relevant to the changed code areas
+- Any spec IDs mentioned in the PR body or issue — confirm they are satisfied
+- Every new or changed `verification:` clause in `specs/` — ask "if this
+  requirement were violated, would the named check fail?" and record a **FAIL**
+  when it would not, including a named test that does not exist or a tool that
+  never inspects the property (MS-10-009)
+
+### Phase 6 — ADR Check
+
+1. Scan changed files for architectural signals: new layers, new protocols,
+   changes to public APIs, persistence schema changes, new adapters, new BT
+   integration patterns.
+2. Consult `notes/specs-vs-adrs.md` (MS-11-001–MS-11-006) to determine if an
+   ADR was warranted.
+3. Check `docs/adr/index.md` for a relevant existing ADR, and read the body of
+   any record whose title covers the changed area. Weigh it by
+   `.agents/skills/shared/weighing-decision-records.md`:
+   - PR *should have* an ADR and none referenced → **IMPROVE**
+   - Existing ADR contradicted without amendment → **FAIL**
+   - New ADR added: verify it follows `docs/adr/_adr-template.md`
+
+### Phase 7 — AGENTS.md Compliance
+
+Check the diff for violations of non-negotiable coding rules. See
+[REFERENCE.md](REFERENCE.md) § "AGENTS.md Rule Checklist".
+
+### Phase 8 — Code Review Sub-Agent
+
+Invoke a `code-review` sub-agent (`agent_type: "code-reviewer"`) against the
+branch diff to surface bugs, logic errors, and security issues. Pass
+`.agents/skills/shared/pre-review-self-check.md` as a standards source and its
+four items as explicit review prompts, along with the author's `Self-check:`
+record from the PR body (the draft body in pre-push mode); that file's § "As
+review prompts" sets the severity of a miss. Wait for the sub-agent to complete
+before proceeding — its findings must be merged into the finding list before
+the artifact is written.
+
+### Phase 9 — Notes and Docs Currency
+
+1. **Notes currency**: Identify `notes/*.md` files covering any domain touched
+   by the PR. If an active note was NOT updated: **IMPROVE** — stale guidance
+   is a real cost.
+2. **Notes frontmatter**: For any `notes/*.md` modified in the PR, validate
+   YAML frontmatter per NF-06-001/NF-06-002:
+   - Required fields: `title`, `status`
+   - If `status: superseded`, `superseded_by` must be a non-empty scalar
+3. **Docs link integrity**: If any `docs/` file was modified, flag need to run
+   `uv run mkdocs build --strict`.
+4. **Silent contradiction**: If the PR's behavior change conflicts with an
+   `active` note without updating it: **FAIL**.
+5. **Docs currency (PD-03-009)** — for every implementation or bug-fix PR,
+   **whether or not the diff touches `docs/`**. Determine independently which
+   `docs/` pages describe the changed behavior: answer `check-docs-sync`'s Q1
+   and Q2 against the diff, using [REFERENCE.md](REFERENCE.md) § "Notes and
+   Docs Currency Criteria". Do not start from the PR's own `Docs:` line — the
+   check exists to catch the page the author forgot. Then compare with the
+   PR body's `Docs:` line:
+   - Missing, or still `Docs: pending check-docs-sync` → **FAIL**.
+   - An affected page the PR neither updated nor deferred → **IMPROVE**
+     (`fix-now`: execute updates the page and the line).
+   - `Docs: deferred to #N` → `#N` must be an existing `type:Concern` issue
+     (open, or closed as planned) whose body lists the affected pages, and the
+     update must be a multi-page rewrite PD-03-007 permits deferring. Otherwise
+     **IMPROVE**.
+   - `Docs: no docs impact — <reason>` when your determination found an
+     affected page → **IMPROVE** (the page is affected but neither updated nor
+     deferred).
+
+   In pre-push mode the body's line is still the placeholder, and
+   `check-docs-sync` runs after the push (PD-03-008), so record the
+   determination in `pr_metadata.affected_docs_pages` and emit no finding for
+   it. In delta mode, the determination is that list plus the pages the delta
+   files affect; compare it with the `Docs:` line as above.
+
+### Phase 10 — Test Coverage
+
+- Are new or changed behaviors covered by tests?
+- If any file under `demo/` or `adapters/` was changed: verify the PR body or
+  CI confirms the integration test suite ran.
+- Flag any public function or use-case `execute()` path with no test.
+- **`SvcXxx` trigger-test check**: grep the diff for new classes whose names
+  match `Svc[A-Z][A-Za-z]+UseCase`. For each one found, confirm a matching
+  file exists under `test/core/use_cases/triggers/`. If absent: **IMPROVE**
+  (see `notes/triggers-test-coverage.md` for the required coverage pattern).
+
+### Phase 11 — Linter / CI Status
+
+1. Check CI status: `gh pr checks <number>`.
+2. Summarize which checks fail if CI is failing.
+3. Note if CI has not yet run.
+
+### Phase 12 — Merge State
+
+A PR that cannot merge is not shippable, no matter how clean its diff is.
+
+```bash
+bash .agents/skills/shared/merge-state.sh <number>
+```
+
+The script polls past GitHub's transient `UNKNOWN` mergeability. Record
+`mergeable`, `merge_state_status`, `is_draft`, and `base_ref` into
+`pr_metadata` — execute and verify both read them.
+
+Emit a finding per [REFERENCE.md](REFERENCE.md) § "Merge State Findings":
+
+| Script exit | `mergeable` | Finding |
+|---|---|---|
+| `1` | `CONFLICTING` | **FAIL**, `decision_outcome: fix-now` — id `phase12-merge-conflict-0` |
+| `2` | `UNKNOWN` | **FAIL**, `decision_outcome: fix-now` — id `phase12-merge-state-unknown-0` |
+| `0` | `MERGEABLE` | No finding; record the state in `pr_metadata` only |
+
+Also emit findings for these `merge_state_status` values even when
+`mergeable` is `MERGEABLE`:
+
+- `BEHIND` — base has advanced and a ruleset requires branches be up to date:
+  **IMPROVE**, `fix-now` (execute clears it with `gh pr update-branch`,
+  PAD-18-004). This repository sets no such ruleset today (ADR-0126), so say
+  in the description that the premise changed; `pr-verify` still blocks on a
+  live `BEHIND` (PAD-18-005).
+- `DIRTY` — treat exactly like `CONFLICTING` above, even if `mergeable`
+  disagrees; the two fields are computed separately and `DIRTY` is the stronger
+  signal
+- `DRAFT` — **IMPROVE**, `fix-now`. Note whether the PR carries the
+  `needs-rebase` label, which means `create-pr` opened it as a draft *because*
+  it could not freshen the branch. That draft is only undraftable once the
+  conflict is resolved.
+
+Never downgrade a conflict to IMPROVE or NEW-ISSUE. Resolving it is always
+in scope for the PR that has it.
+
+**Being behind the base is not a finding.** A branch that lacks the base's
+latest commits but is `MERGEABLE` and not `BEHIND` gets no merge-state finding:
+CI tests the PR merged into its base on every push, execute merges only on a
+live conflict (PAD-18-004), and the merger refreshes an overlapping PR on
+GitHub before merging it (PAD-18-009), none of them from triage's snapshot. Do
+not emit a "sync with main" finding for it, overlapping files or not.
+
+### Phase 13 — Emit Artifact and Post Comment
+
+This is the only phase that produces output. No mutations before this point.
+
+**Pre-push mode** writes the artifact to the path
+`bash .agents/skills/pr-triage/prepush-delta.sh --path` prints, with
+`pr_number: null`, `review_mode: "pre-push"`, and `head_ref` (the branch),
+`reviewed_base_sha` and `reviewed_head_sha` in `pr_metadata`, and posts
+nothing: steps 1, 2 and 6 only. The carry-forward check keys on the ids
+step 1 assigns.
+**Delta mode** records `review_mode: "delta"`, `prepush_artifact`, and
+`delta_files` in `pr_metadata`, and names the mode in the comment header.
+
+1. Assign a stable `id` slug to each finding: `phase{N}-{kebab-description}-{index}`
+   where index is a sequential integer suffix that guarantees uniqueness within
+   the run (e.g., `phase5-missing-nonemptystring-0`, `phase5-missing-nonemptystring-1`).
+2. Write `.claude/pr-{number}-triage.json` per the schema in [REFERENCE.md](REFERENCE.md).
+3. Render a human-readable markdown comment from the finding list (format in
+   [REFERENCE.md](REFERENCE.md) § "Triage Comment Format").
+4. Post comment: `gh pr review <number> --comment --body "<report>"`
+5. Record the returned comment URL in the artifact (`triage_comment_url`), then
+   re-write the artifact with the URL filled in.
+6. Print artifact path and finding count summary to stdout.
+
+## Artifact Location
+
+`.claude/pr-{number}-triage.json` — never committed; must be gitignored. The
+pre-push artifact, at the path `prepush-delta.sh --path` prints (named for the
+branch), is covered by the same `.claude/pr-*.json` pattern.
+
+## No Code Changes
+
+Triage never edits files, never commits, never creates issues. Any finding
+that could be resolved right now is recorded with `decision_outcome: fix-now`
+so execute can act on it. Triage just observes.

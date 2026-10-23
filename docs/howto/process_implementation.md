@@ -1,99 +1,113 @@
+---
+description: >
+  Where an existing ticketing, embargo, or threat-monitoring workflow emits
+  Vultron messages, milestone by milestone.
+stakeholder_type: [platform-developer]
+level: 300
+page_type: how-to
+---
+
 # Process Implementation Notes
 
 {% include-markdown "../includes/not_normative.md" %}
 
-Integrating the Vultron Protocol into everyday MPCVD operations requires each Participant to consider how their business processes
-interact with the individual [RM](../topics/process_models/rm/index.md), [EM](../topics/process_models/em/index.md),
-and [CS](../topics/process_models/cs/index.md), process models, respectively.
-Here we offer some thoughts on where such integration might begin.
+Use this page to find where your existing workflow intersects the Vultron Protocol, so that each milestone your system already records emits the protocol message that reports it.
+Vultron does not replace a tracker, an embargo calendar, or a threat-intelligence feed; it asks each of them to speak at the moments the protocol cares about.
+You finish with a list of your own workflow's milestones, each paired with the message it emits and the guide that shows how to send it.
 
-## RM Implementation Notes
+!!! note "Scope of this page"
 
-Roughly speaking, the RM process is very close to a normal [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management){:target="_blank"} (ITSM)
-incident or service request workflow.
-As such, the RM process could be implemented as a JIRA ticket workflow, as part of a Kanban process, etc.
-The main modifications needed to adapt an existing workflow are to intercept the key milestones and emit the appropriate RM messages:
+    This page is about integrating *your* system.
+    For the architecture of the reference implementation — hexagonal boundaries, the ActivityStreams inbox pipeline, behavior tree orchestration — see [Reference Implementation Architecture](../topics/reference_architecture.md).
 
-- when the reports are received (*RK*)
+---
 
-- when the report validation process completes (*RI*, *RV*)
+## Prerequisites
 
-- when the report prioritization process completes (*RA*, *RD*)
+- A workflow you already run for vulnerability reports, embargoes, or public-disclosure monitoring.
+- Working knowledge of the three process models the protocol is built from: [Report Management (RM)](../topics/process_models/rm/index.md), [Embargo Management (EM)](../topics/process_models/em/index.md), and [Case State (CS)](../topics/process_models/cs/index.md).
+  Each milestone below is a transition in one of them.
+- The [formal message names](../reference/formal_protocol/messages.md) the transitions carry.
+  Each one is paired below with the activity guide that shows how to send it on the wire.
 
-- when the report is closed (*RC*)
+---
 
-### Vulnerability Draft Pre-Publication Review
+## Map your report workflow onto RM
 
-!!! tip inline end "Pre-Publication Drafts in Related Standards"
+The RM process is close to an ordinary [IT Service Management (ITSM)](https://en.wikipedia.org/wiki/IT_service_management){:target="_blank"} incident or service-request workflow, so a ticketing system, a Kanban board, or a bug tracker can carry it with few changes.
+The change that is needed is at the milestones: intercept each one and emit the [RM message](../reference/formal_protocol/messages.md#rm-message-types) that reports it.
 
-    [ISO/IEC 29148:2018](https://www.iso.org/standard/72311.html){:target="_blank"} includes a pre-publication review step in its process.
+| When your workflow records that… | Emit | How |
+|---|---|---|
+| a report has arrived | Report Acknowledgment (RK) | [How to Acknowledge a Report](activitypub/activities/acknowledge.md) |
+| validation is complete | Report Valid (RV) or Report Invalid (RI) | [How to Report a Vulnerability](activitypub/activities/report_vulnerability.md) |
+| prioritization is complete | Report/Case Accepted (RA) or Report/Case Deferred (RD) | [How to Advance a Case Through Report Management](activitypub/activities/manage_case.md) |
+| the report or case is closed | Report Closed (RC), or the case closure | [How to Advance a Case Through Report Management](activitypub/activities/manage_case.md) |
 
-MPCVD case Participants often share pre-publication drafts of their advisories during the embargo period.
-Our protocol proposal is mute on this subject because it is not strictly necessary for the MPCVD process to complete successfully.
-However, as we observe in the [ISO Crosswalk](../reference/iso_crosswalks/index.md), the *GI* and *GK* message types appear to provide sufficient mechanics for this
-process to be fleshed out as necessary.
-This draft-sharing process could be built into the [*prepare publication*](../topics/behavior_logic/publication_bt.md#prepare-publication-behavior) process, where appropriate.
+If your workflow has a validation step but no explicit prioritization step, treat the decision to assign the ticket to an engineer as prioritization and emit RA there.
 
-## EM Implementation Notes
+### Share pre-publication drafts through the case
 
-### Embargo Management and Calendaring
+Participants in a multi-party case often share advisory drafts during the embargo.
+The protocol does not prescribe that exchange, because the case can complete without it.
+If your workflow has a draft-review step, carry it as case notes: the General Inquiry (GI) and General Acknowledgment (GK) [messages](../reference/formal_protocol/messages.md#other-message-types) are enough, and [How to Post a Status Update or a Case Note](activitypub/activities/status_updates.md) shows the activity.
+The [ISO/IEC 29147:2018 crosswalk](../reference/iso_crosswalks/iso_29147_2018.md) maps that standard's advisory-publication clauses onto the same messages.
 
-In terms of the proposal, acceptance, rejection, etc., the EM process is strikingly parallel to the process of
-scheduling a meeting in a calendaring system.
-In [EM and iCalendar](em_icalendar.md), we suggest a potential mapping of many of the concepts from the EM process
-onto [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar){:target="_blank"} protocol semantics.
+---
 
-### Embargo Management Does Not Deliver Synchronized Publication
+## Map your embargo handling onto EM
 
-In our protocol design, we were careful to focus the EM process on establishing when publication restrictions are
-lifted.
-That is not the same as actually scheduling publications following the embargo termination.
-Our experience at the CERT/CC shows that this distinction is rarely a significant problem since many case Participants
-simply publish at their own pace shortly after the embargo ends.
-However, at times, case Participants may find it necessary to coordinate even more closely on publication scheduling.
+The EM process fixes when publication restrictions lift.
+It does not schedule what each participant publishes afterwards.
+Most participants publish at their own pace shortly after the embargo ends, and when closer coordination is needed the participants arrange it among themselves.
 
-!!! example "TLP and Embargoes"
+- If your system tracks an embargo end date, emit the proposal, acceptance, and termination messages from that record — see [How to Establish an Embargo](activitypub/activities/establish_embargo.md) and [How to Revise or Terminate an Embargo](activitypub/activities/manage_embargo.md).
+- If your system labels sensitive information with the [Traffic Light Protocol (TLP)](https://www.first.org/tlp){:target="_blank"}, keep doing so.
+  An embargo declaration can carry the label: "This case is <span style="color:#FFC000;background-color:#000000">**TLP:AMBER**</span> until 2024-03-31 23:59:59 UTC, at which time it becomes <span style="color:#FFFFFF;background-color:#000000">**TLP:CLEAR**</span>."
+  The [CERT Guide to Coordinated Vulnerability Disclosure (CVD)](https://certcc.github.io/CERT-Guide-to-CVD/howto/operation/opsec/){:target="_blank"} covers TLP in CVD in more detail.
 
-    The [Traffic Light Protocol (TLP)](https://www.first.org/tlp){:target="_blank"} is a useful tool for managing the
-    dissemination of sensitive information.
-    TLP can be used to indicate how widely information can be shared and what restrictions apply during an embargo.
-    For example, an embargoed case might be marked <span style="color:#FFC000;background-color:#000000">**TLP:AMBER**</span>
-    to indicate that the information is sensitive and should be shared only with those who need to know.
-    Thus, an embargo declaration might take the form of "This case is <span style="color:#FFC000;background-color:#000000">**TLP:AMBER**</span>
-    until 2024-03-31 23:59:59 UTC, at which time it becomes <span style="color:#FFFFFF;background-color:#000000">**TLP:CLEAR**</span>." 
-    We have more to say about the use of TLP in CVD in the [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD/howto/operation/opsec/){:target="_blank"}.
+---
 
-## CS Implementation Notes
+## Map your fix and monitoring workflows onto CS
 
-Because part of the CS model is Participant specific and the other is global to the case, we address each part below.
+The CS model has two halves, and they attach to different parts of your organization.
+The Vendor Awareness, Fix Readiness, and Fix Deployed substates are specific to each Vendor or Deployer; the Public Awareness, Exploit Public, and Attacks Observed substates are shared by the whole case.
+All six emit [CS messages](../reference/formal_protocol/messages.md#cs-message-types), and [How to Post a Status Update or a Case Note](activitypub/activities/status_updates.md) shows the activity for each.
 
-### The *vfd* Process
+### The fix path
 
-Similar to the RM process, which is specific to each Participant, the *vfd* process is
-individualized to each Vendor (or Deployer, for the simpler $d \xrightarrow{\mathbf{D}} D$ state transition).
-Modifications to the Vendor's development process to implement the Vultron Protocol are expected to be minimal and are
-limited to the following:
+Changes to a Vendor's development process are small and sit at three milestones.
 
-- acknowledging the Vendor's role on report receipt with a *CV* message
+| When your workflow records that… | Emit |
+|---|---|
+| the report has reached you as the Vendor | Vendor Awareness (CV) |
+| a fix is ready | Fix Readiness (CF), and consider terminating any active embargo so publication can proceed |
+| the fix has been deployed, where you also deploy | Fix Deployed (CD) |
 
-- emitting a *CF* message when a fix becomes ready (and possibly terminating any active embargo to open the door to publication)
+A Deployer that is not the Vendor has one integration point: emit CD when deployment is complete.
+Deployers other than the Vendor are rarely case participants, but the message exists for when they are.
 
-- (if relevant) issuing a *CD* message when the fix has been deployed
+### The public-awareness path
 
-Non-Vendor Deployers are rarely involved in MPCVD cases, but when they are, their main integration point is to emit a
-*CD* message when deployment is complete.
+The other half of the CS model depends on watching public and private sources for leaked information, research publications, and adversary activity.
+That is the work a threat-intelligence or threat-analysis function already does, so wire it to emit the message for what it finds.
 
-### The *pxa* Process
+| When your monitoring detects… | Emit |
+|---|---|
+| the vulnerability has been published | Public Awareness (CP) |
+| an exploit has been published | Exploit Public (CX) |
+| attacks are being observed | Attacks Observed (CA) |
 
-On the other hand, the *pxa* process hinges on monitoring public and private sources for evidence of information leaks,
-research publications, and adversarial activity.
-In other words, the *pxa* process is well positioned to be wired into Participants' threat intelligence and threat
-analysis capabilities.
-The goal would be to emit *CP*, *CX*, and *CA* messages as appropriate when such evidence is detected.
-Some portions of this process can be automated:
+Some of that detection can be automated:
 
-- Human analysts and/or automated search agents can look for evidence of early publication of vulnerability information.
+- analysts or search agents watch for early publication of the vulnerability,
+- Intrusion Detection System (IDS) and Intrusion Prevention System (IPS) signatures deployed before the fix is available give early warning of adversary activity, and
+- code-publication and malware-analysis platforms are watched for exploit publication or use.
 
-- IDS and IPS signatures might be deployed prior to fix availability to act as an early warning of adversary activity.
+---
 
-- Well-known code publication and malware analysis platforms can be monitored for evidence of exploit publication or use.
+## Claim conformance
+
+Once your milestones emit their messages, your system is a candidate for a conformance claim.
+A claim names the capability sets you provide and the roles you take on ([§12.1 Conformance Model Overview in the specification](../reference/vultron-spec/conformance.md#121-conformance-model-overview)), and conformance tests check it from the outside, in the four layers [§12.5 Conformance Testing Approach](../reference/vultron-spec/conformance.md#125-conformance-testing-approach) defines.
+Independent implementations are tested against the first three; the fourth applies only to the reference implementation.

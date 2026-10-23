@@ -1,4 +1,28 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Publication Behavior
+
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Protocol Specifications](../../reference/specs/protocol.md):
+
+- [CSB-12](../../reference/specs/protocol.md#csb-12) — Enter CS P (Public Aware)
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 The Publication Behavior Tree is shown in the following diagram.
 (A) It begins by ensuring that the Participant knows what they intend to publish (A1), followed by a check to

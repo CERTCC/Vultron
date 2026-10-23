@@ -1,0 +1,646 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Unit tests for case status workflow nodes (submodule path).
+
+Verifies CASE_STATUS_ALREADY_PRESENT and CheckCaseStatusIdempotencyNode
+imported directly from the submodule, and EmitCaseStatusUpdateNode.
+
+Per issue #758 AC-1, AC-3.
+"""
+
+import py_trees
+import pytest
+from py_trees.common import Status
+
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case_status_snapshot import (
+    EmitCaseStatusUpdateNode,
+)
+from vultron.core.behaviors.status.nodes.case_status import (
+    CASE_STATUS_ALREADY_PRESENT,
+    CheckCaseStatusIdempotencyNode,
+)
+from vultron.core.models.case import VulnerabilityCase as CoreCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import PxaDimension
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.cs import CS_pxa
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+ACTOR_ID = "https://example.org/actors/vendor"
+CASE_ID = "https://example.org/cases/case-01"
+STATUS_ID = "https://example.org/cases/case-01/statuses/s1"
+STATUS2_ID = "https://example.org/cases/case-01/statuses/s2"
+
+
+@pytest.fixture
+def dl():
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=ACTOR_ID,
+    )
+
+
+@pytest.fixture
+def bridge(dl):
+    return BTBridge(
+        datalayer=dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+        trigger_activity=TriggerActivityAdapter(dl),
+    )
+
+
+@pytest.fixture
+def case():
+    # attributed_to triggers genesis_hash computation so ledger chain can bootstrap
+    return as_VulnerabilityCase(
+        id_=CASE_ID, name="Test Case", attributed_to=ACTOR_ID
+    )
+
+
+@pytest.fixture
+def status_obj():
+    return as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
+
+
+@pytest.fixture
+def populated_dl(dl, case, status_obj):
+    dl.create(case)
+    dl.create(status_obj)
+    return dl
+
+
+@pytest.fixture
+def populated_bridge(populated_dl):
+    return BTBridge(
+        datalayer=populated_dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(populated_dl),
+        trigger_activity=TriggerActivityAdapter(populated_dl),
+    )
+
+
+# ---------------------------------------------------------------------------
+# CASE_STATUS_ALREADY_PRESENT constant
+# ---------------------------------------------------------------------------
+
+
+def test_case_status_already_present_constant():
+    assert CASE_STATUS_ALREADY_PRESENT == "case_status_already_present"
+
+
+# ---------------------------------------------------------------------------
+# CheckCaseStatusIdempotencyNode
+# ---------------------------------------------------------------------------
+
+
+class TestCheckCaseStatusIdempotencyNode:
+    def test_new_status_succeeds(self, populated_bridge):
+        node = CheckCaseStatusIdempotencyNode(
+            case_id=CASE_ID, status_id=STATUS_ID
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert result.status == Status.SUCCESS
+
+    def test_duplicate_status_fails_with_sentinel(self, populated_dl):
+        case = populated_dl.read(CASE_ID)
+        status = populated_dl.read(STATUS_ID)
+        case.case_statuses.append(status)
+        populated_dl.save(case)
+
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+            trigger_activity=TriggerActivityAdapter(populated_dl),
+        )
+        node = CheckCaseStatusIdempotencyNode(
+            case_id=CASE_ID, status_id=STATUS_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert node.feedback_message == CASE_STATUS_ALREADY_PRESENT
+
+    def test_missing_case_fails(self, bridge):
+        node = CheckCaseStatusIdempotencyNode(
+            case_id="https://example.org/cases/missing", status_id=STATUS_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_empty_string_case_id_returns_failure_with_diagnostic(
+        self, bridge
+    ):
+        """Empty string case_id → FAILURE with a diagnostic mentioning absence."""
+        node = CheckCaseStatusIdempotencyNode(case_id="", status_id=STATUS_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert (
+            "absent" in node.feedback_message.lower()
+            or "case_id" in node.feedback_message.lower()
+        )
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_none_case_id_returns_failure_with_diagnostic(self, bridge):
+        """None case_id → FAILURE with a diagnostic mentioning absence."""
+        node = CheckCaseStatusIdempotencyNode(
+            case_id=None, status_id=STATUS_ID
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert (
+            "absent" in node.feedback_message.lower()
+            or "case_id" in node.feedback_message.lower()
+        )
+
+
+# ---------------------------------------------------------------------------
+# EmitCaseStatusUpdateNode — lives in vultron.core.behaviors.case_status_snapshot
+# (shared with the embargo trees, BTND-04-001); tested here beside the
+# AddCaseStatusToCase nodes it shares fixtures with.
+# ---------------------------------------------------------------------------
+
+
+def _case_status_entries(dl) -> list[CaseLedgerEntry]:
+    """The case's committed ``add_case_status_to_case`` entries, in order."""
+    return sorted(
+        (
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and obj.case_id == CASE_ID
+            and obj.semantic_type == "add_case_status_to_case"
+        ),
+        key=lambda entry: entry.log_index,
+    )
+
+
+class TestEmitCaseStatusUpdateNode:
+    @pytest.mark.spec("RSH-04-004")
+    @pytest.mark.spec("RSH-04-002")
+    def test_happy_path_appends_new_case_status(self, populated_dl):
+        """SUCCESS: appends a new CaseStatus to case.case_statuses."""
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+            trigger_activity=TriggerActivityAdapter(populated_dl),
+        )
+        case_before = populated_dl.read(CASE_ID)
+        assert isinstance(case_before, CoreCase)
+        initial_count = len(case_before.case_statuses)
+
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        case_after = populated_dl.read(CASE_ID)
+        assert isinstance(case_after, CoreCase)
+        assert len(case_after.case_statuses) == initial_count + 1
+
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.parametrize(
+        ("case_pxa", "reported", "expected"),
+        [
+            # A forward move is adopted (#4956).
+            (CS_pxa.pxa, CS_pxa.Pxa, CS_pxa.Pxa),
+            (CS_pxa.Pxa, CS_pxa.PXA, CS_pxa.PXA),
+            # A latch the report omits is kept (RSH-01-003).
+            (CS_pxa.PXa, CS_pxa.Pxa, CS_pxa.PXa),
+            # A mixed report adds its new latch and clears none.
+            (CS_pxa.PxA, CS_pxa.PXa, CS_pxa.PXA),
+            # An ephemeral pX is promoted on adoption (SM-09-001).
+            (CS_pxa.pxa, CS_pxa.pXa, CS_pxa.PXa),
+        ],
+        ids=["forward", "multi-forward", "omitted", "mixed", "promoted"],
+    )
+    def test_reported_status_latches_are_added(
+        self, dl, case, case_pxa, reported, expected
+    ):
+        """The committed CaseStatus adds the reported latches, clearing none."""
+        case.case_statuses.append(  # type: ignore[arg-type]
+            as_CaseStatus(context=CASE_ID, pxa=PxaDimension(state=case_pxa))
+        )
+        dl.create(case)
+        report = ParticipantStatus(
+            context=CASE_ID,
+            case_status=CaseStatus(
+                context=CASE_ID, pxa=PxaDimension(state=reported)
+            ),
+        )
+        dl.create(report)
+        node = EmitCaseStatusUpdateNode(
+            case_id=CASE_ID, reported_status_id=report.id_
+        )
+        result = BTBridge(
+            datalayer=dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        stored = dl.read(CASE_ID)
+        assert isinstance(stored, CoreCase)
+        assert stored.current_status.pxa.state == expected
+        entry = next(
+            obj
+            for obj in dl.list_objects("CaseLedgerEntry")
+            if getattr(obj, "semantic_type", None) == "add_case_status_to_case"
+        )
+        assert isinstance(entry, CaseLedgerEntry)
+        snapshot_object = entry.payload_snapshot["object"]
+        assert snapshot_object["pxaState"] == expected.name
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("RSH-04-003")
+    def test_an_unchanged_status_is_not_committed_again(
+        self, populated_dl, populated_bridge
+    ):
+        """A snapshot equal in EM and PXA to the last committed one is no
+        change, so it is neither committed nor appended (#5123)."""
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        first = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+        assert first.status == Status.SUCCESS
+        after_first = populated_dl.read(CASE_ID)
+        assert isinstance(after_first, CoreCase)
+
+        again = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        second = populated_bridge.execute_with_setup(
+            tree=again, actor_id=ACTOR_ID
+        )
+
+        assert second.status == Status.SUCCESS
+        assert len(_case_status_entries(populated_dl)) == 1
+        after_second = populated_dl.read(CASE_ID)
+        assert isinstance(after_second, CoreCase)
+        assert len(after_second.case_statuses) == len(
+            after_first.case_statuses
+        )
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.parametrize(
+        ("reported", "commits"),
+        [
+            # The case already holds every latch the report sets.
+            (CS_pxa.pxa, False),
+            (CS_pxa.Pxa, False),
+            # A new latch is a change.
+            (CS_pxa.PXa, True),
+        ],
+        ids=["no-latch", "held-latch", "new-latch"],
+    )
+    def test_an_adopted_status_commits_only_a_pxa_change(
+        self, populated_dl, populated_bridge, reported, commits
+    ):
+        """A participant status that reports nothing new about P/X/A adds no
+        CaseStatus entry (#5123)."""
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        case.append_case_status(pxa=CS_pxa.Pxa)
+        populated_dl.save(case)
+        first = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        assert first.status == Status.SUCCESS
+        report = ParticipantStatus(
+            context=CASE_ID,
+            case_status=CaseStatus(
+                context=CASE_ID, pxa=PxaDimension(state=reported)
+            ),
+        )
+        populated_dl.create(report)
+
+        result = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(
+                case_id=CASE_ID, reported_status_id=report.id_
+            ),
+            actor_id=ACTOR_ID,
+        )
+
+        assert result.status == Status.SUCCESS
+        assert len(_case_status_entries(populated_dl)) == (2 if commits else 1)
+
+    @pytest.mark.spec("CLP-07-013")
+    @pytest.mark.spec("RSH-04-002")
+    def test_an_em_change_after_a_commit_is_committed(
+        self, populated_dl, populated_bridge
+    ):
+        """The case's current status already carries the register's EM (the
+        stamp, ADR-0122), so the change is measured against the last
+        committed status, not the current one."""
+        from vultron.core.models.embargo_register import RegisterChange
+        from vultron.core.states.em import EM
+        from vultron.core.states.embargo_register import RegisterTrigger
+
+        first = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        assert first.status == Status.SUCCESS
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        case.apply_embargo_register_step(
+            [
+                RegisterChange(
+                    embargo_id="https://example.org/embargoes/e1",
+                    trigger=RegisterTrigger.PROPOSE,
+                )
+            ]
+        )
+        populated_dl.save(case)
+        assert case.current_status.em.state is EM.PROPOSED
+
+        result = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.SUCCESS
+        entries = _case_status_entries(populated_dl)
+        assert len(entries) == 2
+        assert entries[-1].payload_snapshot["object"]["emState"] == "PROPOSED"
+
+    @pytest.mark.spec("ARCH-15-001")
+    @pytest.mark.parametrize(
+        "carried",
+        ["urn:uuid:by-reference", {"id": "urn:uuid:bad", "pxaState": "nope"}],
+        ids=["not-inline", "malformed"],
+    )
+    def test_an_unreadable_committed_status_fails_and_writes_nothing(
+        self, populated_dl, populated_bridge, carried
+    ):
+        """A last committed status that cannot be read is a broken store, not
+        a first status: the node fails and writes nothing (ARCH-15-001)."""
+        first = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+        assert first.status == Status.SUCCESS
+        (entry,) = _case_status_entries(populated_dl)
+        populated_dl.save(
+            entry.model_copy(
+                update={
+                    "payload_snapshot": {
+                        **entry.payload_snapshot,
+                        "object": carried,
+                    }
+                }
+            )
+        )
+        case = populated_dl.read(CASE_ID)
+        assert isinstance(case, CoreCase)
+        statuses_before = len(case.case_statuses)
+
+        result = populated_bridge.execute_with_setup(
+            tree=EmitCaseStatusUpdateNode(case_id=CASE_ID), actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.FAILURE
+        assert "Cannot read the committed CaseStatus" in (
+            result.feedback_message or ""
+        )
+        assert len(_case_status_entries(populated_dl)) == 1
+        after = populated_dl.read(CASE_ID)
+        assert isinstance(after, CoreCase)
+        assert len(after.case_statuses) == statuses_before
+
+    @pytest.mark.spec("ARCH-15-001")
+    @pytest.mark.spec("VM-08-003")
+    def test_missing_trigger_activity_port_commits_and_persists_nothing(
+        self, populated_dl
+    ):
+        """No port: no ``Add(CaseStatus)`` can be built, so nothing is written.
+
+        The entry is the factory-built activity's sealed blob (VM-08-003); the
+        missing port is a composition fault, and no status is appended without
+        its entry.
+        """
+        case_before = populated_dl.read(CASE_ID)
+        assert isinstance(case_before, CoreCase)
+        initial_count = len(case_before.case_statuses)
+
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        result = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        case_after = populated_dl.read(CASE_ID)
+        assert isinstance(case_after, CoreCase)
+        assert len(case_after.case_statuses) == initial_count
+        assert not [
+            obj
+            for obj in populated_dl.list_objects("CaseLedgerEntry")
+            if getattr(obj, "semantic_type", None) == "add_case_status_to_case"
+        ]
+
+    @pytest.mark.spec("RSH-04-004")
+    def test_happy_path_commits_ledger_entry(self, populated_dl):
+        """SUCCESS: a CaseLedgerEntry with semantic_type='add_case_status_to_case' is committed."""
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+            trigger_activity=TriggerActivityAdapter(populated_dl),
+        )
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        entries = [
+            obj
+            for obj in populated_dl.list_objects("CaseLedgerEntry")
+            if isinstance(obj, CaseLedgerEntry)
+            and getattr(obj, "case_id", None) == CASE_ID
+            and getattr(obj, "semantic_type", None)
+            == "add_case_status_to_case"
+        ]
+        assert len(entries) >= 1, (
+            "EmitCaseStatusUpdateNode must commit a CaseLedgerEntry"
+            " with semantic_type='add_case_status_to_case'"
+        )
+
+    @pytest.mark.spec("ARCH-15-001")
+    @pytest.mark.spec("RSH-01-003")
+    @pytest.mark.parametrize(
+        "reported_status_id",
+        [
+            pytest.param(
+                "https://example.org/cases/case-01/statuses/absent",
+                id="absent",
+            ),
+            # STATUS_ID holds a CaseStatus, not a ParticipantStatus.
+            pytest.param(STATUS_ID, id="wrong-type"),
+        ],
+    )
+    def test_unreadable_reported_status_commits_and_persists_nothing(
+        self, populated_dl, populated_bridge, reported_status_id
+    ):
+        """No ``ParticipantStatus`` at ``reported_status_id`` → FAILURE.
+
+        The append step stores the report before this node runs, so a missing
+        one is a broken store.  Snapshotting the case's own P/X/A instead
+        would report a dropped adoption as SUCCESS (ARCH-15-001, #4956).
+        """
+        case_before = populated_dl.read(CASE_ID)
+        assert isinstance(case_before, CoreCase)
+        initial_count = len(case_before.case_statuses)
+
+        node = EmitCaseStatusUpdateNode(
+            case_id=CASE_ID, reported_status_id=reported_status_id
+        )
+        result = populated_bridge.execute_with_setup(
+            tree=node, actor_id=ACTOR_ID
+        )
+
+        assert result.status == Status.FAILURE
+        assert reported_status_id in node.feedback_message
+        case_after = populated_dl.read(CASE_ID)
+        assert isinstance(case_after, CoreCase)
+        assert len(case_after.case_statuses) == initial_count
+        assert not [
+            obj
+            for obj in populated_dl.list_objects("CaseLedgerEntry")
+            if getattr(obj, "semantic_type", None) == "add_case_status_to_case"
+        ]
+
+    @pytest.mark.spec("RSH-04-004")
+    def test_missing_case_fails(self, bridge):
+        """FAILURE when the case is not found in the DataLayer."""
+        node = EmitCaseStatusUpdateNode(
+            case_id="https://example.org/cases/nonexistent"
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+
+    @pytest.mark.spec("RSH-04-004")
+    def test_attributed_to_set_on_new_status(self, populated_dl):
+        """The new CaseStatus has attributed_to set to the executing actor."""
+        from vultron.core.models.case_status import CaseStatus
+
+        bridge = BTBridge(
+            datalayer=populated_dl,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(populated_dl),
+            trigger_activity=TriggerActivityAdapter(populated_dl),
+        )
+        node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        case_after = populated_dl.read(CASE_ID)
+        assert isinstance(case_after, CoreCase)
+        latest = case_after.case_statuses[-1]
+        if isinstance(latest, str):
+            latest = populated_dl.read(latest)
+        assert isinstance(latest, CaseStatus)
+        assert latest.attributed_to == ACTOR_ID
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_empty_string_case_id_returns_failure_with_diagnostic(
+        self, bridge
+    ):
+        """Empty string case_id → FAILURE with a diagnostic mentioning absence."""
+        node = EmitCaseStatusUpdateNode(case_id="")
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert (
+            "absent" in node.feedback_message.lower()
+            or "case_id" in node.feedback_message.lower()
+        )
+
+    @pytest.mark.spec("ARCH-15-001")
+    def test_none_case_id_returns_failure_with_diagnostic(self, bridge):
+        """None case_id → FAILURE with a diagnostic mentioning absence."""
+        node = EmitCaseStatusUpdateNode(case_id=None)
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.FAILURE
+        assert (
+            "absent" in node.feedback_message.lower()
+            or "case_id" in node.feedback_message.lower()
+        )
+
+    @pytest.mark.spec("CLP-08-005")
+    def test_inner_btbridge_inherits_is_leader_false_from_blackboard(
+        self, populated_dl
+    ):
+        """Inner BTBridge must inherit is_leader=False from the blackboard.
+
+        When an outer BTBridge.setup_tree() wrote is_leader=False (future
+        multi-node cluster: this actor is a follower), the inner
+        BTBridge(datalayer=...) created inside update() must inherit that
+        guard and refuse to mint a ledger entry rather than defaulting to
+        always-True (CLP-08-005).
+
+        The node is invoked directly (bypassing the outer bridge's own guard)
+        to isolate the inner-bridge behaviour.
+        """
+        bb = py_trees.blackboard.Client(name="test-outer-emit-leader")
+        bb.register_key(key="datalayer", access=py_trees.common.Access.WRITE)
+        bb.register_key(key="actor_id", access=py_trees.common.Access.WRITE)
+        bb.register_key(key="is_leader", access=py_trees.common.Access.WRITE)
+        bb.register_key(
+            key="wire_render_port", access=py_trees.common.Access.WRITE
+        )
+        bb.register_key(
+            key="trigger_activity_factory",
+            access=py_trees.common.Access.WRITE,
+        )
+        bb.datalayer = populated_dl
+        bb.actor_id = ACTOR_ID
+        bb.is_leader = lambda: False
+        bb.wire_render_port = As2WireRenderAdapter()
+        bb.trigger_activity_factory = TriggerActivityAdapter(populated_dl)
+
+        try:
+            node = EmitCaseStatusUpdateNode(case_id=CASE_ID)
+            node.setup()
+            node.initialise()
+            result = node.update()
+            assert result == Status.FAILURE
+        finally:
+            storage = py_trees.blackboard.Blackboard.storage
+            for key in [
+                "is_leader",
+                "/is_leader",
+                "datalayer",
+                "/datalayer",
+                "actor_id",
+                "/actor_id",
+                "wire_render_port",
+                "/wire_render_port",
+                "trigger_activity_factory",
+                "/trigger_activity_factory",
+            ]:
+                storage.pop(key, None)

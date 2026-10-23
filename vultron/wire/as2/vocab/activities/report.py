@@ -1,0 +1,115 @@
+#!/usr/bin/env python
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+This module contains extensions to the ActivityStreams Vocabulary for Vultron activities related to
+VulnerabilityReports.
+"""
+
+from pydantic import Field
+
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Create,
+    as_Offer,
+    as_Read,
+    as_Reject,
+    as_TentativeReject,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+
+class _RmCreateReportActivity(as_Create):
+    """The actor is creating a report."""
+
+    object_: as_VulnerabilityReport = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RmSubmitReportActivity(as_Offer):
+    """The actor is submitting a report to another actor
+    This corresponds to the Vultron RS message type when no case exists.
+    See also _RmInviteToCaseActivity for the scenario when a case already exists.
+    object_: as_VulnerabilityReport
+    proposed_embargo: the Reporter's proposed ``EmbargoEvent`` for this report,
+        if any (EP-04-004); inherited from ``as_Offer``, ``context`` is the
+        report URI (EP-04-009).
+    """
+
+    object_: as_VulnerabilityReport = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RmReadReportActivity(as_Read):
+    """The actor has read a report (RK acknowledgement).
+    This corresponds to the Vultron Message Type RK when no case exists.
+    Wire form: Read(Offer(VulnerabilityReport)) per MSM-01-008, VAM-02-003.
+
+    object_: the _RmSubmitReportActivity offer wrapping the as_VulnerabilityReport
+        (inline typed object required — bare string IDs are rejected at
+        construction time)
+    """
+
+    object_: _RmSubmitReportActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RmValidateReportActivity(as_Accept):
+    """The actor has validated a report.
+    Corresponds to the Vultron Message Type RV when no case exists.
+    This should be followed by a Create(VulnerabilityCase) activity.
+
+    object_: the _RmSubmitReportActivity offer wrapping the as_VulnerabilityReport
+        (inline typed object required — bare string IDs are rejected at
+        construction time)
+    """
+
+    object_: _RmSubmitReportActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RmInvalidateReportActivity(as_TentativeReject):
+    """The actor has invalidated a report.
+    Corresponds to the Vultron Message Type RI when no case exists.
+    See also _RmRejectInviteToCaseActivity for the scenario when a case already exists.
+
+    object_: the _RmSubmitReportActivity offer wrapping the as_VulnerabilityReport
+        (inline typed object required — bare string IDs are rejected at
+        construction time)
+    """
+
+    object_: _RmSubmitReportActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RmCloseReportActivity(as_Reject):
+    """The actor is closing the report.
+    This corresponds to the Vultron Message Type RC when no case exists.
+    It can only be emitted when the report is in the RM.INVALID state, because anything past that will
+    have an associated VulnerabilityCase object, and closure of the case falls to the _RmCloseCaseActivity activity.
+
+    object_: the _RmSubmitReportActivity offer wrapping the as_VulnerabilityReport
+        (inline typed object required — bare string IDs are rejected at
+        construction time)
+    """
+
+    object_: _RmSubmitReportActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )

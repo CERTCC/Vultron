@@ -1,0 +1,463 @@
+#!/usr/bin/env python
+"""Unit tests for sync chain nodes."""
+
+import logging
+from typing import cast
+
+import py_trees
+import pytest
+from py_trees.common import Status
+
+from test.core.behaviors.sync.nodes.conftest import (
+    CASE_ID,
+    OWNER_ACTOR_ID,
+    PARTICIPANT_ACTOR_ID,
+    _make_entry,
+)
+from test.support.received import received_event
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.sync.nodes import (
+    CreateLogEntryNode,
+    PersistLogEntryNode,
+    ReconstructChainTailNode,
+    UpdateReplicationStateNode,
+)
+from vultron.core.models import case_ledger as case_ledger_module
+from vultron.core.models._helpers import now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
+from vultron.core.models.replication_state import VultronReplicationState
+from vultron.wire.as2.factories import reject_log_entry_activity
+from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+    as_CaseLedgerEntry as WireCaseLedgerEntry,
+)
+
+_ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
+
+
+def _canonical_note_snapshot(actor_id: str) -> dict[str, object]:
+    return {
+        "type": "Add",
+        "actor": actor_id,
+        # CLP-07-011: recorded snapshots carry the asserter's claimed timestamp.
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "Note",
+            "id": "https://example.org/notes/note-1",
+            "context": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+
+
+def _canonical_case_announce_snapshot() -> dict[str, object]:
+    return {
+        "type": "Announce",
+        "actor": OWNER_ACTOR_ID,
+        "published": now_utc().isoformat(),
+        "object": {
+            "type": "VulnerabilityCase",
+            "id": CASE_ID,
+            "context": CASE_ID,
+        },
+        "context": CASE_ID,
+    }
+
+
+@pytest.mark.spec("CLP-02-001")
+@pytest.mark.spec("SYNC-01-002")
+def test_create_log_entry_node_writes_log_entry_to_blackboard(bridge):
+    result = bridge.execute_with_setup(
+        tree=CreateLogEntryNode(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-1",
+            semantic_type="note_added",
+            payload_snapshot=_canonical_note_snapshot(PARTICIPANT_ACTOR_ID),
+            name="CreateLogEntry",
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        tail_hash=_ZERO_HASH,
+        tail_index=-1,
+    )
+
+    assert result.status == Status.SUCCESS
+    blackboard = py_trees.blackboard.Client(name="assert-log-entry")
+    blackboard.register_key(
+        key="log_entry", access=py_trees.common.Access.READ
+    )
+    assert blackboard.log_entry.case_id == CASE_ID
+    assert blackboard.log_entry.log_index == 0
+
+
+@pytest.mark.spec("CLP-07-011")
+def test_create_log_entry_node_default_payload_snapshot_is_empty_dict():
+    """Omitting payload_snapshot gives an empty dict on the node instance."""
+    node = CreateLogEntryNode(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/act-2",
+        semantic_type="note_added",
+    )
+    assert node.payload_snapshot == {}
+    assert node.payload_snapshot is not None
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "message"),
+    [
+        (
+            {
+                "type": "Read",
+                "actor": PARTICIPANT_ACTOR_ID,
+                "object": {
+                    "type": "Note",
+                    "id": "https://example.org/notes/note-2",
+                    "context": CASE_ID,
+                },
+                "context": CASE_ID,
+            },
+            "type/object pair",
+        ),
+        (
+            {
+                "type": "Add",
+                "actor": "",
+                "object": {
+                    "type": "Note",
+                    "id": "https://example.org/notes/note-3",
+                    "context": CASE_ID,
+                },
+                "context": CASE_ID,
+            },
+            "actor URI",
+        ),
+        (
+            {
+                "type": "Add",
+                "actor": PARTICIPANT_ACTOR_ID,
+                "object": "https://example.org/notes/note-4",
+                "context": CASE_ID,
+            },
+            "inline object",
+        ),
+        (
+            {
+                "type": "Add",
+                "actor": PARTICIPANT_ACTOR_ID,
+                "object": {
+                    "type": "Note",
+                    "id": "https://example.org/notes/note-5",
+                    "context": CASE_ID,
+                },
+                "context": "https://example.org/cases/other",
+            },
+            "not the entry's case",
+        ),
+    ],
+)
+@pytest.mark.spec("CLP-07-005")
+@pytest.mark.spec("CLP-07-011")
+def test_create_log_entry_node_rejects_non_canonical_snapshots(
+    bridge, snapshot, message
+):
+    result = bridge.execute_with_setup(
+        tree=CreateLogEntryNode(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-invalid",
+            semantic_type="note_added",
+            payload_snapshot=snapshot,
+            name="CreateLogEntry",
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        tail_hash=_ZERO_HASH,
+        tail_index=-1,
+    )
+
+    assert result.status == Status.FAILURE
+    assert message in result.feedback_message
+
+
+@pytest.mark.spec("CLP-07-003")
+def test_create_log_entry_node_allows_case_authored_announce(bridge):
+    result = bridge.execute_with_setup(
+        tree=CreateLogEntryNode(
+            case_id=CASE_ID,
+            object_id=CASE_ID,
+            semantic_type="case_announced",
+            payload_snapshot=_canonical_case_announce_snapshot(),
+            name="CreateLogEntry",
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        tail_hash=_ZERO_HASH,
+        tail_index=-1,
+    )
+
+    assert result.status == Status.SUCCESS
+
+
+class TestReconstructChainTailPreGenesisLogging:
+    """Bug #2169: the pre-genesis bootstrap window (empty ledger + no per-case
+    genesis hash) is an expected, self-healing condition, not a fault.
+
+    ``ReconstructChainTailNode`` writes the replay-from-genesis sentinel
+    (``tail_hash=""``, ``tail_index=-1``) so the downstream
+    ``ReconstructOrRejectOnMissingCase`` selector fires a
+    ``Reject(CaseLedgerEntry)`` and the CaseActor replays the chain
+    (SYNC-15-001, CLP-08-005).  Because this recovery is by design, it MUST be
+    logged at WARNING — not ERROR — so it does not surface as spurious error
+    noise on replica containers (e.g. ``finder-1``) during the initial
+    Announce/Create delivery race.
+    """
+
+    @pytest.mark.spec("SYNC-15-001")
+    @pytest.mark.spec("CLP-08-005")
+    def test_pre_genesis_logs_warning_not_error(
+        self, bridge, caplog: pytest.LogCaptureFixture
+    ):
+        node_logger = "vultron.core.behaviors.sync.nodes.chain"
+        with caplog.at_level(logging.DEBUG, logger=node_logger):
+            result = bridge.execute_with_setup(
+                tree=ReconstructChainTailNode(
+                    case_id=CASE_ID, name="ReconstructChainTail"
+                ),
+                actor_id=OWNER_ACTOR_ID,
+            )
+
+        assert result.status == Status.FAILURE
+        assert not any(r.levelno == logging.ERROR for r in caplog.records), (
+            "pre-genesis bootstrap window must not log at ERROR — it is an "
+            "expected, self-healing Reject/replay recovery (Bug #2169)"
+        )
+        assert any(
+            r.levelno == logging.WARNING and "CLP-08-005" in r.message
+            for r in caplog.records
+        ), "expected a WARNING explaining the replay-from-genesis recovery"
+
+    @pytest.mark.spec("SYNC-15-001")
+    @pytest.mark.spec("CLP-08-005")
+    def test_pre_genesis_writes_replay_sentinel(self, bridge):
+        result = bridge.execute_with_setup(
+            tree=ReconstructChainTailNode(
+                case_id=CASE_ID, name="ReconstructChainTail"
+            ),
+            actor_id=OWNER_ACTOR_ID,
+        )
+
+        assert result.status == Status.FAILURE
+        blackboard = py_trees.blackboard.Client(name="assert-sentinel")
+        blackboard.register_key(
+            key="tail_hash", access=py_trees.common.Access.READ
+        )
+        blackboard.register_key(
+            key="tail_index", access=py_trees.common.Access.READ
+        )
+        assert blackboard.tail_hash == ""
+        assert blackboard.tail_index == -1
+
+
+class TestPersistLogEntryNodeLogging:
+    """Verify INFO and DEBUG log emission from PersistLogEntryNode."""
+
+    @pytest.fixture()
+    def entry(self, owner_store):
+        # A ledger entry belongs to a stored case, whose position its commit
+        # moves (SYNC-16-005); the commit runs in the owner's store.
+        owner_store.save(
+            VulnerabilityCase(id_=CASE_ID, attributed_to=OWNER_ACTOR_ID)
+        )
+        return _make_entry(log_index=0, prev_hash=_ZERO_HASH)
+
+    def test_info_log_emitted_on_persist(
+        self, owner_bridge, entry, caplog: pytest.LogCaptureFixture
+    ):
+        node_logger = "vultron.core.behaviors.sync.nodes.chain"
+        with caplog.at_level(logging.INFO, logger=node_logger):
+            result = owner_bridge.execute_with_setup(
+                tree=PersistLogEntryNode(name="PersistLogEntry"),
+                actor_id=OWNER_ACTOR_ID,
+                log_entry=entry,
+            )
+        assert result.status == Status.SUCCESS
+        assert any(r.levelno == logging.INFO for r in caplog.records)
+
+    def test_info_log_contains_semantic_type(
+        self, owner_bridge, entry, caplog: pytest.LogCaptureFixture
+    ):
+        node_logger = "vultron.core.behaviors.sync.nodes.chain"
+        with caplog.at_level(logging.INFO, logger=node_logger):
+            owner_bridge.execute_with_setup(
+                tree=PersistLogEntryNode(name="PersistLogEntry"),
+                actor_id=OWNER_ACTOR_ID,
+                log_entry=entry,
+            )
+        assert any(
+            r.levelno == logging.INFO and "test_event" in r.message
+            for r in caplog.records
+        )
+
+    def test_info_log_contains_log_index(
+        self, owner_bridge, entry, caplog: pytest.LogCaptureFixture
+    ):
+        node_logger = "vultron.core.behaviors.sync.nodes.chain"
+        with caplog.at_level(logging.INFO, logger=node_logger):
+            owner_bridge.execute_with_setup(
+                tree=PersistLogEntryNode(name="PersistLogEntry"),
+                actor_id=OWNER_ACTOR_ID,
+                log_entry=entry,
+            )
+        assert any(
+            r.levelno == logging.INFO and "log_index=0" in r.message
+            for r in caplog.records
+        )
+
+    def test_info_log_contains_actor_id(
+        self, owner_bridge, entry, caplog: pytest.LogCaptureFixture
+    ):
+        node_logger = "vultron.core.behaviors.sync.nodes.chain"
+        with caplog.at_level(logging.INFO, logger=node_logger):
+            owner_bridge.execute_with_setup(
+                tree=PersistLogEntryNode(name="PersistLogEntry"),
+                actor_id=OWNER_ACTOR_ID,
+                log_entry=entry,
+            )
+        assert any(
+            r.levelno == logging.INFO and OWNER_ACTOR_ID in r.message
+            for r in caplog.records
+        )
+
+    def test_debug_log_contains_entry_hash_prefix(
+        self, owner_bridge, entry, caplog: pytest.LogCaptureFixture
+    ):
+        node_logger = "vultron.core.behaviors.sync.nodes.chain"
+        with caplog.at_level(logging.DEBUG, logger=node_logger):
+            owner_bridge.execute_with_setup(
+                tree=PersistLogEntryNode(name="PersistLogEntry"),
+                actor_id=OWNER_ACTOR_ID,
+                log_entry=entry,
+            )
+        expected_prefix = entry.entry_hash[:16]
+        assert any(
+            r.levelno == logging.DEBUG and expected_prefix in r.message
+            for r in caplog.records
+        )
+
+
+# ---------------------------------------------------------------------------
+# UpdateReplicationStateNode — per-peer replication state (SYNC-04)
+# ---------------------------------------------------------------------------
+
+
+def _reject_event(
+    entry: CaseLedgerEntry, peer_id: str, last_accepted_hash: str
+) -> RejectLogEntryReceivedEvent:
+    wire_entry = WireCaseLedgerEntry.model_validate(
+        entry.model_dump(mode="json")
+    )
+    activity = reject_log_entry_activity(
+        wire_entry, context=last_accepted_hash, actor=peer_id
+    )
+    return cast(RejectLogEntryReceivedEvent, received_event(activity))
+
+
+def _replication_state_id(peer_id: str) -> str:
+    return VultronReplicationState(case_id=CASE_ID, peer_id=peer_id).id_
+
+
+@pytest.fixture
+def owner_store() -> SqliteDataLayer:
+    """The CASE_MANAGER's own store: replication state is the leader's record.
+
+    The package ``datalayer`` fixture is the participant's replica; a tree
+    executing as the owner writes to the owner's store (BT-05-005), so these
+    tests read back from that store.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=OWNER_ACTOR_ID)
+
+
+@pytest.fixture
+def owner_bridge(owner_store: SqliteDataLayer) -> BTBridge:
+    return BTBridge(datalayer=owner_store)
+
+
+@pytest.mark.spec("SYNC-04-001")
+def test_update_replication_state_node_creates_state_for_peer(
+    owner_bridge, owner_store
+):
+    entry = _make_entry(0)
+    event = _reject_event(entry, PARTICIPANT_ACTOR_ID, entry.entry_hash)
+
+    result = owner_bridge.execute_with_setup(
+        tree=UpdateReplicationStateNode(name="UpdateReplicationState"),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.status == Status.SUCCESS
+    stored = owner_store.read(_replication_state_id(PARTICIPANT_ACTOR_ID))
+    assert isinstance(stored, VultronReplicationState)
+    assert stored.last_acknowledged_hash == entry.entry_hash
+
+
+@pytest.mark.spec("SYNC-04-001")
+@pytest.mark.spec("SYNC-04-002")
+def test_update_replication_state_node_upserts_existing_state(
+    owner_bridge, owner_store
+):
+    """A second rejection updates the one persisted record, never a second."""
+    entry0 = _make_entry(0)
+    entry1 = _make_entry(1, prev_hash=entry0.entry_hash)
+
+    for entry in (entry0, entry1):
+        result = owner_bridge.execute_with_setup(
+            tree=UpdateReplicationStateNode(name="UpdateReplicationState"),
+            actor_id=OWNER_ACTOR_ID,
+            activity=_reject_event(
+                entry, PARTICIPANT_ACTOR_ID, entry.entry_hash
+            ),
+        )
+        assert result.status == Status.SUCCESS
+
+    assert len(owner_store.by_type("ReplicationState")) == 1
+    stored = owner_store.read(_replication_state_id(PARTICIPANT_ACTOR_ID))
+    assert isinstance(stored, VultronReplicationState)
+    assert stored.last_acknowledged_hash == entry1.entry_hash
+
+
+@pytest.mark.spec("SYNC-01-003")
+@pytest.mark.spec("CLP-14-002")
+def test_create_log_entry_node_entry_carries_hashed_received_at(
+    bridge, monkeypatch
+):
+    """The stored entry keeps the time its hash was computed over (#3744).
+
+    The hashed record's clock is pinned to a past second, so an entry that
+    stamped its own times would carry a different ``received_at`` and its
+    content would no longer reproduce ``entry_hash``.
+    """
+    hashed_at = now_utc().replace(year=2020)
+    monkeypatch.setattr(case_ledger_module, "now_utc", lambda: hashed_at)
+
+    result = bridge.execute_with_setup(
+        tree=CreateLogEntryNode(
+            case_id=CASE_ID,
+            object_id="https://example.org/activities/act-1",
+            semantic_type="note_added",
+            payload_snapshot=_canonical_note_snapshot(PARTICIPANT_ACTOR_ID),
+            name="CreateLogEntry",
+        ),
+        actor_id=OWNER_ACTOR_ID,
+        tail_hash=_ZERO_HASH,
+        tail_index=-1,
+    )
+
+    assert result.status == Status.SUCCESS
+    blackboard = py_trees.blackboard.Client(name="assert-hashed-received-at")
+    blackboard.register_key(
+        key="log_entry", access=py_trees.common.Access.READ
+    )
+    entry = cast(CaseLedgerEntry, blackboard.log_entry)
+    assert entry.received_at == hashed_at
+    assert entry.published == hashed_at
+    assert HashChainLedgerRecord.from_ledger_entry(entry).verify_hash()

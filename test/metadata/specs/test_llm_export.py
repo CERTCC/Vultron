@@ -1,0 +1,591 @@
+"""Tests for SpecRegistry graph integration and llm_export module."""
+
+import json
+import sys
+
+import pytest
+import yaml
+
+from vultron.metadata.specs.llm_export import to_llm_json
+from vultron.metadata.specs.registry import load_registry
+
+# ---------------------------------------------------------------------------
+# Fixtures with relationships for graph testing
+# ---------------------------------------------------------------------------
+
+GRAPH_YAML_A = {
+    "id": "GA",
+    "title": "Graph Test A",
+    "description": "Spec file A for graph tests",
+    "scope": ["prototype", "production"],
+    "groups": [
+        {
+            "id": "GA-01",
+            "title": "Group A1",
+            "specs": [
+                {
+                    "id": "GA-01-001",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "GA-01-001 MUST be foundational",
+                    "tags": ["protocol"],
+                },
+                {
+                    "id": "GA-01-002",
+                    "priority": "SHOULD",
+                    "kind": "protocol",
+                    "statement": "GA-01-002 SHOULD depend on GA-01-001",
+                    "relationships": [
+                        {
+                            "rel_type": "depends_on",
+                            "spec_id": "GA-01-001",
+                            "note": "foundational dep",
+                        }
+                    ],
+                },
+            ],
+        },
+        {
+            "id": "GA-02",
+            "title": "Group A2",
+            "specs": [
+                {
+                    "id": "GA-02-001",
+                    "priority": "MAY",
+                    "kind": "project",
+                    "statement": "GA-02-001 MAY extend GA-01-002",
+                    "scope": ["production"],
+                    "relationships": [
+                        {
+                            "rel_type": "extends",
+                            "spec_id": "GA-01-002",
+                        }
+                    ],
+                },
+            ],
+        },
+    ],
+}
+
+GRAPH_YAML_B = {
+    "id": "GB",
+    "title": "Graph Test B",
+    "description": "Spec file B for graph tests",
+    "scope": ["prototype"],
+    "groups": [
+        {
+            "id": "GB-01",
+            "title": "Group B1",
+            "specs": [
+                {
+                    "id": "GB-01-001",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "GB-01-001 MUST cross-reference GA-01-001",
+                    "relationships": [
+                        {
+                            "rel_type": "depends_on",
+                            "spec_id": "GA-01-001",
+                        }
+                    ],
+                },
+            ],
+        }
+    ],
+}
+
+
+@pytest.fixture
+def graph_spec_dir(tmp_path):
+    """Spec dir with two files and cross-file relationships."""
+    (tmp_path / "ga.yaml").write_text(yaml.dump(GRAPH_YAML_A))
+    (tmp_path / "gb.yaml").write_text(yaml.dump(GRAPH_YAML_B))
+    return tmp_path
+
+
+@pytest.fixture
+def graph_registry(graph_spec_dir):
+    return load_registry(graph_spec_dir)
+
+
+# ---------------------------------------------------------------------------
+# Graph property tests
+# ---------------------------------------------------------------------------
+
+
+class TestRegistryGraph:
+    def test_graph_has_all_nodes(self, graph_registry):
+        g = graph_registry.graph
+        assert set(g.nodes) == {
+            "GA-01-001",
+            "GA-01-002",
+            "GA-02-001",
+            "GB-01-001",
+        }
+
+    def test_graph_has_edges(self, graph_registry):
+        g = graph_registry.graph
+        assert g.has_edge("GA-01-002", "GA-01-001")
+        assert g.has_edge("GA-02-001", "GA-01-002")
+        assert g.has_edge("GB-01-001", "GA-01-001")
+        assert not g.has_edge("GA-01-001", "GA-01-002")
+
+    def test_graph_node_attrs(self, graph_registry):
+        g = graph_registry.graph
+        attrs = g.nodes["GA-01-001"]
+        assert attrs["priority"] == "MUST"
+        assert attrs["kind"] == "protocol"
+        assert attrs["scope"] == ["prototype", "production"]
+        assert attrs["file_id"] == "GA"
+        assert attrs["group_id"] == "GA-01"
+        # BehavioralSpec is tried first in Union; statement-only specs
+        # with no steps/pre/post still parse as behavioral.
+        assert attrs["type"] in ("statement", "behavioral")
+        assert "foundational" in attrs["statement"]
+
+    def test_graph_node_inherits_kind_from_group(self, graph_registry):
+        attrs = graph_registry.graph.nodes["GA-02-001"]
+        assert attrs["kind"] == "project"
+
+    def test_graph_node_overrides_scope(self, graph_registry):
+        attrs = graph_registry.graph.nodes["GA-02-001"]
+        assert attrs["scope"] == ["production"]
+
+    def test_graph_edge_attrs(self, graph_registry):
+        g = graph_registry.graph
+        data = g.edges["GA-01-002", "GA-01-001"]
+        assert data["rel_type"] == "depends_on"
+        assert data["note"] == "foundational dep"
+
+    def test_graph_edge_no_note(self, graph_registry):
+        g = graph_registry.graph
+        data = g.edges["GA-02-001", "GA-01-002"]
+        assert data["rel_type"] == "extends"
+        assert data["note"] is None
+
+    def test_subgraph_for_topic(self, graph_registry):
+        sub = graph_registry.subgraph_for_topic("GA")
+        assert set(sub.nodes) == {"GA-01-001", "GA-01-002", "GA-02-001"}
+        assert sub.has_edge("GA-01-002", "GA-01-001")
+
+    def test_subgraph_for_unknown_topic(self, graph_registry):
+        sub = graph_registry.subgraph_for_topic("ZZ")
+        assert len(sub.nodes) == 0
+
+    def test_transitive_deps(self, graph_registry):
+        deps = graph_registry.transitive_deps("GA-02-001")
+        assert deps == {"GA-01-001", "GA-01-002"}
+
+    def test_transitive_deps_leaf_node(self, graph_registry):
+        deps = graph_registry.transitive_deps("GA-01-001")
+        assert deps == set()
+
+    def test_transitive_deps_unknown_id(self, graph_registry):
+        deps = graph_registry.transitive_deps("ZZ-99-999")
+        assert deps == set()
+
+    def test_transitive_deps_cross_file(self, graph_registry):
+        deps = graph_registry.transitive_deps("GB-01-001")
+        assert "GA-01-001" in deps
+
+
+# ---------------------------------------------------------------------------
+# LLM export tests
+# ---------------------------------------------------------------------------
+
+
+class TestLlmExport:
+    def test_all_specs(self, graph_registry):
+        raw = to_llm_json(graph_registry)
+        data = json.loads(raw)
+        assert len(data["topics"]) == 2
+        assert len(data["requirements"]) == 4
+        assert len(data["edges"]) == 3
+
+    def test_topic_filter(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry, topic="GA"))
+        assert len(data["topics"]) == 1
+        assert data["topics"][0]["id"] == "GA"
+        assert len(data["requirements"]) == 3
+        assert all(r["topic"] == "GA" for r in data["requirements"])
+
+    def test_spec_ids_filter(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry, spec_ids=["GA-01-001"]))
+        assert len(data["requirements"]) == 1
+        assert data["requirements"][0]["id"] == "GA-01-001"
+
+    def test_spec_ids_with_deps(self, graph_registry):
+        data = json.loads(
+            to_llm_json(
+                graph_registry,
+                spec_ids=["GA-02-001"],
+                include_deps=True,
+            )
+        )
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"GA-01-001", "GA-01-002", "GA-02-001"}
+
+    def test_priority_filter(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry, priority="MUST"))
+        assert all(r["priority"] == "MUST" for r in data["requirements"])
+        ids = {r["id"] for r in data["requirements"]}
+        assert "GA-01-001" in ids
+        assert "GA-01-002" not in ids
+
+    def test_kind_filter(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry, kinds=["project"]))
+        assert len(data["requirements"]) == 1
+        assert data["requirements"][0]["id"] == "GA-02-001"
+
+    def test_kinds_multi_filter(self, graph_registry):
+        data = json.loads(
+            to_llm_json(graph_registry, kinds=["protocol", "project"])
+        )
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"GA-01-001", "GA-01-002", "GA-02-001", "GB-01-001"}
+
+    def test_kinds_none_returns_all(self, graph_registry):
+        data_all = json.loads(to_llm_json(graph_registry))
+        data_none = json.loads(to_llm_json(graph_registry, kinds=None))
+        assert data_all["requirements"] == data_none["requirements"]
+
+    def test_scope_filter(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry, scope="prototype"))
+        ids = {r["id"] for r in data["requirements"]}
+        # GA-02-001 has scope=[production], should be excluded
+        assert "GA-02-001" not in ids
+        # GA-01-001 inherits [prototype, production], should be included
+        assert "GA-01-001" in ids
+
+    def test_tags_filter(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry, tags=["protocol"]))
+        assert len(data["requirements"]) == 1
+        assert data["requirements"][0]["id"] == "GA-01-001"
+
+    def test_compact_json_no_indentation(self, graph_registry):
+        raw = to_llm_json(graph_registry)
+        # Compact JSON has no newlines (single line)
+        assert "\n" not in raw
+
+    def test_spec_record_shape(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry, topic="GA"))
+        spec = next(r for r in data["requirements"] if r["id"] == "GA-01-002")
+        assert spec["topic"] == "GA"
+        assert spec["group"] == "GA-01"
+        assert spec["group_title"] == "Group A1"
+        assert spec["type"] in ("statement", "behavioral")
+        assert spec["priority"] == "SHOULD"
+        assert spec["kind"] == "protocol"
+        assert spec["scope"] == ["prototype", "production"]
+        assert "relationships" in spec
+        assert spec["relationships"][0]["rel_type"] == "depends_on"
+
+    def test_edges_centralized(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry))
+        edge_set = {(e["from"], e["to"]) for e in data["edges"]}
+        assert ("GA-01-002", "GA-01-001") in edge_set
+        assert ("GA-02-001", "GA-01-002") in edge_set
+        assert ("GB-01-001", "GA-01-001") in edge_set
+
+    def test_omits_default_testable(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry))
+        for req in data["requirements"]:
+            # testable=True is the default, should be omitted
+            assert "testable" not in req
+
+    def test_omits_absent_rationale(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry))
+        for req in data["requirements"]:
+            assert "rationale" not in req
+
+    def test_empty_result(self, graph_registry):
+        data = json.loads(to_llm_json(graph_registry, topic="NONEXISTENT"))
+        assert data["topics"] == []
+        assert data["requirements"] == []
+        assert data["edges"] == []
+
+    def test_verification_always_present_when_null(self, graph_registry):
+        """verification is always in the output, even when not authored (null)."""
+        data = json.loads(to_llm_json(graph_registry))
+        for req in data["requirements"]:
+            assert "verification" in req
+            assert req["verification"] is None
+
+    def test_verification_value_emitted_when_set(self, tmp_path):
+        """When verification is authored, its value appears in spec-dump output."""
+        import yaml as _yaml
+
+        spec_data = {
+            "id": "VV",
+            "title": "Verification Test",
+            "description": "Tests verification emission",
+            "scope": ["production"],
+            "groups": [
+                {
+                    "id": "VV-01",
+                    "title": "Group",
+                    "specs": [
+                        {
+                            "id": "VV-01-001",
+                            "priority": "MUST",
+                            "kind": "project",
+                            "statement": "VV-01-001 MUST do the thing",
+                            "verification": "A test in `test/foo.py` asserts this.",
+                        }
+                    ],
+                }
+            ],
+        }
+        (tmp_path / "vv.yaml").write_text(_yaml.dump(spec_data))
+        registry = load_registry(tmp_path)
+        data = json.loads(to_llm_json(registry, topic="VV"))
+        req = data["requirements"][0]
+        assert req["verification"] == "A test in `test/foo.py` asserts this."
+
+
+# ---------------------------------------------------------------------------
+# CLI tests for main_llm_json --kind flag
+# ---------------------------------------------------------------------------
+
+
+class TestMainLlmJsonKindFlag:
+    """Tests for the --kind flag in the main_llm_json CLI entry point."""
+
+    @pytest.fixture
+    def kind_spec_dir(self, tmp_path):
+        """Spec dir with both protocol and project kind specs."""
+        spec_data = {
+            "id": "KF",
+            "title": "Kind Filter Test",
+            "description": "Tests --kind flag",
+            "scope": ["production"],
+            "groups": [
+                {
+                    "id": "KF-01",
+                    "title": "Protocol group",
+                    "specs": [
+                        {
+                            "id": "KF-01-001",
+                            "priority": "MUST",
+                            "kind": "protocol",
+                            "statement": "KF-01-001 MUST be protocol",
+                        },
+                    ],
+                },
+                {
+                    "id": "KF-02",
+                    "title": "Project group",
+                    "specs": [
+                        {
+                            "id": "KF-02-001",
+                            "priority": "SHOULD",
+                            "kind": "project",
+                            "statement": "KF-02-001 SHOULD be project",
+                        },
+                    ],
+                },
+            ],
+        }
+        (tmp_path / "kf.yaml").write_text(yaml.dump(spec_data))
+        return tmp_path
+
+    def test_kind_flag_single(self, kind_spec_dir, monkeypatch, capsys):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["spec-dump", "--kind", "protocol", str(kind_spec_dir)],
+        )
+        main_llm_json()
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"KF-01-001"}
+        assert "KF-02-001" not in ids
+
+    def test_kind_flag_multi(self, kind_spec_dir, monkeypatch, capsys):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["spec-dump", "--kind", "protocol,project", str(kind_spec_dir)],
+        )
+        main_llm_json()
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"KF-01-001", "KF-02-001"}
+
+    def test_no_kind_flag_returns_all(
+        self, kind_spec_dir, monkeypatch, capsys
+    ):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(sys, "argv", ["spec-dump", str(kind_spec_dir)])
+        main_llm_json()
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"KF-01-001", "KF-02-001"}
+
+    def test_invalid_kind_exits_with_error(
+        self, kind_spec_dir, monkeypatch, capsys
+    ):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["spec-dump", "--kind", "unknown", str(kind_spec_dir)],
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            main_llm_json()
+        assert exc_info.value.code == 2
+        err = capsys.readouterr().err
+        assert "unknown kind value(s)" in err
+        assert "unknown" in err
+        assert "protocol" in err
+
+    def test_kind_with_spaces_stripped(
+        self, kind_spec_dir, monkeypatch, capsys
+    ):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["spec-dump", "--kind", "protocol, project", str(kind_spec_dir)],
+        )
+        main_llm_json()
+        out = capsys.readouterr().out
+        data = json.loads(out)
+        ids = {r["id"] for r in data["requirements"]}
+        assert ids == {"KF-01-001", "KF-02-001"}
+
+    def test_kind_flag_missing_value_exits_with_error(
+        self, kind_spec_dir, monkeypatch, capsys
+    ):
+        from vultron.metadata.specs.render import main_llm_json
+
+        monkeypatch.setattr(sys, "argv", ["spec-dump", "--kind"])
+        with pytest.raises(SystemExit) as exc_info:
+            main_llm_json()
+        assert exc_info.value.code == 2
+        assert "--kind requires a value" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Field-completeness guard for the LLM export
+# ---------------------------------------------------------------------------
+
+NOTE_YAML = {
+    "id": "NT",
+    "title": "Note Export",
+    "description": "Spec file exercising the note field",
+    "scope": ["prototype"],
+    "groups": [
+        {
+            "id": "NT-01",
+            "title": "Notes",
+            "specs": [
+                {
+                    "id": "NT-01-001",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "NT-01-001 MUST be exported with its note",
+                    "note": "This binds the sender only; a receiver MUST NOT "
+                    "enforce it.",
+                },
+                {
+                    "id": "NT-01-002",
+                    "priority": "MUST",
+                    "kind": "protocol",
+                    "statement": "NT-01-002 MUST be exported without a note",
+                },
+            ],
+        }
+    ],
+}
+
+
+class TestNoteIsExported:
+    """``note`` must reach the LLM export, not just the YAML.
+
+    ``AGENTS.md`` tells agents to load specs through this exporter and never to
+    read raw ``specs/*.yaml``, so a field the exporter drops is a field no agent
+    ever sees. ``note`` is where a requirement records which side an obligation
+    binds and what a receiver must *not* do about it — exactly the guidance whose
+    absence causes a requirement to be implemented at the wrong layer. It was
+    silently unmapped for 52 requirements across the corpus (ISSUE-2824 review).
+    """
+
+    @pytest.fixture
+    def note_registry(self, tmp_path):
+        (tmp_path / "nt.yaml").write_text(yaml.dump(NOTE_YAML))
+        return load_registry(tmp_path)
+
+    def _by_id(self, note_registry):
+        payload = json.loads(to_llm_json(note_registry))
+        return {r["id"]: r for r in payload["requirements"]}
+
+    def test_note_is_present_when_set(self, note_registry):
+        recs = self._by_id(note_registry)
+        assert recs["NT-01-001"]["note"] == (
+            "This binds the sender only; a receiver MUST NOT enforce it."
+        )
+
+    def test_note_is_absent_when_unset(self, note_registry):
+        """Omitted rather than exported as null, matching `rationale`."""
+        assert "note" not in self._by_id(note_registry)["NT-01-002"]
+
+    def test_every_schema_field_is_exported_or_deliberately_dropped(self):
+        """Catch the next unmapped field at authoring time, not years later.
+
+        ``note`` went unexported because nothing compared the schema's fields
+        against the exporter's output. The dropped set is explicit so adding a
+        field to ``StatementSpec`` forces a decision here.
+        """
+        from vultron.metadata.specs.schema import StatementSpec
+
+        # Deliberately not exported, each for a stated reason.
+        dropped = {
+            # Authoring-time bookkeeping, not requirement content.
+            "deprecated",
+            "superseded_by",
+            "tracking_issue",
+            "verification_debt",
+            "lint_suppress",
+            "stories",
+            "references",
+            "exceptions",
+            "trigger",
+        }
+        exported = {
+            "id",
+            "topic",
+            "group",
+            "group_title",
+            "type",
+            "priority",
+            "statement",
+            "kind",
+            "scope",
+            "tags",
+            "rationale",
+            "note",
+            "testable",
+            "relationships",
+            "adr",
+            "verification",
+        }
+
+        declared = set(StatementSpec.model_fields)
+        unaccounted = declared - exported - dropped
+        assert not unaccounted, (
+            "StatementSpec fields neither exported nor listed as deliberately "
+            f"dropped: {sorted(unaccounted)}. Add to the export in "
+            "vultron/metadata/specs/llm_export.py, or to `dropped` here with a "
+            "reason."
+        )

@@ -1,0 +1,2680 @@
+id: EMB
+title: Embargo Management Behavioral Requirements
+description: >-
+  Event-Condition-Action behavioral requirements for Embargo Management (EM). Each group
+  is triggered by either a received EM message or a local EM state transition, and
+  specifies typed preconditions, ordered steps, and postconditions that implementations
+  must satisfy.
+tags:
+- behavioral
+- state-machine
+- protocol
+scope:
+- prototype
+- production
+groups:
+- id: EMB-01
+  title: Receive EP (Embargo Proposed)
+  description: >-
+    Behaviors triggered when a participant receives an EP (Embargo Proposed) message,
+    transitioning EM state to Proposed and acknowledging receipt. Written in the voice of the
+    formal protocol, in which every Participant is a peer. In the CASE_MANAGER topology
+    (PCR-08-001) a participant addresses its proposal to the CASE_MANAGER alone, so the
+    Participant receiving EP is the CASE_MANAGER on receipt; every other participant reaches
+    the same EM state through ledger replay, and is asked for its answer by the Invite the
+    CASE_MANAGER relays to it. "Emit EK" is discharged by the CASE_MANAGER's commit and
+    announcement of the received activity; no EK message exists (EP-09-009). See EP-09 and
+    ADR-0113 as amended.
+  trigger:
+    type: message_received
+    value: EP
+  specs:
+  - id: EMB-01-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM None (q^em ∈ N) with CS not yet public/exploit/attack
+      (q^cs ∈ ···pxa) receiving EP MUST transition their EM state to Proposed
+      (q^em N → P) and emit EK to acknowledge receipt.
+    rationale: >-
+      EP is the EM message that initiates embargo negotiation. When no embargo
+      exists and the case is still pre-public, the receiver transitions to
+      Proposed to signal they are evaluating the proposal.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EP when EM is NONE
+      and CS matches ...pxa transitions EM to PROPOSED and queues EK to the sender.
+    testable: true
+    preconditions:
+    - em_state:
+        - NONE
+      cs_pattern: "...pxa"
+      description: EM state is None; CS matches pattern ...pxa
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition EM state from NONE to PROPOSED
+      expected: Receiver EM state is PROPOSED
+    - order: 2
+      actor: receiver
+      action: Emit EK to acknowledge receipt of EP
+      expected: EK queued for sender
+    postconditions:
+    - description: Receiver EM state is PROPOSED; EK emitted to sender
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: MSM-02-001
+      note: 'EP shorthand wire-type mapping'
+
+    stories:
+    - story_2022_014
+    - story_2022_023
+  - id: EMB-01-002
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      A Participant MUST NOT accept a new embargo proposal (process EP) when information about the
+      vulnerability is public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or attacks have
+      been observed (q^cs ∈ ·····A). The Participant MUST respond with ER to reject the proposal.
+      The ER duty binds only the proposal's addressee: a receiver the proposal is not
+      addressed to (HP-01-012) holds an unaddressed copy, refuses it (HP-01-005) and answers
+      nothing (ADR-0118); `cc` addresses nobody (ADR-0109). The ER names the Invite by id
+      and needs no terms, so an Invite that
+      names its terms by URI only is answered too (ADR-0123). A re-delivery of an Invite already
+      answered with ER is a duplicate: it is skipped and queues no second ER (HP-01-003). An ER
+      recorded as sent but no longer pending is queued again under its own id, so a failed queue
+      write does not lose it (ID-04-005).
+    rationale: >-
+      Embargo negotiation is not viable once public disclosure has occurred.
+      VP-06-001 and VP-11-001 prohibit new embargo negotiations in these states.
+      ER signals the rejection to the proposer so they can update their own EM
+      state.
+    testable: true
+    preconditions:
+    - cs_pattern: "...P.."
+      description: CS matches pattern ...P..
+    - cs_pattern: "....X."
+      description: CS matches pattern ....X.
+    - cs_pattern: ".....A"
+      description: CS matches pattern .....A
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit ER to reject the embargo proposal
+      expected: >-
+        ER queued for sender; receiver EM state returns to NONE if previously
+        PROPOSED
+    postconditions:
+    - description: ER emitted; no EM state transition to PROPOSED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-06-001
+      note: MUST NOT propose or accept embargo when public/exploit/attacks
+    - rel_type: satisfies
+      spec_id: VP-11-001
+      note: >-
+        SHALL NOT negotiate embargoes where vulnerability or exploit is public
+        or attacks occurred
+    - rel_type: satisfies
+      spec_id: MSM-02-001
+      note: 'EP shorthand wire-type mapping'
+
+  - id: EMB-01-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant already in EM Proposed (q^em ∈ P) with CS not yet
+      public/exploit/attack (q^cs ∈ ···pxa) receiving a second or counter EP
+      MUST emit EK to acknowledge and MAY evaluate the counter-proposal terms
+      without an additional state transition.
+    rationale: >-
+      Multiple EP messages can arrive during negotiation. When already in
+      Proposed, no additional state transition is needed. The receiver evaluates
+      the counter-proposal and may accept, counter, or reject via EA, EV, or ER.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving a counter EP while
+      already in EM PROPOSED keeps the state at PROPOSED and emits EK without
+      triggering an additional N→P transition.
+    testable: true
+    preconditions:
+    - em_state:
+        - PROPOSED
+      cs_pattern: "...pxa"
+      description: EM state is Proposed; CS matches pattern ...pxa
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit EK to acknowledge receipt of counter-proposal EP
+      expected: EK queued for sender; EM state remains PROPOSED
+    postconditions:
+    - description: >-
+        EK emitted; EM state remains PROPOSED; counter-proposal terms available
+        for evaluation
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: MSM-02-001
+      note: 'EP shorthand wire-type mapping'
+
+    stories:
+    - story_2022_014
+  - id: EMB-01-004
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: >-
+      A Participant in RM Invalid (q^rm ∈ I) SHOULD NOT propose or accept an
+      embargo when receiving EP.
+    rationale: >-
+      VP-13-003 discourages starting embargo management from an Invalid RM state.
+      The report has been assessed as invalid; committing to embargo terms under
+      those conditions is premature and likely to be wasted effort.
+    testable: true
+    preconditions:
+    - rm_state:
+        - INVALID
+      description: Participant is in RM Invalid
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-13-003
+      note: >-
+        SHOULD NOT begin EM with a proposal from a Participant in RM Invalid
+    - rel_type: satisfies
+      spec_id: MSM-02-001
+      note: 'EP shorthand wire-type mapping'
+
+  - id: EMB-01-005
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: >-
+      A Participant in an inactive RM state (q^rm ∈ {D, C}) SHOULD NOT begin
+      embargo management by accepting an incoming EP.
+    rationale: >-
+      VP-13-002 discourages starting embargo management in inactive RM states.
+      Deferred or Closed cases indicate the participant has deprioritized or
+      completed their engagement; starting embargo negotiation in these states
+      is unlikely to lead to productive coordinated disclosure.
+    testable: true
+    preconditions:
+    - rm_state:
+        - DEFERRED
+        - CLOSED
+      description: Participant is in RM Deferred/Closed
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-13-002
+      note: SHOULD NOT begin EM in an inactive RM state
+    - rel_type: satisfies
+      spec_id: MSM-02-001
+      note: 'EP shorthand wire-type mapping'
+
+- id: EMB-02
+  title: Receive EA (Embargo Accepted)
+  description: Behaviors triggered when a participant receives an EA (Embargo Accepted) message, transitioning EM state to Active and acknowledging receipt.
+  trigger:
+    type: message_received
+    value: EA
+  specs:
+  - id: EMB-02-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Proposed (q^em ∈ P) with CS not yet public/exploit/attack
+      (q^cs ∈ ···pxa) receiving EA MUST transition their EM state to Active
+      (q^em P → A) when the accepted proposal was the last one open, MUST move
+      to Revise (q^em P → R) while another proposal stays open (EMB-18-005),
+      and MUST emit EK to acknowledge receipt.
+    rationale: >-
+      EA is the message that moves a negotiated embargo from Proposed to Active.
+      The receiver records that the embargo is now in effect. Any other open
+      proposal stays open as a revision of it (ADR-0130).
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EA in EM PROPOSED
+      with CS matching ...pxa and no other open proposal transitions EM to ACTIVE
+      and queues EK to the sender; the multi-proposal move is covered by
+      `test/core/states/test_em_transition_table.py` (EMB-18-005).
+    testable: true
+    preconditions:
+    - em_state:
+        - PROPOSED
+      cs_pattern: "...pxa"
+      description: EM state is Proposed; CS matches pattern ...pxa
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition EM state from PROPOSED to ACTIVE
+      expected: Receiver EM state is ACTIVE
+    - order: 2
+      actor: receiver
+      action: Emit EK to acknowledge receipt of EA
+      expected: EK queued for sender
+    postconditions:
+    - description: >-
+        Receiver EM state is ACTIVE, or REVISE while another proposal is open;
+        EK emitted to sender
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-05-003
+      note: An embargo SHALL begin at the moment it is accepted
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: MSM-02-002
+      note: 'EA shorthand wire-type mapping'
+
+    stories:
+    - story_2022_014
+    - story_2022_023
+  - id: EMB-02-002
+    priority: MUST_NOT
+    kind: protocol
+    verification: >-
+      `test/core/use_cases/received/test_embargo_owner_decision.py::test_an_activation_with_pxa_set_is_refused_uncommitted`
+      and
+      `test/core/use_cases/received/test_embargo_relay_replay.py::test_a_case_manager_with_pxa_set_rejects_a_participants_acceptance`
+      confirm an activation on a public case (P set) is refused before commit, and that
+      the CASE_MANAGER answers a participant's acceptance with ER; inspection confirms
+      both refusals test all three bits (`pxa_is_embargo_eligible` in the owner's
+      decision, `PxaBarsEmbargoNode` on a participant's acceptance), so X or A set
+      refuses the activation as P does.
+    statement: >-
+      A Participant MUST NOT process EA to transition EM to Active when the case is already
+      public (q^cs ∈ ···P··), exploit is public (q^cs ∈ ····X·), or attacks have been
+      observed (q^cs ∈ ·····A). The Participant MUST instead emit ER to signal the embargo
+      is not viable. Where the case's EM is moved only by the case owner's
+      `Accept(EmbargoEvent, target=Case)` (MSM-07-008), the CASE_MANAGER refuses that
+      activation before committing it to the case ledger, and sends no ER for it.
+    rationale: >-
+      VP-06-001 prohibits accepting embargoes once public disclosure has occurred.
+      In the CASE_MANAGER topology an ER is a `Reject(Invite(EmbargoEvent))`,
+      which records its sender's own consent (MSM-07-004, ADR-0122); sent by the
+      CASE_MANAGER in answer to the owner's activation it would record the
+      manager's refusal, not the owner's, so the activation is refused instead.
+      VP-13-004 adds that EM SHOULD NOT proceed from Proposed to Active when RM
+      is Invalid or Closed, but the public/exploit/attack constraint is absolute.
+    testable: true
+    preconditions:
+    - cs_pattern: "...P.."
+      description: CS matches pattern ...P..
+    - cs_pattern: "....X."
+      description: CS matches pattern ....X.
+    - cs_pattern: ".....A"
+      description: CS matches pattern .....A
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit ER to reject the acceptance (embargo not viable)
+      expected: ER queued for sender; EM state transitions toward NONE
+    postconditions:
+    - description: ER emitted; EM state not transitioned to ACTIVE
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-06-001
+      note: MUST NOT accept a new embargo when public/exploit/attacks
+    - rel_type: satisfies
+      spec_id: VP-11-001
+      note: SHALL NOT negotiate embargoes where vulnerability or exploit is public
+    - rel_type: satisfies
+      spec_id: MSM-02-002
+      note: 'EA shorthand wire-type mapping'
+
+  - id: EMB-02-003
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: >-
+      A Participant in RM Invalid or Closed (q^rm ∈ {I, C}) SHOULD NOT allow
+      EM to proceed from Proposed to Active upon receiving EA.
+    rationale: >-
+      VP-13-004 discourages proceeding to Active when the report has been
+      assessed as invalid or closed. The embargo would apply to a case the
+      participant is not actively working.
+    testable: true
+    preconditions:
+    - rm_state:
+        - INVALID
+        - CLOSED
+      description: Participant is in RM Invalid/Closed
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-13-004
+      note: >-
+        SHOULD NOT proceed from EM Proposed to EM Accepted when RM is Invalid
+        or Closed
+    - rel_type: satisfies
+      spec_id: MSM-02-002
+      note: 'EA shorthand wire-type mapping'
+
+- id: EMB-03
+  title: Receive EV (Embargo Revision Proposed)
+  description: >-
+    Behaviors triggered when a participant receives an EV (Embargo Revision Proposed)
+    message while an embargo is active, transitioning EM state to Revise and acknowledging
+    receipt. Written in the voice of the formal protocol, in which every Participant is a
+    peer. In the CASE_MANAGER topology (PCR-08-001) a participant addresses its proposal to
+    the CASE_MANAGER alone, so the Participant receiving EV is the CASE_MANAGER on receipt;
+    every other participant reaches the same EM state through ledger replay, and is asked
+    for its answer by the Invite the CASE_MANAGER relays to it. "Emit EK" is discharged by
+    the CASE_MANAGER's commit and announcement of the received activity; no EK message exists
+    (EP-09-009). See EP-09 and ADR-0113.
+  trigger:
+    type: message_received
+    value: EV
+  specs:
+  - id: EMB-03-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Active (q^em ∈ A) with CS not yet public/exploit/attack
+      (q^cs ∈ ···pxa) receiving EV MUST transition their EM state to Revise
+      (q^em A → R). "Emit EK" is discharged by the CASE_MANAGER's commit of the
+      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      is emitted (EP-09-009, MSM-02-009).
+    rationale: >-
+      EV signals a proposal to revise an active embargo's terms. The receiver
+      enters Revise state to indicate a pending revision. The original embargo
+      remains in force during revision per VP-04-005.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EV in EM ACTIVE
+      with CS matching ...pxa transitions EM to REVISE, and that the CASE_MANAGER's ledger
+      commit and announcement of the received EV discharge EK with no EK message queued.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+      cs_pattern: "...pxa"
+      description: EM state is Active; CS matches pattern ...pxa
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition EM state from ACTIVE to REVISE
+      expected: Receiver EM state is REVISE
+    - order: 2
+      actor: receiver
+      action: CASE_MANAGER commits the received EV and announces the ledger entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
+    postconditions:
+    - description: >-
+        Receiver EM state is REVISE; original embargo remains in force; EK
+        discharged by the ledger commit
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-04-005
+      note: Once accepted, revisions MAY be proposed
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: MSM-02-003
+      note: 'EV shorthand wire-type mapping'
+
+    stories:
+    - story_2022_014
+  - id: EMB-03-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant already in EM Revise (q^em ∈ R) with CS not yet
+      public/exploit/attack (q^cs ∈ ···pxa) receiving a counter EV
+      (counter-revision) MUST emit EK to acknowledge without an additional
+      state transition.
+    rationale: >-
+      Multiple revision proposals can arrive. When already in Revise, no further
+      state transition is needed; the receiver evaluates the counter-revision
+      and responds with EJ or EC.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving a counter EV while
+      already in EM REVISE keeps the state at REVISE and emits EK without
+      triggering an additional state transition.
+    testable: true
+    preconditions:
+    - em_state:
+        - REVISE
+      cs_pattern: "...pxa"
+      description: EM state is Revise; CS matches pattern ...pxa
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit EK to acknowledge counter-revision EV
+      expected: EK queued for sender; EM state remains REVISE
+    postconditions:
+    - description: EK emitted; EM state remains REVISE
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: MSM-02-003
+      note: 'EV shorthand wire-type mapping'
+
+    stories:
+    - story_2022_014
+  - id: EMB-03-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant that is neither the case owner nor the CASE_MANAGER, in EM
+      Active or Revise (q^em ∈ {A, R}) with CS in a public/exploit/attack state
+      (q^cs ∉ ···pxa), receiving EV MUST answer it with ER to the CASE_MANAGER, as
+      EMB-01-002 requires for a proposal, and MUST NOT adopt the proposal, emit ET
+      or change its own EM state. Termination is initiated only by the case owner,
+      or by the CASE_MANAGER when delegated (EP-09-003, EP-09-008, CM-24, ADR-0113,
+      ADR-0118), and it is the public, exploit or attack fact that causes it, never
+      a revision proposal.
+    rationale: >-
+      Revision negotiation is not viable once public disclosure has occurred, so
+      the participant refuses the revision. A proposal is at most the occasion on
+      which a participant notices the case is public; making it the cause would tie
+      termination to someone proposing terms. Ending the embargo is the case
+      owner's decision (or the delegated CASE_MANAGER's), and only the
+      CASE_MANAGER writes shared EM state (EP-09-008, ADR-0113); a participant
+      answers only the Invite addressed to it (EP-09-003). VP-11-001 and VP-11-002
+      are met by the owner's or CASE_MANAGER's termination, which in the
+      CASE_MANAGER topology is the CS public-event cascade, not by each
+      participant emitting ET (ADR-0118).
+    verification: >-
+      A per-actor-store test in
+      `test/core/use_cases/received/test_embargo_relay_replay.py` delivers a relayed
+      revision Invite to a participant whose case is P/X/A and asserts one ER to the
+      CASE_MANAGER, no ET, and no EM state change on the participant. On the
+      CASE_MANAGER side,
+      `test/core/behaviors/status/test_add_case_status_bt.py::TestThreatTerminationBranchNode::test_triggers_teardown_on_threat_pxa_states`
+      shows a recorded P, X or A state tearing down the active embargo, and
+      `test/core/use_cases/received/test_embargo_revision_relay.py::test_a_revision_of_a_public_case_is_refused_with_er`
+      shows a revision proposal on a public case refused with ER and not adopted.
+      `test_a_racing_revision_is_refused_and_the_cascade_ends_the_embargo`, in
+      the same file, covers the race: a revision that reaches the CASE_MANAGER
+      at `ACTIVE` or `REVISE` with P, X or A already recorded is refused
+      (EP-09-001) and ends nothing, and the embargo ends only when the cascade
+      runs, with the threat signal as its cause.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      cs_pattern: "...P.."
+      description: EM state is Active or Revise; CS matches pattern ...P..
+    - em_state:
+        - ACTIVE
+        - REVISE
+      cs_pattern: "....X."
+      description: EM state is Active or Revise; CS matches pattern ....X.
+    - em_state:
+        - ACTIVE
+        - REVISE
+      cs_pattern: ".....A"
+      description: EM state is Active or Revise; CS matches pattern .....A
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit ER to the CASE_MANAGER to reject the revision
+      expected: ER queued for the CASE_MANAGER; no ET is emitted; the receiver's EM state is unchanged
+    postconditions:
+    - description: >-
+        ER queued for the CASE_MANAGER; no revision proposal adopted; the receiver
+        emits no ET and its EM state is unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-002
+      note: SHALL terminate embargo when public/exploit
+    - rel_type: satisfies
+      spec_id: MSM-02-003
+      note: 'EV shorthand wire-type mapping'
+
+    stories:
+    - story_2022_023
+    - story_2022_080
+- id: EMB-04
+  title: Receive EJ (Embargo Revision Rejected)
+  description: Behaviors triggered when a participant receives an EJ (Embargo Revision Rejected) message, reverting EM state from Revise to Active and acknowledging receipt.
+  trigger:
+    type: message_received
+    value: EJ
+  specs:
+  - id: EMB-04-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
+      (q^cs ∈ ···pxa) receiving EJ MUST transition their EM state back to Active
+      (q^em R → A) when the rejected revision was the last proposal open, and
+      MUST remain in Revise (q^em R → R) while another proposal is open
+      (EMB-18-005). "Emit EK" is discharged by the CASE_MANAGER's commit of the
+      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      is emitted (EP-09-009, MSM-02-009).
+    rationale: >-
+      EJ signals that a revision proposal has been rejected and the embargo
+      reverts to its previous Active terms. The receiver restores the
+      pre-revision state.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
+      with CS matching ...pxa and no other open proposal transitions EM back to
+      ACTIVE, and that the CASE_MANAGER's
+      ledger commit and announcement of the received EJ discharge EK with no EK message
+      queued.
+    testable: true
+    preconditions:
+    - em_state:
+        - REVISE
+      cs_pattern: "...pxa"
+      description: EM state is Revise; CS matches pattern ...pxa
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition EM state from REVISE back to ACTIVE
+      expected: Receiver EM state is ACTIVE
+    - order: 2
+      actor: receiver
+      action: CASE_MANAGER commits the received EJ and announces the ledger entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
+    postconditions:
+    - description: >-
+        Receiver EM state is ACTIVE (revision rejected), or REVISE while another
+        proposal is open; EK discharged by the ledger commit
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: MSM-02-004
+      note: 'EJ shorthand wire-type mapping'
+
+    stories:
+    - story_2022_014
+  - id: EMB-04-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Revise (q^em ∈ R) with CS in a public/exploit/attack
+      state (q^cs ∉ ···pxa) receiving EJ MUST emit ET to terminate the embargo
+      immediately rather than reverting to Active.
+    rationale: >-
+      Reverting to Active is not viable once public disclosure has occurred.
+      VP-11-002 requires termination in these states. "Rather than reverting"
+      describes where the act ends: EM ends EXITED, never back in Active. Inside
+      the act, the CASE_MANAGER records the rejection as decided (the revision
+      REJECTED) and then terminates the embargo, as two entries a replica copies
+      in order (MSM-07-009, CM-23-016).
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
+      with a public/exploit/attack CS causes ET to be emitted and EM to transition
+      to EXITED rather than reverting to ACTIVE.
+    testable: true
+    preconditions:
+    - em_state:
+        - REVISE
+      cs_pattern: "...P.."
+      description: EM state is Revise; CS matches pattern ...P..
+    - em_state:
+        - REVISE
+      cs_pattern: "....X."
+      description: EM state is Revise; CS matches pattern ....X.
+    - em_state:
+        - REVISE
+      cs_pattern: ".....A"
+      description: EM state is Revise; CS matches pattern .....A
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit ET to terminate the embargo immediately
+      expected: ET queued for participants; EM transitions to EXITED
+    postconditions:
+    - description: ET emitted; EM state is EXITED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-002
+      note: SHALL terminate embargo when public/exploit
+    - rel_type: satisfies
+      spec_id: MSM-02-004
+      note: 'EJ shorthand wire-type mapping'
+
+    stories:
+    - story_2022_023
+    - story_2022_080
+- id: EMB-05
+  title: Receive EC (Embargo Revision Accepted)
+  description: Behaviors triggered when a participant receives an EC (Embargo Revision Accepted) message, advancing EM state from Revise back to Active with updated terms and acknowledging receipt.
+  trigger:
+    type: message_received
+    value: EC
+  specs:
+  - id: EMB-05-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Revise (q^em ∈ R) with CS not yet public/exploit/attack
+      (q^cs ∈ ···pxa) receiving EC MUST transition their EM state back to Active
+      (q^em R → A) with the revised terms when the accepted revision was the
+      last proposal open, and MUST remain in Revise (q^em R → R) under the
+      revised terms while another proposal is open (EMB-18-005). "Emit EK" is discharged by the
+      CASE_MANAGER's commit of the case owner's
+      `Accept(EmbargoEvent, target=Case)`, fanned out as
+      `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
+    rationale: >-
+      EC signals that a revision proposal has been accepted. The embargo returns
+      to Active state under the new terms agreed by the revision.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
+      with CS matching ...pxa and no other open proposal transitions EM back to
+      ACTIVE with revised terms, and that the
+      CASE_MANAGER's commit of the case owner's
+      `Accept(EmbargoEvent, target=Case)` and its announcement
+      discharge EK with no EK message queued.
+    testable: true
+    preconditions:
+    - em_state:
+        - REVISE
+      cs_pattern: "...pxa"
+      description: EM state is Revise; CS matches pattern ...pxa
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition EM state from REVISE to ACTIVE with revised embargo terms
+      expected: Receiver EM state is ACTIVE; revised terms recorded
+    - order: 2
+      actor: receiver
+      action: >-
+        CASE_MANAGER commits the case owner's `Accept(EmbargoEvent, target=Case)` and announces the ledger entry
+        (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
+    postconditions:
+    - description: >-
+        Receiver EM state is ACTIVE with new terms, or REVISE while another
+        proposal is open; EK discharged by the ledger commit
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-04-005
+      note: Once accepted, revisions MAY be accepted
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: MSM-02-005
+      note: 'EC shorthand wire-type mapping'
+
+    stories:
+    - story_2022_014
+  - id: EMB-05-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Revise (q^em ∈ R) with CS in a public/exploit/attack
+      state (q^cs ∉ ···pxa) receiving EC MUST emit ET to terminate the embargo
+      rather than accepting the revision.
+    rationale: >-
+      Accepting a revision is not viable once public disclosure has occurred.
+      VP-11-002 requires termination in these states.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
+      with a public/exploit/attack CS causes ET to be emitted and EM to transition
+      to EXITED rather than accepting the revision.
+    testable: true
+    preconditions:
+    - em_state:
+        - REVISE
+      cs_pattern: "...P.."
+      description: EM state is Revise; CS matches pattern ...P..
+    - em_state:
+        - REVISE
+      cs_pattern: "....X."
+      description: EM state is Revise; CS matches pattern ....X.
+    - em_state:
+        - REVISE
+      cs_pattern: ".....A"
+      description: EM state is Revise; CS matches pattern .....A
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit ET to terminate the embargo immediately
+      expected: ET queued for participants; EM transitions to EXITED
+    postconditions:
+    - description: ET emitted; EM state is EXITED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-002
+      note: SHALL terminate embargo when public/exploit
+    - rel_type: satisfies
+      spec_id: MSM-02-005
+      note: 'EC shorthand wire-type mapping'
+
+    stories:
+    - story_2022_023
+    - story_2022_080
+- id: EMB-06
+  title: Receive ER (Embargo Rejected)
+  description: Behaviors triggered when a participant receives an ER (Embargo Rejected) message, transitioning EM state from Proposed to None and acknowledging receipt.
+  trigger:
+    type: message_received
+    value: ER
+  specs:
+  - id: EMB-06-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Proposed (q^em ∈ P) receiving ER MUST transition their
+      EM state back to None (q^em P → N) when the rejected proposal was the last
+      one open, MUST remain in Proposed (q^em P → P) while another proposal is
+      open (EMB-18-005), and MUST emit EK to acknowledge receipt.
+    rationale: >-
+      ER signals that a proposed embargo has been rejected. When it was the last
+      open proposal, the case returns to None (no embargo in effect); another
+      open proposal keeps it in Proposed (ADR-0130). The EK acknowledges the
+      rejection.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ER in EM PROPOSED
+      with no other open proposal transitions EM to NONE and queues EK to the
+      sender; `test_a_rejection_returns_em_to_none_only_with_the_last_proposal`
+      in `test/core/states/test_em_transition_table.py` covers the
+      multi-proposal case.
+    testable: true
+    preconditions:
+    - em_state:
+        - PROPOSED
+      description: EM state is Proposed
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition EM state from PROPOSED to NONE
+      expected: Receiver EM state is NONE
+    - order: 2
+      actor: receiver
+      action: Emit EK to acknowledge receipt of ER
+      expected: EK queued for sender
+    postconditions:
+    - description: >-
+        Receiver EM state is NONE (proposal rejected), or PROPOSED while another
+        proposal is open; EK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: VP-05-017
+      note: Participants MAY reject proposed embargo terms for any reason
+    - rel_type: satisfies
+      spec_id: MSM-02-006
+      note: 'ER shorthand wire-type mapping'
+
+    stories:
+    - story_2022_014
+- id: EMB-07
+  title: Receive ET (Embargo Terminated)
+  description: Behaviors triggered when a participant receives an ET (Embargo Terminated) message, transitioning EM state to Terminated and acknowledging receipt.
+  trigger:
+    type: message_received
+    value: ET
+  specs:
+  - id: EMB-07-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Active (q^em ∈ A) receiving ET MUST transition their
+      EM state to Exited (q^em A → X) and emit EK to acknowledge receipt.
+    rationale: >-
+      ET is the message that terminates an active embargo. The receiver records
+      that the embargo has ended. ET has immediate effect regardless of other
+      pending messages.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ET in EM ACTIVE
+      transitions EM to EXITED and queues EK to the sender.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+      description: EM state is Active
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition EM state from ACTIVE to EXITED
+      expected: Receiver EM state is EXITED
+    - order: 2
+      actor: receiver
+      action: Emit EK to acknowledge receipt of ET
+      expected: EK queued for sender
+    postconditions:
+    - description: Receiver EM state is EXITED; EK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: MSM-02-007
+      note: 'ET shorthand wire-type mapping'
+
+    stories:
+    - story_2022_014
+    - story_2022_023
+  - id: EMB-07-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Revise (q^em ∈ R) receiving ET MUST transition their
+      EM state to Exited (q^em R → X) and emit EK to acknowledge receipt.
+    rationale: >-
+      ET terminates the embargo regardless of whether a revision is pending.
+      The revision proposal is abandoned upon termination.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ET in EM REVISE
+      transitions EM to EXITED, abandons any pending revision, and queues EK to
+      the sender.
+    testable: true
+    preconditions:
+    - em_state:
+        - REVISE
+      description: EM state is Revise
+    steps:
+    - order: 1
+      actor: receiver
+      action: Transition EM state from REVISE to EXITED
+      expected: Receiver EM state is EXITED
+    - order: 2
+      actor: receiver
+      action: Emit EK to acknowledge receipt of ET
+      expected: EK queued for sender
+    postconditions:
+    - description: >-
+        Receiver EM state is EXITED; pending revision abandoned; EK emitted
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: MSM-02-007
+      note: 'ET shorthand wire-type mapping'
+
+    stories:
+    - story_2022_014
+    - story_2022_023
+  - id: EMB-07-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant already in EM Exited (q^em ∈ X) receiving ET MUST emit EK
+      without any state transition.
+    rationale: >-
+      Exited is already the terminal state. The EK acknowledges the duplicate
+      termination message; no additional transition is needed.
+    verification: >-
+      Integration tests in `test/demo/` confirm that receiving ET while already in
+      EM EXITED emits EK to the sender without changing EM state.
+    testable: true
+    preconditions:
+    - em_state:
+        - EXITED
+      description: EM state is Exited
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit EK to acknowledge receipt of ET (no state change)
+      expected: EK queued for sender; EM state remains EXITED
+    postconditions:
+    - description: EK emitted; EM state remains EXITED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: SHOULD send EK in acknowledgment of any E* message except EK itself
+    - rel_type: satisfies
+      spec_id: MSM-02-007
+      note: 'ET shorthand wire-type mapping'
+
+    stories:
+    - story_2022_088
+- id: EMB-08
+  title: Receive EE (Embargo Error)
+  description: Behaviors triggered when a participant receives an EE (Embargo Management Error) signal, which has no dedicated semantic dispatch value and is handled outside the standard AS2 pattern-matching pipeline.
+  trigger:
+    type: message_received
+    value: EE
+  specs:
+  - id: EMB-08-001
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A Participant receiving EE SHOULD emit EK to acknowledge receipt and SHOULD
+      emit GI to inquire about the nature of the error.
+    rationale: >-
+      EE signals a protocol error in the EM process. Acknowledging with EK and
+      following up with GI allows the sender to explain the error and enables
+      recovery. EE does not trigger an EM state transition.
+    testable: true
+    steps:
+    - order: 1
+      actor: receiver
+      action: Emit EK to acknowledge receipt of EE
+      expected: EK queued for sender
+    - order: 2
+      actor: receiver
+      action: Emit GI to inquire about the nature of the error
+      expected: GI queued for sender
+    postconditions:
+    - description: EK and GI emitted; EM state unchanged
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-005
+      note: >-
+        SHOULD acknowledge (EK) and inquire (GI) about the nature of any error
+        reported by EE
+    - rel_type: satisfies
+      spec_id: MSM-02-008
+      note: 'EE shorthand wire-type mapping'
+
+- id: EMB-09
+  title: Receive EK (Embargo Acknowledgment)
+  description: Behaviors triggered when a participant receives an EK (Embargo Management Acknowledgment) passthrough signal, which has no dedicated semantic dispatch value and requires no state transition.
+  trigger:
+    type: message_received
+    value: EK
+  specs:
+  - id: EMB-09-001
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A Participant receiving EK MAY process it as a passthrough acknowledgment
+      with no state transition and no required response.
+    rationale: >-
+      EK is a pure acknowledgment message. It confirms the sender received a
+      prior E* message. No state change or response is required from the
+      receiver.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-11-004
+      note: EK is the acknowledgment; no acknowledgment of acknowledgment required
+    - rel_type: satisfies
+      spec_id: MSM-02-009
+      note: 'EK shorthand wire-type mapping'
+
+- id: EMB-10
+  title: Enter EM Proposed
+  trigger:
+    type: state_entered
+    value: EM.PROPOSED
+  specs:
+  - id: EMB-10-001
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A Participant entering EM Proposed MAY evaluate the proposed terms and
+      respond with EA (accept), EV (counter-propose a revision), or ER (reject).
+    rationale: >-
+      EM Proposed marks that embargo negotiation is underway. The participant
+      must evaluate the proposal and eventually accept, counter, or reject to
+      move the EM process forward.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - em_state:
+        - PROPOSED
+      description: EM state is Proposed
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-04-004
+      note: Once proposed, an embargo MAY be accepted or rejected
+    - rel_type: satisfies
+      spec_id: VP-06-003
+      note: Receivers SHOULD accept any embargo proposed by Reporters
+    - rel_type: satisfies
+      spec_id: VP-06-010
+      note: Participants MAY accept or reject any proposed embargo as they see fit
+
+  - id: EMB-10-002
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: >-
+      A Participant in RM Invalid or Deferred or Closed (q^rm ∈ {I, D, C})
+      SHOULD NOT begin or continue embargo negotiations while in those inactive
+      RM states.
+    rationale: >-
+      VP-13-002 and VP-13-003 discourage starting EM in inactive RM states.
+      An embargo proposed while a report is invalid or deferred is unlikely to
+      result in productive coordination.
+    testable: true
+    preconditions:
+    - rm_state:
+        - INVALID
+        - DEFERRED
+        - CLOSED
+      description: Participant is in RM Invalid/Deferred/Closed
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-13-002
+      note: SHOULD NOT begin EM in an inactive RM state
+    - rel_type: satisfies
+      spec_id: VP-13-003
+      note: SHOULD NOT begin EM with a proposal from a Participant in RM Invalid
+
+- id: EMB-11
+  title: Enter EM Active
+  trigger:
+    type: state_entered
+    value: EM.ACTIVE
+  specs:
+  - id: EMB-11-001
+    priority: SHOULD_NOT
+    kind: protocol
+    statement: >-
+      A Participant in EM Active SHOULD NOT share the vulnerability report with
+      a newly invited Participant until that Participant has accepted the existing
+      embargo terms.
+    rationale: >-
+      VP-08-006 prohibits sharing the vulnerability report with new Participants
+      who have not yet accepted an existing embargo. Sharing before acceptance
+      undermines the embargo's confidentiality guarantees.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+      description: EM state is Active
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-08-006
+      note: >-
+        SHOULD NOT share vulnerability report with newly invited Participant
+        unless they accepted the embargo
+
+  - id: EMB-11-002
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A Participant entering EM Active SHOULD maintain the embargo by not
+      publishing information about the vulnerability until the embargo is
+      terminated, whether on reaching its end time or early. An embargo whose
+      end time has passed is ended by the CASE_MANAGER with the reason
+      `END_TIME_REACHED` (EMB-13-003); until that termination reaches a
+      Participant, its end time still bounds what it withholds.
+    rationale: >-
+      VP-05-014 specifies that Participants SHOULD NOT publish information about
+      the vulnerability when there is an active embargo. Entering Active marks
+      the formal commitment to these terms. Reaching the end time does not end
+      the embargo by itself: the termination is a register change the
+      CASE_MANAGER commits, so every Participant learns of it the same way
+      (ADR-0122).
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - em_state:
+        - ACTIVE
+      description: EM state is Active
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-05-014
+      note: SHOULD NOT publish information when there is an active embargo
+
+  - id: EMB-11-003
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      A Participant in RM Closed or Deferred (q^rm ∈ {C, D}) in EM Active
+      while other Participants remain engaged MUST NOT automatically terminate
+      the embargo due to their own RM closure or deferral.
+    rationale: >-
+      VP-13-009 explicitly requires that a single Participant's closure or
+      deferral SHALL NOT automatically terminate the embargo. The embargo
+      persists as long as other Participants remain engaged and the EM process
+      is Active.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+      rm_state:
+        - CLOSED
+        - DEFERRED
+      description: Participant is in RM Closed/Deferred; EM state is Active
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-13-009
+      note: >-
+        A Participant's closure or deferral SHALL NOT automatically terminate
+        the embargo
+
+  - id: EMB-11-004
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Reports with no further tasks (q^rm ∈ {D, I}) SHOULD be held in Deferred
+      or Invalid while the embargo remains Active or Revise (q^em ∈ {A, R})
+      rather than being closed.
+    rationale: >-
+      VP-13-006 advises keeping the report in a non-terminal RM state until the
+      embargo has exited. Closing early may prematurely signal disengagement
+      from the coordinated timeline.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      rm_state:
+        - DEFERRED
+        - INVALID
+      description: Participant is in RM Deferred/Invalid; EM state is Active or Revise
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-13-006
+      note: SHOULD be held in Deferred or Invalid until embargo exits
+
+  - id: EMB-11-005
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A Participant who intends to change their adherence stance to an active
+      embargo SHOULD communicate that intent clearly to other Participants.
+    rationale: >-
+      VP-13-008 requires communicating changes to embargo adherence. Surprises
+      about who is or is not honoring the embargo undermine coordinated
+      disclosure.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - em_state:
+        - ACTIVE
+      description: EM state is Active
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-13-008
+      note: Changes to adherence intention SHOULD be communicated clearly
+
+- id: EMB-12
+  title: Enter EM Revise
+  trigger:
+    type: state_entered
+    value: EM.REVISE
+  specs:
+  - id: EMB-12-001
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A Participant entering EM Revise MAY evaluate the revision proposal and
+      respond with EC (accept the revision), EJ (reject the revision), or EV
+      (counter-propose a further revision).
+    rationale: >-
+      EM Revise means an active embargo has a pending revision proposal. The
+      participant must evaluate the proposed new terms and either accept, reject,
+      or counter-propose to move the EM process forward.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - em_state:
+        - REVISE
+      description: EM state is Revise
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-04-005
+      note: Once accepted, revisions MAY be proposed, which MAY be accepted or rejected
+
+  - id: EMB-12-002
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      A Participant in RM Closed or Deferred (q^rm ∈ {C, D}) in EM Revise
+      while other Participants remain engaged MUST NOT automatically terminate
+      the embargo due to their own RM state.
+    rationale: >-
+      VP-13-009 applies equally in Revise state. A single Participant's closure
+      or deferral SHALL NOT automatically terminate the embargo. The embargo
+      remains in force even when one Participant's engagement has declined.
+    testable: true
+    preconditions:
+    - em_state:
+        - REVISE
+      rm_state:
+        - CLOSED
+        - DEFERRED
+      description: Participant is in RM Closed/Deferred; EM state is Revise
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-13-009
+      note: >-
+        A Participant's closure or deferral SHALL NOT automatically terminate
+        the embargo
+
+  - id: EMB-12-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A Participant who intends to change their adherence stance while an embargo
+      is in Revise state SHOULD communicate that intent clearly to other
+      Participants.
+    rationale: >-
+      VP-13-008 requires communicating changes to embargo adherence. This applies
+      during revision negotiations as well as during the stable Active state.
+    testable: false
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - em_state:
+        - REVISE
+      description: EM state is Revise
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-13-008
+      note: Changes to adherence intention SHOULD be communicated clearly
+
+- id: EMB-13
+  title: Enter EM Exited
+  trigger:
+    type: state_entered
+    value: EM.EXITED
+  specs:
+  - id: EMB-13-001
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      A Participant entering EM Exited SHOULD treat no participant as bound by an
+      embargo: the embargo register's `ACTIVE` entry is `TERMINATED`, and no
+      consent row is written (MSM-07-006, ADR-0118, ADR-0122).
+    rationale: >-
+      Once the embargo exits, no consent row binds anyone: with no `ACTIVE`
+      register entry nobody is a signatory, and a register with a `TERMINATED`
+      entry accepts no further change (ADR-0122), so no later
+      invitation to the terminated embargo can rebind anyone. The position is
+      derived from the case, so it is not copied onto each participant record.
+    testable: true
+    preconditions:
+    - em_state:
+        - EXITED
+      description: EM state is Exited
+    steps:
+    - order: 1
+      actor: participant
+      action: >-
+        Terminate the register's `ACTIVE` entry; write no Participant consent row
+      expected: No Participant is bound by an embargo; consent rows are as they were
+    postconditions:
+    - description: No active embargo and no signatory; EM state is terminal EXITED
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-04-001
+      note: Accepted embargoes MUST eventually terminate
+
+  - id: EMB-13-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the end time of the embargo in force has passed, the CASE_MANAGER
+      MUST end it with the reason `END_TIME_REACHED`, through one idempotent
+      termination path reached in either of two ways: its own lazy check when
+      it next handles the case, whether for an inbound activity or one of its
+      own triggers, or an outside request to end the embargo at its end time,
+      such as from a Sentinel monitoring embargo timers. A request to end the
+      embargo early made after its end time takes the same path. Both
+      commit the CASE_MANAGER's `Remove(EmbargoEvent)` with `content`
+      `END_TIME_REACHED` and run the full termination cascade. Whichever
+      arrives after the embargo has ended MUST commit nothing and MUST be
+      answered as already done. The outside request is made to the
+      CASE_MANAGER itself; a `Remove` received from the case owner is the
+      owner's own message and is ledgered on receipt like any other. An
+      `END_TIME_REACHED` termination claimed
+      before the embargo's end time MUST be refused, by the CASE_MANAGER
+      before it commits and by a replica that replays it.
+    rationale: >-
+      VP-04-001 requires every accepted embargo to have an end time, so every
+      embargo reaches one; recording the end as a termination keeps EM derived
+      from the register, and lets the content gate stop withholding content
+      under an embargo that has expired. The lazy check needs no scheduler;
+      the outside request lets a deployment end an embargo on time without
+      waiting for the next activity on the case. One path keeps the two from
+      both committing: a register with a `TERMINATED` entry accepts no further
+      change (ADR-0122).
+    verification: >-
+      `test/core/use_cases/triggers/embargo/test_end_time_termination.py`
+      covers the lazy check, the outside request, the order of the two, a
+      race between them, an early request after the end time, and the lazy
+      check composed into the one tree that handles a participant's received
+      activity or a case-scoped trigger (CLP-10-025, ADR-0135), including an
+      accept of a pending revision that cannot extend the expired embargo;
+      `test/core/use_cases/received/test_termination_reason.py`
+      covers the refusal of an early `END_TIME_REACHED` at the CASE_MANAGER and
+      at a replica, and a case owner's `Remove` after the termination.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: An embargo is in force and its end time has passed
+    postconditions:
+    - description: >-
+        The register's ACTIVE entry is TERMINATED with reason
+        END_TIME_REACHED, every open proposal CANCELLED, EM EXITED, and the
+        teardown announced
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: refines
+      spec_id: VP-04-001
+      note: Every accepted embargo has an end time; reaching it ends the embargo
+    - rel_type: depends_on
+      spec_id: EP-08-004
+      note: The termination cancels every open proposal in the same step
+    stories:
+    - story_2022_010
+    - story_2022_026
+
+  - id: EMB-13-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A termination `Remove(EmbargoEvent)` MUST carry what ended the embargo in
+      `content`, exactly `END_TIME_REACHED` or `EARLY`, checked at the parse
+      edge, where anything else MUST be refused; its `summary` carries a
+      human-readable account the protocol does not read. The `TERMINATED`
+      register entry MUST record that reason (the what) and, when known, a
+      structured cause (the why), an object discriminated on `kind` whose
+      details depend on the kind. The kinds are `THREAT_SIGNAL`, with the
+      signals (`P`, `X`, `A`) that ended the embargo, distinct and in that
+      order; `FIX_READY`, with the vendor participants whose readiness made
+      the quorum (VP-09-007); `FIX_DEPLOYED`; and `OTHER`, whose account is
+      the `summary`. Every kind is `EARLY`: an `END_TIME_REACHED` termination
+      MUST NOT record a cause, and an `EARLY` termination with no cause is
+      valid and records the what alone.
+    rationale: >-
+      The what is all a receiver needs to apply a termination and to check it
+      against the end time; the why records the decision. A cause is a kind
+      with its own details, so a new cause (adversary awareness, exploit code
+      held by adversaries, a participant's leak) is a new kind rather than a
+      change to a closed list (ADR-0122).
+    verification: >-
+      `test/core/use_cases/received/test_termination_reason.py` and
+      `test/core/models/test_embargo_termination.py` cover the parse-edge
+      check and the recorded what and why for `THREAT_SIGNAL`;
+      `test/core/use_cases/received/test_termination_cause.py` builds an
+      `EARLY` termination with each of `FIX_READY`, `FIX_DEPLOYED` and
+      `OTHER`, and refuses each on `END_TIME_REACHED`.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-13-001
+      note: Records why the ACTIVE entry was TERMINATED
+    stories:
+    - story_2022_080
+    - story_2022_026
+
+  - id: EMB-13-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A termination `Remove(EmbargoEvent)` whose termination has a cause
+      (EMB-13-004) MUST carry it as `terminationCause`, checked at the parse
+      edge, where an unknown `kind`, a missing or malformed detail, or a cause
+      on an `END_TIME_REACHED` termination MUST be refused. On the case
+      owner's `Remove` to the CASE_MANAGER, a `FIX_READY`, `FIX_DEPLOYED` or
+      `OTHER` cause is the owner's claim, which the CASE_MANAGER MUST record
+      as given; a `THREAT_SIGNAL` cause MUST be refused before it is
+      committed, with a reason directing the sender to a case status update
+      setting `P`, `X` or `A` as the way a threat signal ends an embargo. Only a `Remove`
+      the CASE_MANAGER sends MAY name `THREAT_SIGNAL`. A replica MUST record
+      the cause the termination's ledger entry carries on its `TERMINATED`
+      entry, and MUST NOT work a cause out from its own case state.
+    rationale: >-
+      One ledger entry is one activity, and the termination's entry is the
+      whole `TERMINATE` register step (ADR-0124), so the why reaches a replica
+      replaying the ledger only if the `Remove` carries it. A threat signal is
+      a fact about the case that every participant learns from a status
+      entry; naming it on a `Remove` while the case status does not show it
+      would leave the register and the status disagreeing, and reading the
+      `Remove` as a status change would commit one no participant sent
+      (ADR-0122).
+    verification: >-
+      `test/core/use_cases/received/test_termination_cause.py` parses a
+      `Remove` carrying each cause kind, refuses each malformed cause and an
+      owner's `THREAT_SIGNAL` with a reason naming the case status update,
+      records an owner's `FIX_READY` cause whose vendors are not fix-ready
+      as given, and replays a CASE_MANAGER termination whose cause the
+      replica cannot work out from its own state (a `FIX_READY` cause, or
+      threat signals that differ from the replica's PXA) into a replica,
+      asserting the two `TERMINATED` entries are equal.
+    testable: true
+    lint_suppress:
+    - testable_without_steps
+    adr:
+    - ADR-0122
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-13-004
+      note: Carries the recorded cause on the wire so replicas can copy it
+    stories:
+    - story_2022_080
+    - story_2022_026
+
+  - id: EMB-13-002
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      A Participant in EM Exited MUST NOT seek new embargoes or accept new
+      embargo proposals (EP) for this case when the CS state is public
+      (q^cs ∈ ···P··), exploit-public (q^cs ∈ ····X·), or attacks-observed
+      (q^cs ∈ ·····A).
+    rationale: >-
+      VP-14-001 through VP-14-003 prohibit seeking new embargoes once public
+      disclosure, exploit publication, or attacks have occurred. The EXITED state
+      after any of these events is terminal for embargo negotiations on this case.
+    testable: true
+    preconditions:
+    - em_state:
+        - EXITED
+      cs_pattern: "...P.."
+      description: EM state is Exited; CS matches pattern ...P..
+    - em_state:
+        - EXITED
+      cs_pattern: "....X."
+      description: EM state is Exited; CS matches pattern ....X.
+    - em_state:
+        - EXITED
+      cs_pattern: ".....A"
+      description: EM state is Exited; CS matches pattern .....A
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: satisfies
+      spec_id: VP-14-001
+      note: Once Public Awareness, new embargoes SHALL NOT be sought
+    - rel_type: satisfies
+      spec_id: VP-14-002
+      note: Once Exploit Publication, new embargoes SHALL NOT be sought
+    - rel_type: satisfies
+      spec_id: VP-14-003
+      note: Once Attacks observed, new embargoes SHALL NOT be sought
+
+- id: EMB-14
+  title: Actor-Voluntary Embargo Termination (Trigger Side)
+  description: >-
+    Trigger-side factory for voluntarily ending an active embargo (e.g., fix
+    deployed or ready). "The actor" here is the actor enacting the CASE_MANAGER
+    role: the factory's canonical case-state write (EM → EXITED, ledger commit,
+    teardown announce) is gated on `CVDRole.CASE_MANAGER` (`terminate_embargo_bt`
+    runs `ResolveCaseManagerNode` before the state mutation) and is authorised by
+    the Case Owner by default (CM-02-005; `EmbargoTeardownAuthorizationGate`
+    defaults to `RequireCaseOwnerApproval`, RSH-02-002). A non-manager Participant
+    that wishes to end an embargo does not run this trigger to write canonical
+    state; it initiates termination by reporting the condition or notifying intent
+    (VP-11-003, VP-13-017/018), and terminates only its own compliance. See
+    CONCERN-3280 for the reconciliation of the participant-facing protocol prose
+    with this authority model.
+  trigger:
+    type: state_entered
+    value: EM.ACTIVE
+  specs:
+  - id: EMB-14-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The create_terminate_active_embargo_tree factory MUST require the actor
+      to supply a termination reason before delegating to terminate_embargo_bt.
+      Valid reasons are: fix-deployed, fix-ready, or other. The reason is
+      chosen via the matching Evaluator call-out point (ExitEmbargoWhenDeployed,
+      ExitEmbargoWhenFixReady, or ExitEmbargoForOtherReason) and MUST be
+      recorded as the termination's cause, `FIX_DEPLOYED`, `FIX_READY` or
+      `OTHER` respectively (EMB-13-004), never as an `EARLY` termination with
+      no cause.
+    rationale: >-
+      Voluntary termination requires an auditable reason. Structuring reason
+      selection as a Selector of Evaluator call-out points gives actors a
+      clear interface (three buttons) while preserving the audit trail and
+      allowing policy-rule backends to be injected per ADR-0025.
+    verification: >-
+      Inspection of `vultron/core/` confirms that `create_terminate_active_embargo_tree`
+      uses a Selector of Evaluator call-out points (ExitEmbargoWhenDeployed,
+      ExitEmbargoWhenFixReady, ExitEmbargoForOtherReason) before delegating to
+      `terminate_embargo_bt`; tests in
+      `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py`
+      run the tree once per reason call-out and assert the `TERMINATED`
+      entry's cause is `FIX_DEPLOYED`, `FIX_READY` or `OTHER` respectively.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise
+    steps:
+    - order: 1
+      actor: actor
+      action: Select termination reason (ExitEmbargoWhenDeployed,
+        ExitEmbargoWhenFixReady, or ExitEmbargoForOtherReason)
+      expected: Matching Evaluator call-out point returns SUCCESS; reason recorded
+    - order: 2
+      actor: system
+      action: Run EmbargoExitPolicyGuard or EmbargoExitOverride
+      expected: Policy check passes or actor override accepted
+    - order: 3
+      actor: system
+      action: Run OnEmbargoExit actuator
+      expected: Site-specific integration hooks execute
+    - order: 4
+      actor: system
+      action: Delegate to terminate_embargo_bt
+      expected: ET emitted; EM transitions to EXITED
+    postconditions:
+    - description: EM state is EXITED; ET queued; termination reason recorded
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-07-001
+      note: Voluntary actor termination is a sub-case of active-embargo termination
+
+    stories:
+    - story_2022_080
+    - story_2022_014
+  - id: EMB-14-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The create_terminate_active_embargo_tree factory MUST include an
+      EmbargoExitPolicyGuard Evaluator call-out point that runs after the
+      reason Selector and before OnEmbargoExit. The guard MAY veto termination
+      regardless of the chosen reason.
+    rationale: >-
+      Separating the reason selection (actor intent) from the policy check
+      (system authorization) allows external policy engines to block termination
+      on grounds orthogonal to the stated reason (e.g., active revision
+      negotiation, pending approvals) without coupling the guard logic to the
+      reason semantics.
+    verification: >-
+      Inspection of `vultron/core/` confirms that `create_terminate_active_embargo_tree`
+      places `EmbargoExitPolicyGuard` as a child node after the reason Selector and
+      before the `OnEmbargoExit` actuator.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: EM state is Active or Revise; reason Selector has succeeded
+    steps:
+    - order: 1
+      actor: system
+      action: Run EmbargoExitPolicyGuard call-out point
+      expected: Returns SUCCESS (policy permits) or FAILURE (policy vetoes)
+    postconditions:
+    - description: >-
+        SUCCESS: pipeline continues to OnEmbargoExit and terminate_embargo_bt.
+        FAILURE: termination blocked; actor may retry with override.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-14-001
+
+  - id: EMB-14-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      The create_terminate_active_embargo_tree factory SHOULD include an
+      EmbargoExitOverride Evaluator call-out point in a Selector alongside
+      EmbargoExitPolicyGuard. When the actor explicitly accepts responsibility
+      for overriding policy, EmbargoExitOverride SHOULD return SUCCESS so that
+      termination proceeds despite a policy veto.
+    rationale: >-
+      Providing an override seam lets actors exercise their authority to exit
+      in exceptional circumstances without requiring code changes. The override
+      is a distinct call-out point so that integrators can log, gate, or audit
+      it separately from the normal policy path.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+        - REVISE
+      description: >-
+        EM state is Active or Revise; reason Selector succeeded;
+        EmbargoExitPolicyGuard returned FAILURE
+    steps:
+    - order: 1
+      actor: actor
+      action: Invoke EmbargoExitOverride call-out point
+      expected: Override accepted; pipeline continues to OnEmbargoExit
+    postconditions:
+    - description: Override recorded; termination proceeds; audit trail reflects override
+    lint_suppress:
+    - testable_without_steps
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-14-002
+      note: Override is the fallback arm of the policy authorization Selector
+
+- id: EMB-15
+  title: Inbound Embargo-Response Decision (Received Side)
+  description: >-
+    Behaviors triggered when an actor receives an inbound embargo overture and
+    must decide how to respond. Two overture flows are distinguished: (Flow A)
+    an EM-level embargo proposal (EP) proposing terms, whose acceptance moves
+    the shared EM state; and (Flow B) a PEC-level invitation
+    (InviteToEmbargoOnCase) asking the actor to become a signatory to an
+    embargo, whose acceptance advances that participant's Participant Embargo
+    Consent (PEC) state. The pre-PEC simulator conflated these into a single
+    _ChooseEmProposedResponse fallback; the production protocol separates the
+    shared EM lifecycle (EMB-01..EMB-09) from per-participant consent (CM-18,
+    ADR-0048). This group specifies a single decision seam layered over both
+    flows: it selects the response (accept / defer-to-owner / reject / counter)
+    while delegating the mechanical transition to the existing received and
+    trigger BTs. The mechanics already exist (invite/accept/reject trees,
+    propose/accept/reject trigger use cases); what is missing is the decision
+    layer that chooses among them, with a default-accept policy and a
+    plug-in seam for owner adjudication.
+  trigger:
+    type: message_received
+    value: EP | InviteToEmbargoOnCase
+  specs:
+  - id: EMB-15-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The inbound embargo-response decision seam MUST default to accepting a
+      well-formed embargo overture (Flow A: EP proposing terms; Flow B:
+      InviteToEmbargoOnCase).
+    rationale: >-
+      The recommended CVD behavior is to accept an offered embargo and negotiate
+      revisions separately rather than block coordination. A deterministic
+      accept-by-default keeps actors runnable without a human in the loop, and
+      the DETERMINISTIC call-out bundle (BT-23) supplies the default. Structuring
+      acceptance as an Evaluator call-out point preserves the seam for later
+      owner/agent adjudication without changing the tree.
+    note: >-
+      The seam's default is accept; it does not decide whether the seam runs. For a
+      relayed revision Invite the case owner's answer is its own (EP-09-005, EP-09-006),
+      so the Flow B tree reaches this seam for the owner only inside the prototype's
+      bounded auto-accept (EM `NONE`, terms within the owner's policy duration) and holds
+      the answer otherwise (#4179). A non-owner participant always reaches the seam.
+    verification: >-
+      Integration tests in `test/demo/` confirm that an inbound EP or
+      InviteToEmbargoOnCase is accepted by default under the DETERMINISTIC bundle,
+      with EvaluateEmbargoProposal returning SUCCESS and delegating to the
+      appropriate acceptance BT.
+    testable: true
+    preconditions:
+    - description: >-
+        Inbound EP or InviteToEmbargoOnCase received; case is embargo-eligible
+        (CS not public/exploit/attacks per EMB-01-002); no external
+        adjudication backend injected (deterministic default in force).
+    steps:
+    - order: 1
+      actor: system
+      action: Run EvaluateEmbargoProposal Evaluator call-out point
+      expected: Returns SUCCESS (default-accept) under the DETERMINISTIC bundle
+    - order: 2
+      actor: system
+      action: Delegate to the flow-appropriate acceptance BT
+      expected: >-
+        Flow A activates/records via accept_embargo_trigger_bt; Flow B marks
+        the consent row AGREED via accept_invite_to_embargo_tree
+    postconditions:
+    - description: >-
+        Overture accepted by default; EM (Flow A) or PEC (Flow B) advanced by
+        the existing mechanism
+    relationships:
+    - rel_type: satisfies
+      spec_id: BT-18-004
+      note: Decision node accepts a CallOutBackendFactory; deterministic default
+    - rel_type: refines
+      spec_id: EMB-01-001
+      note: Adds the response-decision layer above EP receipt
+    - rel_type: refines
+      spec_id: CM-18-003
+      note: Flow B acceptance advances the participant's consent row (INVITED → AGREED)
+    stories:
+    - story_2022_014
+    - story_2022_006
+  - id: EMB-15-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When no external adjudication backend is injected, the EvaluateEmbargoProposal
+      Evaluator call-out point MUST return SUCCESS so the actor accepts by default,
+      delegating to the existing acceptance mechanism (`accept_embargo_trigger_bt`
+      for Flow A; `accept_invite_to_embargo_tree` for Flow B).
+    rationale: >-
+      A deterministic accept-by-default keeps actors runnable without a human in
+      the loop; the DETERMINISTIC call-out bundle (BT-23) supplies the default.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the DETERMINISTIC call-out bundle
+      resolves `EvaluateEmbargoProposal` to a node that unconditionally returns
+      SUCCESS when no external backend is injected.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-001
+
+    stories:
+    - story_2022_014
+    - story_2022_006
+  - id: EMB-15-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The decision seam MUST include a CASE_OWNER hard-bypass arm ahead of the
+      adjudication call-out point.
+    rationale: >-
+      This mirrors the two-seam authorization model (ADR-0046) and the
+      case_proposal_received_tree pattern: the CASE_OWNER is the human
+      decision-maker whose choice is gospel, while other actors need an
+      adjudication seam that a UI or LLM agent can later fulfil. The distinction
+      matters because a CASE_MANAGER may process an overture routed to it without
+      being the party whose consent is being recorded.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the inbound embargo-response
+      decision tree includes a `CheckIsCaseOwner` Condition node as the leading
+      arm of the Selector, positioned before the `CaseOwnerApprovesEmbargoResponse`
+      call-out point.
+    testable: true
+    preconditions:
+    - description: Inbound EP or InviteToEmbargoOnCase received by the deciding actor
+    steps:
+    - order: 1
+      actor: system
+      action: Run CheckIsCaseOwner guard (hard-bypass arm of the Selector)
+      expected: >-
+        SUCCESS when actor holds CASE_OWNER (owner's response is authoritative);
+        FAILURE otherwise, falling through to the adjudication call-out point
+    - order: 2
+      actor: system
+      action: >-
+        For non-owners, run CaseOwnerApprovesEmbargoResponse call-out point
+      expected: Returns SUCCESS (default) or FAILURE (adjudication withholds)
+    postconditions:
+    - description: >-
+        Owner responses proceed unconditionally; non-owner responses gated by
+        the adjudication seam
+    relationships:
+    - rel_type: satisfies
+      spec_id: BT-18-004
+    - rel_type: refines
+      spec_id: EMB-15-001
+    stories:
+    - story_2022_046
+    - story_2022_006
+  - id: EMB-15-006
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      `test/core/behaviors/embargo/test_response_decision_tree.py::TestBTBridgeIntegration::test_case_owner_skips_case_owner_approves_call_out`
+      confirms the case owner's response bypasses the approval call-out.
+    statement: >-
+      When the deciding actor holds `CVDRole.CASE_OWNER`, the owner's stated
+      response is authoritative and the seam MUST NOT require external approval.
+    rationale: >-
+      The CASE_OWNER is the human decision-maker whose choice is gospel; requiring
+      external approval for the owner's response would violate the authorization model.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-002
+  - id: EMB-15-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Non-owner actors (e.g., a CASE_MANAGER processing an overture on the owner's
+      behalf) MUST route through the `CaseOwnerApprovesEmbargoResponse` call-out
+      point, which defaults to SUCCESS under the DETERMINISTIC bundle.
+    rationale: >-
+      Non-owner actors need an adjudication seam that a UI or LLM agent can later
+      fulfil; defaulting to SUCCESS keeps them runnable without an external backend.
+    verification: >-
+      Inspection of `vultron/core/` confirms that the non-owner path in the decision
+      tree routes through `CaseOwnerApprovesEmbargoResponse`, which is resolved to a
+      SUCCESS-returning node under the DETERMINISTIC bundle.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-002
+
+    stories:
+    - story_2022_046
+    - story_2022_006
+  - id: EMB-15-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      For Flow A (EP proposing terms), the decision seam SHOULD provide a
+      counter-proposal arm gated by a WillingToCounterEmbargoProposal Evaluator
+      call-out point. Countering MUST NOT introduce a new mechanism: when the
+      arm is taken, the seam delegates to the existing embargo proposal trigger
+      (propose_embargo_trigger_bt via SvcProposeEmbargoUseCase), which emits a
+      fresh EP while the EM state remains PROPOSED. The default DETERMINISTIC
+      backend for this call-out point SHOULD return FAILURE (do not counter),
+      reflecting the recommended practice of accepting and revising rather than
+      countering.
+    rationale: >-
+      A counter-proposal is operationally identical to proposing: the propose
+      trigger already records a "counter-proposed, no state change" outcome when
+      invoked in PROPOSED. Modeling counter as routing to the existing trigger
+      avoids duplicate mechanism and keeps the EM lifecycle single-sourced.
+      Countering is intentionally low-automation and off by default; the
+      recommended path is accept-then-revise.
+    testable: true
+    preconditions:
+    - em_state:
+        - PROPOSED
+      description: >-
+        Flow A only; inbound EP received; actor declined to accept outright and
+        the adjudication arm elects to counter
+    steps:
+    - order: 1
+      actor: system
+      action: Run WillingToCounterEmbargoProposal Evaluator call-out point
+      expected: SUCCESS elects the counter arm; FAILURE (default) skips it
+    - order: 2
+      actor: actor
+      action: Delegate to propose_embargo_trigger_bt with new terms
+      expected: New EP emitted; EM remains PROPOSED (counter recorded)
+    postconditions:
+    - description: >-
+        Counter EP emitted via the existing proposal mechanism; no new
+        counter-specific transition introduced
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-15-001
+    - rel_type: satisfies
+      spec_id: EMB-01-001
+      note: Counter reuses the EP proposal path
+
+  - id: EMB-15-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the decision resolves to reject, the seam MUST delegate to the
+      flow-appropriate existing rejection mechanism rather than duplicating the
+      transition: reject_embargo_trigger_bt (Flow A, emitting ER; when the
+      deciding actor is the case owner the trigger sends the owner's
+      Reject(EmbargoEvent, target=Case), which returns the shared EM to NONE per
+      EMB-06 and MSM-07-009) or, for Flow B, the invitee's Reject of the Invite
+      (recording that participant's consent per MSM-07-004: DECLINE of the
+      rejected embargo's row, a withdrawal when it names the active embargo; a
+      signatory refusing proposed terms keeps its row for the embargo in force).
+      The case owner's decision for the case is a separate activity,
+      Reject(EmbargoEvent, target=Case) (MSM-07-009); an owner MAY still send a
+      Reject(Invite(EmbargoEvent)), which records only its own consent like any
+      sender's (MSM-07-004). In this prototype the owner's auto-answer to a
+      Flow B Invite is its decision for the case, not a Reject of the Invite. The
+      seam MUST also honor the mandatory rejection required by EMB-01-002 when
+      CS is public/exploit/attacks, independent of any adjudication outcome.
+    rationale: >-
+      Rejection paths are already implemented and carry the correct EM-vs-PEC
+      semantics. The decision layer selects among them; it must not re-implement
+      the transition. The pre-public constraint (EMB-01-002) is a hard protocol
+      rule that overrides the default-accept policy.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a rejection decision delegates
+      to `reject_embargo_trigger_bt` for Flow A (emitting ER and returning EM to
+      NONE) or `reject_invite_to_embargo_tree` for Flow B (advancing PEC to
+      DECLINED) without duplicating transition logic.
+    testable: true
+    preconditions:
+    - description: >-
+        Inbound overture received; decision resolves to reject, OR CS is
+        public/exploit/attacks forcing rejection (EMB-01-002)
+    steps:
+    - order: 1
+      actor: system
+      action: Select the flow-appropriate rejection BT
+      expected: >-
+        Flow A emits ER (EM → NONE); Flow B advances PEC to DECLINED
+    postconditions:
+    - description: Overture rejected via the existing mechanism with correct semantics
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-06-001
+      note: Flow A rejection reuses the ER emission path
+    - rel_type: refines
+      spec_id: CM-18-003
+      note: Flow B rejection advances PEC to DECLINED
+    - rel_type: satisfies
+      spec_id: EMB-01-002
+      note: Mandatory rejection when public/exploit/attacks overrides default-accept
+
+    stories:
+    - story_2022_014
+    - story_2022_027
+- id: EMB-16
+  title: CS Public/Exploit/Attacks Detected While EM Proposed
+  description: >-
+    Behaviors required when a Participant detects that the vulnerability has
+    become public (q^cs ∈ ···P··), an exploit is available (q^cs ∈ ····X·),
+    or attacks have been observed (q^cs ∈ ·····A) while the case EM state is
+    still Proposed (q^em ∈ P). Embargo negotiation is not viable in any of
+    these states; the proposed embargo MUST be abandoned.
+  trigger:
+    type: state_entered
+    value: CS.public_exploit_attacks
+  specs:
+  - id: EMB-16-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A Participant in EM Proposed (q^em ∈ P) that detects a CS transition into
+      a public (q^cs ∈ ···P··), exploit-available (q^cs ∈ ····X·), or
+      attacks-observed (q^cs ∈ ·····A) state MUST abandon the proposed embargo
+      by cancelling each open proposal in the case's embargo register, so EM
+      derives None (q^em P → N), and MUST notify the other Participants. The
+      CASE_MANAGER cancels each proposal with the activity its AS2 shape
+      names: its ER, `Reject(Invite(EmbargoEvent))`, of a proposal it
+      received, committed as `reject_invite_to_embargo_on_case`, or its
+      `Undo(Invite(EmbargoEvent))` of a proposal it made itself, committed
+      as `undo_invite_to_embargo_on_case`, followed by its
+      `Undo(Invite(EmbargoEvent))` of each Invite it relayed for that
+      proposal. A proposal never relayed is cancelled all the same. The
+      entries that abandon every open proposal MUST commit in one
+      transaction (CLP-07-015), and a replica MUST apply each proposal's
+      CANCEL once, from the entry that carries it (ADR-0152).
+    rationale: >-
+      EMB-01-002 establishes that embargo negotiation is not viable once public
+      disclosure, exploit availability, or attacks have occurred. EMB-01-002 is
+      framed as a guard on receiving EP, but the same viability constraint
+      applies when a P/X/A state change arrives while a proposal is already in
+      flight. Continuing to negotiate a proposed embargo in these conditions
+      would be misleading to other Participants and counter to the purpose of
+      coordinated disclosure. CANCEL records that nobody decided the proposal
+      (ADR-0122). An actor undoes only an activity it performed, so
+      withdrawing an Invite one sent is an `Undo` and declining one received
+      is a `Reject`; a CASE_MANAGER act with a participant's verb and object
+      carries the participant's semantic type (ADR-0152).
+    note: >-
+      Under ADR-0113 the abandonment is shared EM state, so the CASE_MANAGER
+      makes it for the case (EP-09-008): it cancels each open proposal, so EM
+      derives NONE, and its committed entries are what notifies every other
+      Participant (EP-09-007, EP-09-009). Each activity is addressed to
+      nobody. A replica tells the CASE_MANAGER's Reject, which cancels the
+      proposal, from a participant's, which records DECLINED, by the
+      payload's `actor` (SE-03-004); each Undo after the cancel finds the
+      proposal cancelled and changes nothing. A Participant that is not the
+      CASE_MANAGER meets this requirement through its replica, which moves
+      when the entries are replayed; it emits no ER of its own as the
+      abandonment (EMB-16-002). That is separate from EMB-01-002: a
+      proposal, Invite or revision a Participant receives while the case is
+      at P/X/A is still answered with ER by that Participant.
+    verification: >-
+      `test/core/behaviors/embargo/nodes/test_abandon.py` runs
+      `reject_proposed_embargo_bt` as the CASE_MANAGER and asserts EM is NONE,
+      no proposal is open, one Reject per received proposal and one Undo per
+      relayed Invite are committed, and an own proposal is withdrawn with an
+      Undo; `test_embargo_abandonment_effect.py` replays both shapes on a
+      replica;
+      `test/core/behaviors/status/test_add_case_status_bt.py` drives the same
+      abandonment through `ThreatTerminationBranchNode` on a received
+      P/X/A status.
+    testable: true
+    preconditions:
+    - em_state:
+        - PROPOSED
+      description: EM state is Proposed
+    - cs_pattern: "...P.."
+      description: CS transitions to public (q^cs ∈ ···P··)
+    - cs_pattern: "....X."
+      description: CS transitions to exploit-available (q^cs ∈ ····X·)
+    - cs_pattern: ".....A"
+      description: CS transitions to attacks-observed (q^cs ∈ ·····A)
+    steps:
+    - order: 1
+      actor: system
+      action: >-
+        Detect that CS has transitioned to a P/X/A state while EM is Proposed
+      expected: >-
+        ThreatTerminationBranchNode recognises an open proposal (not skipped)
+    - order: 2
+      actor: system
+      action: >-
+        As the CASE_MANAGER, cancel each open proposal via
+        reject_proposed_embargo_bt (AbandonEmbargoProposalsLifecycleNode
+        commits each proposal's Reject, or its Undo of an own proposal, then
+        an Undo of each Invite relayed for it, and cancels that proposal)
+      expected: >-
+        Each proposal's register entry is CANCELLED and EM derives NONE; the
+        entries are committed and replayed by every replica
+    postconditions:
+    - description: >-
+        EM state is NONE; the abandonment is committed; proposed embargo
+        abandoned
+    adr:
+    - ADR-0122
+    - ADR-0152
+    relationships:
+    - rel_type: extends
+      spec_id: EMB-01-002
+      note: >-
+        EMB-01-002 guards against entering PROPOSED with P/X/A set;
+        this entry covers the symmetric case where P/X/A fires while already in PROPOSED
+    - rel_type: refines
+      spec_id: EMB-06-001
+      note: ER emission semantics apply; EM returns to NONE
+    stories:
+    - story_2022_080
+    - story_2022_023
+  - id: EMB-16-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A Participant that does not hold `CVDRole.CASE_MANAGER` and detects a
+      P/X/A CS transition while EM is Proposed MUST NOT emit ER as the
+      abandonment of the case's open proposals, and MUST NOT write the
+      abandonment to its own EM state.
+    rationale: >-
+      Abandoning the case's open proposals is a decision for the case, made
+      by the case owner or the CASE_MANAGER it delegates to (EMB-16-001,
+      EP-09-008). The P/X/A signal already reaches the CASE_MANAGER as a
+      status declaration, and the CASE_MANAGER abandons on its own
+      detection. An ER sent on the case's behalf by another Participant
+      arrives at the CASE_MANAGER as that Participant declining the proposal
+      (MSM-07-004), so it would record an abandonment the Participant had no
+      standing to make (#4148).
+    note: >-
+      Two rules sit side by side. This one covers the abandonment of
+      proposals already open on the case: only the CASE_MANAGER makes it.
+      EMB-01-002 covers what a Participant receives: a proposal, Invite or
+      revision that reaches it while it believes the case is at P, X or A is
+      answered with ER by that Participant, CASE_MANAGER or not. That ER is
+      its own answer to something addressed to it, not an abandonment on the
+      case's behalf, so EMB-16-002 does not forbid it.
+    verification: >-
+      `test/core/behaviors/embargo/nodes/test_abandon.py` runs
+      `reject_proposed_embargo_bt` as a non-manager and asserts nothing is
+      queued or committed and EM is unchanged, and that after the
+      CASE_MANAGER's abandonment no Participant's consent moved.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-16-001
+    - rel_type: depends_on
+      spec_id: EP-09-008
+    adr:
+    - ADR-0113
+    stories:
+    - story_2022_014
+- id: EMB-17
+  title: Late Accept of an Expired Embargo Invitation
+  description: >-
+    Behaviors required when an `Accept(Invite(EmbargoEvent))` arrives after the
+    invitation's RSVP deadline (CM-28-001) has passed. The protocol is liberal
+    in what it accepts: a late accepter has signalled willingness to coordinate
+    and MUST NOT be sent away. Codified by ADR-0065. Source: IDEA-2066.
+  trigger:
+    type: message_received
+    value: EA
+  specs:
+  - id: EMB-17-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A CASE_MANAGER receiving an `Accept(Invite(EmbargoEvent))` after the
+      invitation's effective RSVP deadline MUST NOT reject it solely because the
+      deadline has passed. It MUST evaluate whether the accepted embargo is still
+      compatible with the case's current embargo and then apply EMB-17-002,
+      EMB-17-003, or EMB-17-004.
+    rationale: >-
+      Being liberal in what is accepted serves CVD outcomes. A late accepter is
+      volunteering to coordinate; refusing them converts a missed deadline into
+      a lost participant, which is worse for the case than a late consent.
+      See ADR-0065.
+    verification: >-
+      Integration tests in `test/demo/` confirm that an `Accept(Invite(EmbargoEvent))`
+      received after the RSVP deadline is not rejected on timeliness grounds and is
+      evaluated against current embargo state per EMB-17-002, EMB-17-003, or
+      EMB-17-004.
+    testable: true
+    preconditions:
+    - description: The referenced invitation's effective RSVP deadline has passed
+    postconditions:
+    - description: >-
+        The Accept is not refused on deadline grounds; one of EMB-17-002,
+        EMB-17-003, or EMB-17-004 has been applied
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-28-003
+    adr:
+    - ADR-0065
+    stories:
+    - story_2022_013
+    - story_2022_014
+  - id: EMB-17-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the accepted embargo is the case's current embargo, the CASE_MANAGER MUST honour the late
+      Accept and mark the participant's consent row for it AGREED, exactly as it would for an
+      on-time Accept. A row at TIMED_OUT moves directly to AGREED (`TIMED_OUT → AGREED`,
+      ADR-0118), and so does one at DECLINED (`DECLINED → AGREED`, CM-18-003): the participant
+      has changed its answer, so it is not re-invited first. The CASE_MANAGER
+      honours it by committing the received Accept verbatim as
+      `accept_invite_to_embargo_on_case`, carrying the row it states, as an
+      on-time Accept is committed (EMB-17-009, ADR-0152).
+    rationale: >-
+      If the terms the participant agreed to are the terms in force, the
+      participant is a valid signatory. The deadline governs whether the
+      *invitation* is open, not whether the *agreement* is sound. See ADR-0065.
+      The Accept states the change, so its entry is the change's entry
+      (CLP-07-013), and a replica reaches the state an on-time Accept leaves.
+    verification: >-
+      Integration tests in `test/demo/` confirm that a late Accept whose embargo ID
+      matches the case's current active embargo marks the participant's consent row for it
+      AGREED, making the participant a signatory.
+    testable: true
+    preconditions:
+    - em_state:
+        - ACTIVE
+      description: EM state is Active
+    - description: >-
+        The accepted embargo ID matches the case's current active embargo
+    steps:
+    - order: 1
+      actor: system
+      action: Record the PEC AGREE transition for the accepting participant
+      expected: The participant's consent row for the current embargo is AGREED
+    postconditions:
+    - description: The participant is a signatory to the current embargo
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    adr:
+    - ADR-0065
+    - ADR-0152
+    stories:
+    - story_2022_014
+    - story_2022_013
+  - id: EMB-17-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the accepted embargo is NOT the case's current embargo (for example the embargo was
+      revised or replaced after the invitation was sent), the CASE_MANAGER MUST issue a fresh
+      `Invite(EmbargoEvent)` to the accepting actor carrying the case's current embargo. An
+      accepting participant at TIMED_OUT moves `TIMED_OUT → INVITED` for the current embargo (ADR-0118).
+      The fresh Invite is a relay (EP-09-002): its `actor` is the
+      CASE_MANAGER and its `attributedTo` names the current embargo's
+      proposer, or the CASE_MANAGER itself when it made the embargo without a
+      proposal, as it makes the protocol default. The CASE_MANAGER MUST
+      commit it as `invite_to_embargo_on_case` once it has queued it
+      (SYNC-09-002), followed by the invitee's `INVITED` row with the
+      Invite's deadline (CM-28-013), and a replica MUST apply it through the
+      relay slot: its register already holds the embargo the Invite names,
+      so the Invite proposes nothing and EM does not move (ADR-0152).
+    rationale: >-
+      Recording the stale Accept as consent would make the participant a
+      signatory to terms they never saw. Rejecting them would discard a
+      willing participant. Re-inviting resolves both: the actor stays in the
+      case and is asked to consent to the terms actually in force. See ADR-0065.
+      The re-invite asks about terms somebody proposed, exactly as a relay
+      does, so it carries the relay's shape and semantic type (ADR-0152).
+    verification: >-
+      Integration tests in `test/demo/` confirm that a late Accept referencing a
+      superseded embargo causes a fresh `Invite(EmbargoEvent)` to be emitted
+      carrying the case's current embargo, without recording the stale Accept as
+      consent.
+    testable: true
+    preconditions:
+    - description: >-
+        The accepted embargo ID does not match the case's current active embargo,
+        and the case has a current embargo
+    steps:
+    - order: 1
+      actor: system
+      action: >-
+        Emit a fresh Invite(EmbargoEvent) to the accepting actor carrying the
+        case's current embargo
+      expected: >-
+        Accepting participant's consent row for the current embargo is INVITED;
+        stale Accept is not recorded as consent
+    postconditions:
+    - description: >-
+        A fresh invitation for the current embargo has been sent; the actor
+        remains a case participant
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    - rel_type: depends_on
+      spec_id: CM-28-013
+    adr:
+    - ADR-0065
+    - ADR-0152
+    stories:
+    - story_2022_013
+    - story_2022_014
+  - id: EMB-17-005
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      When the accepted embargo is not the case's current embargo, the CASE_MANAGER
+      MUST NOT record the stale Accept as consent to the current terms.
+    rationale: >-
+      Recording the stale Accept as consent would make the participant a signatory
+      to terms they never saw. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-003
+    adr:
+    - ADR-0065
+  - id: EMB-17-006
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      When the accepted embargo is not the case's current embargo, the CASE_MANAGER
+      MUST NOT reject the accepting actor.
+    rationale: >-
+      Rejecting a willing participant discards coordination capacity; re-inviting
+      to the current terms is the correct response. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-003
+    adr:
+    - ADR-0065
+  - id: EMB-17-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the case has no current embargo (EM state is EXITED or NONE), the late Accept
+      changes nothing, and the CASE_MANAGER MUST treat it as a no-op: it MUST NOT commit
+      any
+      ledger entry for it, MUST NOT send any activity in reply, and MUST leave the
+      participant's consent rows unchanged: nothing is recorded after a termination (EM
+      EXITED), and a TIMED_OUT row stays TIMED_OUT when no embargo has started (EM NONE)
+      (ADR-0118). A redelivery of the same Accept gets the same result. It is a correct
+      no-op, reported `SKIPPED` (HP-01-003).
+    note: >-
+      EMB-13-002 independently forbids seeking or accepting new embargoes for a
+      case whose CS state is public, exploit-public, or attacks-observed. This
+      entry closes the remaining gap: an Accept arriving after EM has EXITED
+      while CS is not yet P/X/A previously had no specified behaviour.
+    rationale: >-
+      Follows the EMB-07-003 precedent for post-terminal messages: no transition.
+      There is nothing to invite the actor to, so a fresh invitation would
+      manufacture a negotiation nobody requested — but the actor's case
+      participation is independent of embargo consent and MUST survive. An entry
+      or reply acknowledging the Accept would change nothing at any receiver, and
+      anything that holds the case and its ledger can see the Accept named an
+      embargo the case no longer holds, so the no-op is not ledgered (ADR-0152,
+      CLP-02-013). See ADR-0065.
+    verification: >-
+      Tests in `test/core/use_cases/received/test_embargo_answer_routing.py` and
+      `test/core/use_cases/received/test_embargo_invite_lapse.py` confirm that a late Accept
+      arriving when EM is EXITED or NONE is reported `SKIPPED`, commits no ledger entry,
+      queues
+      nothing and leaves every consent row unchanged, and that a redelivery, with or
+      without
+      its received body, gets the same result.
+    testable: true
+    preconditions:
+    - em_state:
+        - EXITED
+        - NONE
+      description: EM state is EXITED (embargo terminated) or NONE (no embargo started)
+    steps:
+    - order: 1
+      actor: system
+      action: Treat the Accept as a no-op, committing and sending nothing
+      expected: >-
+        Participant consent rows are unchanged; participant remains in the
+        case; no ledger entry is committed and nothing is sent
+    postconditions:
+    - description: >-
+        No embargo state change; accepting actor remains a case participant
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    - rel_type: extends
+      spec_id: EMB-13-002
+      note: >-
+        EMB-13-002 covers the P/X/A case; this entry covers an Accept arriving
+        after EM EXITED when CS is not yet P/X/A
+    adr:
+    - ADR-0065
+    - ADR-0152
+    stories:
+    - story_2022_013
+    - story_2022_088
+  - id: EMB-17-007
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      When the case has no current embargo (EM state is EXITED or NONE), the
+      CASE_MANAGER MUST NOT issue a fresh embargo invitation to the accepting actor.
+    rationale: >-
+      There is no active embargo to invite the actor to; a fresh invitation would
+      manufacture a negotiation nobody requested. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-004
+    adr:
+    - ADR-0065
+  - id: EMB-17-008
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      When the case has no current embargo (EM state is EXITED or NONE), the
+      CASE_MANAGER MUST NOT remove the accepting actor from the case.
+    rationale: >-
+      Case participation is independent of embargo consent; the actor's
+      willingness to coordinate must not result in their removal. See ADR-0065.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-004
+    adr:
+    - ADR-0065
+  - id: EMB-17-009
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER honours a late Accept (EMB-17-002), it MUST commit
+      the received `Accept(Invite(EmbargoEvent))` verbatim as
+      `accept_invite_to_embargo_on_case`, its entry carrying the AGREED row it
+      states, exactly as it commits an on-time Accept, so that a replica copies
+      the row without re-evaluating the deadline (RSH-08-004, ADR-0124,
+      CLP-07-011). It MUST NOT commit any further entry for the same row, such
+      as its own `Update(EmbargoConsent)` of the AGREED row (CLP-07-002,
+      ADR-0152).
+    rationale: >-
+      Without a committed entry the replica has no signal that the row moved
+      to AGREED; the replica's participant record would silently stay
+      TIMED_OUT while the CASE_MANAGER's record shows AGREED, breaking
+      ledger-driven convergence (ADR-0108, ADR-0118). The Accept states the
+      change, so its entry is the change's entry (CLP-07-013); a follow-up
+      `Update` of the same row would record one state change twice. The
+      deadline having passed is an observation anything holding the case can
+      make, so it is not ledgered either (ADR-0152).
+    verification: >-
+      `test_an_honoured_late_accept_is_committed_and_replayed_by_a_replica`
+      drives the full path across per-actor stores: the late Accept reaches the
+      CASE_MANAGER, the Accept itself is committed and broadcast with no
+      `Update(EmbargoConsent)` of the AGREED row after it, and the replica
+      asserts the accepting participant's row reads AGREED, as after an
+      on-time Accept (EMB-17-001, RSH-08-004).
+    testable: true
+    postconditions:
+    - description: >-
+        The late Accept is committed as `accept_invite_to_embargo_on_case`
+        in the CASE_MANAGER's store, and the accepter's AGREED row is copied
+        from it in every replica's store
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-17-001
+    - rel_type: depends_on
+      spec_id: RSH-08-004
+    adr:
+    - ADR-0118
+    - ADR-0152
+    stories:
+    - story_2022_013
+    - story_2022_014
+
+- id: EMB-18
+  title: EM Write-Boundary Consolidation
+  description: >-
+    Requirements ensuring that all EM state transitions are executed through
+    the EmbargoLifecycle service layer rather than written directly to
+    case.current_status.em in BT nodes or helpers. Identified by audit in
+    CONCERN-2412: three BT nodes (EmActivateEmbargo, ClearEmbargo,
+    SetDefaultActiveEmbargoNode) bypass EmbargoLifecycle with direct
+    EmDimension assignment. Complements SM-04-001 (general write-boundary guard
+    requirement) with an EM-specific routing rule.
+  specs:
+  - id: EMB-18-001
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      Every change to a case's embargo register, and so to the EM state derived
+      from it (ADR-0122), MUST be made through EmbargoLifecycle (its public
+      operations such as propose_embargo(), activate_embargo(), and
+      reject_embargo_proposal(), each of which applies one register step), or,
+      for an act converted to the copy model,
+      by applying the act's ledger entry through the one apply function,
+      apply_embargo_change() (ADR-0124, CM-23-016). BT nodes and helper
+      functions MUST NOT otherwise apply a register step to the case
+      themselves, or assign case.current_status.em, and then call
+      dl.save(case) as a substitute for routing through one of those two.
+    rationale: >-
+      EmbargoLifecycle and the one apply function are the only embargo
+      writers; the copy model moves each act to the second as it comes to be
+      committed before it is applied (#4294). Bypassing both skips the
+      fail-closed reads of EMB-18-003, the PEC cascade and the shared
+      starting-state and EM checks, and a status EM assigned directly is
+      overwritten by the register's derived value. Source: CONCERN-2412.
+    relationships:
+    - rel_type: refines
+      spec_id: SM-04-001
+  - id: EMB-18-002
+    priority: MUST_NOT
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      A BT node or helper MUST NOT check an embargo register step as a
+      non-blocking warning-only guard and then proceed to write regardless of
+      the result. A refused register step MUST either raise or cause the node
+      to return Status.FAILURE without writing to the DataLayer.
+    rationale: >-
+      Warning-only guards create the illusion of validation while allowing
+      invalid states to be persisted. The correct pattern is to route through
+      EmbargoLifecycle (EMB-18-001), which enforces fail-closed behavior in
+      STRICT mode. Source: CONCERN-2412.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-001
+  - id: EMB-18-003
+    priority: MUST
+    kind: architecture
+    statement: >-
+      A path that activates an embargo register entry MUST already hold that
+      `EmbargoEvent`'s record in the same store. The
+      `EmbargoLifecycle` activation writers (`activate_embargo()`,
+      `initialize_creation_embargo()`) MUST read the
+      record of the embargo being activated, as well as the one it replaces
+      (EP-05-001), and MUST fail
+      closed on an unreadable one before changing the register. An unreadable replaced embargo is a broken invariant,
+      reported as a refusal, not deferred.
+    note: >-
+      The refusal stands in for object dereference (AKM-05-003): it is conditional on an
+      implementation that cannot fetch the unreadable record by an API call, and lapses
+      where dereference exists (AKM-05-004).
+    rationale: >-
+      The EP-05-001 comparison reads the replaced embargo, so it holds only if
+      no case names an embargo its store cannot read. The ledger applies an
+      embargo's proposal before any activation that replaces it, but any
+      writer that accepts a bare id (an activation writer, or seeding a case
+      whose embargo arrived as a bare reference) lets a case name an
+      unreadable record. A deferral would wait for a record no path delivers.
+      Source: CONCERN-4004.
+    verification: >-
+      Unit tests of `accept_embargo_invite()` and `activate_embargo()` in
+      `test/core/services/embargo_lifecycle/` assert that an unreadable activated or replaced
+      embargo raises before any write and leaves the stored case unchanged, and
+      a received-Accept test asserts the handler reports `REFUSED`; a
+      seeding test asserts a received case whose `active_embargo` is a bare
+      reference the store lacks is refused rather than saved.
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-001
+    - rel_type: constrains
+      spec_id: EP-05-001
+    - rel_type: depends_on
+      spec_id: AKM-05-003
+  - id: EMB-18-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST refuse an inline `EmbargoEvent` whose `context` is neither the case
+      that carries it nor a report that case holds (EP-04-009), and MUST refuse it before
+      writing anything: the event is not stored and no embargo state of either case
+      changes. The same refusal applies to the record the receiver already holds under
+      the embargo's id, whether the case or ledger entry carries the embargo inline or
+      names it by bare id. For a ledger entry, the case's reports are those of the
+      replica's stored case.
+    rationale: >-
+      An embargo belongs to the case named by its `context`. The inbox stores a carried
+      embargo ahead of the handler's trust checks, and a first write wins, so an unchecked
+      event would let a sender plant another case's embargo under an id that case will later
+      name. The case would then name the held record, not the carried copy, so checking
+      only the copy, or a bare id only for resolving, leaves the case pointing at another
+      case's embargo (#4962). A Reporter's proposal names its report until the case exists
+      and keeps its id once it is about the case (EP-04-004), so the Reporter holds it about
+      the report; refusing that would refuse the Reporter its own case. Giving the refusal
+      a requirement lets ratchets and docs cite it instead of a code comment.
+    verification: >-
+      A receiver is given a case that carries an inline `EmbargoEvent` whose `context`
+      names a different case. The receiver refuses it, holds no record of the event
+      afterwards, and leaves both cases' embargo state unchanged. Exercised by
+      `test_an_inline_embargo_of_another_case_is_refused_unstored`. A case or ledger entry
+      naming, inline or by bare id, an embargo the receiver holds for another case is
+      refused with nothing written, exercised by
+      `test_a_case_naming_a_held_embargo_of_another_case_is_refused_unwritten` and the
+      entry tests beside it in `test/core/services/test_carried_embargo.py`. A held
+      proposal about the case's own report is accepted on the case and entry paths, and
+      one about another case's report is refused
+      (`test_a_held_proposal_about_the_cases_own_report_is_accepted` and its neighbours).
+    stories:
+    - story_2022_014
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-003
+  - id: EMB-18-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Every change to a case's embargo register MUST move the case's EM state
+      only along an EM transition for the change's EM trigger: a proposal is
+      `propose`, an activation is `accept`, a rejection, or the cancellation of
+      open proposals with no embargo in force, is `reject`, and a termination is
+      `terminate`. The EM transitions are `propose`: N→P, P→P, A→R, R→R;
+      `reject`: P→N, P→P, R→A, R→R; `accept`: P→A, P→R, R→A, R→R; and
+      `terminate`: A→X, R→X. EM leaves Proposed or Revise only when no
+      proposal remains open.
+    rationale: >-
+      EM is computed from the embargo register (ADR-0122), not replaced by it:
+      the EM state machine remains the protocol's model, and the register is a
+      layer beneath it. With several proposals open, rejecting or activating one
+      leaves the others open, so EM stays in Proposed or Revise until the last
+      one is off the table (ADR-0130).
+    verification: >-
+      A property test enumerates register states, applies every legal register
+      step, and asserts each (trigger, EM before, EM after) is one of these
+      transitions: `test_every_register_step_moves_em_along_an_em_transition`
+      in `test/core/states/test_em_transition_table.py`.
+    adr:
+    - ADR-0130
+    stories:
+    - story_2022_014
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-001
+  - id: EMB-18-006
+    priority: MUST
+    kind: architecture
+    statement: >-
+      The EM transitions of EMB-18-005 MUST be held as one declarative table,
+      and applying an embargo register step MUST refuse, with no write, a step
+      whose EM move is not in it. The CASE_MANAGER and every replica MUST
+      apply the same check, as part of the one apply function (ADR-0124).
+    rationale: >-
+      A check only in tests protects only the register states a test reaches.
+      Refusing at the step makes a register defect fail when it happens, on
+      every node, and gives tools that draw or export the EM machine one table
+      to read (ADR-0130).
+    verification: >-
+      `test_em_transition_table_is_declared_and_enforced` in
+      `test/core/states/test_em_transition_table.py` asserts the table is
+      declared and a step whose EM move is not in it is refused, and
+      `test_a_refused_em_move_leaves_the_case_unchanged` that the refusal
+      writes nothing to the case.
+    adr:
+    - ADR-0130
+    testable: true
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-18-005
+
+- id: EMB-19
+  title: Embargo Teardown Announcement
+  description: >-
+    Who authors the `Announce(EmbargoEvent)` that follows an embargo teardown, and
+    who receives it. Added by ISSUE-2238 after the recipients were found to be
+    unspecified, which is how they came to disagree with the tree's role gate.
+  specs:
+  - id: EMB-19-001
+    lint_suppress:
+    - rationale_too_long
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The `Announce(EmbargoEvent)` emitted after an embargo teardown MUST be authored by
+      the actor holding `CVDRole.CASE_MANAGER` for the case, and MUST be addressed to
+      every active participant (CM-10-004) except the announcing actor. It MUST NOT be
+      addressed to the Case Manager.
+    rationale: >-
+      The teardown is canonical case state, so the role holder announces it and the participants are the
+      audience. Addressing the Case Manager was correct while the tree ran as an ordinary participant
+      telling the manager; once the tree's ledger commit became gated on `CVDRole.CASE_MANAGER` the
+      executing actor *is* the manager, so the announce was addressed to itself and the teardown reached
+      nobody. Nothing in this corpus governed the recipients, which is why only one half of the pair was
+      updated when the gate was added — the gap is the reason this entry exists.
+    note: >-
+      This is the general rule of CLP-10-001 as amended by ADR-0109, not an exception to it: the
+      CASE_MANAGER commits its own emissions in the emitting tree and never addresses a copy to itself.
+      `remove_embargo_from_case_tree` passes the announce to `create_receive_activity_tree` as
+      `manager_effects`, which the factory gates on `CVDRole.CASE_MANAGER` after the guarded commit
+      (CLP-10-013, BT-17-008); a participant replica tears down its own copy and announces nothing. The
+      ledger entry therefore already exists when the announce is queued, and a self-addressed copy would
+      loop an activity back to the actor that just emitted it for no additional record.
+    relationships:
+    - rel_type: refines
+      spec_id: BT-05-006
+    - rel_type: refines
+      spec_id: CLP-10-001
+    verification: >-
+      `test/core/behaviors/embargo/test_announce_teardown_tree.py` asserts the announce
+      is authored by the CASE_MANAGER and addressed to the case's other active
+      participants, and, with each actor in its own store, that a participant
+      replica receiving the same `Remove(EmbargoEvent)` queues nothing.
+    adr:
+    - ADR-0109
+    - ADR-0114
+    stories:
+    - story_2022_045
+    - story_2022_046
+    tags:
+    - protocol
+    - messaging
+  - id: EMB-19-002
+    priority: MUST
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      When a case has no participants besides the Case Manager, the teardown announcement MUST be
+      skipped rather than emitted with an empty recipient list.
+    rationale: >-
+      An activity addressed to nobody is undeliverable, and delivery discards it anyway; constructing one
+      only adds a queue entry that can never be resolved. Skipping keeps the teardown itself unaffected,
+      consistent with the announcement being best-effort — a notification gap MUST NOT block a teardown.
+    relationships:
+    - rel_type: refines
+      spec_id: EMB-19-001
+    stories:
+    - story_2022_045
+    tags:
+    - protocol
+    - messaging

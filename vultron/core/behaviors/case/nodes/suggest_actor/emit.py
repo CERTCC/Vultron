@@ -1,0 +1,366 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Outbound activity emission nodes for the suggest-actor workflow (CM-16).
+
+Every node here addresses the *Case Owner*: it either records who recommended
+whom, or asks the owner to decide on that recommendation.
+
+Classes: RecordRecommendationRecommenderNode (DL-06-002),
+EmitOfferCaseParticipantToOwnerNode (CM-16-004),
+EmitNoteDuplicateRecommendationToOwnerNode (CM-16-008).
+
+Two sibling modules were split off this one for the BTND-07-004 line limit, both
+along that same "who is being addressed" seam: ``emit_response`` answers the
+*recommender* once the owner has decided (CM-16-006, CM-16-007), and
+``accept_offer`` holds the Case Owner's own Accept response.
+"""
+
+from typing import cast
+
+from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
+
+from vultron.core.behaviors.case.nodes.participant.roles import (
+    resolve_case_owner_id,
+    suggested_roles_key,
+)
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    _EmitSingleActivityBase,
+)
+from vultron.core.behaviors.node_logger import port_wiring_logger
+from vultron.core.behaviors.note.case_manager_note import (
+    CaseManagerNote,
+    _CommitCaseManagerNoteBase,
+)
+from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
+from vultron.core.models.activity_ids import derived_activity_id
+from vultron.core.models.actor_recommendation_record import (
+    ActorRecommendationRecord,
+)
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.ports.case_outbox import CaseOutboxPersistence
+from vultron.core.ports.case_persistence import CasePersistence
+from vultron.enums.roles import CVDRole
+
+#: Ledger ``semantic_type`` of the forwarded ``Offer(CaseParticipant)``, and the
+#: kind label of its derived id.
+OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE = (
+    MessageSemantics.OFFER_CASE_PARTICIPANT.value
+)
+
+
+def _resolve_owner_recipient(
+    dl: CasePersistence,
+    case_id: str,
+    emitting_actor_id: str,
+) -> str | None:
+    """Return the Case Owner's actor URI to address a CaseActor DM to.
+
+    A DM the CaseActor addresses to itself never reaches the owner, who then
+    never sees the ``Offer(CaseParticipant)`` it is required to decide on
+    (CM-16-004): the rcvcv ADR-0026 chain stalls, and
+    ``accept-actor-recommendation`` returns 422 because no offer arrived.
+    ``attributed_to`` names the owner (CP-09-001), but a store may hold a case
+    attributed to the CaseActor itself, so that field alone is not enough.
+
+    The CASE_OWNER participant role is the authoritative record of ownership
+    (CM-21-002), so resolve that first.  ``attributed_to`` stays as a fallback
+    for a store where no participant carries the role yet, but only when it
+    names somebody other than *emitting_actor_id* — a self-addressed DM is
+    never the intent, and returning ``None`` lets the caller fail loudly
+    instead of silently delivering to itself (ARCH-15-001).
+    """
+    # Regime 1 (ADR-0087): module-level resolver (bare `dl`, not a node) —
+    # a missing case flows to the None return, letting the caller fail loudly
+    # (ARCH-15-001). Conformance allowlist: module-resolver category.
+    case_obj = dl.read_case(case_id)
+    if case_obj is None:
+        return None
+    owner_id = resolve_case_owner_id(case_obj, dl)
+    if owner_id:
+        return owner_id
+    fallback = case_obj.attributed_to
+    return fallback if fallback != emitting_actor_id else None
+
+
+class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):
+    """Record who made a recommendation, in the CASE_MANAGER's own store.
+
+    Runs as the first effect node in ``RecommendActorToCaseBT`` so downstream
+    Accept/Reject use cases can look up the recommender without re-reading the
+    stored wire Offer (ADR-0035 DL-06-002, CLP-10-005).
+
+    The record is an :class:`ActorRecommendationRecord`, case bookkeeping kept
+    beside the case and never part of it (CLP-07-014), so the node writes no
+    case state and carries no ``StateWriteCapable`` marker.  It is saved under
+    a deterministic id, so a redelivered recommendation rewrites the same
+    record rather than adding a second one.
+    """
+
+    def __init__(
+        self,
+        recommendation_id: str,
+        recommender_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommendation_id = recommendation_id
+        self.recommender_id = recommender_id
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        assert self.datalayer is not None
+        self.datalayer.save(
+            ActorRecommendationRecord(
+                case_id=self.case_id,
+                recommendation_id=self.recommendation_id,
+                recommender_id=self.recommender_id,
+            )
+        )
+        self.logger.debug(
+            "%s: recorded recommender '%s' for recommendation '%s'"
+            " in case '%s'",
+            self.name,
+            self.recommender_id,
+            self.recommendation_id,
+            self.case_id,
+        )
+        return Status.SUCCESS
+
+
+class EmitOfferCaseParticipantToOwnerNode(_EmitSingleActivityBase):
+    """Transform Offer(Actor, Case) → Offer(CaseParticipant) and DM Case Owner.
+
+    Uses ``trigger_activity_factory.offer_actor_to_case()`` with the
+    recommender_id, recommended_id, roles from the blackboard (written by
+    :class:`~vultron.core.behaviors.case.nodes.actor.EvaluateDefaultRolesNode`),
+    case_id, and case owner id.
+    The original offer ID is carried in the ``origin`` field so the Case Owner
+    can trace the causal chain (CM-16-004).
+
+    Reads ``suggested_roles_{recommendation_id_segment}`` from the blackboard
+    (namespaced per BTND-03-004); falls back to ``[CVDRole.VENDOR]`` when the
+    key is absent.
+
+    The Offer is queued and then committed (ADR-0119, CM-16-010).
+
+    Returns SUCCESS on success, FAILURE if any required dependency is missing.
+    """
+
+    def __init__(
+        self,
+        recommendation_id: str,
+        recommender_id: str,
+        recommended_id: str,
+        case_id: str,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name=name or self.__class__.__name__)
+        self.recommendation_id = recommendation_id
+        self.recommender_id = recommender_id
+        self.recommended_id = recommended_id
+        self.case_id = case_id
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "suggested_roles": PortInformation(data_type=list, required=False),
+    }
+
+    def setup(self, **kwargs) -> None:
+        self.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+                "trigger_activity_factory": "/trigger_activity_factory",
+                "suggested_roles": f"/{suggested_roles_key(self.recommendation_id)}",
+            },
+            logger=port_wiring_logger(),
+        )
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self._suggested_roles_bb = self.get_input("suggested_roles")
+        except (NoDataAvailable, NotImplementedError):
+            self._suggested_roles_bb = None
+
+    def _read_suggested_roles(self) -> list[CVDRole]:
+        roles = self._suggested_roles_bb
+        if isinstance(roles, list):
+            return roles
+        return [CVDRole.VENDOR]
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        if (f := self._require_factory()) is not None:
+            self.logger.error("%s", self.feedback_message)
+            return f
+        assert self.trigger_activity_factory is not None
+
+        factory = self.trigger_activity_factory  # guaranteed non-None
+        roles = self._read_suggested_roles()
+        if not roles:
+            self.feedback_message = (
+                f"suggested_roles for actor '{self.recommended_id}' is empty "
+                "— cannot emit Offer(CaseParticipant) without at least one role"
+            )
+            self.logger.error("%s", self.feedback_message)
+            return Status.FAILURE
+        try:
+            owner_id = _resolve_owner_recipient(
+                self.datalayer, self.case_id, self.actor_id
+            )
+            if not owner_id:
+                self.feedback_message = (
+                    f"case '{self.case_id}' names no Case Owner other than "
+                    f"'{self.actor_id}' — cannot address Offer(CaseParticipant)"
+                )
+                self.logger.error("%s", self.feedback_message)
+                return Status.FAILURE
+            # The id is derived from the recommendation the Offer forwards,
+            # so a retry for the same recommendation rebuilds this Offer and
+            # the outbox does not queue it twice (OX-06-002).
+            activity_id, activity_blob = factory.offer_actor_to_case(
+                recommender_id=self.recommender_id,
+                recommended_id=self.recommended_id,
+                case_id=self.case_id,
+                actor=self.actor_id,
+                origin=self.recommendation_id,
+                to=[owner_id],
+                roles=roles,
+                id_=derived_activity_id(
+                    OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
+                    self.actor_id,
+                    self.case_id,
+                    self.recommendation_id,
+                ),
+            )
+            # Route through the shared emit seam (OX-14-001, ASK-04-008).
+            self._emit_through_seam(activity_id, "")
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.feedback_message = (
+                f"EmitOfferCaseParticipantToOwner failed: {e}"
+            )
+            self.logger.error("%s", self.feedback_message)  # noqa: TRY400  # ruff-baseline #3353
+            return Status.FAILURE
+        # Record the sent Offer (ADR-0119, CM-16-010).  The exact blob is the
+        # snapshot (VM-08-003): the factory sets context.  Not caught: the
+        # Offer is queued, so a failed commit escapes to ``BTBridge`` as an
+        # internal error and the redelivered recommendation records it
+        # (BT-14-001, OX-06-002), as in ``_EmitSingleActivityBase.update()``.
+        commit_emitted_activity(
+            datalayer=cast(CaseOutboxPersistence, self.datalayer),
+            actor_id=self.actor_id,
+            case_id=self.case_id,
+            activity_id=activity_id,
+            activity_blob=activity_blob,
+            semantic_type=OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE,
+        )
+        self.logger.info(
+            "%s: queued Offer(CaseParticipant) '%s' to Case Owner outbox"
+            " for case '%s'",
+            self.name,
+            activity_id,
+            self.case_id,
+        )
+        return Status.SUCCESS
+
+
+class EmitNoteDuplicateRecommendationToOwnerNode(_CommitCaseManagerNoteBase):
+    """Record a note for the Case Owner noting reinforcing demand.
+
+    Used when a second ``Offer(Actor, Case)`` arrives while a first
+    ``Offer(CaseParticipant)`` is still pending the Case Owner's
+    Accept/Reject decision (AC-6, CM-16-008, CM-16-016).  No second
+    ``Offer(CaseParticipant)`` is issued.  The CASE_MANAGER records the note
+    as its own ``add_note_to_case`` entry and attaches it to the case; the
+    Case Owner learns of it from the ledger fan-out, as every active
+    participant does (#4829).  A direct ``Add(Note)`` to the owner would be
+    refused there (HP-01-005).
+
+    When ``offer_content`` is provided (non-None, non-empty), it is appended
+    to the Note body per CM-16-016's requirement to forward the incoming
+    Offer's ``content`` field to the Case Owner.
+
+    Fails when the case names no Case Owner other than the executing actor:
+    there is nobody the note is for.
+    """
+
+    def __init__(
+        self,
+        recommendation_id: str,
+        recommender_id: str,
+        recommended_id: str,
+        case_id: str,
+        offer_content: str | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(case_id=case_id, name=name)
+        self.recommendation_id = recommendation_id
+        self.recommender_id = recommender_id
+        self.recommended_id = recommended_id
+        self.case_id = case_id
+        self.offer_content = (
+            (offer_content.strip() or None) if offer_content else None
+        )
+        self._owner_id: str | None = None
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        self._owner_id = _resolve_owner_recipient(
+            self.datalayer, self.case_id, self.actor_id
+        )
+        if not self._owner_id:
+            self.feedback_message = (
+                f"case '{self.case_id}' names no Case Owner other than "
+                f"'{self.actor_id}' — nobody to record the "
+                "duplicate-recommendation Note for"
+            )
+            self.logger.error("%s", self.feedback_message)
+            return Status.FAILURE
+        return super().update()
+
+    def _compose(self) -> CaseManagerNote:
+        actor_segment = self.recommended_id.split("/")[-1]
+        content = (
+            f"Duplicate actor recommendation for the Case Owner "
+            f"'{self._owner_id}': '{self.recommender_id}' also recommends "
+            f"actor '{actor_segment}' for case '{self.case_id}'.  An "
+            f"Offer(CaseParticipant) is already pending your decision (no "
+            f"second offer sent)."
+        )
+        if self.offer_content:
+            content = f"{content}\n\nRecommender note: {self.offer_content}"
+        return CaseManagerNote(
+            name=f"Duplicate recommendation — {actor_segment}",
+            content=content,
+            in_reply_to=self.recommendation_id,
+        )
+
+
+__all__ = [
+    "EmitNoteDuplicateRecommendationToOwnerNode",
+    "EmitOfferCaseParticipantToOwnerNode",
+    "RecordRecommendationRecommenderNode",
+]

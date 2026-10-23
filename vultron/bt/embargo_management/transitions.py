@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""file: em_transitions
-author: adh
-created_at: 4/7/22 11:28 AM
 """
+This module provides state transition definitions for the Embargo Management behavior tree.
+"""
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -16,31 +16,24 @@ created_at: 4/7/22 11:28 AM
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
-from dataclasses import dataclass
-from typing import List
+from collections.abc import Sequence
 
 from vultron.bt.common import EnumStateTransition, show_graph, state_change
-from vultron.bt.embargo_management.states import EM
+from vultron.core.states.em import EM, EM_NEGOTIATING
 
 
-@dataclass
 class EmTransition(EnumStateTransition):
     """Represents a transition between two states in the q_em state machine"""
 
-    start_states: List[EM]
+    start_states: Sequence[EM]
     end_state: EM
 
 
 _to_P = EmTransition(
-    start_states=[EM.NO_EMBARGO, EM.PROPOSED], end_state=EM.PROPOSED
+    start_states=[EM.NONE, EM.PROPOSED], end_state=EM.PROPOSED
 )
-_to_N = EmTransition(
-    start_states=[EM.PROPOSED, EM.NO_EMBARGO], end_state=EM.NO_EMBARGO
-)
-_to_A = EmTransition(
-    start_states=[EM.PROPOSED, EM.REVISE], end_state=EM.ACTIVE
-)
+_to_N = EmTransition(start_states=[EM.PROPOSED, EM.NONE], end_state=EM.NONE)
+_to_A = EmTransition(start_states=list(EM_NEGOTIATING), end_state=EM.ACTIVE)
 _to_R = EmTransition(start_states=[EM.ACTIVE, EM.REVISE], end_state=EM.REVISE)
 _R_to_A = EmTransition(start_states=[EM.REVISE], end_state=EM.ACTIVE)
 _to_X = EmTransition(start_states=[EM.ACTIVE, EM.REVISE], end_state=EM.EXITED)

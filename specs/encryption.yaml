@@ -1,0 +1,182 @@
+id: ENC
+title: Encryption
+description: >-
+  Requirements for encrypted messaging and actor key management using ActivityPub extension
+  conventions. Ensures that sensitive vulnerability information can be protected in transit
+  between actors.
+scope:
+- prototype
+- production
+tags:
+- security
+groups:
+- id: ENC-01
+  title: Key Management
+  specs:
+  - id: ENC-01-001
+    priority: MUST
+    kind: protocol
+    statement: Each actor MUST generate a unique asymmetric key pair when its identity is first provisioned.
+    rationale: Key material binds to an actor identity, not to a case. An actor that enacts `CVDRole.CASE_MANAGER` for
+      several cases uses one key pair for all of them, so per-case key separation is a consequence of deployment topology
+      rather than a key-binding rule. Regenerating a key pair would invalidate any peer's cached public key and break
+      encrypted communication mid-case. See `notes/encryption.md` for the topology discussion.
+    verification: A unit test confirms that two independently provisioned actors have distinct public keys, and that a
+      newly provisioned actor's key pair is non-None.
+    scope:
+    - production
+    relationships:
+    - rel_type: implements
+      spec_id: VP-15-004
+    stories:
+    - story_2022_035
+    - story_2022_036
+    - story_2022_089
+    - story_2022_090
+  - id: ENC-01-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Each actor MUST publish its public key in its ActivityPub actor profile using the
+      `publicKey` property per ActivityPub HTTP Signatures conventions
+    verification: Inspection of the actor profile endpoint confirms the `publicKey` field is populated with the actor's
+      public key per ActivityPub HTTP Signatures conventions.
+    scope:
+    - production
+    stories:
+    - story_2022_035
+    - story_2022_089
+  - id: ENC-01-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The actor enacting `CVDRole.CASE_MANAGER` MUST share its public key with each case
+      participant when they are added to the case
+    verification: Integration tests confirm that when a participant is added to a case, the outbound activity includes
+      the CASE_MANAGER's public key.
+    scope:
+    - production
+    stories:
+    - story_2022_090
+  - id: ENC-01-004
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      Private keys MUST be stored securely and MUST NOT be logged or included in API responses
+    scope:
+    - production
+    stories:
+    - story_2022_091
+  - id: ENC-01-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor's asymmetric key pair MUST be persisted and reused across process
+      restarts for the lifetime of that actor identity.
+    rationale: >-
+      Regenerating on restart would invalidate any peer's cached public key and break
+      encrypted communication mid-case.
+    verification: A unit test confirms that an actor reconstructed from a persisted record retains the same key pair
+      as the original and does not generate a new one on reconstruction.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: ENC-01-001
+    stories:
+    - story_2022_091
+    - story_2022_090
+  - id: ENC-01-006
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: A new key pair MUST NOT be generated on process resumption for an existing actor identity.
+    rationale: >-
+      Generating a new key pair on restart breaks any encrypted channel established
+      with the previous key, invalidating cached public keys held by case participants.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: ENC-01-001
+- id: ENC-02
+  title: Message Encryption
+  specs:
+  - id: ENC-02-001
+    priority: MAY
+    kind: protocol
+    statement: >-
+      Case participants MAY encrypt messages sent to the CASE_MANAGER using the CASE_MANAGER's
+      published public key
+    scope:
+    - production
+    relationships:
+    - rel_type: implements
+      spec_id: VP-15-004
+    stories:
+    - story_2022_091
+  - id: ENC-02-002
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      When sending messages to case participants, the CASE_MANAGER SHOULD encrypt each outbound
+      message to the recipient's public key individually (one encrypted payload per recipient)
+    rationale: >-
+      The specific encryption scheme (e.g., ECDH key agreement + AES-256-GCM, RSA-OAEP) is
+      intentionally deferred pending a protocol-level agreement. Until a scheme is standardized,
+      the choice is implementation-defined; interoperability between independently-built
+      implementations is not yet a requirement.
+    scope:
+    - production
+    relationships:
+    - rel_type: implements
+      spec_id: VP-15-004
+    stories:
+    - story_2022_091
+- id: ENC-03
+  title: Decryption Pipeline
+  specs:
+  - id: ENC-03-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Decryption of inbound encrypted activities MUST occur in the inbox handler before the
+      activity is passed to semantic extraction or dispatch
+    verification: Inspection of `vultron/core/` confirms the inbox handler invokes the decryption step before calling
+      semantic extraction or the dispatch pipeline.
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: IE-04-001
+    - rel_type: depends_on
+      spec_id: SE-01-001
+    - rel_type: implements
+      spec_id: VP-15-004
+  - id: ENC-03-002
+    priority: MUST
+    kind: project
+    statement: >-
+      If decryption fails, the inbox handler MUST return HTTP 400 with a structured error
+      indicating decryption failure
+    verification: A unit test confirms that the inbox handler returns HTTP 400 with a structured error body when the
+      decryption step raises a failure.
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: EH-05-001
+    - rel_type: depends_on
+      spec_id: HTTP-03-001
+  - id: ENC-03-003
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      Inspection confirms decryption runs as its own stage ahead of parsing and that the
+      semantic extraction code contains no decryption logic.
+    statement: >-
+      The decryption layer MUST be separate from semantic extraction logic; the two concerns
+      MUST NOT be mixed
+    scope:
+    - production

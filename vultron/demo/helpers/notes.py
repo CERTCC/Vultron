@@ -1,0 +1,138 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Note-exchange helpers for demo workflows.
+
+Provides :func:`participant_adds_note_to_case`, which posts a note to a case
+through the ``add-note-to-case`` trigger.  The trigger sends one
+``Add(Note)`` that names the case as its ``target`` and carries the note
+inline; the CASE_MANAGER attaches the note and commits an
+``add_note_to_case`` ledger entry.
+"""
+
+import logging
+
+from vultron.demo.actor_session import ActorSession
+from vultron.demo.helpers.polling import wait_for_note_in_case
+from vultron.demo.utils import (
+    DataLayerClient,
+    demo_gate,
+    demo_step,
+    verify_object_stored,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def participant_adds_note_to_case(
+    posting_client: DataLayerClient,
+    watching_client: DataLayerClient,
+    poster: as_Actor,
+    case: as_VulnerabilityCase,
+    note_name: str,
+    note_content: str,
+    in_reply_to: str | None = None,
+) -> as_Note | None:
+    """Participant adds a note to a case via the ``add-note-to-case`` trigger.
+
+    The posting actor uses their own container's trigger endpoint, which
+    sends one ``Add(Note)`` naming the case as its ``target`` and carrying
+    the note inline, so the note flows through the poster's outbox to the
+    case host's inbox — reflecting real deployment behavior
+    (D5-7-DEMONOTECLEAN-1).
+
+    Args:
+        posting_client: Client connected to the posting actor's container.
+        watching_client: Client connected to the container where note delivery
+            should be verified (typically the case host or coordinator).
+        poster: The ``as_Actor`` adding the note.
+        case: The ``as_VulnerabilityCase`` the note belongs to.
+        note_name: Short name / subject for the note.
+        note_content: Full text content of the note.
+        in_reply_to: Optional ID of the note being replied to.
+
+    Returns:
+        The ``as_Note`` fetched from the *watching_client* DataLayer after
+        confirmed delivery, or ``None`` when the trigger or delivery check
+        fails (failures are recorded in the demo accumulator via
+        ``demo_step``/``demo_gate``).
+    """
+    session = ActorSession(client=posting_client, actor=poster).with_case(case)
+    note_id: str | None = None
+    with demo_step(f"Participant adds note '{note_name}' to case"):
+        result = session.quiet().add_note_to_case(
+            note_name=note_name,
+            note_content=note_content,
+            in_reply_to=in_reply_to,
+        )
+        note_id = (result.note or {}).get("id")
+        if note_id is None:
+            raise AssertionError(
+                "add-note-to-case trigger did not return a note ID"
+            )
+
+    if note_id is None:
+        return None
+
+    note: as_Note | None = None
+    with demo_gate("Note delivered to watching container"):
+        wait_for_note_in_case(watching_client, case.id_, note_id)
+        verify_object_stored(watching_client, note_id)
+        logger.info("Note added to case: %s", note_id)
+        note_data = watching_client.get(watching_client.dl_path(note_id))
+        note = as_Note(**note_data)
+
+    return note
+
+
+def reporter_asks_vendor_answers(
+    reporter: ActorSession,
+    vendor: ActorSession,
+    watching_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+) -> None:
+    """The Reporter asks about the embargo and the Vendor answers.
+
+    The shared note exchange of the embargo scenarios; it puts
+    ``add_note_to_case`` in the case ledger (DEMOMA-16-001).  Failures are
+    recorded by :func:`participant_adds_note_to_case`.
+
+    Args:
+        reporter: Session in the Reporter's container; posts the question.
+        vendor: Session in the Vendor's container; posts the reply.
+        watching_client: Client where delivery of each note is verified
+            (typically the Coordinator, who hosts the case).
+        case: The case the notes belong to.
+    """
+    question = participant_adds_note_to_case(
+        posting_client=reporter.client,
+        watching_client=watching_client,
+        poster=reporter.actor,
+        case=case,
+        note_name="Question from Reporter",
+        note_content="Could the embargo be shorter than the default?",
+    )
+    participant_adds_note_to_case(
+        posting_client=vendor.client,
+        watching_client=watching_client,
+        poster=vendor.actor,
+        case=case,
+        note_name="Vendor Status Update",
+        note_content="A fix is in progress; a shorter embargo is workable.",
+        in_reply_to=question.id_ if question is not None else None,
+    )

@@ -1,0 +1,64 @@
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import pytest
+
+from test.demo._helpers import (
+    expect_trusted_introductions,
+    route_exchange_demo_at_testclient,
+)
+from vultron.demo.exchange import (
+    initialize_case_demo as init_demo,
+    status_updates_demo as demo,
+)
+
+
+@pytest.fixture(scope="module")
+def demo_env(client):
+    """Routes the demo's clients at the in-process TestClient."""
+    with route_exchange_demo_at_testclient(client, demo, init_demo):
+        yield
+
+
+@pytest.mark.parametrize(
+    "demo_fn",
+    [demo.demo_notes_workflow, demo.demo_status_workflow],
+    ids=["notes_workflow", "status_workflow"],
+)
+def test_demo(demo_env, demo_fn, caplog):
+    """
+    Tests that the status_updates demo workflows complete successfully.
+
+    For the notes workflow, verifies:
+    - Case initialized with reporter participant
+    - Note created and added to case
+    - Note removed from case
+
+    For the status workflow, verifies:
+    - Case initialized with reporter participant
+    - a new CaseStatus added, inline, to the case
+    - a new ParticipantStatus added, inline, to the participant
+    """
+    import logging
+
+    # WARNING, not ERROR: a refused case introduction (CBT-01-011) is
+    # logged at WARNING, and the run must log none (#4675).
+    with (
+        caplog.at_level(logging.WARNING),
+        expect_trusted_introductions(caplog),
+    ):
+        demo.main(skip_health_check=True, demos=[demo_fn])
+
+    assert "ERROR SUMMARY" not in caplog.text, (
+        "Expected demo to succeed, but got errors:\n" + caplog.text
+    )

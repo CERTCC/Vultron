@@ -1,0 +1,376 @@
+#!/usr/bin/env python
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Tests for GetActionRulesUseCase (CA-2).
+
+Verifies CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
+"""
+
+import pytest
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import register
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.dimensions import (
+    PxaDimension,
+    RmDimension,
+    VfDimension,
+)
+from vultron.core.states.cs import CS_d, CS_pxa, CS_vf
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
+from vultron.core.use_cases.query.action_rules import (
+    ActionRule,
+    ActionRulesRequest,
+    ActionRulesResult,
+    GetActionRulesUseCase,
+)
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronNotFoundError, VultronValidationError
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import as_ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+ACTOR_ID = "https://example.org/actors/alice"
+CASE_ID = "https://example.org/cases/c1"
+PARTICIPANT_ID = "https://example.org/participants/p1"
+EMBARGO_ID = "https://example.org/cases/c1/embargoes/e1"
+
+
+@pytest.fixture
+def dl():
+    """In-memory DataLayer with a minimal valid case setup."""
+    layer = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=ACTOR_ID,
+    )
+
+    # Case: as_VulnerabilityCase with actor_participant_index
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_=CASE_ID,
+        name="Test Case",
+        case_participants=[PARTICIPANT_ID],
+        actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
+        # EM is derived from the embargo register (ADR-0122), never set on a
+        # status.
+        embargo_register=register(active=EMBARGO_ID),
+        case_statuses=[  # type: ignore[arg-type]
+            CaseStatus(
+                pxa=PxaDimension(state=CS_pxa.Pxa),
+                context=CASE_ID,
+            )
+        ],
+    )
+    layer.create(case)
+
+    # Participant: as_CaseParticipant with VENDOR role and ACCEPTED RM state
+    participant = as_CaseParticipant(
+        id_=PARTICIPANT_ID,
+        attributed_to=ACTOR_ID,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                context=CASE_ID,
+                rm=RmDimension(state=RM.ACCEPTED),
+                vf=VfDimension(state=CS_vf.VF),
+            )
+        ],
+    )
+    layer.create(participant)
+
+    return layer
+
+
+@pytest.fixture
+def request_(dl):
+    return ActionRulesRequest(
+        case_id=CASE_ID,
+        actor_id=ACTOR_ID,
+    )
+
+
+class TestGetActionRulesUseCase:
+    """Tests for the GetActionRulesUseCase."""
+
+    def test_happy_path_returns_expected_keys(self, dl, request_):
+        """Happy path: result contains all required state and action keys."""
+        result = GetActionRulesUseCase(dl=dl, request=request_).execute()
+
+        expected_keys = {
+            "participant_id",
+            "participant_actor_id",
+            "case_id",
+            "role",
+            "rm_state",
+            "em_state",
+            "vf_state",
+            "d_state",
+            "pxa_state",
+            "cs_state",
+            "actions",
+        }
+        assert isinstance(result, ActionRulesResult)
+        assert set(result.model_dump()) == expected_keys
+
+    def test_happy_path_state_values(self, dl, request_):
+        """States in the response match what was stored."""
+        result = GetActionRulesUseCase(dl=dl, request=request_).execute()
+
+        assert result.rm_state == RM.ACCEPTED
+        assert result.em_state == EM.ACTIVE
+        assert result.vf_state == CS_vf.VF.value
+        assert result.pxa_state == CS_pxa.Pxa.name
+        assert (
+            result.cs_state == CS_vf.VF.value + CS_d.d.value + CS_pxa.Pxa.name
+        )
+
+    def test_happy_path_role(self, dl, request_):
+        """Participant role is reflected in the response."""
+        result = GetActionRulesUseCase(dl=dl, request=request_).execute()
+        assert CVDRole.VENDOR.value in result.role
+
+    def test_happy_path_ids(self, dl, request_):
+        """IDs in the response match the stored object IDs."""
+        result = GetActionRulesUseCase(dl=dl, request=request_).execute()
+        assert result.participant_id == PARTICIPANT_ID
+        assert result.participant_actor_id == ACTOR_ID
+        assert result.case_id == CASE_ID
+
+    def test_short_case_key_resolves_to_case(self, dl):
+        """Short surrogate key resolves successfully for action lookup."""
+        req = ActionRulesRequest(case_id="c1", actor_id=ACTOR_ID)
+        result = GetActionRulesUseCase(dl=dl, request=req).execute()
+        assert result.participant_id == PARTICIPANT_ID
+
+    def test_short_case_key_resolution_ignores_non_case_id_collision(self, dl):
+        """Case lookup prefers case surrogate resolution over non-case collisions."""
+        dl.create(as_Note(id_="c1", content="collision"))
+        req = ActionRulesRequest(case_id="c1", actor_id=ACTOR_ID)
+        result = GetActionRulesUseCase(dl=dl, request=req).execute()
+        assert result.participant_id == PARTICIPANT_ID
+
+    def test_happy_path_actions_is_list(self, dl, request_):
+        """actions is a non-empty list of named, described ActionRules."""
+        result = GetActionRulesUseCase(dl=dl, request=request_).execute()
+        assert len(result.actions) > 0
+        for action in result.actions:
+            assert isinstance(action, ActionRule)
+            assert action.name
+            assert action.description
+
+    def test_case_not_found_raises(self, dl):
+        """Missing case raises VultronNotFoundError."""
+        req = ActionRulesRequest(
+            case_id="https://example.org/cases/does-not-exist",
+            actor_id=ACTOR_ID,
+        )
+        with pytest.raises(VultronNotFoundError):
+            GetActionRulesUseCase(dl=dl, request=req).execute()
+
+    def test_actor_not_in_case_raises_not_found(self, dl):
+        """Unknown actor in the selected case raises VultronNotFoundError."""
+        req = ActionRulesRequest(
+            case_id=CASE_ID,
+            actor_id="https://example.org/actors/unknown",
+        )
+        with pytest.raises(VultronNotFoundError):
+            GetActionRulesUseCase(dl=dl, request=req).execute()
+
+    def test_no_case_statuses_defaults(self, dl):
+        """When case has no as_CaseStatus entries, EM/PXA default to None/pxa."""
+        layer = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # Its own actor, therefore its own store: sharing ACTOR_ID with the
+            # `dl` fixture would mean sharing one in-memory database, and the
+            # re-seed below would collide on CASE_ID.
+            actor_id=f"{ACTOR_ID}/no-case-statuses-defaults",
+        )
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="Empty Status Case",
+            case_participants=[PARTICIPANT_ID],
+            actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
+            case_statuses=[],
+        )
+        layer.create(case)
+        participant = as_CaseParticipant(
+            id_=PARTICIPANT_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.REPORTER],
+            participant_statuses=[
+                as_ParticipantStatus(
+                    context=CASE_ID,
+                    rm=RmDimension(state=RM.RECEIVED),
+                    vf=VfDimension(state=CS_vf.Vf),
+                )
+            ],
+        )
+        layer.create(participant)
+
+        req = ActionRulesRequest(
+            case_id=CASE_ID,
+            actor_id=ACTOR_ID,
+        )
+        result = GetActionRulesUseCase(dl=layer, request=req).execute()
+
+        assert result.em_state == EM.EMBARGO_MANAGEMENT_NONE
+        assert result.pxa_state == CS_pxa.pxa.name
+
+    def test_no_participant_statuses_defaults(self, dl):
+        """When participant has no as_ParticipantStatus entries, RM/VFD default."""
+        layer = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # Its own actor, therefore its own store: sharing ACTOR_ID with the
+            # `dl` fixture would mean sharing one in-memory database, and the
+            # re-seed below would collide on CASE_ID.
+            actor_id=f"{ACTOR_ID}/no-participant-statuses-defaults",
+        )
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            name="Default Participant Status Case",
+            case_participants=[PARTICIPANT_ID],
+            actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
+            case_statuses=[CaseStatus(context=CASE_ID)],
+        )
+        layer.create(case)
+        participant = as_CaseParticipant(
+            id_=PARTICIPANT_ID,
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.REPORTER],
+            participant_statuses=[],
+        )
+        layer.create(participant)
+
+        req = ActionRulesRequest(
+            case_id=CASE_ID,
+            actor_id=ACTOR_ID,
+        )
+        result = GetActionRulesUseCase(dl=layer, request=req).execute()
+
+        assert result.rm_state == RM.START
+        assert result.vf_state == CS_vf.vf.value
+
+    def test_em_state_variations(self, dl):
+        """Different EM states are correctly reflected."""
+        revision_id = f"{EMBARGO_ID}-revision"
+        registers = {
+            EM.NONE: register(),
+            EM.PROPOSED: register(proposed=[EMBARGO_ID]),
+            EM.ACTIVE: register(active=EMBARGO_ID),
+            EM.REVISE: register(active=EMBARGO_ID, proposed=[revision_id]),
+            EM.EXITED: register(terminated=EMBARGO_ID),
+        }
+        for em, embargo_register in registers.items():
+            layer = SqliteDataLayer(
+                "sqlite:///:memory:",
+                # Its own actor, therefore its own store: sharing ACTOR_ID with the
+                # `dl` fixture would mean sharing one in-memory database, and the
+                # re-seed below would collide on CASE_ID.
+                # One store per iteration: the loop re-seeds CASE_ID each time,
+                # and a single actor id would mean a single in-memory database.
+                actor_id=f"{ACTOR_ID}/em-state-{em.value}",
+            )
+            case = as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
+                id_=CASE_ID,
+                case_participants=[PARTICIPANT_ID],
+                actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
+                embargo_register=embargo_register,
+                case_statuses=[  # type: ignore[arg-type]
+                    CaseStatus(
+                        pxa=PxaDimension(state=CS_pxa.pxa),
+                        context=CASE_ID,
+                    )
+                ],
+            )
+            layer.create(case)
+            participant = as_CaseParticipant(
+                id_=PARTICIPANT_ID,
+                attributed_to=ACTOR_ID,
+                participant_statuses=[as_ParticipantStatus(context=CASE_ID)],
+            )
+            layer.create(participant)
+
+            req = ActionRulesRequest(
+                case_id=CASE_ID,
+                actor_id=ACTOR_ID,
+            )
+            result = GetActionRulesUseCase(dl=layer, request=req).execute()
+            assert result.em_state == em, (
+                f"Expected {em!r}, got {result.em_state!r}"
+            )
+
+    def test_participant_lookup_raises_on_index_mismatch(self):
+        layer = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # Its own actor, therefore its own store: sharing ACTOR_ID with the
+            # `dl` fixture would mean sharing one in-memory database, and the
+            # re-seed below would collide on CASE_ID.
+            actor_id=f"{ACTOR_ID}/participant-lookup-raises-on-index-misma",
+        )
+        participant = as_CaseParticipant(
+            id_=PARTICIPANT_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.VENDOR],
+            participant_statuses=[as_ParticipantStatus(context=CASE_ID)],
+        )
+        layer.create(participant)
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            case_participants=[PARTICIPANT_ID],
+            actor_participant_index={ACTOR_ID: "https://example.org/p/wrong"},
+            case_statuses=[CaseStatus(context=CASE_ID)],
+        )
+        layer.create(case)
+
+        req = ActionRulesRequest(case_id=CASE_ID, actor_id=ACTOR_ID)
+        with pytest.raises(VultronValidationError, match="divergence"):
+            GetActionRulesUseCase(dl=layer, request=req).execute()
+
+    def test_participant_lookup_succeeds_without_index_entry(self):
+        layer = SqliteDataLayer(
+            "sqlite:///:memory:",
+            # Its own actor, therefore its own store: sharing ACTOR_ID with the
+            # `dl` fixture would mean sharing one in-memory database, and the
+            # re-seed below would collide on CASE_ID.
+            actor_id=f"{ACTOR_ID}/participant-lookup-succeeds-without-inde",
+        )
+        participant = as_CaseParticipant(
+            id_=PARTICIPANT_ID,
+            attributed_to=ACTOR_ID,
+            case_roles=[CVDRole.VENDOR],
+            participant_statuses=[as_ParticipantStatus(context=CASE_ID)],
+        )
+        layer.create(participant)
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            case_participants=[PARTICIPANT_ID],
+            actor_participant_index={},
+            case_statuses=[CaseStatus(context=CASE_ID)],
+        )
+        layer.create(case)
+
+        req = ActionRulesRequest(case_id=CASE_ID, actor_id=ACTOR_ID)
+        result = GetActionRulesUseCase(dl=layer, request=req).execute()
+        assert result.participant_id == PARTICIPANT_ID

@@ -1,0 +1,351 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+Performance tests for BT execution.
+
+Measure handler execution time and document performance baseline.
+Target: P99 < 100ms.
+"""
+
+import logging
+import time
+from functools import partial
+from unittest.mock import MagicMock
+
+import py_trees
+import py_trees.behaviour
+import pytest
+from py_trees.common import Status
+
+from test.support.embargo_register import register
+from test.support.participant_status import advance_participant_rm
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.report.validate_tree import (
+    create_validate_report_tree,
+)
+from vultron.core.models.activity import (
+    VultronAccept,
+    VultronOffer,
+)
+from vultron.core.models.actor import VultronService
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
+
+logger = logging.getLogger(__name__)
+
+_PERF_ACTOR_ID = "https://example.org/vendor"
+
+
+def _always_succeed_factory(name: str) -> py_trees.behaviour.Behaviour:
+    """Deterministic factory for performance tests: always returns SUCCESS."""
+
+    class _AlwaysSucceed(py_trees.behaviour.Behaviour):
+        def update(self):
+            return py_trees.common.Status.SUCCESS
+
+    return _AlwaysSucceed(name)
+
+
+def _make_always_succeed_bundle():
+    from vultron.demo.fuzzer.bundles.validation import ValidationCallOutBundle
+
+    return ValidationCallOutBundle(
+        credibility_factory=_always_succeed_factory,  # type: ignore[arg-type]
+        validity_factory=_always_succeed_factory,  # type: ignore[arg-type]
+    )
+
+
+def _mock_get_helper(table: str, id_: str) -> dict | None:
+    """Pattern-based mock for DataLayer.get()."""
+    if "report" in id_:
+        return {
+            "id_": id_,
+            "type_": "VulnerabilityReport",
+            "name": "TEST-REPORT",
+            "content": "Test vulnerability report",
+        }
+    if "offer" in id_:
+        return {
+            "id_": id_,
+            "type_": "Offer",
+            "actor": "https://example.org/finder",
+            "object_": "test-report-123",
+        }
+    if "actor" in id_ or "Person" in table or "Organization" in table:
+        return {
+            "id_": id_,
+            "type_": "Person",
+            "inbox": {"items": []},
+            "outbox": {"items": []},
+        }
+    return None
+
+
+def _mock_read_helper(
+    storage: dict, id_: str, raise_on_missing: bool = False
+) -> object:
+    """Pattern-based mock for DataLayer.read(), consulting in-memory store first."""
+    if id_ in storage:
+        return storage[id_]
+    if "report" in id_:
+        return VulnerabilityReport(
+            id_=id_,
+            name="TEST-REPORT",
+            content="Test vulnerability report",
+        )
+    if "offer" in id_:
+        return VultronOffer(
+            id_=id_,
+            actor="https://example.org/finder",
+            object_="test-report-123",
+        )
+    if id_.startswith("https://example.org/"):
+        return VultronService(id_=id_, name="Test Actor")
+    if raise_on_missing:
+        raise ValueError(f"Object not found: {id_}")
+    return None
+
+
+def _mock_read_case_helper(
+    storage: dict, case_id: str, raise_on_missing: bool = False
+) -> "VulnerabilityCase | None":
+    """Pattern-based mock for DataLayer.read_case(), returning only VulnerabilityCase."""
+    obj = storage.get(case_id)
+    if isinstance(obj, VulnerabilityCase):
+        return obj
+    if raise_on_missing:
+        raise ValueError(f"Case not found: {case_id}")
+    return None
+
+
+def _mock_store(storage: dict, obj: object) -> None:
+    """Persist *obj* to the in-memory store keyed by its ``id_``."""
+    id_ = getattr(obj, "id_", None)
+    if id_:
+        storage[id_] = obj
+
+
+def _mock_by_type_helper(type_name: str) -> dict:
+    """Pattern-based mock for DataLayer.by_type()."""
+    if type_name == "Offer":
+        return {
+            "test-offer-456": {
+                "id_": "test-offer-456",
+                "type_": "Offer",
+                "actor": "https://example.org/finder",
+                "object_": "test-report-123",
+            }
+        }
+    return {}
+
+
+def _seed_mock_case(storage: dict) -> VulnerabilityCase:
+    """Build a case replica the perf actor is a participant of, in *storage*.
+
+    ``ValidateReportBT`` requires a real ``VulnerabilityCase`` in this actor's
+    store with the actor in ``actor_participant_index`` — that is what a
+    delivered ``Create(VulnerabilityCase)`` provides (ADR-0041, ISSUE-2548).  A
+    bare ``MagicMock`` no longer satisfies it: ``RequireCaseForReport`` does a
+    real ``isinstance`` check, and ``TransitionRMtoValid`` actually advances the
+    participant's case-scoped RM state.
+    """
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/perf-case",
+        name="Perf test case",
+        attributed_to=_PERF_ACTOR_ID,
+        vulnerability_reports=["test-report-123"],
+        embargo_register=register(
+            active="https://example.org/embargoes/perf-embargo"
+        ),
+    )
+    participant = CaseParticipant(
+        id_=f"{case.id_}/participants/vendor",
+        attributed_to=_PERF_ACTOR_ID,
+        context=case.id_,
+        # The vendor manages its own case, so the validate trigger has a
+        # CASE_MANAGER to address: the send is the whole effect, and a send
+        # with no recipient fails the tree (RSH-08-006).
+        case_roles=[CVDRole.VENDOR, CVDRole.CASE_MANAGER],
+    )
+    advance_participant_rm(participant, RM.RECEIVED, _PERF_ACTOR_ID, case.id_)
+    case.add_participant(participant)
+    storage[case.id_] = case
+    storage[participant.id_] = participant
+    link = VultronReportCaseLink.model_construct(
+        id_=VultronReportCaseLink.build_id("test-report-123"),
+        report_id="test-report-123",
+        rm_state=RM.RECEIVED,
+    )
+    storage[link.id_] = link
+    return case
+
+
+@pytest.fixture
+def mock_datalayer():
+    """Mock DataLayer for performance testing."""
+    dl = MagicMock()  # Don't spec=DataLayer since we need read() method too
+
+    # In-memory store so that create()/save() objects are visible to read().
+    storage: dict = {}
+    case = _seed_mock_case(storage)
+
+    dl.get.side_effect = _mock_get_helper
+    dl.read.side_effect = partial(_mock_read_helper, storage)
+    dl.read_case.side_effect = partial(_mock_read_case_helper, storage)
+    dl.create.side_effect = partial(_mock_store, storage)
+    dl.save.side_effect = partial(_mock_store, storage)
+    dl.update.return_value = None
+    dl.by_type.side_effect = _mock_by_type_helper
+    dl.outbox_append.return_value = True
+    dl.find_case_by_report_id.return_value = case
+
+    return dl
+
+
+@pytest.fixture
+def perf_bridge(mock_datalayer) -> BTBridge:
+    """BTBridge with a stub TriggerActivityPort, so the emit step can send.
+
+    The validate trigger's send is unmasked (RSH-08-006): without a port the
+    tree fails.  A stub keeps the measurement on the tree, not the factory.
+    """
+    trigger_activity = MagicMock()
+    trigger_activity.validate_report.return_value = (
+        "https://example.org/activities/perf-validate",
+        {"id": "https://example.org/activities/perf-validate"},
+    )
+    return BTBridge(
+        datalayer=mock_datalayer, trigger_activity=trigger_activity
+    )
+
+
+@pytest.fixture
+def sample_activity():
+    """Sample validation activity for testing."""
+    report = VulnerabilityReport(
+        name="TEST-PERF-001",
+        content="Performance test report",
+    )
+
+    offer = VultronOffer(
+        actor="https://example.org/finder",
+        object_=report.id_,
+    )
+
+    return VultronAccept(
+        actor="https://example.org/vendor",
+        object_=offer.id_,
+    )
+
+
+def test_bt_execution_performance_single_run(perf_bridge, sample_activity):
+    """
+    Test single BT execution for performance baseline.
+
+    This measures one complete validation BT execution to establish
+    baseline performance. Target: < 100ms per BT_INTEGRATION.md.
+    """
+    bridge = perf_bridge
+    tree = create_validate_report_tree(
+        report_id="test-report-123",
+        offer_id="test-offer-456",
+        call_out=_make_always_succeed_bundle(),
+        sender_actor_id="https://example.org/vendor",
+    )
+
+    start = time.perf_counter()
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/vendor", activity=sample_activity
+    )
+    elapsed_ms = (time.perf_counter() - start) * 1000
+
+    # Verify execution succeeded
+    assert result.status == Status.SUCCESS
+
+    # Log performance result
+    logger.info("BT execution time: %.2fms", elapsed_ms)
+
+    # Document baseline (not a hard assertion for now, just measurement)
+    if elapsed_ms >= 100:
+        logger.warning(
+            "Execution time (%.2fms) exceeds 100ms target", elapsed_ms
+        )
+    else:
+        logger.info("Execution time within 100ms target")
+
+
+def test_bt_execution_performance_percentiles(perf_bridge, sample_activity):
+    """
+    Measure BT execution across multiple runs to calculate percentiles.
+
+    Runs BT execution N times and calculates P50, P95, P99 to establish
+    performance baseline. Target: P99 < 100ms per BT_INTEGRATION.md.
+    """
+    bridge = perf_bridge
+    n_runs = 100
+    timings = []
+
+    for _ in range(n_runs):
+        tree = create_validate_report_tree(
+            report_id="test-report-123",
+            offer_id="test-offer-456",
+            call_out=_make_always_succeed_bundle(),
+            sender_actor_id="https://example.org/vendor",
+        )
+
+        start = time.perf_counter()
+        result = bridge.execute_with_setup(
+            tree,
+            actor_id="https://example.org/vendor",
+            activity=sample_activity,
+        )
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        timings.append(elapsed_ms)
+
+        # Verify all executions succeeded
+        assert result.status == Status.SUCCESS
+
+    # Calculate percentiles
+    timings.sort()
+    p50 = timings[len(timings) // 2]
+    p95 = timings[int(len(timings) * 0.95)]
+    p99 = timings[int(len(timings) * 0.99)]
+    mean = sum(timings) / len(timings)
+
+    # Log performance results
+    logger.info(
+        "BT execution performance (%d runs): Mean=%.2fms P50=%.2fms P95=%.2fms P99=%.2fms",
+        n_runs,
+        mean,
+        p50,
+        p95,
+        p99,
+    )
+
+    # Document whether we meet target
+    if p99 >= 100:
+        logger.warning("P99 (%.2fms) exceeds 100ms target", p99)
+    else:
+        logger.info("P99 performance meets 100ms target")
+
+    # Soft assertion - document but don't fail build
+    # (allows documenting current state even if not optimal)
+    if p99 >= 200:
+        logger.warning("P99 (%.2fms) exceeds 200ms hard limit", p99)

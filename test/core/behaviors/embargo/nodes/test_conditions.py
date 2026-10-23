@@ -1,0 +1,319 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Unit tests for embargo condition nodes (conditions.py)."""
+
+import py_trees
+
+from test.core.behaviors.embargo.nodes.conftest import (
+    make_case_and_embargo,
+    setup_blackboard,
+)
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.embargo.nodes.conditions import (
+    HasActiveEmbargoNode,
+    IsActiveEmbargoNode,
+    IsCloseBlockedByActiveEmbargoNode,
+    IsProposedEmbargoNode,
+    ValidateCaseExistsNode,
+)
+from vultron.core.states.em import EM
+from vultron.errors import VultronInvalidStateTransitionError
+
+
+class TestValidateCaseExistsNode:
+    """Tests for ValidateCaseExistsNode."""
+
+    def test_returns_success_when_case_found(self):
+        """Node returns SUCCESS when case exists in the DataLayer."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _ = make_case_and_embargo("vcn1")
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = ValidateCaseExistsNode(case_id=case.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+
+    def test_returns_failure_when_case_missing(self):
+        """Node returns FAILURE when the case ID is not in the DataLayer."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        setup_blackboard(dl)
+
+        node = ValidateCaseExistsNode(
+            case_id="https://example.org/cases/nonexistent"
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+
+class TestIsActiveEmbargoNode:
+    """Tests for IsActiveEmbargoNode."""
+
+    def test_returns_success_when_embargo_is_active(self):
+        """Node returns SUCCESS when case.active_embargo matches embargo_id."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, embargo = make_case_and_embargo("ian1", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = IsActiveEmbargoNode(case_id=case.id_, embargo_id=embargo.id_)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+
+    def test_returns_failure_when_embargo_not_active(self):
+        """Node returns FAILURE when active_embargo does not match."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, embargo = make_case_and_embargo("ian2", em_state=EM.PROPOSED)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = IsActiveEmbargoNode(
+            case_id=case.id_,
+            embargo_id=embargo.id_,
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+    def test_returns_failure_when_case_missing(self):
+        """Node returns FAILURE when the case ID is not in the DataLayer."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        setup_blackboard(dl)
+
+        node = IsActiveEmbargoNode(
+            case_id="https://example.org/cases/nonexistent",
+            embargo_id=(
+                "https://example.org/cases/nonexistent/embargo_events/e1"
+            ),
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+
+class TestHasActiveEmbargoNode:
+    """Tests for HasActiveEmbargoNode."""
+
+    def test_returns_success_when_active_embargo_present(self):
+        """Node returns SUCCESS when case.active_embargo is non-None."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _ = make_case_and_embargo("hae1", em_state=EM.ACTIVE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        result_out: dict = {}
+        node = HasActiveEmbargoNode(case_id=case.id_, result_out=result_out)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.SUCCESS
+        assert "error" not in result_out
+
+    def test_returns_failure_when_no_active_embargo(self):
+        """Node returns FAILURE when active_embargo is None."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _ = make_case_and_embargo("hae2", em_state=EM.NONE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        result_out: dict = {}
+        node = HasActiveEmbargoNode(case_id=case.id_, result_out=result_out)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+        assert isinstance(
+            result_out["error"], VultronInvalidStateTransitionError
+        )
+
+    def test_returns_failure_when_case_missing(self):
+        """Node returns FAILURE when the case is not in the DataLayer."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        setup_blackboard(dl)
+
+        result_out: dict = {}
+        node = HasActiveEmbargoNode(
+            case_id="https://example.org/cases/nonexistent",
+            result_out=result_out,
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert node.status == py_trees.common.Status.FAILURE
+
+    def test_error_message_includes_case_id(self):
+        """result_out['error'] message references the case ID."""
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _ = make_case_and_embargo("hae3", em_state=EM.NONE)
+        dl.create(case)
+
+        setup_blackboard(dl)
+        result_out: dict = {}
+        node = HasActiveEmbargoNode(case_id=case.id_, result_out=result_out)
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+
+        assert case.id_ in str(result_out["error"])
+
+
+class TestIsProposedEmbargoNode:
+    """IsProposedEmbargoNode reads EM state from result_out (AC-1)."""
+
+    def _tick(self, result_out: dict) -> py_trees.common.Status:
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        setup_blackboard(dl)
+        node = IsProposedEmbargoNode(
+            case_id="https://example.org/cases/ipn",
+            result_out=result_out,
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+        return node.status
+
+    def test_success_when_em_before_is_proposed(self):
+        """SUCCESS when the upstream read published em_before=PROPOSED."""
+        assert (
+            self._tick({"em_before": EM.PROPOSED})
+            == py_trees.common.Status.SUCCESS
+        )
+
+    def test_failure_when_em_before_is_not_proposed(self):
+        """FAILURE for any other EM state (does not read the DataLayer)."""
+        assert (
+            self._tick({"em_before": EM.ACTIVE})
+            == py_trees.common.Status.FAILURE
+        )
+
+    def test_failure_when_em_before_absent(self):
+        """FAILURE when no upstream ReadEmStateNode populated em_before."""
+        assert self._tick({}) == py_trees.common.Status.FAILURE
+
+
+class TestIsCloseBlockedByActiveEmbargoNode:
+    """IsCloseBlockedByActiveEmbargoNode: SUCCESS iff active_embargo is set AND
+    em_before is in EM_EMBARGO_ACTIVE (ACTIVE/REVISE) — the CM-23-011 decline
+    condition. active_embargo is read from the case; em_before comes from an
+    upstream ReadEmStateNode via result_out (AC-1)."""
+
+    def _tick(
+        self, has_active_embargo: bool, result_out: dict
+    ) -> py_trees.common.Status:
+        dl = SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+        case, _ = make_case_and_embargo(
+            "closeblock",
+            em_state=EM.ACTIVE if has_active_embargo else EM.NONE,
+        )
+        dl.create(case)
+
+        setup_blackboard(dl)
+        node = IsCloseBlockedByActiveEmbargoNode(
+            case_id=case.id_,
+            result_out=result_out,
+        )
+        bt = py_trees.trees.BehaviourTree(root=node)
+        bt.setup()
+        bt.tick()
+        return node.status
+
+    def test_success_when_active_and_em_active(self):
+        """SUCCESS: active embargo + EM.ACTIVE — owner close is declined."""
+        assert (
+            self._tick(True, {"em_before": EM.ACTIVE})
+            == py_trees.common.Status.SUCCESS
+        )
+
+    def test_success_when_active_and_em_revise(self):
+        """SUCCESS: active embargo + EM.REVISE is also embargo-active."""
+        assert (
+            self._tick(True, {"em_before": EM.REVISE})
+            == py_trees.common.Status.SUCCESS
+        )
+
+    def test_failure_when_active_but_em_proposed(self):
+        """FAILURE: PROPOSED is not in EM_EMBARGO_ACTIVE, so close proceeds."""
+        assert (
+            self._tick(True, {"em_before": EM.PROPOSED})
+            == py_trees.common.Status.FAILURE
+        )
+
+    def test_failure_when_active_but_em_exited(self):
+        """FAILURE: an exited embargo no longer blocks the close."""
+        assert (
+            self._tick(True, {"em_before": EM.EXITED})
+            == py_trees.common.Status.FAILURE
+        )
+
+    def test_failure_when_no_active_embargo(self):
+        """FAILURE: no active embargo, even with an ACTIVE em_before."""
+        assert (
+            self._tick(False, {"em_before": EM.ACTIVE})
+            == py_trees.common.Status.FAILURE
+        )
+
+    def test_failure_when_em_before_absent(self):
+        """FAILURE: no upstream ReadEmStateNode populated em_before."""
+        assert self._tick(True, {}) == py_trees.common.Status.FAILURE

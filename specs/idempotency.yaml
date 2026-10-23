@@ -1,0 +1,177 @@
+id: ID
+title: Idempotency
+description: >-
+  Requirements for handling duplicate activity submissions gracefully, ensuring repeated
+  identical requests produce the same outcome without unintended side effects.
+scope:
+- prototype
+- production
+tags:
+- idempotency
+groups:
+- id: ID-01
+  title: Activity ID Uniqueness
+  specs:
+  - id: ID-01-001
+    priority: MUST
+    kind: foundation
+    statement: All activities MUST have globally unique `id` field (URI)
+    rationale: >-
+      ActivityPub requires every object, activities included, to carry a unique
+      global identifier; ActivityStreams 2.0 alone leaves `id` optional. Duplicate
+      detection (ID-02) relies on it.
+    verification: >-
+      `test_each_call_returns_unique_id` and `test_new_object_has_uri_form_id` in
+      `test/wire/as2/vocab/test_base_utils.py` confirm that a new object, an activity
+      included, gets an id in URI form that no other object shares.
+    tags:
+    - activitypub
+  - id: ID-01-002
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: Activity IDs MUST remain stable (same activity = same ID)
+- id: ID-02
+  title: Duplicate Detection
+  specs:
+  - id: ID-02-001
+    priority: MUST
+    kind: architecture
+    statement: System MUST detect duplicate activity submissions by ID
+    rationale: >-
+      Detection lives at ingress (IE-10-001): the receiver already holds the activity
+      under a key it derives from the id, so the redelivered body is not held again
+      and the copy the receiver holds is routed in its place. It does not live at the HTTP
+      route. A route-level check keyed on the actor record's inbox
+      collection was a production no-op, because the core actor's `inbox` is a URI
+      string (ARCH-12-006), and its tests passed only by supplying a wire actor shape
+      the route never receives (#3638).
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_redelivery.py` posts the same activity twice to a
+      real `CoreActor` over the FastAPI route and asserts a single archive record for
+      that id, and nothing under the id itself, after the second post.
+  - id: ID-02-002
+    priority: SHOULD
+    kind: architecture
+    statement: System SHOULD track processed activity IDs in DataLayer
+  - id: ID-02-003
+    priority: MUST
+    kind: architecture
+    statement: Detection MUST occur before handler business logic execution
+    rationale: >-
+      Detection precedes dispatch, but does not replace it: the activity is still
+      routed to the handler, so the handler's own idempotency (ID-04-004, ID-05-003)
+      is what keeps a redelivery from producing a second side effect. Detection is
+      the evidence; handler idempotency is the guarantee.
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_redelivery.py` asserts that the second delivery of a
+      state-changing activity leaves the actor's store and outbox unchanged, and
+      that a second pipeline run over every dispatchable example activity on a
+      fresh store changes nothing.
+- id: ID-03
+  title: Idempotent Response
+  specs:
+  - id: ID-03-001
+    priority: MUST
+    kind: architecture
+    statement: Duplicate submissions MUST return same HTTP status as original
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_redelivery.py` asserts that the second post of an
+      already-delivered activity is answered with the same HTTP 202 as the first.
+  - id: ID-03-002
+    priority: MUST_NOT
+    kind: architecture
+    verification_debt: '#2569'
+    statement: Duplicate detection MUST NOT delay response beyond 100ms
+  - id: ID-03-003
+    priority: SHOULD
+    kind: architecture
+    statement: System SHOULD log duplicate submissions at INFO level
+    rationale: >-
+      A redelivery is ordinary ActivityPub behaviour — a peer retry after a lost
+      acknowledgement — not a fault the operator must act on, so it is a lifecycle
+      event, not a WARNING (SL-03-001). The ingress adapter already logs the
+      redelivery it detects at INFO with the activity and actor ids (IE-10-001,
+      #3638). A different body under a held id is not a redelivery: it is refused and
+      logged at WARNING (IE-10-002).
+    relationships:
+    - rel_type: depends_on
+      spec_id: SL-03-001
+- id: ID-04
+  title: Handler Idempotency
+  specs:
+  - id: ID-04-001
+    priority: SHOULD
+    kind: architecture
+    statement: Handlers SHOULD be idempotent (same input → same output)
+  - id: ID-04-002
+    priority: SHOULD
+    kind: architecture
+    statement: Handlers SHOULD check existing state before state transitions
+    relationships:
+    - rel_type: implements
+      spec_id: VP-03-013
+  - id: ID-04-003
+    priority: SHOULD
+    kind: architecture
+    statement: Handlers SHOULD log attempted re-execution at INFO level
+  - id: ID-04-004
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: State-changing handlers MUST be idempotent
+    rationale: >-
+      Duplicate processing of state-change messages causes data corruption; SHOULD-level idempotency
+      is insufficient for state machines
+  - id: ID-04-005
+    priority: MUST
+    kind: architecture
+    verification_debt: '#2569'
+    statement: >-
+      A record that a handler later reads as evidence that a transition already happened — an
+      idempotency latch or guard record — MUST NOT be written until every other half of that
+      transition has succeeded. A handler MUST NOT write the latch first and then attempt the
+      remaining work.
+    rationale: >-
+      A latch written ahead of the transition it attests to is indistinguishable from a completed
+      transition, so the guard that reads it suppresses every retry. The transition can then never
+      finish: the failure is silent, permanent, and self-concealing. Issue #2548 is the worked
+      example — `TransitionRMtoValid` wrote the report-phase `RM.VALID` `ParticipantStatus` before
+      advancing the case-scoped `CaseParticipant`. When the case was absent the second half was
+      skipped, but `CheckRMStateValid` read the latch and short-circuited every subsequent
+      `validate-report` to SUCCESS, freezing the participant at `RM.RECEIVED` for the life of the
+      case. Ordering the writes so the latch is last makes an incomplete transition retryable
+      instead of terminal.
+    relationships:
+    - rel_type: refines
+      spec_id: ID-04-004
+    - rel_type: refines
+      spec_id: ARCH-15-001
+- id: ID-05
+  title: Implementation Strategy
+  specs:
+  - id: ID-05-001
+    priority: SHOULD
+    kind: architecture
+    statement: Validation layer SHOULD reject exact duplicates (same ID, same content)
+    rationale: >-
+      "Reject" applies to the redelivered body, not the delivery: ingress finds the id
+      already held under the receiver's key and does not hold the body again
+      (IE-10-001), while the activity is still routed to the handler and the response
+      is the same 202 as the original (ID-03-001). Rejecting the body is therefore not
+      what prevents a second side effect; the handler's own idempotency is (ID-02-003
+      rationale, ID-04-004, ID-05-003).
+    relationships:
+    - rel_type: depends_on
+      spec_id: IE-10-001
+  - id: ID-05-002
+    priority: MAY
+    kind: architecture
+    statement: HTTP layer MAY implement early duplicate filtering for performance
+  - id: ID-05-003
+    priority: SHOULD
+    kind: architecture
+    statement: >-
+      Use-case handlers SHOULD verify that an incoming activity has not already been applied by
+      inspecting the current domain state before executing any transitions, serving as the final
+      idempotency guard when earlier filtering layers have not already rejected the duplicate.

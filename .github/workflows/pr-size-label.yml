@@ -1,0 +1,123 @@
+# Applies the PAD-05 `size:` label to every pull request from its measured
+# diff, so the measurement stops depending on an agent remembering to do it.
+#
+# A survey of 692 PRs merged 2026-07-22..2026-09-22 found 40% carrying no
+# `size:` label and `size:S` applied correctly 24% of the time, while the rule
+# lived only in skill prose. The band table is `size_bands.py` (PAD-05-011) and
+# this workflow is its only applier at PR-open time, so the thresholds are never
+# restated here — `pr-size` is called instead.
+
+name: "PR size label"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read # actions/checkout
+  pull-requests: write # add/remove the label on the PR
+  issues: write # create or refresh the label definition itself
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: Measure diff and apply size label
+    # A fork PR gets a read-only token, so labelling would fail rather than be
+    # skipped. Reporting "skipped" beats a red X nobody can act on. The cost is
+    # that a fork PR carries no measured `size:` label at all, since no skill
+    # applies one any more (PAD-05-002 is scoped to same-repo PRs for exactly
+    # this reason) — a maintainer who wants one adds it by hand.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+
+      - name: Classify the diff
+        id: classify
+        # GitHub's own additions/deletions, which is what the bands were
+        # calibrated against — the same measurement as the survey, rather than
+        # one recomputed from git. Read at run time via the API and *not* from
+        # `github.event.pull_request.additions`: GitHub computes diff stats
+        # asynchronously, so the event payload can carry 0 for a PR that has not
+        # been diffed yet, and a stale 0 would classify an 800-line PR as
+        # `size:S` with no error — the exact mislabelling this workflow exists
+        # to stop.
+        run: |
+          set -euo pipefail
+          STATS=$(gh pr view "$PR" --repo "${{ github.repository }}" \
+            --json additions,deletions,changedFiles \
+            --jq '[.additions, .deletions, .changedFiles] | @tsv')
+          IFS=$'\t' read -r ADDED DELETED CHANGED <<< "$STATS"
+          LINES=$(( ADDED + DELETED ))
+          if [ "$CHANGED" -gt 0 ] && [ "$LINES" -eq 0 ]; then
+            echo "::error::PR #$PR reports $CHANGED changed file(s) but 0 diff" \
+              "lines. Refusing to classify rather than mislabel it size:S."
+            exit 1
+          fi
+          LABEL=$(uv run pr-size --lines "$LINES" --quiet)
+          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
+          echo "lines=$LINES" >> "$GITHUB_OUTPUT"
+          echo "PR #$PR measures $LINES diff lines -> $LABEL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Ensure the label exists and its description is current
+        run: |
+          set -euo pipefail
+          LABEL="${{ steps.classify.outputs.label }}"
+          # -e so an unknown label fails the step instead of silently skipping
+          # the upsert and leaving `gh pr edit` to fail later with a worse
+          # message.
+          ROW=$(uv run pr-size --labels-json \
+            | jq -er --arg l "$LABEL" \
+                '.[] | select(.name == $l) | "\(.description)\t\(.color)"')
+          IFS=$'\t' read -r DESCRIPTION COLOR <<< "$ROW"
+          # --force upserts, so the GitHub UI description stays derived from the
+          # band table instead of becoming another hand-maintained copy of it.
+          gh label create "$LABEL" \
+            --repo "${{ github.repository }}" \
+            --description "$DESCRIPTION" \
+            --color "$COLOR" \
+            --force
+
+      - name: Apply it, and drop any size label that no longer applies
+        # `set -o pipefail` matters here specifically: GitHub's default shell is
+        # `bash -e`, so without it a failing `pr-size` still leaves `jq`/`paste`
+        # exiting 0 with empty output. `STALE` would come back empty, the removal
+        # loop would run zero times, and the PR would end up carrying two `size:`
+        # labels while the step reported success.
+        run: |
+          set -euo pipefail
+          KEEP="${{ steps.classify.outputs.label }}"
+          STALE=$(uv run pr-size --labels-json \
+            | jq -r --arg k "$KEEP" '.[] | select(.name != $k) | .name' \
+            | paste -sd, -)
+          CURRENT=$(gh pr view "$PR" --repo "${{ github.repository }}" \
+            --json labels --jq '[.labels[].name] | join(",")')
+
+          ADD=()
+          case ",$CURRENT," in
+            *",$KEEP,"*) echo "$KEEP already applied" ;;
+            *) ADD=(--add-label "$KEEP") ;;
+          esac
+
+          REMOVE=()
+          IFS=',' read -ra stale_names <<< "$STALE"
+          for name in "${stale_names[@]}"; do
+            case ",$CURRENT," in
+              *",$name,"*) REMOVE+=(--remove-label "$name") ;;
+            esac
+          done
+
+          if [ ${#ADD[@]} -eq 0 ] && [ ${#REMOVE[@]} -eq 0 ]; then
+            echo "Nothing to change."
+            exit 0
+          fi
+          gh pr edit "$PR" --repo "${{ github.repository }}" \
+            "${ADD[@]}" "${REMOVE[@]}"

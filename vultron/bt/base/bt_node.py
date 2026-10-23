@@ -17,10 +17,11 @@ This module provides the base class for all nodes in the Behavior Tree.
 It also provides a number of core node types that can be used to build a Behavior Tree.
 """
 
-
 import logging
+import re
+from collections.abc import Iterable
 from copy import deepcopy
-from typing import Union
+from typing import Any, ClassVar
 
 import networkx as nx
 
@@ -34,7 +35,7 @@ from vultron.bt.base.node_status import NodeStatus
 logger = logging.getLogger(__name__)
 
 
-def _indent(depth=0):
+def _indent(depth: int = 0) -> str:
     """Convenience method for indenting printed output."""
     return " | " * depth
 
@@ -42,11 +43,22 @@ def _indent(depth=0):
 class BtNode:
     """BtNode is the base class for all nodes in the Behavior Tree."""
 
-    indent_level = 0
-    name_pfx = None
-    _node_shape = "box"
-    _children = None
-    _objcount = 0
+    indent_level: int = 0
+    name_pfx: str | None = None
+    _node_shape: str = "box"
+    _children: Iterable | None = None
+    _objcount: int = 0
+
+    # Maps name_pfx values to their Mermaid display symbols.
+    # Subclasses can override individual entries by redefining the dict.
+    _mermaid_prefix_map: ClassVar[dict[str, str]] = {
+        ">": "&rarr; ",
+        "^": "#8645; ",
+        "z": "#127922; ",
+        "a": "#9648; ",
+        "c": "#11052; ",
+        "?": "? ",
+    }
 
     def __init__(self):
         BtNode._objcount += 1
@@ -60,11 +72,11 @@ class BtNode:
 
         self.name = f"{pfx}{self.__class__.__name__}{self.name_sfx}"
 
-        self.parent = None
-        self.children = []
+        self.parent: BtNode | None = None
+        self.children: list[BtNode] = []
 
-        self.status = None
-        self.bb = None
+        self.status: NodeStatus | None = None
+        self.bb: Any = None
 
         self._setup_complete = False
 
@@ -80,9 +92,16 @@ class BtNode:
     def setup(self) -> None:
         """Sets up the node and its children.
 
+        Propagates the blackboard reference from parent to this node and
+        recursively to all children. Skips setup if already completed to
+        avoid redundant O(N²) traversals on every tick.
+
         Returns:
             None
         """
+        if self._setup_complete:
+            return
+
         if self.parent is not None:
             self.bb = self.parent.bb
         for child in self.children:
@@ -148,7 +167,7 @@ class BtNode:
             the node's status (as a NodeStatus enum)
         """
         if self.name is not None:
-            logger.debug(_indent(depth) + f"{self._pfx} {self.name}")
+            logger.debug("%s%s %s", _indent(depth), self._pfx, self.name)
 
         with self:
             self._pre_tick(depth=depth)
@@ -157,7 +176,7 @@ class BtNode:
             self._post_tick(depth=depth)
 
         if self.name is not None:
-            logger.debug(_indent(depth + 1) + f"= {self.status}")
+            logger.debug("%s= %s", _indent(depth + 1), self.status)
 
         return status
 
@@ -188,12 +207,16 @@ class BtNode:
         if self.name_pfx is not None:
             return f"{self.name_pfx} {self.name}"
 
-        return self.name
+        return str(self.name)
 
     @property
     def _is_leaf_node(self) -> bool:
         """Returns True if the node is a leaf node, False otherwise."""
-        return self._children is None or len(self._children) == 0
+        if not hasattr(self, "_children"):
+            return True
+        if self._children is None:
+            return True
+        return len(list(self._children)) == 0
 
     def _namestr(self, depth=0) -> str:
         """Returns a string representation of the node's name."""
@@ -217,7 +240,7 @@ class BtNode:
         return "".join(parts)
 
     def to_graph(self) -> nx.DiGraph:
-        G = nx.DiGraph()
+        G: nx.DiGraph = nx.DiGraph()
 
         # add a self node
         # see note *** below
@@ -236,8 +259,6 @@ class BtNode:
     def to_mermaid(self, depth=0, topdown=True) -> str:
         """Returns a string representation of the tree rooted at this node in mermaid format."""
 
-        import re
-
         if self._is_leaf_node:
             # this is a leaf node, we aren't doing anything with it
             return ""
@@ -247,20 +268,16 @@ class BtNode:
             # add preamble
             parts.append("```mermaid")
             if topdown:
-                parts.append("graph TD")
+                parts.append("flowchart TD")
             else:
-                parts.append("graph LR")
+                parts.append("flowchart LR")
 
         def fixname(nstr: str) -> str:
-            # TODO these should be subclass attributes
-            nstr = re.sub(r"^>_", "&rarr; ", nstr)
-            nstr = re.sub(r"^\^_", "#8645; ", nstr)
-            nstr = re.sub(r"^z_", "#127922; ", nstr)
-            nstr = re.sub(r"^a_", "#9648; ", nstr)
-            nstr = re.sub(r"^c_", "#11052; ", nstr)
-            nstr = re.sub(r"^\?_", "? ", nstr)
+            for prefix, symbol in self._mermaid_prefix_map.items():
+                if nstr.startswith(f"{prefix}_"):
+                    nstr = symbol + nstr[len(prefix) + 1 :]
+                    break
             nstr = re.sub(r"_\d+$", "", nstr)
-
             return nstr
 
         name = fixname(self.name)
@@ -300,7 +317,7 @@ class LeafNode(BtNode):
             raise self.Exc("Behavior Tree Leaf Nodes cannot have children")
         super().__init__()
 
-    def func(self) -> Union[bool, None]:
+    def func(self) -> bool | None:
         """
         Override this method in your subclass.
         Return True for success, False for failure, and None for running.
@@ -323,7 +340,7 @@ class LeafNode(BtNode):
 
         if result is None:
             return NodeStatus.RUNNING
-        elif result:
+        if result:
             return NodeStatus.SUCCESS
         return NodeStatus.FAILURE
 
@@ -364,7 +381,7 @@ class CountTicks(BtNode):
         return NodeStatus.SUCCESS
 
 
-STATELOG = []
+STATELOG: list[Any] = []
 
 
 class SnapshotState(BtNode):
@@ -375,7 +392,6 @@ class SnapshotState(BtNode):
     name = "Snapshot_state"
 
     def _tick(self, depth: int = 0) -> NodeStatus:
-        global STATELOG
         snapshot = deepcopy(self.bb)
         STATELOG.append(snapshot)
         return NodeStatus.SUCCESS

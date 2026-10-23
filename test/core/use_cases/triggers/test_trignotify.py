@@ -1,0 +1,780 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+Tests for D5-7-TRIGNOTIFY-1: verify that trigger use cases populate the
+``to`` field in outbound activities.
+
+Spec: specs/outbox.yaml OX-03-001; specs/case-management.yaml CM-06.
+"""
+
+from datetime import UTC, datetime
+from typing import Any
+
+import pytest
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import activate, propose
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
+    reset_datalayer,
+)
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.models.use_case_result import (
+    ActivityResult,
+    OfferResult,
+    TriggerResult,
+)
+from vultron.core.states.rm import RM
+from vultron.core.use_cases.triggers.case import (
+    SvcAddParticipantStatusUseCase,
+    SvcDeferCaseUseCase,
+    SvcEngageCaseUseCase,
+)
+from vultron.core.use_cases.triggers.embargo import (
+    SvcAcceptEmbargoUseCase,
+    SvcProposeEmbargoRevisionUseCase,
+    SvcProposeEmbargoUseCase,
+    SvcRejectEmbargoUseCase,
+    SvcTerminateEmbargoUseCase,
+)
+from vultron.core.use_cases.triggers.report import (
+    SvcInvalidateReportUseCase,
+    SvcRejectReportUseCase,
+)
+from vultron.core.use_cases.triggers.requests import (
+    AcceptEmbargoTriggerRequest,
+    AddParticipantStatusTriggerRequest,
+    DeferCaseTriggerRequest,
+    EngageCaseTriggerRequest,
+    InvalidateReportTriggerRequest,
+    ProposeEmbargoRevisionTriggerRequest,
+    ProposeEmbargoTriggerRequest,
+    RejectEmbargoTriggerRequest,
+    RejectReportTriggerRequest,
+    TerminateEmbargoTriggerRequest,
+)
+from vultron.enums.roles import CVDRole
+from vultron.errors import (
+    VultronInvalidStateTransitionError,
+    VultronValidationError,
+)
+from vultron.wire.as2.factories import (
+    em_propose_embargo_activity,
+    rm_submit_report_activity,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import (
+    ReporterParticipant,
+    as_CaseParticipant,
+)
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+FUTURE_END_TIME = "2099-12-01T00:00:00Z"
+FUTURE_END_DATETIME = datetime(2099, 12, 1, 0, 0, 0, tzinfo=UTC)
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_actor_dl(actor_name: str):
+    """Create an as_Service actor and a matching per-actor SqliteDataLayer."""
+    actor = as_Service(name=actor_name)
+    actor_id = actor.id_
+    reset_datalayer(actor_id)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+    dl.clear_all()
+    dl.create(actor)
+    return actor, dl
+
+
+def _make_case_with_case_manager(
+    dl: SqliteDataLayer,
+    actor_id: str,
+    finder_id: str,
+    case_actor_id: str,
+) -> VulnerabilityCase:
+    """Create a VulnerabilityCase with a Reporter participant (the finder
+    persona) and a Case Actor (CVDRole.CASE_MANAGER).  Persists all objects in *dl*.
+
+    The actor participant is pre-initialized to RM.VALID so that
+    engage (→ ACCEPTED) and defer (→ DEFERRED) transitions are valid.
+    """
+    from vultron.core.states.rm import RM
+    from vultron.wire.as2.vocab.objects.case_status import (
+        as_ParticipantStatus as WireParticipantStatus,
+    )
+
+    case = VulnerabilityCase(name="Test Case", attributed_to=actor_id)
+
+    actor_participant = as_CaseParticipant(
+        attributed_to=actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    # Pre-advance actor to RM.VALID so engage/defer transitions will succeed
+
+    actor_participant.participant_statuses.append(
+        WireParticipantStatus(
+            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        )
+    )
+    actor_participant.participant_statuses.append(
+        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
+    )
+
+    finder_participant = ReporterParticipant(
+        attributed_to=finder_id,
+        context=case.id_,
+    )
+    case_manager_participant = as_CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+
+    case.actor_participant_index[actor_id] = actor_participant.id_
+    case.actor_participant_index[finder_id] = finder_participant.id_
+    case.actor_participant_index[case_actor_id] = case_manager_participant.id_
+
+    case.case_participants.append(actor_participant.id_)
+    case.case_participants.append(finder_participant.id_)
+    case.case_participants.append(case_manager_participant.id_)
+
+    dl.create(case)
+    dl.create(actor_participant)
+    dl.create(finder_participant)
+    dl.create(case_manager_participant)
+    return case
+
+
+def _make_two_actor_case(
+    dl, vendor_id: str, finder_id: str
+) -> VulnerabilityCase:
+    """Create a VulnerabilityCase with vendor and finder — no CASE_MANAGER.
+
+    Both ``case_participants`` and ``actor_participant_index`` are kept in
+    sync via ``add_participant()``.  Participant objects are stored in the
+    DataLayer so ``resolve_case_participant_id_for_actor`` can resolve them
+    from the canonical list without hitting divergence errors.
+
+    Use ``_make_case_with_case_manager`` for tests that need PCR-08-001
+    routing or an ``EngageCaseTriggerRequest``/``AddParticipantStatusTriggerRequest``.
+    """
+    case = VulnerabilityCase(name="Test Case", attributed_to=vendor_id)
+    vendor_participant = CaseParticipant(
+        id_=f"{case.id_}/participants/vendor",
+        attributed_to=vendor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    finder_participant = CaseParticipant(
+        id_=f"{case.id_}/participants/finder",
+        attributed_to=finder_id,
+        context=case.id_,
+        case_roles=[CVDRole.REPORTER],
+    )
+    case.add_participant(vendor_participant)
+    case.add_participant(finder_participant)
+    dl.create(vendor_participant)
+    dl.create(finder_participant)
+    dl.create(case)
+    return case
+
+
+def _new_outbox_activity(vendor, vendor_dl, result: TriggerResult):
+    """Return the first new activity added to vendor's outbox during execute()."""
+    activity_id = None
+    if isinstance(result, ActivityResult) and result.activity:
+        activity_id = result.activity.get("id")
+    elif isinstance(result, OfferResult) and result.offer:
+        activity_id = result.offer.get("id")
+    if activity_id is None:
+        return None, None
+    obj = vendor_dl.read(activity_id)
+    return activity_id, obj
+
+
+def _to_field(activity_obj) -> list[str] | None:
+    """Return the ``to`` field of an activity as a list of strings."""
+    if activity_obj is None:
+        return None
+    to = getattr(activity_obj, "to", None)
+    if to is None:
+        return None
+    if isinstance(to, list):
+        return [
+            (
+                item
+                if isinstance(item, str)
+                else getattr(item, "id_", str(item))
+            )
+            for item in to
+        ]
+    if isinstance(to, str):
+        return [to]
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Case trigger use cases
+# ---------------------------------------------------------------------------
+
+
+class TestCaseTriggerToField:
+    """SvcEngageCaseUseCase and SvcDeferCaseUseCase populate ``to``."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.vendor, self.dl = _make_actor_dl("Vendor Co")
+        self.finder = as_Service(name="Finder Co")
+        self.case_actor = as_Service(name="Case Actor")
+        self.dl.create(self.finder)
+        self.dl.create(self.case_actor)
+        self.case = _make_case_with_case_manager(
+            self.dl,
+            self.vendor.id_,
+            self.finder.id_,
+            self.case_actor.id_,
+        )
+        yield
+        self.dl.clear_all()
+        self.dl.close()
+        reset_datalayer(self.vendor.id_)
+
+    def test_engage_case_to_field_addresses_case_actor_only(self):
+        """SvcEngageCaseUseCase queues activity addressed only to Case Actor
+        (PCR-08-001)."""
+        request = EngageCaseTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=self.case.id_,
+        )
+        result = SvcEngageCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None, "to field must not be None"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
+        assert self.vendor.id_ not in recipients
+
+    def test_defer_case_to_field_addresses_case_actor_only(self):
+        """SvcDeferCaseUseCase queues activity addressed only to Case Actor
+        (PCR-08-001)."""
+        request = DeferCaseTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=self.case.id_,
+        )
+        result = SvcDeferCaseUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None, "to field must not be None"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
+        assert self.vendor.id_ not in recipients
+
+    def test_add_participant_status_to_field_addresses_case_actor_only(self):
+        """SvcAddParticipantStatusUseCase queues activity to only Case Actor."""
+        request = AddParticipantStatusTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=self.case.id_,
+        )
+        result = SvcAddParticipantStatusUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.activity_id is not None
+        act_obj = self.dl.read(result.activity_id)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
+        assert self.vendor.id_ not in recipients
+
+    def test_engage_case_raises_when_no_case_manager(self):
+        """SvcEngageCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
+        case_solo = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Solo Case"
+        )
+        case_solo.actor_participant_index[self.vendor.id_] = (
+            f"{case_solo.id_}/participants/vendor"
+        )
+        self.dl.create(case_solo)
+
+        request = EngageCaseTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=case_solo.id_,
+        )
+        with pytest.raises(VultronValidationError):
+            SvcEngageCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
+
+
+# ---------------------------------------------------------------------------
+# Embargo trigger use cases
+# ---------------------------------------------------------------------------
+
+
+class TestEmbargoTriggerToField:
+    """All embargo trigger use cases address only the Case Actor (PCR-08-001)."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.vendor, self.dl = _make_actor_dl("Vendor Co")
+        self.finder = as_Service(name="Finder Co")
+        self.case_actor = as_Service(name="Case Actor")
+        self.dl.create(self.finder)
+        self.dl.create(self.case_actor)
+        self.case = _make_case_with_case_manager(
+            self.dl,
+            self.vendor.id_,
+            self.finder.id_,
+            self.case_actor.id_,
+        )
+        yield
+        self.dl.clear_all()
+        self.dl.close()
+        reset_datalayer(self.vendor.id_)
+
+    def test_propose_embargo_to_field_addresses_case_actor_only(self):
+        """SvcProposeEmbargoUseCase queues activity addressed only to Case Actor."""
+        request = ProposeEmbargoTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=self.case.id_,
+            end_time=FUTURE_END_DATETIME,
+        )
+        result = SvcProposeEmbargoUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
+        assert self.vendor.id_ not in recipients
+
+    def test_evaluate_embargo_to_field_addresses_case_actor_only(self):
+        """SvcAcceptEmbargoUseCase queues activity addressed only to Case Actor."""
+        embargo = as_EmbargoEvent(
+            context=self.case.id_, end_time=days_from_now_utc(45)
+        )
+        self.dl.create(embargo)
+        proposal = em_propose_embargo_activity(
+            embargo, context=self.case.id_, actor=self.finder.id_
+        )
+        self.dl.create(proposal)
+        propose(self.case, embargo.id_)
+        self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
+        self.dl.save(self.case)
+
+        request = AcceptEmbargoTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=self.case.id_,
+            proposal_id=proposal.id_,
+        )
+        result = SvcAcceptEmbargoUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
+        assert self.vendor.id_ not in recipients
+
+    def test_terminate_embargo_to_field_addresses_case_actor_only(self):
+        """SvcTerminateEmbargoUseCase queues activity addressed only to Case Actor."""
+        embargo = as_EmbargoEvent(
+            context=self.case.id_, end_time=days_from_now_utc(45)
+        )
+        self.dl.create(embargo)
+        activate(self.case, embargo.id_)
+        self.dl.save(self.case)
+
+        request = TerminateEmbargoTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=self.case.id_,
+        )
+        result = SvcTerminateEmbargoUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
+        assert self.vendor.id_ not in recipients
+
+    def test_reject_embargo_to_field_addresses_case_actor_only(self):
+        """SvcRejectEmbargoUseCase queues activity addressed only to Case Actor."""
+        embargo = as_EmbargoEvent(
+            context=self.case.id_, end_time=days_from_now_utc(45)
+        )
+        self.dl.create(embargo)
+        proposal = em_propose_embargo_activity(
+            embargo, context=self.case.id_, actor=self.finder.id_
+        )
+        self.dl.create(proposal)
+        propose(self.case, embargo.id_)
+        self.case.pending_embargo_proposal_index[embargo.id_] = proposal.id_
+        self.dl.save(self.case)
+
+        request = RejectEmbargoTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=self.case.id_,
+            proposal_id=proposal.id_,
+        )
+        result = SvcRejectEmbargoUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
+        assert self.vendor.id_ not in recipients
+
+    def test_propose_embargo_revision_to_field_addresses_case_actor_only(self):
+        """SvcProposeEmbargoRevisionUseCase queues activity to only Case Actor."""
+        embargo = as_EmbargoEvent(
+            context=self.case.id_, end_time=days_from_now_utc(45)
+        )
+        self.dl.create(embargo)
+        activate(self.case, embargo.id_)
+        self.dl.save(self.case)
+
+        request = ProposeEmbargoRevisionTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=self.case.id_,
+            end_time=FUTURE_END_DATETIME,
+        )
+        result = SvcProposeEmbargoRevisionUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: {recipients}"
+        )
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
+        assert self.vendor.id_ not in recipients
+
+
+def _make_case_with_case_owner_and_manager(
+    dl: SqliteDataLayer,
+    owner_id: str,
+    finder_id: str,
+    manager_id: str,
+) -> "Any":
+    """Create a VulnerabilityCase where *owner_id* is CASE_OWNER and *manager_id* is CASE_MANAGER."""
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+
+    owner_p = CaseParticipant(
+        attributed_to=owner_id,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    finder_p = CaseParticipant(
+        attributed_to=finder_id,
+        case_roles=[CVDRole.REPORTER],
+    )
+    manager_p = CaseParticipant(
+        attributed_to=manager_id,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="Owner+Manager Case"
+    )
+    case.actor_participant_index[owner_id] = owner_p.id_
+    case.actor_participant_index[finder_id] = finder_p.id_
+    case.actor_participant_index[manager_id] = manager_p.id_
+    dl.create(owner_p)
+    dl.create(finder_p)
+    dl.create(manager_p)
+    dl.create(case)
+    return case
+
+
+# ---------------------------------------------------------------------------
+# Report trigger use cases
+# ---------------------------------------------------------------------------
+
+
+class TestReportTriggerToField:
+    """SvcInvalidateReportUseCase and SvcRejectReportUseCase populate ``to``
+    with either the Case Actor (when a linked case exists) or the offer
+    submitter."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.vendor, self.dl = _make_actor_dl("Vendor Co")
+        self.finder = as_Service(name="Finder Co")
+        self.case_actor = as_Service(name="Case Actor")
+        self.dl.create(self.finder)
+        self.dl.create(self.case_actor)
+
+        self.report = as_VulnerabilityReport(
+            name="CVE-TEST",
+            content="Report content",
+            attributed_to=self.finder.id_,
+        )
+        self.dl.create(self.report)
+
+        self.offer = rm_submit_report_activity(
+            self.report,
+            self.vendor.id_,
+            actor=self.finder.id_,
+        )
+        self.dl.create(self.offer)
+        offer_record = VultronOfferRecord(
+            offer_id=self.offer.id_,
+            report_id=self.report.id_,
+            offer_actor_id=self.finder.id_,
+            offer_to=[self.vendor.id_],
+        )
+        self.dl.create(offer_record)
+        yield
+        self.dl.clear_all()
+        self.dl.close()
+        reset_datalayer(self.vendor.id_)
+
+    def test_invalidate_report_to_field_falls_back_to_offer_actor(self):
+        """SvcInvalidateReportUseCase uses offer actor as to when no case exists."""
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.RECEIVED
+            )
+        )
+        request = InvalidateReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcInvalidateReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None
+        assert self.finder.id_ in recipients
+        assert self.vendor.id_ not in recipients
+
+    def test_reject_report_to_field_falls_back_to_offer_actor(self):
+        """SvcRejectReportUseCase uses offer actor as to when no case exists."""
+        # Pre-seed RM.INVALID so INVALID→CLOSED is a valid transition (BTND-10-001).
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.INVALID
+            )
+        )
+        request = RejectReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcRejectReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None
+        assert self.finder.id_ in recipients
+        assert self.vendor.id_ not in recipients
+
+    def test_invalidate_report_to_field_uses_case_actor_when_case_exists(self):
+        """SvcInvalidateReportUseCase routes case-scoped invalidation to Case Actor."""
+        case = _make_case_with_case_manager(
+            self.dl,
+            self.vendor.id_,
+            self.finder.id_,
+            self.case_actor.id_,
+        )
+        case.vulnerability_reports.append(self.report.id_)
+        self.dl.save(case)
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.RECEIVED
+            )
+        )
+
+        request = InvalidateReportTriggerRequest(
+            actor_id=self.vendor.id_,
+            offer_id=self.offer.id_,
+        )
+        result = SvcInvalidateReportUseCase(
+            self.dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(self.dl),
+            sync_port=SyncActivityAdapter(self.dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        _, act_obj = _new_outbox_activity(self.vendor, self.dl, result)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None
+        assert len(recipients) == 1
+        assert recipients[0] == self.case_actor.id_
+        assert self.finder.id_ not in recipients
+        assert self.vendor.id_ not in recipients
+
+    @pytest.mark.spec("CM-23-019")
+    @pytest.mark.parametrize("owner", [False, True], ids=["vendor", "owner"])
+    def test_close_report_is_sent_to_no_one_when_a_case_exists(self, owner):
+        """Once a case holds the report, reject-report queues no Close(Report).
+
+        Owner or not, an actor closes its part in the case by
+        ``Leave(VulnerabilityCase)`` through ``leave-case`` (CM-23-019,
+        TRIG-13-001), so reject-report addresses no one, the Case Actor
+        included.
+        """
+        if owner:
+            case = _make_case_with_case_owner_and_manager(
+                self.dl,
+                owner_id=self.vendor.id_,
+                finder_id=self.finder.id_,
+                manager_id=self.case_actor.id_,
+            )
+        else:
+            case = _make_case_with_case_manager(
+                self.dl,
+                self.vendor.id_,
+                self.finder.id_,
+                self.case_actor.id_,
+            )
+        case.vulnerability_reports.append(self.report.id_)
+        self.dl.save(case)
+        self.dl.create(
+            VultronReportCaseLink(
+                report_id=self.report.id_, rm_state=RM.ACCEPTED
+            )
+        )
+        before = set(self.dl.outbox_list())
+
+        with pytest.raises(VultronInvalidStateTransitionError):
+            SvcRejectReportUseCase(
+                self.dl,
+                RejectReportTriggerRequest(
+                    actor_id=self.vendor.id_, offer_id=self.offer.id_
+                ),
+                trigger_activity=TriggerActivityAdapter(self.dl),
+                sync_port=SyncActivityAdapter(self.dl),
+                wire_render_port=As2WireRenderAdapter(),
+            ).execute()
+
+        assert set(self.dl.outbox_list()) == before

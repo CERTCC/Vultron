@@ -1,0 +1,210 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Outbound (driven) port — storage interface used by the core domain layer.
+
+Concrete implementations (e.g. ``SqliteDataLayer``) live in the adapter
+layer at ``vultron/adapters/driven/`` and import this Protocol to
+verify structural conformance.
+
+Port direction: **outbound (driven)** — core calls ``read()``,
+``create()``, ``update()``, ``delete()``, and ``list()`` to persist and
+retrieve domain objects through whatever storage backend the adapter
+provides.
+
+One protocol is defined here: :class:`DataLayer`, the storage port for a
+**single actor's** own store, including its inbox and outbox queues.
+
+There was formerly a second, :class:`ActorScopedDataLayer`, a refinement that
+added the queue methods — because a base ``DataLayer`` could be unscoped, and
+calling a queue method on it silently operated on a phantom queue keyed by
+``""`` rather than any actor's real queue. The ARCH-13 requirement group exists
+to police that hazard.
+
+Under ADR-0073 every DataLayer belongs to exactly one actor, so the distinction
+has no referent: there is no unscoped DataLayer to guard against, and the queue
+methods are as safe as any other. The refinement is therefore gone and its
+methods are declared directly on :class:`DataLayer` — the design deletes the
+guard rail rather than maintaining it.
+
+No adapter-layer types (``Record``, ``TinyDB``, etc.) appear here.
+
+See also: ``vultron/core/ports/AGENTS.md`` "Core Port Taxonomy".
+"""
+
+from collections.abc import Iterable
+from contextlib import AbstractContextManager
+from typing import Any, Protocol
+
+from pydantic import BaseModel
+
+from vultron.core.models.protocol_pair import ProtocolPair
+from vultron.core.models.protocols import PersistableModel
+
+
+class StorableRecord(BaseModel):
+    """Minimal typed record passed to ``DataLayer.create()`` and ``update()``.
+
+    Core BT nodes construct ``StorableRecord`` objects without importing the
+    adapter-layer ``Record`` class.  Adapter implementations receive a
+    ``StorableRecord`` (or a subclass such as ``Record``) and may add extra
+    behaviour (e.g. ``from_obj`` / ``to_obj``) without coupling the port to
+    wire-layer types.
+    """
+
+    id_: str
+    type_: str
+    data_: dict
+
+
+class DataLayer(Protocol):
+    """Protocol for a data layer.
+
+    Defines the minimum interface that any concrete storage adapter must
+    satisfy.  ``update`` accepts ``StorableRecord`` — a Pydantic model
+    defined in this module — so that the core layer passes validated, typed
+    objects to the port rather than raw dicts or ``Any``.  ``create``
+    additionally accepts a plain ``BaseModel`` for callers that have not yet
+    been updated to produce ``StorableRecord`` objects (V-15 through V-19,
+    tracked in P65-5/P65-6).
+    """
+
+    def create(self, record: "StorableRecord | PersistableModel") -> None: ...
+
+    def read(
+        self, object_id: str, raise_on_missing: bool = False
+    ) -> PersistableModel | None: ...
+
+    def get(
+        self, table: str | None, id_: str | None
+    ) -> PersistableModel | dict[str, Any] | None: ...
+
+    def update(self, id_: str, record: StorableRecord) -> bool: ...
+
+    def delete(self, table: str, id_: str) -> bool: ...
+
+    def clear_table(self, table: str) -> None: ...
+
+    def clear_all(self) -> None: ...
+
+    def save(self, obj: PersistableModel) -> None: ...
+
+    def save_if_unchanged(
+        self, obj: PersistableModel, expected: PersistableModel
+    ) -> bool:
+        """Compare-and-set: replace ``obj.id_``'s record only if unchanged.
+
+        Writes *obj* and returns ``True`` only when the stored record still
+        equals *expected* (the record as the caller read it) at the moment of
+        the write; otherwise writes nothing and returns ``False``.  A caller
+        doing read-modify-write uses this instead of :meth:`save` so a
+        concurrent writer's update is never silently overwritten (#4102).
+        A record absent from the store also returns ``False``: there is
+        nothing for *expected* to equal (DL-02-003).
+
+        Raises:
+            ValueError: ``obj.id_`` and ``expected.id_`` differ.
+        """
+        ...
+
+    def save_many(self, objs: list[PersistableModel]) -> None: ...
+
+    def transaction(self) -> AbstractContextManager[None]:
+        """Commit every write inside the block together, or none of them.
+
+        Use as ``with store.transaction(): ...``.  Every call on this store
+        inside the block reads the block's own writes; when the block ends
+        they all commit at once, and when it raises they are all rolled back
+        and the exception propagates.  A block opened inside another is
+        part of it: when the inner block raises, only its own writes are
+        rolled back, and otherwise they commit or roll back with the outer
+        block's.  This is how an act and its consequences commit as one: no
+        failure part-way leaves some of them written (CLP-07-015, ADR-0146).
+        """
+        ...
+
+    def hydrate(self, obj: PersistableModel) -> PersistableModel: ...
+
+    def ping(self) -> bool: ...
+
+    def by_type(self, type_: str) -> dict[str, dict[str, Any]]: ...
+
+    def get_all(self, table: str) -> list[dict[str, Any]]: ...
+
+    def all(
+        self, table: str | None = None
+    ) -> list[StorableRecord] | dict[str, PersistableModel]: ...
+
+    def count_all(self) -> dict[str, int]: ...
+
+    def find_actor_by_short_id(
+        self, short_id: str
+    ) -> PersistableModel | None: ...
+
+    def find_case_by_short_id(
+        self, short_id: str
+    ) -> PersistableModel | None: ...
+
+    def find_case_by_report_id(
+        self, report_id: str
+    ) -> PersistableModel | None: ...
+
+    def list_objects(self, type_key: str) -> Iterable[PersistableModel]: ...
+
+    def find_protocol_pair(
+        self,
+        case_id: str,
+        request_semantic_type: str,
+        object_id: str,
+        reply_semantic_types: frozenset[str],
+        *,
+        answering: frozenset[str] | None = None,
+    ) -> ProtocolPair: ...
+
+    def clone_for_actor(self, actor_id: str) -> "DataLayer": ...
+
+    # -- Queue operations -------------------------------------------------
+    # Declared directly here rather than on a separate refinement: this
+    # DataLayer *is* one actor's store, so its queues are unambiguous.
+
+    def inbox_append(self, activity_id: str) -> None: ...
+
+    def inbox_list(self) -> list[str]: ...
+
+    def inbox_pop(self) -> str | None: ...
+
+    def outbox_append(self, activity_id: str) -> bool:
+        """Queue *activity_id* unless it is already pending; ``True`` if queued.
+
+        The outbox-id idempotency check (OX-06-002, ADR-0119): an id already
+        waiting in this outbox is not queued a second time.
+        """
+        ...
+
+    def outbox_list(self) -> list[str]: ...
+
+    def outbox_pop(self) -> str | None: ...
+
+    def outbox_withdraw(self, activity_id: str) -> bool:
+        """Remove *activity_id* if it is still pending; ``True`` if removed.
+
+        ``False`` means the id is not pending: delivery already took it, or
+        it was never queued.  Only a send whose act turned out not to happen
+        is withdrawn: a CASE_MANAGER activity whose ledger entry did not
+        commit and whose act opens no transaction
+        (``_CommitCaseManagerActivityBase._withdraw_unrecorded``).  An act in
+        a transaction rolls its queued activity back instead (ADR-0146).
+        """
+        ...

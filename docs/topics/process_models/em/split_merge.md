@@ -1,6 +1,14 @@
+---
+stakeholder_type: [cvd-practitioner]
+level: 300
+page_type: explanation
+description: >
+  What happens to embargoes when cases are split or merged.
+---
+
 # Case Splitting and Merging
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Cases sometimes need to be split into multiple cases or merged into a single case.
 Case Splits can happen when a single vulnerability affects multiple products with different fix supply chains.
@@ -92,3 +100,13 @@ Note that it may not always be possible for the split cases to have
 different embargo dates without the earlier case revealing the existence
 of a vulnerability in the products allocated to the later case. For this
 reason, it is often preferable to avoid case splits entirely.
+
+In Vultron, a split is planned as the parent Case Owner proposing a child Case to the parent's CASE_MANAGER.
+The child links its parent by ID and inherits the active embargo's end time as a new embargo of its own, and nothing else from the parent.
+The one CASE_MANAGER hosting the parent and its children records each embargo change in the other Cases' ledgers, which tell their own Participants.
+[ADR-0125](../../../adr/0125-case-split-child-case-inherits-the-embargo-only.md) records the design.
+
+## Doing It on the Wire
+
+- [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — propose and activate the embargo for a child or merged case.
+- [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — change inherited embargo terms, or end an embargo.

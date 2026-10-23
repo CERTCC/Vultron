@@ -1,0 +1,139 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERTⓇ and CERT Coordination CenterⓇ are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Trigger-side BT for the on-behalf v→V / d→D assertion workflow.
+
+The asserting actor (Case Manager or Case Owner) records vendor-awareness
+or deployer-fix-deployment on behalf of an existing participant — for v→V
+typically an inert invitee that has not yet replied to its stub Invite.  The tree never
+creates or attaches a ``CaseParticipant``: an on-behalf assertion whose target
+is not a participant is refused before any write (PRM-06-006, ADR-0121,
+ADR-0114).  The tree runs these steps in sequence; every guard precedes the
+only write (step 4):
+
+1. **CheckOnBehalfAuthorizedNode** — verify the asserting actor holds
+   CASE_MANAGER or CASE_OWNER (ADR-0121, PRM-06-003/004).
+2. **CheckOnBehalfTargetIsParticipantNode** — refuse, naming the target,
+   when the target is not in ``actor_participant_index`` or lacks the
+   asserted dimension's role (PRM-06-003/004/006).
+3. (optional) **CheckSomeVendorAtVFNode** — when ``d_state`` is non-``None``,
+   gate d→D on the causal precondition that at least one VENDOR participant
+   has reached ``vf.state=VF`` (CSB-15-004).
+4. **CreateParticipantStatusNode** — validate (BTND-10-002: role gates and
+   the RM↔D entailment) and store the ParticipantStatus snapshot for the
+   target actor that the activity carries (BT-15-001).  It is not appended
+   to the target's record (``attach=False``): the CASE_MANAGER appends it
+   when it accepts the assertion, and every replica copies that from the
+   ledger (RSH-08-003, CM-23-016).  RM is carried over unchanged
+   (PRM-06-003).
+5. **sender_side_bt** — resolve the Case Manager, build the outbound
+   ``Add(ParticipantStatus)`` activity, and queue it.
+"""
+
+from collections.abc import Callable
+
+import py_trees
+
+from vultron.core.behaviors.case.nodes.on_behalf_guards import (
+    CheckOnBehalfAuthorizedNode,
+    CheckOnBehalfTargetIsParticipantNode,
+    on_behalf_required_roles,
+)
+from vultron.core.behaviors.case.nodes.participant import (
+    CreateParticipantStatusNode,
+)
+from vultron.core.behaviors.case.nodes.vfd_role_guards import (
+    CheckSomeVendorAtVFNode,
+)
+from vultron.core.behaviors.sender.send_tree import sender_side_bt
+from vultron.core.states.cs import CS_d, CS_vf
+
+__all__ = ["add_on_behalf_status_trigger_bt", "on_behalf_required_roles"]
+
+
+def add_on_behalf_status_trigger_bt(
+    case_id: str,
+    asserting_actor_id: str,
+    target_actor_id: str,
+    vf_state: "CS_vf | None",
+    d_state: "CS_d | None",
+    result_out: dict,
+    activity_builder: Callable[[str], list[str]],
+) -> py_trees.behaviour.Behaviour:
+    """Return the trigger-side BT for the on-behalf status assertion workflow.
+
+    Args:
+        case_id: ID of the VulnerabilityCase.
+        asserting_actor_id: Actor making the assertion (must hold CASE_MANAGER
+            or CASE_OWNER).
+        target_actor_id: Actor whose awareness/deployment is being recorded.
+        vf_state: ``CS_vf.Vf`` for v→V, or ``None``.
+        d_state: ``CS_d.D`` for d→D, or ``None``.
+        result_out: Mutable dict populated by ``CreateParticipantStatusNode``
+            with ``'status_id'`` and ``'participant_id'``.
+        activity_builder: ``(case_manager_id: str) -> list[str]`` — called by
+            ``sender_side_bt`` after resolving the Case Manager.
+
+    The target MUST already hold every role
+    :func:`on_behalf_required_roles` derives from ``vf_state`` and
+    ``d_state``.
+
+    Returns:
+        A ``py_trees.composites.Sequence`` that gates, writes the status,
+        and emits.
+
+    Raises:
+        ValueError: when neither ``vf_state`` nor ``d_state`` is set.
+    """
+    children: list[py_trees.behaviour.Behaviour] = [
+        CheckOnBehalfAuthorizedNode(
+            case_id=case_id,
+            asserting_actor_id=asserting_actor_id,
+        ),
+        CheckOnBehalfTargetIsParticipantNode(
+            case_id=case_id,
+            target_actor_id=target_actor_id,
+            required_roles=on_behalf_required_roles(vf_state, d_state),
+        ),
+    ]
+
+    if d_state is not None:
+        children.append(
+            CheckSomeVendorAtVFNode(
+                case_id=case_id,
+                actor_id=asserting_actor_id,
+            )
+        )
+
+    children.extend(
+        [
+            CreateParticipantStatusNode(
+                actor_id=target_actor_id,
+                rm_state=None,
+                vf_state=vf_state,
+                d_state=d_state,
+                pxa_state=None,
+                result_out=result_out,
+                attach=False,
+            ),
+            sender_side_bt(case_id=case_id, activity_builder=activity_builder),
+        ]
+    )
+
+    return py_trees.composites.Sequence(
+        name="AddOnBehalfStatusTriggerBT",
+        memory=False,
+        children=children,
+    )

@@ -16,11 +16,11 @@ This module provides common Behavior Tree nodes for the Vultron package.
 """
 
 import logging
-from dataclasses import dataclass
+from collections.abc import Sequence
 from enum import Enum
-from typing import List, Type
 
 import networkx as nx
+from pydantic import BaseModel
 
 from vultron.bt.base.bt_node import ActionNode, BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode
@@ -34,20 +34,19 @@ from vultron.bt.base.factory import (
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class EnumStateTransition:
+class EnumStateTransition(BaseModel):
     """
     Represents a transition between two states in an enum-based state machine
     """
 
-    start_states: List[Enum]
+    start_states: Sequence[Enum]
     end_state: Enum
 
 
 def state_in(
     key: str,
     state: Enum,
-) -> Type[ConditionCheck]:
+) -> type[ConditionCheck]:
     """
     Factory method that returns a ConditionCheck class that checks if the blackboard[key] == state
 
@@ -60,18 +59,16 @@ def state_in(
     """
 
     def func(obj: BtNode) -> bool:
-        f"""True if the node's blackboard[{key}] == {state}"""
-        return getattr(obj.bb, key) == state
+        return bool(getattr(obj.bb, key) == state)
 
+    # A docstring cannot be an f-string; the node factory reads __doc__.
+    func.__doc__ = f"True if the node's blackboard[{key}] == {state}"
     node_cls = condition_check(f"{key}_in_{state}", func)
 
-    # add some attributes to the node_cls so we can test it later
-    node_cls.key = key
-    node_cls.state = state
     return node_cls
 
 
-def to_end_state_factory(key: str, state: Enum) -> Type[ActionNode]:
+def to_end_state_factory(key: str, state: Enum) -> type[ActionNode]:
     """Factory method that returns an ActionNode class that updates key to state."""
 
     def _func(obj: BtNode) -> bool:
@@ -87,7 +84,7 @@ def to_end_state_factory(key: str, state: Enum) -> Type[ActionNode]:
             history.append(state)
         setattr(obj.bb, histkey, history)
 
-        logger.debug(f"Transition {before} -> {state}")
+        logger.debug("Transition %s -> %s", before, state)
         return True
 
     node_cls = action_node(
@@ -100,7 +97,7 @@ def to_end_state_factory(key: str, state: Enum) -> Type[ActionNode]:
 
 def state_change(
     key: str, transition: EnumStateTransition
-) -> Type[FallbackNode]:
+) -> type[FallbackNode]:
     """Factory method that returns a FallbackNode object that returns SUCCESS when the blackboard[key]
     starts in one of start_states and changes to end_state, and FAILURE otherwise
     """

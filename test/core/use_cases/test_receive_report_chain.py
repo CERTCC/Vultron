@@ -1,0 +1,395 @@
+"""Chain-level integration test: SubmitReport → ValidateReport → EngageCase.
+
+Verifies the vendor's side of the handoff against a single in-memory
+DataLayer: each step sends its decision and leaves the vendor's participant to
+the CASE_MANAGER, whose recorded statuses the replica copies (RSH-08-003,
+CM-23-016).  No demo infrastructure or CI devlogs required.
+
+The fixture pre-seeds the case+offer+report in the vendor's DataLayer, mirroring
+the setup used in test_report_triggers.py (the vendor's inbox already has the
+offer + linked case after receiving a SubmitReport from the finder).
+
+AC-3 of ISSUE-1976.
+"""
+
+from __future__ import annotations
+
+from typing import cast
+
+import pytest
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import activate, write_consent_rows
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
+    reset_datalayer,
+)
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+from vultron.core.use_cases.triggers.case import (
+    EngageCaseTriggerRequest,
+    SvcEngageCaseUseCase,
+)
+from vultron.core.use_cases.triggers.report import (
+    SvcValidateReportUseCase,
+)
+from vultron.core.use_cases.triggers.requests import (
+    ValidateReportTriggerRequest,
+)
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronValidationError
+from vultron.wire.as2.factories import rm_submit_report_activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import (
+    ReporterParticipant,
+    as_CaseParticipant,
+)
+from vultron.wire.as2.vocab.objects.case_status import (
+    as_ParticipantStatus as WireParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_actor(name: str) -> as_Service:
+    return as_Service(name=name)
+
+
+def _make_offer(
+    dl: SqliteDataLayer,
+    report: as_VulnerabilityReport,
+    recipient_id: str,
+    actor_id: str,
+):
+    """Create and persist an Offer + VultronOfferRecord in the DataLayer."""
+    offer = rm_submit_report_activity(report, recipient_id, actor=actor_id)
+    dl.create(offer)
+    offer_record = VultronOfferRecord(
+        offer_id=offer.id_,
+        report_id=report.id_,
+        offer_actor_id=actor_id,
+        offer_to=[recipient_id],
+    )
+    dl.create(offer_record)
+    return offer
+
+
+def _build_case(
+    dl: SqliteDataLayer,
+    vendor_id: str,
+    finder_id: str,
+    case_actor_id: str,
+    report_id: str,
+) -> as_VulnerabilityCase:
+    """Build a VulnerabilityCase with full participant setup and linked report."""
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="Chain Integration Case"
+    )
+    case.vulnerability_reports.append(report_id)
+    # DUR-07-004: an embargo must be established before RM.VALID.  This used to
+    # be satisfiable by accident — TransitionRMtoValid wrote its latch before
+    # EnsureEmbargoExists ran, and the latch made CheckRMStateValid pass on the
+    # fallback arm (ISSUE-2548).  The check is now upstream of every write, so
+    # the case replica has to actually carry the embargo.
+    # The record itself is held too: a case never names an embargo its own
+    # store cannot read (EMB-18-003).
+    embargo = EmbargoEvent(
+        id_=f"{case.id_}/embargoes/chain-embargo",
+        context=case.id_,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(embargo)
+    activate(case, embargo.id_)
+
+    vendor_p = as_CaseParticipant(
+        attributed_to=vendor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    vendor_p.participant_statuses.append(
+        WireParticipantStatus(
+            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        )
+    )
+
+    finder_p = ReporterParticipant(
+        attributed_to=finder_id,
+        context=case.id_,
+    )
+    case_manager_p = as_CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+
+    case.actor_participant_index[vendor_id] = vendor_p.id_
+    case.actor_participant_index[finder_id] = finder_p.id_
+    case.actor_participant_index[case_actor_id] = case_manager_p.id_
+    case.case_participants[:] = [
+        vendor_p.id_,
+        finder_p.id_,
+        case_manager_p.id_,
+    ]
+
+    dl.create(case)
+    dl.create(vendor_p)
+    dl.create(finder_p)
+    dl.create(case_manager_p)
+    write_consent_rows(dl, case)
+    return case
+
+
+# ---------------------------------------------------------------------------
+# Fixture
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def chain_context():
+    """Vendor DataLayer pre-seeded with report, offer, and case.
+
+    Mirrors how the vendor's DataLayer looks after receiving a SubmitReport
+    from the finder and creating the local case at RM.RECEIVED.
+    """
+    finder = _make_actor("Finder Co")
+    vendor = _make_actor("Vendor Co")
+    case_actor = _make_actor("Case Actor")
+
+    reset_datalayer(vendor.id_)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=vendor.id_)
+    dl.clear_all()
+    for actor in (finder, vendor, case_actor):
+        dl.create(actor)
+
+    report = as_VulnerabilityReport(
+        name="Chain Test Vuln",
+        content="Heap overflow in login handler",
+        attributed_to=finder.id_,
+    )
+    dl.create(report)
+
+    offer = _make_offer(dl, report, vendor.id_, actor_id=finder.id_)
+
+    case = _build_case(dl, vendor.id_, finder.id_, case_actor.id_, report.id_)
+    dl.create(
+        VultronReportCaseLink(report_id=report.id_, rm_state=RM.RECEIVED)
+    )
+
+    yield vendor, finder, case_actor, dl, report, offer, case
+
+    dl.clear_all()
+    dl.close()
+    for actor in (finder, vendor, case_actor):
+        reset_datalayer(actor.id_)
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+class TestValidateEngageChain:
+    """ValidateReport → EngageCase as the vendor's replica sees it.
+
+    The vendor sends each decision and writes no status of its own: the
+    CASE_MANAGER records each move and the replica copies the status it
+    commits (RSH-08-003, CLP-07-013, CM-23-016).  So the vendor engages only
+    once its replica holds the VALID the CASE_MANAGER recorded.
+    """
+
+    @staticmethod
+    def _validate(dl, vendor, offer) -> None:
+        SvcValidateReportUseCase(
+            dl,
+            ValidateReportTriggerRequest(
+                actor_id=vendor.id_, offer_id=offer.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+    @staticmethod
+    def _engage(dl, vendor, case) -> None:
+        SvcEngageCaseUseCase(
+            dl,
+            EngageCaseTriggerRequest(actor_id=vendor.id_, case_id=case.id_),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+
+    @staticmethod
+    def _rm_history(dl, vendor, case) -> list[RM]:
+        participant = cast(
+            CaseParticipant,
+            dl.read(case.actor_participant_index[vendor.id_]),
+        )
+        return [s.rm.state for s in participant.participant_statuses]
+
+    @pytest.mark.spec("RSH-08-006")
+    def test_validate_report_sends_and_writes_nothing(self, chain_context):
+        """The validation goes to the CASE_MANAGER; the vendor writes nothing.
+
+        Neither the participant status nor the report link moves: the
+        CASE_MANAGER records VALID and latches its own link when it accepts
+        the validation (RSH-08-006, CM-23-016).
+        """
+        vendor, _, case_actor, dl, report, offer, case = chain_context
+        before = self._rm_history(dl, vendor, case)
+        outbox_before = set(dl.outbox_list())
+
+        self._validate(dl, vendor, offer)
+
+        assert self._rm_history(dl, vendor, case) == before
+        link = dl.read(VultronReportCaseLink.build_id(report.id_))
+        assert isinstance(link, VultronReportCaseLink)
+        assert link.rm_state == RM.RECEIVED
+        sent = set(dl.outbox_list()) - outbox_before
+        assert len(sent) == 1
+        activity = dl.read(next(iter(sent)))
+        assert activity is not None
+        assert getattr(activity, "to", None) == [case_actor.id_]
+
+    @pytest.mark.spec("RSH-08-006")
+    @pytest.mark.spec("BTND-10-002")
+    def test_validate_checks_the_participant_before_it_sends(
+        self, chain_context
+    ):
+        """A sender whose record forbids the move sends nothing.
+
+        The trigger writes no status, but still checks the move the
+        CASE_MANAGER would record: a closed participant cannot validate.
+        """
+        vendor, _, _, dl, _, offer, case = chain_context
+        participant = cast(
+            CaseParticipant,
+            dl.read(case.actor_participant_index[vendor.id_]),
+        )
+        participant.add_participant_status(
+            ParticipantStatus(
+                context=case.id_,
+                attributed_to=vendor.id_,
+                rm=RmDimension(state=RM.CLOSED),
+            )
+        )
+        dl.save(participant)
+        before = set(dl.outbox_list())
+
+        with pytest.raises(VultronValidationError):
+            self._validate(dl, vendor, offer)
+
+        assert set(dl.outbox_list()) == before
+
+    @pytest.mark.spec("RSH-08-006")
+    def test_validate_by_a_sender_the_case_does_not_seat_sends_nothing(
+        self, chain_context
+    ):
+        """A sender with no participant record in the case sends nothing.
+
+        The move cannot be checked against a record that does not exist,
+        so the trigger refuses it rather than sending a validation the
+        CASE_MANAGER could not record.
+        """
+        vendor, _, _, dl, _, offer, case = chain_context
+        stored = cast(VulnerabilityCase, dl.read(case.id_))
+        # Setup only: unseat the vendor from the case index.
+        stored.actor_participant_index.pop(vendor.id_)
+        dl.save(stored)
+        before = set(dl.outbox_list())
+
+        with pytest.raises(VultronValidationError):
+            self._validate(dl, vendor, offer)
+
+        assert set(dl.outbox_list()) == before
+
+    def test_engage_before_the_recorded_validation_is_refused(
+        self, chain_context
+    ):
+        """RECEIVED → ACCEPTED is not a move the vendor may declare."""
+        vendor, _, _, dl, _, offer, case = chain_context
+        self._validate(dl, vendor, offer)
+
+        with pytest.raises(VultronValidationError):
+            self._engage(dl, vendor, case)
+
+    def test_engage_after_the_recorded_validation_is_sent(self, chain_context):
+        """With the CASE_MANAGER's VALID copied, the engagement is sent."""
+        vendor, _, _, dl, _, offer, case = chain_context
+        self._validate(dl, vendor, offer)
+        # The status the CASE_MANAGER committed for the validation, as the
+        # replica copies it from the ledger.
+        participant = cast(
+            CaseParticipant,
+            dl.read(case.actor_participant_index[vendor.id_]),
+        )
+        participant.add_participant_status(
+            ParticipantStatus(
+                context=case.id_,
+                attributed_to=vendor.id_,
+                rm=RmDimension(state=RM.VALID),
+            )
+        )
+        dl.save(participant)
+        before = set(dl.outbox_list())
+
+        self._engage(dl, vendor, case)
+
+        assert len(set(dl.outbox_list()) - before) == 1
+        assert self._rm_history(dl, vendor, case)[-1] == RM.VALID
+
+    def test_validate_report_queues_activity_addressed_to_case_actor(
+        self, chain_context
+    ):
+        """ValidateReport queues an activity addressed to the Case Actor (PCR-08-001)."""
+        vendor, _, case_actor, dl, _, offer, _ = chain_context
+
+        before = set(dl.outbox_list())
+        SvcValidateReportUseCase(
+            dl,
+            ValidateReportTriggerRequest(
+                actor_id=vendor.id_, offer_id=offer.id_
+            ),
+            trigger_activity=TriggerActivityAdapter(dl),
+        ).execute()
+        after = set(dl.outbox_list())
+        new_ids = after - before
+        assert new_ids, (
+            "ValidateReport must queue at least one outbox activity"
+        )
+
+        activity_id = next(iter(new_ids))
+        activity = dl.read(activity_id)
+        assert activity is not None
+        to = getattr(activity, "to", None)
+        to_ids = (
+            [
+                (
+                    item
+                    if isinstance(item, str)
+                    else getattr(item, "id_", str(item))
+                )
+                for item in to
+            ]
+            if isinstance(to, list)
+            else ([to] if isinstance(to, str) else [])
+        )
+        assert case_actor.id_ in to_ids, (
+            f"PCR-08-001: ValidateReport activity must address CaseActor; to={to_ids!r}"
+        )

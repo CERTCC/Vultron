@@ -1,0 +1,96 @@
+#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import unittest
+from itertools import product
+
+import vultron.core.case_states.hypercube as hc
+from vultron.core.case_states.validations import (
+    is_valid_transition,
+    valid_states,
+)
+from vultron.errors import TransitionValidationError
+
+
+class MyTestCase(unittest.TestCase):
+    def test_create_graph(self):
+        G = hc._create_graph()
+        states = valid_states()
+        self.assertEqual(len(G.nodes), len(states))
+        for state in states:
+            self.assertIn(state, G.nodes)
+
+    def test_diffstate(self):
+        states = valid_states()
+        for s1, s2 in product(states, states):
+            try:
+                is_valid_transition(s1, s2)
+            except TransitionValidationError:
+                continue
+
+            # only one character should be different
+            self.assertNotEqual(s1, s2)
+            diff = [x for x in zip(s1, s2, strict=False) if x[0] != x[1]]
+            self.assertEqual(len(diff), 1)
+
+            # and it should be a lower to upper case transition
+            self.assertTrue(diff[0][0].islower())
+            self.assertTrue(diff[0][1].isupper())
+            self.assertEqual(diff[0][0].upper(), diff[0][1])
+
+    def test_model_states(self):
+        states = valid_states()
+        m = hc.CVDmodel()
+        self.assertEqual(len(m.states), len(states))
+        for state in states:
+            self.assertIn(state, m.states)
+
+    def test_model_graph(self):
+        m = hc.CVDmodel()
+        self.assertEqual(len(m.G.nodes), len(m.states))
+        for state in m.states:
+            self.assertIn(state, m.G.nodes)
+
+    def test_model_previous_state(self):
+        m = hc.CVDmodel()
+        for state in m.states:
+            previous = m.previous_state(state)
+            for pred in m.G.predecessors(state):
+                self.assertIn(pred, previous)
+
+    def test_model_next_state(self):
+        m = hc.CVDmodel()
+        for state in m.states:
+            next = m.next_state(state)
+            assert isinstance(next, list)
+            for succ in m.G.successors(state):
+                self.assertIn(succ, next)
+
+    def test_paths_between(self):
+        m = hc.CVDmodel()
+        paths = list(m.paths_between("vfdpxa", "VFDPXA"))
+        self.assertEqual(len(paths), 70)
+
+    def test_paths_from(self):
+        m = hc.CVDmodel()
+        paths = list(m.paths_from("vfdpxa"))
+        self.assertEqual(len(paths), 70)
+
+    def test_paths_to(self):
+        m = hc.CVDmodel()
+        paths = list(m.paths_to("VFDPXA"))
+        self.assertEqual(len(paths), 70)
+
+
+if __name__ == "__main__":
+    unittest.main()

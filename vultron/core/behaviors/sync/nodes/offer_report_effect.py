@@ -1,0 +1,180 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Ledger effect node for add_report_to_case entries.
+
+Provides :class:`ApplyOfferReportFromLedgerNode`, which restores the report and
+attaches it to the case replica when an invited actor processes the canonical
+``add_report_to_case`` ledger entry backfilled from the case owner.
+
+It creates no ``VultronOfferRecord``: the invited actor was never sent the
+``Offer(VulnerabilityReport)`` and does not answer it (CM-11-020, ADR-0121).
+
+Per SYNC-02-002, ISSUE-2134.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from py_trees.common import Status
+from py_trees.ports import NoDataAvailable, PortInformation
+from pydantic import ValidationError
+
+from vultron.core.behaviors.helpers import DataLayerActionWithPorts
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.nodes._helpers import _extract_id_from_field
+from vultron.core.behaviors.sync.nodes.conditions import (
+    _require_log_entry,
+)
+from vultron.core.models._helpers import (
+    _as_id,
+    project_wire_snapshot_to_core,
+)
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.report import VulnerabilityReport
+
+
+class ApplyOfferReportFromLedgerNode(
+    DataLayerActionWithPorts, StateWriteCapable
+):
+    """Apply an ``add_report_to_case`` ledger entry to the local DataLayer.
+
+    When an invited actor receives ``Announce(CaseLedgerEntry)`` for the
+    canonical ``add_report_to_case`` entry, this node stores the report from the
+    entry's ``payload_snapshot`` when the replica lacks it, and attaches it to
+    the case replica's ``vulnerability_reports``.
+
+    It does not create a ``VultronOfferRecord``.  The invited actor was never
+    sent the reporter's ``Offer(VulnerabilityReport)``, so it holds no record of
+    it and cannot answer it (CM-11-020, ADR-0121).  The entry's ``offerId`` and
+    ``offerActorId`` stay in the ledger (CP-01-007); a participant reads them
+    from there.
+
+    Lenient on missing data — an incomplete snapshot returns SUCCESS to avoid
+    blocking the ``Announce`` processing flow.  SYNC-02-002, ISSUE-2134.
+    """
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "activity": PortInformation(data_type=object, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"activity": "/activity"}
+
+    def initialise(self) -> None:
+        super().initialise()
+        try:
+            self.activity = self.get_input("activity")
+        except (NoDataAvailable, NotImplementedError):
+            self.activity = None
+
+    def update(self) -> Status:
+        if (f := self._require_datalayer()) is not None:
+            return f
+        assert self.datalayer is not None
+
+        entry = _require_log_entry(self.activity, self.name)
+
+        # Only handle add_report_to_case entries.
+        if entry.semantic_type != MessageSemantics.ADD_REPORT_TO_CASE.value:
+            return Status.SUCCESS
+
+        snapshot = (
+            entry.payload_snapshot
+            if isinstance(entry.payload_snapshot, dict)
+            else {}
+        )
+        object_data = snapshot.get("object")
+        report_id = (
+            _extract_id_from_field(object_data)
+            if isinstance(object_data, (str, dict))
+            else None
+        )
+
+        # The replica's report list converges on the manager's (RSH-08-004).
+        self._maybe_restore_report(object_data, report_id)
+        self._attach_report_to_case(entry.case_id, report_id)
+
+        return Status.SUCCESS
+
+    def _attach_report_to_case(
+        self, case_id: str | None, report_id: str | None
+    ) -> None:
+        """Append the report id to the replica's ``vulnerability_reports``.
+
+        Idempotent, and lenient on a case this replica does not hold yet
+        (Regime 2, ADR-0087): the entry is still recorded and the report id is
+        recovered when the case is seeded.
+        """
+        assert self.datalayer is not None
+        if not case_id or not report_id:
+            return
+        case = self._resolve_case_replica(case_id)
+        if case is None:
+            return
+        if report_id in [_as_id(r) for r in case.vulnerability_reports]:
+            return
+        case.vulnerability_reports.append(report_id)
+        self.datalayer.save(case)
+        self.logger.info(
+            "%s: attached report '%s' to case '%s' replica (SYNC-02-002)",
+            self.name,
+            report_id,
+            case_id,
+        )
+
+    def _maybe_restore_report(
+        self, object_data: Any, report_id: str | None
+    ) -> None:
+        # The add_report_to_case snapshot embeds the full report inline (the
+        # CASE_MANAGER's record_report_added_to_case activity).  An invited
+        # replica never received the VulnerabilityReport object directly, so
+        # reconstruct and store it from the snapshot here — otherwise
+        # report lookups on this replica miss (#2180).
+        assert self.datalayer is not None
+        if not (
+            isinstance(object_data, dict)
+            and report_id
+            and self.datalayer.read(report_id) is None
+        ):
+            return
+
+        try:
+            report = VulnerabilityReport.model_validate(
+                project_wire_snapshot_to_core(VulnerabilityReport, object_data)
+            )
+        except ValidationError as exc:
+            # A malformed snapshot cannot be reconstructed; stay lenient (this
+            # restore is best-effort).  A non-validation error would be a real
+            # fault and must surface (CS-23-001).
+            self.logger.warning(
+                "%s: could not reconstruct VulnerabilityReport from"
+                " add_report_to_case snapshot: %s",
+                self.name,
+                exc,
+            )
+            return
+        # A write failure is infrastructure, not a malformed snapshot — let it
+        # propagate to BTBridge, which classifies it as an internal error.
+        self.datalayer.save(report)
+        self.logger.info(
+            "%s: stored VulnerabilityReport '%s' from ledger snapshot"
+            " for invited replica (#2180)",
+            self.name,
+            report_id,
+        )

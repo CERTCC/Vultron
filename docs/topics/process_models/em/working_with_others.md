@@ -1,6 +1,14 @@
+---
+stakeholder_type: [cvd-practitioner]
+level: 300
+page_type: explanation
+description: >
+  Adding Participants to a case under embargo.
+---
+
 # Adding Participants to an Embargoed Case
 
-{% include-markdown "../../../includes/normative.md" %}
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Here we describe the who and when of adding Participants to
 an embargoed case.
@@ -8,7 +16,7 @@ an embargoed case.
 As anyone who has tried to schedule a meeting with multiple attendees
 can attest, multi-party scheduling can be difficult. When that schedule
 must also accommodate work completion schedules for an
-MPCVD case, it becomes even harder. In [Default Embargoes](#default-embargoes),
+MPCVD case, it becomes even harder. In [Default Embargoes](./defaults.md),
 we laid out a heuristic for resolving multiple embargo proposals, *The Shortest Embargo Proposed
 Wins*.
 More specifically, we recommended that Participants *accept* the
@@ -94,8 +102,8 @@ Participants usually fall into one of three categories:
 
 ## Adding Participants to an Existing Embargo
 
-Adding new Participants to a case with an existing embargo might require
-the new Participant to accept the embargo prior to receiving the report.
+Adding new Participants to a case with an existing embargo might require the new Participant to accept the embargo prior to receiving the report.
+[Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how each Participant's acceptance is tracked, and [§9 Participant Embargo Consent (PEC) State Machine in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) specifies it.
 
 !!! note ""
 
@@ -119,7 +127,7 @@ the new Participant to accept the embargo prior to receiving the report.
     The inviting Participant MAY interpret the potential Participant's
     default embargo contained in their published vulnerability
     disclosure policy in accordance with the default acceptance
-    strategies listed in [Default Embargoes](#default-embargoes).
+    strategies listed in [Default Embargoes](./defaults.md).
 
 !!! note ""
 
@@ -301,3 +309,9 @@ non-cooperation will have downstream consequences.
 
     Participants MAY decline to participate in future
     CVD cases involving parties with a history of violating previous embargoes.
+
+## Doing It on the Wire
+
+- [How to Invite an Actor to a Case](../../../howto/activitypub/activities/invite_actor.md) — invite a new Participant, who is offered the existing embargo.
+- [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — propose, accept and activate an embargo.
+- [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — propose the shorter terms a new Participant needs as a revision, or end the embargo.

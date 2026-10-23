@@ -1,0 +1,593 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+Tests for SvcAddNoteToCaseUseCase.
+
+Verifies that the add-note-to-case trigger:
+- creates the note in the DataLayer,
+- adds the note ID to the actor's local case.notes list,
+- queues exactly one Add(Note) in the actor's outbox, whose target is the
+  case and whose object is the full note inline, with no Create(Note) (#4706),
+- addresses the Add(Note) only to the Case Actor (PCR-08-001),
+- does NOT address any non-CaseActor participant directly,
+- handles the optional in_reply_to field correctly,
+- records the Add(Note) in the pending-assertion store under
+  ``add_note_to_case`` (SYNC-11-002) and that the store entry clears when the
+  matching Announce(CaseLedgerEntry) arrives (SYNC-11-003).
+"""
+
+import pytest
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.trigger_results import activity_of, note_of
+from vultron.adapters.driven.datalayer_sqlite import (
+    SqliteDataLayer,
+    reset_datalayer,
+)
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.pending_assertion import (
+    _reset_stores,
+    get_pending_assertion_store,
+)
+from vultron.core.sync_helpers import recorded_entries_for_case
+from vultron.core.use_cases.triggers.note import SvcAddNoteToCaseUseCase
+from vultron.core.use_cases.triggers.requests import (
+    AddNoteToCaseTriggerRequest,
+)
+from vultron.enums.roles import CVDRole
+from vultron.errors import VultronValidationError
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import (
+    ReporterParticipant,
+    as_CaseParticipant,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_actor_dl(actor_name: str):
+    """Create an as_Service actor and a matching per-actor SqliteDataLayer."""
+    actor = as_Service(name=actor_name)
+    actor_id = actor.id_
+    reset_datalayer(actor_id)
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+    dl.clear_all()
+    dl.create(actor)
+    return actor, dl
+
+
+def _make_case_with_case_manager(
+    dl: SqliteDataLayer,
+    actor_id: str,
+    finder_id: str,
+    case_actor_id: str,
+) -> tuple[as_VulnerabilityCase, as_CaseParticipant]:
+    """Create a as_VulnerabilityCase with a Finder participant and a Case Actor
+    participant (CVDRole.CASE_MANAGER).
+
+    Returns the case and the Case Manager as_CaseParticipant.
+
+    The actor participant is pre-initialized to RM.VALID so that
+    engage (→ ACCEPTED) and defer (→ DEFERRED) transitions are valid.
+    """
+    from vultron.core.states.rm import RM
+    from vultron.wire.as2.vocab.objects.case_status import (
+        as_ParticipantStatus as WireParticipantStatus,
+    )
+
+    # attributed_to seeds the per-case genesis hash (CLP-08-003), so a
+    # CASE_MANAGER commit can anchor the chain.
+    case = as_VulnerabilityCase(name="Test Case", attributed_to=case_actor_id)
+
+    finder_participant = ReporterParticipant(
+        attributed_to=finder_id,
+        context=case.id_,
+    )
+    case_manager_participant = as_CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    actor_participant = as_CaseParticipant(
+        attributed_to=actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.VENDOR],
+    )
+    # Pre-advance actor to RM.VALID so engage/defer transitions will succeed
+
+    actor_participant.participant_statuses.append(
+        WireParticipantStatus(
+            context=case.id_, rm=RmDimension(state=RM.RECEIVED)
+        )
+    )
+    actor_participant.participant_statuses.append(
+        WireParticipantStatus(context=case.id_, rm=RmDimension(state=RM.VALID))
+    )
+
+    case.actor_participant_index[actor_id] = actor_participant.id_
+    case.actor_participant_index[finder_id] = finder_participant.id_
+    case.actor_participant_index[case_actor_id] = case_manager_participant.id_
+
+    case.case_participants.append(actor_participant.id_)
+    case.case_participants.append(finder_participant.id_)
+    case.case_participants.append(case_manager_participant.id_)
+
+    dl.create(case)
+    dl.create(finder_participant)
+    dl.create(case_manager_participant)
+    dl.create(actor_participant)
+    return case, case_manager_participant
+
+
+def _to_field(activity_obj) -> list[str] | None:
+    """Return the ``to`` field of an activity as a list of strings."""
+    if activity_obj is None:
+        return None
+    to = getattr(activity_obj, "to", None)
+    if to is None:
+        return None
+    if isinstance(to, list):
+        return [
+            item if isinstance(item, str) else getattr(item, "id_", str(item))
+            for item in to
+        ]
+    if isinstance(to, str):
+        return [to]
+    return None
+
+
+def _outbox_activity_ids(actor_id: str, dl: SqliteDataLayer) -> list[str]:
+    """Return all activity IDs in *actor_id*'s outbox.
+
+    ``clone_for_actor`` is the supported way to reach another actor's store
+    (ADR-0073).  This used to build a store for *actor_id* and then swap in
+    ``dl``'s engine — a hand-rolled cross-actor read that also disposed a
+    *cached* engine, destroying the in-memory database it was pointing at and
+    leaving later reads with "no such table".
+    """
+    return dl.clone_for_actor(actor_id).outbox_list()
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+class TestSvcAddNoteToCaseUseCase:
+    """SvcAddNoteToCaseUseCase creates notes and queues activities."""
+
+    NOTE_NAME = "Question from Finder"
+    NOTE_CONTENT = "Is there a workaround available?"
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.vendor, self.dl = _make_actor_dl("Vendor Co")
+        self.finder, _ = _make_actor_dl("Finder Co")
+        self.case_actor, _ = _make_actor_dl("Case Actor")
+        self.case, self.case_manager_participant = (
+            _make_case_with_case_manager(
+                self.dl,
+                self.vendor.id_,
+                self.finder.id_,
+                self.case_actor.id_,
+            )
+        )
+        yield
+        # No clear_all() here: an in-memory store lives only while a connection
+        # is open, so once a per-actor engine is disposed the database is gone
+        # and clearing it raises "no such table". The autouse
+        # _dispose_actor_stores_between_tests fixture in test/conftest.py already
+        # drops every per-actor store after each test (ADR-0073), which is
+        # strictly more thorough than clearing rows.
+        _reset_stores()
+
+    def _execute(self, actor_id=None, in_reply_to=None):
+        """Build and execute the use case; return the result dict."""
+        actor_id = actor_id or self.vendor.id_
+        request = AddNoteToCaseTriggerRequest(
+            actor_id=actor_id,
+            case_id=self.case.id_,
+            note_name=self.NOTE_NAME,
+            note_content=self.NOTE_CONTENT,
+            in_reply_to=in_reply_to,
+        )
+        return SvcAddNoteToCaseUseCase(
+            self.dl, request, trigger_activity=TriggerActivityAdapter(self.dl)
+        ).execute()
+
+    # ------------------------------------------------------------------
+    # Return-value structure
+    # ------------------------------------------------------------------
+
+    def test_execute_returns_note_key(self):
+        """execute() returns a NoteResult carrying the minted note."""
+        result = self._execute()
+        assert result.note is not None
+
+    def test_execute_returns_activity_key(self):
+        """execute() returns a NoteResult carrying the Add(Note) activity."""
+        result = self._execute()
+        assert result.activity is not None
+
+    def test_note_has_id(self):
+        """Returned note dict contains an 'id' field."""
+        result = self._execute()
+        assert note_of(result).get("id") is not None
+
+    # ------------------------------------------------------------------
+    # DataLayer persistence
+    # ------------------------------------------------------------------
+
+    def test_note_stored_in_datalayer(self):
+        """The note is persisted to the DataLayer after execute()."""
+        result = self._execute()
+        note_id = note_of(result)["id"]
+        stored = self.dl.read(note_id)
+        assert stored is not None
+
+    def test_note_added_to_case_notes(self):
+        """The note ID appears in the actor's local case.notes list."""
+        result = self._execute()
+        note_id = note_of(result)["id"]
+        case_obj = self.dl.read(self.case.id_)
+        assert isinstance(case_obj, VulnerabilityCase)
+        note_ids = [
+            n if isinstance(n, str) else getattr(n, "id_", str(n))
+            for n in case_obj.notes
+        ]
+        assert note_id in note_ids
+
+    # ------------------------------------------------------------------
+    # Outbox: one Add(Note) carrying the note inline, no Create (#4706)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.spec("CLP-07-002")
+    @pytest.mark.spec("VAM-07-002")
+    @pytest.mark.spec("VAM-01-010")
+    def test_one_add_note_queued_in_outbox(self):
+        """The trigger queues exactly one activity: an Add(Note) whose target
+        is the case and whose object is the full note inline (#4706 AC-1)."""
+        before = set(_outbox_activity_ids(self.vendor.id_, self.dl))
+        result = self._execute()
+        new_ids = set(_outbox_activity_ids(self.vendor.id_, self.dl)) - before
+        assert new_ids == {activity_of(result)["id"]}
+
+        (activity_id,) = new_ids
+        activity = self.dl.read(activity_id)
+        assert getattr(activity, "type_", None) == "Add"
+        sealed = read_sealed_body_dict(self.dl, activity_id)
+        assert sealed is not None
+        assert sealed["type"] == "Add"
+        assert sealed["target"] == self.case.id_
+        note = sealed["object"]
+        assert isinstance(note, dict), "the note must travel inline"
+        stored = note_of(result)
+        assert note["type"] == "Note"
+        assert note["id"] == stored["id"]
+        assert note["name"] == self.NOTE_NAME
+        assert note["content"] == self.NOTE_CONTENT
+        assert note["context"] == self.case.id_
+        assert activity_of(result) == sealed
+
+    def test_no_create_note_is_queued(self):
+        """No Create activity is queued for the note (#4706 AC-1)."""
+        before = set(_outbox_activity_ids(self.vendor.id_, self.dl))
+        self._execute()
+        new_ids = set(_outbox_activity_ids(self.vendor.id_, self.dl)) - before
+        types = {getattr(self.dl.read(i), "type_", None) for i in new_ids}
+        assert types == {"Add"}
+
+    def test_add_note_id_is_derived_from_the_note(self):
+        """The Add's id is derived from the actor and the note, so a re-run
+        for the same note names the same activity (ID-04-004, OX-06-002)."""
+        from vultron.core.models.activity_ids import derived_activity_id
+
+        result = self._execute()
+        assert activity_of(result)["id"] == derived_activity_id(
+            "note-added", self.vendor.id_, note_of(result)["id"]
+        )
+
+    def test_activities_stored_in_datalayer(self):
+        """Both queued activities are readable from the DataLayer."""
+        before = set(_outbox_activity_ids(self.vendor.id_, self.dl))
+        self._execute()
+        after = set(_outbox_activity_ids(self.vendor.id_, self.dl))
+        for activity_id in after - before:
+            assert self.dl.read(activity_id) is not None
+
+    # ------------------------------------------------------------------
+    # ``to`` field: must address Case Actor only (PCR-08-001)
+    # ------------------------------------------------------------------
+
+    def test_add_note_activity_to_field_addresses_case_actor_only(self):
+        """The Add(Note) has to=[case_actor.id_] (PCR-08-001)."""
+        result = self._execute(actor_id=self.vendor.id_)
+        activity_id = activity_of(result)["id"]
+        assert activity_id is not None
+
+        act_obj = self.dl.read(activity_id)
+        recipients = _to_field(act_obj)
+
+        assert recipients is not None, "to field must not be None"
+        assert len(recipients) == 1, (
+            f"Expected exactly 1 recipient, got {len(recipients)}: "
+            f"{recipients}"
+        )
+        assert recipients[0] == self.case_actor.id_, (
+            f"Expected Case Actor '{self.case_actor.id_}' as sole recipient, "
+            f"got {recipients}"
+        )
+
+    def test_add_note_activity_does_not_address_non_case_actor_participants(
+        self,
+    ):
+        """The Add(Note) must not include finder or vendor in the to field."""
+        result = self._execute(actor_id=self.vendor.id_)
+        activity_id = activity_of(result)["id"]
+        act_obj = self.dl.read(activity_id)
+        recipients = _to_field(act_obj) or []
+
+        assert self.finder.id_ not in recipients, (
+            "Finder must not be directly addressed — routing goes through"
+            " Case Actor"
+        )
+        assert self.vendor.id_ not in recipients, (
+            "Actor must not address themselves"
+        )
+
+    def test_raises_when_no_case_manager(self):
+        """SvcAddNoteToCaseUseCase raises VultronValidationError when no CASE_MANAGER."""
+        solo_case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="No Manager Case"
+        )
+        solo_case.actor_participant_index[self.vendor.id_] = (
+            f"{solo_case.id_}/participants/vendor"
+        )
+        self.dl.create(solo_case)
+
+        request = AddNoteToCaseTriggerRequest(
+            actor_id=self.vendor.id_,
+            case_id=solo_case.id_,
+            note_name=self.NOTE_NAME,
+            note_content=self.NOTE_CONTENT,
+        )
+        with pytest.raises(VultronValidationError):
+            SvcAddNoteToCaseUseCase(
+                self.dl,
+                request,
+                trigger_activity=TriggerActivityAdapter(self.dl),
+            ).execute()
+
+    # ------------------------------------------------------------------
+    # Optional in_reply_to field
+    # ------------------------------------------------------------------
+
+    def test_in_reply_to_none_by_default(self):
+        """Note is created without in_reply_to when not supplied."""
+        result = self._execute()
+        note_id = note_of(result)["id"]
+        stored = self.dl.read(note_id)
+        assert getattr(stored, "in_reply_to", None) is None
+
+    def test_in_reply_to_set_when_provided(self):
+        """Note carries the supplied in_reply_to value."""
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+        parent = as_Note(
+            name="Parent Note",
+            content="Original question",
+            context=self.case.id_,
+        )
+        self.dl.create(parent)
+
+        result = self._execute(in_reply_to=parent.id_)
+        note_id = note_of(result)["id"]
+        stored = self.dl.read(note_id)
+        assert getattr(stored, "in_reply_to", None) == parent.id_
+
+    # ------------------------------------------------------------------
+    # Idempotency: duplicate execute() does not double-add note to case
+    # ------------------------------------------------------------------
+
+    def test_duplicate_execute_does_not_duplicate_note_in_case(self):
+        """Calling execute() twice with the same note does not add it twice."""
+        result = self._execute()
+        note_id = note_of(result)["id"]
+
+        case_obj = self.dl.read(self.case.id_)
+        assert isinstance(case_obj, VulnerabilityCase)
+        count_before = sum(
+            1
+            for n in case_obj.notes
+            if (n if isinstance(n, str) else getattr(n, "id_", str(n)))
+            == note_id
+        )
+        assert count_before == 1
+
+        existing_ids = [
+            n if isinstance(n, str) else getattr(n, "id_", str(n))
+            for n in case_obj.notes
+        ]
+        if note_id not in existing_ids:
+            case_obj.notes.append(note_id)
+            self.dl.save(case_obj)
+
+        case_obj2 = self.dl.read(self.case.id_)
+        assert isinstance(case_obj2, VulnerabilityCase)
+        count_after = sum(
+            1
+            for n in case_obj2.notes
+            if (n if isinstance(n, str) else getattr(n, "id_", str(n)))
+            == note_id
+        )
+        assert count_after == 1
+
+    # ------------------------------------------------------------------
+    # Pending assertions (SYNC-11-002, SYNC-11-003)
+    # ------------------------------------------------------------------
+
+    def test_execute_adds_to_pending_assertion_store(self):
+        """After execute(), the Add(Note) is pending in the actor's store
+        under ``add_note_to_case``, suppressing duplicate near-term re-emits
+        (SYNC-11-002).
+        """
+        result = self._execute()
+        add_activity_id = activity_of(result)["id"]
+        assert add_activity_id is not None
+
+        store = get_pending_assertion_store(self.vendor.id_)
+        assert store.is_suppressed(
+            self.case.id_,
+            MessageSemantics.ADD_NOTE_TO_CASE.value,
+            add_activity_id,
+        ), (
+            "Expected pending-assertion store to suppress the Add(Note) "
+            "activity until the matching Announce(CaseLedgerEntry) arrives"
+        )
+
+    def test_pending_assertion_cleared_lifts_suppression(self):
+        """Clearing the pending entry (simulating Announce round-trip) removes
+        suppression so future re-emits are no longer blocked (SYNC-11-003)."""
+        result = self._execute()
+        add_activity_id = activity_of(result)["id"]
+        assert add_activity_id is not None
+
+        store = get_pending_assertion_store(self.vendor.id_)
+        assert store.is_suppressed(
+            self.case.id_,
+            MessageSemantics.ADD_NOTE_TO_CASE.value,
+            add_activity_id,
+        )
+
+        # Simulate the Announce(CaseLedgerEntry) round-trip clearing the entry
+        store.clear(
+            self.case.id_,
+            MessageSemantics.ADD_NOTE_TO_CASE.value,
+            add_activity_id,
+        )
+        assert not store.is_suppressed(
+            self.case.id_,
+            MessageSemantics.ADD_NOTE_TO_CASE.value,
+            add_activity_id,
+        ), "After clear(), suppression must be lifted"
+
+    @pytest.mark.spec("SYNC-11-004")
+    def test_case_manager_records_no_pending_assertion(self):
+        """The CASE_MANAGER adding a note to its own case records nothing in
+        its pending-assertion store: its commit is the authoritative write
+        (SYNC-11-004)."""
+        manager, manager_dl = _make_actor_dl("Manager Co")
+        case, _ = _make_case_with_case_manager(
+            manager_dl, self.vendor.id_, self.finder.id_, manager.id_
+        )
+        request = AddNoteToCaseTriggerRequest(
+            actor_id=manager.id_,
+            case_id=case.id_,
+            note_name=self.NOTE_NAME,
+            note_content=self.NOTE_CONTENT,
+        )
+
+        result = SvcAddNoteToCaseUseCase(
+            manager_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(manager_dl),
+            sync_port=SyncActivityAdapter(manager_dl),
+        ).execute()
+
+        assert activity_of(result)["id"] is not None
+        assert len(get_pending_assertion_store(manager.id_)) == 0
+
+    def _execute_as_case_manager(self):
+        """Run the trigger as the case's CASE_MANAGER; return its store too."""
+        manager, manager_dl = _make_actor_dl("Manager Co")
+        case, _ = _make_case_with_case_manager(
+            manager_dl, self.vendor.id_, self.finder.id_, manager.id_
+        )
+        request = AddNoteToCaseTriggerRequest(
+            actor_id=manager.id_,
+            case_id=case.id_,
+            note_name=self.NOTE_NAME,
+            note_content=self.NOTE_CONTENT,
+        )
+        result = SvcAddNoteToCaseUseCase(
+            manager_dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(manager_dl),
+            sync_port=SyncActivityAdapter(manager_dl),
+        ).execute()
+        return result, manager, manager_dl, case
+
+    @pytest.mark.spec("HP-08-006")
+    @pytest.mark.spec("CLP-07-013")
+    def test_case_manager_commits_its_own_note_without_an_add_to_itself(
+        self,
+    ):
+        """The CASE_MANAGER's note is committed as its own entry and attached;
+        no Add(Note) is queued to itself, whose handler would refuse a note it
+        already holds (HP-08-006)."""
+        result, manager, manager_dl, case = self._execute_as_case_manager()
+
+        note_id = note_of(result)["id"]
+        entries = [
+            e
+            for e in recorded_entries_for_case(case_id=case.id_, dl=manager_dl)
+            if e.semantic_type == MessageSemantics.ADD_NOTE_TO_CASE.value
+        ]
+        assert [e.log_object_id for e in entries] == [
+            activity_of(result)["id"]
+        ]
+        stored_case = manager_dl.read_case(case.id_)
+        assert stored_case is not None
+        assert note_id in stored_case.notes
+        # The entry's Announce fan-out is queued; the Add itself is not.
+        assert activity_of(result)["id"] not in _outbox_activity_ids(
+            manager.id_, manager_dl
+        )
+
+    def test_zero_timeout_store_does_not_suppress(self):
+        """When the store has zero timeout, is_suppressed always returns False
+        even after execute() adds the entry (SYNC-11-001)."""
+        from vultron.core.models.pending_assertion import (
+            _STORES,
+            PendingAssertionStore,
+        )
+
+        zero_store = PendingAssertionStore(timeout_seconds=0)
+        _STORES[self.vendor.id_] = zero_store
+
+        result = self._execute()
+        add_activity_id = activity_of(result)["id"]
+        assert add_activity_id is not None
+
+        assert not zero_store.is_suppressed(
+            self.case.id_,
+            MessageSemantics.ADD_NOTE_TO_CASE.value,
+            add_activity_id,
+        ), "Zero-timeout store must never suppress"

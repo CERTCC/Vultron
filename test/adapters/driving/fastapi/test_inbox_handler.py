@@ -1,0 +1,1094 @@
+from datetime import UTC
+from types import SimpleNamespace
+from typing import Any, cast
+from unittest.mock import MagicMock, Mock
+
+import pytest
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.received import assert_held_only_as_received, with_evidence
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driving.fastapi import inbox_handler as ih
+from vultron.adapters.driving.fastapi.inbox_pending_queue import (
+    _expire_pending_case_activities,
+)
+from vultron.core.models.events import MessageSemantics, VultronEvent
+from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+
+def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
+    """prepare_for_dispatch should return a VultronEvent from extract_event."""
+    import vultron.semantic_registry as registry_mod
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+
+    monkeypatch.setattr(
+        registry_mod,
+        "find_matching_semantics",
+        lambda activity: MessageSemantics.UNKNOWN,
+    )
+
+    mapping_activity = as_Create(
+        id_="act-123", actor="actor-1", object_="obj-1"
+    )
+    event = ih.prepare_for_dispatch(mapping_activity)
+
+    assert isinstance(event, VultronEvent)
+    assert event.semantic_type == MessageSemantics.UNKNOWN
+    assert event.activity_id == "act-123"
+
+
+def test_handle_inbox_item_dispatches(monkeypatch):
+    class FakeActivity:
+        type_ = "TestActivity"
+        name = "fake"
+
+        def model_dump_json(self, **kwargs):
+            return '{"name":"fake"}'
+
+    fake_activity = FakeActivity()
+    mock_dl = MagicMock()
+
+    # Use a real VultronEvent so that model_copy() works correctly when
+    # handle_inbox_item injects receiving_actor_id (HP-09-001).
+    fake_event = VultronEvent(
+        semantic_type=MessageSemantics.UNKNOWN,
+        activity_id="https://example.org/activities/aid",
+        actor_id="https://example.org/actors/actor1",
+    )
+    monkeypatch.setattr(
+        ih, "prepare_for_dispatch", lambda activity: fake_event
+    )
+
+    mock_dispatcher = Mock()
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", mock_dispatcher)
+
+    ih.handle_inbox_item(
+        actor_id="https://example.org/actors/actor1",
+        obj=cast(Any, fake_activity),
+        dl=mock_dl,
+    )
+
+    mock_dispatcher.dispatch.assert_called_once()
+    dispatched_event, dispatched_dl = mock_dispatcher.dispatch.call_args[0]
+    assert dispatched_dl is mock_dl
+    assert (
+        dispatched_event.receiving_actor_id
+        == "https://example.org/actors/actor1"
+    )
+
+
+def test_dispatch_uses_explicit_dispatcher(monkeypatch):
+    """dispatch() should use the provided dispatcher, not the global."""
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", None)
+    explicit_dispatcher = Mock()
+    fake_event = cast(
+        VultronEvent, SimpleNamespace(activity_id="x", semantic_type="y")
+    )
+    mock_dl = MagicMock()
+
+    ih.dispatch(fake_event, mock_dl, dispatcher=explicit_dispatcher)
+
+    explicit_dispatcher.dispatch.assert_called_once_with(fake_event, mock_dl)
+
+
+def test_make_dispatcher_add_participant_status_has_both_ports(monkeypatch):
+    """make_dispatcher() must inject *both* sync_port and trigger_activity for
+    ADD_PARTICIPANT_STATUS_TO_PARTICIPANT.
+
+    Before the fix, dict.update() overwrote the sync factory with the trigger
+    factory for this semantic, leaving sync_port=None and silently skipping the
+    log-entry fan-out (issue #628).
+    """
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+
+    # Capture which port_factories map was supplied to get_dispatcher
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+
+    ih.make_dispatcher()
+
+    sem = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+    assert sem in captured["port_factories"], (
+        f"{sem} must have a port factory registered"
+    )
+
+    factory = captured["port_factories"][sem]
+    kwargs = factory(real_dl)
+
+    assert "sync_port" in kwargs, (
+        "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide sync_port"
+    )
+    assert isinstance(kwargs["sync_port"], SyncActivityAdapter), (
+        "sync_port must be a SyncActivityAdapter instance, not None"
+    )
+    assert "trigger_activity" in kwargs, (
+        "ADD_PARTICIPANT_STATUS_TO_PARTICIPANT factory must provide trigger_activity"
+    )
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter), (
+        "trigger_activity must be a TriggerActivityAdapter instance, not None"
+    )
+
+
+@pytest.mark.spec("CLP-07-013")
+@pytest.mark.parametrize(
+    "sem",
+    [
+        MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE,
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE,
+    ],
+    ids=lambda sem: sem.value,
+)
+def test_make_dispatcher_gives_a_received_consent_act_the_trigger_port(
+    monkeypatch, sem
+):
+    """A received consent act's effect commits each further row as the
+    CASE_MANAGER's own factory-built ``Update(EmbargoConsent)`` entry after
+    the guarded commit commits the act (ADR-0124), so the inbox must hand it
+    the trigger port: without it the effect raises and the whole received act
+    rolls back, so no consent act could complete (#4717, ADR-0151)."""
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None, case_upkeep=()):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+
+    ih.make_dispatcher()
+
+    kwargs = captured["port_factories"][sem](real_dl)
+    assert isinstance(kwargs.get("trigger_activity"), TriggerActivityAdapter)
+    assert isinstance(kwargs.get("sync_port"), SyncActivityAdapter)
+
+
+@pytest.mark.spec("EMB-13-003")
+@pytest.mark.spec("CLP-10-025")
+def test_make_dispatcher_gives_every_semantic_a_trigger_port(monkeypatch):
+    """Every received use case is constructed with a ``TriggerActivityPort``.
+
+    Every received tree with a case and a sender guard takes the CASE_MANAGER's
+    end-time check as a clock decision, and the termination builds its
+    ``Remove``, ``Add(CaseStatus)`` and re-issued stub ``Invite`` through
+    this port (EMB-13-003).  A use case dispatched without it would end the
+    embargo locally and fail to record it, so every use case gets the port and
+    must accept it: the dispatcher calls ``use_case_class(dl, event, **kwargs)``.
+    """
+    import inspect
+
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    for sem, use_case in use_case_map().items():
+        factory = captured["port_factories"].get(sem)
+        assert factory is not None, f"{sem.name} has no port factory"
+        assert isinstance(
+            factory(real_dl).get("trigger_activity"), TriggerActivityAdapter
+        ), f"{sem.name} is dispatched without a TriggerActivityPort"
+        assert "trigger_activity" in inspect.signature(use_case).parameters, (
+            f"{use_case.__name__} does not accept trigger_activity"
+        )
+
+
+def test_make_dispatcher_overlapping_semantics_raises(monkeypatch):
+    """make_dispatcher() must raise AssertionError when semantics sets overlap.
+
+    This guards against a recurrence of issue #628, where a silent dict.update()
+    overwrite dropped a required port.
+    """
+    from vultron.core.models.events import MessageSemantics
+
+    # Inject an artificial overlap: put the submit-report semantic into the
+    # case-proposal set as well.
+    overlapping = frozenset({MessageSemantics.SUBMIT_REPORT})
+    monkeypatch.setattr(ih, "_CASE_PROPOSAL_SEMANTICS", overlapping)
+
+    with pytest.raises(AssertionError, match="overlap"):
+        ih.make_dispatcher()
+
+
+def test_make_dispatcher_does_not_mutate_global(monkeypatch):
+    """make_dispatcher() must not touch the module-level _DISPATCHER_SLOT."""
+    sentinel = object()
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", sentinel)
+
+    result = ih.make_dispatcher()
+
+    assert ih._DISPATCHER_SLOT.value is sentinel
+    assert result is not sentinel
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", None)
+    fake_event = cast(
+        VultronEvent, SimpleNamespace(activity_id="x", semantic_type="y")
+    )
+    mock_dl = MagicMock()
+    with pytest.raises(RuntimeError, match="not initialised"):
+        ih.dispatch(fake_event, mock_dl)
+
+
+def test_init_dispatcher_sets_dispatcher(monkeypatch):
+    mock_dispatcher = Mock()
+    monkeypatch.setattr(ih._DISPATCHER_SLOT, "value", None)
+    monkeypatch.setattr(
+        ih,
+        "get_dispatcher",
+        lambda use_case_map, port_factories=None: mock_dispatcher,
+    )
+
+    ih.init_dispatcher()
+    assert ih._DISPATCHER_SLOT.value is mock_dispatcher
+
+
+def _add_note_activity(activity_id: str, case_id: str, to: str) -> as_Activity:
+    """A rebuildable ``Add(Note)`` the legacy worker can hold for replay."""
+    from vultron.wire.as2.factories import add_note_to_case_activity
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+
+    return add_note_to_case_activity(
+        as_Note(content="queued", context=case_id),
+        target=case_id,
+        context=case_id,
+        actor="https://example.org/actors/case-actor",
+        to=[to],
+        id_=activity_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# CBT-03 / CBT-05-003: Pre-bootstrap queue expiry tests (issue #500)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CBT-03-006")
+def test_pending_case_queue_expires_drops_and_warns(monkeypatch, caplog):
+    """AC-6: Expired pre-bootstrap queue is dropped with a WARNING.
+
+    Covers CBT-05-003 (second bullet): expire safely.
+    """
+    import logging
+    from datetime import datetime, timedelta
+
+    actor_id = "https://example.org/actors/reporter"
+    case_id = "https://example.org/cases/cbt-ac6"
+    activity_id = "https://example.org/activities/cbt-ac6-note"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+
+    # Create a pending queue entry that is already "old" (queued 10 minutes ago)
+    old_time = datetime.now(UTC) - timedelta(minutes=10)
+    pending = VultronPendingCaseInbox(
+        case_id=case_id,
+        activity_ids=[activity_id],
+        case_actor_id="https://example.org/actors/case-actor",
+    )
+    pending.queued_at = old_time
+    queue_dl.save(pending)
+
+    with caplog.at_level(logging.WARNING, logger="vultron"):
+        expired = _expire_pending_case_activities(
+            case_id=case_id,
+            actor_id=actor_id,
+            dl=shared_dl,
+            queue_dl=queue_dl,
+            timeout_seconds=60,  # 1 minute; queue is 10 minutes old
+        )
+
+    assert expired is True
+    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is None
+    assert any("Dropping expired" in r.message for r in caplog.records)
+    assert any(activity_id in r.message for r in caplog.records)
+
+
+def test_inbox_port_factories_has_no_demo_import():
+    """inbox_port_factories.py must not import from vultron.demo (AC-2, CFG-07-005)."""
+    import ast
+    import pathlib
+
+    src = (
+        pathlib.Path(__file__).parents[4]
+        / "vultron"
+        / "adapters"
+        / "driving"
+        / "fastapi"
+        / "inbox_port_factories.py"
+    ).read_text()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            module = ""
+            if isinstance(node, ast.ImportFrom) and node.module:
+                module = node.module
+            elif isinstance(node, ast.Import):
+                module = ",".join(alias.name for alias in node.names)
+            assert "vultron.demo" not in module, (
+                f"inbox_port_factories.py must not import from vultron.demo; "
+                f"found: {module!r}"
+            )
+
+
+def test_resolve_actor_config_delegates_to_load_actor_config(monkeypatch):
+    """_resolve_actor_config() must call load_actor_config() (AC-2, CFG-07-005).
+
+    The production adapter must not import SeedConfig; instead it delegates
+    to load_actor_config() from vultron.config.
+    """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    import vultron.config.app as app_mod
+    from vultron.config.actor import ActorConfig
+
+    called = []
+
+    def fake_load_actor_config():
+        called.append(True)
+        return ActorConfig(auto_create_case=False)
+
+    monkeypatch.setattr(app_mod, "load_actor_config", fake_load_actor_config)
+    # Patch the name in pf's namespace (imported at module load time)
+    monkeypatch.setattr(pf, "load_actor_config", fake_load_actor_config)
+
+    result = pf._resolve_actor_config()
+    assert called, "load_actor_config must have been called"
+    assert isinstance(result, ActorConfig)
+    assert result.auto_create_case is False
+
+
+def test_trigger_activity_with_actor_config_port_factory_injects_actor_config(
+    monkeypatch,
+):
+    """_trigger_activity_with_actor_config_port_factory returns actor_config from load_actor_config.
+
+    When load_actor_config() is available, the factory must include an
+    ``actor_config`` key so that ``SubmitReportReceivedUseCase`` can
+    honour the local actor's ``auto_create_case`` policy (CM-15-001,
+    issue #1319).
+    """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.config.actor import ActorConfig
+
+    fake_actor_config = ActorConfig(auto_create_case=False)
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake_actor_config)
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    kwargs = pf._trigger_activity_with_actor_config_port_factory(real_dl)
+
+    assert "actor_config" in kwargs, "factory must include actor_config"
+    assert isinstance(kwargs["actor_config"], ActorConfig)
+    assert kwargs["actor_config"].auto_create_case is False
+    # The sync and wire-render ports come only from the received baseline
+    # (with_received_baseline_ports, #4113), never from this factory.
+    assert set(kwargs) == {"actor_config", "trigger_activity"}
+
+
+def test_trigger_activity_with_actor_config_port_factory_omits_actor_config_when_unavailable(
+    monkeypatch,
+):
+    """_trigger_activity_with_actor_config_port_factory omits actor_config when SeedConfig fails.
+
+    When SeedConfig cannot be loaded (e.g. env vars absent), the factory
+    must still return trigger_activity and must NOT include an
+    ``actor_config`` key — so the use case falls back to always-create (CM-15-001).
+    """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    kwargs = pf._trigger_activity_with_actor_config_port_factory(real_dl)
+
+    assert set(kwargs) == {"trigger_activity"}
+
+
+def test_make_dispatcher_submit_report_uses_actor_config_factory(monkeypatch):
+    """make_dispatcher() must register _trigger_activity_with_actor_config_port_factory for SUBMIT_REPORT.
+
+    SUBMIT_REPORT has its own set, _SUBMIT_REPORT_SEMANTICS (issue #1319), so
+    it is wired to the factory that also injects actor_config.  The sync port
+    comes from the received baseline every semantic gets (#4113).
+    """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.config.actor import ActorConfig
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        pf,
+        "_resolve_actor_config",
+        lambda: ActorConfig(auto_create_case=False),
+    )
+
+    ih.make_dispatcher()
+
+    sem = MessageSemantics.SUBMIT_REPORT
+    assert sem in captured["port_factories"], (
+        "SUBMIT_REPORT must have a factory"
+    )
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    kwargs = captured["port_factories"][sem](real_dl)
+
+    assert isinstance(kwargs.get("sync_port"), SyncActivityAdapter)
+    assert isinstance(kwargs.get("trigger_activity"), TriggerActivityAdapter)
+    assert isinstance(kwargs.get("actor_config"), ActorConfig)
+    assert kwargs["actor_config"].auto_create_case is False
+
+
+def test_make_dispatcher_close_case_gets_wire_render_port(monkeypatch):
+    """make_dispatcher() must give CLOSE_CASE all three ports.
+
+    All three come from the received baseline every semantic gets (#4113).  Without
+    the ``WireRenderPort``, ``CommitRMClosureEntriesNode`` cannot render the
+    CASE_MANAGER's own ``RM.CLOSED`` snapshot and hard-fails, which would abort
+    the owner-Leave path before its write boundary is committed.  This guards
+    the wiring rather than the node, because a lost registration is silent at
+    the node (ISSUE-2505 stayed hidden for months behind exactly that shape of
+    absent port).
+    """
+    from vultron.adapters.driven.sync_activity_adapter import (
+        SyncActivityAdapter,
+    )
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    ih.make_dispatcher()
+
+    sem = MessageSemantics.CLOSE_CASE
+    assert sem in captured["port_factories"], "CLOSE_CASE must have a factory"
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    kwargs = captured["port_factories"][sem](real_dl)
+
+    assert isinstance(kwargs.get("sync_port"), SyncActivityAdapter)
+    assert isinstance(kwargs.get("trigger_activity"), TriggerActivityAdapter)
+    assert isinstance(kwargs.get("wire_render_port"), As2WireRenderAdapter)
+
+
+@pytest.mark.spec("CM-31-009")
+@pytest.mark.parametrize(
+    "sem",
+    [
+        MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+        MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE,
+        MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+    ],
+)
+def test_make_dispatcher_gives_embargo_ending_paths_the_trigger_port(
+    monkeypatch, sem
+):
+    """Every received path that ends or replaces an embargo can send notices.
+
+    The CASE_MANAGER's direct notices to the bound signatories the ledger no
+    longer reaches are built through the trigger port (CM-31-009); a missing
+    port would fail the tree after the EM write.
+    """
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    kwargs = captured["port_factories"][sem](real_dl)
+
+    assert isinstance(kwargs.get("trigger_activity"), TriggerActivityAdapter)
+
+
+@pytest.mark.spec("ARCH-20-001")
+@pytest.mark.spec("ARCH-20-004")
+def test_make_dispatcher_gives_every_semantic_a_wire_render_port(monkeypatch):
+    """Every received use case is constructed with a ``WireRenderPort``.
+
+    A received tree may write and commit records the CASE_MANAGER authors,
+    whose snapshots are AS2 renderings core cannot produce itself
+    (CLP-07-009, CLP-07-013).  So a semantic with no other port still gets
+    this one, and the use case must accept it: the dispatcher calls
+    ``use_case_class(dl, event, **kwargs)``.
+    """
+    import inspect
+
+    from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    for sem, use_case in use_case_map().items():
+        factory = captured["port_factories"].get(sem)
+        assert factory is not None, f"{sem.name} has no port factory"
+        assert isinstance(
+            factory(real_dl).get("wire_render_port"), As2WireRenderAdapter
+        ), f"{sem.name} is dispatched without a WireRenderPort"
+        assert "wire_render_port" in inspect.signature(use_case).parameters, (
+            f"{use_case.__name__} does not accept wire_render_port"
+        )
+
+
+@pytest.mark.spec("SYNC-02-003")
+def test_make_dispatcher_gives_every_semantic_a_sync_port(monkeypatch):
+    """Every received use case is constructed with a ``SyncActivityPort``.
+
+    Every received tree that names a case commits a ledger entry, and the
+    CASE_MANAGER announces each entry to the participants through this port
+    (SYNC-02-003).  A semantic left off a hand-kept list committed without
+    fan-out: ``OFFER_ACTOR_TO_CASE``, ``VALIDATE_REPORT`` and
+    ``REJECT_INVITE_ACTOR_TO_CASE`` did, and the ``rcv-reject`` demo's ledger
+    coverage gate timed out on the gap (#4113).
+    """
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    # That each use case accepts the port is the architecture ratchet's job
+    # (test_received_use_cases_fan_out_commits.py); this pins the supply.
+    for sem in use_case_map():
+        factory = captured["port_factories"].get(sem)
+        assert factory is not None, f"{sem.name} has no port factory"
+        assert isinstance(
+            factory(real_dl).get("sync_port"), SyncActivityAdapter
+        ), f"{sem.name} is dispatched without a SyncActivityPort"
+
+
+def test_case_proposal_port_factory_injects_actor_config(monkeypatch):
+    """_case_proposal_port_factory returns actor_config, its port and call-out.
+
+    ``CreateCaseProposalReceivedUseCase`` needs ``default_case_roles`` so the
+    CaseActor grants the proposing actor its real roles alongside CASE_OWNER
+    (CFG-07-002, CFG-07-004), ``trigger_activity`` so the admission decline
+    path can emit Reject(as_CaseProposal) (CP-05-004), and ``call_out`` as the
+    admission-policy injection point (CP-05-002).  ``wire_render_port`` and
+    ``sync_port`` come only from the received baseline (#4113), so this
+    factory must not name them.
+    """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.config.actor import ActorConfig
+    from vultron.core.behaviors.call_out.bundles.case_proposal import (
+        CASE_PROPOSAL_DETERMINISTIC,
+    )
+    from vultron.enums.roles import CVDRole
+
+    fake = ActorConfig(default_case_roles=[CVDRole.COORDINATOR])
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake)
+
+    kwargs = pf._case_proposal_port_factory(
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+    )
+
+    assert kwargs["actor_config"] == fake
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
+    assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
+    assert set(kwargs) == {"actor_config", "trigger_activity", "call_out"}
+
+
+def test_case_proposal_port_factory_omits_actor_config_when_unavailable(
+    monkeypatch,
+):
+    """The factory drops actor_config, keeping the port, when config load fails.
+
+    The owner gets CASE_OWNER only (no inherited role guess), and the decline
+    path can still emit Reject(as_CaseProposal) (CP-05-004) under the default
+    admission policy.
+    """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.behaviors.call_out.bundles.case_proposal import (
+        CASE_PROPOSAL_DETERMINISTIC,
+    )
+
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: None)
+
+    kwargs = pf._case_proposal_port_factory(
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+    )
+
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
+    assert kwargs["call_out"] is CASE_PROPOSAL_DETERMINISTIC
+    assert set(kwargs) == {"trigger_activity", "call_out"}
+
+
+def test_make_dispatcher_case_proposal_uses_actor_config_factory(monkeypatch):
+    """make_dispatcher() must wire _case_proposal_port_factory for
+    CREATE_CASE_PROPOSAL so the CaseActor sees ``default_case_roles``."""
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.config.actor import ActorConfig
+    from vultron.enums.roles import CVDRole
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        pf,
+        "_resolve_actor_config",
+        lambda: ActorConfig(default_case_roles=[CVDRole.COORDINATOR]),
+    )
+
+    ih.make_dispatcher()
+
+    sem = MessageSemantics.CREATE_CASE_PROPOSAL
+    assert sem in captured["port_factories"], (
+        "CREATE_CASE_PROPOSAL must have a factory"
+    )
+    kwargs = captured["port_factories"][sem](
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+    )
+    actor_config = kwargs.get("actor_config")
+    assert isinstance(actor_config, ActorConfig)
+    assert actor_config.default_case_roles == [CVDRole.COORDINATOR]
+
+
+@pytest.mark.parametrize(
+    "sem",
+    [
+        MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE,
+    ],
+)
+def test_make_dispatcher_embargo_invite_gets_actor_config(monkeypatch, sem):
+    """The two embargo-invite semantics get the trigger port and ActorConfig.
+
+    The CASE_MANAGER stamps each relayed Invite, and the EMB-17-003 re-invite,
+    with an RSVP deadline drawn from its configured windows (CM-28-012,
+    EP-07-002), so a lost registration would silently fall back to defaults.
+    """
+    from datetime import timedelta
+
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.config.actor import ActorConfig
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    fake = ActorConfig(default_rsvp_window=timedelta(days=10))
+    monkeypatch.setattr(pf, "_resolve_actor_config", lambda: fake)
+
+    ih.make_dispatcher()
+
+    kwargs = captured["port_factories"][sem](
+        SqliteDataLayer(
+            "sqlite:///:memory:",
+            actor_id="https://test.example/api/v2/actors/test-actor",
+        )
+    )
+    assert kwargs["actor_config"] is fake
+    assert isinstance(kwargs["trigger_activity"], TriggerActivityAdapter)
+
+
+def test_make_dispatcher_ac2_auto_create_false_no_case_via_dispatcher(
+    monkeypatch,
+):
+    """AC-2: DirectActivityDispatcher honours auto_create_case=False end-to-end.
+
+    With _resolve_actor_config returning auto_create_case=False,
+    dispatching an inbound Offer(Report) via DirectActivityDispatcher must
+    store the report and archive the Offer but must NOT create a
+    as_VulnerabilityCase and must leave the actor's outbox empty (CM-15-001,
+    issue #1319).
+    """
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+    from vultron.config.actor import ActorConfig
+    from vultron.core.models.activity import VultronActivity
+    from vultron.core.models.actor import VultronService
+    from vultron.core.models.events.report import SubmitReportReceivedEvent
+    from vultron.core.models.report import VulnerabilityReport
+
+    VENDOR_ID = "https://example.org/actors/vendor-ac2"
+    FINDER_ID = "https://example.org/users/finder-ac2"
+    REPORT_ID = "https://example.org/reports/r-ac2"
+    OFFER_ID = "https://example.org/activities/offer-ac2"
+
+    # Inject auto_create_case=False via the factory that make_dispatcher uses.
+    monkeypatch.setattr(
+        pf,
+        "_resolve_actor_config",
+        lambda: ActorConfig(auto_create_case=False),
+    )
+
+    # Build a real dispatcher the same way make_dispatcher() does, but
+    # without the full FastAPI lifespan — call make_dispatcher directly.
+    dispatcher = ih.make_dispatcher()
+
+    # The receiving vendor's own store (BT-05-005).
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=VENDOR_ID)
+    dl.save(VultronService(id_=VENDOR_ID))
+
+    report = VulnerabilityReport(id_=REPORT_ID)
+    activity = VultronActivity(
+        id_=OFFER_ID,
+        type_="Offer",
+        actor=FINDER_ID,
+        to=[VENDOR_ID],
+    )
+    event = with_evidence(
+        SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id=OFFER_ID,
+            actor_id=FINDER_ID,
+            object_=report,
+            activity=activity,
+            receiving_actor_id=VENDOR_ID,
+        )
+    )
+
+    dispatcher.dispatch(event, dl)
+
+    # The report is persisted; the Offer is held as intake archived it,
+    # never under the id its sender chose (DL-06-006).
+    assert dl.read(REPORT_ID) is not None, "VulnerabilityReport must be stored"
+    assert_held_only_as_received(dl, OFFER_ID)
+    # No case created.
+    assert dl.get_all("VulnerabilityCase") == [], (
+        "No as_VulnerabilityCase should be created when auto_create_case=False"
+    )
+    # Outbox must remain empty.
+    assert dl.outbox_list() == [], (
+        "Outbox must be empty when auto_create_case=False"
+    )
+
+
+def test_pending_case_queue_expiry_emits_question(monkeypatch):
+    """AC-7: A replay Question is appended to the actor outbox on expiry.
+
+    Covers CBT-05-003 (third bullet): generate a replay request.
+    """
+    from datetime import datetime, timedelta
+
+    actor_id = "https://example.org/actors/reporter"
+    case_id = "https://example.org/cases/cbt-ac7"
+    activity_id = "https://example.org/activities/cbt-ac7-note"
+    case_actor_id = "https://example.org/actors/case-actor"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+
+    old_time = datetime.now(UTC) - timedelta(minutes=10)
+    pending = VultronPendingCaseInbox(
+        case_id=case_id,
+        activity_ids=[activity_id],
+        case_actor_id=case_actor_id,
+    )
+    pending.queued_at = old_time
+    queue_dl.save(pending)
+
+    expired = _expire_pending_case_activities(
+        case_id=case_id,
+        actor_id=actor_id,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+        timeout_seconds=60,
+    )
+
+    assert expired is True
+
+    outbox = queue_dl.outbox_list()
+    assert len(outbox) == 1, (
+        "One Question should have been queued in the outbox"
+    )
+
+    question_id = outbox[0]
+    from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
+        as_Question,
+    )
+
+    question = shared_dl.read(question_id)
+    assert isinstance(question, as_Question)
+    assert question.context == case_id
+    assert question.actor == actor_id
+    assert question.to == [case_actor_id]
+
+
+@pytest.mark.spec("EP-07-001")
+def test_prepare_for_dispatch_applies_configured_rsvp_window(monkeypatch):
+    """The local actor's default RSVP window reaches extraction (#3737)."""
+    from datetime import datetime, timedelta
+
+    import vultron.adapters.driving.fastapi.inbox_port_factories as pf
+    from vultron.config.actor import ActorConfig
+    from vultron.core.models.events.embargo import (
+        InviteToEmbargoOnCaseReceivedEvent,
+    )
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Invite,
+    )
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    monkeypatch.setattr(
+        pf,
+        "_resolve_actor_config",
+        lambda: ActorConfig(default_rsvp_window=timedelta(days=14)),
+    )
+    published = datetime.now(tz=UTC)
+    case_id = "https://example.org/cases/rsvp"
+    invite = as_Invite(
+        object_=as_EmbargoEvent(
+            context=case_id, end_time=published + timedelta(days=90)
+        ),
+        context=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id),
+        actor="https://example.org/alice",
+        published=published,
+    )
+
+    event = ih.prepare_for_dispatch(invite)
+
+    assert isinstance(event, InviteToEmbargoOnCaseReceivedEvent)
+    assert event.rsvp_deadline == published + timedelta(days=14)
+
+
+@pytest.mark.spec("SYNC-14-009")
+def test_make_dispatcher_gives_ledger_replay_semantics_the_inbox_port(
+    monkeypatch,
+):
+    """The two received paths that can make a held Announce appliable get an
+    ``InboxReplayPort`` queueing to the receiving actor's own store, and no
+    other semantic does: the port is not part of every use case's signature
+    (SYNC-14-009, SYNC-15-005)."""
+    import inspect
+
+    from vultron.adapters.driven.inbox_replay_adapter import (
+        InboxReplayAdapter,
+    )
+    from vultron.core.models.events import MessageSemantics
+    from vultron.semantic_registry import use_case_map
+
+    captured: dict = {}
+
+    def fake_get_dispatcher(use_case_map, port_factories=None):
+        captured["port_factories"] = port_factories
+        return Mock()
+
+    monkeypatch.setattr(ih, "get_dispatcher", fake_get_dispatcher)
+    monkeypatch.setattr(
+        ih.inbox_port_factories, "_resolve_actor_config", lambda: None
+    )
+    ih.make_dispatcher()
+
+    real_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    replay_semantics = {
+        MessageSemantics.ANNOUNCE_CASE_LEDGER_ENTRY,
+        MessageSemantics.ANNOUNCE_VULNERABILITY_CASE,
+    }
+    for sem, use_case in use_case_map().items():
+        port = captured["port_factories"][sem](real_dl).get("inbox_replay")
+        if sem in replay_semantics:
+            assert isinstance(port, InboxReplayAdapter), sem.name
+            assert port._dl is real_dl
+            assert "inbox_replay" in inspect.signature(use_case).parameters
+        else:
+            assert port is None, f"{sem.name} was given an inbox replay"
+
+
+@pytest.mark.spec("CBT-03-003", "PCR-03-004")
+def test_expired_queue_keeps_a_stub_invite_trust_anchor():
+    """Expiry drops what was queued but keeps the Invite's anchor (#4915)."""
+    from datetime import datetime, timedelta
+
+    actor_id = "https://example.org/actors/invitee"
+    case_id = "https://example.org/cases/anchored"
+    activity_id = "https://example.org/activities/anchored-note"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    pending = VultronPendingCaseInbox(
+        case_id=case_id,
+        activity_ids=[activity_id],
+        case_actor_id="https://example.org/actors/case-actor",
+        invite_anchored=True,
+        queued_at=datetime.now(UTC) - timedelta(minutes=10),
+    )
+    queue_dl.save(pending)
+
+    expired = _expire_pending_case_activities(
+        case_id=case_id,
+        actor_id=actor_id,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+        timeout_seconds=60,
+    )
+
+    assert expired is True
+    kept = queue_dl.read(VultronPendingCaseInbox.build_id(case_id))
+    assert isinstance(kept, VultronPendingCaseInbox)
+    assert kept.activity_ids == []
+    assert kept.case_actor_id == "https://example.org/actors/case-actor"
+    assert kept.invite_anchored
+
+
+@pytest.mark.spec("CBT-03-001")
+def test_a_queue_holding_no_activity_does_not_expire():
+    """A stub Invite's anchor alone queues nothing, so nothing expires."""
+    from datetime import datetime, timedelta
+
+    actor_id = "https://example.org/actors/invitee"
+    case_id = "https://example.org/cases/anchor-only"
+    shared_dl = SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://test.example/api/v2/actors/test-actor",
+    )
+    queue_dl = shared_dl.clone_for_actor(actor_id)
+    queue_dl.save(
+        VultronPendingCaseInbox(
+            case_id=case_id,
+            case_actor_id="https://example.org/actors/case-actor",
+            invite_anchored=True,
+            queued_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+    )
+
+    assert not _expire_pending_case_activities(
+        case_id=case_id,
+        actor_id=actor_id,
+        dl=shared_dl,
+        queue_dl=queue_dl,
+        timeout_seconds=60,
+    )
+    assert queue_dl.read(VultronPendingCaseInbox.build_id(case_id)) is not None

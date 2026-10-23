@@ -1,0 +1,85 @@
+name: Docs Build and Link Check
+on:
+  pull_request:
+    # A pull request to publish runs this workflow through
+    # docs-publish-check.yml instead, on every such pull request whatever it
+    # changes (DOCBW-03-012). Ignoring publish here keeps it from running twice.
+    branches-ignore:
+      - publish
+    paths:
+      - 'docs/**'
+      - 'overrides/**'
+      - 'references.bib'
+      - 'mkdocs.yml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      # Pages render from these at build time (DOCBW-02-001, #3070): the API
+      # reference is mkdocstrings over vultron/, the ActivityPub examples print
+      # vultron/wire/as2/vocab/examples/, the spec pages render specs/*.yaml,
+      # and the scenario table and What's New are vultron/metadata/ generators.
+      # vultron/** also covers the gates themselves and what they read
+      # (vultron/metadata/docs/: withheld.py, links.py, legacy_urls.py and its
+      # baseline, built_site.py), so a PR editing only a gate reruns it.
+      - 'vultron/**'
+      - 'specs/**'
+      # Runs the built-site gates (DOCBW-03-005/007/008).
+      - '.github/actions/check-site-publication/**'
+      - 'CONTRIBUTING.md'
+      - 'ContributionInstructions.md'
+      - 'LICENSE.md'
+      - 'Acknowledgements.md'
+      - '.github/workflows/docs-build-check.yml'
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docs-build-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+        with:
+          uv-sync-args: "--dev"
+
+      - name: ADR index in sync, and no ADR in the nav
+        run: |
+          # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
+          # distinguishable by shellcheck, which flags the bare form as SC1007.
+          PYTHONPATH='' uv run python -m vultron.metadata.adr.index_gen --check
+
+      # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
+      # anchors, pages missing from the nav) fail the job; without it they
+      # print and the job stays green (DOCBW-03-009). Never add --quiet
+      # (DOCBW-03-010): it hides the warnings --strict counts, so the build
+      # passes over them.
+      - name: Build Site
+        run: |
+          uv run mkdocs build --strict --verbose --clean --config-file mkdocs.yml
+
+      # Runs against the built site above, so it must follow that step: no
+      # withheld artifact was built, every internal reference resolves, and
+      # every URL an earlier publish served still resolves. The same action
+      # gates deploy_site.yml.
+      - name: Check site publication
+        uses: ./.github/actions/check-site-publication
+
+      # DOCBW-03-012: a publish must not ship a page the continuity check above
+      # does not know about, or a later publish could drop its URL unnoticed.
+      # Runs on pull requests to publish only (through docs-publish-check.yml),
+      # because on a pull request to main a new page is not yet due. It reads
+      # the checked-out commit, which for a pull request is its merge result:
+      # what publish will serve once the pull request merges. Kept out of the
+      # check-site-publication action so deploy_site.yml and pull requests to
+      # main do not run it.
+      - name: Check every built page is recorded
+        if: ${{ !cancelled() && github.base_ref == 'publish' }}
+        run: |
+          PYTHONPATH='' uv run docs-legacy-urls --require-recorded

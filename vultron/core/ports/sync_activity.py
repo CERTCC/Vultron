@@ -1,0 +1,113 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Driven port for emitting sync-related wire activities.
+
+Core use cases call these fire-and-forget methods with domain objects.
+The adapter handles domain→wire conversion, persistence, and outbox
+queueing. Core modules MUST NOT import wire-layer types directly
+(ARCH-01-001); this port is the boundary.
+
+See also:
+    - ``vultron/adapters/driven/sync_activity_adapter.py`` — adapter
+    - ``specs/architecture.yaml`` ARCH-01-001
+    - ``vultron/wire/as2/factories/AGENTS.md`` — Architecture Violation section
+"""
+
+from typing import Protocol
+
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+
+class SyncActivityPort(Protocol):
+    """Driven port for sync-related outbound activity construction.
+
+    Methods are fire-and-forget: the adapter converts the domain log
+    entry to its wire representation, builds the appropriate AS2
+    activity via factory functions, persists the activity, and queues
+    it to the actor's outbox for delivery.
+
+    Core use cases and trigger functions accept this port as a
+    parameter alongside ``CasePersistence`` / ``CaseOutboxPersistence``.
+    """
+
+    def send_reject_log_entry(
+        self,
+        entry: CaseLedgerEntry,
+        tail_hash: str,
+        actor_id: str,
+        to: list[str],
+    ) -> None:
+        """Build and queue a ``Reject(CaseLedgerEntry)`` activity.
+
+        Called when a received log entry has a hash-chain mismatch.
+        The reject carries *tail_hash* as context so the CaseActor
+        knows the receiver's last applied hash (SYNC-03-001).
+
+        Args:
+            entry: The domain log entry being rejected.
+            tail_hash: The receiver's current chain tail hash.
+            actor_id: URI of the actor sending the rejection.
+            to: List of recipient actor URIs (typically the CaseActor).
+        """
+        ...
+
+    def send_genesis_replay_reject(
+        self,
+        case_id: str,
+        copy_tail_hash: str,
+        actor_id: str,
+        to: list[str],
+    ) -> None:
+        """Build and queue the ``Reject(CaseLedgerEntry)`` that names no entry.
+
+        Called by a replica whose case was replaced by a copy ahead of its
+        chain while its chain stores no entry: there is no entry to name, so
+        the Reject carries an empty last-accepted hash and names the case as
+        its ``target``, asking for a replay from genesis (SYNC-16-007).
+
+        Args:
+            case_id: The case to replay.
+            copy_tail_hash: The ``entry_hash`` of the tail the replacing copy
+                named.  It keeps each request its own: a request for a later
+                copy is not a repeat of an earlier one (ID-04-004).
+            actor_id: URI of the actor sending the rejection.
+            to: List of recipient actor URIs (the CASE_MANAGER).
+        """
+        ...
+
+    def send_announce_log_entry(
+        self,
+        entry: CaseLedgerEntry,
+        actor_id: str,
+        to: list[str],
+    ) -> bool:
+        """Build and queue an ``Announce(CaseLedgerEntry)`` activity.
+
+        Returns ``True`` when a row was queued and ``False`` when an
+        ``Announce`` of *entry* to every recipient in *to* was already pending
+        in the outbox and nothing was queued (SYNC-15-012).  Callers that fan
+        out may ignore the value; a replay counts only ``True`` results as
+        entries sent (SYNC-15-011).
+
+        Called when fanning out a committed entry to case participants
+        or replaying missing entries to a peer (SYNC-02-002, SYNC-03-002).
+
+        Args:
+            entry: The domain log entry to announce.
+            actor_id: URI of the CaseActor sending the announcement.
+            to: List of recipient actor URIs.
+        """
+        ...

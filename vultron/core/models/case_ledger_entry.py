@@ -1,0 +1,170 @@
+#!/usr/bin/env python
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Core domain model for a canonical case ledger entry (LedgerFanout).
+
+:class:`CaseLedgerEntry` is the authoritative domain representation of a
+single hash-chained log entry used for replication via
+``Announce(CaseLedgerEntry)`` activities.
+
+It extends :class:`~vultron.core.models.base.CoreObject` so that it can be
+placed in :attr:`~vultron.core.models.events.base.VultronEvent.object_` and
+used by :class:`~vultron.core.use_cases.received.sync.AnnounceLedgerEntryReceivedUseCase`.
+
+The wire-layer module ``vultron.wire.as2.vocab.objects.case_ledger_entry``
+imports this class and registers the wire projection in the wire vocabulary
+under the ``"CaseLedgerEntry"`` key so that DataLayer round-trips work correctly.
+
+Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003.
+
+.. note::
+   :class:`CaseLedgerEntry` (this module) is the wire-serialisable domain
+   model. :class:`~vultron.core.models.case_ledger.HashChainLedgerRecord` in
+   ``vultron.core.models.case_ledger`` is a distinct in-memory hash-chain
+   record used for local SYNC processing; the two types serve different
+   abstraction layers.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from datetime import datetime
+from typing import Any, ClassVar, Literal
+
+from pydantic import Field, model_validator
+
+from vultron.core.models._helpers import now_utc
+from vultron.core.models.base import CoreObject, NonEmptyString
+from vultron.core.models.retired_stored_fields import (
+    RetiredFieldsRecord,
+    RetiredStoredField,
+)
+from vultron.core.models.wire_keys import wire_key
+
+
+class CaseLedgerEntry(RetiredFieldsRecord, CoreObject):
+    """Core domain model for a single canonical case ledger entry.
+
+    .. note::
+       The similarly named
+       :class:`~vultron.core.models.case_ledger.HashChainLedgerRecord` in
+       ``vultron.core.models.case_ledger`` is a distinct in-memory hash-chain
+       record used for local processing. This class is the wire-serialisable
+       counterpart.
+
+    The ``id_`` is auto-computed as ``{case_id}/log/{log_index}`` when not
+    explicitly provided.
+
+    Fields:
+        case_id: URI of the parent :class:`VulnerabilityCase`.
+        log_index: Monotonically increasing index scoped to ``case_id``.
+        term: Raft cluster term; ``None`` for single-node deployments.
+        log_object_id: Full URI of the asserted activity or primary object.
+        semantic_type: The registry's label for the entry's payload.
+        payload_snapshot: The asserted activity payload verbatim (CLP-07-011).
+        prev_log_hash: SHA-256 hash of the predecessor entry's content.
+        entry_hash: SHA-256 hash of this entry's canonical content.
+        received_at: Server-generated TZ-aware UTC receipt timestamp.
+
+    Spec: SYNC-01-002, SYNC-02-003, SYNC-03-001 through SYNC-03-003;
+    CLP-04-007.
+    """
+
+    # A stored or received entry still spelling the field the old way is
+    # refused, never read through an alias (CLP-02-015).
+    retired_stored_fields: ClassVar[Mapping[str, RetiredStoredField]] = {
+        "event_type": RetiredStoredField("semantic_type", "#4872"),
+    }
+
+    type_: Literal["CaseLedgerEntry"] = Field(  # type: ignore[assignment]
+        default="CaseLedgerEntry",
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    case_id: NonEmptyString = Field(
+        ..., description="URI of the parent VulnerabilityCase"
+    )
+    log_index: int = Field(
+        default=-1,
+        description="Monotonically increasing index scoped to case_id",
+        ge=-1,
+    )
+    term: int | None = Field(
+        default=None,
+        description="Raft cluster term; None for single-node deployments",
+    )
+    log_object_id: NonEmptyString = Field(
+        ...,
+        description="Full URI of the asserted activity or primary object",
+        validation_alias="logObjectId",
+        serialization_alias="logObjectId",
+    )
+    semantic_type: NonEmptyString = Field(
+        ...,
+        description="The registry's label for the entry's payload",
+        validation_alias="semanticType",
+        serialization_alias="semanticType",
+    )
+    payload_snapshot: dict[NonEmptyString, Any] = Field(
+        default_factory=dict,
+        description="The asserted activity payload verbatim (CLP-07-011)",
+        validation_alias="payloadSnapshot",
+        serialization_alias="payloadSnapshot",
+    )
+    prev_log_hash: str = Field(
+        default="",
+        description="SHA-256 hex hash of predecessor entry; per-case genesis hash for the first entry",
+        validation_alias="prevLogHash",
+        serialization_alias="prevLogHash",
+    )
+    entry_hash: str = Field(
+        default="",
+        description="SHA-256 hex hash of this entry's canonical content",
+        validation_alias="entryHash",
+        serialization_alias="entryHash",
+    )
+    # Re-narrowed from CoreObject's ``datetime | None``: the envelope's
+    # ``published`` is the CASE_MANAGER's commit stamp and MUST be non-null
+    # (CLP-14-002), unlike an ordinary object's time, which may be absent.
+    published: datetime = Field(default_factory=now_utc)
+    received_at: datetime = Field(
+        default_factory=now_utc,
+        description="Server-generated TZ-aware UTC receipt timestamp",
+        validation_alias="receivedAt",
+        serialization_alias="receivedAt",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _set_id_from_case(cls, data: Any) -> Any:
+        """Compute ``id_`` from ``case_id`` and ``log_index``.
+
+        Both field names are read in either spelling, because an entry parsed
+        off the wire (ARCH-25-003, ADR-0099) carries the AS2 keys; reading only the
+        Python names left a wire-parsed entry with a random id instead of its
+        ledger coordinates.
+        """
+        if not isinstance(data, dict):
+            return data
+        case_id = data.get("case_id", data.get(wire_key("case_id")))
+        if case_id is None:
+            return data
+        log_index = data.get("log_index", data.get(wire_key("log_index"), -1))
+        data = dict(data)
+        data["id"] = f"{case_id}/log/{log_index}"
+        return data
+
+
+__all__ = [
+    "CaseLedgerEntry",
+]

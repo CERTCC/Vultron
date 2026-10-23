@@ -1,0 +1,1115 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+Tests for the case trigger endpoints
+(POST /actors/{actor_id}/trigger/{engage,defer}-case).
+
+Verifies TB-01 through TB-07 requirements from specs/triggerable-behaviors.yaml.
+"""
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from fastapi import FastAPI, status
+from fastapi.testclient import TestClient
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import activate
+from vultron.adapters.driving.fastapi.deps import get_trigger_dl
+from vultron.adapters.driving.fastapi.routers import (
+    trigger_case as trigger_case_router,
+)
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.core.models.dimensions import (
+    RmDimension,
+)
+from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.states.rm import RM
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.base.objects.object_types import as_Article
+from vultron.wire.as2.vocab.objects.case_participant import (
+    as_CaseParticipant,
+    as_ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+#: The route runs through ``run_trigger``, so the flush it schedules is the
+#: helper's ``outbox_handler`` reference, not the router module's.
+_FLUSH = "vultron.adapters.driving.fastapi.trigger_runner.outbox_handler"
+
+
+def _add_case_manager(case: as_VulnerabilityCase, dl) -> as_Service:
+    """Add a CASE_MANAGER participant to *case* and return the case actor."""
+    case_actor = as_Service(name=f"Case Actor for {case.name}")
+    dl.create(case_actor)
+    cm_participant = as_CaseParticipant(
+        attributed_to=case_actor.id_,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(cm_participant)
+    case.actor_participant_index[case_actor.id_] = cm_participant.id_
+    dl.save(case)
+    return case_actor
+
+
+# ---------------------------------------------------------------------------
+# Module-level fixture: suppress outbox delivery retries
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_outbox_delivery():
+    """Suppress real outbox delivery for every test in this module.
+
+    ``outbox_handler`` uses HTTP with exponential-backoff retries. When
+    tests run with non-existent recipient URLs the retry sleeps add ~3.5 s
+    per test. Patching to a no-op ``AsyncMock`` eliminates that overhead
+    while keeping the scheduler logic testable.
+
+    The flush is scheduled by ``run_trigger``, so its ``outbox_handler``
+    reference is the one patched; that it is queued at all is asserted once
+    for every verb in ``test_trigger_routes_contract.py`` (TRIG-07-001).
+    """
+    with patch(_FLUSH, new_callable=AsyncMock):
+        yield
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def client_triggers(dl):
+    """The case router over the ``dl`` store: one override reaches both the
+    dispatcher and the flush (TRIG-06-002)."""
+    app = FastAPI()
+    app.include_router(trigger_case_router.router)
+    app.dependency_overrides[get_trigger_dl] = lambda: dl
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides = {}
+
+
+@pytest.fixture
+def case_with_participant(dl, actor):
+    """Create a as_VulnerabilityCase with the actor as a as_CaseParticipant.
+
+    The participant is pre-seeded to RM.VALID so that engage/defer triggers
+    can apply valid VALID → ACCEPTED / VALID → DEFERRED transitions.
+    """
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-CASE-001"
+    )
+    participant = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case_obj.id_,
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case_obj.id_,
+                rm=RmDimension(state=RM.VALID),
+            )
+        ],
+    )
+    case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor.id_] = participant.id_
+    dl.create(case_obj)
+    dl.create(participant)
+    _add_case_manager(case_obj, dl)
+    return case_obj
+
+
+@pytest.fixture
+def case_without_participant(dl):
+    """Create a as_VulnerabilityCase with a Case Manager but no participant for the actor."""
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-CASE-NO-PARTICIPANT"
+    )
+    dl.create(case_obj)
+    _add_case_manager(case_obj, dl)
+    return case_obj
+
+
+# ===========================================================================
+# Tests for trigger/engage-case
+# ===========================================================================
+
+
+def test_trigger_engage_case_returns_202(
+    client_triggers, actor, case_with_participant
+):
+    """TB-01-002: POST /actors/{id}/trigger/engage-case returns HTTP 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_engage_case_response_contains_activity_key(
+    client_triggers, actor, case_with_participant
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_engage_case_missing_case_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing case_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_engage_case_ignores_unknown_fields(
+    client_triggers, actor, case_with_participant
+):
+    """TB-03-002: Unknown fields in request body are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": case_with_participant.id_, "unknown_xyz": 99},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_engage_case_unknown_actor_returns_404(client_triggers):
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
+    resp = client_triggers.post(
+        "/actors/nonexistent-actor/trigger/engage-case",
+        json={"case_id": "urn:uuid:any-case"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+    assert data["detail"]["activity_id"] is None
+
+
+def test_trigger_engage_case_unknown_case_returns_404(client_triggers, actor):
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": "urn:uuid:nonexistent-case"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_engage_case_invalid_case_id_returns_422(
+    client_triggers, actor
+):
+    """engage-case with a non-URI case_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": "not-a-uri"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_engage_case_adds_activity_to_outbox(
+    client_triggers, dl, actor, case_with_participant
+):
+    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    outbox_after = set(dl.outbox_list())
+    assert len(outbox_after - outbox_before) >= 1
+
+
+def _actor_status_ids(dl, case_id: str, actor_id: str) -> list[str]:
+    """The ids of *actor_id*'s participant statuses in *case_id*."""
+    case = dl.read(case_id)
+    participant = dl.read(case.actor_participant_index[actor_id])
+    return [s.id_ for s in participant.participant_statuses]
+
+
+def test_trigger_engage_case_leaves_the_participant_to_the_case_manager(
+    client_triggers, dl, actor, case_with_participant
+):
+    """engage-case sends the decision and writes no status of its own.
+
+    The CASE_MANAGER records RM ACCEPTED when it accepts the decision and
+    commits that status as its own entry, which the actor's replica copies
+    (RSH-08-003, CLP-07-013, CM-23-016).
+    """
+    before = _actor_status_ids(dl, case_with_participant.id_, actor.id_)
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": case_with_participant.id_},
+    )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert (
+        _actor_status_ids(dl, case_with_participant.id_, actor.id_) == before
+    )
+
+
+def test_trigger_engage_case_no_participant_returns_422(
+    client_triggers, actor, case_without_participant, caplog
+):
+    """engage-case returns 422 when actor has no participant record in the case.
+
+    Pre-#712: the RM update silently failed and 202 was returned anyway.
+    Post-#712: the RM transition node is inside the BT; when it fails the BT
+    raises VultronValidationError which the router translates to HTTP 422.
+    """
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/engage-case",
+            json={"case_id": case_without_participant.id_},
+        )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert any("participant" in r.message.lower() for r in caplog.records)
+
+
+# ===========================================================================
+# Tests for trigger/defer-case
+# ===========================================================================
+
+
+def test_trigger_defer_case_returns_202(
+    client_triggers, actor, case_with_participant
+):
+    """TB-01-002: POST /actors/{id}/trigger/defer-case returns HTTP 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_defer_case_response_contains_activity_key(
+    client_triggers, actor, case_with_participant
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_defer_case_missing_case_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing case_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_defer_case_ignores_unknown_fields(
+    client_triggers, actor, case_with_participant
+):
+    """TB-03-002: Unknown fields in request body are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": case_with_participant.id_, "extra": "ignored"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_defer_case_unknown_actor_returns_404(client_triggers):
+    """HTTP-03-005: Unknown actor_id returns HTTP 404 with structured body."""
+    resp = client_triggers.post(
+        "/actors/nonexistent/trigger/defer-case",
+        json={"case_id": "urn:uuid:any"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_defer_case_unknown_case_returns_404(client_triggers, actor):
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": "urn:uuid:nonexistent"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_defer_case_invalid_case_id_returns_422(
+    client_triggers, actor
+):
+    """defer-case with a non-URI case_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": "not-a-uri"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_defer_case_adds_activity_to_outbox(
+    client_triggers, dl, actor, case_with_participant
+):
+    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    outbox_after = set(dl.outbox_list())
+    assert len(outbox_after - outbox_before) >= 1
+
+
+def test_trigger_defer_case_leaves_the_participant_to_the_case_manager(
+    client_triggers, dl, actor, case_with_participant
+):
+    """defer-case sends the decision and writes no status of its own.
+
+    The CASE_MANAGER records RM DEFERRED when it accepts the decision and
+    commits that status as its own entry, which the actor's replica copies
+    (RSH-08-003, CLP-07-013, CM-23-016).
+    """
+    before = _actor_status_ids(dl, case_with_participant.id_, actor.id_)
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": case_with_participant.id_},
+    )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert (
+        _actor_status_ids(dl, case_with_participant.id_, actor.id_) == before
+    )
+
+
+# ===========================================================================
+# Tests for trigger/leave-case (TRIG-13-001, TRIG-13-003, ADR-0145)
+# ===========================================================================
+
+
+@pytest.fixture
+def owner_case_under_embargo(dl, actor):
+    """A case whose CASE_OWNER is *actor*, with an embargo in force."""
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-CASE-OWNER-EMBARGOED"
+    )
+    embargo = as_EmbargoEvent(
+        id_=f"{case_obj.id_}/embargo_events/e1",
+        context=case_obj.id_,
+        end_time=days_from_now_utc(45),
+    )
+    dl.create(embargo)
+    activate(case_obj, embargo)
+    participant = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case_obj.id_,
+        case_roles=[CVDRole.CASE_OWNER, CVDRole.VENDOR],
+    )
+    case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor.id_] = participant.id_
+    dl.create(case_obj)
+    dl.create(participant)
+    _add_case_manager(case_obj, dl)
+    return case_obj
+
+
+@pytest.mark.spec("TRIG-13-001")
+def test_trigger_leave_case_queues_one_leave_to_the_case_manager(
+    client_triggers, dl, actor, case_with_participant
+):
+    """leave-case returns 202 with a Leave addressed to the CASE_MANAGER."""
+    outbox_before = set(dl.outbox_list())
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/leave-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    activity = resp.json()["activity"]
+    assert activity["type"] == "Leave"
+    assert activity["actor"] == actor.id_
+    manager_id = resolve_case_manager_id(case_with_participant, dl)
+    assert activity["to"] == [manager_id]
+    assert len(set(dl.outbox_list()) - outbox_before) == 1
+
+
+def test_trigger_leave_case_does_not_close_the_sender_at_send_time(
+    client_triggers, dl, actor, case_with_participant
+):
+    """RM.CLOSED comes from the CASE_MANAGER's entries, not the send."""
+    client_triggers.post(
+        f"/actors/{actor.id_}/trigger/leave-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    case = dl.read(case_with_participant.id_)
+    participant = dl.read(case.actor_participant_index[actor.id_])
+    rm_states = [ps.rm.state for ps in participant.participant_statuses]
+    assert RM.CLOSED not in rm_states
+
+
+def test_trigger_leave_case_missing_case_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing case_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/leave-case", json={}
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_leave_case_unknown_case_returns_404(client_triggers, actor):
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/leave-case",
+        json={"case_id": "urn:uuid:no-such-case"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.spec("TRIG-13-002")
+def test_trigger_leave_case_failing_pre_close_action_returns_422(
+    client_triggers, dl, actor, case_with_participant
+):
+    """A failing PreCloseAction backend answers 422 with nothing queued."""
+    from vultron.core.behaviors.call_out.bundles.close_report import (
+        CloseReportCallOutBundle,
+    )
+    from vultron.core.behaviors.call_out.nodes import AlwaysFail
+    from vultron.core.use_cases.triggers.case import leave as leave_module
+
+    build_tree = leave_module.create_leave_case_trigger_tree
+    failing = CloseReportCallOutBundle(
+        pre_close_action_factory=AlwaysFail  # type: ignore[arg-type]
+    )
+
+    def _with_failing_call_out(**kwargs):
+        return build_tree(**{**kwargs, "call_out": failing})
+
+    outbox_before = set(dl.outbox_list())
+    with patch.object(
+        leave_module,
+        "create_leave_case_trigger_tree",
+        side_effect=_with_failing_call_out,
+    ):
+        resp = client_triggers.post(
+            f"/actors/{actor.id_}/trigger/leave-case",
+            json={"case_id": case_with_participant.id_},
+        )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert set(dl.outbox_list()) == outbox_before
+
+
+@pytest.mark.spec("TRIG-13-003")
+def test_trigger_leave_case_owner_under_embargo_returns_409(
+    client_triggers, dl, actor, owner_case_under_embargo
+):
+    """The Case Owner is told to terminate the embargo; nothing is queued."""
+    outbox_before = set(dl.outbox_list())
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/leave-case",
+        json={"case_id": owner_case_under_embargo.id_},
+    )
+    assert resp.status_code == status.HTTP_409_CONFLICT
+    assert "terminate the embargo" in str(resp.json()["detail"])
+    assert set(dl.outbox_list()) == outbox_before
+
+
+# ===========================================================================
+# Regression tests for BUG-2026040901 — outbox delivery silently dropped
+# ===========================================================================
+
+
+class TestTriggerCaseOutboxCanonicalId:
+    """The URL path segment must resolve to the canonical actor URI.
+
+    Originally a regression test for BUG-2026040901, where a queue written
+    under the canonical URI was read under the short path segment and the
+    activities vanished. That *class* of bug is now unreachable: ADR-0073
+    dropped the ``actor_id`` column, so a queue lives in its owner's store
+    rather than in a bucket named by one spelling of an id.
+
+    What still needs pinning is the resolution itself. ``get_trigger_dl``
+    (through ``get_actor_dl``) turns a short path segment into the canonical
+    URI, and it is that URI which selects the store ``outbox_handler`` drains.
+    Get it wrong and the handler opens a different — empty — store, which is
+    the same silent drop by a different route.
+    """
+
+    def test_engage_case_short_segment_drains_the_canonical_store(
+        self, dl, actor, case_with_participant
+    ):
+        """``outbox_handler`` receives the canonical-URI-keyed DataLayer.
+
+        When the URL uses a short UUID (last path segment of ``actor.id_``),
+        the real ``get_trigger_dl`` → ``get_actor_dl`` chain must resolve to
+        the full URI, because that URI is what selects the store the handler
+        drains.  Nothing on the trigger seam is overridden here: the app is
+        only pointed at the in-memory backing URL, so the chain opens the
+        very store the fixtures seeded (engines are cached per actor).
+        """
+        short_uuid = actor.id_.rstrip("/").rsplit("/", 1)[-1]
+
+        app = FastAPI()
+        app.state.db_url = "sqlite:///:memory:"
+        app.include_router(trigger_case_router.router)
+
+        captured_dl_arg = []
+
+        async def capture_outbox(actor_id, actor_dl):
+            captured_dl_arg.append((actor_id, actor_dl))
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(_FLUSH, capture_outbox)
+            client = TestClient(app)
+            resp = client.post(
+                f"/actors/{short_uuid}/trigger/engage-case",
+                json={"case_id": case_with_participant.id_},
+            )
+
+        assert resp.status_code == 202, resp.json()
+        assert len(captured_dl_arg) == 1, "outbox_handler was not called"
+        actor_id_used, actor_dl_used = captured_dl_arg[0]
+        # The actor-scoped DL must be keyed by the FULL canonical URI
+        assert actor_id_used == actor.id_
+        assert actor_dl_used._actor_id == actor.id_, (
+            f"Expected canonical URI '{actor.id_}', "
+            f"got '{actor_dl_used._actor_id}'"
+        )
+
+
+# ===========================================================================
+# Fixtures for create-case and add-report-to-case
+# ===========================================================================
+
+
+@pytest.fixture
+def report(dl):
+    """Create a persisted as_VulnerabilityReport for use in tests."""
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
+        as_VulnerabilityReport,
+    )
+
+    report_obj = as_VulnerabilityReport(
+        name="TEST-REPORT-001",
+        content="Vulnerability description",
+    )
+    dl.create(report_obj)
+    return report_obj
+
+
+@pytest.fixture
+def short_id_env(report):
+    """An actor addressable by its short path segment, with its own store.
+
+    A trigger route resolves its ``{actor_id}`` path segment by *computation* —
+    ``base_url + "actors/" + segment``, no registry and no cross-actor scan
+    (ADR-0073#url-segment-computed-not-looked-up).  Only an actor whose id already has that shape can be
+    reached by its short id at all.
+
+    That rules out both actors this test used to be written against.  The
+    ``actor`` fixture's id is a ``urn:uuid:``, and the old ``http_actor``'s was
+    under ``https://example.test/…``; either way the segment resolves to a
+    *different* actor under this node's base URL, holding a different store.  The
+    test could not have been fixed by scoping a fixture, because the actor it
+    addressed was not addressable here.
+
+    So this derives the id from ``canonical_actor_uri`` and puts the actor, the
+    case and the report in that actor's own store — which is the store the BT
+    writes and therefore the store the outbox assertion must read.
+    """
+    from types import SimpleNamespace
+
+    from fastapi import Path as FastAPIPath
+
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import (
+        get_datalayer,
+        reset_datalayer,
+    )
+
+    segment = "vendor-http"
+    actor_id = canonical_actor_uri(segment)
+    reset_datalayer(actor_id)
+
+    def _in_memory_actor_dl(actor_id: str = FastAPIPath(...)):
+        """Route per actor, in memory.
+
+        A single fixed store would defeat the routing under test: the point is
+        that the segment selects *which* store, so every actor id must not
+        resolve to the same rows.  Only the backing URL is replaced.
+        """
+        return get_datalayer(
+            canonical_actor_uri(actor_id), db_url="sqlite:///:memory:"
+        )
+
+    store = get_datalayer(actor_id, db_url="sqlite:///:memory:")
+    store.clear_all()
+    actor_obj = as_Service(id_=actor_id, name="Vendor Co HTTP")
+    store.create(actor_obj)
+    store.create(report)
+
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-CASE-SHORT-ID"
+    )
+    participant = as_CaseParticipant(
+        attributed_to=actor_id,
+        context=case_obj.id_,
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor_id,
+                context=case_obj.id_,
+                rm=RmDimension(state=RM.VALID),
+            )
+        ],
+    )
+    case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor_id] = participant.id_
+    store.create(case_obj)
+    store.create(participant)
+    _add_case_manager(case_obj, store)
+
+    app = FastAPI()
+    app.include_router(trigger_case_router.router)
+    app.dependency_overrides[get_trigger_dl] = _in_memory_actor_dl
+    client = TestClient(app)
+    yield SimpleNamespace(
+        client=client,
+        segment=segment,
+        actor=actor_obj,
+        store=store,
+        case=case_obj,
+        report=report,
+    )
+    app.dependency_overrides = {}
+    reset_datalayer(actor_id)
+
+
+# ===========================================================================
+# Tests for trigger/create-case
+# ===========================================================================
+
+
+def test_trigger_create_case_returns_202(client_triggers, actor):
+    """TB-01-002: POST /actors/{id}/trigger/create-case returns HTTP 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_create_case_response_contains_activity(
+    client_triggers, actor
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_create_case_with_report_id(client_triggers, actor, report):
+    """Create-case with optional report_id returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={
+            "name": "Case-001",
+            "content": "Case content",
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_create_case_missing_name_returns_422(client_triggers, actor):
+    """TB-03-001: Missing required field returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_create_case_ignores_unknown_fields(client_triggers, actor):
+    """TB-03-002: Unknown fields in request body are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content", "extra": 99},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_create_case_unknown_actor_returns_404(client_triggers):
+    """HTTP-03-005: Unknown actor_id returns HTTP 404."""
+    resp = client_triggers.post(
+        "/actors/nonexistent-actor/trigger/create-case",
+        json={"name": "Case-001", "content": "Case content"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_create_case_short_actor_id_updates_outbox_without_warning(
+    short_id_env, caplog
+):
+    """A short actor id in the path still queues to that actor's own outbox."""
+    import logging
+
+    outbox_before = set(short_id_env.store.outbox_list())
+
+    with caplog.at_level(logging.WARNING):
+        resp = short_id_env.client.post(
+            f"/actors/{short_id_env.segment}/trigger/create-case",
+            json={
+                "name": "Case-001",
+                "content": "Case content",
+                # A recipient, so the Create is queued (OX-08-001).
+                "to": ["https://example.org/actors/finder"],
+            },
+        )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    outbox_after = set(short_id_env.store.outbox_list())
+    assert len(outbox_after - outbox_before) >= 1
+    assert not any(
+        "add_activity_to_outbox" in record.message for record in caplog.records
+    )
+
+
+# ===========================================================================
+# Tests for trigger/add-report-to-case
+# ===========================================================================
+
+
+def test_trigger_add_report_to_case_returns_202(
+    client_triggers, actor, case_with_participant, report
+):
+    """TB-01-002: POST /actors/{id}/trigger/add-report-to-case returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_add_report_to_case_response_contains_activity(
+    client_triggers, actor, case_with_participant, report
+):
+    """TB-04-001: Successful trigger response contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+
+
+def test_trigger_add_report_to_case_missing_report_id_returns_422(
+    client_triggers, actor, case_with_participant
+):
+    """TB-03-001: Missing report_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_trigger_add_report_to_case_unknown_case_returns_404(
+    client_triggers, actor, report
+):
+    """HTTP-03-005: Unknown case_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": "urn:uuid:nonexistent-case",
+            "report_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_add_report_to_case_unknown_report_returns_404(
+    client_triggers, actor, case_with_participant
+):
+    """HTTP-03-005: Unknown report_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-report-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "report_id": "urn:uuid:nonexistent-report",
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_add_report_short_actor_id_updates_outbox_without_warning(
+    short_id_env, caplog
+):
+    """A short actor id in the path does not break add-report outbox updates."""
+    import logging
+
+    outbox_before = set(short_id_env.store.outbox_list())
+
+    with caplog.at_level(logging.WARNING):
+        resp = short_id_env.client.post(
+            f"/actors/{short_id_env.segment}/trigger/add-report-to-case",
+            json={
+                "case_id": short_id_env.case.id_,
+                "report_id": short_id_env.report.id_,
+            },
+        )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    outbox_after = set(short_id_env.store.outbox_list())
+    assert len(outbox_after - outbox_before) >= 1
+    assert not any(
+        "add_activity_to_outbox" in record.message for record in caplog.records
+    )
+
+
+# ===========================================================================
+# Tests for trigger/add-object-to-case  (TRIG-10-001)
+# ===========================================================================
+
+
+def test_trigger_add_object_to_case_returns_202(
+    client_triggers, actor, case_with_participant, report
+):
+    """TB-01-002: POST /actors/{id}/trigger/add-object-to-case returns 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_add_object_to_case_response_contains_activity(
+    client_triggers, actor, case_with_participant, report
+):
+    """TB-04-001: Response body contains 'activity' key (TRIG-10-001)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_add_object_to_case_missing_object_id_returns_422(
+    client_triggers, actor, case_with_participant
+):
+    """Missing object_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={"case_id": case_with_participant.id_},
+    )
+    assert resp.status_code == 422
+
+
+def test_trigger_add_object_to_case_unknown_object_returns_404(
+    client_triggers, actor, case_with_participant
+):
+    """HTTP-03-005: Unknown object_id returns HTTP 404 (TRIG-10-001)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": "urn:uuid:nonexistent-object",
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_add_object_to_case_unknown_case_returns_404(
+    client_triggers, actor, report
+):
+    """HTTP-03-005: Unknown case_id returns HTTP 404 (TRIG-10-001)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": "urn:uuid:nonexistent-case",
+            "object_id": report.id_,
+        },
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.spec("TRIG-10-001")
+@pytest.mark.parametrize(
+    "make_object",
+    [
+        pytest.param(
+            lambda case_id: as_Article(
+                name="Unroutable", content="no pattern"
+            ),
+            id="no-add-pattern",
+        ),
+        pytest.param(
+            lambda case_id: as_EmbargoEvent(
+                context=case_id, end_time=days_from_now_utc(45)
+            ),
+            id="own-flow-embargo",
+        ),
+        pytest.param(
+            lambda case_id: as_CaseParticipant(
+                attributed_to="https://example.org/actors/other",
+                context=case_id,
+            ),
+            id="own-flow-participant",
+        ),
+        pytest.param(
+            lambda case_id: as_CaseStatus(context=case_id),
+            id="own-flow-case-status",
+        ),
+    ],
+)
+def test_trigger_add_object_to_case_refused_type_returns_422(
+    client_triggers, actor, case_with_participant, dl, make_object
+):
+    """An object the general trigger must not add is refused, not queued."""
+    obj = make_object(case_with_participant.id_)
+    dl.create(obj)
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": obj.id_,
+        },
+    )
+
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert set(dl.outbox_list()) == outbox_before
+
+
+@pytest.mark.spec("TRIG-10-001")
+def test_trigger_add_object_to_case_no_wire_form_returns_422(
+    client_triggers, actor, case_with_participant, dl
+):
+    """A stored object with no AS2 form is the caller's bad request: 422
+    with nothing queued, never a 500."""
+    from vultron.core.models.offer_record import VultronOfferRecord
+
+    record = VultronOfferRecord(
+        id_="urn:test:offer-record-router",
+        offer_id="urn:test:offer-1",
+        report_id="urn:test:report-1",
+        offer_actor_id=actor.id_,
+    )
+    dl.create(record)
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": record.id_,
+        },
+    )
+
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert set(dl.outbox_list()) == outbox_before
+
+
+@pytest.mark.spec("TRIG-10-001")
+def test_trigger_add_object_to_case_addresses_add_to_case_manager(
+    client_triggers, actor, case_with_participant, report, dl
+):
+    """The queued Add goes to the CASE_MANAGER and no one else (PCR-08-005)."""
+    case_manager_id = resolve_case_manager_id(case_with_participant, dl)
+    assert case_manager_id is not None
+    outbox_before = set(dl.outbox_list())
+
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": report.id_,
+        },
+    )
+
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    queued = [dl.read(i) for i in set(dl.outbox_list()) - outbox_before]
+    adds = [a for a in queued if getattr(a, "type_", None) == "Add"]
+    assert len(adds) == 1
+    assert adds[0].to == [case_manager_id]
+
+
+def test_trigger_add_object_to_case_extra_fields_ignored(
+    client_triggers, actor, case_with_participant, report
+):
+    """Extra request body fields are silently ignored (TB-03-002)."""
+    resp = client_triggers.post(
+        f"/actors/{actor.id_}/trigger/add-object-to-case",
+        json={
+            "case_id": case_with_participant.id_,
+            "object_id": report.id_,
+            "unexpected_field": "ignored",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED

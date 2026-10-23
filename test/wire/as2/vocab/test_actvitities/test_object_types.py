@@ -1,0 +1,639 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Regression tests for INLINE-OBJ-A: narrow object_ types in initiating
+activity classes (AKM-03-003).
+
+Each initiating activity class must reject a bare string URI or an as_Link
+as object_ and accept only the correct inline domain object type.
+
+Spec: specs/actor-knowledge-model.yaml AKM-03-001, AKM-03-003
+"""
+
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from pydantic import ValidationError
+
+from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driving.fastapi import outbox_handler as oh
+from vultron.core.models._helpers import days_from_now_utc
+from vultron.errors import VultronOutboxObjectIntegrityError
+from vultron.wire.as2.vocab.base.links import as_Link
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import (
+    as_CaseStatus,
+    as_ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+    as_VulnerabilityCaseStub,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+_STR_URI = "https://example.org/objects/123"
+_LINK = as_Link(href="https://example.org/objects/123")
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+ACTOR_ID = "https://example.org/actors/alice"
+
+
+def _make_activity(cls, object_, **fields):
+    """Attempt to construct *cls* with the given object_, return the instance.
+
+    *fields* carries any other field the class requires (for example the
+    case Invite's stub ``target``), so a refusal is about ``object_`` alone.
+    """
+    return cls(actor=ACTOR_ID, object_=object_, **fields)
+
+
+def _assert_rejects_string(cls, **fields):
+    with pytest.raises(ValidationError):
+        _make_activity(cls, _STR_URI, **fields)
+
+
+def _assert_rejects_link(cls, **fields):
+    with pytest.raises(ValidationError):
+        _make_activity(cls, _LINK, **fields)
+
+
+def _assert_accepts_inline(cls, obj, **fields):
+    instance = _make_activity(cls, obj, **fields)
+    assert instance.object_ is obj or instance.object_ == obj
+
+
+def _participant_status() -> as_ParticipantStatus:
+    return as_ParticipantStatus(context="https://example.org/cases/c1")
+
+
+# ---------------------------------------------------------------------------
+# Report activities (report.py)
+# ---------------------------------------------------------------------------
+
+
+class TestRmCreateReportActivity:
+    from vultron.wire.as2.vocab.activities.report import (
+        _RmCreateReportActivity,
+    )
+
+    cls = _RmCreateReportActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_report(self):
+        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
+
+
+class TestRmSubmitReportActivity:
+    from vultron.wire.as2.vocab.activities.report import (
+        _RmSubmitReportActivity,
+    )
+
+    cls = _RmSubmitReportActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_report(self):
+        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
+
+
+class TestRmReadReportActivity:
+    from vultron.wire.as2.vocab.activities.report import (
+        _RmReadReportActivity,
+        _RmSubmitReportActivity,
+    )
+
+    cls = _RmReadReportActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_offer(self):
+        offer = self._RmSubmitReportActivity(
+            actor=ACTOR_ID, object_=as_VulnerabilityReport()
+        )
+        _assert_accepts_inline(self.cls, offer)
+
+    def test_rejects_inline_bare_report(self):
+        with pytest.raises(ValidationError):
+            _make_activity(self.cls, as_VulnerabilityReport())
+
+
+# ---------------------------------------------------------------------------
+# Case activities (case.py)
+# ---------------------------------------------------------------------------
+
+
+class TestAddReportToCaseActivity:
+    from vultron.wire.as2.vocab.activities.case import _AddReportToCaseActivity
+
+    cls = _AddReportToCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_report(self):
+        _assert_accepts_inline(self.cls, as_VulnerabilityReport())
+
+
+class TestAddStatusToCaseActivity:
+    from vultron.wire.as2.vocab.activities.case import _AddStatusToCaseActivity
+
+    cls = _AddStatusToCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_case_status(self):
+        _assert_accepts_inline(self.cls, as_CaseStatus(context=_STR_URI))
+
+
+class TestCreateCaseActivity:
+    from vultron.wire.as2.vocab.activities.case import _CreateCaseActivity
+
+    cls = _CreateCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_case(self):
+        _assert_accepts_inline(
+            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        )
+
+
+class TestAddNoteToCaseActivity:
+    from vultron.wire.as2.vocab.activities.case import _AddNoteToCaseActivity
+
+    cls = _AddNoteToCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_note(self):
+        _assert_accepts_inline(self.cls, as_Note(content="hello"))
+
+
+class TestUpdateCaseActivity:
+    from vultron.wire.as2.vocab.activities.case import _UpdateCaseActivity
+
+    cls = _UpdateCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_case(self):
+        _assert_accepts_inline(
+            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        )
+
+
+class TestRmEngageCaseActivity:
+    from vultron.wire.as2.vocab.activities.case import _RmEngageCaseActivity
+
+    cls = _RmEngageCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_case(self):
+        _assert_accepts_inline(
+            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        )
+
+
+class TestRmDeferCaseActivity:
+    from vultron.wire.as2.vocab.activities.case import _RmDeferCaseActivity
+
+    cls = _RmDeferCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_case(self):
+        _assert_accepts_inline(
+            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        )
+
+
+class TestRmCloseCaseActivity:
+    from vultron.wire.as2.vocab.activities.case import _RmCloseCaseActivity
+
+    cls = _RmCloseCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_case(self):
+        _assert_accepts_inline(
+            self.cls, as_VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+        )
+
+
+class TestRmInviteToCaseActivity:
+    from vultron.wire.as2.vocab.activities.case import _RmInviteToCaseActivity
+
+    cls = _RmInviteToCaseActivity
+    stub = {"target": as_VulnerabilityCaseStub(case_id="urn:uuid:case-1")}
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls, **self.stub)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls, **self.stub)
+
+    def test_accepts_inline_actor(self):
+        _assert_accepts_inline(self.cls, as_Actor(), **self.stub)
+
+    @pytest.mark.spec("SE-08-002")
+    @pytest.mark.parametrize(
+        "target",
+        [None, "urn:uuid:case-1"],
+        ids=["no-target", "uri-target"],
+    )
+    def test_requires_a_stub_target(self, target):
+        """The stub is this Invite's discriminator, so the class requires it."""
+        fields = {} if target is None else {"target": target}
+        with pytest.raises(ValidationError):
+            _make_activity(self.cls, as_Actor(), **fields)
+
+
+# ---------------------------------------------------------------------------
+# Embargo activities (embargo.py)
+# ---------------------------------------------------------------------------
+
+
+class TestEmProposeEmbargoActivity:
+    from vultron.wire.as2.vocab.activities.embargo import (
+        _EmProposeEmbargoActivity,
+    )
+
+    cls = _EmProposeEmbargoActivity
+
+    def test_accepts_the_terms_by_uri(self):
+        """An Invite may name its terms by URI, and is still answerable (ADR-0123)."""
+        assert _make_activity(self.cls, _STR_URI).object_ == _STR_URI
+
+    def test_the_uri_form_survives_serialize_and_parse(self):
+        sent = _make_activity(self.cls, _STR_URI)
+        received = self.cls.model_validate_json(
+            sent.model_dump_json(by_alias=True)
+        )
+        assert received.object_ == _STR_URI
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_embargo_event(self):
+        _assert_accepts_inline(
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
+        )
+
+
+class TestActivateEmbargoActivity:
+    from vultron.wire.as2.vocab.activities.embargo import (
+        _ActivateEmbargoActivity,
+    )
+
+    cls = _ActivateEmbargoActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_embargo_event(self):
+        _assert_accepts_inline(
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
+        )
+
+
+class TestRejectEmbargoProposalActivity:
+    from vultron.wire.as2.vocab.activities.embargo import (
+        _RejectEmbargoProposalActivity,
+    )
+
+    cls = _RejectEmbargoProposalActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_embargo_event(self):
+        _assert_accepts_inline(
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
+        )
+
+
+class TestAnnounceEmbargoActivity:
+    from vultron.wire.as2.vocab.activities.embargo import (
+        _AnnounceEmbargoActivity,
+    )
+
+    cls = _AnnounceEmbargoActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_embargo_event(self):
+        _assert_accepts_inline(
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
+        )
+
+
+class TestRemoveEmbargoFromCaseActivity:
+    from vultron.wire.as2.vocab.activities.embargo import (
+        _RemoveEmbargoFromCaseActivity,
+    )
+
+    cls = _RemoveEmbargoFromCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls, content="EARLY")
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls, content="EARLY")
+
+    def test_accepts_inline_embargo_event(self):
+        _assert_accepts_inline(
+            self.cls,
+            as_EmbargoEvent(
+                context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+            ),
+            content="EARLY",
+        )
+
+    @pytest.mark.parametrize(
+        "content", [None, "", "early", "THREAT_SIGNAL", "Ended early."]
+    )
+    def test_refuses_content_that_is_not_a_termination_reason(self, content):
+        """AC-1 (#4293): ``content`` is exactly END_TIME_REACHED or EARLY."""
+        with pytest.raises(ValidationError, match="END_TIME_REACHED"):
+            _make_activity(
+                self.cls,
+                as_EmbargoEvent(
+                    context="urn:uuid:case-123",
+                    end_time=days_from_now_utc(45),
+                ),
+                content=content,
+            )
+
+    @pytest.mark.parametrize("content", ["END_TIME_REACHED", "EARLY"])
+    def test_accepts_each_termination_reason(self, content):
+        embargo = as_EmbargoEvent(
+            context="urn:uuid:case-123", end_time=days_from_now_utc(45)
+        )
+        _assert_accepts_inline(self.cls, embargo, content=content)
+
+
+# ---------------------------------------------------------------------------
+# Actor activities (actor.py)
+# ---------------------------------------------------------------------------
+
+
+class TestRecommendActorActivity:
+    from vultron.wire.as2.vocab.activities.actor import _RecommendActorActivity
+
+    cls = _RecommendActorActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_actor(self):
+        _assert_accepts_inline(self.cls, as_Actor())
+
+
+# ---------------------------------------------------------------------------
+# as_CaseParticipant activities (case_participant.py)
+# ---------------------------------------------------------------------------
+
+
+class TestCreateParticipantActivity:
+    from vultron.wire.as2.vocab.activities.case_participant import (
+        _CreateParticipantActivity,
+    )
+
+    cls = _CreateParticipantActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_participant(self):
+        _assert_accepts_inline(self.cls, as_CaseParticipant())
+
+
+class TestAddStatusToParticipantActivity:
+    from vultron.wire.as2.vocab.activities.case_participant import (
+        _AddStatusToParticipantActivity,
+    )
+
+    cls = _AddStatusToParticipantActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_participant_status(self):
+        _assert_accepts_inline(self.cls, _participant_status())
+
+
+class TestAddParticipantToCaseActivity:
+    from vultron.wire.as2.vocab.activities.case_participant import (
+        _AddParticipantToCaseActivity,
+    )
+
+    cls = _AddParticipantToCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_participant(self):
+        _assert_accepts_inline(self.cls, as_CaseParticipant())
+
+
+class TestRemoveParticipantFromCaseActivity:
+    from vultron.wire.as2.vocab.activities.case_participant import (
+        _RemoveParticipantFromCaseActivity,
+    )
+
+    cls = _RemoveParticipantFromCaseActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_participant(self):
+        _assert_accepts_inline(self.cls, as_CaseParticipant())
+
+
+# ---------------------------------------------------------------------------
+# Sync activities (sync.py)
+# ---------------------------------------------------------------------------
+
+
+class TestAnnounceLogEntryActivity:
+    from vultron.wire.as2.vocab.activities.sync import (
+        _AnnounceLogEntryActivity,
+    )
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        as_CaseLedgerEntry,
+    )
+
+    cls = _AnnounceLogEntryActivity
+
+    def test_rejects_string(self):
+        _assert_rejects_string(self.cls)
+
+    def test_rejects_link(self):
+        _assert_rejects_link(self.cls)
+
+    def test_accepts_inline_log_entry(self):
+        from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+            as_CaseLedgerEntry,
+        )
+
+        _assert_accepts_inline(
+            self.cls,
+            as_CaseLedgerEntry(
+                case_id="https://example.org/cases/c1",
+                log_object_id="https://example.org/cases/c1/events/e1",
+                semantic_type="test_event",
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Outbox handler integrity check (MV-09-002)
+# ---------------------------------------------------------------------------
+
+
+def _make_outbox_dl(activity) -> MagicMock:
+    """Return a MagicMock DataLayer that returns *activity* for any read."""
+    dl = MagicMock()
+    dl.read.return_value = activity
+    return dl
+
+
+def test_handle_outbox_item_raises_on_bare_string_object(caplog):
+    """handle_outbox_item MUST raise VultronOutboxObjectIntegrityError when the
+    sealed body's ``object`` is a bare string.  Nothing is expanded from the
+    DataLayer: the handler relays the sealed body or refuses it (VM-08-003).
+
+    Spec: MV-09-002
+    """
+    import json
+
+    from vultron.adapters.outbox_sealed_body import (
+        SealedOutboundBody,
+        sealed_body_id,
+    )
+
+    activity_id = "urn:uuid:create-bare-object"
+    sealed = SealedOutboundBody(
+        id_=sealed_body_id(activity_id),
+        activity_id=activity_id,
+        body=json.dumps(
+            {
+                "id": activity_id,
+                "type": "Create",
+                "actor": ACTOR_ID,
+                "to": [ACTOR_ID],
+                "object": _STR_URI,
+            }
+        ),
+    )
+
+    dl = MagicMock()
+    dl.read.side_effect = lambda id_: sealed if id_ == sealed.id_ else None
+
+    emitter = AsyncMock()
+
+    with pytest.raises(VultronOutboxObjectIntegrityError):
+        asyncio.run(oh.handle_outbox_item(ACTOR_ID, activity_id, dl, emitter))

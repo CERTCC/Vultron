@@ -1,0 +1,166 @@
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import (
+    accept_actor_recommendation_activity,
+    accept_case_participant_offer_activity,
+    offer_case_participant_activity,
+    recommend_actor_activity,
+    reject_actor_recommendation_activity,
+    reject_case_participant_offer_activity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Offer,
+    as_Reject,
+)
+from vultron.wire.as2.vocab.examples._base import (
+    _CASE_ACTOR,
+    _COORDINATOR,
+    case,
+    case_actor,
+    finder,
+    vendor,
+)
+
+
+def recommend_actor() -> as_Offer:
+    """A participant suggests an actor to the CASE_MANAGER (PCR-08-001)."""
+    _case = case()
+    _finder = finder()
+    _coordinator = _COORDINATOR
+    _activity = recommend_actor_activity(
+        _coordinator,
+        actor=_finder.id_,
+        context=_case.id_,
+        target=_case.id_,
+        to=case_actor().id_,
+        content=f"I'm recommending we add {_coordinator.name} to the case.",
+    )
+    return _activity
+
+
+def request_invite_actor_to_case() -> as_Offer:
+    """The Case Owner asks the CASE_MANAGER to invite an actor (CM-17-007).
+
+    The vendor, as Case Owner, sends its own ``Offer(Actor)`` to the
+    CASE_MANAGER with the roles it offers in ``suggestedRoles``.  The wire
+    form is a participant's suggestion; the CASE_MANAGER answers it with the
+    stub Invite because the sender holds the Case Owner role.
+    """
+    _case = case()
+    return recommend_actor_activity(
+        _COORDINATOR,
+        actor=vendor().id_,
+        context=_case.id_,
+        target=_case.id_,
+        to=case_actor().id_,
+        suggested_roles=[CVDRole.COORDINATOR.value],
+    )
+
+
+def accept_actor_recommendation() -> as_Accept:
+    """The CASE_MANAGER accepts a recommender's suggestion (CM-16-006)."""
+    _coordinator = _COORDINATOR
+    _finder = finder()
+    _case = case()
+    _recommendation = recommend_actor()
+    _activity = accept_actor_recommendation_activity(
+        _recommendation,
+        actor=case_actor().id_,
+        in_reply_to=_recommendation.id_,
+        context=_case.id_,
+        target=_case.id_,
+        to=_finder.id_,
+        content=f"We're accepting your recommendation to add {_coordinator.name} to the case. "
+        "We'll reach out to them shortly.",
+    )
+    return _activity
+
+
+def reject_actor_recommendation() -> as_Reject:
+    """The CASE_MANAGER declines a recommender's suggestion (CM-16-007)."""
+    _coordinator = _COORDINATOR
+    _finder = finder()
+    _case = case()
+    _recommendation = recommend_actor()
+    _activity = reject_actor_recommendation_activity(
+        _recommendation,
+        actor=case_actor().id_,
+        in_reply_to=_recommendation.id_,
+        context=_case.id_,
+        target=_case.id_,
+        to=_finder.id_,
+        content=f"We're declining your recommendation to add {_coordinator.name} to the case. Thanks anyway.",
+    )
+    return _activity
+
+
+def offer_case_participant() -> as_Offer:
+    """CaseActor transforms Offer(Actor) → Offer(CaseParticipant) for Case Owner."""
+    _vendor = vendor()
+    _coordinator = _COORDINATOR
+    _case = case()
+    _recommendation = recommend_actor()
+    _activity = offer_case_participant_activity(
+        _coordinator,
+        target=_case.id_,
+        actor=_CASE_ACTOR.id_,
+        to=[_vendor.id_],
+        context=_case.id_,
+        origin=_recommendation.id_,
+        content=(
+            f"Recommending {_coordinator.name} for case participation "
+            f"(roles: VENDOR). Origin: {_recommendation.id_}"
+        ),
+    )
+    return _activity
+
+
+def accept_case_participant_offer() -> as_Accept:
+    """Case Owner accepts Offer(CaseParticipant) and sends to CaseActor."""
+    _vendor = vendor()
+    _coordinator = _COORDINATOR
+    _case = case()
+    _cp_offer = offer_case_participant()
+    _activity = accept_case_participant_offer_activity(
+        _cp_offer,
+        target=_case.id_,
+        actor=_vendor.id_,
+        to=[_CASE_ACTOR.id_],
+        context=_case.id_,
+        content=(
+            f"Accepting recommendation to add {_coordinator.name} to the case."
+        ),
+    )
+    return _activity
+
+
+def reject_case_participant_offer() -> as_Reject:
+    """Case Owner rejects Offer(CaseParticipant) and sends to CaseActor."""
+    _vendor = vendor()
+    _coordinator = _COORDINATOR
+    _case = case()
+    _cp_offer = offer_case_participant()
+    _activity = reject_case_participant_offer_activity(
+        _cp_offer,
+        target=_case.id_,
+        actor=_vendor.id_,
+        to=[_CASE_ACTOR.id_],
+        context=_case.id_,
+        content=(
+            f"Declining recommendation to add {_coordinator.name} to the case."
+        ),
+    )
+    return _activity

@@ -1,4 +1,39 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Process CS Messages Behavior
+
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Protocol Specifications](../../reference/specs/protocol.md):
+
+- [CSB-01](../../reference/specs/protocol.md#csb-01) — Receive CV (Vendor Aware)
+- [CSB-02](../../reference/specs/protocol.md#csb-02) — Receive CF (Fix Ready)
+- [CSB-03](../../reference/specs/protocol.md#csb-03) — Receive CD (Fix Deployed)
+- [CSB-04](../../reference/specs/protocol.md#csb-04) — Receive CP (Public Aware)
+- [CSB-05](../../reference/specs/protocol.md#csb-05) — Receive CX (Exploit Public)
+- [CSB-06](../../reference/specs/protocol.md#csb-06) — Receive CA (Attacks Observed)
+- [CSB-07](../../reference/specs/protocol.md#csb-07) — Receive CE (CS Error)
+- [CSB-08](../../reference/specs/protocol.md#csb-08) — Receive CK (CS Acknowledgment)
+- [CSB-16](../../reference/specs/protocol.md#csb-16) — CS Write-Boundary Transition Validation
+- [CSB-17](../../reference/specs/protocol.md#csb-17) — CS Compound State and History Validity
+- [CSB-18](../../reference/specs/protocol.md#csb-18) — Cross-Machine State Entailments
+- [CSB-19](../../reference/specs/protocol.md#csb-19) — CS Ordering Invariants Under Out-of-Order Ledger Delivery
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 The Process CS Messages Behavior Tree is shown below.
 
@@ -35,7 +70,7 @@ flowchart LR
 ```
 
 We are still working through the children of [Receive Messages](msg_intro_bt.md) behavior tree.
-And as we've come to expect, a precondition check leads to a fallback node in which CS acknowledgement
+And as we've come to expect, a precondition check leads to a fallback node in which CS acknowledgment
 messages (*CK*) receive no further attention and return *Success*.
 
 The main CS message-handling sequence comes next, with all matching incoming messages resulting in emission of an
@@ -123,7 +158,7 @@ the other Participants.
 (A1c) Likewise, a message indicating attacks underway
 triggers the **A** transition.
 
-Again, we note that any of the **P**, **X**, or
+Any of the **P**, **X**, or
 **A** transitions in the CS model imply that no new embargo should be
 entered, and any existing embargo should be terminated. Hence, the
 sequence described in the previous paragraph leads to the [embargo

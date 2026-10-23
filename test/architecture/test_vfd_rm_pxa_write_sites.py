@@ -1,0 +1,155 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""AC-7 architecture test: audit VF/D/RM/PXA dimension write sites.
+
+AST-scans ``vultron/core/behaviors/`` for every ``VfDimension``,
+``DDimension``, ``RmDimension``, and ``PxaDimension`` constructor call and
+asserts the result matches the audited set below.  ``AUDITED_SITES`` is a pinned
+exemption set, not a ratchet (ARCH-18-005): the list *is* the BTND-10-001 audit,
+so it has no empty end state and tracks the code in both directions.
+
+A new unclassified constructor call fails this test immediately, which forces
+an explicit audit decision:
+
+- If the site is already protected (trigger guard, received-path filter, or a
+  classified bootstrap/predicate use), add it to ``AUDITED_SITES`` with a
+  comment stating why.
+- If it is a new user-driven write outside the protected paths, add transition
+  validation before merging.
+
+Per specs/behavior-tree-node-design.yaml BTND-10-001.
+Closes #2081 AC-7, #1903.
+"""
+
+import ast
+from collections import Counter
+
+import pytest
+
+from test.architecture import _corpus
+
+# ---------------------------------------------------------------------------
+# Audited sites — (path_relative_to_behaviors_root, constructor_name)
+# One entry per call-site occurrence (multiplicity matters).
+#
+# Classification key:
+#   PROTECTED  — write covered by transition validation.  For the trigger path
+#                ValidateTriggerTransitionsNode runs first, and for the received
+#                path CheckParticipantStatusAcceptableNode does — but neither
+#                is what makes the write-node sites safe, because some call
+#                sites reach CreateParticipantStatusNode through *neither*
+#                (develop_fix.py, deploy_fix.py, and the closure writer
+#                participant/rm_closure.py used by leave/advance.py).  What
+#                protects them is that the write node validates its own
+#                writes against the shared evaluator
+#                (BTND-10-001, BTND-10-003, ADR-0086); the upstream guard is
+#                defence in depth, not the guarantee.  No closure write
+#                carries a `force_rm_state` override (RMB-14-005, #4044);
+#                test_rm_closure_no_force.py pins that.
+#   BOOTSTRAP  — initial / authoritative seeding write; no prior state to
+#                violate; outside the scope of transition validation
+#   PREDICATE  — read-only dimension instantiation (guard / is_*() checks),
+#                no DataLayer write
+#   RM-TRACKED — RM transition nodes documented in rm_transitions.py;
+#                tracked separately per BTND-10-001 / issue #2081
+# ---------------------------------------------------------------------------
+# permanent: BTND-10-001 (the list is the write-site audit)
+AUDITED_SITES: list[tuple[str, str]] = sorted(
+    [
+        # PROTECTED — CreateParticipantStatusNode validates its own writes.
+        # One site per dimension, each constructed from the single
+        # `_EffectiveStates` derivation that validation also read, so the node
+        # cannot validate one value and persist another.  Was 3 VfDimension and
+        # 2 DDimension before #3050 removed the dead vf half of
+        # `_build_dimensions` and folded `_build_d_dimension` into the effective
+        # states (ARCH-15-004).
+        ("case/nodes/participant/status.py", "PxaDimension"),
+        ("case/nodes/participant/status.py", "RmDimension"),
+        ("case/nodes/participant/status.py", "VfDimension"),
+        ("case/nodes/participant/status.py", "DDimension"),
+        # PREDICATE — deploy_fix.py: DDimension.is_fix_deployed()
+        ("report/nodes/deploy_fix.py", "DDimension"),
+        ("report/nodes/deploy_fix.py", "DDimension"),
+        # PREDICATE — develop_fix_conditions.py: VfDimension.is_fix_ready()
+        ("report/nodes/develop_fix_conditions.py", "VfDimension"),
+        # SNAPSHOT — EmitCaseStatusUpdateNode: post-mutation CaseStatus snapshot (ISSUE-2175)
+        ("case_status_snapshot.py", "PxaDimension"),
+        # BOOTSTRAP — ADR-0114 birth write: invitee's first ParticipantStatus
+        # at RM.RECEIVED (no prior state; embed directly in CaseParticipant,
+        # not via CreateParticipantStatusNode). CM-11-006 / #4048.
+        ("case/nodes/invite_inert_participant.py", "RmDimension"),
+        ("case/nodes/invite_inert_participant.py", "VfDimension"),
+    ]
+)
+
+_TARGET_NAMES = {"VfDimension", "DDimension", "RmDimension", "PxaDimension"}
+_BEHAVIORS_ROOT = _corpus.REPO_ROOT / "vultron" / "core" / "behaviors"
+
+
+def _collect_sites() -> list[tuple[str, str]]:
+    """Return sorted (rel_path, constructor_name) pairs from an AST scan."""
+    found: list[tuple[str, str]] = []
+    for path, tree in _corpus.files_mentioning(
+        *_TARGET_NAMES, under=_BEHAVIORS_ROOT
+    ):
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name: str | None = None
+            if isinstance(func, ast.Name):
+                name = func.id
+            elif isinstance(func, ast.Attribute):
+                name = func.attr
+            if name in _TARGET_NAMES:
+                rel = str(path.relative_to(_BEHAVIORS_ROOT)).replace("\\", "/")
+                found.append((rel, name))
+    return sorted(found)
+
+
+@pytest.mark.spec("RSH-04-002")
+def test_audited_write_sites_unchanged() -> None:
+    """All VfDimension/DDimension/RmDimension/PxaDimension sites match the audited set.
+
+    A NEW site (file or extra call in an existing file) causes this test to
+    fail with a clear diff so the reviewer can decide which classification
+    label applies.  A REMOVED site also fails — the audited list must stay
+    current.
+    """
+    actual = _collect_sites()
+    actual_counts = Counter(actual)
+    expected_counts = Counter(AUDITED_SITES)
+
+    new_sites = actual_counts - expected_counts
+    removed_sites = expected_counts - actual_counts
+
+    messages: list[str] = []
+    if new_sites:
+        messages.append(
+            "NEW unaudited dimension write sites found — classify and add to"
+            " AUDITED_SITES:\n"
+            + "\n".join(
+                f"  + {path!r}  {ctor}" for path, ctor in sorted(new_sites)
+            )
+        )
+    if removed_sites:
+        messages.append(
+            "Sites in AUDITED_SITES no longer present — remove from list:\n"
+            + "\n".join(
+                f"  - {path!r}  {ctor}" for path, ctor in sorted(removed_sites)
+            )
+        )
+    assert not messages, "\n\n".join(messages)

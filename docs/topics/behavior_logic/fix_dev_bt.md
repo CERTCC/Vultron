@@ -1,4 +1,32 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Fix Development Behavior
+
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Protocol Specifications](../../reference/specs/protocol.md):
+
+- [CSB-09](../../reference/specs/protocol.md#csb-09) — Enter CS V (Vendor Aware)
+- [CSB-10](../../reference/specs/protocol.md#csb-10) — Enter CS F (Fix Ready)
+- [CSB-15](../../reference/specs/protocol.md#csb-15) — Trigger-Side VFD Role Preconditions
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
+{% include-markdown "../../includes/notional_external_process.md" %}
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 The Fix Development Behavior Tree is shown below.
 
@@ -24,7 +52,7 @@ flowchart LR
     seq --> cs_to_VF
 ```
 
-(A) Fix development is relegated to the Vendor role, so Non-Vendors just return *Success* since they have nothing further to do.
+(A) Fix development is relegated to the Vendor role, so Non-Vendors return *Success* since they have nothing further to do.
 
 (B) For Vendors, if a fix is ready (i.e., the case is in $q^{cs} \in VF\cdot\cdot\cdot\cdot$), the tree returns *Success*.
 

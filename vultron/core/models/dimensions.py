@@ -1,0 +1,416 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Per-machine dimension objects for CaseStatus and ParticipantStatus.
+
+Each dimension object is a lightweight Pydantic BaseModel that holds one state
+enum and owns immutable transition() validation and guard methods for that
+state machine. Transitions return a new dimension object; they never mutate
+self.
+
+Design: ADR-0036, spec: specs/status-dimension-objects.yaml (SDO-01 to SDO-04).
+"""
+
+from typing import Any
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
+
+from vultron.core.models.base import ValidatedAssignmentMixin
+from vultron.core.states.cs import (
+    D_FIX_DEPLOYED,
+    PXA_ATTACKS_OBSERVED,
+    PXA_EXPLOIT_PUBLIC,
+    PXA_PUBLIC_AWARE,
+    VF_FIX_READY,
+    VF_VENDOR_AWARE,
+    CS_d,
+    CS_pxa,
+    CS_vf,
+    D_Trigger,
+    PXA_Trigger,
+    PxaState,
+    VF_Trigger,
+    _d_transitions,
+    _pxa_transitions,
+    _vf_transitions,
+)
+from vultron.core.states.em import EM
+from vultron.core.states.rm import (
+    RM,
+    RM_VALIDATED,
+    RM_Trigger,
+    _transitions as _rm_transitions,
+)
+from vultron.errors import VultronInvalidStateTransitionError
+
+
+def _coerce_em(v: object) -> EM:
+    if isinstance(v, EM):
+        return v
+    if isinstance(v, str):
+        # As for RM below: Pydantic absorbs only ValueError (#2964).
+        try:
+            return EM[v]
+        except KeyError:
+            raise ValueError(f"Unknown EM value: {v!r}") from None
+    raise ValueError(f"Cannot coerce {v!r} to EM")
+
+
+def _coerce_rm(v: object) -> RM:
+    if isinstance(v, RM):
+        return v
+    if isinstance(v, str):
+        # ``RM[v]`` raises KeyError on an unknown name, and Pydantic only absorbs
+        # ValueError/AssertionError from a validator — so a bogus state escaped as
+        # a 500 instead of a clean 422 (#2964).  The deleted ``as_ParticipantStatus``
+        # carried its own coercion that converted this; ``_coerce_vf``/``_coerce_d``
+        # already did it here and these two did not.
+        try:
+            return RM[v]
+        except KeyError:
+            raise ValueError(f"Unknown RM value: {v!r}") from None
+    raise ValueError(f"Cannot coerce {v!r} to RM")
+
+
+def _coerce_pxa(v: object) -> CS_pxa:
+    if isinstance(v, CS_pxa):
+        return v
+    if isinstance(v, str):
+        try:
+            return CS_pxa[v]
+        except KeyError:
+            raise ValueError(f"Unknown CS_pxa value: {v!r}") from None
+    if isinstance(v, (list, tuple)) and len(v) == 3:
+        return CS_pxa(PxaState(*v))
+    raise ValueError(f"Cannot coerce {v!r} to CS_pxa")
+
+
+def _coerce_vf(v: object) -> CS_vf:
+    if isinstance(v, CS_vf):
+        return v
+    if isinstance(v, str):
+        try:
+            return CS_vf[v]
+        except KeyError:
+            raise ValueError(f"Unknown CS_vf value: {v!r}") from None
+    raise ValueError(f"Cannot coerce {v!r} to CS_vf")
+
+
+def _coerce_d(v: object) -> CS_d:
+    if isinstance(v, CS_d):
+        return v
+    if isinstance(v, str):
+        try:
+            return CS_d[v]
+        except KeyError:
+            raise ValueError(f"Unknown CS_d value: {v!r}") from None
+    raise ValueError(f"Cannot coerce {v!r} to CS_d")
+
+
+def _apply_transition(
+    current_state: object,
+    trigger: object,
+    transitions: list[dict],
+    machine_name: str,
+) -> object:
+    """Return the destination state for (current_state, trigger).
+
+    Raises VultronInvalidStateTransitionError when no matching transition exists.
+    Every source is an explicit state: a trigger with no matching
+    source for the current state is refused.
+    """
+    for t in transitions:
+        src = t.get("source")
+        if src != current_state:
+            continue
+        if t.get("trigger") != trigger:
+            continue
+        return t["dest"]
+    raise VultronInvalidStateTransitionError(
+        f"{machine_name}: state '{current_state}' does not accept trigger"
+        f" '{trigger}'."
+    )
+
+
+class _ScalarDimension(ValidatedAssignmentMixin, BaseModel):
+    """Common serialized form for the per-machine dimension objects.
+
+    A dimension object holds exactly one data field, ``state``; everything else
+    on it is behaviour (``transition()`` and the guard predicates), and behaviour
+    does not serialize. Its serialized form is therefore the bare state value,
+    not a one-key ``{"state": ...}`` wrapper — the wrapper would put a container
+    on the wire whose only content is the thing it contains, costing every reader
+    a level of nesting for no information.
+
+    So ``rm`` declared with ``serialization_alias="rmState"`` emits
+    ``{"rmState": "START"}``, which is the shape the wire has always carried.
+    This is what removes the need for the two inverse migration validators that
+    previously translated between the flat wire form and the nested core form.
+
+    Subclasses declare ``state`` with their own enum type and a
+    ``field_validator`` that coerces it, plus ``transition()`` and guards.
+
+    ARCH-25-005 (ADR-0099); ADR-0036 governing principles 1 through 3 are unchanged.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_bare_state(cls, data: object) -> object:
+        """Accept the bare serialized form as well as the mapping form.
+
+        ``"START"``, ``RM.START`` and ``{"state": "START"}`` are all valid input.
+        The mapping form is retained because callers construct dimensions that
+        way, and because the enclosing models' own before-validators normalise
+        legacy flat fields into it.
+
+        An **explicit ``None`` raises** rather than falling back to the field
+        default.  That is a deliberate behaviour change: the ``_migrate_flat_fields``
+        validator this replaces guarded on ``raw is not None`` and silently
+        substituted the initial state, so ``{"rmState": None}`` produced
+        ``RM.START`` with no error.  A caller that names a dimension and supplies
+        no state is making a statement it cannot back, and ARCH-25-007 refuses
+        a recognised field whose value violates its declared type.  Absence and
+        explicit-null are different inputs and only absence gets the default.
+        """
+        if isinstance(data, (dict, _ScalarDimension)):
+            return data
+        return {"state": data}
+
+    #: Declared here so the whole-model serializer below can read it directly.
+    #: Each subclass narrows it to its own enum with its own default; this
+    #: annotation exists to make ``state`` part of the base contract rather than
+    #: something ``_serialize_bare`` reaches for with ``getattr`` and hopes is
+    #: present.
+    state: Any
+
+    @model_serializer
+    def _serialize_bare(self) -> str:
+        """Serialize to the bare state name rather than a one-key mapping.
+
+        This is a **whole-model** serializer, so it wholly replaces the model's
+        normal dict output.  A per-field ``@field_serializer("state")`` on a
+        subclass is therefore unreachable and must not be added back — the six
+        that existed were dead code, because this method never consults the
+        field serializers.
+        """
+        return str(self.state.name)
+
+
+class EmDimension(_ScalarDimension):
+    """Embargo Management state dimension object.
+
+    Holds the case-level EM state a status carries.  It has no transitions:
+    EM is derived from the case's embargo register (ADR-0122), and a case
+    stamps the derived value onto its current status.
+    Replaces CaseStatus.em_state (SDO-01-001, SDO-03-001).
+
+    Frozen so that ``instance.state = EM.X`` raises ``ValidationError``.
+    A status with a different EM is always built by construction or by
+    ``status.with_em(...)``, which also re-derives its label, never by
+    mutation (SDO-03-006).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    state: EM = EM.NONE
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def validate_state(cls, v: object) -> EM:
+        return _coerce_em(v)
+
+    def is_active(self) -> bool:
+        return self.state in (EM.ACTIVE, EM.REVISE)
+
+    def is_proposed(self) -> bool:
+        return self.state == EM.PROPOSED
+
+    def is_exited(self) -> bool:
+        return self.state == EM.EXITED
+
+    def is_none(self) -> bool:
+        return self.state == EM.NONE
+
+
+class PxaDimension(_ScalarDimension):
+    """PXA (public/exploit/attacks) case state dimension object.
+
+    Holds the participant-agnostic public state and owns immutable transition
+    validation.  Replaces CaseStatus.pxa_state (SDO-01-001, SDO-03-001).
+    """
+
+    state: CS_pxa = CS_pxa.pxa
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def validate_state(cls, v: object) -> CS_pxa:
+        return _coerce_pxa(v)
+
+    def transition(self, trigger: PXA_Trigger) -> "PxaDimension":
+        """Return a new PxaDimension with the state after applying *trigger*.
+
+        Raises VultronInvalidStateTransitionError on invalid trigger.
+        """
+        new_state = _apply_transition(
+            self.state, trigger, _pxa_transitions, "PxaDimension"
+        )
+        return self.model_copy(update={"state": CS_pxa(new_state)})
+
+    def is_public_aware(self) -> bool:
+        return self.state in PXA_PUBLIC_AWARE
+
+    def is_exploit_public(self) -> bool:
+        return self.state in PXA_EXPLOIT_PUBLIC
+
+    def is_attacks_observed(self) -> bool:
+        return self.state in PXA_ATTACKS_OBSERVED
+
+    def is_embargo_eligible(self) -> bool:
+        """Return True when no P/X/A bit is set (EMB-01-002, EMB-02-002)."""
+        return self.state == CS_pxa.pxa
+
+
+class RmDimension(_ScalarDimension):
+    """Report Management state dimension object.
+
+    Holds the per-participant RM state and owns immutable transition validation.
+    Replaces ParticipantStatus.rm_state (SDO-01-001, SDO-03-002).
+    """
+
+    state: RM = RM.START
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def validate_state(cls, v: object) -> RM:
+        return _coerce_rm(v)
+
+    def transition(self, trigger: RM_Trigger) -> "RmDimension":
+        """Return a new RmDimension with the state after applying *trigger*.
+
+        Raises VultronInvalidStateTransitionError on invalid trigger.
+        """
+        new_state = _apply_transition(
+            self.state, trigger, _rm_transitions, "RmDimension"
+        )
+        return self.model_copy(update={"state": RM(str(new_state))})
+
+    def is_validated(self) -> bool:
+        return self.state in RM_VALIDATED
+
+    def is_accepted(self) -> bool:
+        return self.state == RM.ACCEPTED
+
+    def is_closed(self) -> bool:
+        return self.state == RM.CLOSED
+
+    def is_terminal(self) -> bool:
+        return self.state == RM.CLOSED
+
+
+class VfDimension(_ScalarDimension):
+    """Vendor-path (V+F) dimension object for per-participant ParticipantStatus.
+
+    Holds vendor awareness + fix readiness in a 3-state monotone ladder
+    (vf → Vf → VF).  Introduced by ADR-0075 (SDO-01-003).
+    """
+
+    state: CS_vf = CS_vf.vf
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def validate_state(cls, v: object) -> CS_vf:
+        return _coerce_vf(v)
+
+    def transition(self, trigger: VF_Trigger) -> "VfDimension":
+        """Return a new VfDimension with the state after applying *trigger*.
+
+        Raises VultronInvalidStateTransitionError on invalid trigger.
+        """
+        new_state = _apply_transition(
+            self.state, trigger, _vf_transitions, "VfDimension"
+        )
+        return self.model_copy(update={"state": CS_vf(str(new_state))})
+
+    def is_vendor_aware(self) -> bool:
+        return self.state in VF_VENDOR_AWARE
+
+    def is_fix_ready(self) -> bool:
+        return self.state in VF_FIX_READY
+
+
+class DDimension(_ScalarDimension):
+    """Deployer-path (D) dimension object for per-participant ParticipantStatus.
+
+    Holds fix deployment state in a 2-state monotone ladder (d → D).
+    Represents the D component for participants with DEPLOYER
+    role (ADR-0075, SDO-01-003).
+    """
+
+    state: CS_d = CS_d.d
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def validate_state(cls, v: object) -> CS_d:
+        return _coerce_d(v)
+
+    def transition(self, trigger: D_Trigger) -> "DDimension":
+        """Return a new DDimension with the state after applying *trigger*.
+
+        Raises VultronInvalidStateTransitionError on invalid trigger.
+        """
+        new_state = _apply_transition(
+            self.state, trigger, _d_transitions, "DDimension"
+        )
+        return self.model_copy(update={"state": CS_d(str(new_state))})
+
+    def is_fix_deployed(self) -> bool:
+        return self.state in D_FIX_DEPLOYED
+
+
+#: The field every status dimension object holds its state in.
+DIMENSION_STATE_FIELD = "state"
+
+
+def is_dimension_model(annotation: object) -> bool:
+    """Return whether *annotation* is a status dimension model class.
+
+    A dimension is a Pydantic model with a ``state`` field; it travels as
+    its bare state value (ARCH-25-005, ADR-0099).
+    """
+    return (
+        isinstance(annotation, type)
+        and issubclass(annotation, BaseModel)
+        and DIMENSION_STATE_FIELD in annotation.model_fields
+    )
+
+
+def dimension_state(status: object, dimension: str) -> object | None:
+    """Return the state of *status*'s *dimension* object, or ``None``.
+
+    A tolerant read for untyped or partially-known objects (an embedded
+    status that may be a bare reference, or a mock in a demo poll): an
+    object that carries no such dimension, or a ``None`` dimension, has no
+    state to report, which is a legitimate answer rather than an error.
+    Typed code reads ``status.pxa.state`` directly.
+    """
+    return getattr(
+        getattr(status, dimension, None), DIMENSION_STATE_FIELD, None
+    )

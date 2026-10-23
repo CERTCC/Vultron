@@ -1,0 +1,226 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Unit tests for AddNoteToCaseReceivedUseCase CaseActor ledger routing.
+
+Pins the pre-flight guard (CLP-10-003): only the CaseActor writes an
+``add_note_to_case`` ledger entry; other actors skip it silently.
+
+Also verifies the bug fix where ``receiving_actor_id=None`` no longer
+falls back to ``_find_case_actor_id`` and incorrectly commits.
+"""
+
+from __future__ import annotations
+
+from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models.actor import VultronService
+from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.use_cases.received.note import AddNoteToCaseReceivedUseCase
+from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories import add_note_to_case_activity
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+CASE_ACTOR_ID = "https://example.org/actors/case-actor-note"
+VENDOR_ID = "https://example.org/actors/vendor-note"
+CASE_ID = "https://example.org/cases/c-note-test"
+NOTE_ID = "https://example.org/notes/n-test"
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+def _make_dl(actor_id: str = CASE_ACTOR_ID) -> SqliteDataLayer:
+    """The store of *actor_id*, defaulting to the case actor.
+
+    The canonical ledger these tests assert on belongs to the case actor, and the
+    commit is gated on its CASE_MANAGER role, so that is the store the tree runs in.
+    """
+    return SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+
+
+def _make_case_actor_dl() -> SqliteDataLayer:
+    """DataLayer as seen by the CaseActor: case + CASE_MANAGER participant + note."""
+    dl = _make_dl()
+
+    ca_svc = VultronService(id_=CASE_ACTOR_ID, context=CASE_ID)
+    dl.save(ca_svc)
+
+    case = as_VulnerabilityCase(
+        id_=CASE_ID, name="AddNote Routing Test", attributed_to=CASE_ACTOR_ID
+    )
+
+    cm_participant = as_CaseParticipant(
+        attributed_to=CASE_ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    dl.create(cm_participant)
+    case.case_participants.append(cm_participant.id_)
+    case.actor_participant_index[CASE_ACTOR_ID] = cm_participant.id_
+    # The sender is an active participant: only one may attach a note
+    # (CM-23-018, HP-01-006).
+    vendor_participant = as_CaseParticipant(
+        attributed_to=VENDOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.VENDOR],
+    )
+    dl.create(vendor_participant)
+    case.case_participants.append(vendor_participant.id_)
+    case.actor_participant_index[VENDOR_ID] = vendor_participant.id_
+    dl.save(case)
+
+    # The Add carries its note inline; the CASE_MANAGER stores it (HP-08-006).
+    return dl
+
+
+def _ledger_semantic_types(dl: SqliteDataLayer) -> list[str]:
+    return [
+        getattr(e, "semantic_type", "")
+        for e in dl.list_objects("CaseLedgerEntry")
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+class TestAddNoteToCaseLedgerRouting:
+    """CaseActor-guarded commit tests for AddNoteToCaseReceivedUseCase."""
+
+    def test_caseactor_commits_add_note_to_case_ledger_entry(
+        self, make_payload
+    ):
+        """Guarded commit fires when receiving_actor_id == case_actor_id.
+
+        Per CLP-10-002: the CaseActor MUST commit a canonical ledger entry
+        when it receives an AddNoteToCase activity.
+        """
+        dl = _make_case_actor_dl()
+
+        case_ref = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        )
+        note = as_Note(
+            id_=NOTE_ID, content="Test note content", context=CASE_ID
+        )
+        activity = add_note_to_case_activity(
+            note=note,
+            target=case_ref,
+            actor=VENDOR_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = make_payload(activity, receiving_actor_id=CASE_ACTOR_ID)
+
+        result = AddNoteToCaseReceivedUseCase(
+            dl=dl,
+            request=event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
+
+        semantic_types = _ledger_semantic_types(dl)
+        assert "add_note_to_case" in semantic_types, (
+            "Expected a CaseLedgerEntry with semantic_type='add_note_to_case';"
+            f" found: {semantic_types}"
+        )
+
+    def test_non_caseactor_does_not_commit_ledger_entry(self, make_payload):
+        """Guarded commit does NOT fire when receiving_actor_id != case_actor_id.
+
+        Per CLP-10-003: non-CaseActor receiving actors must skip the commit.
+        """
+        dl = _make_case_actor_dl()
+
+        case_ref = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        )
+        note = as_Note(
+            id_=NOTE_ID, content="Test note content", context=CASE_ID
+        )
+        activity = add_note_to_case_activity(
+            note=note,
+            target=case_ref,
+            actor=VENDOR_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = make_payload(activity, receiving_actor_id=VENDOR_ID)
+
+        result = AddNoteToCaseReceivedUseCase(
+            dl=dl,
+            request=event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        # HP-01-005: the note was the CASE_MANAGER's to record; a receiver
+        # without that role refuses rather than reporting a processed no-op.
+        assert result.disposition == HandlerDisposition.REFUSED
+
+        semantic_types = _ledger_semantic_types(dl)
+        assert "add_note_to_case" not in semantic_types, (
+            "Non-CaseActor receiving actor must NOT write an add_note_to_case"
+            f" ledger entry; found: {semantic_types}"
+        )
+
+    def test_no_receiving_actor_id_uses_store_owner_for_commit(
+        self, make_payload
+    ):
+        """When receiving_actor_id is absent, the store owner processes the Add(Note).
+
+        The store owner here is the CaseActor, so the guarded commit fires and
+        the ``add_note_to_case`` ledger entry IS written.
+        """
+        dl = _make_case_actor_dl()
+
+        case_ref = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID
+        )
+        note = as_Note(
+            id_=NOTE_ID, content="Test note content", context=CASE_ID
+        )
+        activity = add_note_to_case_activity(
+            note=note,
+            target=case_ref,
+            actor=VENDOR_ID,
+            to=[CASE_ACTOR_ID],
+        )
+        event = make_payload(activity)
+        # Explicitly clear receiving_actor_id to exercise the fallback path.
+        event = event.model_copy(update={"receiving_actor_id": None})
+
+        result = AddNoteToCaseReceivedUseCase(
+            dl=dl,
+            request=event,
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+        assert result.disposition == HandlerDisposition.APPLIED
+
+        semantic_types = _ledger_semantic_types(dl)
+        assert "add_note_to_case" in semantic_types, (
+            "Store-owner fallback (CaseActor) MUST write an add_note_to_case"
+            f" ledger entry when receiving_actor_id is absent; found: {semantic_types}"
+        )

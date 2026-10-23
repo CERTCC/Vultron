@@ -1,4 +1,36 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Process EM Messages Behavior
+
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Protocol Specifications](../../reference/specs/protocol.md):
+
+- [EMB-01](../../reference/specs/protocol.md#emb-01) — Receive EP (Embargo Proposed)
+- [EMB-02](../../reference/specs/protocol.md#emb-02) — Receive EA (Embargo Accepted)
+- [EMB-03](../../reference/specs/protocol.md#emb-03) — Receive EV (Embargo Revision Proposed)
+- [EMB-04](../../reference/specs/protocol.md#emb-04) — Receive EJ (Embargo Revision Rejected)
+- [EMB-05](../../reference/specs/protocol.md#emb-05) — Receive EC (Embargo Revision Accepted)
+- [EMB-06](../../reference/specs/protocol.md#emb-06) — Receive ER (Embargo Rejected)
+- [EMB-07](../../reference/specs/protocol.md#emb-07) — Receive ET (Embargo Terminated)
+- [EMB-08](../../reference/specs/protocol.md#emb-08) — Receive EE (Embargo Error)
+- [EMB-09](../../reference/specs/protocol.md#emb-09) — Receive EK (Embargo Acknowledgment)
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 The Process EM Messages Behavior Tree is shown below.
 

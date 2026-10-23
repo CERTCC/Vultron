@@ -2,6 +2,7 @@
 """
 Provides fix deployment behaviors.
 """
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -42,7 +43,6 @@ from vultron.bt.report_management.transitions import (
     q_rm_to_D,
 )
 from vultron.bt.roles.conditions import RoleIsDeployer, RoleIsVendor
-
 
 _ShouldStayInRmDeferred = sequence_node(
     "_ShouldStayInRmDeferred",

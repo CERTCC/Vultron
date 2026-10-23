@@ -2,6 +2,7 @@
 """
 Provides behaviors for handling embargo messages.
 """
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -14,7 +15,6 @@ Provides behaviors for handling embargo messages.
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
 
 from vultron.bt.base.factory import fallback_node, sequence_node
 from vultron.bt.case_state.conditions import (
@@ -55,7 +55,6 @@ from vultron.bt.messaging.inbound._behaviors.fuzzer import (
     FollowUpOnErrorMessage,
 )
 from vultron.bt.messaging.outbound.behaviors import EmitEE, EmitEK
-
 
 _HandleEe = sequence_node(
     "_HandleEe",

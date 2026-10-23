@@ -1,0 +1,183 @@
+"""Pydantic schema for docs/adr/*.md YAML frontmatter.
+
+Schema requirements: specs/meta-specifications.yaml MS-14 (ADR-0043);
+``stakeholder_type`` per specs/diataxis-requirements.yaml DF-11-012.
+
+Mirrors the notes frontmatter package (``vultron.metadata.notes``): a validated
+model plus a loader, enforced by pytest and pre-commit. The ADR ``status`` field
+is the confidence signal coding agents read, so it is validated against the
+:class:`~vultron.metadata.specs.schema.AdrStatus` StrEnum rather than free text.
+"""
+
+from __future__ import annotations
+
+import datetime as _dt
+from enum import StrEnum
+
+from pydantic import BaseModel, PositiveInt, field_validator, model_validator
+
+from vultron.metadata.base import NonEmptyStr
+from vultron.metadata.docs.page_schema import WorkingRecordStakeholderTypes
+from vultron.metadata.specs.schema import AdrStatus
+
+# A frontmatter person field (deciders/consulted/informed) may be a bare string
+# or a list of strings — both forms occur across the existing ADR corpus.
+PersonField = NonEmptyStr | list[NonEmptyStr]
+
+
+# The four supersession pointer fields (MS-14-011). Each forward field
+# (retired side) pairs with the successor-side field on the ADR it names.
+SUPERSESSION_PAIRS: tuple[tuple[str, str], ...] = (
+    ("superseded_by", "supersedes"),
+    ("partially_superseded_by", "partially_supersedes"),
+)
+SUPERSESSION_FIELDS: tuple[str, ...] = tuple(
+    field for pair in SUPERSESSION_PAIRS for field in pair
+)
+
+
+class AdrLintSuppressCode(StrEnum):
+    """Named ADR lint checks suppressible via ``lint_suppress`` (MS-14-002, MS-15-007).
+
+    Mirrors the spec-level ``LintWarningCode`` mechanism (SR-02-011).
+    """
+
+    STATUS_PROSE_CONTRADICTION = "status_prose_contradiction"
+    #: The record deliberately adds a path or code symbol that does not
+    #: resolve, such as one it annotates as removed (MS-15-007).
+    PHANTOM_PATH_REF = "phantom_path_ref"
+    PHANTOM_SYMBOL_REF = "phantom_symbol_ref"
+
+
+class AdrFrontmatter(BaseModel):
+    """Validated representation of a ``docs/adr/*.md`` YAML frontmatter block.
+
+    Required field: ``status`` (a member of :class:`AdrStatus`; the inline MADR
+    form ``superseded by <link>`` is normalised to ``superseded``). A retired
+    ADR (``superseded`` or ``deprecated``) MUST carry a ``superseded_by`` link.
+    All other fields are optional but must be non-empty when present.
+
+    ``created`` (immutable), ``updated`` (material edits only) and ``revision``
+    (an integer bumped by each material edit) carry the lifecycle of ADR-0120.
+    All three are required (MS-14-008). ``date`` is the legacy spelling of
+    ``created`` and stays optional. ``status_override`` is a human's reason for
+    a ``status`` that disagrees with the epoch computed from ``updated`` and the
+    ADR's test-verified dependents; it is what
+    :func:`vultron.metadata.adr.lifecycle.status_epoch_fault` (MS-14-007) reads
+    to let the disagreement stand.
+
+    ``partially_superseded_by`` is distinct from ``superseded_by`` and does not
+    retire the ADR: it marks one decision inside an otherwise live ADR as
+    replaced, so the ADR keeps ``status: accepted`` and stays in the accepted
+    list. ADR-0012 is the case that motivated it — ADR-0073 replaced its
+    DataLayer-isolation decision and nothing else, so retiring the whole thing
+    would have discarded the decisions still in force. Declared here rather than
+    left as an extra key because pydantic drops unknown fields silently, which
+    made the marker inert: no index annotation and no check that its target
+    resolves.
+
+    The four supersession fields (``superseded_by``, ``partially_superseded_by``
+    and their successor-side twins ``supersedes`` and ``partially_supersedes``)
+    each hold a list of ADR pointers, and a single pointer is accepted as a
+    one-item list (MS-14-011). A successor can retire several ADRs, as ADR-0099
+    retired ADR-0017 and ADR-0082. That every link is recorded on both ADRs is
+    a corpus property, so the loader checks it, not this model.
+
+    ``stakeholder_type`` is declared for the same reason. A decision record is
+    project working record, so it declares ``[project-contributor]`` and no
+    ``level`` (DF-11-012), and the value is checked by the same rule
+    ``docs-frontmatter`` applies. The field is optional here because
+    ``docs-frontmatter`` (:mod:`vultron.metadata.docs.page_frontmatter`) is
+    what requires every page to declare it: a misspelt ``stakeholder_types:``
+    is still dropped by this model, and the ADR then declares nothing, which
+    that check refuses.
+    """
+
+    status: AdrStatus
+    date: _dt.date | None = None
+    created: _dt.date
+    updated: _dt.date
+    revision: PositiveInt
+    status_override: NonEmptyStr | None = None
+    deciders: PersonField | None = None
+    consulted: PersonField | None = None
+    informed: PersonField | None = None
+    superseded_by: list[NonEmptyStr] = []
+    partially_superseded_by: list[NonEmptyStr] = []
+    supersedes: list[NonEmptyStr] = []
+    partially_supersedes: list[NonEmptyStr] = []
+    amended: NonEmptyStr | None = None
+    lint_suppress: list[AdrLintSuppressCode] | None = None
+    stakeholder_type: WorkingRecordStakeholderTypes | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalise_inline_superseded(cls, data: object) -> object:
+        """Map the inline MADR ``superseded by <link>`` form to the split form.
+
+        MADR allows ``status: superseded by <link>``; the project convention is
+        bare ``superseded`` plus a separate ``superseded_by:`` field. Accept
+        both by collapsing the inline form to ``status: superseded`` and lifting
+        the embedded link into ``superseded_by`` when that field is absent.
+        """
+        if not isinstance(data, dict):
+            return data
+        status = data.get("status")
+        if isinstance(status, str):
+            stripped = status.strip().strip("{}")
+            if stripped.lower().startswith("superseded by"):
+                data = dict(data)
+                data["status"] = AdrStatus.SUPERSEDED.value
+                if not data.get("superseded_by"):
+                    link = stripped[len("superseded by") :].strip()
+                    if link:
+                        data["superseded_by"] = link
+        return data
+
+    @field_validator(*SUPERSESSION_FIELDS, mode="before")
+    @classmethod
+    def scalar_pointer_is_a_one_item_list(cls, v: object) -> object:
+        """Accept a single ADR pointer as a one-item list (MS-14-011).
+
+        Most retirements name one ADR, and the corpus was written with the
+        scalar form, so it stays valid; a successor that retires several ADRs
+        lists them.
+        """
+        if isinstance(v, str):
+            return [v]
+        return v
+
+    @field_validator("lint_suppress", mode="before")
+    @classmethod
+    def non_empty_list_if_present(cls, v: object) -> object:
+        """Reject a present-but-empty ``lint_suppress`` list."""
+        if v is not None and isinstance(v, list) and len(v) == 0:
+            raise ValueError("'lint_suppress' must be non-empty if present")
+        return v
+
+    @model_validator(mode="after")
+    def updated_not_before_created(self) -> AdrFrontmatter:
+        """Reject ``updated`` earlier than ``created`` (MS-14-008)."""
+        if self.updated < self.created:
+            raise ValueError(
+                f"'updated' ({self.updated}) is before 'created' "
+                f"({self.created})"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def superseded_by_required_when_retired(self) -> AdrFrontmatter:
+        """Require ``superseded_by`` when the ADR is retired (MS-14-004).
+
+        A ``superseded`` or ``deprecated`` ADR without a pointer to its
+        replacement is a dead end for the agent that lands on it.
+        """
+        if (
+            self.status in (AdrStatus.SUPERSEDED, AdrStatus.DEPRECATED)
+            and not self.superseded_by
+        ):
+            raise ValueError(
+                "'superseded_by' is required when status is "
+                f"'{self.status.value}'"
+            )
+        return self

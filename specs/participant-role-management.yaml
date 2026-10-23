@@ -1,0 +1,423 @@
+id: PRM
+title: Participant Role Management
+description: Defines the API for reading and mutating CVD roles on CaseParticipant, the one participant class shared by
+  the core domain and the wire layer (ADR-0099). Requires the role-management methods, prohibits direct attribute mutation after construction,
+  and mandates test coverage for each method.
+scope:
+- prototype
+- production
+tags:
+- protocol
+groups:
+- id: PRM-01
+  title: Role Read API
+  specs:
+  - id: PRM-01-001
+    priority: MUST
+    kind: protocol
+    statement: 'CaseParticipant MUST expose a read-only `roles` property that returns `list[CVDRole]`, providing a stable
+      public interface for iterating a participant''s current roles without directly accessing the `case_roles` field.'
+    rationale: 'A named property decouples callers from the internal storage field, enabling future changes to how roles are
+      stored without updating every call site.'
+    verification: >-
+      Inspection of `vultron/core/models/case_participant.py` confirms a `roles` property
+      returning `list[CVDRole]`; the architecture test in
+      `test/architecture/test_participant_case_roles.py` confirms no direct `case_roles`
+      reads appear outside the class.
+    tags:
+    - protocol
+    stories:
+    - story_2022_063
+  - id: PRM-01-002
+    priority: MUST
+    kind: protocol
+    statement: 'CaseParticipant MUST expose a `has_role(role: CVDRole) -> bool` method that returns True when the participant
+      holds the given role, False otherwise.'
+    rationale: 'Provides a clear, named predicate for role-presence checks rather than requiring callers to write `role in
+      participant.case_roles`.'
+    verification: >-
+      A unit test confirms that `has_role()` returns `True` when the role is in the
+      participant's role set and `False` when it is absent.
+    tags:
+    - protocol
+    stories:
+    - story_2022_063
+  - id: PRM-01-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: 'Core code in `vultron/core/` MUST use `participant.roles` (the property) or `participant.has_role(role)` for
+      role-presence checks and role iteration; direct reads of `participant.case_roles` MUST NOT appear in core code outside
+      of the `CaseParticipant` class itself.'
+    rationale: 'Encapsulating storage access in the class boundary allows the internal representation to change without cascading
+      updates across the core.'
+    tags:
+    - protocol
+    - tooling
+- id: PRM-02
+  title: Role Mutation API
+  specs:
+  - id: PRM-02-001
+    priority: MUST
+    kind: protocol
+    statement: 'CaseParticipant MUST expose an `add_role(role: CVDRole, raise_when_present: bool = False) -> None` method
+      that adds a role to the participant''s role set.'
+    rationale: 'A named method provides a single place to enforce invariants (e.g. deduplication, logging) whenever a role
+      is added.'
+    verification: >-
+      Inspection of `vultron/core/models/case_participant.py` confirms `add_role()` is defined
+      with the correct signature; a unit test confirms the role appears in
+      `participant.roles` after the call.
+    tags:
+    - protocol
+    stories:
+    - story_2022_063
+  - id: PRM-02-002
+    priority: MUST
+    kind: protocol
+    statement: '`add_role()` MUST be idempotent: calling it with a role that the participant already holds MUST NOT raise
+      an error unless `raise_when_present=True`; it SHOULD log an INFO-level message when the duplicate add is silently ignored.'
+    rationale: 'Idempotent add is safe for concurrent or repeated processing. Logging the skip makes duplicate adds visible
+      for debugging.'
+    verification: >-
+      A unit test confirms that calling `add_role()` twice with the same role raises no
+      exception on the second call and emits an INFO-level log message.
+    tags:
+    - protocol
+    stories:
+    - story_2022_013
+    - story_2022_063
+  - id: PRM-02-003
+    priority: MUST
+    kind: project
+    statement: '`add_role()` MUST raise `KeyError` when `raise_when_present=True` and the given role is already present in
+      the participant''s role set.'
+    rationale: 'Callers that require strict single-assignment semantics (e.g. role initialization guards) need a fail-fast
+      path.'
+    verification: >-
+      A unit test confirms that `add_role(role, raise_when_present=True)` raises
+      `KeyError` when the participant already holds that role.
+    tags:
+    - protocol
+  - id: PRM-02-004
+    priority: MUST
+    kind: protocol
+    statement: 'CaseParticipant MUST expose a `remove_role(role: CVDRole, raise_when_missing: bool = False) -> None` method
+      that removes a role from the participant''s role set.'
+    rationale: 'A named method provides a single place to enforce invariants whenever a role is removed.'
+    verification: >-
+      Inspection of `vultron/core/models/case_participant.py` confirms `remove_role()` is
+      defined with the correct signature; a unit test confirms the role is absent from
+      `participant.roles` after the call.
+    tags:
+    - protocol
+    stories:
+    - story_2022_063
+    - story_2022_066
+  - id: PRM-02-005
+    priority: MUST
+    kind: protocol
+    statement: '`remove_role()` MUST be idempotent: calling it with a role that the participant does not hold MUST NOT raise
+      an error unless `raise_when_missing=True`; it SHOULD log an INFO-level message when the missing remove is silently ignored.'
+    rationale: 'Idempotent remove is safe for repeated processing. Logging the skip makes spurious removes visible for debugging.'
+    verification: >-
+      A unit test confirms that calling `remove_role()` for an absent role raises no
+      exception and emits an INFO-level log message.
+    tags:
+    - protocol
+    stories:
+    - story_2022_063
+    - story_2022_066
+  - id: PRM-02-006
+    priority: MUST
+    kind: project
+    statement: '`remove_role()` MUST raise `KeyError` when `raise_when_missing=True` and the given role is not present in
+      the participant''s role set.'
+    rationale: 'Callers that rely on strict presence checks before removal need a fail-fast path.'
+    verification: >-
+      A unit test confirms that `remove_role(role, raise_when_missing=True)` raises
+      `KeyError` when the participant does not hold that role.
+    tags:
+    - protocol
+- id: PRM-03
+  title: Core Layer Rules
+  specs:
+  - id: PRM-03-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: 'Core code in `vultron/core/` MUST NOT mutate `case_roles` directly on a CaseParticipant instance after
+      construction (e.g. `participant.case_roles.append(...)` or `participant.case_roles = [...]` post-init). `add_role()`
+      and `remove_role()` MUST be used for all post-construction role changes.'
+    rationale: 'Direct mutation bypasses the class''s encapsulation and any future invariant checks added to the mutation
+      methods. Centralising mutations in named methods is the standard object-oriented pattern.'
+    tags:
+    - protocol
+    - tooling
+  - id: PRM-03-002
+    priority: MUST
+    kind: project
+    statement: 'Passing `case_roles=[...]` as a constructor argument when creating a CaseParticipant instance is permitted
+      and does not violate PRM-03-001; the prohibition applies only to post-construction attribute mutation.'
+    rationale: 'Constructor arguments are the canonical way to initialise an immutable value-object. This clarification prevents
+      over-application of the rule.'
+    verification: >-
+      A unit test confirms that `CaseParticipant(case_roles=[CVDRole.REPORTER])`
+      constructs successfully and `participant.roles` returns the initial role list.
+    tags:
+    - protocol
+  - id: PRM-03-003
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      `test/architecture/test_validate_assignment_ratchet.py` scans every core
+      module for a direct `participant_statuses` write — attribute assignment or
+      in-place list mutation — outside `vultron/core/models/case_participant.py`
+      and fails on any hit; `test/core/models/test_case_participant.py` covers
+      the canonical mutator accepting a core-shaped status and rejecting a
+      wire-shaped one.
+    statement: >-
+      Core code under `vultron/core/` MUST NOT mutate `participant_statuses`
+      directly on a CaseParticipant instance after construction (e.g.
+      `participant.participant_statuses.append(...)`). The canonical mutators on
+      `CaseParticipant` MUST be used. The mutator methods themselves, in
+      `vultron/core/models/case_participant.py`, are exempt.
+    rationale: >-
+      `ParticipantStatus` exists in two incompatible shapes (SDO-03-002,
+      ADR-0036). A wire-shaped status appended to a core-typed list reads as
+      absent, so readers substitute an initial state — the #2232 / #2264 silent
+      reset. `validate_assignment` cannot close this door because `append` is not
+      an attribute assignment. Extends PRM-03-001 to `participant_statuses`.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-21-001
+    adr:
+    - ADR-0064
+    tags:
+    - protocol
+- id: PRM-04
+  title: Wire Layer Interface Parity
+  specs:
+  - id: PRM-04-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: 'The wire-layer participant `as_CaseParticipant` (`vultron/wire/as2/vocab/objects/case_participant.py`) MUST
+      expose `add_role()`, `remove_role()`, and `has_role()` methods with behavioral contracts equivalent to those on the
+      core `CaseParticipant`: idempotent add/remove with optional raise-on-duplicate/missing flags, and a boolean presence
+      check. Under ARCH-25-003 the two names are one class, which satisfies this by identity.'
+    rationale: 'Callers that work with either domain or wire participant objects should not need to know which class they
+      hold in order to manage roles.'
+    tags:
+    - wire-format
+  - id: PRM-04-002
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      Wire-layer `model_validator` methods in `CaseParticipant` subclasses (e.g.
+      `ReporterParticipant`, `VendorParticipant`) that initialise `case_roles` SHOULD
+      call `add_role()` rather than assigning to `self.case_roles` directly, so that
+      role-management logic is centralised.
+    rationale: 'Using `add_role()` in validators ensures any future invariant checks or logging added to `add_role()` apply
+      uniformly during construction.'
+    tags:
+    - wire-format
+- id: PRM-05
+  title: Testing Requirements
+  specs:
+  - id: PRM-05-001
+    priority: MUST
+    kind: project
+    statement: 'Unit tests for `CaseParticipant.add_role()` MUST cover: (a) adding a new role, (b) idempotent re-add (no
+      exception, INFO log), and (c) `raise_when_present=True` raising `KeyError`.'
+    rationale: 'Each distinct branch of the method must be independently verified.'
+    verification: >-
+      Inspection of `test/core/` confirms test cases covering add-new-role, idempotent
+      re-add with INFO-log assertion, and `raise_when_present=True` raising `KeyError`.
+    tags:
+    - testing
+  - id: PRM-05-002
+    priority: MUST
+    kind: project
+    statement: 'Unit tests for `CaseParticipant.remove_role()` MUST cover: (a) removing a present role, (b) idempotent
+      remove-when-missing (no exception, INFO log), and (c) `raise_when_missing=True` raising `KeyError`.'
+    rationale: 'Each distinct branch of the method must be independently verified.'
+    verification: >-
+      Inspection of `test/core/` confirms test cases covering remove-present-role,
+      idempotent missing-remove with INFO-log assertion, and `raise_when_missing=True`
+      raising `KeyError`.
+    tags:
+    - testing
+  - id: PRM-05-003
+    priority: MUST
+    kind: project
+    statement: 'Unit tests for `CaseParticipant.has_role()` MUST cover both the case where the role is present (returns
+      True) and the case where it is absent (returns False).'
+    rationale: 'Both branches of the boolean predicate must be verified.'
+    verification: >-
+      Inspection of `test/core/` confirms two test cases for `has_role()`: one where the
+      role is present (returns `True`) and one where it is absent (returns `False`).
+    tags:
+    - testing
+  - id: PRM-05-004
+    priority: SHOULD
+    kind: project
+    statement: 'An architecture test SHOULD enforce that no Python source file under `vultron/core/` (outside `vultron/core/models/case_participant.py`)
+      contains a direct `case_roles` mutation pattern (i.e. `\.case_roles\s*=` or `\.case_roles\.append`). The test MUST complete
+      within one second.'
+    rationale: 'A machine-checkable rule prevents regression; the one-second budget ensures it does not slow the test suite.
+      Using a targeted file-content scan (e.g. ripgrep or stdlib pathlib glob + str search) on a small, bounded directory
+      satisfies the budget constraint.'
+    tags:
+    - testing
+    - tooling
+- id: PRM-06
+  title: Assertion Authority and On-Behalf Exceptions
+  specs:
+  - id: PRM-06-001
+    priority: MUST
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      Participant status is self-declaratory by default: each participant
+      asserts its own RM and VFD state without external approval.  This is why
+      they are *participant* status items (ADR-0121).  The one write about a
+      participant that the participant does not make is its birth: the
+      CASE_MANAGER creates the record at RM ``RECEIVED`` (and VF ``vf`` for a
+      vendor) when it sends the stub Invite (CM-11-006, ADR-0114).
+    rationale: >-
+      The self-declaratory model keeps state authority with the role holder.
+      Deviations must be narrow, externally evidenced, and explicitly named
+      (ADR-0121).
+    adr:
+    - ADR-0121
+    tags:
+    - protocol
+    lint_suppress:
+    - missing_story_reference
+  - id: PRM-06-002
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A participant holding the VENDOR role MUST NOT self-report a vendor-fix state of vf
+      (vendor unaware). A vendor's valid self-reports are Vf and VF. The only vf a vendor
+      participant carries is the one the CASE_MANAGER writes when the stub Invite creates
+      its record (CM-11-006); any reply to that Invite sets V (CM-11-009) (ADR-0121,
+      ADR-0114).
+    rationale: >-
+      A vendor that has answered its Invite, or otherwise acknowledged a message
+      about the case, is aware of it.  Allowing a vendor to self-report the
+      vendor-unaware state would create an impossible protocol record.
+    verification: >-
+      ``vendor_vf_invariant_ok`` in ``vultron/core/predicates/participants.py``
+      enforces this predicate.  It is called once, from ``_vf_violations`` inside
+      ``participant_transition_violations`` in
+      ``vultron/core/states/participant_transitions.py``, which both
+      ``ValidateTriggerTransitionsNode`` (trigger path) and
+      ``CreateParticipantStatusNode`` (BT action path) go through — BTND-10-002
+      forbids either node from calling the predicate directly, and
+      ``test/architecture/test_participant_status_validation.py`` ratchets that.
+      The CASE_MANAGER's birth write at the stub Invite is the one write that
+      may carry ``vf`` for a vendor.
+    adr:
+    - ADR-0121
+    - ADR-0114
+    tags:
+    - protocol
+  - id: PRM-06-003
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A Case Manager or Case Owner MAY assert ``v→V`` (``CS_vf.Vf``) on behalf
+      of a Vendor-role participant when the notification or invite is evidenced
+      (any vendor acknowledgement — including ``Read(Invite(stub))`` —
+      suffices).  The target MUST already be a participant in the case —
+      typically an inert invitee that has not yet replied — and the write MUST
+      NOT change its RM state (ADR-0121).
+    rationale: >-
+      Closes the vendor-awareness gap (CONCERN-2087): the case can record that
+      an invited vendor is aware even if it never answers.  The stub Invite
+      creates the record (ADR-0114), so the assertion has a target without
+      minting a participant.
+    verification: >-
+      ``SvcAddOnBehalfStatusUseCase`` implements this path; the asserting
+      actor's CASE_MANAGER or CASE_OWNER role is verified by
+      ``CheckOnBehalfAuthorizedNode``, and the target's existing Vendor-role
+      participant by ``CheckOnBehalfTargetIsParticipantNode``, before any
+      write occurs.
+    adr:
+    - ADR-0121
+    tags:
+    - protocol
+    stories:
+    - story_2022_061
+  - id: PRM-06-004
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A Case Manager or Case Owner MAY assert ``d→D`` (``CS_d.D``) on behalf
+      of a Deployer-role participant under the same externally-evidenced
+      pattern (a MAY, expected to be rare — for example, a deployer that joined
+      and has since gone quiet; deployment is normally self-reported by the
+      Deployer).  The target MUST already be a participant in the case, and the
+      write remains subject to the cross-machine entailments, so it succeeds
+      only for a deployer whose RM state is consistent with deployment
+      (ADR-0121).
+    rationale: >-
+      Exceptional circumstances require a narrow exception path; the on-behalf
+      restriction keeps it from becoming a general proxy capability.  A deployer
+      that never joined is not in the case, so the case has nothing to record
+      about it (CONCERN-4006).
+    adr:
+    - ADR-0121
+    tags:
+    - protocol
+    stories:
+    - story_2022_061
+  - id: PRM-06-006
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An on-behalf status assertion whose target is not a participant in the
+      case MUST be refused before any write, and MUST NOT create a participant.
+      A status update is never a way into a case; joining is the Invite flow
+      (CM-11, ADR-0114).
+    rationale: >-
+      The on-behalf tree used to mint a participant for an absent target and
+      save it before the status write; for ``d→D`` the RM↔D entailment then
+      refused the write, leaving a stray participant in the case
+      (CONCERN-4006).
+    verification: >-
+      A test asserts an on-behalf assertion for an actor that is not a
+      participant is refused and leaves the case's roster unchanged.
+      ``CheckOnBehalfTargetIsParticipantNode`` enforces it as a read-only
+      guard ahead of the only write in the on-behalf tree.
+    adr:
+    - ADR-0121
+    tags:
+    - protocol
+    stories:
+    - story_2022_062
+  - id: PRM-06-005
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      The f→F transition (fix ready, VF) MUST NOT be asserted by any actor other than the
+      Vendor-role holder. Fix readiness is not externally knowable; no on-behalf assertion
+      is ever permitted for this transition (ADR-0121).
+    rationale: >-
+      Allowing a non-vendor to assert fix-readiness would let the CASE_MANAGER
+      fabricate protocol-visible fix state, undermining the meaning of the F
+      event.
+    verification: >-
+      ``AddOnBehalfStatusTriggerRequest.vf_state_not_fix_ready`` rejects
+      ``CS_vf.VF`` at the request boundary before any BT runs.  On the self-report
+      path the VENDOR-only rule lives in ``_vf_violations`` inside
+      ``participant_transition_violations``
+      (``vultron/core/states/participant_transitions.py``), which both
+      ``CreateParticipantStatusNode`` and ``ValidateTriggerTransitionsNode``
+      call (BTND-10-002).
+    adr:
+    - ADR-0121
+    tags:
+    - protocol

@@ -1,0 +1,367 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Tests for :class:`~vultron.adapters.driven.wire_render.As2WireRenderAdapter`.
+
+Covers:
+- rendering of the core types, each as its own ``by_alias`` dump (ADR-0099)
+- VultronValidationError raised for anything that is not a ``CoreObject``
+  (ARCH-20-003)
+- AC-6: test file does NOT import from vultron.core (adapter import only)
+
+Per ``specs/architecture.yaml`` ARCH-20-001 through ARCH-20-004.
+"""
+
+from datetime import UTC, timedelta
+
+import pytest
+
+from test.support.case_owner import CASE_OWNER_ID
+from vultron.adapters.driven.wire_render import As2WireRenderAdapter
+from vultron.core.models.actor import VultronPerson, VultronService
+from vultron.core.models.base import VULTRON_CONTEXT_URI
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_reference import CaseReference
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_policy import EmbargoPolicy
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.vulnerability_record import VulnerabilityRecord
+from vultron.errors import VultronValidationError
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def adapter():
+    return As2WireRenderAdapter()
+
+
+# ---------------------------------------------------------------------------
+# Helper — assert a render result looks like a wire object
+# ---------------------------------------------------------------------------
+
+
+def _assert_wire_dict(result: dict, expected_type: str) -> None:
+    assert isinstance(result, dict), f"Expected dict, got {type(result)}"
+    assert result.get("type") == expected_type, (
+        f"Expected type={expected_type!r}, got {result.get('type')!r}"
+    )
+    # camelCase key present (not snake_case)
+    # The 'id' field is always emitted by as_VultronObject
+    assert "id" in result, f"Missing 'id' key in wire dict for {expected_type}"
+    # AC-5 / CLP-07-011: output must be receiver-reconstitutable
+    try:
+        wire_cls = find_in_vocabulary(expected_type)
+    except KeyError:
+        wire_cls = None
+    assert wire_cls is not None, (
+        f"No vocabulary entry for {expected_type!r} — cannot verify reconstitutability"
+    )
+    wire_cls.model_validate(result)
+
+
+# ---------------------------------------------------------------------------
+# AC-2: Round-trip for every core type that HAS a wire counterpart (9 types)
+# ---------------------------------------------------------------------------
+
+
+def test_render_vulnerability_case(adapter):
+    obj = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    result = adapter.render(obj)
+    _assert_wire_dict(result, "VulnerabilityCase")
+
+
+def test_render_vulnerability_report(adapter):
+    obj = VulnerabilityReport()
+    result = adapter.render(obj)
+    _assert_wire_dict(result, "VulnerabilityReport")
+
+
+def test_render_case_participant(adapter):
+    obj = CaseParticipant()
+    result = adapter.render(obj)
+    _assert_wire_dict(result, "CaseParticipant")
+
+
+def test_render_case_reference(adapter):
+    obj = CaseReference(url="https://example.org/ref")
+    result = adapter.render(obj)
+    _assert_wire_dict(result, "CaseReference")
+
+
+def test_render_embargo_policy(adapter):
+    obj = EmbargoPolicy(
+        actor_id="urn:uuid:actor",
+        inbox="https://example.org/inbox",
+        preferred_duration=timedelta(days=90),
+    )
+    result = adapter.render(obj)
+    _assert_wire_dict(result, "EmbargoPolicy")
+
+
+def test_render_vulnerability_record(adapter):
+    obj = VulnerabilityRecord(name="CVE-2024-0001")
+    result = adapter.render(obj)
+    _assert_wire_dict(result, "VulnerabilityRecord")
+
+
+def test_render_case_status(adapter):
+    obj = CaseStatus(context="urn:uuid:case")
+    result = adapter.render(obj)
+    _assert_wire_dict(result, "CaseStatus")
+
+
+def test_render_participant_status(adapter):
+    obj = ParticipantStatus(context="urn:uuid:case")
+    result = adapter.render(obj)
+    _assert_wire_dict(result, "ParticipantStatus")
+
+
+def test_render_case_ledger_entry(adapter):
+    obj = CaseLedgerEntry(
+        case_id="urn:uuid:case",
+        log_object_id="urn:uuid:obj",
+        semantic_type="V",
+    )
+    result = adapter.render(obj)
+    _assert_wire_dict(result, "CaseLedgerEntry")
+
+
+# ---------------------------------------------------------------------------
+# AC-2: Round-trip output uses by_alias=True, exclude_none=True
+# ---------------------------------------------------------------------------
+
+
+def test_render_returns_camel_case_keys(adapter):
+    """Output dict uses camelCase field names (by_alias=True)."""
+    obj = CaseLedgerEntry(
+        case_id="urn:uuid:case",
+        log_object_id="urn:uuid:obj",
+        semantic_type="V",
+    )
+    result = adapter.render(obj)
+    # Wire alias for 'case_id' is 'caseId' / 'context' depending on wire model;
+    # at minimum no snake_case keys that are known aliases should be present
+    assert "case_id" not in result, (
+        "Expected camelCase output (by_alias=True) but found snake_case key 'case_id'"
+    )
+
+
+def test_render_excludes_none_fields(adapter):
+    """Output dict omits None-valued fields (exclude_none=True)."""
+    obj = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
+    result = adapter.render(obj)
+    for key, val in result.items():
+        assert val is not None, (
+            f"Field {key!r} should be excluded (exclude_none=True) but has value None"
+        )
+
+
+def test_render_same_object_twice_across_clock_tick_is_equal(
+    adapter, monkeypatch
+):
+    """Rendering carries the object's time; it never mints a new one.
+
+    Regression pin for ISSUE-2553: the wire classes default ``published`` and
+    ``updated`` to ``now_utc``, so a render that let those defaults fire gave
+    the same object a new time on each render, and a snapshot of it compared
+    unequal whenever a second boundary fell between two renders.
+    """
+    from datetime import datetime
+
+    from test.support.clock import SteppingClock
+    from vultron.core.models import _helpers
+
+    obj = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/c1"
+    )
+    obj.case_statuses = [CaseStatus(context=obj.id_)]
+    monkeypatch.setattr(_helpers, "datetime", SteppingClock(datetime.now(UTC)))
+
+    assert adapter.render(obj) == adapter.render(obj)
+
+
+# ---------------------------------------------------------------------------
+# #3490: a core object renders itself; a non-CoreObject is the failure case
+# ---------------------------------------------------------------------------
+
+
+def test_render_is_the_core_objects_own_alias_dump(adapter):
+    """AC-1/AC-4: no wire counterpart is resolved, and none is needed.
+
+    Every ``CORE_VOCABULARY`` entry renders as exactly its own
+    ``model_dump(by_alias=True, exclude_none=True, mode="json",
+    serialize_as_any=True)`` — including the ones ``WIRE_TYPE_MAP`` has no
+    entry for, which the old port refused.
+    """
+    from test.support.core_vocab import build_core_vocab
+
+    built, unconstructible = build_core_vocab("render-self")
+    assert not unconstructible
+    for name, obj in built:
+        assert adapter.render(obj) == obj.model_dump(
+            by_alias=True,
+            exclude_none=True,
+            mode="json",
+            serialize_as_any=True,
+        ), name
+
+
+def test_render_serialises_nested_values_by_their_runtime_type(adapter):
+    """A nested value that is not its field's declared type still renders.
+
+    A received activity's ``object_`` can be a wire actor whose ``inbox`` holds
+    the IRI string instead of the declared collection.  Serialised by declared
+    type that is a Pydantic serializer warning — an error under the suite's
+    warning filter, a degraded snapshot in production — so the port serialises
+    by runtime type, as every other AS2 path does (``serialize_as_any``).
+    """
+    import warnings
+
+    from vultron.core.models.activity import VultronActivity
+    from vultron.wire.as2.vocab.base.objects.actors import as_Organization
+
+    inbox = "https://example.org/actors/coordinator/inbox"
+    org = as_Organization(id_="https://example.org/actors/coordinator")
+    object.__setattr__(org, "inbox", inbox)
+    activity = VultronActivity(
+        id_="https://example.org/activities/accept-1",
+        type_="Accept",
+        actor="https://example.org/actors/case-actor",
+        object_=org,
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        rendered = adapter.render(activity)
+
+    assert rendered["object"]["inbox"] == inbox
+
+
+def test_render_adapter_does_not_resolve_a_wire_counterpart():
+    """AC-1: the adapter names no type registry, lookup, or ``from_core``."""
+    import vultron.adapters.driven.wire_render.as2 as module
+    from test.support.source_names import (
+        REGISTRY_LOOKUP_NAMES,
+        referenced_names,
+    )
+
+    assert not referenced_names(module) & (
+        REGISTRY_LOOKUP_NAMES | {"from_core"}
+    )
+
+
+def test_context_is_supplied_once_and_not_as_a_core_field(adapter):
+    """AC-5: ``@context`` appears exactly once, from the AS2 serialization.
+
+    ``CoreObject.context_`` stays ``exclude=True``, so the key cannot also be
+    emitted under the field's own alias, and the adapter adds nothing on top
+    of the object's by-alias dump.
+    """
+    from vultron.core.models.base import CoreObject
+
+    assert CoreObject.model_fields["context_"].exclude is True
+    obj = CaseParticipant(
+        attributed_to="urn:uuid:actor", context="urn:uuid:case"
+    )
+    result = adapter.render(obj)
+    assert result["@context"] == VULTRON_CONTEXT_URI
+    assert "context_" not in result
+    # Nested promoted objects carry their own, as VM-10-001 requires.
+    statuses = result["participantStatuses"]
+    assert statuses, "fixture must exercise a nested object"
+    assert all(s["@context"] == VULTRON_CONTEXT_URI for s in statuses)
+    assert obj.model_dump(mode="json").get("@context") is None
+
+
+def test_render_succeeds_for_case_actor(adapter):
+    """CaseActor IS the wire counterpart after ARCH-25-003 (ADR-0099, #3487)."""
+    obj = VultronService()
+    result = adapter.render(obj)
+    assert isinstance(result, dict)
+    assert result.get("type") == "Service"
+    assert result.get("@context") == VULTRON_CONTEXT_URI
+    # The internal outbox list is replaced by the AS2 collection URIs.
+    assert result.get("inbox") == f"{obj.id_}/inbox"
+    assert result.get("outbox") == f"{obj.id_}/outbox"
+
+
+def test_render_succeeds_for_vultron_person(adapter):
+    """VultronPerson IS the wire counterpart after ARCH-25-003 (ADR-0099, #3487)."""
+    obj = VultronPerson()
+    result = adapter.render(obj)
+    assert isinstance(result, dict)
+    assert result.get("type") == "Person"
+
+
+def test_render_raises_for_unknown_type(adapter):
+    """Arbitrary non-vocabulary object raises VultronValidationError."""
+
+    class _NotACoreType:
+        pass
+
+    with pytest.raises(VultronValidationError):
+        adapter.render(_NotACoreType())
+
+
+def test_render_raises_for_a_core_model_that_is_not_a_core_object(adapter):
+    """A Pydantic core model with no AS2 spellings must be refused, not dumped.
+
+    ARCH-20-003 (MUST) requires the render port to fail closed. The fallback for
+    promoted classes was gated on ``isinstance(obj, BaseModel)``, which asks "is
+    this a Pydantic model" rather than "does this serialize to valid AS2" — and
+    every core class passes it.
+
+    ``VultronOfferRecord`` extends ``CoreRecord``, not ``CoreObject``,
+    so it inherits neither the ``alias_generator`` nor the ``@context``
+    serializer. Under the old predicate it rendered as
+    ``offer_id``/``offer_actor_id``/``report_id`` with no ``@context``, where
+    before ADR-0099 it raised. Those keys are read back through ``wire_key`` as
+    ``offerId``/``offerActorId``, so a record leaking into a ledger snapshot
+    produced keys no reader finds — silent, and in a tamper-evident ledger.
+
+    Gating on ``CoreObject`` makes the guard structural: that is the class the
+    generator and the ``@context`` serializer live on, and
+    ``test_promoted_core_classes_are_exactly_as2_representable`` holds every
+    subclass of it to a full set of AS2 spellings.
+    """
+    from vultron.core.models.offer_record import VultronOfferRecord
+
+    record = VultronOfferRecord(
+        offer_id="urn:uuid:offer-1",
+        offer_actor_id="urn:uuid:actor-1",
+        report_id="urn:uuid:report-1",
+    )
+
+    with pytest.raises(VultronValidationError, match="ARCH-20-003"):
+        adapter.render(record)
+
+
+# ---------------------------------------------------------------------------
+# AC-6: Protocol structural compliance — adapter satisfies WireRenderPort
+# ---------------------------------------------------------------------------
+
+
+def test_adapter_satisfies_wire_render_port():
+    """As2WireRenderAdapter is structurally compatible with WireRenderPort."""
+    from vultron.core.ports.wire_render import WireRenderPort
+
+    assert isinstance(As2WireRenderAdapter(), WireRenderPort)

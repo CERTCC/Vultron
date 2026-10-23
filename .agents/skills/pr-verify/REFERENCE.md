@@ -1,0 +1,103 @@
+# PR Verify — Reference
+
+---
+
+## Verify Comment Format
+
+```markdown
+## PR Verify: #<number> — <title>
+
+**Overall verdict**: ✅ READY-TO-MERGE / ❌ GAPS-FOUND / 🔀 CONFLICTS-FOUND / ⏳ PENDING-CI / ⏳ PENDING-MERGE-CHECK
+**CI status**: ✅ passing / ❌ failing / ⏳ pending
+**Merge state**: ✅ MERGEABLE (CLEAN) / 🔀 CONFLICTING (DIRTY) / ⚠️ BEHIND / 📝 DRAFT / ⏳ UNKNOWN — base `<base_ref>`
+**Base sync in execute**: ✅ merged @ `def5678` (conflicting; <N> conflicts resolved) / ✅ updated on GitHub @ `def5678` (behind) / ✅ deferred — overlap left to the merger's update-branch / ✅ not needed — conflict-free, GitHub does not report `BEHIND` (being behind `main` is fine) / ❌ required but not performed
+**Integrity check**: ✅ all <N> findings accounted for / ❌ INCOMPLETE-EXECUTE (<M> of <N> results found)
+**Docs line**: ✅ current — `<Docs: line>` / ❌ STALE-DOCS-LINE — <which commit or page it misses>
+
+---
+
+### 🔀 Merge Conflicts — Blocking
+
+This PR conflicts with `<base_ref>` and cannot be merged. Conflicting paths:
+
+- `vultron/core/models/case/case.py`
+- `uv.lock`
+
+Re-run `/pr-execute` (Phase 5 syncs and resolves), or resolve manually with
+`bash .agents/skills/shared/sync-with-main.sh <base_ref>`, then
+`git add <paths> && git commit --no-edit && git push -u origin HEAD`.
+
+*Omit this section when merge state is clear.*
+
+---
+
+### Finding Verdicts
+
+| Finding | Severity | Outcome | Verdict |
+|---|---|---|---|
+| phase5-missing-nonemptystring-0 | ❌ FAIL | fixed @ `abc1234` | ✅ CONFIRMED |
+| phase8-unused-import-0 | ⚠️ IMPROVE | fixed @ `abc1234` | ✅ CONFIRMED |
+| phase9-distant-refactor-0 | 🎫 NEW-ISSUE | filed as #999 | 📋 NOTED |
+| phase11-preexisting-test-fail-0 | ❌ FAIL | skipped — pre-existing Bug #1001 | 📋 NOTED |
+
+---
+
+### Deferred Items — Your Decision Needed
+
+The following findings were filed as issues during execute but not folded into
+this PR. Please decide whether to fold them in before merge:
+
+| Finding | Issue | Recommendation |
+|---|---|---|
+| phase8-extract-helper-0 | #1000 | Leave for issue — low effort ratio |
+
+---
+
+*Artifacts cleaned up.* / *Artifacts preserved — re-run `/pr-execute` to address gaps.*
+```
+
+### Verdict Emoji Key
+
+| Symbol | Meaning |
+|---|---|
+| ✅ CONFIRMED | Fix present at HEAD; commit ref valid |
+| ❌ UNRESOLVED | Commit ref found but HEAD does not show the fix |
+| ❌ MISSING-COMMIT | Commit ref not found on branch |
+| 📋 NOTED | skipped/deferred-ask/halted — no code check; issue confirmed open |
+| ⚠️ INCOMPLETE-EXECUTE | Finding count mismatch; execute likely interrupted |
+| ⚠️ UNVERIFIED-CI-FAILING | CI still failing after execute's push; fix may be correct but cannot be confirmed |
+| 🔀 MERGE-CONFLICT | `mergeable: CONFLICTING`, `mergeStateStatus: DIRTY`, or conflict markers found at HEAD |
+| ⏳ MERGE-STATE-UNKNOWN | GitHub had not computed mergeability after polling |
+| ⚠️ BRANCH-BEHIND | `mergeStateStatus: BEHIND` — base advanced and a ruleset requires up-to-date branches; re-run `/pr-execute`, which clears it with `gh pr update-branch` (PAD-18-004) |
+| ⚠️ UNSYNCED-EXECUTE | `execute.merge_state` missing, `conflict_free` not `true`, or `merge_required: true` with no `sync_commit_ref` — execute never established the PR was conflict-free. Not raised for a branch that is merely behind its base (PAD-18-005) |
+| 📝 PR-IS-DRAFT | PR is still a draft (check for a lingering `needs-rebase` label) |
+| 📄 STALE-DOCS-LINE | PR body's `Docs:` line is missing, still the placeholder, does not cover a fix commit that changed described behavior, or names a page the diff does not change (Phase 3b) |
+| 📑 MISSING-SPEC-AMENDED | `spec-amendments.sh` lists an amended `statement:`/`priority:` and the PR body lacks a `## Spec amended` section naming it, or that section still holds a `<TODO>` (Phase 3c) |
+| 🔒 BLOCKED-BY-POLICY | `mergeStateStatus: BLOCKED` — missing required review/check; reported, not verdict-blocking |
+
+### Overall Verdict Rules
+
+Evaluated top to bottom; first match wins.
+
+| # | Verdict | Condition |
+|---|---|---|
+| 1 | `CONFLICTS-FOUND` | MERGE-CONFLICT flagged |
+| 2 | `GAPS-FOUND` | Any FAIL finding UNRESOLVED or MISSING-COMMIT; or INCOMPLETE-EXECUTE; or any UNVERIFIED-CI-FAILING; or STALE-DOCS-LINE; or MISSING-SPEC-AMENDED |
+| 3 | `PENDING-MERGE-CHECK` | MERGE-STATE-UNKNOWN flagged |
+| 4 | `PENDING-CI` | All findings CONFIRMED but CI not yet complete (still running/pending) |
+| 5 | `READY-TO-MERGE` | All FAIL findings CONFIRMED; CI green; live `mergeable == MERGEABLE`; no INCOMPLETE-EXECUTE, UNVERIFIED-CI-FAILING, STALE-DOCS-LINE, MISSING-SPEC-AMENDED, UNSYNCED-EXECUTE, BRANCH-BEHIND, or PR-IS-DRAFT |
+| 6 | `GAPS-FOUND` | Anything else — name the blocking flag in the comment |
+
+Conflicts outrank finding gaps (row 1 above row 2) because they are the coarser
+failure: nothing about the PR can land until the branch merges, so that is the
+headline the user needs.
+
+### Retry Guidance by Verdict
+
+| Verdict | Next step | Artifacts |
+|---|---|---|
+| `READY-TO-MERGE` | Merge | Cleaned up |
+| `PENDING-CI` | Re-run `/pr-verify` after CI finishes | Preserved |
+| `PENDING-MERGE-CHECK` | Re-run `/pr-verify` in a minute — GitHub is still computing | Preserved |
+| `CONFLICTS-FOUND` | Delete the execute artifact, re-run `/pr-execute` (Phase 5 resolves) | Preserved |
+| `GAPS-FOUND` | Fix manually, or delete the execute artifact and re-run `/pr-execute` | Preserved |

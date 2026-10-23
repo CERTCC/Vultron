@@ -1,0 +1,232 @@
+id: CISEC
+title: CI Security
+description: Requirements for securing CI/CD workflows and GitHub Actions usage in the Vultron project.
+scope:
+
+- prototype
+- production
+tags:
+- ci-cd
+- security
+groups:
+- id: CISEC-01
+  title: Action Version Pinning
+  specs:
+  - id: CISEC-01-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: All `uses:` references to third-party or external actions in `.github/workflows/*.yml` MUST be pinned to a
+      specific commit SHA rather than a version tag or branch name. Local path references to actions within this repository
+      (e.g. `./.github/actions/<name>`) are exempt — they are already pinned to the commit being checked out and have no
+      separate tag/release lifecycle to pin against
+  - id: CISEC-01-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Each SHA-pinned `uses:` reference MUST carry an inline comment identifying the corresponding human-readable
+      version tag (e.g., `# v4.1.0`) to aid maintainability
+  - id: CISEC-01-003
+    priority: SHOULD
+    kind: process
+    statement: A CI verification test SHOULD confirm that all `uses:` lines in `.github/workflows/*.yml` reference a SHA hash
+      rather than a mutable version tag or branch name, and that each SHA line carries the human-readable version comment
+      required by CISEC-01-002
+- id: CISEC-02
+  title: Secrets Management
+  specs:
+  - id: CISEC-02-001
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: Workflow secrets and tokens MUST be stored in GitHub Secrets and MUST NOT appear in repository files
+  - id: CISEC-02-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: The minimal set of permissions required MUST be declared explicitly via `permissions:` at the job or workflow
+      level
+- id: CISEC-03
+  title: Artifact Integrity
+  specs:
+  - id: CISEC-03-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: CI workflows that download third-party artifacts or tools MUST verify signatures or checksums before using
+      them
+    rationale: Prevents supply-chain attacks via compromised artifacts
+- id: CISEC-04
+  title: Maintenance
+  specs:
+  - id: CISEC-04-001
+    priority: SHOULD
+    kind: process
+    statement: SHA pins SHOULD be reviewed and updated on a documented periodic cadence, at minimum when a security advisory
+      is issued for the pinned action or when a new minor version is released
+  - id: CISEC-04-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: When adding a new workflow step or action, the SHA pin and version annotation MUST be included before the step
+      is merged to `main`
+- id: CISEC-05
+  title: CI Failure Notification
+  specs:
+  - id: CISEC-05-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Every workflow triggered by push to `main` or by a `schedule` event MUST
+      include a step conditioned on failure that files or updates a GitHub Issue.
+      The step MUST use the shared `.github/actions/notify-failure` composite
+      action. The step MUST fire only on a genuine job `failure` and MUST NOT
+      fire on cancellation alone (see CISEC-05-006).
+    rationale: >-
+      Without structured failure notification, a broken `main` or a failed
+      scheduled job goes undetected until a developer manually audits the Actions
+      tab. Structured alerting ensures failures are visible in the issue tracker
+      where the team already triages work. Derived from ADR-0055
+      (docs/adr/0055-ci-failure-alerting-via-github-issues.md).
+  - id: CISEC-05-002
+    priority: MUST
+    kind: process
+    statement: >-
+      Every qualifying workflow (per CISEC-05-001) MUST also include a separate
+      step conditioned on success that closes any open failure issue for that
+      workflow, providing recovery visibility. The close step MUST NOT run on a
+      cancelled (concurrency-superseded) run: a step keyed on the `success()`
+      status function already satisfies this, and a step keyed on the
+      `needs.*.result` aggregate MUST require the absence of `cancelled`
+      (`!contains(needs.*.result, 'cancelled')`).
+    rationale: >-
+      A failure issue that stays open after the workflow recovers is misleading.
+      Two dedicated steps (one on failure, one on success) keep each step
+      single-purpose and avoid embedding workflow-status logic inside the
+      composite action itself. A superseded run must not declare recovery: an
+      aggregate with no `failure` but a `cancelled` result proves nothing about
+      the commit, because the cancelled job might have failed had it run to
+      completion. This is the mirror image of CISEC-05-006, where the notify
+      step drops the same exclusion because a genuine `failure` beside a
+      `cancelled` sibling is still genuine.
+    verification: >-
+      `test_close_step_does_not_close_on_cancellation` in
+      `test/ci/test_workflow_failure_notification.py` asserts every
+      aggregate-keyed close step in a qualifying workflow requires the absence
+      of `cancelled`.
+  - id: CISEC-05-003
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Each failure notification issue MUST be tagged with the `ci:main-failure`
+      label and a workflow-specific label (e.g., `ci:workflow-python-app`). The
+      combination of both labels MUST uniquely identify the open failure issue
+      for a specific workflow, enabling the composite action to find and update
+      rather than duplicate. Within a workflow, exactly one job MUST run the
+      notify step and the close step for its workflow-specific label; when
+      more than one job can run in the same workflow run, that job MUST be a
+      final job that `needs:` every other job that can run in it and keys on
+      the `needs.*.result` aggregate (CISEC-05-002, CISEC-05-006).
+    rationale: >-
+      The close step closes every open issue carrying both labels. When several
+      jobs each run a notify/close pair under the same label, a job that passes
+      closes the issue a sibling job just filed, and whichever job finishes last
+      decides whether a red `main` stays reported (#4229).
+  - id: CISEC-05-004
+    priority: SHOULD
+    kind: process
+    statement: A CI verification test SHOULD confirm that every qualifying workflow (push to `main` or `schedule` trigger)
+      includes the `.github/actions/notify-failure` composite action step.
+  - id: CISEC-05-005
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A workflow triggered on the `issues: labeled` event SHOULD enforce that the
+      `ci:main-failure` label is bot-managed: if `github.actor` is not
+      `github-actions[bot]`, the label MUST be removed immediately. This prevents
+      label spoofing that could suppress failure notification or create false alerts.
+    rationale: >-
+      The `ci:main-failure` label is the deduplication key used by the composite
+      action to find and update an existing failure issue rather than creating a
+      new one. If a human or external actor applies the label manually, the signal
+      is corrupted — the action may comment on an unrelated issue or fail to file
+      a new one. Bot-only enforcement keeps the alerting signal reliable.
+  - id: CISEC-05-006
+    priority: MUST
+    kind: process
+    statement: >-
+      The failure-conditioned notify step (CISEC-05-001) MUST NOT file a failure
+      issue on cancellation alone, and MUST file when any job in the run
+      genuinely failed, even if a sibling job in the same run was cancelled. A
+      step keyed on the GitHub Actions `failure()` status function already
+      satisfies both, because `failure()` is false on cancellation. A step keyed
+      on the `needs.*.result` aggregate MUST key on
+      `contains(needs.*.result, 'failure')` alone: it MUST NOT file on
+      cancellation directly (e.g. via `|| contains(needs.*.result, 'cancelled')`)
+      and MUST NOT require the absence of `cancelled` (e.g. via
+      `&& !contains(needs.*.result, 'cancelled')`). Instead, every job that
+      consumes another job's artifact MUST be skipped when its producer was
+      cancelled (DEMOCI-04-007), so that a `failure` in the aggregate is always
+      genuine.
+    rationale: >-
+      A push-to-`main` run cancelled by the concurrency group (superseded by a
+      newer merge) is not an actual CI failure — a newer run is authoritative and
+      will file or close as appropriate. Two ways a cancelled run otherwise
+      registers as a failure: (1) a guard that files on cancellation directly
+      (e.g. `|| contains(needs.*.result, 'cancelled')`), and (2) a cancelled
+      upstream job that leaves a downstream job to hard-fail on a missing
+      artifact (#3249), laundering the cancellation into a `failure` result in
+      the `needs.*.result` aggregate. The `failure()` status function is immune
+      to both. The aggregate is not, but the remedy for (2) is to close the
+      laundering path at its source — skip the consumer when the producer was
+      cancelled — not to exclude every run that contains a `cancelled` result.
+      A blanket `!contains(needs.*.result, 'cancelled')` cannot tell a laundered
+      failure from a genuine one, so it suppresses the notification whenever a
+      newer push cancels a sibling job after a real failure has already been
+      observed: lint jobs cancelled alongside failing tests (#3293), or the
+      invariant harness cancelled after a demo leg failed (#3294). The
+      close-step guard (CISEC-05-002) keeps its cancellation exclusion because a
+      superseded run must not declare recovery either.
+    verification: >-
+      In `test/ci/test_workflow_failure_notification.py`,
+      `test_notify_step_does_not_file_on_cancellation` asserts no qualifying
+      workflow's notify step files on cancellation directly,
+      `test_notify_step_files_on_failure_mixed_with_cancellation` asserts no
+      aggregate-keyed notify step requires the absence of `cancelled`, and
+      `test_invariant_harness_skipped_when_demo_cancelled` asserts the one
+      artifact consumer skips on a cancelled producer.
+    relationships:
+      - rel_type: refines
+        spec_id: CISEC-05-001
+  - id: CISEC-05-007
+    priority: MUST
+    kind: process
+    statement: >-
+      A failure notification issue filed by the composite action MUST carry the
+      `Bug` issue type. The action MUST set the type itself, immediately after
+      creating the issue, by resolving the repository's `Bug` issue type by name
+      and applying it through the `updateIssue` GraphQL mutation; when a later
+      notify run finds the open failure issue still untyped, it MUST apply the
+      type then. It MUST NOT rely on applying a `bug` label for the
+      label-to-issue-type workflow to convert, and it MUST fail visibly if no
+      `Bug` issue type exists.
+    rationale: >-
+      `gh issue create` cannot set an issue type, so a failure issue filed by
+      the action was untyped and invisible to every issue-type query (#4038).
+      The label-to-issue-type workflow cannot repair this: events raised with
+      the workflow's own `GITHUB_TOKEN` never trigger other workflows, so a
+      `bug` label applied by the action is never converted. Resolving by name
+      survives a re-created type; re-typing on a later run repairs a transient
+      mutation failure; a missing type is surfaced, not swallowed.
+    verification: >-
+      In `test/ci/test_workflow_failure_notification.py`,
+      `test_notify_action_sets_bug_issue_type` asserts the action resolves the
+      `Bug` issue type by name and applies it via `updateIssue` with
+      `issueTypeId` on both the create and the comment-on-existing arm, and
+      `test_notify_action_fails_visibly_without_bug_type` asserts the no-type
+      guard exits non-zero with an `::error::` annotation.
+    relationships:
+      - rel_type: refines
+        spec_id: CISEC-05-001

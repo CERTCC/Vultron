@@ -1,0 +1,1235 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Driven port for creating and storing trigger-related wire activities.
+
+:class:`TriggerActivityPort` is the interface core trigger use cases and BT
+nodes use to create, store, and queue outbound ActivityStreams activities.
+Defining the port here keeps ``vultron/core/`` completely free of wire-layer
+imports (ARCH-01-001).
+
+Methods return ``(activity_id, activity_json)`` so callers can:
+
+1. Queue the ``activity_id`` to the actor's outbox.
+2. Include the ``activity_dict`` in the HTTP response.
+
+Methods that create domain objects (notes, reports, cases) return
+``(object_id, object_dict)`` using the same convention.
+
+Methods only used for outbox queueing (no response body needed) return
+``str`` (the activity ID alone).
+
+Port direction: **outbound (driven)** — core constructs trigger requests and
+the adapter handles wire-format construction, DataLayer persistence, and
+returns the serialized result.
+
+See also:
+    - ``vultron/adapters/driven/trigger_activity_adapter.py`` — adapter
+    - ``specs/architecture.yaml`` ARCH-01-001, ARCH-01-004
+    - ``vultron/wire/as2/factories/AGENTS.md``
+"""
+
+from collections.abc import Sequence
+from datetime import datetime, timedelta
+from typing import Any, Protocol
+
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.case_status import CaseStatus
+from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.embargo_termination import TerminationCause
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.ports.received_activity_loader import ReceivedActivityLoader
+from vultron.core.states.embargo_register import TerminationReason
+from vultron.enums.roles import CVDRole
+
+
+class TriggerActivityPort(ReceivedActivityLoader, Protocol):
+    """Driven port for trigger-related outbound wire activity construction.
+
+    It is also the trigger side's :class:`ReceivedActivityLoader`: a trigger
+    that answers a received activity loads it here, from the body the reply
+    built through this port will embed (ADR-0149).
+
+    Core trigger use cases and BT nodes call these methods with domain-level
+    parameters (string IDs, primitive types) and receive activity IDs and
+    serialized dictionaries in return.  The adapter handles all wire-format
+    construction and DataLayer persistence.
+
+    All methods that create an activity persist it to the DataLayer and return
+    at minimum the activity's ID.  Methods whose results are included in HTTP
+    responses also return a serialized ``dict``.
+    """
+
+    # -----------------------------------------------------------------------
+    # Notes
+    # -----------------------------------------------------------------------
+
+    def create_note(
+        self,
+        name: str,
+        content: str,
+        context_id: str,
+        attributed_to: str,
+        in_reply_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a Note object; return ``(note_id, note_json)``."""
+        ...
+
+    def add_note_to_case(
+        self,
+        note_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Add(Note, target=Case)`` activity.
+
+        The ``Add`` carries the stored note *note_id* inline as its
+        ``object`` (VAM-01-010).  The id is derived from *actor* and the
+        note, so a re-run names the same activity (ID-04-004).
+
+        Returns ``(activity_id, activity_body)``, the body as sealed JSON.
+        """
+        ...
+
+    # -----------------------------------------------------------------------
+    # Reports
+    # -----------------------------------------------------------------------
+
+    def submit_report(
+        self,
+        report_id: str,
+        actor: str,
+        to: str,
+        target: str,
+        proposed_embargo_id: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Offer(VulnerabilityReport)`` activity.
+
+        *proposed_embargo_id* names the Reporter's stored ``EmbargoEvent`` for
+        this report (EP-04-004); when given, the Offer carries it as
+        ``proposedEmbargo``.
+
+        Returns ``(offer_id, offer_dict)``.
+        """
+        ...
+
+    def close_report(
+        self,
+        offer_id: str,
+        report_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Offer)`` Report Closed (RC) activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def invalidate_report(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``TentativeReject(Offer)`` activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def validate_report(
+        self,
+        offer_id: str,
+        report_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(Offer)`` validate-report activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        Per ADR-0021 CLP-10-027: routes the activity to the Case Actor.
+        """
+        ...
+
+    def ack_report(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        content: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Read(Offer(Report))`` ack-report activity.
+
+        RK is addressed to the reporter, never to the CASE_MANAGER, and is
+        never ledgered (RMB-08-003).  ``content`` carries the trigger's
+        optional ``note`` (TRIG-03-003).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    # -----------------------------------------------------------------------
+    # Cases
+    # -----------------------------------------------------------------------
+
+    def create_case(
+        self,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Create(VulnerabilityCase)`` activity.
+
+        ``id_`` allows callers to supply a deterministic ID for idempotency.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def close_case(
+        self,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Leave(VulnerabilityCase)`` close-case activity.
+
+        Per ADR-0021 CLP-10-027: routes the activity to the Case Actor so the
+        CaseActor can commit a canonical ledger entry.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def engage_case(
+        self,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(VulnerabilityCase)`` engage activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def defer_case(
+        self,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``TentativeReject(VulnerabilityCase)`` activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def add_object_to_case_semantics(
+        self,
+        object_id: str,
+        case_id: str,
+    ) -> MessageSemantics:
+        """Return what a receiver would read ``Add(object, Case)`` as.
+
+        Classifies the ``Add`` that :meth:`add_object_to_case` would build
+        for the stored object against the receive-side patterns, without
+        persisting it.  The add-object trigger asks this
+        before its tree runs so it can refuse an object the CASE_MANAGER
+        could not route, and the answer names the ledger ``semantic_type`` the
+        CASE_MANAGER's commit of the ``Add`` will carry (TRIG-10-001,
+        SYNC-11-002).
+
+        Raises:
+            VultronNotFoundError: when the case or the object is not stored.
+            VultronActivityConstructionError: when the object has no wire
+                representation or cannot be carried in an ``Add``.
+            VultronValidationError: when no receive-side pattern routes the
+                ``Add`` as an addition to the case, or when the object is of
+                a type whose addition the protocol carries by its own flow
+                (``EmbargoEvent``, ``CaseParticipant``, ``CaseStatus``).
+        """
+        ...
+
+    def add_object_to_case(
+        self,
+        actor: str,
+        object_id: str,
+        case_id: str,
+        to: list[str],
+    ) -> tuple[str, str]:
+        """Create and persist an ``Add(object, Case)`` activity addressed to *to*.
+
+        *to* is the CASE_MANAGER alone: the ``Add`` is a participant asking
+        the case to take the object (PCR-08-005).
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def create_case_proposal(
+        self,
+        actor: str,
+        report_id: str,
+        case_actor_id: str,
+        summary: str | None = None,
+        to: list[str] | None = None,
+        offer_id: str | None = None,
+        offer_actor_id: str | None = None,
+        proposer_case_roles: Sequence[CVDRole] = (),
+    ) -> tuple[str, str]:
+        """Create and persist a ``Create(as_CaseProposal)`` activity.
+
+        Builds an ``as_CaseProposal`` from the ``VulnerabilityReport``
+        identified by ``report_id``, addressed to the case-actor service at
+        ``case_actor_id``, and persists ``Create(as_CaseProposal)`` to the
+        DataLayer.
+
+        ``offer_id`` and ``offer_actor_id`` carry the provenance of the report —
+        which ``Offer(VulnerabilityReport)`` brought it and from whom
+        (CP-01-007).  The CaseActor cannot recover them on its own; see
+        ``as_CaseProposal.offer_id`` for why they have to travel on the wire.
+
+        The Create's ``actor`` is ``actor``'s own full profile, read from this
+        DataLayer with its ``embargo_policy``: the CASE_MANAGER reads the
+        CASE_OWNER's actor default from that inline profile and nowhere else
+        (CP-01-010).
+
+        ``proposer_case_roles`` are the sender's own ``default_case_roles``,
+        stated on the proposal so the CASE_MANAGER can seat the sender with
+        them (CP-01-011, ADR-0133).
+
+        Per ``specs/case-proposal.yaml`` CP-04-001, CP-04-002.
+        Returns ``(activity_id, activity_dict)``.
+
+        Raises:
+            ValueError: when the report, or ``actor``'s own profile, is not
+                in this DataLayer.
+        """
+        ...
+
+    def reject_case_proposal(
+        self,
+        actor: str,
+        proposal: dict,
+        to: list[str] | None = None,
+        summary: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(as_CaseProposal)`` activity.
+
+        The case actor service sends this when it declines to open and manage a
+        case for the proposal (CP-05-004).  *proposal* is the wire-serialised
+        ``as_CaseProposal`` from the inbound ``Create``; it is embedded inline so
+        the vendor has full context without reading anything from the case actor
+        service's store (AKM-03-003).
+
+        *summary* carries the refusal reason when the service has one to give,
+        which is what the proposer surfaces (CP-06-004).  It is optional: a
+        decline is never blocked on having an explanation.
+
+        Per ``specs/case-proposal.yaml`` CP-05-002, CP-05-004.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def accept_case_proposal(
+        self,
+        actor: str,
+        proposal: dict,
+        to: list[str],
+        result: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(as_CaseProposal)`` activity.
+
+        The CASE_MANAGER sends this to acknowledge that it will open (or has
+        already opened) a case for the proposal (CP-05-002).  *proposal* is the
+        wire-serialised ``as_CaseProposal`` the inbound ``Create`` carried,
+        embedded inline (AKM-03-003); *result* is the URI of the case the
+        Accept ties to (CP-05-006).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def emit_prepared_create_case(self, payload: dict) -> tuple[str, str]:
+        """Persist a ``Create(VulnerabilityCase)`` the emitting node prepared.
+
+        *payload* is the activity's AS2 rendering, under an id derived from
+        the proposal, so a redelivered proposal names the same activity
+        (CP-05-005).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    # -----------------------------------------------------------------------
+    # Actors (invitations, recommendations)
+    # -----------------------------------------------------------------------
+
+    def invite_actor_to_case(
+        self,
+        invitee_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+        attributed_to: str | None = None,
+        roles: list[str] | None = None,
+        target: VulnerabilityCase | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        in_reply_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Invite(Actor, CaseStub)`` activity.
+
+        ``actor`` MUST be the CASE_MANAGER's ID (PCR-08-007); ``attributed_to``
+        MAY carry the case owner's ID for attribution.  There is no ``cc``:
+        the CASE_MANAGER commits the Invite in the tree that emits it and
+        never addresses a copy to itself (CM-17-006, ADR-0109).
+        ``id_`` allows callers to supply a deterministic ID for idempotency.
+        ``roles`` carries the intended CVD roles for the invitee (CM-17-003).
+        ``target`` may be a core ``VulnerabilityCase`` (the adapter projects it
+        to an enriched stub carrying the embargo in force, EM ``ACTIVE`` or
+        ``REVISE``),
+        a pre-built stub, or a bare URI string.  When ``None``, the adapter reads
+        the case from the DataLayer by ``case_id`` (CM-17-002).
+        ``rsvp_deadline`` becomes the Invite's ``endTime``, the reply deadline
+        the CASE_MANAGER stamps as it does on an embargo Invite (CM-11-014,
+        CM-28-012, ASK-03-004); ``published`` is the instant it was measured
+        from.  ``in_reply_to`` names the stub Invite this one replaces, in the
+        standard AS2 ``inReplyTo`` property, after an embargo change or a
+        re-invite (CM-11-015, CM-11-016).  Each is forwarded only when given.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def invite_actor_to_full_case(
+        self,
+        invitee_id: str,
+        case_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the full-case ``Invite(Actor)[target=Case]``.
+
+        ``actor`` MUST be the CASE_MANAGER's ID.  The Invite references the
+        case by ID and carries the CASE_MANAGER's ledger tail
+        (``ledger_log_index``, ``ledger_entry_hash``) as the floor the
+        invitee's reply must reach (CM-11-010, VAM-04-011).
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def accept_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``Accept(full-case Invite)`` — RV (VAM-04-012).
+
+        The reply carries the replier's own ledger position
+        (``ledger_log_index``, ``ledger_entry_hash``).  The ``to:`` field is
+        the Invite's sender.  Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def tentative_reject_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``TentativeReject(full-case Invite)`` — RI (VAM-04-013).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def reject_full_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+        ledger_log_index: int,
+        ledger_entry_hash: str,
+    ) -> tuple[str, str]:
+        """Create and persist ``Reject(full-case Invite)`` — RC (VAM-04-014).
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def accept_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(Invite)`` activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def reject_case_invite(
+        self,
+        invite_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Invite)`` activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def reject_close_case(
+        self,
+        case_id: str,
+        actor: str,
+        close_sender: str,
+        in_reply_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Leave(VulnerabilityCase))`` activity.
+
+        Emitted by the Case Actor to decline an owner's
+        ``Leave(VulnerabilityCase)`` while an embargo is still active
+        (CM-23-011).  ``actor`` is the Case Actor sending the decline;
+        ``close_sender`` is the Case Owner who sent the Leave and is used as the
+        sole ``to`` recipient so the decline is routable back to them.
+        ``in_reply_to`` threads the decline to the received Leave activity.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    # -----------------------------------------------------------------------
+    # The CASE_MANAGER's own case-file changes, recorded in the case ledger
+    #
+    # Each builds the activity a ledger entry records, as the CASE_MANAGER
+    # (``actor``), carrying the changed object as the CASE_MANAGER holds it;
+    # its sealed blob is the entry's ``payloadSnapshot`` (CLP-07-013,
+    # VM-08-003).  None is queued to the outbox: the ledger fan-out delivers
+    # it.  Each id is derived from the CASE_MANAGER and what changed, so a
+    # re-run hands back the body the first run sealed (ID-04-004).  Each
+    # returns ``(activity_id, activity_blob)``.
+    # -----------------------------------------------------------------------
+
+    def record_case_created(
+        self,
+        create_activity_id: str,
+    ) -> tuple[str, str]:
+        """The genesis ``Create(VulnerabilityCase)`` (``create_case``).
+
+        It is the ``Create`` the CASE_MANAGER built for the case under
+        *create_activity_id*, its sealed body verbatim: one activity, both
+        delivered and ledgered (CLP-07-011).  Unlike the other ``record_*``
+        methods it builds nothing.
+
+        Raises:
+            VultronNotFoundError: no body is sealed under *create_activity_id*.
+        """
+        ...
+
+    def record_embargo_event_created(
+        self,
+        embargo: EmbargoEvent,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """``Create(EmbargoEvent)`` (``create_embargo_event``), the embargo in full.
+
+        For an embargo the case's creation wrote, such as the default embargo
+        (CLP-07-013).  An embargo is created once, so the id is derived from
+        its own id.
+        """
+        ...
+
+    def record_report_added_to_case(
+        self,
+        report_id: str,
+        case_id: str,
+        actor: str,
+        offer_id: str | None = None,
+        offer_actor_id: str | None = None,
+    ) -> tuple[str, str]:
+        """``Add(VulnerabilityReport, target=case)`` (``add_report_to_case``).
+
+        The stored report is carried inline.  ``offer_id`` and
+        ``offer_actor_id``, when given, are the report's Offer provenance
+        (CP-01-007), carried for participants who were never sent the Offer.
+        """
+        ...
+
+    def record_participant_status_added(
+        self,
+        status: ParticipantStatus,
+        participant: CaseParticipant,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """``Add(ParticipantStatus, target=participant)`` (``add_participant_status_to_participant``).
+
+        Both are carried inline, as the caller just stored them.
+        """
+        ...
+
+    def record_case_status_added(
+        self,
+        status: CaseStatus,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """``Add(CaseStatus, target=case)`` (``add_case_status_to_case``).
+
+        *status* is carried inline; it may be one the caller persists only
+        once the entry is committed.
+        """
+        ...
+
+    def record_case_participant_created(
+        self,
+        participant: CaseParticipant,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """``Create(CaseParticipant)`` (``create_case_participant``), the record as stored."""
+        ...
+
+    def record_case_participant_updated(
+        self,
+        participant: CaseParticipant,
+        case_id: str,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """``Update(CaseParticipant)`` (``update_case_participant``), the record as stored.
+
+        *cause_id* names the act the change follows, such as the accepted
+        ownership-transfer Offer; the id is derived from it and the record,
+        so one act's change to one record is one entry.
+        """
+        ...
+
+    def record_case_owner_updated(
+        self,
+        case: VulnerabilityCase,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """``Update(VulnerabilityCase)`` (``update_case_owner``), the changed case.
+
+        Records the case's new ``attributed_to`` after an ownership transfer
+        (CM-21-002).  *case* is the case as it will be stored: the entry
+        commits before the change is saved (CLP-07-013).  *cause_id* names
+        the act the change follows, as for
+        :meth:`record_case_participant_updated`.
+        """
+        ...
+
+    def record_embargo_consent_created(
+        self,
+        row: EmbargoConsent,
+        case_id: str,
+        actor: str,
+    ) -> tuple[str, str]:
+        """``Create(EmbargoConsent)`` (``create_embargo_consent``), the new row in full.
+
+        *row* names the participant actor whose consent it is.  A row is
+        created once, so the id is derived from the row's own id.
+        """
+        ...
+
+    def record_embargo_consent_updated(
+        self,
+        row: EmbargoConsent,
+        case_id: str,
+        actor: str,
+        cause_id: str,
+    ) -> tuple[str, str]:
+        """``Update(EmbargoConsent)`` (``update_embargo_consent``), the changed row in full.
+
+        *row* is the row as it will be stored: the entry commits before the
+        change is made (CLP-07-013).  *cause_id* names the act the change
+        follows; the id is derived from it and the row, so one act's change
+        to one row is one entry.
+        """
+        ...
+
+    def record_case_announced(
+        self,
+        case_id: str,
+        actor: str,
+        object_id: str,
+    ) -> tuple[str, str]:
+        """``Announce(VulnerabilityCase)`` for the demo ``sync-log-entry`` verb.
+
+        The stored case is carried inline.  The id is derived from the
+        CASE_MANAGER, the case and *object_id*, so one request repeated
+        commits one entry.
+        """
+        ...
+
+    def accept_case_participant_offer(
+        self,
+        cp_offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(Offer(CaseParticipant))`` activity.
+
+        Sent by the Case Owner to the CaseActor after reviewing the
+        Offer(CaseParticipant) forwarded per ADR-0026 (CM-16-006).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def suggest_actor_to_case(
+        self,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+        roles: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Offer(Actor, Case)`` recommendation activity.
+
+        ``id_`` allows callers to supply a deterministic ID for idempotency.
+        ``roles`` carries serialized CVD role strings into the wire object so
+        the CaseActor can use them in place of the hardcoded VENDOR default.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def offer_actor_to_case(
+        self,
+        recommender_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        origin: str | None = None,
+        to: list[str] | None = None,
+        id_: str | None = None,
+        roles: list[Any] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Offer(CaseParticipant, Case)`` activity.
+
+        Transforms the original ``Offer(Actor, Case)`` into an
+        ``Offer(CaseParticipant{actor, roles}, Case)`` addressed to the
+        Case Owner.  ``roles`` defaults to ``[CVDRole.VENDOR]`` when
+        ``None`` (CM-16-003).  ``origin`` carries the original recommender
+        Offer ID so the Case Owner can trace the causal chain (CM-16-004).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def emit_accept_actor_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``AcceptActorRecommendation`` activity.
+
+        Sent by the CaseActor to the original recommender after the Case Owner
+        accepts the Offer(CaseParticipant) (CM-16-006 step 3).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def emit_reject_actor_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``RejectActorRecommendation`` activity.
+
+        Sent by the CaseActor to the original recommender after the Case Owner
+        rejects the Offer(CaseParticipant) (CM-16-007 step 3).
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def add_participant_to_case(
+        self,
+        participant_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        attributed_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Add(CaseParticipant, Case)`` activity.
+
+        The CASE_MANAGER's direct notice to a reinstated participant
+        (CM-31-011): ``actor`` is the CASE_MANAGER and ``attributed_to`` the
+        Case Owner who asked for the reinstatement (CM-24-001, CM-24-002).
+        The notice is delivery, not a record, so the caller does not ledger
+        it.
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def remove_participant_from_case(
+        self,
+        participant_id: str,
+        case_id: str,
+        actor: str,
+        attributed_to: str,
+        to: list[str],
+    ) -> tuple[str, str]:
+        """Create and persist a ``Remove(CaseParticipant, Case)`` notice.
+
+        The CASE_MANAGER's direct notice to a removed participant (CM-31-006):
+        ``actor`` is the CASE_MANAGER and ``attributed_to`` the Case Owner who
+        asked for the removal (CM-24-001, CM-24-002).  The notice is delivery,
+        not a record, so the caller does not ledger it.
+
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def add_participant_status_to_participant(
+        self,
+        status_id: str,
+        participant_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> str:
+        """Create and persist an ``Add(ParticipantStatus, CaseParticipant)`` activity.
+
+        Returns the activity ID (callers only need the ID for outbox queueing).
+        """
+        ...
+
+    # -----------------------------------------------------------------------
+    # Case Actor / CASE_MANAGER delegation
+    # -----------------------------------------------------------------------
+
+    def offer_case_participant_role(
+        self,
+        case_id: str,
+        role: CVDRole,
+        target_actor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        attributed_to: str | None = None,
+        in_reply_to: str | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist ``Offer(CaseParticipantRole, target=Actor, context=VulnerabilityCase)``.
+
+        Canonical role-delegation wire format (ADR-0039).  ``role`` is the
+        :class:`CVDRole` being offered; ``target_actor_id`` is the Actor URI
+        receiving the offer; ``case_id`` supplies the VulnerabilityCase context.
+        The Case Owner addresses its Offer to the CASE_MANAGER (CM-33-001).
+        The CASE_MANAGER's forward to the target passes ``attributed_to`` (the
+        Case Owner, CM-24-005), ``in_reply_to`` (the recorded Offer's id) and
+        a derived ``id_``, so a retry rebuilds the same forward (OX-06-002).
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def accept_case_participant_role(
+        self,
+        offer_id: str,
+        case_id: str,
+        role: CVDRole,
+        target_actor_id: str,
+        vendor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
+
+        Ephemerally reconstructs the original Offer (using ``offer_id``,
+        ``case_id``, ``role``, ``target_actor_id``, and ``vendor_id``)
+        before building the Accept so that ``Accept.object_`` is a typed
+        ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
+        ``id_`` allows callers to supply a deterministic ID for idempotency.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def reject_case_participant_role(
+        self,
+        offer_id: str,
+        case_id: str,
+        role: CVDRole,
+        target_actor_id: str,
+        vendor_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(_OfferCaseParticipantRoleActivity)`` (ADR-0039).
+
+        Ephemerally reconstructs the original Offer before building the
+        Reject so that ``Reject.object_`` is a typed
+        ``_OfferCaseParticipantRoleActivity``, not a bare string IRI.
+        ``id_`` allows callers to supply a deterministic id for idempotency.
+
+        Returns ``(activity_id, activity_json)``.
+        """
+        ...
+
+    # -----------------------------------------------------------------------
+    # Embargo
+    # -----------------------------------------------------------------------
+
+    def propose_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        attributed_to: str | None = None,
+        activity_id: str | None = None,
+        rsvp_deadline: datetime | None = None,
+        published: datetime | None = None,
+        min_rsvp_window: timedelta | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Invite(EmbargoEvent, Case)`` proposal.
+
+        ``attributed_to`` carries the proposer when the CASE_MANAGER relays a
+        proposal on a participant's behalf (CM-24-002, EP-09-002): ``actor`` is
+        then the CASE_MANAGER and ``attributed_to`` the participant whose terms
+        these are.
+        ``activity_id`` is the Invite's id when the caller recorded it before
+        the emission — the creation-time revision is indexed under its
+        Invite's id at registration and relayed only after the initialization
+        sequence completes (EP-04-011, CM-14-007).  ``None`` mints a fresh id.
+        ``rsvp_deadline`` becomes the Invite's ``endTime`` (CM-28-012,
+        ASK-03-004); ``published`` is the instant it was measured from and
+        ``min_rsvp_window`` the configured floor the factory checks it against
+        (EP-07-002).  Each is forwarded only when given.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def accept_embargo(
+        self,
+        proposal_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(Invite)`` embargo-accept activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def reject_embargo(
+        self,
+        proposal_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Invite)`` embargo-reject activity.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def undo_embargo_invite(
+        self,
+        invite_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Undo(Invite)`` of an embargo Invite *actor* sent.
+
+        The CASE_MANAGER's withdrawal of an Invite it sent, when it abandons
+        an open proposal (EMB-16-001, ADR-0152).  The id is derived from
+        *actor* and the Invite, so one Invite is withdrawn by one activity
+        (ID-04-004).  Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def activate_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the case owner's ``Accept(EmbargoEvent, target=case)``.
+
+        The owner's activation of a proposed embargo (ADR-0122), distinct
+        from :meth:`accept_embargo`, the sender's own consent to an Invite.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def reject_embargo_proposal(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the case owner's ``Reject(EmbargoEvent, target=case)``.
+
+        The owner's rejection of a proposed embargo (ADR-0122), distinct
+        from :meth:`reject_embargo`, the sender's own refusal of an Invite.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def withdraw_from_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Leave(EmbargoEvent)[context=case]`` activity.
+
+        A signatory's withdrawal from the embargo in force (MSM-07-010,
+        ADR-0122), distinct from :meth:`reject_embargo`, which answers an
+        Invite and never withdraws.  Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def requeue_embargo_refusal(self, actor: str, proposal_id: str) -> bool:
+        """Whether *actor* already rejected the Invite *proposal_id*.
+
+        A ``Reject`` of one Invite by one actor is a single activity, so a
+        repeat refusal of a re-delivered Invite can be told from the first.
+        A ``Reject`` that was sealed but is no longer pending is queued again
+        under the same id, so an ER whose queue write failed is not lost
+        (ID-04-005).
+        """
+        ...
+
+    def announce_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        to: list[str] | None = None,
+        attributed_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Announce(EmbargoEvent)`` activity.
+
+        *attributed_to*, when given, names the actor whose request the
+        CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
+        of a shorter revision.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def terminate_embargo(
+        self,
+        embargo_id: str,
+        case_id: str,
+        actor: str,
+        *,
+        reason: TerminationReason,
+        cause: TerminationCause | None = None,
+        to: list[str] | None = None,
+        attributed_to: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Remove(EmbargoEvent, origin=case)`` ET activity.
+
+        Corresponds to the ET (Embargo Termination) protocol message.
+        *reason* is the termination's what, carried as ``content``
+        (ADR-0122); *cause* is its why, carried as ``terminationCause``
+        when given (EMB-13-005).  The CASE_MANAGER passes the cause it
+        records on its own ``TERMINATED`` entry.
+        *attributed_to*, when given, names the actor whose request the
+        CASE_MANAGER is carrying out (CM-24-002), as on the CM-31-009 notice
+        to a bound signatory the ledger no longer reaches.
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def propose_case_ownership_transfer(
+        self,
+        case_id: str,
+        transferee_id: str,
+        actor: str,
+        content: str | None = None,
+        to: list[str] | None = None,
+        end_time: datetime | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the Case Owner's ownership-transfer proposal.
+
+        ``Offer(Offer(VulnerabilityCase))`` with the case as its ``context``
+        (ADR-0148): the inner Offer names the case, *transferee_id* as its
+        ``target`` and, when given, *end_time* as its ``end_time``, the
+        deadline to answer it (TRIG-11-007, CM-21-016).  The owner sends it
+        to the CASE_MANAGER (*to*), which makes the Offer itself.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-001).
+        """
+        ...
+
+    def offer_case_ownership_transfer(
+        self,
+        case_id: str,
+        transferee_id: str,
+        actor: str,
+        content: str | None = None,
+        to: list[str] | None = None,
+        attributed_to: str | None = None,
+        end_time: datetime | None = None,
+        id_: str | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Offer(VulnerabilityCase)`` ownership-transfer activity.
+
+        The one Offer of a transfer, which the CASE_MANAGER makes from the
+        owner's proposal (ADR-0148, CM-21-005), with *attributed_to* the
+        owner.  *end_time*, when given, is the Offer's activity-level
+        ``end_time``: the deadline to answer it (CM-21-016).  *id_*, when
+        given, is the Offer's id, which the CASE_MANAGER derives from the
+        proposal (OX-06-002); an id the store already holds hands back the
+        body sealed then.
+
+        Returns ``(activity_id, activity_dict)``.
+        """
+        ...
+
+    def accept_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist an ``Accept(Offer(VulnerabilityCase))`` ownership-transfer activity.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-002).
+        """
+        ...
+
+    def reject_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist a ``Reject(Offer(VulnerabilityCase))`` ownership-transfer activity.
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-005).
+        """
+        ...
+
+    def withdraw_case_ownership_transfer(
+        self,
+        offer_id: str,
+        actor: str,
+        to: list[str] | None = None,
+    ) -> tuple[str, str]:
+        """Create and persist the owner's withdrawal of its proposal.
+
+        ``Undo(Offer(Offer(VulnerabilityCase)))``: *offer_id* names the
+        proposal this actor sent, which the CASE_MANAGER made its Offer from
+        (CM-21-015, ADR-0148).
+
+        Returns ``(activity_id, activity_dict)`` (TRIG-11-006).
+        """
+        ...
+
+    # -----------------------------------------------------------------------
+    # Processing fault (NACK)
+    # -----------------------------------------------------------------------
+
+    def emit_processing_fault(
+        self,
+        actor: str,
+        failed_activity_id: str,
+        failure_class: str,
+        to: list[str],
+        case_id: str | None = None,
+    ) -> str:
+        """Create and persist a ``Create(ProcessingFault)`` NACK activity.
+
+        Sent by the receiving actor to the authenticated sender when a
+        status assertion could not be processed (ASK-07-001, ADR-0080).
+
+        Args:
+            actor: URI of the receiving actor emitting the fault.
+            failed_activity_id: URI of the failed activity (ASK-07-004).
+            failure_class: URI identifying the failure class (ASK-07-005).
+            to: Recipient list; SHOULD contain the original sender's URI.
+            case_id: Optional case context URI for logging.
+
+        Returns:
+            The activity ID.
+        """
+        ...
+
+    def refusal_notice(
+        self,
+        case_id: str | None,
+        actor: str,
+        refused_activity: dict[str, Any],
+        asserter: str,
+        reason: str,
+    ) -> tuple[str, str]:
+        """Create and persist the CASE_MANAGER's refusal notice.
+
+        The ``Reject`` a precondition guard's refusal owes the asserting
+        participant (CLP-02-005, CLP-05-001, ADR-0141): ``refused_activity``
+        is the refused activity in its AS2 JSON form, as recorded when
+        received, carried inline; ``inReplyTo`` names its id; ``asserter``
+        is the sole ``to`` recipient; ``reason`` is the refusing guard's
+        reason, carried in ``summary``; ``case_id``, when given, is the
+        notice's ``context``.  ``actor`` is the CASE_MANAGER.  The id is
+        derived from the CASE_MANAGER and the refused activity, so one
+        refused activity is answered by one notice (ID-04-004).
+        Returns ``(activity_id, activity_blob)``.
+        """
+        ...
+
+    def announce_vulnerability_case(
+        self,
+        case_id: str,
+        actor: str,
+        context_id: str,
+        to: list[str],
+    ) -> str:
+        """Create and persist an ``Announce(VulnerabilityCase)`` activity.
+
+        Sent by the case owner to a newly accepted participant after their
+        embargo consent is resolved (MV-10-003).  The full case object is
+        sent inline so the recipient can seed their local DataLayer.
+
+        Returns the activity ID.
+        """
+        ...

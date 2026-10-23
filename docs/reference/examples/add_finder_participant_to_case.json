@@ -1,37 +1,42 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Add",
-  "id": "https://for.example/1e3c75e2-86ae-4338-bd15-ee0eb2ca1018",
-  "name": "https://vultron.example/organizations/vendor Add Finn der Vul to https://vultron.example/cases/VDR-20991514",
+  "type": "Add",
+  "id": "urn:uuid:32b78d17-fc2b-4c48-a5f0-7dc669b7816a",
+  "name": "https://vultron.example/organizations/vendorco Add Finn der Vul to urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+  "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "content": "We're adding the finder as a participant to this case.",
-  "actor": "https://vultron.example/organizations/vendor",
-  "target": "https://vultron.example/cases/VDR-20991514",
+  "actor": "https://vultron.example/organizations/vendorco",
+  "target": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
   "object": {
-    "@context": "https://www.w3.org/ns/activitystreams",
+    "id": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927/participants/finndervul",
     "type": "CaseParticipant",
-    "id": "https://vultron.example/cases/VDR-20991514/participants/finn",
     "name": "Finn der Vul",
-    "context": "https://vultron.example/cases/VDR-20991514",
-    "actor": "https://vultron.example/users/finn",
+    "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+    "published": "2026-09-30T16:00:59+00:00",
+    "updated": "2026-09-30T16:00:59+00:00",
+    "attributedTo": "https://vultron.example/users/finndervul",
     "caseRoles": [
-      "FINDER",
-      "REPORTER"
+      "reporter"
     ],
-    "participantStatus": [
+    "participantStatuses": [
       {
-        "@context": "https://www.w3.org/ns/activitystreams",
+        "id": "urn:uuid:5581d2b3-e7dd-4144-a6f3-1651611eb222",
         "type": "ParticipantStatus",
-        "id": "https://for.example/cffebd9b-f9ad-4e33-9d52-392eead68dc6",
-        "name": "REPORT_MANAGEMENT_ACCEPTED vfd",
-        "context": "https://vultron.example/cases/VDR-20991514",
-        "published": "2024-01-22T20:29:47+00:00",
-        "updated": "2024-01-22T20:29:47+00:00",
-        "actor": "https://vultron.example/users/finn",
-        "rmState": "REPORT_MANAGEMENT_ACCEPTED",
-        "vfdState": "vfd",
+        "name": "START",
+        "context": "urn:uuid:f938951c-5dba-4aea-9d0f-5efad0e42927",
+        "published": "2026-09-30T16:00:59+00:00",
+        "updated": "2026-09-30T16:00:59+00:00",
+        "attributedTo": "https://vultron.example/users/finndervul",
+        "rmState": "START",
         "caseEngagement": true,
-        "embargoAdherence": true
+        "cvdRole": [
+          "REPORTER"
+        ],
+        "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
       }
-    ]
+    ],
+    "embargoConsents": [],
+    "joined": true,
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
   }
 }

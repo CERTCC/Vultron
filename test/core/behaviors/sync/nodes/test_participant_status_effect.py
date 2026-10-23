@@ -1,0 +1,465 @@
+#!/usr/bin/env python
+"""Tests for ApplyParticipantStatusFromLedgerNode and EmitImpossibleStateFaultNode.
+
+Covers the participant-status round-trip: the carried ParticipantStatus is saved
+to the DataLayer and then appended directly to the participant record.  The node
+uses the in-memory ``status_obj`` rather than re-reading from the DataLayer,
+since ParticipantStatus has no reference fields that rehydrate_fields would
+expand (ADR-0034 makes the read-back vestigial).
+
+Also covers RSH-09-006: an entry whose effective composite state violates the
+RM↔VF, RM↔D, or VF↔D entailments must be refused (FAILURE, no DataLayer write)
+and ``Create(ProcessingFault)`` must be emitted to the CaseActor via the
+Selector(Apply, EmitFaultThenFail) tree structure in ``announce_tree.py``.
+
+See: specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
+     specs/received-status-handling.yaml RSH-09-006.
+"""
+
+import uuid
+from datetime import UTC, datetime
+from typing import cast
+from unittest.mock import MagicMock
+
+import pytest
+from py_trees.common import Status
+
+from test.core.behaviors.sync.nodes.conftest import (
+    CASE_ID,
+    OWNER_ACTOR_ID,
+    PARTICIPANT_ACTOR_ID,
+    _make_event,
+    _to_persistable_entry,
+)
+from vultron.core.behaviors.sync.nodes.participant_status_effect import (
+    ApplyParticipantStatusFromLedgerNode,
+    EmitImpossibleStateFaultNode,
+)
+from vultron.core.models.case_ledger import (
+    HashChainLedgerRecord,
+    compute_genesis_hash,
+)
+from vultron.core.models.participant_status import ParticipantStatus
+from vultron.core.states.cs import CS_vf
+from vultron.core.states.rm import RM
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+
+_FIXED_CREATED_AT = datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)
+CASE_GENESIS_HASH = compute_genesis_hash(
+    CASE_ID, _FIXED_CREATED_AT, OWNER_ACTOR_ID
+)
+
+VENDOR_ACTOR_ID = "https://example.org/actors/vendor"
+VENDOR_PARTICIPANT_ID = f"urn:uuid:{uuid.uuid4()}"
+STATUS_ID = f"urn:uuid:{uuid.uuid4()}"
+
+
+def _make_participant(
+    participant_id: str = VENDOR_PARTICIPANT_ID,
+) -> as_CaseParticipant:
+    return as_CaseParticipant(
+        id_=participant_id,
+        attributed_to=VENDOR_ACTOR_ID,
+        context=CASE_ID,
+    )
+
+
+def _make_participant_status_snapshot(
+    status_id: str,
+    participant_id: str,
+    vf_state: str = "VF",
+    rm_state: str = "ACCEPTED",
+    d_state: str | None = None,
+) -> dict:
+    obj: dict = {
+        "id": status_id,
+        "type": "ParticipantStatus",
+        "vfState": vf_state,
+        "rmState": rm_state,
+        "context": CASE_ID,
+    }
+    if d_state is not None:
+        obj["dState"] = d_state
+    return {
+        "object": obj,
+        "target": {
+            "id": participant_id,
+        },
+    }
+
+
+def _make_status_entry(
+    status_id: str,
+    participant_id: str,
+    vf_state: str = "VF",
+    rm_state: str = "ACCEPTED",
+    d_state: str | None = None,
+):
+    snapshot = _make_participant_status_snapshot(
+        status_id=status_id,
+        participant_id=participant_id,
+        vf_state=vf_state,
+        rm_state=rm_state,
+        d_state=d_state,
+    )
+    return _to_persistable_entry(
+        HashChainLedgerRecord(
+            case_id=CASE_ID,
+            log_index=0,
+            object_id="https://example.org/activities/add-status",
+            semantic_type="add_participant_status_to_participant",
+            payload_snapshot=snapshot,
+            prev_log_hash=CASE_GENESIS_HASH,
+        )
+    )
+
+
+@pytest.fixture
+def participant(datalayer):
+    p = _make_participant()
+    datalayer.save(p)
+    return p
+
+
+@pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("SYNC-12-002")
+def test_apply_participant_status_roundtrip_preserves_vf_state(
+    bridge, datalayer, case_actor, participant
+):
+    """vf_state must round-trip correctly through DataLayer save/read.
+
+    Regression: CORE ParticipantStatus appended to list[WireParticipantStatus]
+    was serialized with default values rather than actual values.  After the fix
+    the saved participant must have the correct vf_state from the ledger entry
+    payload snapshot.
+    """
+    status_id = f"urn:uuid:{uuid.uuid4()}"
+    initial_count = len(participant.participant_statuses)
+
+    entry = _make_status_entry(
+        status_id=status_id,
+        participant_id=participant.id_,
+        vf_state="VF",
+        rm_state="ACCEPTED",
+    )
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    result = bridge.execute_with_setup(
+        tree=ApplyParticipantStatusFromLedgerNode(
+            name="ApplyParticipantStatusFromLedger"
+        ),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.status == Status.SUCCESS
+
+    updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
+    assert updated is not None
+    assert len(updated.participant_statuses) == initial_count + 1
+
+    new_status = cast(ParticipantStatus, updated.participant_statuses[-1])
+    assert new_status.vf is not None
+    assert new_status.vf.state == CS_vf.VF
+    assert new_status.rm.state == RM.ACCEPTED
+
+
+@pytest.mark.spec("SYNC-12-003")
+def test_apply_participant_status_idempotent(
+    bridge, datalayer, case_actor, participant
+):
+    """Applying the same status twice must not duplicate entries."""
+    status_id = f"urn:uuid:{uuid.uuid4()}"
+    initial_count = len(participant.participant_statuses)
+    entry = _make_status_entry(
+        status_id=status_id,
+        participant_id=participant.id_,
+    )
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    for _ in range(2):
+        result = bridge.execute_with_setup(
+            tree=ApplyParticipantStatusFromLedgerNode(
+                name="ApplyParticipantStatusFromLedger"
+            ),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+        )
+        assert result.status == Status.SUCCESS
+
+    updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
+    assert updated is not None
+    assert len(updated.participant_statuses) == initial_count + 1
+
+
+@pytest.mark.spec("SYNC-12-001")
+def test_apply_participant_status_skips_missing_participant(
+    bridge, case_actor
+):
+    """Node returns SUCCESS without error when participant not found locally."""
+    status_id = f"urn:uuid:{uuid.uuid4()}"
+    nonexistent_participant_id = f"urn:uuid:{uuid.uuid4()}"
+    entry = _make_status_entry(
+        status_id=status_id,
+        participant_id=nonexistent_participant_id,
+    )
+    event = _make_event(entry, actor_id=case_actor.id_)
+
+    result = bridge.execute_with_setup(
+        tree=ApplyParticipantStatusFromLedgerNode(
+            name="ApplyParticipantStatusFromLedger"
+        ),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.status == Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# RSH-09-006: composite-state entailment enforcement on the replica-apply path
+# ---------------------------------------------------------------------------
+
+
+class TestApplyParticipantStatusCompositeStateViolation:
+    """ApplyParticipantStatusFromLedgerNode refuses impossible composite states.
+
+    RSH-09-006: if the entry's effective state violates composite-state
+    entailments (RM↔VF, RM↔D, VF↔D), the node MUST return FAILURE and MUST NOT
+    write to the DataLayer.
+    """
+
+    @pytest.mark.spec("RSH-09-006")
+    def test_valid_composite_state_succeeds(
+        self, bridge, datalayer, case_actor, participant
+    ):
+        """A well-formed entry (rm=ACCEPTED, vf=VF) is applied successfully."""
+        status_id = f"urn:uuid:{uuid.uuid4()}"
+        initial_count = len(participant.participant_statuses)
+        entry = _make_status_entry(
+            status_id=status_id,
+            participant_id=participant.id_,
+            rm_state="ACCEPTED",
+            vf_state="VF",
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=ApplyParticipantStatusFromLedgerNode(
+                name="ApplyParticipantStatusFromLedger"
+            ),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.SUCCESS
+        updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
+        assert len(updated.participant_statuses) == initial_count + 1
+
+    @pytest.mark.spec("RSH-09-006")
+    def test_impossible_state_rm_valid_vf_ready_fails(
+        self, bridge, datalayer, case_actor, participant
+    ):
+        """rm=VALID + vf=VF violates RM↔VF entailment — FAILURE, no DataLayer write."""
+        initial_count = len(participant.participant_statuses)
+        status_id = f"urn:uuid:{uuid.uuid4()}"
+        entry = _make_status_entry(
+            status_id=status_id,
+            participant_id=participant.id_,
+            rm_state="VALID",
+            vf_state="VF",
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=ApplyParticipantStatusFromLedgerNode(
+                name="ApplyParticipantStatusFromLedger"
+            ),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.FAILURE
+        updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
+        assert len(updated.participant_statuses) == initial_count, (
+            "FAILURE must not write to DataLayer"
+        )
+
+    @pytest.mark.spec("RSH-09-006")
+    def test_impossible_state_vf_not_ready_d_deployed_fails(
+        self, bridge, datalayer, case_actor, participant
+    ):
+        """vf=Vf + d=D violates VF↔D entailment — FAILURE, no DataLayer write."""
+        initial_count = len(participant.participant_statuses)
+        status_id = f"urn:uuid:{uuid.uuid4()}"
+        entry = _make_status_entry(
+            status_id=status_id,
+            participant_id=participant.id_,
+            rm_state="ACCEPTED",
+            vf_state="Vf",
+            d_state="D",
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=ApplyParticipantStatusFromLedgerNode(
+                name="ApplyParticipantStatusFromLedger"
+            ),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.FAILURE
+        updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
+        assert len(updated.participant_statuses) == initial_count, (
+            "FAILURE must not write to DataLayer"
+        )
+
+    @pytest.mark.spec("RSH-09-006")
+    @pytest.mark.spec("CM-23-016")
+    def test_composite_state_check_reads_the_entry_as_carried(
+        self, bridge, datalayer, case_actor, participant
+    ):
+        """The entailment check judges the entry's status, not a blend.
+
+        Apply a valid entry first to establish rm=ACCEPTED on the replica.
+        Then send an entry recording rm=VALID + vf=VF.  The replica never
+        carries its own RM over the entry's (CM-23-016), so the status is
+        judged as carried, rm=VALID+vf=VF, which is impossible: the node
+        fails and appends nothing.
+        """
+        initial_count = len(participant.participant_statuses)
+
+        status_id_1 = f"urn:uuid:{uuid.uuid4()}"
+        entry1 = _make_status_entry(
+            status_id=status_id_1,
+            participant_id=participant.id_,
+            rm_state="ACCEPTED",
+            vf_state="VF",
+        )
+        result1 = bridge.execute_with_setup(
+            tree=ApplyParticipantStatusFromLedgerNode(name="Apply1"),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=_make_event(entry1, actor_id=case_actor.id_),
+        )
+        assert result1.status == Status.SUCCESS
+
+        status_id_2 = f"urn:uuid:{uuid.uuid4()}"
+        entry2 = _make_status_entry(
+            status_id=status_id_2,
+            participant_id=participant.id_,
+            rm_state="VALID",
+            vf_state="VF",
+        )
+        result2 = bridge.execute_with_setup(
+            tree=ApplyParticipantStatusFromLedgerNode(name="Apply2"),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=_make_event(entry2, actor_id=case_actor.id_),
+        )
+        assert result2.status == Status.FAILURE
+        updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
+        assert len(updated.participant_statuses) == initial_count + 1
+
+
+class TestEmitImpossibleStateFaultNode:
+    """EmitImpossibleStateFaultNode emits the fault and returns FAILURE."""
+
+    @pytest.mark.spec("RSH-09-006")
+    def test_emits_fault_with_impossible_state_class(
+        self, datalayer, case_actor
+    ):
+        """Node emits ProcessingFault with ImpossibleState class and returns FAILURE."""
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.models.fault_classes import (
+            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
+        )
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        trigger_activity = MagicMock(spec=TriggerActivityPort)
+        trigger_activity.emit_processing_fault.return_value = (
+            f"urn:uuid:{uuid.uuid4()}"
+        )
+        trigger_bridge = BTBridge(
+            datalayer=datalayer, trigger_activity=trigger_activity
+        )
+
+        status_id = f"urn:uuid:{uuid.uuid4()}"
+        entry = _make_status_entry(
+            status_id=status_id,
+            participant_id=f"urn:uuid:{uuid.uuid4()}",
+            rm_state="VALID",
+            vf_state="VF",
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = trigger_bridge.execute_with_setup(
+            tree=EmitImpossibleStateFaultNode(name="EmitImpossibleStateFault"),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.FAILURE
+        trigger_activity.emit_processing_fault.assert_called_once()
+        call_kwargs = trigger_activity.emit_processing_fault.call_args.kwargs
+        assert (
+            call_kwargs["failure_class"]
+            == VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE
+        )
+        assert case_actor.id_ in call_kwargs["to"]
+
+    @pytest.mark.spec("RSH-09-006")
+    def test_returns_failure_without_trigger_activity(
+        self, bridge, case_actor
+    ):
+        """Node still returns FAILURE gracefully when no TriggerActivityPort is wired."""
+        status_id = f"urn:uuid:{uuid.uuid4()}"
+        entry = _make_status_entry(
+            status_id=status_id,
+            participant_id=f"urn:uuid:{uuid.uuid4()}",
+            rm_state="VALID",
+            vf_state="VF",
+        )
+        event = _make_event(entry, actor_id=case_actor.id_)
+
+        result = bridge.execute_with_setup(
+            tree=EmitImpossibleStateFaultNode(name="EmitImpossibleStateFault"),
+            actor_id=PARTICIPANT_ACTOR_ID,
+            activity=event,
+        )
+
+        assert result.status == Status.FAILURE
+
+
+@pytest.mark.spec("CLP-15-007")
+def test_replicated_status_carries_no_time_rather_than_the_replica_clock(
+    bridge, datalayer, case_actor, participant
+):
+    """A rebuilt status keeps an absent time absent (ISSUE-3257).
+
+    A payload snapshot is dumped with ``exclude_none=True``, so a status whose
+    ``published`` was carried as absent has no key at all in the snapshot.
+    Validating that dict straight into ``ParticipantStatus`` let the core
+    ``default_factory`` stamp *this replica's* clock, which is the fabrication
+    the wire parser refuses one boundary earlier: the asserting actor's copy
+    sorted the status last (no time) while every replica sorted it first
+    (a time seconds old), so the two disagreed about which status was current.
+    """
+    entry = _make_status_entry(
+        status_id=f"urn:uuid:{uuid.uuid4()}",
+        participant_id=participant.id_,
+    )
+    assert "published" not in entry.payload_snapshot["object"]
+
+    result = bridge.execute_with_setup(
+        tree=ApplyParticipantStatusFromLedgerNode(
+            name="ApplyParticipantStatusFromLedger"
+        ),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=_make_event(entry, actor_id=case_actor.id_),
+    )
+
+    assert result.status == Status.SUCCESS
+    updated = cast(as_CaseParticipant, datalayer.read(participant.id_))
+    new_status = cast(ParticipantStatus, updated.participant_statuses[-1])
+    assert new_status.published is None
+    assert new_status.updated is None

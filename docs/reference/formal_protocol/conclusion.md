@@ -1,31 +1,41 @@
+---
+stakeholder_type: [platform-developer, process-researcher]
+level: 400
+page_type: reference
+description: >
+  A recap of the definition with summary diagrams of each process model.
+---
+
 # Formal Vultron Protocol Redux
 
-{% include-markdown "../../includes/normative.md" %}
+{% include-markdown "../../includes/specification_governs.md" %}
 
-We have [formally defined](../../reference/formal_protocol/index.md) an [MPCVD protocol](../../index.md).
-Here we provide a summary of the result.
+The preceding sections [formally defined](protocol_definition.md) an [MPCVD protocol](../../index.md).
+This page summarizes the result.
 See the linked sections for more details.
 
 <br/>
 <br/>
 
-Recapping the definitions given in the [introduction](index.md), we have:
+Recapping the definitions given in the [Protocol Definition](protocol_definition.md):
 
 !!! note "Formal Protocol Definition"
 
-    $${protocol}_{MPCVD} = 
-        \Big \langle 
-            { \langle S_i \rangle }^N_{i=1}, 
+    $$
+    {protocol}_{MPCVD} =
+        \Big \langle
+            { \langle S_i \rangle }^N_{i=1},
             { \langle o_i \rangle }^N_{i=1},
             { \langle M_{i,j} \rangle}^N_{i,j=1},
             { succ }
-        \Big \rangle$$
+        \Big \rangle
+    $$
 
 where
 
 | Symbol                                                                                                                                                                                                                                                   | Description                                                                                                                                                                                                                                  | Defined In               |
 |:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-------------------------|
-| $N$                                                                                                                                                                                                                                                      | Number of MPCVD Participants                                                                                                                                                                                                                 | [Introduction](index.md) |
+| $N$                                                                                                                                                                                                                                                      | Number of MPCVD Participants                                                                                                                                                                                                                 | [Protocol Definition](protocol_definition.md#number-of-processes) |
 | $\langle S_i \rangle_{i=1}^N$                                                                                                                                                                                                                            | $N$ disjoint finite sets in which each $S_i$ represents the set of states of a given Participant $i$                                                                                                                                         | [States](states.md) |
 | ${ \langle o_i \rangle }^N_{i=1}$                                                                                                                                                                                                                        | the set of starting states across all Participants in which each $o_i$ is an element of $S_i$ representing the initial state of each Participant $i$                                                                                         | [States](states.md) |
 | $\langle M_{ij} \rangle_{i,j=1}^N$                                                                                                                                                                                                                       | $N^2$ disjoint finite sets with $M_{ii}$ empty for all $i$. $M_{ij}$ represents the messages that can be sent from process $i$ to process $j$.                                                                                               | [Messages](messages.md) |
@@ -60,6 +70,7 @@ stateDiagram-v2
     V --> D : d (#8640;RD)
     A --> D : d (#8640;RD)
     D --> A : a (#8640;RA)
+    R --> C : c (#8640;RC)
     A --> C : c (#8640;RC)
     D --> C : c (#8640;RC)
     I --> C : c (#8640;RC)
@@ -89,7 +100,7 @@ stateDiagram-v2
 ### Case State
 
 The Case State (CS) model is shown below.
-We have divided the CS model into two diagrams: one that is specific to a given Participant, and one that is agnostic
+The CS model is divided into two diagrams: one specific to a given Participant, and one agnostic
 to the Participant, reflecting changes experienced by all Participants.
 The CS model is the most complex of the three, as it involves all Participants communicating with each other
 about both their own state changes in the fix development and deployment process, as well as the state changes
@@ -116,7 +127,7 @@ stateDiagram-v2
 The CS pxa model is shown below, and is agnostic to individual Participants.
 It reflects the state changes driven by external events that affect all Participants.
 Note that the diagram shown below simplifies the $X \implies P$ transitions based on the discussion
-in the detailed [CS model](../../topics/process_models/cs/cs_model.md#exploit-publication-causes-public-awareness).
+in the detailed [CS model](../../topics/process_models/cs/cs_model.md).
 
 ```mermaid
 ---
@@ -144,7 +155,7 @@ stateDiagram-v2
 
     The symbol $\prec$ is read as *precedes*.
 
-In [Defining CVD Success](../../topics/background/cvd_success.md), we defined a set of 12 ordering preferences over the
+[Defining CVD Success](../../topics/background/cvd_success.md) defined a set of 12 ordering preferences over the
 6 events in the Case State model. The symbols for these preferences refer to the transition events in the Case State
 diagrams above.
 
@@ -165,4 +176,8 @@ diagrams above.
 
 !!! tip "Worked Example"
 
-    A [worked example](../../topics/formal_protocol/worked_example.md) of the protocol in action is available.
+    A [worked example](../../tutorials/worked_example.md) of the protocol in action is available.
+
+## Further reading
+
+- [Message Types](../messages/index.md) — how each formal message type maps to the ActivityStreams Vocabulary 2.0 (AS2) activities the prototype sends and receives.

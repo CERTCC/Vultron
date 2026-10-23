@@ -1,0 +1,218 @@
+#!/usr/bin/env python
+"""This module provides helpers to generate documentation"""
+
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import os
+import re
+
+from vultron.core.case_states.hypercube import CVDmodel
+from vultron.core.case_states.patterns.explanations import explain
+from vultron.core.states.cs import CS_d, CS_vf
+
+_DISCLAIMER = "This file is auto-generated. Do not edit."
+
+# Every generated page is project working record (DF-11-003): it is addressed
+# to contributors and carries no level (DF-11-012).
+_WORKING_RECORD_DECLARATION = "stakeholder_type: [project-contributor]\n"
+
+# CS_vf/CS_d StrEnum names are terse protocol symbols, not prose. Map them to
+# the same human-readable labels the old VfdState namedtuple produced so that
+# regenerated docs stay consistent with the committed pages (ADR-0075).
+_CS_VF_LABELS: dict[CS_vf, tuple[str, ...]] = {
+    CS_vf.vf: ("Vendor Unaware", "Fix Not Ready"),
+    CS_vf.Vf: ("Vendor Aware", "Fix Not Ready"),
+    CS_vf.VF: ("Vendor Aware", "Fix Ready"),
+}
+_CS_D_LABELS: dict[CS_d, tuple[str, ...]] = {
+    CS_d.d: ("Fix Not Deployed",),
+    CS_d.D: ("Fix Deployed",),
+}
+
+
+def _vfd_labels(vf: CS_vf, d: CS_d) -> list[str]:
+    return list(_CS_VF_LABELS[vf]) + list(_CS_D_LABELS[d])
+
+
+def _bullet(s):
+    """Return a markdown bullet for use inside a table cell"""
+    return f"&bull;&nbsp;{s}<br/>"
+
+
+def _h2(s):
+    return f"## {s}\n"
+
+
+def _comment(s):
+    return f"<!-- {s} -->\n"
+
+
+def _fname(s):
+    # replace uppercase characters with _lowercase
+    s = re.sub(r"([A-Z])", r"_\1_", s).lower()
+    return f"state_{s}.md"
+
+
+def _enum2title(x):
+    return x.name.replace("_", " ").title()
+
+
+def _write_node_links(fp, nodes, score_fn=None) -> None:
+    """Write predecessor or successor bullet links to *fp*.
+
+    Args:
+        fp: Open file-like object to write to.
+        nodes: Iterable of node names; empty iterable writes a "None" bullet.
+        score_fn: Optional callable ``(node) -> float`` for successor scores.
+    """
+    if not nodes:
+        fp.write(_bullet("None"))
+        return
+    for node in nodes:
+        link = f"[{node}]({_fname(node)})"
+        if score_fn is not None:
+            link += f" (score={score_fn(node):.2f})"
+        fp.write(_bullet(link))
+
+
+def _write_path_links(fp, paths, sg) -> None:
+    """Write path bullet links (sequences of transitions) to *fp*.
+
+    Args:
+        fp: Open file-like object to write to.
+        paths: Iterable of paths (each path is a list of (start, end) steps).
+        sg: Case state graph providing ``transitions_in_path``.
+    """
+    if not paths:
+        fp.write(_bullet("None"))
+        return
+    for path in paths:
+        transitions = sg.transitions_in_path(path)
+        links = [
+            f"[**{t}**]({_fname(end)})"
+            for t, (_start, end) in zip(transitions, path, strict=False)
+        ]
+        fp.write(_bullet(" &rarr; ".join(links)))
+
+
+def print_readme(model_dir="../../docs/case_states"):
+    sg = CVDmodel()
+
+    fpath = os.path.join(model_dir, "index.md")
+    with open(fpath, "w") as fp:
+        fp.write(
+            "---\ndescription: >\n"
+            "  An annotated listing of every state in the case state model.\n"
+            f"{_WORKING_RECORD_DECLARATION}---\n\n"
+        )
+        fp.write(f"{_comment(_DISCLAIMER)}\n")
+
+        fp.write("# Case States\n")
+        fp.write(
+            "This directory contains a description of each state in the case model.\n"
+        )
+        fp.write("\n")
+        fp.write("## States\n")
+        fp.write("\n")
+
+        # table header
+        fp.write(
+            "| State | Vendor Status | Fix Status | Deployment Status | Public Status | Exploit Status | Attacks Status |\n"
+        )
+        fp.write("| --- | --- | --- | --- | --- | --- | --- |\n")
+
+        for state in sg.states:
+            explanation = "| ".join(_enum2title(x) for x in explain(state))
+            fp.write(f"| [{state}]({_fname(state)}) | {explanation} |\n")
+        fp.write("\n")
+
+
+def print_model(model_dir="../../docs/reference/case_states"):
+    # create a graph
+    sg = CVDmodel()
+
+    for state in sg.states:
+        filename = _fname(state)
+        filepath = os.path.join(model_dir, filename)
+        print(filepath)
+
+        with open(filepath, "w") as fp:
+            fp.write(f"---\n{_WORKING_RECORD_DECLARATION}---\n\n")
+            fp.write(f"{_comment(_DISCLAIMER)}\n")
+
+            fp.write(f"# {state}\n")
+
+            info = sg.state_info(state)
+
+            fp.write("| Key | Value |\n")
+            fp.write("| --- | --- |\n")
+            fp.write(f"| State | {info['state']} |\n")
+            fp.write(f"| Score | {info['score']:.2f} |\n")
+
+            fp.write("| VFD |")
+            for label in _vfd_labels(*info["vfd"]):
+                fp.write(_bullet(label))
+            fp.write("|\n")
+
+            fp.write("| PXA |")
+            for item in info["pxa"]:
+                fp.write(_bullet(_enum2title(item)))
+            fp.write("|\n")
+
+            for category in [
+                "explain",
+                "info",
+                "actions",
+                "zeroday_type",
+            ]:
+                fp.write(f"| {category.title()} |")
+                for item in info[category]:
+                    fp.write(_bullet(_enum2title(item)))
+                fp.write("|\n")
+
+            fp.write("| Predecessors |")
+            _write_node_links(fp, info["predecessors"])
+            fp.write("|\n")
+
+            fp.write("| Successors<br/>(prefer higher scores) |")
+            _write_node_links(fp, info["successors"], score_fn=sg.score_state)
+            fp.write("|\n")
+
+            fp.write("| Possible Sequences To This State |")
+            _write_path_links(fp, list(sg.paths_to(state)), sg)
+            fp.write("| \n")
+
+            fp.write("| Possible Sequences From This State |")
+            _write_path_links(fp, list(sg.paths_from(state)), sg)
+            fp.write("|\n")
+
+
+def main():
+    outdir = "../../docs/reference/case_states"
+
+    # check if parent dir exists
+    parent_dir = os.path.abspath(os.path.dirname(outdir))
+    if not os.path.exists(parent_dir):
+        raise FileNotFoundError(
+            f"Parent directory {parent_dir} does not exist"
+        )
+
+    os.makedirs(outdir, exist_ok=True)
+
+    print_readme(model_dir=outdir)
+    print_model(model_dir=outdir)
+
+
+if __name__ == "__main__":
+    main()

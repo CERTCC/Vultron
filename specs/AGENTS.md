@@ -1,0 +1,169 @@
+# Guidance for agents working in `specs/`
+
+> These rules are scoped to the `specs/` directory.
+> See the root `AGENTS.md` for project-wide rules.
+>
+## Specification-Driven Development
+
+This project uses formal specifications in `specs/` directory defining testable
+requirements.
+
+### Loading Specifications
+
+**Always load the governing specs before any implementation or design task.**
+`orient-agent` loads the map (`PYTHONPATH= uv run spec-dump --index`);
+`deepen-context` loads the task's requirements with `--topic`, `--group`, or
+`--ids ... --deps` (flat, inheritance-resolved JSON). Do not print the
+unfiltered dump — it is too large to read end to end. Raw
+`specs/*.yaml` files are for authoring and linting only — do not read them
+directly. See `.agents/skills/load-specs/SKILL.md` for field definitions and
+usage guidance.
+
+### Working with Specifications
+
+- Each spec defines requirements with unique IDs (e.g., `HP-01-001`)
+- Requirements use RFC 2119 keywords: MUST, SHOULD, MAY
+- Each requirement has verification criteria
+- Implementation changes SHOULD reference relevant requirement IDs
+- Some specs consolidate requirements from multiple sources; check the `tags`
+  field and `edges` array for cross-references
+
+### Key Specifications
+
+See `specs/README.md` for the full index organized by topic. Key groups:
+
+- **Cross-cutting**: `http-protocol.yaml`, `structured-logging.yaml`,
+  `idempotency.yaml`, `error-handling.yaml`
+- **Handler pipeline**: `inbox-endpoint.yaml`, `message-validation.yaml`,
+  `semantic-extraction.yaml`, `dispatch-routing.yaml`, `handler-protocol.yaml`
+- **Quality**: `testability.yaml`, `observability.yaml`, `code-style.yaml`
+- **BT integration**: `behavior-tree-integration.yaml`
+
+Always load cross-cutting specs (`ARCH`, `CS`, `TB`, `HP`, `SL`, `EH`) even
+when working on a narrow feature — they impose constraints on all code.
+
+### Test Coverage Requirements
+
+- **80%+ line coverage overall** (per `specs/testability.yaml`)
+- **100% coverage for critical paths**: message validation, semantic
+  extraction, dispatch routing, error handling
+- Test structure mirrors source structure
+- Tests named `test_*.py` in parallel directories
+
+---
+
+## Specification Usage Guidance
+
+### Reading Specifications
+
+- Requirements use RFC 2119 keywords: **MUST**, **SHOULD**, **MAY**
+- Each requirement has a unique ID (e.g., `HP-01-001`)
+- **Cross-references** link related requirements across specs
+- **Verification** sections show how to test requirements
+- **Implementation** notes suggest approaches (not mandatory)
+
+### When Specifications Conflict
+
+If requirements appear to conflict:
+
+1. Check **cross-references** in the `edges` array from
+   `PYTHONPATH= uv run spec-dump --ids <A>,<B> --deps`
+2. Consolidated specs (`http-protocol.yaml`, `structured-logging.yaml`) take
+   precedence over older inline requirements
+3. MUST requirements override SHOULD/MAY
+4. Ask for clarification rather than guessing
+
+### Updating Specifications
+
+When updating specs per LEARN_prompt instructions:
+
+- **Avoid over-specifying implementation details**: Specify *what*, not *how*
+- **Keep requirements atomic**: One testable requirement per ID
+- **Remove redundancy**: Use cross-references instead of duplicating
+  requirements
+- **Maintain verification criteria**: Every requirement needs a test
+- **Follow existing conventions**: Match style and structure of other specs
+
+**Do NOT add spec entries for** (route to `AGENTS.md` instead):
+
+- File paths, module locations, or package layouts (e.g., "factory functions
+  MUST live in `vultron/wire/as2/factories/`")
+- Demo scenario step ordering, file layout, or script structure
+- Agent or skill behavior instructions (e.g., "the agent MUST confirm the
+  selected bug with the user")
+- Naming conventions already enforced by `code-style.yaml`
+- Coding practices or conventions internal to this Python codebase
+
+**Gate test before adding to `specs/`**: Ask "Would a participant running a
+different implementation of the Vultron protocol notice if this requirement
+were violated?" If **no**, the requirement is an internal convention — route
+it to `AGENTS.md`, not `specs/`. This test operationalizes MS-05-004
+(declarative requirements) and the kind taxonomy (MS-12): if it fails the
+protocol, foundation, or architecture tier tests, it belongs in `project` or
+`process` kind — and if it also fails the externally-visible test, it belongs in
+`AGENTS.md` rather than specs at all.
+
+---
+
+### Field Values, Lint Traps, and the Coverage Gate
+
+The exact enum values `spec-lint` accepts, `adr:` versus `references:`, and the
+audit passes required when retiring a name or splitting a compound requirement
+are all in
+[`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md). The ones
+that bite most often:
+
+- **`kind:`** — exactly `protocol`, `foundation`, `architecture`, `project`,
+  `process`. `implementation` is not valid, and the rejection can read like a
+  YAML syntax error. Who must obey a rule decides its kind; naming code never
+  does (MS-12-002, ADR-0134). Split a spec that mixes kinds (MS-12-010), then
+  apply the MS-12 tree in MS-12-005's order (see
+  `notes/spec-authoring-rules.md`), and do not infer a `kind` from the
+  surrounding entries in the same file. A `foundation` spec carries the tag of
+  its standard: `as2`, `activitypub`, or `http` (MS-12-009).
+- **`lint_suppress: [missing_story_reference]`** — a guarded escape hatch,
+  not a free one. MS-12-007's PR-only growth guard
+  (`test/architecture/test_spec_kind_ratchet.py`) fails any PR that adds the
+  code to a spec that lacked it at the merge base; removing one never fails.
+  If SR-11-003 fires on a new entry, the usual fix is a corrected `kind:`, not
+  a suppression. MS-12-006's `protocol_kind_with_code_reference` is closed
+  outright: no spec may carry it (MS-12-008).
+- **`rationale:`** — required on every new requirement: why it is necessary now,
+  the problem it prevents or the property it guarantees, never how it came
+  about (MS-10-012, MS-10-013). The schema still admits a missing one during
+  the backfill, so MS-10-014's PR-only growth guard
+  (`test/architecture/test_spec_rationale_guard.py`) fails a PR that adds a
+  requirement without one or drops one. `uv run spec-rationale missing`,
+  `history` and `adr-links` (`--file specs/<name>.yaml`) are the backfill
+  worklists.
+- **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
+  is a FATAL registry load error. A `MUST_NOT` is the MUST tier (MS-02-003), so
+  it needs a `verification:` clause exactly as a `MUST` does (MS-10-003).
+- **`verification_debt: '#N'`** — the only way a `MUST`/`MUST_NOT` item may
+  lack a `verification:` clause (MS-10-006). It names the open issue that owns
+  verifying it, which must own the item's kind in `VERIFICATION_DEBT_OWNERS`
+  (`vultron/metadata/specs/verification.py`). Quote it: `#12` unquoted is a
+  YAML comment. Delete the marker when you add `verification:` (both is a hard
+  error); a relabel replaces it with `verification:` (MS-10-008). Never add one
+  to a new item — write the clause. The retired
+  `lint_suppress: [must_without_verification]` no longer loads.
+  `uv run spec-lint --list-unverified` names the marked IDs per kind.
+- **`rel_type:`** — one of the enumerated values; `related_to` is not among them.
+  Each type's meaning and upstream end is SR-13; record a link at one end only
+  (SR-13-012), or spec-lint fails on the loop or the double record.
+- **`references:`** — not a schema field, silently dropped. Use `adr:`.
+- **Item format is field presence, not a class you pick** (ADR-0101).
+  `BehavioralSpec` requires at least one of `preconditions`, `steps`,
+  `postconditions`; an item carrying none of them is a `StatementSpec`. `steps`
+  carries the *action* half of an ECA rule, so a single step is correct and
+  asserts no ordering. Read the format off the fields — never off `isinstance`,
+  and never off the `behavioral` tag.
+- **Adding or modifying a `kind: protocol` entry** requires a same-PR
+  `@pytest.mark.spec("<ID>")` marker (SR-05-004, SR-05-005): a PR-only growth
+  guard fails on each protocol ID the branch leaves uncovered. If the
+  implementation does not exist yet, use the strict-`xfail` pattern.
+
+After adding any new key to a spec YAML, verify it appears in
+`PYTHONPATH= uv run spec-dump --ids <ID>` output before treating it as persisted.
+
+---

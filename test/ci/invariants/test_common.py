@@ -1,0 +1,2048 @@
+"""Negative-case tests for every invariant check function in common.py.
+
+Each test confirms that a deliberate violation is detected (non-empty
+violation list returned).  The synthetic fixtures in conftest.py supply
+the valid baseline; each test modifies that baseline to inject one
+specific fault.
+
+AC-1 of ISSUE-1976.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from _pytest.outcomes import Failed, Skipped
+
+from test.ci.invariants import common
+from test.ci.invariants.common import (
+    check_cross_actor_hash_agreement,
+    check_cross_actor_payload_actor_agreement,
+    check_cs_state_transitions_observed,
+    check_genesis_entry_present,
+    check_hash_chain,
+    check_late_joiner_has_full_history,
+    check_log_starts_at_genesis,
+    check_nested_objects_inlined,
+    check_no_gaps_in_log_indices,
+    check_no_rm_state_oscillation,
+    check_non_empty_payload_snapshots,
+    check_participant_status_schema_completeness,
+    check_payload_context_uses_case_uri,
+    check_per_actor_replica_cs_state_transitions_observed,
+    check_per_actor_replica_no_rm_state_oscillation,
+    check_per_actor_replica_participant_status_schema_completeness,
+    check_per_actor_replica_rm_closed_termination,
+    check_rm_closed_termination,
+    check_semantic_type_count,
+    check_semantic_type_is_registry_label,
+    check_semantic_type_present,
+    check_status_entries_record_changes,
+    check_unique_payload_snapshot_ids,
+    for_each_replica,
+)
+from vultron.demo.helpers.ledger_dump import DUMP_MANIFEST_FILENAME
+
+CASE_URI = "https://example.org/cases/test-case"
+_SHA256 = lambda s: hashlib.sha256(s.encode()).hexdigest()  # noqa: E731
+GENESIS_HASH = _SHA256("genesis")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _entry(
+    log_index: int,
+    entry_hash: str,
+    prev_log_hash: str,
+    semantic_type: str = "noop",
+    payload: dict | None = None,
+) -> dict:
+    return {
+        "logIndex": log_index,
+        "entryHash": entry_hash,
+        "prevLogHash": prev_log_hash,
+        "semanticType": semantic_type,
+        "case_id": CASE_URI,
+        "payloadSnapshot": payload or {},
+        "disposition": "recorded",
+    }
+
+
+def _simple_two_entry_chain(actor: str = "case-actor") -> list[dict]:
+    h0 = _SHA256(f"{actor}:0")
+    h1 = _SHA256(f"{actor}:1")
+    return [
+        _entry(0, h0, GENESIS_HASH),
+        _entry(1, h1, h0),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Invariant 1: check_hash_chain
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"semanticType": "noop"},
+        {"logIndex": -1, "semanticType": "noop"},
+        {"logIndex": True, "semanticType": "noop"},
+        {"logIndex": 1.9, "semanticType": "noop"},
+        {"logIndex": "3", "semanticType": "noop"},
+        {"logIndex": [1], "semanticType": "noop"},
+    ],
+    ids=["missing", "negative", "bool", "float", "string", "list"],
+)
+def test_log_index_rejects_missing_and_negative(entry):
+    """No sentinel index: an unknown position raises (ISSUE-2764).
+
+    A committed entry always carries ``logIndex >= 0`` (CLP-14-010), so a
+    ``-1`` default would sort and compare as a real — earliest — position.
+    """
+    with pytest.raises(ValueError, match="logIndex"):
+        common.log_index(entry)
+
+
+def test_log_index_message_names_semantic_type_for_non_integer():
+    with pytest.raises(ValueError, match=r"'noop'.*non-integer"):
+        common.log_index({"logIndex": "x", "semanticType": "noop"})
+
+
+def test_log_index_falls_back_to_camel_case_when_snake_case_is_null():
+    assert common.log_index({"log_index": None, "logIndex": 3}) == 3
+
+
+def test_check_hash_chain_detects_broken_link():
+    broken = _simple_two_entry_chain()
+    broken[1]["prevLogHash"] = "a" * 64  # wrong hash
+    violations = check_hash_chain("case-actor", broken)
+    assert violations
+
+
+def test_check_hash_chain_detects_missing_entry_hash():
+    chain = _simple_two_entry_chain()
+    chain[0]["entryHash"] = ""
+    violations = check_hash_chain("case-actor", chain)
+    assert violations
+
+
+def test_check_hash_chain_detects_invalid_genesis_prev_hash():
+    chain = _simple_two_entry_chain()
+    chain[0]["prevLogHash"] = "not-a-hex-hash"
+    violations = check_hash_chain("case-actor", chain)
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 2: check_cross_actor_hash_agreement
+# ---------------------------------------------------------------------------
+
+
+def test_check_cross_actor_hash_agreement_detects_disagreement():
+    h0 = _SHA256("actor-a:0")
+    entry_a = _entry(0, h0, GENESIS_HASH)
+    entry_b = _entry(0, _SHA256("different"), GENESIS_HASH)
+    replicas = {"actor-a": [entry_a], "actor-b": [entry_b]}
+    violations = check_cross_actor_hash_agreement(replicas)
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 3: check_cross_actor_payload_actor_agreement
+# ---------------------------------------------------------------------------
+
+
+def test_check_cross_actor_payload_actor_agreement_detects_disagreement():
+    h0 = _SHA256("shared:0")
+    entry_a = _entry(0, h0, GENESIS_HASH, payload={"actor": "alice"})
+    entry_b = _entry(0, h0, GENESIS_HASH, payload={"actor": "bob"})
+    replicas = {"actor-a": [entry_a], "actor-b": [entry_b]}
+    violations = check_cross_actor_payload_actor_agreement(replicas)
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 4: check_non_empty_payload_snapshots
+# ---------------------------------------------------------------------------
+
+
+def test_check_non_empty_payload_snapshots_detects_empty_payload():
+    h0 = _SHA256("x:0")
+    entry = _entry(0, h0, GENESIS_HASH, payload={})
+    entry["disposition"] = "recorded"
+    replicas = {"case-actor": [entry]}
+    violations = check_non_empty_payload_snapshots(replicas)
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# check_semantic_type_is_registry_label (ADR-0140, #4724)
+# ---------------------------------------------------------------------------
+
+
+def _consent_row_payload() -> dict:
+    from vultron.wire.as2.vocab.examples.embargo import (
+        create_embargo_consent,
+    )
+
+    return create_embargo_consent().model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+
+
+@pytest.mark.spec("SE-02-001")
+def test_check_semantic_type_is_registry_label_passes_a_labelled_entry():
+    entry = _entry(
+        0,
+        _SHA256("label:0"),
+        GENESIS_HASH,
+        semantic_type="create_embargo_consent",
+        payload=_consent_row_payload(),
+    )
+    assert check_semantic_type_is_registry_label({"case-actor": [entry]}) == []
+
+
+@pytest.mark.spec("SE-02-001")
+def test_check_semantic_type_is_registry_label_detects_a_mislabel():
+    entry = _entry(
+        3,
+        _SHA256("label:3"),
+        GENESIS_HASH,
+        semantic_type="consent_row_written",
+        payload=_consent_row_payload(),
+    )
+    (violation,) = check_semantic_type_is_registry_label({"vendor": [entry]})
+    assert "Actor 'vendor' logIndex=3" in violation
+    assert "'consent_row_written'" in violation
+    assert "'create_embargo_consent'" in violation
+
+
+@pytest.mark.spec("SE-02-001")
+def test_check_semantic_type_is_registry_label_reports_an_unparseable_payload():
+    """A payload that is not an AS2 activity is a violation, never a raise."""
+    entry = _entry(
+        0,
+        _SHA256("label:u"),
+        GENESIS_HASH,
+        semantic_type="create_case",
+        payload={"id": "urn:no-type"},
+    )
+    (violation,) = check_semantic_type_is_registry_label({"reporter": [entry]})
+    assert "<unparseable:" in violation
+
+
+# ---------------------------------------------------------------------------
+# Invariant 5a: check_semantic_type_present
+# ---------------------------------------------------------------------------
+
+
+def test_check_semantic_type_present_returns_violation_when_absent():
+    h0 = _SHA256("ev:0")
+    entry = _entry(0, h0, GENESIS_HASH, semantic_type="something_else")
+    replicas = {"case-actor": [entry]}
+    violations = check_semantic_type_present(replicas, "missing_semantic_type")
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 5b: check_semantic_type_count
+# ---------------------------------------------------------------------------
+
+
+def test_check_semantic_type_count_returns_violation_when_below_min():
+    h0 = _SHA256("ev:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="add_participant_status_to_participant",
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_semantic_type_count(
+        replicas, "add_participant_status_to_participant", 3
+    )
+    assert violations
+
+
+def _invite_replicas(count: int) -> dict[str, list[dict]]:
+    """A case-actor log holding *count* distinct ``invite_actor_to_case`` entries."""
+    entries: list[dict] = []
+    prev = GENESIS_HASH
+    for i in range(count):
+        h = _SHA256(f"invite:{i}")
+        entries.append(
+            _entry(i, h, prev, semantic_type="invite_actor_to_case")
+        )
+        prev = h
+    return {"case-actor": entries}
+
+
+def test_check_semantic_type_count_returns_violation_when_above_max() -> None:
+    """A count above ``max_count`` is reported as a violation naming both numbers."""
+    violations = check_semantic_type_count(
+        _invite_replicas(2), "invite_actor_to_case", 1, max_count=1
+    )
+    assert violations
+    assert "at most 1" in violations[0]
+    assert "found 2" in violations[0]
+
+
+@pytest.mark.parametrize("count", [1, 2])
+def test_check_semantic_type_count_passes_within_bounds(count: int) -> None:
+    violations = check_semantic_type_count(
+        _invite_replicas(count), "invite_actor_to_case", 1, max_count=2
+    )
+    assert violations == []
+
+
+@pytest.mark.parametrize(
+    ("count", "min_count", "max_count", "violates"),
+    [
+        pytest.param(1, 1, 1, False, id="exact-match"),
+        pytest.param(0, 1, 1, True, id="exact-below"),
+        pytest.param(0, 0, 0, False, id="absence-held"),
+        pytest.param(1, 0, 0, True, id="absence-broken"),
+    ],
+)
+def test_check_semantic_type_count_exact_bound(
+    count: int, min_count: int, max_count: int, violates: bool
+) -> None:
+    """``min_count == max_count`` pins an exact count, including zero."""
+    violations = check_semantic_type_count(
+        _invite_replicas(count),
+        "invite_actor_to_case",
+        min_count,
+        max_count=max_count,
+    )
+    assert bool(violations) is violates
+
+
+def test_check_semantic_type_count_has_no_upper_bound_by_default() -> None:
+    violations = check_semantic_type_count(
+        _invite_replicas(5), "invite_actor_to_case", 1
+    )
+    assert violations == []
+
+
+def test_check_semantic_type_count_rejects_max_below_min() -> None:
+    with pytest.raises(ValueError, match="max_count"):
+        check_semantic_type_count(
+            _invite_replicas(1), "invite_actor_to_case", 2, max_count=1
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 6: check_no_rm_state_oscillation
+# ---------------------------------------------------------------------------
+
+
+def test_check_no_rm_state_oscillation_detects_post_closed_transition():
+    actor_id = "https://example.org/actors/a"
+    h0, h1 = (_SHA256(f"osc:{i}") for i in range(2))
+    entries = [
+        _entry(
+            0,
+            h0,
+            GENESIS_HASH,
+            semantic_type="add_participant_status_to_participant",
+            payload={
+                "object": {
+                    "attributedTo": actor_id,
+                    "rmState": "CLOSED",
+                    "cvdRole": ["REPORTER"],
+                }
+            },
+        ),
+        _entry(
+            1,
+            h1,
+            h0,
+            semantic_type="add_participant_status_to_participant",
+            payload={
+                "object": {
+                    "attributedTo": actor_id,
+                    "rmState": "ACCEPTED",  # post-CLOSED → oscillation
+                    "cvdRole": ["REPORTER"],
+                }
+            },
+        ),
+    ]
+    replicas = {"case-actor": entries}
+    violations = check_no_rm_state_oscillation(replicas)
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 7: check_rm_closed_termination
+# ---------------------------------------------------------------------------
+
+
+def test_check_rm_closed_termination_detects_open_participant():
+    actor_id = "https://example.org/actors/open"
+    h0 = _SHA256("open:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="add_participant_status_to_participant",
+        payload={
+            "object": {
+                "attributedTo": actor_id,
+                "rmState": "ACCEPTED",  # not CLOSED
+                "cvdRole": ["REPORTER"],
+            }
+        },
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_rm_closed_termination(replicas)
+    assert violations
+
+
+def test_check_rm_closed_termination_returns_violation_when_no_status_entries():
+    h0 = _SHA256("nostatus:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="create_case",
+        payload={"actor": "x"},
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_rm_closed_termination(replicas)
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 8: check_late_joiner_has_full_history
+# ---------------------------------------------------------------------------
+
+
+def test_check_late_joiner_has_full_history_detects_gap(late_joiner_replicas):
+    violations = check_late_joiner_has_full_history(
+        late_joiner_replicas, early_actor="early", late_actor="late"
+    )
+    assert violations
+
+
+def test_check_late_joiner_has_full_history_no_violation_when_complete(
+    full_history_replicas,
+):
+    violations = check_late_joiner_has_full_history(
+        full_history_replicas, early_actor="early", late_actor="late"
+    )
+    assert not violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 9: check_participant_status_schema_completeness
+# ---------------------------------------------------------------------------
+
+
+def test_check_participant_status_schema_completeness_detects_missing_field():
+    h0 = _SHA256("schema:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="add_participant_status_to_participant",
+        payload={
+            "object": {
+                "attributedTo": "https://example.org/actors/x",
+                "rmState": "VALID",
+                # cvdRole intentionally missing
+            }
+        },
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_participant_status_schema_completeness(replicas)
+    assert violations
+
+
+def test_check_participant_status_schema_completeness_detects_invalid_role():
+    h0 = _SHA256("role:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="add_participant_status_to_participant",
+        payload={
+            "object": {
+                "attributedTo": "https://example.org/actors/x",
+                "rmState": "VALID",
+                "cvdRole": ["NOT_A_REAL_ROLE"],
+            }
+        },
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_participant_status_schema_completeness(replicas)
+    assert violations
+
+
+def test_check_participant_status_schema_completeness_no_status_entries_is_violation():
+    h0 = _SHA256("nostatus2:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="create_case",
+        payload={"actor": "x"},
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_participant_status_schema_completeness(replicas)
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 10: check_nested_objects_inlined
+# ---------------------------------------------------------------------------
+
+
+def test_check_nested_objects_inlined_detects_bare_id_string():
+    h0 = _SHA256("inline:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="add_participant_status_to_participant",
+        payload={"object": "https://example.org/objects/bare-id"},
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_nested_objects_inlined(replicas)
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 11: check_payload_context_uses_case_uri
+# ---------------------------------------------------------------------------
+
+
+def test_check_payload_context_uses_case_uri_detects_mismatch():
+    h0 = _SHA256("ctx:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="create_case",
+        payload={"context": "https://example.org/cases/WRONG"},
+    )
+    entry["case_id"] = CASE_URI
+    replicas = {"case-actor": [entry]}
+    violations = check_payload_context_uses_case_uri(replicas)
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 12: check_genesis_entry_present
+# ---------------------------------------------------------------------------
+
+
+def test_check_genesis_entry_present_detects_missing_genesis():
+    h1 = _SHA256("nogenesis:1")
+    entry = _entry(1, h1, _SHA256("prev"), semantic_type="noop")
+    violations = check_genesis_entry_present("case-actor", [entry])
+    assert violations
+
+
+def test_check_genesis_entry_present_detects_empty_log():
+    violations = check_genesis_entry_present("case-actor", [])
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 13: check_log_starts_at_genesis
+# ---------------------------------------------------------------------------
+
+
+def test_check_log_starts_at_genesis_detects_non_zero_start():
+    h2 = _SHA256("nzstart:2")
+    entry = _entry(2, h2, _SHA256("prev"), semantic_type="noop")
+    violations = check_log_starts_at_genesis("case-actor", [entry])
+    assert violations
+
+
+def test_check_log_starts_at_genesis_detects_empty_log():
+    violations = check_log_starts_at_genesis("case-actor", [])
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 14: check_no_gaps_in_log_indices
+# ---------------------------------------------------------------------------
+
+
+def test_check_no_gaps_in_log_indices_detects_gap():
+    h0 = _SHA256("gap:0")
+    entries = [
+        _entry(0, h0, GENESIS_HASH),
+        _entry(2, _SHA256("gap:2"), h0),  # index 1 is missing
+    ]
+    violations = check_no_gaps_in_log_indices("case-actor", entries)
+    assert violations
+
+
+def test_check_no_gaps_in_log_indices_detects_empty_log():
+    violations = check_no_gaps_in_log_indices("case-actor", [])
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Invariant 15: check_cs_state_transitions_observed
+# ---------------------------------------------------------------------------
+
+
+def test_check_cs_state_transitions_observed_detects_missing_fix_ready():
+    actor_id = "https://example.org/actors/x"
+    h0 = _SHA256("csv:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="add_participant_status_to_participant",
+        payload={
+            "object": {
+                "attributedTo": actor_id,
+                "rmState": "VALID",
+                "cvdRole": ["REPORTER"],
+                "vfState": "vf",  # never VF
+                "caseStatus": {"pxaState": "Pxa"},
+            }
+        },
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_cs_state_transitions_observed(replicas)
+    assert violations
+
+
+def test_check_cs_state_transitions_observed_detects_no_status_entries():
+    h0 = _SHA256("csnostatus:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="create_case",
+        payload={"actor": "x"},
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_cs_state_transitions_observed(replicas)
+    assert violations
+
+
+def test_check_cs_state_transitions_observed_no_vf_passes_without_fix_ready():
+    """check_fix_ready=False skips VF check — reject-flow scenario regression.
+
+    Reproduces the rcv-reject Invariant 15 failure (issue #2121): a scenario
+    where Vendor never participates produces no VF observation, which triggered
+    a spurious violation when check_fix_ready was unconditional.
+    """
+    actor_id = "https://example.org/actors/coordinator"
+    h0 = _SHA256("no-vfd:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="add_participant_status_to_participant",
+        payload={
+            "object": {
+                "attributedTo": actor_id,
+                "rmState": "ACCEPTED",
+                "cvdRole": ["COORDINATOR"],
+                "vfState": "vf",  # no vendor → never VF
+                "caseStatus": {"pxaState": "Pxa"},  # P-transition present
+            }
+        },
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_cs_state_transitions_observed(
+        replicas, check_fix_ready=False
+    )
+    assert not violations
+
+
+def test_check_cs_state_transitions_observed_no_vfd_still_requires_published():
+    """check_fix_ready=False still enforces the P-transition requirement."""
+    actor_id = "https://example.org/actors/coordinator"
+    h0 = _SHA256("no-vfd-no-p:0")
+    entry = _entry(
+        0,
+        h0,
+        GENESIS_HASH,
+        semantic_type="add_participant_status_to_participant",
+        payload={
+            "object": {
+                "attributedTo": actor_id,
+                "rmState": "ACCEPTED",
+                "cvdRole": ["COORDINATOR"],
+                "vfState": "vf",
+                "caseStatus": {"pxaState": "pxa"},  # no P yet
+            }
+        },
+    )
+    replicas = {"case-actor": [entry]}
+    violations = check_cs_state_transitions_observed(
+        replicas, check_fix_ready=False
+    )
+    assert violations
+
+
+# ---------------------------------------------------------------------------
+# Positive-case (happy-path) tests using conftest fixtures
+# ---------------------------------------------------------------------------
+
+
+class TestAllInvariantsPassOnValidChain:
+    """Each invariant function returns no violations on a well-formed 5-entry chain.
+
+    Uses the ``single_actor_replicas`` and ``two_actor_replicas`` fixtures from
+    conftest.py to confirm that valid data never triggers false-positive violations.
+    """
+
+    def test_check_hash_chain_passes_on_valid_chain(
+        self, single_actor_replicas
+    ):
+        entries = single_actor_replicas["case-actor"]
+        assert check_hash_chain("case-actor", entries) == []
+
+    def test_check_cross_actor_hash_agreement_passes_on_identical_replicas(
+        self, two_actor_replicas
+    ):
+        assert check_cross_actor_hash_agreement(two_actor_replicas) == []
+
+    def test_check_cross_actor_payload_actor_agreement_passes(
+        self, two_actor_replicas
+    ):
+        assert (
+            check_cross_actor_payload_actor_agreement(two_actor_replicas) == []
+        )
+
+    def test_check_non_empty_payload_snapshots_passes(
+        self, single_actor_replicas
+    ):
+        assert check_non_empty_payload_snapshots(single_actor_replicas) == []
+
+    def test_check_no_rm_state_oscillation_passes(self, single_actor_replicas):
+        assert check_no_rm_state_oscillation(single_actor_replicas) == []
+
+    def test_check_rm_closed_termination_passes(self, single_actor_replicas):
+        assert check_rm_closed_termination(single_actor_replicas) == []
+
+    def test_check_participant_status_schema_completeness_passes(
+        self, single_actor_replicas
+    ):
+        assert (
+            check_participant_status_schema_completeness(single_actor_replicas)
+            == []
+        )
+
+    def test_check_nested_objects_inlined_passes(self, single_actor_replicas):
+        assert check_nested_objects_inlined(single_actor_replicas) == []
+
+    def test_check_payload_context_uses_case_uri_passes(
+        self, single_actor_replicas
+    ):
+        assert check_payload_context_uses_case_uri(single_actor_replicas) == []
+
+    def test_check_genesis_entry_present_passes(self, single_actor_replicas):
+        entries = single_actor_replicas["case-actor"]
+        assert check_genesis_entry_present("case-actor", entries) == []
+
+    def test_check_log_starts_at_genesis_passes(self, single_actor_replicas):
+        entries = single_actor_replicas["case-actor"]
+        assert check_log_starts_at_genesis("case-actor", entries) == []
+
+    def test_check_no_gaps_in_log_indices_passes(self, single_actor_replicas):
+        entries = single_actor_replicas["case-actor"]
+        assert check_no_gaps_in_log_indices("case-actor", entries) == []
+
+    def test_check_cs_state_transitions_observed_passes(
+        self, single_actor_replicas
+    ):
+        assert check_cs_state_transitions_observed(single_actor_replicas) == []
+
+
+# ---------------------------------------------------------------------------
+# load_devlogs() artifact handling (ISSUE-2239)
+# ---------------------------------------------------------------------------
+
+
+class TestLoadDevlogsManifestHandling:
+    """``load_devlogs`` must fail — not skip — once a demo has dumped.
+
+    Before ISSUE-2239, a scenario that died mid-phase uploaded nothing, so the
+    invariant harness could not tell "the demo never ran" apart from "the demo
+    ran and produced no ledger entries" and skipped in both cases (a false
+    green).  The dump now always writes ``dump-manifest.json``, which is the
+    evidence that distinguishes the two.
+    """
+
+    def test_skips_when_devlogs_dir_is_absent(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path / "nope")
+        with pytest.raises(Skipped) as excinfo:
+            common.load_devlogs("rvv")
+        assert "devlogs/" in str(excinfo.value)
+
+    def test_fails_when_scenario_dir_exists_but_no_dump(
+        self, tmp_path, monkeypatch
+    ):
+        """Directory exists with no manifest means the dump never ran — a real failure.
+
+        When a named scenario directory exists but contains neither ledger
+        files nor a manifest, the demo runner wrote the directory but exited
+        before producing any output.  This is a crashed run, not a missing
+        run, so the harness must fail rather than skip (ISSUE-2411 Gap 2).
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        (tmp_path / "rvv").mkdir()
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("rvv")
+        assert "run the" in (excinfo.value.msg or "")
+
+    def test_skips_when_unscoped_and_no_files(self, tmp_path, monkeypatch):
+        """Unscoped load_devlogs() (no demo_name) still skips when no ledger files exist.
+
+        The ISSUE-2411 Gap-2 fix adds an ``if demo_name:`` branch so that only
+        named-scenario calls fail on an empty directory; unscoped calls must
+        continue to skip so that running the invariant harness locally against
+        an empty devlogs/ tree does not error.
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        with pytest.raises(Skipped) as excinfo:
+            common.load_devlogs()
+        assert "devlogs/" in str(excinfo.value)
+
+    def test_fails_when_manifest_reports_no_ledgers(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "rvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "rvv",
+                    "caseId": None,
+                    "ledgerFileCount": 0,
+                    "targetCount": 0,
+                    "reason": "The scenario failed before a case existed.",
+                    "actors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("rvv")
+        message = excinfo.value.msg or ""
+        assert "no case-ledger" in message.lower()
+        assert "The scenario failed before a case existed." in message
+
+    @pytest.mark.spec("DEMOCI-10-014")
+    def test_upstream_abort_is_not_called_a_real_invariant_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """A manifest with no case says the demo aborted, not that an invariant broke.
+
+        When the scenario failed before a case existed, no participant ledger
+        could have been exported and no ledger invariant was exercised.  The
+        harness must still fail (DEMOCI-10-003) but must say which layer
+        failed — a triager reading "real invariant failure" over a delivery
+        flake was the cost recorded on #2898 (ISSUE-3879).
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "rcvcv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "rcvcv",
+                    "caseId": None,
+                    "ledgerFileCount": 0,
+                    "targetCount": 0,
+                    "reason": (
+                        "The scenario failed before a case existed, so no "
+                        "participant ledgers could be exported."
+                    ),
+                    "actors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("rcvcv")
+        message = excinfo.value.msg or ""
+        assert "real invariant failure" not in message
+        assert "not exercised" in message
+        assert "before a case existed" in message
+
+    @pytest.mark.spec("DEMOCI-10-014")
+    def test_missing_ledgers_for_an_existing_case_stay_a_real_invariant_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """A manifest that names a case but captured no ledgers keeps the strong wording."""
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "rvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "rvv",
+                    "caseId": CASE_URI,
+                    "ledgerFileCount": 0,
+                    "targetCount": 2,
+                    "reason": None,
+                    "actors": [
+                        {
+                            "actorName": "reporter",
+                            "routeKey": "reporter",
+                            "captured": False,
+                            "reason": "HTTP 500",
+                        },
+                        {
+                            "actorName": "vendor",
+                            "routeKey": "vendor",
+                            "captured": False,
+                            "reason": "HTTP 500",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("rvv")
+        message = excinfo.value.msg or ""
+        assert "real invariant failure" in message
+        assert "not exercised" not in message
+
+    @pytest.mark.spec("DEMOCI-10-014")
+    def test_crashed_dump_is_not_called_an_upstream_abort_or_an_invariant_failure(
+        self, tmp_path, monkeypatch
+    ):
+        """The harness's crashed-dump backstop has the no-case shape but a
+        different meaning.
+
+        ``ScenarioHarness`` writes ``caseId: null`` / ``targetCount: 0`` with
+        ``DUMP_CRASHED_REASON`` when ``dump_case_ledgers`` raised before it
+        could record results — for a run whose case may well have existed.
+        Keying the wording on shape alone would call that "aborted before a
+        case existed" over a reason line that says the dump crashed.
+        """
+        from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
+
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "rcv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "rcv",
+                    "caseId": None,
+                    "ledgerFileCount": 0,
+                    "targetCount": 0,
+                    "reason": DUMP_CRASHED_REASON,
+                    "actors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("rcv")
+        message = excinfo.value.msg or ""
+        assert "real invariant failure" not in message
+        assert "before a case existed" not in message
+        assert "dump raised" in message
+        assert "not exercised" in message
+        assert DUMP_CRASHED_REASON in message
+
+    def test_failure_message_names_each_missing_actor(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "rvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "rvv",
+                    "caseId": CASE_URI,
+                    "ledgerFileCount": 0,
+                    "targetCount": 2,
+                    "reason": None,
+                    "actors": [
+                        {
+                            "actorName": "reporter",
+                            "routeKey": "reporter",
+                            "captured": False,
+                            "entryCount": 0,
+                            "ledgerFile": None,
+                            "reason": "ValueError: No case ledger entries",
+                        },
+                        {
+                            "actorName": "vendor",
+                            "routeKey": "vendor",
+                            "captured": False,
+                            "entryCount": 0,
+                            "ledgerFile": None,
+                            "reason": None,
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("rvv")
+        message = excinfo.value.msg or ""
+        assert "reporter" in message
+        assert "ValueError: No case ledger entries" in message
+        assert "vendor" in message
+
+    def test_fails_when_manifest_is_unreadable(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "rvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            "{not json", encoding="utf-8"
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("rvv")
+        assert "unreadable" in (excinfo.value.msg or "")
+
+    def test_returns_entries_when_ledger_files_exist(
+        self, tmp_path, monkeypatch, single_actor_replicas
+    ):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        actor_dir = tmp_path / "rvv" / "case-actor"
+        actor_dir.mkdir(parents=True)
+        (tmp_path / "rvv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps({"demoName": "rvv", "ledgerFileCount": 1}),
+            encoding="utf-8",
+        )
+        entries = single_actor_replicas["case-actor"]
+        (actor_dir / "test-case-case-ledger.jsonl").write_text(
+            "".join(json.dumps(e) + "\n" for e in entries), encoding="utf-8"
+        )
+
+        replicas = common.load_devlogs("rvv")
+
+        assert list(replicas) == ["case-actor"]
+        assert [common.log_index(e) for e in replicas["case-actor"]] == list(
+            range(len(entries))
+        )
+
+    def test_fails_when_ledger_entry_lacks_log_index(
+        self, tmp_path, monkeypatch, single_actor_replicas
+    ):
+        """An entry with no valid ``logIndex`` fails the load (ISSUE-2764).
+
+        Every such entry is named, across every actor (EH-07-001), rather
+        than being sorted to the front of the log as index ``-1``.
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        (tmp_path / "rvv").mkdir()
+        (tmp_path / "rvv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps({"demoName": "rvv", "ledgerFileCount": 2}),
+            encoding="utf-8",
+        )
+        good = single_actor_replicas["case-actor"]
+        for actor, bad in (
+            ("case-actor", {"semanticType": "missing_index"}),
+            ("vendor", {"logIndex": -1, "semanticType": "negative_index"}),
+        ):
+            actor_dir = tmp_path / "rvv" / actor
+            actor_dir.mkdir()
+            (actor_dir / "test-case-case-ledger.jsonl").write_text(
+                "".join(json.dumps(e) + "\n" for e in [*good, bad]),
+                encoding="utf-8",
+            )
+
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs("rvv")
+
+        msg = excinfo.value.msg or ""
+        assert "'case-actor'" in msg and "missing_index" in msg
+        assert "'vendor'" in msg and "negative_index" in msg
+
+    def test_skip_survives_when_no_demo_name_and_no_manifest(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        (tmp_path / "unrelated").mkdir()
+        with pytest.raises(Skipped) as excinfo:
+            common.load_devlogs()
+        assert "devlogs/" in str(excinfo.value)
+
+    def test_filters_entries_by_manifest_case_id_on_accumulation(
+        self, tmp_path, monkeypatch
+    ):
+        """load_devlogs filters out entries from prior runs via manifest caseId.
+
+        When devlogs/ accumulates ledger files from multiple runs, the
+        hash-chain invariant fails because entries from different cases are
+        concatenated into one log.  The manifest's caseId identifies the
+        current run; load_devlogs must drop any entry whose caseId differs.
+        Regression: issue #2273.
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        actor_dir = tmp_path / "rv" / "case-actor"
+        actor_dir.mkdir(parents=True)
+
+        CASE_A = "https://example.org/cases/case-a"
+        CASE_B = "https://example.org/cases/case-b"
+
+        entry_a = {
+            "logIndex": 0,
+            "entryHash": "ha",
+            "prevLogHash": "0",
+            "semantic_type": "old_event",
+            "caseId": CASE_A,
+        }
+        entry_b = {
+            "logIndex": 0,
+            "entryHash": "hb",
+            "prevLogHash": "0",
+            "semantic_type": "new_event",
+            "caseId": CASE_B,
+        }
+
+        # Two JSONL files — one from each run — simulating local accumulation
+        (actor_dir / "case-a-case-ledger.jsonl").write_text(
+            json.dumps(entry_a) + "\n", encoding="utf-8"
+        )
+        (actor_dir / "case-b-case-ledger.jsonl").write_text(
+            json.dumps(entry_b) + "\n", encoding="utf-8"
+        )
+
+        # Manifest identifies the most recent run as case-b
+        (tmp_path / "rv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "rv",
+                    "caseId": CASE_B,
+                    "ledgerFileCount": 1,
+                    "targetCount": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        replicas = common.load_devlogs("rv")
+
+        assert "case-actor" in replicas
+        case_ids_in_result = {e.get("caseId") for e in replicas["case-actor"]}
+        assert case_ids_in_result == {CASE_B}, (
+            f"Expected only {CASE_B!r}, got {case_ids_in_result!r}. "
+            "load_devlogs must filter by manifest caseId to prevent "
+            "hash-chain corruption from cross-run accumulation (issue #2273)."
+        )
+
+    def test_invalid_log_index_in_filtered_out_case_does_not_fail(
+        self, tmp_path, monkeypatch
+    ):
+        """The logIndex check runs after the manifest ``caseId`` filter.
+
+        A leftover entry from an older local run is dropped before it is
+        judged, so its missing index does not fail the load (ISSUE-2764).
+        """
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        actor_dir = tmp_path / "rv" / "case-actor"
+        actor_dir.mkdir(parents=True)
+
+        CASE_A = "https://example.org/cases/case-a"
+        CASE_B = "https://example.org/cases/case-b"
+        stale = {"semantic_type": "old_event", "caseId": CASE_A}
+        current = {
+            "logIndex": 0,
+            "entryHash": "hb",
+            "prevLogHash": "0",
+            "semantic_type": "new_event",
+            "caseId": CASE_B,
+        }
+        (actor_dir / "case-a-case-ledger.jsonl").write_text(
+            json.dumps(stale) + "\n", encoding="utf-8"
+        )
+        (actor_dir / "case-b-case-ledger.jsonl").write_text(
+            json.dumps(current) + "\n", encoding="utf-8"
+        )
+        (tmp_path / "rv" / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps(
+                {
+                    "demoName": "rv",
+                    "caseId": CASE_B,
+                    "ledgerFileCount": 1,
+                    "targetCount": 1,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        replicas = common.load_devlogs("rv")
+
+        assert replicas["case-actor"] == [current]
+
+    def test_fails_when_any_scenario_manifest_reports_no_ledgers(
+        self, tmp_path, monkeypatch
+    ):
+        """Un-scoped loads look for a manifest anywhere beneath devlogs/."""
+        monkeypatch.setattr(common, "_DEVLOGS_DIR", tmp_path)
+        demo_dir = tmp_path / "rvv"
+        demo_dir.mkdir()
+        (demo_dir / DUMP_MANIFEST_FILENAME).write_text(
+            json.dumps({"demoName": "rvv", "ledgerFileCount": 0}),
+            encoding="utf-8",
+        )
+        with pytest.raises(Failed) as excinfo:
+            common.load_devlogs()
+        assert "no case-ledger" in (excinfo.value.msg or "").lower()
+
+
+# ---------------------------------------------------------------------------
+# _AllSkipGuard (DEMOCI-10-005)
+# ---------------------------------------------------------------------------
+
+import types as _types  # noqa: E402
+
+from test.ci.invariants.conftest import _AllSkipGuard  # noqa: E402
+
+
+def _rpt(when: str, outcome: str):
+    return _types.SimpleNamespace(when=when, outcome=outcome)
+
+
+def _ses(exitstatus: int = 0):
+    return _types.SimpleNamespace(exitstatus=exitstatus)
+
+
+class TestAllSkipGuard:
+    """DEMOCI-10-005: all-skip session must not exit 0."""
+
+    def test_forces_exit_1_on_fixture_level_skips(self):
+        """All tests skipped at setup (fixture skip) → exitstatus forced to 1."""
+        guard = _AllSkipGuard()
+        for _ in range(3):
+            guard.pytest_runtest_logreport(_rpt("setup", "skipped"))
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 1
+
+    def test_forces_exit_1_on_call_level_skips(self):
+        """All tests skipped in the test body → exitstatus forced to 1."""
+        guard = _AllSkipGuard()
+        for _ in range(2):
+            guard.pytest_runtest_logreport(_rpt("call", "skipped"))
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 1
+
+    def test_does_not_trigger_when_any_test_passes(self):
+        """One passing test among skips → exitstatus unchanged."""
+        guard = _AllSkipGuard()
+        guard.pytest_runtest_logreport(_rpt("setup", "skipped"))
+        guard.pytest_runtest_logreport(_rpt("call", "passed"))
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 0
+
+    def test_does_not_trigger_on_empty_session(self):
+        """No tests reported → exitstatus unchanged."""
+        guard = _AllSkipGuard()
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 0
+
+    def test_does_not_trigger_when_tests_fail(self):
+        """Failed tests → guard does not alter the already-nonzero exitstatus."""
+        guard = _AllSkipGuard()
+        guard.pytest_runtest_logreport(_rpt("call", "failed"))
+        session = _ses(1)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 1
+
+    def test_ignores_teardown_reports(self):
+        """Teardown outcomes are not tracked; a setup skip still triggers."""
+        guard = _AllSkipGuard()
+        guard.pytest_runtest_logreport(_rpt("teardown", "passed"))
+        guard.pytest_runtest_logreport(_rpt("setup", "skipped"))
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 1
+
+    def test_does_not_trigger_for_xfail_expected_failures(self):
+        """xfail expected-failure (outcome='skipped', wasxfail set) → not counted."""
+        guard = _AllSkipGuard()
+        rpt = _types.SimpleNamespace(
+            when="call", outcome="skipped", wasxfail="reason"
+        )
+        guard.pytest_runtest_logreport(rpt)
+        session = _ses(0)
+        guard.pytest_sessionfinish(session=session)
+        assert session.exitstatus == 0
+
+
+# ---------------------------------------------------------------------------
+# Replica-side per-actor checks (ISSUE-2411 Gap 1, split by ISSUE-3385)
+# ---------------------------------------------------------------------------
+
+_ACTOR_A_ID = "https://example.org/actors/actor-a"
+_ACTOR_B_ID = "https://example.org/actors/actor-b"
+
+
+def _status_entry(
+    log_idx: int,
+    rm_state: str,
+    vf_state: str,
+    pxa_state: str,
+    actor_id: str = _ACTOR_A_ID,
+) -> dict:
+    h = _SHA256(f"status:{log_idx}:{rm_state}")
+    return _entry(
+        log_idx,
+        h,
+        _SHA256(f"prev:{log_idx}"),
+        semantic_type="add_participant_status_to_participant",
+        payload={
+            "object": {
+                "attributedTo": actor_id,
+                "rmState": rm_state,
+                "cvdRole": ["REPORTER"],
+                "vfState": vf_state,
+                "caseStatus": {"pxaState": pxa_state},
+            }
+        },
+    )
+
+
+def _vendor_entries_valid() -> list[dict]:
+    """Minimal vendor replica that passes all per-actor checks."""
+    return [
+        _status_entry(0, "ACCEPTED", "VF", "Pxa"),
+        _status_entry(1, "CLOSED", "VF", "PXA"),
+    ]
+
+
+class TestForEachReplica:
+    """``for_each_replica`` scopes a check to the non-``case-actor`` replicas.
+
+    The two behaviours every ``per_actor_replica_*`` check inherits from this
+    driver: the ``case-actor`` replica is never its subject (invariants 6, 7, 9
+    and 15 already cover it via ``auth_entries``), and the
+    ``requires_status_entries`` gate excludes replicas that carry no
+    state-machine observations.
+    """
+
+    def test_case_actor_is_exempt(self):
+        """A defect present only in the case-actor replica yields nothing."""
+        bad_entry = _status_entry(0, "ACCEPTED", "VF", "Pxa")
+        bad_entry["payloadSnapshot"]["object"].pop("cvdRole")
+        replicas = {"case-actor": [bad_entry]}
+        assert (
+            for_each_replica(
+                replicas, check_participant_status_schema_completeness
+            )
+            == []
+        )
+
+    def test_violations_name_the_replica(self):
+        """Each violation is prefixed with the actor whose replica produced it."""
+        entries = [_status_entry(0, "ACCEPTED", "VF", "Pxa")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = for_each_replica(replicas, check_rm_closed_termination)
+        assert violations
+        assert all(v.startswith("Actor 'vendor':") for v in violations)
+
+    def test_status_gate_skips_a_replica_with_no_status_entries(self):
+        """``requires_status_entries=True`` skips a log with no status entries."""
+        h0 = _SHA256("nonstatus:0")
+        nonstatus = [_entry(0, h0, GENESIS_HASH, semantic_type="create_case")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
+        assert (
+            for_each_replica(
+                replicas,
+                check_rm_closed_termination,
+                requires_status_entries=True,
+            )
+            == []
+        )
+
+    def test_status_gate_off_checks_a_replica_with_no_status_entries(self):
+        """``requires_status_entries=False`` still checks such a log.
+
+        Proves the gate is the discriminator and not a no-op: the same replica
+        the test above skips does get checked here, and
+        ``check_rm_closed_termination`` reports the no-RM-carriers violation.
+        """
+        h0 = _SHA256("nonstatus:0")
+        nonstatus = [_entry(0, h0, GENESIS_HASH, semantic_type="create_case")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
+        violations = for_each_replica(
+            replicas,
+            check_rm_closed_termination,
+            requires_status_entries=False,
+        )
+        assert violations
+        assert "vendor" in violations[0]
+
+
+class TestCheckPerActorReplicaNoRmStateOscillation:
+    """Replica-side counterpart of invariant 6."""
+
+    def test_passes_on_valid_multi_actor_replicas(self):
+        replicas = {
+            "case-actor": _vendor_entries_valid(),
+            "vendor": _vendor_entries_valid(),
+        }
+        assert check_per_actor_replica_no_rm_state_oscillation(replicas) == []
+
+    def test_detects_rm_oscillation_in_non_case_actor(self):
+        """RM state oscillation after CLOSED is detected in a non-case-actor."""
+        entries = [
+            _status_entry(0, "ACCEPTED", "VF", "Pxa"),
+            _status_entry(1, "CLOSED", "VF", "PXA"),
+            _status_entry(2, "ACCEPTED", "VF", "PXA"),  # oscillation
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_no_rm_state_oscillation(replicas)
+        assert violations
+        assert "vendor" in violations[0]
+
+    def test_runs_without_status_entries(self):
+        """This check is not gated on status entries, unlike the other three.
+
+        ``check_no_rm_state_oscillation`` reads ``close_case`` entries too, so a
+        replica with no ``add_participant_status_to_participant`` can still
+        oscillate — a ``close_case`` after a status already at CLOSED.
+        """
+        actor = _ACTOR_A_ID
+        entries = [
+            _status_entry(0, "CLOSED", "VF", "PXA", actor),
+            _entry(
+                1,
+                _SHA256("close:1"),
+                _SHA256("prev:1"),
+                semantic_type="close_case",
+                payload={"actor": actor},
+            ),
+            _status_entry(2, "ACCEPTED", "VF", "PXA", actor),
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_no_rm_state_oscillation(replicas)
+        assert violations
+        assert "vendor" in violations[0]
+
+
+class TestCheckPerActorReplicaRmClosedTermination:
+    """Replica-side counterpart of invariant 7, under CM-23-004.
+
+    A closed participant is sent nothing after the entries recording its own
+    closure, so each leaver's replica is checked for its own closure only.
+    """
+
+    _MANAGER = "https://example.org/actors/case-actor"
+    _NAMES = {
+        "actor-a": "vendor",
+        "actor-b": "reporter",
+        "case-actor": "case-actor",
+    }
+
+    def _close(self, log_idx: int, actor_id: str) -> dict:
+        return _entry(
+            log_idx,
+            _SHA256(f"close:{log_idx}"),
+            _SHA256(f"prev:{log_idx}"),
+            semantic_type="close_case",
+            payload={"actor": actor_id},
+        )
+
+    def _authority(self) -> list[dict]:
+        """Reporter leaves, then the owner (vendor); the manager closes last."""
+        return [
+            _status_entry(0, "ACCEPTED", "VF", "Pxa", _ACTOR_A_ID),
+            _status_entry(1, "ACCEPTED", "VF", "Pxa", _ACTOR_B_ID),
+            self._close(2, _ACTOR_B_ID),
+            _status_entry(3, "CLOSED", "VF", "PXA", _ACTOR_B_ID),
+            self._close(4, _ACTOR_A_ID),
+            _status_entry(5, "CLOSED", "VF", "PXA", _ACTOR_A_ID),
+            # A pending Invite settled at owner close (CM-23-014).
+            _entry(
+                6,
+                _SHA256("expiry:6"),
+                _SHA256("prev:6"),
+                semantic_type="update_embargo_consent",
+                payload={"actor": self._MANAGER},
+            ),
+            # The CASE_MANAGER's own closure is the write boundary.
+            _status_entry(7, "CLOSED", "VF", "PXA", self._MANAGER),
+        ]
+
+    def _check(self, **replicas: list[dict]) -> list[str]:
+        return check_per_actor_replica_rm_closed_termination(
+            {"case-actor": self._authority(), **replicas}, self._NAMES
+        )
+
+    @pytest.mark.spec("CM-23-004")
+    def test_each_replica_ending_at_its_own_closure_passes(self):
+        """The reporter never sees the owner close; the owner never sees the end."""
+        authority = self._authority()
+        assert self._check(reporter=authority[:4], vendor=authority[:6]) == []
+
+    @pytest.mark.spec("CM-23-004")
+    def test_an_entry_after_the_own_closure_is_flagged(self):
+        """A closed participant sent the manager's closure breaches CM-23-004."""
+        violations = self._check(vendor=self._authority())
+        assert len(violations) == 1
+        assert "vendor" in violations[0]
+        assert "logIndex=7, expected 5" in violations[0]
+
+    def test_a_replica_short_of_its_own_closure_is_flagged(self):
+        """The leaver must receive its own closure step (CM-23-001)."""
+        violations = self._check(reporter=self._authority()[:3])
+        assert any("expected 3" in v for v in violations)
+        assert any(
+            "final RM state" in v and "'ACCEPTED'" in v for v in violations
+        )
+
+    @pytest.mark.spec("CM-23-004")
+    def test_a_replica_with_no_recorded_closure_is_flagged(self):
+        """An unresolved or never-departed replica is a violation, not a skip.
+
+        Otherwise a manifest whose names do not resolve would leave every
+        replica unchecked and the invariant green with nothing checked.
+        """
+        nonstatus = [_entry(0, _SHA256("n:0"), GENESIS_HASH, "create_case")]
+        violations = self._check(bystander=nonstatus)
+        assert len(violations) == 1
+        assert "'bystander'" in violations[0]
+        assert "no close_case" in violations[0]
+
+
+class TestCheckPerActorReplicaParticipantStatusSchemaCompleteness:
+    """Replica-side counterpart of invariant 9.
+
+    This property is one of the three ISSUE-3385 reported as silenced: a
+    participant replica emitting snapshots without ``cvdRole`` is caught only
+    here, and the aggregate ``xfail`` meant nothing caught it at all.
+    """
+
+    def test_passes_on_valid_multi_actor_replicas(self):
+        replicas = {
+            "case-actor": _vendor_entries_valid(),
+            "vendor": _vendor_entries_valid(),
+        }
+        assert (
+            check_per_actor_replica_participant_status_schema_completeness(
+                replicas
+            )
+            == []
+        )
+
+    def test_detects_missing_cvd_role(self):
+        entries = _vendor_entries_valid()
+        entries[0]["payloadSnapshot"]["object"].pop("cvdRole")
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = (
+            check_per_actor_replica_participant_status_schema_completeness(
+                replicas
+            )
+        )
+        assert violations
+        assert "vendor" in violations[0]
+
+    def test_actor_without_status_entries_is_exempt(self):
+        h0 = _SHA256("nonstatus:0")
+        nonstatus = [_entry(0, h0, GENESIS_HASH, semantic_type="create_case")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
+        assert (
+            check_per_actor_replica_participant_status_schema_completeness(
+                replicas
+            )
+            == []
+        )
+
+
+class TestCheckPerActorReplicaCsStateTransitionsObserved:
+    """Replica-side counterpart of invariant 15, including ``check_fix_ready``."""
+
+    def test_passes_on_valid_multi_actor_replicas(self):
+        replicas = {
+            "case-actor": _vendor_entries_valid(),
+            "vendor": _vendor_entries_valid(),
+        }
+        assert (
+            check_per_actor_replica_cs_state_transitions_observed(replicas)
+            == []
+        )
+
+    def test_detects_missing_cs_transition_in_non_case_actor(self):
+        """A replica that never observes the P-transition is flagged."""
+        entries = [
+            _status_entry(0, "ACCEPTED", "VF", "pxa"),  # no P yet
+            _status_entry(1, "CLOSED", "VF", "pxa"),  # still no P
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_cs_state_transitions_observed(
+            replicas
+        )
+        assert violations
+        assert "vendor" in violations[0]
+
+    def test_check_fix_ready_false_skips_vf_check_per_actor(self):
+        """check_fix_ready=False exempts the VF check for each replica."""
+        entries = [
+            _status_entry(0, "ACCEPTED", "vf", "Pxa"),  # no VF
+            _status_entry(1, "CLOSED", "vf", "PXA"),  # still no VF
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        assert (
+            check_per_actor_replica_cs_state_transitions_observed(
+                replicas, check_fix_ready=False
+            )
+            == []
+        )
+
+    def test_check_fix_ready_true_enforces_vf_check_per_actor(self):
+        """check_fix_ready=True (default) flags a missing VF in a replica."""
+        entries = [
+            _status_entry(0, "ACCEPTED", "vf", "Pxa"),  # no VF
+            _status_entry(1, "CLOSED", "vf", "PXA"),  # still no VF
+        ]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": entries}
+        violations = check_per_actor_replica_cs_state_transitions_observed(
+            replicas
+        )
+        assert violations
+        assert "vendor" in violations[0]
+
+    def test_actor_without_status_entries_is_exempt(self):
+        h0 = _SHA256("nonstatus:0")
+        nonstatus = [_entry(0, h0, GENESIS_HASH, semantic_type="create_case")]
+        replicas = {"case-actor": _vendor_entries_valid(), "vendor": nonstatus}
+        assert (
+            check_per_actor_replica_cs_state_transitions_observed(replicas)
+            == []
+        )
+
+
+# ---------------------------------------------------------------------------
+# CLP-14 timestamp invariants (check_clp14_timestamp_invariants)
+# ---------------------------------------------------------------------------
+
+
+def _ts_chain_entry(
+    log_index: int,
+    published: str | None = None,
+    semantic_type: str = "noop",
+) -> dict:
+    entry = _entry(
+        log_index,
+        _SHA256(f"ts:{log_index}"),
+        GENESIS_HASH,
+        semantic_type=semantic_type,
+    )
+    if published is not None:
+        entry["published"] = published
+    return entry
+
+
+_T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+_T1 = _T0 + timedelta(minutes=1)
+_T2 = _T1 + timedelta(minutes=1)
+
+
+class TestCheckClp14TimestampInvariants:
+    def _replicas(self, entries: list[dict]) -> dict[str, list[dict]]:
+        return {"case-actor": entries}
+
+    def _valid_entries(self) -> list[dict]:
+        return [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), semantic_type="create_case"
+            ),
+            _ts_chain_entry(1, published=_T1.isoformat()),
+            _ts_chain_entry(2, published=_T2.isoformat()),
+        ]
+
+    @pytest.mark.spec("CLP-14-002")
+    def test_clp14_002_detects_null_published(self):
+        entries = self._valid_entries()
+        entries[1].pop("published")
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-002" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-003")
+    def test_clp14_003_detects_timestamp_regression(self):
+        entries = [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), semantic_type="create_case"
+            ),
+            _ts_chain_entry(1, published=_T2.isoformat()),
+            _ts_chain_entry(2, published=_T1.isoformat()),  # regression
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-003" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-005")
+    def test_clp14_005_detects_duplicate_log_index(self):
+        entries = [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), semantic_type="create_case"
+            ),
+            _ts_chain_entry(
+                0, published=_T1.isoformat()
+            ),  # duplicate logIndex=0
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-005" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-006")
+    def test_clp14_006_detects_entry_before_case_creation(self):
+        before_case = (_T0 - timedelta(minutes=5)).isoformat()
+        entries = [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), semantic_type="create_case"
+            ),
+            _ts_chain_entry(1, published=before_case),
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-006" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-010")
+    def test_clp14_010_detects_log_index_gap(self):
+        entries = [
+            _ts_chain_entry(
+                0, published=_T0.isoformat(), semantic_type="create_case"
+            ),
+            _ts_chain_entry(1, published=_T1.isoformat()),
+            _ts_chain_entry(3, published=_T2.isoformat()),  # 2 is missing
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-010" in v and "[2]" in v for v in violations)
+
+    @pytest.mark.spec("CLP-14-010")
+    def test_clp14_010_detects_ledger_not_starting_at_genesis(self):
+        entries = [
+            _ts_chain_entry(
+                1, published=_T0.isoformat(), semantic_type="create_case"
+            ),
+            _ts_chain_entry(2, published=_T1.isoformat()),
+        ]
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(entries)
+        )
+        assert any("CLP-14-010" in v and "[0]" in v for v in violations)
+
+    def test_valid_entries_produce_no_violations(self):
+        violations = common.check_clp14_timestamp_invariants(
+            self._replicas(self._valid_entries())
+        )
+        assert not violations
+
+    def test_empty_replicas_produces_no_violations(self):
+        violations = common.check_clp14_timestamp_invariants(
+            {"case-actor": []}
+        )
+        assert not violations
+
+
+# ---------------------------------------------------------------------------
+# CLP-07-002: one entry per activity on every replica
+# ---------------------------------------------------------------------------
+
+_INVITE_ID = "https://example.org/activities/invite-1"
+
+
+def _invite_chain(*payload_ids: str) -> list[dict]:
+    entries: list[dict] = []
+    prev = GENESIS_HASH
+    for i, pid in enumerate(payload_ids):
+        h = _SHA256(f"invite:{i}")
+        entries.append(
+            _entry(
+                i,
+                h,
+                prev,
+                semantic_type="invite_actor_to_case",
+                payload={"id": pid, "type": "Invite"},
+            )
+        )
+        prev = h
+    return entries
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_flags_the_double_committed_invite():
+    """The retired self-cc: path committed one Invite twice on the manager."""
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID, _INVITE_ID),
+        "vendor": _invite_chain(_INVITE_ID),
+    }
+    violations = check_unique_payload_snapshot_ids(replicas)
+    assert len(violations) == 1
+    assert "'case-actor'" in violations[0]
+    assert _INVITE_ID in violations[0]
+    assert "[0, 1]" in violations[0]
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_flags_a_duplicate_on_a_participant_replica():
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID),
+        "vendor": _invite_chain(_INVITE_ID, _INVITE_ID),
+    }
+    violations = check_unique_payload_snapshot_ids(replicas)
+    assert len(violations) == 1
+    assert "'vendor'" in violations[0]
+
+
+@pytest.mark.spec("CLP-07-002")
+def test_unique_payload_ids_passes_one_entry_per_activity_per_replica():
+    """The same activity on two replicas is replication, not a duplicate."""
+    other = "https://example.org/activities/accept-1"
+    replicas = {
+        "case-actor": _invite_chain(_INVITE_ID, other),
+        "vendor": _invite_chain(_INVITE_ID, other),
+    }
+    assert check_unique_payload_snapshot_ids(replicas) == []
+
+
+def test_unique_payload_ids_ignores_snapshots_without_an_id():
+    replicas = {"case-actor": [_entry(0, _SHA256("a"), GENESIS_HASH)] * 2}
+    assert check_unique_payload_snapshot_ids(replicas) == []
+
+
+# ---------------------------------------------------------------------------
+# Invariant 18: check_no_participant_act_after_case_closure (CM-23-013)
+# ---------------------------------------------------------------------------
+
+_PC_MANAGER = "https://example.org/api/v2/actors/case-actor"
+_PC_OWNER = "https://example.org/api/v2/actors/vendor"
+_PC_REPORTER = "https://example.org/api/v2/actors/reporter"
+_PC_NAMES = {
+    "case-actor": "case-actor",
+    "vendor": "vendor",
+    "reporter": "reporter",
+}
+
+
+def _pc_entry(index: int, event: str, actor: str, subject: str | None = None):
+    snapshot: dict = {"actor": actor}
+    if subject is not None:
+        snapshot["object"] = {"attributedTo": subject, "rmState": "CLOSED"}
+    return {
+        "logIndex": index,
+        "semanticType": event,
+        "payloadSnapshot": snapshot,
+    }
+
+
+def _pc_ledger(*late: dict) -> dict[str, list[dict]]:
+    entries = [
+        _pc_entry(0, "close_case", _PC_REPORTER),
+        _pc_entry(1, "close_case", _PC_OWNER),
+        _pc_entry(
+            2,
+            "add_participant_status_to_participant",
+            _PC_MANAGER,
+            _PC_MANAGER,
+        ),
+        *late,
+    ]
+    return {"case-actor": entries}
+
+
+@pytest.mark.spec("CM-23-013")
+def test_post_close_invariant_passes_when_the_owner_closes_last():
+    from test.ci.invariants.common import (
+        check_no_participant_act_after_case_closure,
+    )
+
+    assert (
+        check_no_participant_act_after_case_closure(_pc_ledger(), _PC_NAMES)
+        == []
+    )
+
+
+@pytest.mark.spec("CM-23-013")
+def test_post_close_invariant_flags_a_participant_act_after_the_boundary():
+    from test.ci.invariants.common import (
+        check_no_participant_act_after_case_closure,
+    )
+
+    (violation,) = check_no_participant_act_after_case_closure(
+        _pc_ledger(_pc_entry(3, "close_case", _PC_REPORTER)), _PC_NAMES
+    )
+    assert "logIndex=3" in violation
+    assert _PC_REPORTER in violation
+
+
+@pytest.mark.spec("CM-23-013")
+def test_post_close_invariant_allows_the_case_managers_own_entries():
+    from test.ci.invariants.common import (
+        check_no_participant_act_after_case_closure,
+    )
+
+    late = _pc_entry(3, "invite_expired", _PC_MANAGER)
+    assert (
+        check_no_participant_act_after_case_closure(
+            _pc_ledger(late), _PC_NAMES
+        )
+        == []
+    )
+
+
+@pytest.mark.spec("CM-23-002")
+def test_post_close_invariant_requires_the_boundary():
+    from test.ci.invariants.common import (
+        check_no_participant_act_after_case_closure,
+    )
+
+    # The CASE_MANAGER names itself, but never records its own closure.
+    replicas = {
+        "case-actor": [
+            *_pc_ledger()["case-actor"][:2],
+            _pc_entry(2, "update_embargo_consent", _PC_MANAGER),
+        ]
+    }
+    assert check_no_participant_act_after_case_closure(
+        replicas, _PC_NAMES
+    ) == [
+        "expected exactly one the CASE_MANAGER's own RM.CLOSED status entry,"
+        " found 0"
+    ]
+
+
+@pytest.mark.spec("CM-23-013")
+def test_post_close_invariant_does_not_take_the_owners_closure_as_boundary():
+    """The owner's RM.CLOSED status, written by the CASE_MANAGER, is not it."""
+    from test.ci.invariants.common import (
+        check_no_participant_act_after_case_closure,
+    )
+
+    entries = [
+        _pc_entry(0, "close_case", _PC_OWNER),
+        _pc_entry(
+            1, "add_participant_status_to_participant", _PC_MANAGER, _PC_OWNER
+        ),
+        _pc_entry(2, "update_embargo_consent", _PC_MANAGER),
+    ]
+    assert check_no_participant_act_after_case_closure(
+        {"case-actor": entries}, _PC_NAMES
+    ) == [
+        "expected exactly one the CASE_MANAGER's own RM.CLOSED status entry,"
+        " found 0"
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Status entries record changes (CLP-07-013; #5123, #5124, #5125)
+# ---------------------------------------------------------------------------
+
+_PARTICIPANT = "https://example.org/cases/test-case/participants/vendor"
+
+
+def _case_status_entry(
+    index: int, em: str, pxa: str, name: str | None = None
+) -> dict:
+    return _entry(
+        index,
+        _SHA256(f"cs:{index}"),
+        GENESIS_HASH,
+        semantic_type="add_case_status_to_case",
+        payload={
+            "type": "Add",
+            "target": CASE_URI,
+            "object": {
+                "id": f"urn:uuid:cs-{index}",
+                "type": "CaseStatus",
+                "name": name if name is not None else f"{em} {pxa}",
+                "published": f"2026-10-22T00:00:0{index}Z",
+                "emState": em,
+                "pxaState": pxa,
+            },
+        },
+    )
+
+
+def _participant_status_entry(index: int, vf: str) -> dict:
+    return _entry(
+        index,
+        _SHA256(f"ps:{index}"),
+        GENESIS_HASH,
+        semantic_type="add_participant_status_to_participant",
+        payload={
+            "type": "Add",
+            "target": {"id": _PARTICIPANT, "type": "CaseParticipant"},
+            "object": {
+                "id": f"urn:uuid:ps-{index}",
+                "type": "ParticipantStatus",
+                "name": f"ACCEPTED {vf}",
+                "rmState": "ACCEPTED",
+                "vfState": vf,
+            },
+        },
+    )
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_status_check_flags_an_unchanged_case_status():
+    replicas = {
+        "case-actor": [
+            _case_status_entry(0, "ACTIVE", "pxa"),
+            _case_status_entry(1, "ACTIVE", "pxa"),
+        ]
+    }
+    violations = check_status_entries_record_changes(replicas)
+    assert len(violations) == 1
+    assert "entry 1" in violations[0]
+    assert "repeats entry 0" in violations[0]
+
+
+@pytest.mark.spec("BTND-10-001")
+def test_status_check_allows_a_same_state_participant_confirmation():
+    """A participant may confirm a state it already holds (BTND-10-001,
+    CSB-16-001), so the universal invariant must pass that run."""
+    replicas = {
+        "case-actor": [
+            _participant_status_entry(0, "Vf"),
+            _participant_status_entry(1, "Vf"),
+            _participant_status_entry(2, "VF"),
+        ]
+    }
+    assert check_status_entries_record_changes(replicas) == []
+
+
+@pytest.mark.spec("CLP-07-013")
+def test_status_check_passes_real_changes():
+    replicas = {
+        "case-actor": [
+            _case_status_entry(0, "NONE", "pxa"),
+            _participant_status_entry(1, "Vf"),
+            _case_status_entry(2, "ACTIVE", "pxa"),
+            _participant_status_entry(3, "VF"),
+            _case_status_entry(4, "ACTIVE", "Pxa"),
+        ]
+    }
+    assert check_status_entries_record_changes(replicas) == []
+
+
+def test_status_check_flags_a_mislabelled_case_status():
+    replicas = {
+        "case-actor": [_case_status_entry(0, "ACTIVE", "pxa", name="NONE pxa")]
+    }
+    violations = check_status_entries_record_changes(replicas)
+    assert len(violations) == 1
+    assert "'NONE pxa'" in violations[0]

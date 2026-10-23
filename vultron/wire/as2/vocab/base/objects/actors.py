@@ -1,0 +1,245 @@
+#!/usr/bin/env python
+"""This module provides actor classes"""
+
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from typing import Any, TypeAlias
+
+from pydantic import Field, ValidationInfo, field_validator, model_validator
+
+from vultron.wire.as2.enums import as_ActorType as A_type
+from vultron.wire.as2.vocab.base.links import ActivityStreamRef
+from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_OrderedCollection,
+)
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
+from vultron.wire.as2.vocab.base.utils import print_object_examples
+
+#: The ``as_Object`` fields an endpoint collection leaves unset unless the value
+#: arrived with them.  Spelled as a mapping so it can seed a dict the arrived
+#: value then overrides.
+_NO_CLOCK_STAMP: dict[str, None] = {"published": None, "updated": None}
+
+
+class as_Actor(as_Object):
+    """Base class for all ActivityPub actors.
+    Describes one or more entities that performed or are expected to perform an activity.
+    Any single activity can have multiple actors.
+    The actor may be specified using an indirect Link or as an embedded Object.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-actor>
+    """
+
+    # todo: collections should be internally represented as lists but dumped as collections
+    inbox: as_OrderedCollection = Field(default_factory=as_OrderedCollection)
+    outbox: as_OrderedCollection = Field(default_factory=as_OrderedCollection)
+    preferred_username: str | None = None
+    endpoints: Any | None = None
+    # todo endpoints should be its own object
+    # see https://www.w3.org/TR/activitypub/#actors
+
+    @field_validator("inbox", "outbox", mode="before")
+    @classmethod
+    def _coerce_uri_to_collection(cls, v: Any, info: ValidationInfo) -> Any:
+        """Coerce a plain URI string or None to an as_OrderedCollection.
+
+        When reading back an actor that was stored via a CoreActor-derived
+        class (inbox/outbox as a URL string), the value is normalised:
+
+        - ``None``, a blank string, or a collection with no ``id`` →
+          ``as_OrderedCollection`` at ``{actor_id}/{field}``, the same
+          address ``set_collections`` derives when the field is absent
+        - ``str`` → ``as_OrderedCollection(id_=v)``
+        - ``dict`` → validated as an ``as_OrderedCollection`` with an absent
+          ``published``/``updated`` read as ``None``
+        - anything else → returned as-is for Pydantic to validate
+
+        A collection model whose ``id_`` was never set counts as having no
+        id: the parser expands an inline id-less collection before this
+        runs, and its ``default_factory`` id is a ``urn:uuid:`` nobody
+        routes to.
+
+        An endpoint is an *address*, so no branch here mints a clock stamp
+        (see :func:`_address_collection`): a collection dict — addressed or
+        not — reads an absent ``published``/``updated`` as ``None`` whichever
+        validation context it is in, and keeps the stamps it arrived with.
+        The dict is validated under the caller's ``info.context`` so the
+        inbound rule (ADR-0103) still reaches any item nested inside it.
+        """
+        derived = _endpoint_collection(info.data.get("id_"), info.field_name)
+        if v is None:
+            return derived
+        if isinstance(v, str):
+            return _address_collection(v.strip()) if v.strip() else derived
+        if isinstance(v, dict):
+            addressed = {**_NO_CLOCK_STAMP, **v}
+            if not (v.get("id") or v.get("id_")):
+                addressed["id"] = derived.id_
+            return as_OrderedCollection.model_validate(
+                addressed, context=info.context
+            )
+        if isinstance(v, as_OrderedCollection) and (
+            "id_" not in v.model_fields_set
+        ):
+            unstamped = {
+                name: None
+                for name in _NO_CLOCK_STAMP
+                if name not in v.model_fields_set
+            }
+            return v.model_copy(update={"id_": derived.id_, **unstamped})
+        return v
+
+    @model_validator(mode="after")
+    def set_collections(self):
+        """Derive an absent ``inbox``/``outbox`` from the actor's ``id_``.
+
+        Keyed on ``model_fields_set`` rather than on the collection's ``id_``:
+        the field's ``default_factory`` builds a collection whose ``id_`` is a
+        fresh ``urn:uuid:``, so an ``id_ is None`` test never fires and the
+        actor would publish an address nobody routes to.  Recorded in
+        ``model_fields_set``, as ``CoreActor`` does, so an ``exclude_unset``
+        dump still carries the derived address.
+        """
+        for field_name in ("inbox", "outbox"):
+            if field_name not in self.model_fields_set:
+                object.__setattr__(
+                    self,
+                    field_name,
+                    _endpoint_collection(self.id_, field_name),
+                )
+                self.model_fields_set.add(field_name)
+        return self
+
+
+def _address_collection(uri: str | None) -> as_OrderedCollection:
+    """Return the endpoint collection that is only the address *uri*.
+
+    ActivityPub publishes ``inbox``/``outbox`` as URIs and ``CoreActor`` keeps
+    only that URI (ARCH-12-006), so a collection built around one is an
+    address, not an object this process authored: it carries no ``published``
+    or ``updated``.  ``as_Object`` would otherwise mint both from the local
+    clock on every construction, and a value minted on read can never equal
+    the one minted on write once a second boundary separates them — which is
+    how an actor stored and read back through the datalayer compared unequal
+    to itself (#3732, #3726).  *uri* ``None`` yields a fresh-id collection for
+    a caller with no address to give.
+    """
+    if uri is None:
+        return as_OrderedCollection(published=None, updated=None)
+    return as_OrderedCollection(id_=uri, published=None, updated=None)
+
+
+def _endpoint_collection(
+    actor_id: str | None, field_name: str | None
+) -> as_OrderedCollection:
+    """Return the collection at the actor's ``{actor_id}/{field_name}`` URL.
+
+    Falls back to a fresh collection id when the actor id is unavailable,
+    which happens only if ``id_`` itself failed validation — in which case the
+    actor is being rejected anyway.
+    """
+    if actor_id is None or field_name is None:
+        return _address_collection(None)
+    return _address_collection(f"{actor_id}/{field_name}")
+
+
+as_ActorRef: TypeAlias = ActivityStreamRef[as_Actor]
+
+
+class as_Group(as_Actor):
+    """A special kind of actor representing a logical group of persons or other actors.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-group>
+    """
+
+    type_: A_type = Field(
+        default=A_type.GROUP,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+as_GroupRef: TypeAlias = ActivityStreamRef[as_Group]
+
+
+class as_Organization(as_Actor):
+    """A special kind of actor representing a logical group of persons or other actors.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-organization>
+    """
+
+    type_: A_type = Field(
+        default=A_type.ORGANIZATION,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+as_OrganizationRef: TypeAlias = ActivityStreamRef[as_Organization]
+
+
+class as_Application(as_Actor):
+    """A special kind of actor representing a software application.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-application>
+    """
+
+    type_: A_type = Field(
+        default=A_type.APPLICATION,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+as_ApplicationRef: TypeAlias = ActivityStreamRef[as_Application]
+
+
+class as_Service(as_Actor):
+    """A special kind of actor representing a service.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-service>
+    A service is a kind of actor that represents a non-human actor.
+    """
+
+    type_: A_type = Field(
+        default=A_type.SERVICE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+as_ServiceRef: TypeAlias = ActivityStreamRef[as_Service]
+
+
+class as_Person(as_Actor):
+    """A special kind of actor representing an individual person.
+    See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-person>
+    """
+
+    type_: A_type = Field(
+        default=A_type.PERSON,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+
+
+as_PersonRef: TypeAlias = ActivityStreamRef[as_Person]
+
+# as_Actor has no concrete type_ annotation of its own but is used as a
+# concrete stored type with type_='Actor' via set_type_from_class_name().
+WIRE_TYPE_MAP["Actor"] = as_Actor
+
+
+def main():
+    print_object_examples()
+
+
+if __name__ == "__main__":
+    main()

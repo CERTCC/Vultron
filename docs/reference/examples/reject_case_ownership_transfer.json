@@ -1,32 +1,80 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Reject",
-  "id": "https://for.example/ef7e90a0-de05-453f-a5a4-8c8bd7ccb210",
-  "name": "https://vultron.example/organizations/coordinator Reject VENDOR Case #20991514 from https://vultron.example/organizations/vendor",
-  "inReplyTo": null,
-  "content": "We're declining your offer to transfer ownership of case VENDOR Case #20991514 to us.",
+  "type": "Reject",
+  "id": "urn:uuid:7df160f5-4a3e-4da9-b7cb-c6e8272c0a5c",
+  "name": "https://vultron.example/organizations/coordinator Reject https://vultron.example/case-actors/vendorco-case-actor Offer VendorCo Case #25584766 to https://vultron.example/organizations/coordinator",
+  "content": "We're declining your offer to transfer ownership of case VendorCo Case #25584766 to us.",
   "actor": "https://vultron.example/organizations/coordinator",
-  "origin": "https://vultron.example/organizations/vendor",
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
-    "type": "VulnerabilityCase",
-    "id": "https://vultron.example/cases/VDR-20991514",
-    "name": "VENDOR Case #20991514",
-    "published": "2024-01-22T20:29:47+00:00",
-    "updated": "2024-01-22T20:29:47+00:00",
-    "caseStatus": [
-      {
-        "@context": "https://www.w3.org/ns/activitystreams",
-        "type": "CaseStatus",
-        "id": "https://for.example/4ef4928b-3851-4e94-9d59-e2c00fbd88ad",
-        "name": "EMBARGO_MANAGEMENT_NONE pxa",
-        "context": "https://vultron.example/cases/VDR-20991514",
-        "published": "2024-01-22T20:29:47+00:00",
-        "updated": "2024-01-22T20:29:47+00:00",
-        "emState": "EMBARGO_MANAGEMENT_NONE",
-        "pxaState": "pxa"
-      }
+    "type": "Offer",
+    "id": "urn:uuid:13a0711d-cdff-49c7-b7d9-c76717fc3b0e",
+    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer VendorCo Case #25584766 to https://vultron.example/organizations/coordinator",
+    "published": "2026-10-22T14:04:24+00:00",
+    "updated": "2026-10-22T14:04:24+00:00",
+    "content": "We're offering to transfer ownership of case VendorCo Case #25584766 to you.",
+    "to": [
+      "https://vultron.example/organizations/coordinator"
     ],
-    "activeEmbargo": null
+    "attributedTo": "https://vultron.example/organizations/vendorco",
+    "actor": "https://vultron.example/case-actors/vendorco-case-actor",
+    "target": {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "Actor",
+      "id": "https://vultron.example/organizations/coordinator",
+      "published": "2026-10-22T14:04:24+00:00",
+      "updated": "2026-10-22T14:04:24+00:00",
+      "inbox": {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "OrderedCollection",
+        "id": "https://vultron.example/organizations/coordinator/inbox",
+        "items": []
+      },
+      "outbox": {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "OrderedCollection",
+        "id": "https://vultron.example/organizations/coordinator/outbox",
+        "items": []
+      }
+    },
+    "object": {
+      "id": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
+      "type": "VulnerabilityCase",
+      "name": "VendorCo Case #25584766",
+      "published": "2026-10-22T14:04:23+00:00",
+      "updated": "2026-10-22T14:04:23+00:00",
+      "attributedTo": "https://vultron.example/organizations/vendorco",
+      "caseParticipants": [],
+      "actorParticipantIndex": {},
+      "vulnerabilityReports": [],
+      "caseStatuses": [
+        {
+          "id": "urn:uuid:ae3f6696-f263-43a8-83ea-34aae0fe6683",
+          "type": "CaseStatus",
+          "name": "NONE pxa",
+          "context": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
+          "published": "2026-10-22T14:04:23+00:00",
+          "updated": "2026-10-22T14:04:23+00:00",
+          "attributedTo": "https://vultron.example/organizations/vendorco",
+          "emState": "NONE",
+          "pxaState": "pxa",
+          "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+        }
+      ],
+      "notes": [],
+      "embargoRegister": [],
+      "pendingEmbargoProposalIndex": {},
+      "caseActivity": [],
+      "genesisHash": "5b4e8bd4b5d2e94c1d1269ef9c189010cf6f315f113b8151201f6e5b42eb3c8d",
+      "ledgerPosition": {
+        "logIndex": -1,
+        "entryHash": "5b4e8bd4b5d2e94c1d1269ef9c189010cf6f315f113b8151201f6e5b42eb3c8d"
+      },
+      "parentCases": [],
+      "childCases": [],
+      "siblingCases": [],
+      "activeParticipants": [],
+      "@context": "https://certcc.github.io/Vultron/ns/context.jsonld"
+    }
   }
 }

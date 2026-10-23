@@ -1,0 +1,165 @@
+#!/usr/bin/env python
+"""
+Provides a base class for all Vultron ActivityStreams Objects.
+"""
+
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from typing import Any, ClassVar, TypeAlias
+
+from pydantic import Field
+
+from vultron.wire.as2.vocab.base.base import VULTRON_CONTEXT_URI
+from vultron.wire.as2.vocab.base.enums import VocabNamespace
+from vultron.wire.as2.vocab.base.links import ActivityStreamRef
+from vultron.wire.as2.vocab.base.objects.base import as_Object
+
+
+def _ref_id_or_value(value: Any) -> Any:
+    """Return a reference's ``id`` when present, otherwise the original value."""
+    if isinstance(value, list):
+        return [_ref_id_or_value(item) for item in value]
+    if isinstance(value, dict):
+        return value.get("id", value.get("id_", value))
+    return getattr(value, "id_", value)
+
+
+def _scalar_ref_id_or_value(value: Any) -> Any:
+    """Collapse a scalar-or-list reference to a single ``id`` string when possible."""
+    if isinstance(value, list):
+        if not value:
+            return None
+        return _scalar_ref_id_or_value(value[0])
+    return _ref_id_or_value(value)
+
+
+def _strip_core_context(data: dict[str, Any]) -> None:
+    """Recursively remove the CoreObject ``context_`` field from serialized data.
+
+    ``CoreObject`` adds a ``context_: None`` field for JSON-LD ``@context``
+    that conflicts with the wire base's required ``context_: str`` field.
+    This helper strips ``context_`` from the top-level dict and any nested
+    dicts (e.g. serialised ``case_statuses`` or ``participant_statuses``).
+    """
+    data.pop("context_", None)
+    for value in data.values():
+        if isinstance(value, dict):
+            _strip_core_context(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    _strip_core_context(item)
+
+
+class as_VultronObject(as_Object):
+    """Base class for all Vultron ActivityStreams Objects.
+
+    Subclasses represent specific Vultron wire-format object types and MUST
+    implement :meth:`from_core` (and SHOULD implement :meth:`to_core`) with
+    a narrowed type signature, e.g.::
+
+        @classmethod
+        def from_core(cls, core_obj: VulnerabilityReport) -> "VulnerabilityReport":
+            ...
+
+    **``_field_map`` contract**: If a subclass wire type uses different field
+    names than the corresponding core domain type, declare the mapping as::
+
+        _field_map: ClassVar[dict[str, str]] = {"domain_field": "wire_field"}
+
+    The default :meth:`from_core` implementation applies ``_field_map``
+    renames before calling :func:`~pydantic.BaseModel.model_validate`, so
+    subclasses with no name differences can inherit the default without
+    override.
+
+    **``inline_required_refs`` contract**: Some AS2 ref fields are *required* by
+    the protocol to carry a whole object rather than a URI — ``as_CaseProposal``
+    must inline its ``as_VulnerabilityReport`` (CP-01-004, AKM-03-003). The type
+    annotation cannot express that: ``ActivityStreamRequiredRef[T]`` is
+    ``T | as_Link | NonEmptyString``, so a URI type-checks. Name such fields
+    here::
+
+        inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+
+    Persistence reads this declaration and skips dehydration for those fields,
+    so the invariant survives a store round-trip. Without it the id is stored
+    alone and nothing can rebuild the object, because only the *first* level of
+    an inbound activity's nesting is given a record of its own — the defect
+    behind #2482.
+
+    ``to_core`` always raises :exc:`NotImplementedError` at this level;
+    subclasses that have a meaningful reverse mapping SHOULD override it.
+    """
+
+    _vocab_ns: ClassVar[VocabNamespace] = VocabNamespace.VULTRON
+    context_: str = Field(
+        default=VULTRON_CONTEXT_URI,
+        validation_alias="@context",
+        serialization_alias="@context",
+    )
+    _field_map: ClassVar[dict[str, str]] = {}
+    #: Ref fields that MUST stay inline through persistence. Public (no leading
+    #: underscore) because the storage adapter reads it; see the class docstring.
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset()
+
+    @classmethod
+    def from_core(cls, core_obj: Any) -> "as_VultronObject":
+        """Create a wire object from a core domain object.
+
+        The default implementation performs a JSON round-trip::
+
+            data = core_obj.model_dump(mode="json")
+            # apply _field_map renames (domain key → wire key)
+            cls.model_validate(data)
+
+        Subclasses MUST narrow the ``core_obj`` parameter type.  Override
+        this method when simple field-rename mapping via ``_field_map`` is
+        insufficient.
+
+        Args:
+            core_obj: A core domain model instance (Pydantic ``BaseModel``
+                subclass).
+
+        Returns:
+            A new instance of this wire type populated from ``core_obj``.
+        """
+        data: dict[str, Any] = core_obj.model_dump(mode="json")
+        _strip_core_context(data)
+        for domain_field, wire_field in cls._field_map.items():
+            if domain_field in data:
+                data[wire_field] = data.pop(domain_field)
+        return cls.model_validate(data)
+
+    def to_core(self) -> Any:
+        """Convert this wire object to a core domain object.
+
+        Subclasses that have a well-defined reverse mapping SHOULD override
+        this method and return the appropriate core domain type.
+
+        The ``_field_map`` contract is the inverse of :meth:`from_core`:
+        wire field names map to domain field names.  Subclass overrides
+        should apply the reverse mapping before calling
+        ``CoreType.model_validate(data)``.
+
+        Raises:
+            NotImplementedError: Always — no generic reverse mapping exists
+                at the wire base level.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__}.to_core() is not implemented. "
+            "Override this method in the subclass."
+        )
+
+
+as_VultronObjectRef: TypeAlias = ActivityStreamRef[as_VultronObject]

@@ -1,0 +1,392 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Tests for typed-Ports base classes and pilot node migrations.
+
+Covers:
+- BTND-03-009: typed port declarations replace register_key().
+- BTND-03-010: setup_ports() with remappings wires BTBridge flat keys.
+- BTND-03-011: get_input() reads injected values correctly.
+- AC-4 (issue #1808): isolated-node port tests + early-error-detection tests.
+"""
+
+import py_trees
+import pytest
+from py_trees.ports import NoDataAvailable
+
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.embargo_register import activate
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    DataLayerConditionWithPorts,
+)
+from vultron.core.behaviors.report.nodes.conditions import (
+    CheckRMStateReceivedOrInvalid,
+    CheckRMStateValid,
+    EnsureEmbargoExists,
+    EvaluateReportCredibility,
+)
+from vultron.core.behaviors.report.nodes.rm_transitions import (
+    TransitionRMtoValid,
+)
+from vultron.core.models.actor import VultronService
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.report import VulnerabilityReport
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+ACTOR_ID = "https://example.org/actors/vendor"
+REPORT_ID = "https://example.org/reports/CVE-2024-001"
+OFFER_ID = "https://example.org/activities/offer-123"
+
+
+def _fresh_dl() -> SqliteDataLayer:
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id=ACTOR_ID,
+    )
+
+
+def _write_btbridge_keys(
+    dl: SqliteDataLayer, actor_id: str = ACTOR_ID
+) -> None:
+    """Simulate what BTBridge.setup_tree() writes to the flat blackboard."""
+    bb = py_trees.blackboard.Client(name="test_setup")
+    bb.register_key(key="datalayer", access=py_trees.common.Access.WRITE)
+    bb.register_key(key="actor_id", access=py_trees.common.Access.WRITE)
+    bb.datalayer = dl
+    bb.actor_id = actor_id
+
+
+# ---------------------------------------------------------------------------
+# Base-class contract: DataLayerConditionWithPorts
+# ---------------------------------------------------------------------------
+
+
+class TestDataLayerConditionWithPortsContract:
+    """Verify the base class declares required ports and reads via get_input."""
+
+    def test_input_ports_declares_datalayer(self) -> None:
+        ports = DataLayerConditionWithPorts.input_ports()
+        assert "datalayer" in ports
+        assert ports["datalayer"].required
+
+    def test_input_ports_declares_actor_id(self) -> None:
+        ports = DataLayerConditionWithPorts.input_ports()
+        assert "actor_id" in ports
+        assert ports["actor_id"].required
+
+    def test_output_ports_empty(self) -> None:
+        assert DataLayerConditionWithPorts.output_ports() == {}
+
+    def test_missing_required_port_raises_at_get_input(self) -> None:
+        """NoDataAvailable raised when required port not on blackboard (BTND-03-011)."""
+
+        class _MinimalNode(DataLayerConditionWithPorts):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        node = _MinimalNode(name="MinimalTest")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_get_input_reads_btbridge_flat_key(self) -> None:
+        """get_input('datalayer') reads the /datalayer key written by BTBridge."""
+        dl = _fresh_dl()
+        _write_btbridge_keys(dl)
+
+        class _MinimalNodeWithRemapping(DataLayerConditionWithPorts):
+            def update(self):
+                return py_trees.common.Status.SUCCESS
+
+        node = _MinimalNodeWithRemapping(name="MinimalTest")
+        node.setup_ports(
+            port_remappings={
+                "datalayer": "/datalayer",
+                "actor_id": "/actor_id",
+            }
+        )
+        assert node.get_input("datalayer") is dl
+        assert node.get_input("actor_id") == ACTOR_ID
+
+
+# ---------------------------------------------------------------------------
+# Base-class contract: DataLayerActionWithPorts
+# ---------------------------------------------------------------------------
+
+
+class TestDataLayerActionWithPortsContract:
+    def test_input_ports_declares_trigger_factory(self) -> None:
+        ports = DataLayerActionWithPorts.input_ports()
+        assert "trigger_activity_factory" in ports
+        assert not ports["trigger_activity_factory"].required
+
+    def test_output_ports_empty(self) -> None:
+        assert DataLayerActionWithPorts.output_ports() == {}
+
+
+# ---------------------------------------------------------------------------
+# Pilot: CheckRMStateValid
+# ---------------------------------------------------------------------------
+
+
+class TestCheckRMStateValidPorts:
+    def test_input_ports_declared(self) -> None:
+        ports = CheckRMStateValid.input_ports()
+        assert "datalayer" in ports
+        assert "actor_id" in ports
+
+    def test_output_ports_empty(self) -> None:
+        assert CheckRMStateValid.output_ports() == {}
+
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = CheckRMStateValid(report_id=REPORT_ID)
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_via_bt_scenario_when_valid(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
+        bt_scenario.seed(actor, report, link)
+        result = bt_scenario.run(
+            CheckRMStateValid(report_id=REPORT_ID), actor_id=ACTOR_ID
+        )
+        bt_scenario.assert_success(result)
+
+    def test_via_bt_scenario_when_not_valid(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        bt_scenario.seed(actor, report)
+        result = bt_scenario.run(
+            CheckRMStateValid(report_id=REPORT_ID), actor_id=ACTOR_ID
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_sender_actor_id_checked_instead_of_blackboard_actor(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """sender_actor_id overrides blackboard actor_id (ADR-0022 single-BT)."""
+        SENDER_ID = "https://example.org/actors/reporter"
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
+        sender = VultronService(id_=SENDER_ID, name="Reporter")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
+        bt_scenario.seed(actor, sender, report, link)
+        # Tree runs under ACTOR_ID (blackboard actor_id = ACTOR_ID);
+        # node must check SENDER_ID's RM state and return SUCCESS.
+        result = bt_scenario.run(
+            CheckRMStateValid(report_id=REPORT_ID, sender_actor_id=SENDER_ID),
+            actor_id=ACTOR_ID,
+        )
+        bt_scenario.assert_success(result)
+
+
+# ---------------------------------------------------------------------------
+# Pilot: CheckRMStateReceivedOrInvalid
+# ---------------------------------------------------------------------------
+
+
+class TestCheckRMStateReceivedOrInvalidPorts:
+    def test_input_ports_declared(self) -> None:
+        ports = CheckRMStateReceivedOrInvalid.input_ports()
+        assert "datalayer" in ports
+        assert "actor_id" in ports
+
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = CheckRMStateReceivedOrInvalid(report_id=REPORT_ID)
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_success_when_no_valid_status(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        bt_scenario.seed(actor, report)
+        result = bt_scenario.run(
+            CheckRMStateReceivedOrInvalid(report_id=REPORT_ID),
+            actor_id=ACTOR_ID,
+        )
+        bt_scenario.assert_success(result)
+
+    def test_failure_when_already_valid(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.VALID)
+        bt_scenario.seed(actor, report, link)
+        result = bt_scenario.run(
+            CheckRMStateReceivedOrInvalid(report_id=REPORT_ID),
+            actor_id=ACTOR_ID,
+        )
+        bt_scenario.assert_failure(result)
+
+
+# ---------------------------------------------------------------------------
+# Pilot: EnsureEmbargoExists
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureEmbargoExistsPorts:
+    def test_input_ports_declared(self) -> None:
+        ports = EnsureEmbargoExists.input_ports()
+        assert "datalayer" in ports
+        assert "actor_id" in ports
+        # Published upstream by RequireCaseForReport; optional so a tree may omit
+        # the publisher, but absence is FAILURE (ARCH-15-001, ISSUE-2548).
+        assert "case_id" in ports
+
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = EnsureEmbargoExists(report_id=REPORT_ID)
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_failure_when_no_case_id_published(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        bt_scenario.seed(actor, report)
+        result = bt_scenario.run(
+            EnsureEmbargoExists(report_id=REPORT_ID), actor_id=ACTOR_ID
+        )
+        bt_scenario.assert_failure(result)
+
+    def test_success_when_case_has_active_embargo(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        case = VulnerabilityCase(
+            name="Test Case",
+            vulnerability_reports=[REPORT_ID],
+            attributed_to=ACTOR_ID,
+        )
+        activate(case, "https://example.org/embargos/em-001")
+        bt_scenario.seed(actor, report, case)
+        result = bt_scenario.run(
+            EnsureEmbargoExists(report_id=REPORT_ID),
+            actor_id=ACTOR_ID,
+            case_id=case.id_,
+        )
+        bt_scenario.assert_success(result)
+
+    def test_failure_when_case_has_no_active_embargo(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        case = VulnerabilityCase(
+            name="Test Case",
+            vulnerability_reports=[REPORT_ID],
+            attributed_to=ACTOR_ID,
+        )
+        # active_embargo defaults to None — no explicit assignment needed
+        bt_scenario.seed(actor, report, case)
+        result = bt_scenario.run(
+            EnsureEmbargoExists(report_id=REPORT_ID),
+            actor_id=ACTOR_ID,
+            case_id=case.id_,
+        )
+        bt_scenario.assert_failure(result)
+
+
+# ---------------------------------------------------------------------------
+# Pilot: TransitionRMtoValid
+# ---------------------------------------------------------------------------
+
+
+class TestTransitionRMtoValid:
+    """TransitionRMtoValid is a single node (ADR-0089 AC-5; issue #3267).
+
+    It advances the case-scoped participant RM state through the canonical
+    writer (:class:`CreateParticipantStatusNode`) and then latches
+    ``ReportCaseLink.rm_state`` in one execution, so a partial failure cannot
+    leave the two records disagreeing.
+    """
+
+    def test_creates_rm_valid_status_record(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        from test.support.participant_status import advance_participant_rm
+        from vultron.core.models.activity import VultronOffer
+        from vultron.core.models.case_participant import CaseParticipant
+        from vultron.enums.roles import CVDRole
+
+        actor = VultronService(id_=ACTOR_ID, name="Vendor")
+        report = VulnerabilityReport(id_=REPORT_ID, name="R1", content="c")
+        offer = VultronOffer(
+            id_=OFFER_ID, actor=ACTOR_ID, object_=REPORT_ID, target=ACTOR_ID
+        )
+        case = VulnerabilityCase(
+            name="Test Case",
+            vulnerability_reports=[REPORT_ID],
+            attributed_to=ACTOR_ID,
+        )
+        # RM.VALID is case-scoped: the actor must be a participant of the case
+        # replica in its own store (ISSUE-2548).
+        participant = CaseParticipant(
+            id_=f"{case.id_}/participants/vendor",
+            attributed_to=ACTOR_ID,
+            context=case.id_,
+            case_roles=[CVDRole.VENDOR],
+        )
+        advance_participant_rm(participant, RM.RECEIVED, ACTOR_ID, case.id_)
+        case.add_participant(participant)
+        link = VultronReportCaseLink(report_id=REPORT_ID, rm_state=RM.RECEIVED)
+        bt_scenario.seed(actor, report, offer, participant, case, link)
+        result = bt_scenario.run(
+            TransitionRMtoValid(
+                report_id=REPORT_ID,
+                offer_id=OFFER_ID,
+                sender_actor_id=ACTOR_ID,
+            ),
+            actor_id=ACTOR_ID,
+            case_id=case.id_,
+        )
+        bt_scenario.assert_success(result)
+        bt_scenario.assert_rm_state(REPORT_ID, RM.VALID, actor_id=ACTOR_ID)
+
+
+# ---------------------------------------------------------------------------
+# AC-4 (issue #1884): isolated-port NoDataAvailable tests for newly migrated
+# report-domain nodes.
+# ---------------------------------------------------------------------------
+
+
+class TestEvaluateReportCredibilityPorts:
+    """EvaluateReportCredibility — Type-A migration NoDataAvailable tests."""
+
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        """BTND-03-011: get_input('datalayer') raises NoDataAvailable when absent."""
+        node = EvaluateReportCredibility(report_id=REPORT_ID)
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")

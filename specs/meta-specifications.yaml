@@ -1,0 +1,1967 @@
+id: MS
+title: Meta-Specification Style Guide
+description: Normative rules for authoring specification files in this project. Covers file structure, requirement format,
+  IDs, writing rules, cross-references, lifecycle, quality criteria, and the delineation between spec files and ADRs.
+scope:
+- prototype
+- production
+tags:
+- documentation
+- tooling
+groups:
+- id: MS-01
+  title: File Structure
+  specs:
+  - id: MS-01-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Each spec file MUST focus on a single topic of concern and be largely independent of other spec files.
+    rationale: Focused files are easier to navigate and maintain.
+    tags:
+    - documentation
+  - id: MS-01-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Requirements MUST be grouped by category within each spec file; each group MUST address a single, cohesive
+      area of concern.
+    rationale: Grouping by category improves navigation and traceability.
+    tags:
+    - documentation
+- id: MS-02
+  title: Priority Levels
+  specs:
+  - id: MS-02-001
+    priority: SHOULD
+    kind: process
+    statement: Requirement statements SHOULD include the applicable RFC 2119 strength keyword inline (e.g., 'The system MUST…')
+      for human readability, in addition to the `priority:` field.
+    rationale: The `priority:` field is the authoritative record of requirement strength; inline keywords aid readability
+      but are advisory.
+    tags:
+    - documentation
+  - id: MS-02-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: 'Each spec entry MUST have a `priority:` field whose value is one of the RFC 2119 vocabulary keywords: MUST,
+      MUST NOT, SHOULD, SHOULD NOT, or MAY.'
+    rationale: The `priority:` field is the machine-readable record of requirement strength. The Pydantic schema enum is the
+      implementation of this normative requirement, not its source.
+    tags:
+    - documentation
+  - id: MS-02-003
+    priority: MUST
+    kind: process
+    statement: >-
+      Any spec requirement, lint check, ratchet, or tool that selects requirements by
+      priority MUST treat a negative keyword as the same tier as its positive: `MUST_NOT`
+      with `MUST`, and `SHOULD_NOT` with `SHOULD`.
+    rationale: >-
+      RFC 2119 makes MUST NOT the same absolute strength as MUST, and SHOULD NOT the same
+      strength as SHOULD; a prohibition is no less binding than an obligation. A gate that
+      names only the positive keyword silently drops every prohibition. See
+      `notes/spec-authoring-rules.md` for the gaps this left in the corpus.
+    verification: >-
+      Review: a spec requirement that selects by priority names the tier, or explicitly
+      excludes the negative form and says why. Code gates are checked mechanically under
+      MS-02-004.
+    exceptions:
+    - SR-11-003 stays MUST-only until every protocol MUST_NOT it would newly flag has
+      been adjudicated (#3601) and given a user story (#2717); flipping it earlier needs
+      new suppressions, which MS-12-007 forbids.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-02-002
+    tags:
+    - documentation
+    - tooling
+  - id: MS-02-004
+    priority: MUST
+    kind: process
+    statement: >-
+      Code that selects spec requirements by priority MUST obtain the MS-02-003 tiering
+      from a single shared definition on `RFC2119Priority`, not by comparing against
+      individual enum members.
+    rationale: >-
+      Selecting with `== RFC2119Priority.MUST` is easy to write and fails silently, and
+      each hand-written member list (`backstop/_model.py` has one) re-decides which
+      members count. One shared definition means the tiering is decided once. Display
+      code that maps each member to a label is not a selection and is out of scope.
+    verification: >-
+      A unit test in `test/metadata/specs/` asserts the shared tier definition maps each
+      of the five priorities to its tier. A static check fails if a priority-selecting
+      comparison in `vultron/metadata/specs/` or `scripts/` tests equality or membership
+      against individual `RFC2119Priority` members or priority strings instead of the
+      shared definition. The SR-11-003 selector is allowlisted while the MS-02-003
+      exception stands.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-02-003
+    tags:
+    - documentation
+    - tooling
+- id: MS-03
+  title: Requirement Format
+  specs:
+  - id: MS-03-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Each spec entry MUST contain exactly one normative statement; compound or multi-condition requirements MUST
+      be split into separate entries.
+    rationale: Atomic requirements are independently testable and traceable.
+    tags:
+    - documentation
+  - id: MS-03-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Every requirement MUST have a unique ID.
+    rationale: IDs enable stable cross-referencing.
+    tags:
+    - documentation
+- id: MS-04
+  title: Requirement IDs
+  specs:
+  - id: MS-04-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Requirement IDs MUST follow the format `PREFIX-NN-NNN` where PREFIX is the file-level prefix, NN is a two-digit
+      group number, and NNN is a three-digit requirement number.
+    rationale: Consistent format enables automated validation.
+    tags:
+    - documentation
+  - id: MS-04-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Requirement IDs MUST be globally unique across all spec files.
+    rationale: Uniqueness prevents ambiguous cross-references.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: implements
+      spec_id: SR-01-006
+  - id: MS-04-003
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Requirement IDs MUST be stable; once assigned, an ID MUST NOT be renumbered.
+    rationale: Stable IDs preserve traceability in git history.
+    tags:
+    - documentation
+  - id: MS-04-005
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Superseded requirements MUST be removed entirely rather than left in place as deprecated.
+    rationale: >-
+      Deprecated-but-present requirements create confusion for agents and future
+      implementers. The spec schema's `deprecated` and `superseded_by` fields are not a
+      sanctioned lifecycle state; they are being retired, with the entries that use
+      them, by #4166.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: refines
+      spec_id: MS-04-003
+  - id: MS-04-004
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: The group ID prefix of a spec ID MUST match the group it lives in (e.g., spec `HP-01-001` MUST live in group
+      `HP-01`).
+    rationale: Mismatched prefixes break navigability and cross-reference accuracy.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: implements
+      spec_id: SR-01-013
+- id: MS-05
+  title: Writing Rules
+  specs:
+  - id: MS-05-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Requirements MUST be concise; prose explanations MUST NOT appear inline in requirement statements.
+    rationale: Concise statements reduce ambiguity.
+    tags:
+    - documentation
+  - id: MS-05-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Requirements MUST be specific; vague terms such as 'appropriate' or 'robust' MUST NOT be used unless explicitly
+      defined.
+    rationale: Specificity makes requirements testable.
+    tags:
+    - documentation
+  - id: MS-05-003
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Requirements MUST be testable; measurable acceptance criteria MUST be provided where applicable.
+    rationale: Untestable requirements cannot be verified.
+    tags:
+    - documentation
+  - id: MS-05-004
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Requirements MUST be declarative; they MUST state what the system must do, not how, unless the how is itself
+      normative.
+    rationale: Declarative requirements avoid constraining implementation unnecessarily.
+    tags:
+    - documentation
+  - id: MS-05-005
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: A requirement written to guard against an implementation mistake MUST state the domain truth the mistake
+      violates, in the vocabulary of its kind; it MUST NOT be phrased as a prohibition of the mistake, or as a correction
+      of the mistake in another kind's vocabulary.
+    rationale: 'A bare prohibition reads as if the mistake were a plausible design, and once SR-11-003 extends to protocol
+      MUST_NOT (#4517) it needs a contrived story. The positive truth is design an implementer can follow, and the
+      regression test verifies it. RSH-08-001 is the worked case: the rule is that a participant''s assertion about
+      itself is about itself, not about another actor, and the mistake it guards against recurred (ADR-0089,
+      CONCERN-3473). The bug that prompted such a requirement belongs in its rationale; the requirement carries no
+      marker, tag or field saying it is a guard. A guard with no domain truth behind it is not `protocol` (MS-12-003),
+      or is only a regression test.'
+    tags:
+    - documentation
+- id: MS-07
+  title: Cross-References and Sources
+  specs:
+  - id: MS-07-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Cross-references between spec entries MUST use the `relationships:` list with a `rel_type` field (one of the
+      defined vocabulary terms) and a `spec_id` field referencing the target requirement ID.
+    rationale: Structured cross-references in the `relationships:` field enable automated graph analysis and linting of dangling
+      references.
+    tags:
+    - documentation
+  - id: MS-07-004
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Source attribution MUST appear only in the file header, not repeated on individual requirements.
+    rationale: Per-requirement sources create maintenance overhead.
+    tags:
+    - documentation
+- id: MS-08
+  title: File Naming
+  specs:
+  - id: MS-08-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Spec files MUST use `kebab-case.yaml` naming; `specs/README.md` is the sole exception and MUST remain Markdown.
+    rationale: Consistent naming enables glob patterns and automated tooling.
+    tags:
+    - documentation
+    relationships:
+    - rel_type: implements
+      spec_id: SR-01-001
+- id: MS-09
+  title: Lifecycle of Requirements
+  specs:
+  - id: MS-09-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Superseded requirements MUST be removed from spec files rather than marked deprecated or left in place with
+      an annotation.
+    rationale: >-
+      Deprecated-but-present requirements are agent noise and may cause incorrect
+      behaviour. A spec states current understanding; git and the implementation history
+      (MS-09-002) carry what it used to say. The spec schema's `deprecated` and
+      `superseded_by` fields are not a sanctioned lifecycle state; they are being
+      retired, with the entries that use them, by #4166.
+    tags:
+    - documentation
+  - id: MS-09-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: The removal of a requirement MUST be recorded in the implementation history so there is an audit trail.
+    rationale: Audit trail preserves context for future maintainers.
+    tags:
+    - documentation
+  - id: MS-09-004
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: A requirement ID MUST NOT be reused. Once an ID has been removed (MS-09-001), no later requirement, in any
+      spec file, MAY carry it, and a rule that replaces a removed one MUST receive a new ID.
+    rationale: >-
+      Citations outlive requirements: code comments, tests, ADRs, PR bodies and history entries
+      cite IDs. A reused ID silently re-points every one of those at a rule they never meant, and
+      the reuse of CM-11-005 with the opposite force (found in the 2026-10-02 audit) did exactly
+      that. A new ID costs nothing; a stale citation that still resolves is undetectable.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-09-001
+    tags:
+    - documentation
+  - id: MS-09-005
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: The text of every removed requirement MUST be preserved in an archive of retired requirements, one file per
+      requirement ID, in a folder outside `specs/` (`plan/retired-specs/`, laid out like `plan/history/`), and loaders and
+      agents reading the spec corpus MUST NOT load that folder.
+    rationale: >-
+      MS-09-001 keeps retired text out of the specs so it cannot be mistaken for current
+      obligation, but git history is a poor place to look up what a cited ID used to say. One file
+      per ID gives a citation something to resolve to without putting retired text into agent
+      context. The archive sits outside `specs/`, which is the only
+      directory the spec loaders read, so no loader can see it.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-09-001
+    - rel_type: depends_on
+      spec_id: MS-09-002
+    tags:
+    - documentation
+  - id: MS-09-006
+    priority: MUST
+    kind: process
+    statement: >-
+      `uv run spec-retire <ID>` MUST move the item's final text from its spec file to
+      `plan/retired-specs/<ID>.md` with the retiring issue or PR, the date and the replacement
+      ID if any, MUST record the removal in the implementation history (MS-09-002), and MUST
+      list every remaining citation of the ID that MS-09-003 requires repointing. It MUST
+      change nothing when the ID is already archived, is not declared, or the spec files
+      would no longer load without it.
+    rationale: >-
+      Doing a retirement by hand means three separate edits, and the one that gets skipped is
+      the one that leaves the audit trail or a stale citation behind. One command makes the
+      whole retirement, or none of it.
+    verification: >-
+      `test/metadata/specs/test_retire.py` retires an item in a scratch repository and checks
+      the archive file, the history entry, the listed citations and the refusals.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-09-005
+    tags:
+    - documentation
+    - tooling
+  - id: MS-09-007
+    priority: MUST
+    kind: process
+    statement: >-
+      `spec-lint` MUST fail on a `deprecated:` or `superseded_by:` key on any requirement in
+      `specs/`, and on any requirement ID that is both declared in `specs/` and present in
+      `plan/retired-specs/`.
+    rationale: >-
+      MS-09-001 and MS-09-004 are rules a human forgets; the corpus already held both
+      violations (deprecated-in-place entries, and CM-11-005 reused with the opposite force)
+      before anything checked for them.
+    verification: >-
+      `test/metadata/specs/test_retire.py` lints a scratch corpus carrying each key and a
+      re-declared archived ID and expects exit 1; `test_live_specs_do_not_reuse_or_deprecate`
+      holds the real corpus to the same rule.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-09-004
+    tags:
+    - documentation
+    - tooling
+  - id: MS-09-003
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Cross-references to a removed requirement MUST be updated to point to the replacement requirement.
+    rationale: Dangling cross-references break traceability.
+    tags:
+    - documentation
+- id: MS-10
+  title: Quality Criteria
+  specs:
+  - id: MS-10-001
+    priority: SHOULD
+    kind: process
+    statement: Spec files SHOULD be scannable via priority-grouped layout.
+    rationale: Priority grouping lets readers quickly find the most critical requirements.
+    tags:
+    - documentation
+  - id: MS-10-002
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Spec files SHOULD be traceable via stable IDs and cross-references that the
+      requirements graph lets a reader follow from either end.
+    rationale: Traceability supports change impact analysis.
+    tags:
+    - documentation
+  - id: MS-10-003
+    priority: MUST
+    kind: process
+    statement: >-
+      Spec files MUST be testable with verifiable acceptance criteria per
+      requirement; every `priority: MUST` or `priority: MUST_NOT` requirement MUST
+      include a `verification:` field.
+    rationale: >-
+      Untestable specs cannot be reliably implemented; a MUST requirement with no
+      verification field provides no contract for reviewers or agents. Upgraded
+      from SHOULD to MUST (CONCERN-2382) to align with MS-05-003 and enable
+      progressive linter enforcement. MUST_NOT is in scope per MS-02-003: a
+      prohibition with nothing checking it is the same gap. See MS-10-005 through
+      MS-10-008 for enforcement while the backlog is worked down.
+    verification: >-
+      `spec-lint` exits 1 on any MUST or MUST_NOT requirement that has neither a
+      `verification:` field nor a `verification_debt:` marker; unit tests in
+      `test/metadata/specs/test_verification.py` prove it for both keywords.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-05-003
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-005
+    priority: MUST
+    kind: process
+    statement: >-
+      spec-lint MUST report in its default output one summary line per kind that has an
+      MS-10-006 owner entry or a `verification_debt:` marker, giving the number of
+      `priority: MUST` or `priority: MUST_NOT` requirements of that kind that carry a
+      marker, tallied by the issue each marker names. The line MUST be computed from the
+      markers, not read from a committed count. spec-lint MUST list the marked IDs only
+      when asked through an opt-in flag, and MUST NOT print one line per marked
+      requirement by default.
+    rationale: >-
+      MS-05-003 and MS-10-003 require MUST and MUST_NOT requirements to carry measurable
+      acceptance criteria. The original per-item [WARN] (CONCERN-2382) grew to more than a
+      thousand lines, which made a newly introduced instance invisible. A per-kind count
+      keeps the backlog legible and makes each backfill's progress visible. Computing it
+      from the markers leaves no committed number for concurrent PRs to race on (#3984).
+    verification: Unit tests in `test/metadata/specs/test_lint.py` assert that a fixture
+      corpus with marked MUST and MUST_NOT items produces exactly one summary line per
+      kind with the correct per-owner tally, no per-item lines by default, and the IDs
+      when the opt-in flag is passed.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-05-003
+    - rel_type: implements
+      spec_id: MS-10-003
+    - rel_type: depends_on
+      spec_id: MS-10-006
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-006
+    priority: MUST
+    kind: process
+    statement: >-
+      Until it gains a `verification:` field, each `priority: MUST` or
+      `priority: MUST_NOT` requirement MUST carry a `verification_debt:` marker naming,
+      in `#N` form, the open issue that owns verifying it, and that issue MUST be listed
+      as an owner of the requirement's kind in the one owner table under
+      `vultron/metadata/specs/`. spec-lint MUST fail, one requirement at a time, on a
+      MUST-tier requirement with neither field, on a requirement with both (a stale
+      marker), on a marker below the MUST tier, and on a marker naming an issue that
+      does not own its kind. A pull-request check MUST fail a pull request that closes
+      an owner issue a marker or the owner table still names, and a scheduled check
+      running at least hourly MUST report any marker or owner entry naming a closed
+      issue through one tracking issue, without failing the build.
+    rationale: >-
+      A count pinned to the live value in both directions is correct on the PR that sets
+      it and wrong on every other PR in flight: a sibling that moves the count by one is
+      green alone and red once merged (#3984). A per-item rule has no shared number to
+      race, and two PRs conflict only when they edit the same requirement. The marker
+      gives every unverified requirement a tracked path to verification. An owner
+      usually closes through the backfill PR that says `Closes #N`; failing that PR
+      alone races nothing, and catches a backfill that claims to finish while leaving
+      requirements unverified. An owner closed by hand is caused by no PR, so failing
+      the build on it would turn every PR in flight red; it is reported instead
+      (ARCH-18-004). The owner table holds issue references, never counts, so verifying
+      a requirement never edits it.
+    verification: >-
+      Fixture-corpus tests in `test/metadata/specs/test_verification.py` prove each
+      per-item failure fires (neither field, both fields, a below-tier marker, a
+      wrong-kind owner), that a PR closing an owner still in use fails, and that a
+      closed owner or a failed lookup is reported; a spec-corpus test there asserts the
+      live corpus has no per-item failure.
+      `test/ci/test_verification_debt_owner_check.py` asserts that
+      `.github/workflows/verification-debt-owners.yml` fails a pull request through
+      `--check-closing-pr`, and runs `--check-debt-owners` hourly and on push to `main`
+      without failing the build.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-10-003
+    - rel_type: refines
+      spec_id: MS-02-003
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-007
+    priority: MUST
+    kind: process
+    statement: >-
+      When no `verification_debt:` marker names an owner issue, that issue MUST be removed
+      from the MS-10-006 owner table, and a kind's entry MUST be removed with its last
+      owner. spec-lint MUST report an owner that no marker names, and MUST treat a marker
+      on any requirement of a kind with no owner entry as a hard error, so that an
+      unverified MUST or MUST_NOT of that kind can only pass by gaining a `verification:`
+      field.
+    rationale: >-
+      Zero is the only state a backlog cannot drift from, and only if nothing can raise it
+      back. Removing a kind's entry makes the end state permanent: no marker of that kind
+      is accepted, and an unmarked unverified requirement already fails under MS-10-006.
+      An owner no marker names is reported rather than failed, because two PRs that each
+      verify some of its last requirements are green alone and would turn `main` red
+      merged (#3984); the PR that closes the owner issue fails until the entry is
+      removed, which forces the removal. The growth guard (#4200) keeps markers from being added
+      while an owner remains. The `protocol` tier is expected to finish first (#3612).
+    verification: >-
+      Unit tests in `test/metadata/specs/test_lint.py` and
+      `test/metadata/specs/test_verification.py` assert that, for a kind with no owner
+      entry, a marked MUST and a marked MUST_NOT each make lint exit 1, that verified
+      items of that kind pass, and that an owner no marker names is reported.
+    tracking_issue: '#3612'
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-10-006
+    - rel_type: implements
+      spec_id: MS-10-003
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-008
+    priority: MUST
+    kind: process
+    statement: >-
+      A change that moves a `priority: MUST` or `priority: MUST_NOT` requirement carrying a
+      `verification_debt:` marker from one kind to another MUST replace the marker with a
+      `verification:` field in the same change.
+    rationale: >-
+      Each kind's backlog has its own owner. Re-pointing a relabelled requirement's marker
+      at the destination kind's owner would add debt to a backlog that never took it on,
+      which is the growth the marker exists to forbid.
+    verification: >-
+      spec-lint fails on a marker naming an issue that does not own its requirement's
+      kind, so a relabel that keeps its old marker fails; a fixture test in
+      `test/metadata/specs/test_verification.py` proves it. A relabel that re-points the
+      marker at the destination kind's owner is a new marker for that owner, which the
+      growth guard (#4200) rejects.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-006
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-009
+    priority: MUST
+    kind: process
+    statement: >-
+      A `verification:` clause MUST name a check that exists and that inspects the
+      property its requirement's statement asserts. Naming a tool or test that merely
+      runs near the property does not satisfy this requirement: a build, lint or
+      type-check that never examines the artifact the statement constrains, or a test
+      that does not exist, is not verification.
+    rationale: >-
+      A verification clause is a claim about the suite, and an unbacked one reads
+      exactly like a backed one. DEMOCI-11-009 named `mkdocs build --strict` for links
+      strict mode never sees; VM-01-004 described a test that did not exist (#2982);
+      DR-03-002 had no clause and named the wrong component; MS-13-003 had no check and
+      sat at half adoption (#3480); ADR-0099 graduated with two details unbuilt (#3888).
+      MS-15-001 makes a path resolve, not a check examine. See
+      `notes/spec-authoring-rules.md`.
+    verification: >-
+      Checked at spec review: for each new or changed `verification:` clause the
+      reviewer asks whether the named check would fail if the requirement were violated,
+      and reports a FAIL when it would not (`.agents/skills/pr-triage`). The existence
+      of a named path is enforced by MS-15-001, of a named test by MS-10-010, and of
+      a protocol requirement's marker in a named test by MS-10-011.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-003
+    - rel_type: depends_on
+      spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-004
+    priority: SHOULD
+    kind: process
+    statement: >-
+      Spec entries SHOULD require only `id`, `priority`, `kind`, `statement`, and
+      `rationale` (MS-10-012) to be complete; optional fields (`tags`,
+      `relationships`) SHOULD be added only when they provide clear value, not by
+      default.
+    rationale: Requiring optional fields on every entry creates boilerplate that discourages keeping specs current.
+    tags:
+    - documentation
+  - id: MS-10-010
+    priority: MUST
+    kind: process
+    statement: >-
+      spec-lint MUST report as a hard error each test a `verification:` clause
+      names that does not exist: a pytest node (`<file>.py::<name>`) whose names
+      do not resolve, in order, in that file; and a bare `test_<name>` token that
+      no test file or test directory the clause names defines, or, when the clause
+      names none, that no file under `test/` or `integration_tests/` defines.
+    rationale: >-
+      A named test that does not exist reads exactly like one that does, and
+      MS-15-001 resolves only the file. A name looked up only where the clause
+      points also catches a test that moved to another module (#4170).
+    verification: >-
+      `test/metadata/specs/test_verification_refs.py::TestUnresolvedTestRefs`
+      covers a resolved name, an unresolved name, a name defined only in a module
+      other than the one named, and node paths;
+      `test/metadata/specs/test_real_specs.py::test_real_specs_lint_no_hard_errors`
+      holds the live corpus to none.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-009
+    - rel_type: depends_on
+      spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-011
+    priority: MUST
+    kind: process
+    statement: >-
+      When the `verification:` clause of a `kind: protocol` or `kind: foundation`
+      requirement names test files, at least one of them MUST carry
+      `@pytest.mark.spec("<ID>")` for that requirement. `spec-lint --changed-since
+      <ref>` MUST report each requirement the branch adds or changes that breaks
+      this, and a pull-request growth guard MUST fail on each requirement a pull
+      request adds to the set that breaks it.
+    rationale: >-
+      A clause pointing at a test that does not carry the marker claims a check
+      the coverage report cannot see. The corpus has a backlog, so the rule holds
+      for what a branch touches rather than corpus-wide.
+    verification: >-
+      `test/metadata/specs/test_verification_refs.py::TestNamedTestsLackMarker`,
+      `test/metadata/specs/test_branch_checks.py::TestChangedMarkers` and
+      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_adds_a_named_test_without_its_marker`.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-009
+    - rel_type: refines
+      spec_id: SR-05-004
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-012
+    priority: MUST
+    kind: process
+    statement: >-
+      Every requirement MUST carry a `rationale:` that explains why the requirement
+      is necessary given current conditions: the problem it prevents or the property
+      it guarantees.
+    rationale: >-
+      A requirement with no written reason can only be obeyed or guessed at. When it
+      conflicts with another requirement, nobody can weigh the two, and when its
+      reason lapses, nobody can see that it should be retired. User stories give a
+      reason only where they exist (SR-11), so for most project and process
+      requirements the rationale is the only place the reason can live.
+    verification: >-
+      `test/architecture/test_spec_rationale_guard.py::test_no_pr_adds_a_requirement_without_a_rationale`
+      fails a pull request that adds a requirement with no rationale (MS-10-014), and
+      `test/metadata/specs/test_rationale.py::test_missing_rationale_lists_each_requirement_without_one`
+      covers the detector behind it and behind `spec-rationale missing`, which lists
+      the remainder the backfill clears.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-02-009
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-013
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A `rationale:` MUST NOT narrate how its requirement came about, such as its
+      prior wording, a reverted change, or the issues and pull requests behind it.
+      That history belongs in the decision record the `adr:` field cites, the
+      version-control log, or the project history.
+    rationale: >-
+      A narrated history answers what happened, not why the rule holds, and it reads
+      as a standing endorsement of the earlier state it describes. A reader then
+      has to reconstruct the current reason from the story, and the story goes
+      stale with every later edit, while a stated reason stays true for as long as
+      the requirement does.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-10-012
+    tags:
+    - documentation
+  - id: MS-10-014
+    priority: MUST
+    kind: process
+    statement: >-
+      Until the schema requires a `rationale:` on every requirement, a PR-only growth
+      guard MUST fail when a requirement has no rationale at the PR head but had one
+      at the merge base with the base branch, or did not exist there, and MUST list
+      each such requirement. A requirement already missing one at the merge base
+      MUST NOT fail the guard, and the guard MUST NOT compare against a committed
+      count or an exemption list.
+    rationale: >-
+      The corpus holds a backlog of requirements with no rationale, so a corpus-wide
+      check would fail every pull request until the backfill finishes. Checking only
+      what a branch adds keeps the backlog from growing while it is worked down, and
+      a per-item set has no shared number for concurrent pull requests to race on.
+    verification: >-
+      `test/architecture/test_spec_rationale_guard.py::test_no_pr_adds_a_requirement_without_a_rationale`
+      runs the guard on the live corpus, and the `test_rationale_*` tests in
+      `test/metadata/specs/test_growth_guard.py` cover a new requirement without a
+      rationale, a dropped rationale, an existing gap, a backfill, and a skipped run
+      with no base ref that logs its reason.
+    relationships:
+    - rel_type: implements
+      spec_id: MS-10-012
+    - rel_type: refines
+      spec_id: SR-05-005
+    tags:
+    - documentation
+    - tooling
+  - id: MS-10-015
+    priority: SHOULD
+    kind: process
+    statement: >-
+      The project SHOULD provide two advisory reports, each filterable by spec file
+      and neither failing the build: requirements whose ID a live decision record's
+      body names while their `adr:` field does not cite that record, and rationales
+      that match patterns of history narration.
+    rationale: >-
+      A requirement a decision record names is often one that record motivates, so a
+      missing `adr:` link is a likely gap in the trace from rule to reason. History
+      narration is easy to recognize but has false positives, such as an issue cited
+      as evidence, so both lists are worklists for a person to judge rather than
+      gates. A per-file filter lets each backfill take its own share.
+    verification: >-
+      `test/metadata/specs/test_rationale.py` covers both reports, the per-file
+      filter, and the `spec-rationale` command line exiting 0.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-10-012
+    - rel_type: derives_from
+      spec_id: MS-10-013
+    - rel_type: derives_from
+      spec_id: MS-11-004
+    tags:
+    - documentation
+    - tooling
+- id: MS-11
+  title: Spec vs. ADR Delineation
+  specs:
+  - id: MS-11-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: A spec file MUST be used to capture testable requirements — what the system MUST, SHOULD, or MAY do — using
+      RFC 2119 keywords. Specs define the intended behaviour of the system; they do not record the rationale for choosing one
+      approach over another.
+    rationale: Mixing decision rationale into spec files blurs the distinction between requirements and design history, making
+      both harder to maintain and trace.
+    tags:
+    - documentation
+  - id: MS-11-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: An Architecture Decision Record (ADR) MUST be created whenever a meaningful alternative was evaluated and
+      rejected. The primary signal for an ADR is the presence of options considered and discarded — "we weighed X, Y, and Z
+      and chose X because …"
+    rationale: If no real fork existed, there is no decision to record. An ADR without evaluated alternatives is just prose
+      documentation and belongs in notes/ instead.
+    tags:
+    - documentation
+  - id: MS-11-003
+    priority: SHOULD
+    kind: process
+    statement: When a significant architectural decision generates recurring testable requirements, both an ADR and a spec
+      entry SHOULD be created. The ADR captures the why (context, options, consequences); the spec captures the what
+      (requirements agents and reviewers must satisfy going forward).
+    rationale: The two documents serve different audiences. The ADR is for human reviewers asking "why was this chosen?";
+      the spec is for implementation agents asking "what must I do?". Collapsing them into one document serves neither well.
+    tags:
+    - documentation
+  - id: MS-11-004
+    priority: SHOULD
+    kind: process
+    statement: A spec entry that was motivated by an ADR-backed decision SHOULD reference the ADR in its rationale field.
+      The corresponding ADR SHOULD list the generated spec IDs in its "More Information" section.
+    rationale: Bidirectional cross-references make it possible to trace a requirement back to its decision rationale and
+      forward from a decision to its testable consequences.
+    tags:
+    - documentation
+  - id: MS-11-005
+    priority: SHOULD
+    kind: process
+    statement: When the correct approach is uncontested and no alternative was seriously considered, a spec entry alone is
+      sufficient. An ADR SHOULD NOT be created merely to document an obvious or unchallenged choice.
+    rationale: Writing ADRs for trivial decisions adds noise to the decision log and devalues the records that capture
+      genuine trade-offs.
+    tags:
+    - documentation
+  - id: MS-11-006
+    priority: SHOULD
+    kind: process
+    statement: When a decision is a one-time structural or process choice with no recurring testable requirements (e.g.,
+      "use CalVer for project versioning", "pin CI actions to full commit SHAs"), an ADR alone is sufficient. A spec entry
+      SHOULD NOT be created if there is no per-change requirement for agents to check.
+    rationale: Not every decision produces enforceable requirements. Creating spec entries for binary one-time choices
+      inflates the spec corpus without providing testable value.
+    tags:
+    - documentation
+  - id: MS-11-007
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A spec file, a `notes/` file, or a code comment or docstring under `vultron/` or `test/` MUST NOT resolve its
+      meaning by naming a numbered part inside a decision record's body: a record ID with a detail, rule, step, option,
+      part, invariant or section (§) number, such as a record's "Rule N" or "invariant N". It MUST state the rule where
+      the reader already is, or cite the requirement that states it, and cite the record only as provenance for why.
+      A decision record citing a numbered part of another record is out of scope: that is history citing history.
+      Because a bare "detail N" a sentence after the record was named is the same citation, any "detail" followed by
+      a number counts; the other part words count only with a record ID nearby, because a numbered step of a procedure
+      is ordinary prose.
+    rationale: >-
+      A part number is defined nowhere but the record body, so a citation of one makes the body load-bearing and forces
+      every reader to load it, which ADR-0127 removes from routine agent context. A rule stated in a requirement is
+      checked by its verification clause; a rule left in a body ages with nothing to say it has. The shape is not
+      specific to one word: a rule, option or decision-part number points into a body exactly as a detail number does.
+      Agents read code comments as often as spec files, so the citation shape is equally harmful there.
+    verification: >-
+      `test_no_file_names_a_numbered_decision_part` in `test/metadata/test_no_decision_record_part_citations.py`
+      selects candidate lines with one `git grep` over every tracked or untracked file under `specs/`, `notes/`,
+      `vultron/`, and `test/` (excluding the test file itself, whose detector-case strings contain citation shapes by
+      design), whatever its suffix, and fails on a numbered-part citation, including one split across a line break;
+      it fails rather than skips when git is unavailable or the scan covers no files. Its detector cases show it
+      catches each citation shape that was converted and passes a requirement-ID citation and numbered-procedure text.
+    adr:
+    - ADR-0127
+    tags:
+    - documentation
+  - id: MS-11-008
+    priority: MUST
+    kind: process
+    statement: >-
+      The routine context-loading skill (`deepen-context`) MUST route through decision records by the generated title
+      index and by the `adr:` edges requirements carry, read in the record-to-requirements direction, and MUST carry a
+      written list of the skills that read decision-record bodies in full, each with the reason it needs them. That list
+      MUST name at least decision auditing, record authoring, the learning workflow, issue planning and pull-request
+      triage. A skill kept in this repository and not on the list MUST NOT instruct an agent to read a decision-record
+      body, and each listed skill kept in this repository MUST weigh what it reads by the shared guidance on when a
+      record is challengeable.
+    rationale: >-
+      A record body is history, and its description of the code ages with every refactor while the decision stands;
+      loading it as routine context spends working memory on claims that no longer check out (ADR-0127). Writing the
+      exception list down keeps the narrowing from being over-read as "never read a record", and keeping the trust
+      weighting beside every remaining reader preserves how a provisional or hedging record is treated.
+    verification: >-
+      `test/metadata/test_routine_context_skips_adr_bodies.py` reads `.agents/skills/deepen-context/SKILL.md` and asserts
+      its Step 2 names `docs/adr/index.md`, `spec-dump --adr` and the prose-only grep, that its exception table lists
+      each required skill with a reason, and that each in-repository listed skill points at
+      `.agents/skills/shared/weighing-decision-records.md`. It scans every skill file under `.agents/skills/` off the list
+      for a reading verb whose object is a record path, a full record, a record body, a record ID, or "ADR(s)" or
+      "decision record(s)" other than the index, a title, the template or a status; its detector cases show it catches
+      the instruction this requirement replaced and plain forms such as "read the relevant ADRs", and passes routing
+      instructions.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-11-007
+    adr:
+    - ADR-0127
+    tags:
+    - documentation
+- id: MS-12
+  title: SpecKind Classification Decision Tree
+  description: Rules for assigning a `kind` value to a new or reclassified spec. Who must obey a rule decides its kind.
+    Split a spec that mixes kinds first, then stop at the first matching question.
+  specs:
+  - id: MS-12-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: When a spec is about how the project is run — CI configuration, GitHub workflow, agent conventions, documentation
+      standards, or spec authoring rules — the spec MUST be classified as `process`.
+    tags:
+    - documentation
+  - id: MS-12-002
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec's kind MUST be decided by who must obey it, never by whether its statement names
+      a codebase construct such as a file path, library, class, or Behavior Tree node. When
+      only this codebase must obey the spec — a deployment choice (such as running the
+      CASE_MANAGER as an actor separate from the case owner), a performance or operating
+      limit, how a receiver records what it receives, or a core internal — the spec MUST be
+      classified as `project`.
+    rationale: >-
+      Compare TCP and an operating system's socket API. An RFC fixes what two independent
+      implementations exchange on the wire; how one implementation structures its internals (its
+      endpoints, stores, compare-and-set loops) is not RFC content, however firm the MUST.
+      EP-02-004 (compare-and-set on the policy PUT) is the worked example: only this codebase
+      must obey it, so it is `project`. Naming code is a symptom, not the test: a protocol rule
+      spelled in this codebase's terms is reworded, and one that also says how this codebase
+      meets it is split (MS-12-010). Neither is relabeled.
+    verification: >-
+      MS-12-006's spec-lint check enforces the first sentence where it is mechanical: a
+      story-less protocol or foundation spec whose statement names a `.py` suffix, a `vultron/`, `test/`, or
+      `scripts/` path, or `pytest`, `pydantic`, or `py_trees` is a hard error, and its message
+      advises rewording or splitting and never relabeling. Covered by
+      `test/metadata/specs/test_lint.py::test_protocol_code_reference_message_advises_reword_or_split`.
+      The `project` branch itself is a classification judgement no check inspects.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-12-005
+      note: applies only when MS-12-001 did not already match
+    adr:
+    - ADR-0134
+    tags:
+    - documentation
+  - id: MS-12-003
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      When every Vultron implementation, in any language or framework, must obey the spec to
+      take part in the protocol, the spec MUST be classified as `protocol`. `protocol` is the
+      Vultron layer: Vultron's message forms on the wire (including where ActivityStreams allows
+      several forms and Vultron requires one), which messages are sent and when, what a receiver
+      does given its state (including on duplicate delivery), and the state machines underlying
+      those behaviors. Nothing else is `protocol`.
+    rationale: >-
+      The test is the TCP analogy: if the sentence could appear in an RFC for the protocol and an
+      implementer in any language would have to honour it to interoperate, it is `protocol`.
+      Behaviour that only changes how one implementation is built is not. State-machine states
+      such as `RM.CLOSED` are protocol constructs. The CASE_MANAGER role and case-ledger sync are
+      `protocol` for now; they are re-judged if the protocol moves to a federated design with no
+      CASE_MANAGER (ADR-0134).
+    adr:
+    - ADR-0134
+    tags:
+    - documentation
+  - id: MS-12-004
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: When none of the above apply — the spec is a structural or behavioral constraint that is implementation-independent
+      but not required for Vultron compliance — the spec MUST be classified as `architecture`.
+    tags:
+    - documentation
+  - id: MS-12-005
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec that mixes kinds MUST first be split as MS-12-010 directs. The decision tree MUST
+      then be applied in order (MS-12-001 → MS-12-002 → MS-12-009 → MS-12-003 → MS-12-004), and
+      a spec MUST be assigned the kind corresponding to the first matching question.
+    rationale: >-
+      Each question asks who must obey the rule, in this order: how the project is run, this
+      codebase only, every implementation of a standard Vultron inherits, every Vultron
+      implementation, and recommended structure. `foundation`
+      precedes `protocol` so a rule that only restates ActivityStreams, ActivityPub or HTTP is not
+      counted as Vultron's own. Splitting comes first because a mixed spec would otherwise match
+      `project` and hide its protocol half from implementers.
+    verification: >-
+      MS-12-006's check names the split rule and the who-must-obey question rather than a
+      replacement kind, so its error message cannot route a spec around this ordering. Covered by
+      `test/metadata/specs/test_lint.py::test_protocol_code_reference_message_advises_reword_or_split`.
+    adr:
+    - ADR-0134
+    tags:
+    - documentation
+  - id: MS-12-006
+    priority: MUST
+    kind: process
+    statement: >-
+      spec-lint MUST emit a hard error for any spec with kind protocol or foundation that
+      carries no `stories:` back-reference and whose `statement` text references
+      an unambiguous codebase construct — a `.py` suffix, a `vultron/`, `test/`, or
+      `scripts/` path, or the tokens `pytest`, `pydantic`, or `py_trees`. The check MUST
+      be suppressible per-spec via the `protocol_kind_with_code_reference` lint_suppress
+      code. Its message MUST advise rewording the statement so any implementation could obey
+      it, or splitting the spec (MS-12-010), and MUST NOT advise relabeling it.
+    rationale: >-
+      MS-12-001 through MS-12-005 went unenforced until issue #2601, and the corpus accreted
+      protocol-kind specs suppressing the missing-story-reference check instead of carrying a
+      corrected kind. An unenforced MUST anti-advertises: partial adoption reads as "no rule
+      here". Three choices keep it off already-compliant specs: story-less specs only, a token
+      list narrow enough to exclude domain English, and reword-or-split — not relabel — as the
+      remedy, because naming code never decides a kind (MS-12-002). Derived in
+      `notes/spec-authoring-rules.md`. Only the `statement` is scanned: a
+      `verification` field names the test that checks a rule, and naming a test file there says
+      nothing about whether the rule itself is protocol content. `foundation` is scanned too: a
+      foundation rule whose statement names this codebase's code also says how this codebase
+      meets it, so it is a mixed spec to split (MS-12-010, ADR-0134). The suppression code keeps
+      its `protocol_` name, which specs already carry.
+    verification: Unit tests in `test/metadata/specs/test_lint.py` cover the hard error for a
+      protocol and for a foundation spec, the reword-or-split message, the story-bearing exemption, and the suppression path, and
+      `test/architecture/` holds a ratchet asserting the live corpus has no unsuppressed violation.
+    relationships:
+    - rel_type: verifies
+      spec_id: MS-12-002
+    - rel_type: verifies
+      spec_id: MS-12-005
+      note: the error message advises reword or split rather than naming a single branch
+    - rel_type: depends_on
+      spec_id: SR-11-003
+      note: shares the story-traceability population; the absence of stories gates both
+    adr:
+    - ADR-0038
+    - ADR-0134
+    tags:
+    - documentation
+    - tooling
+  - id: MS-12-007
+    priority: MUST
+    kind: process
+    statement: >-
+      No pull request may add a `lint_suppress: [missing_story_reference]` carrier: a
+      PR-only growth guard MUST fail when a spec carries the code at the PR head but did not
+      at the merge base with the base branch, whether or not SR-11-003 would fire on it,
+      and MUST list each such spec. Removing a suppression MUST NOT fail the guard, and the
+      guard MUST NOT compare against a committed count.
+    rationale: >-
+      Suppression is the escape hatch SR-11-003 provides, so it cannot be forbidden, but an
+      unguarded escape hatch is how the backlog accumulated. Each carrier is recorded on its
+      own spec, so the guard compares carrier sets and commits no number: a pinned count
+      races concurrent PRs and a one-sided ceiling collects slack (`notes/testing-pitfalls.md`).
+      Every carrier counts, dead ones too; `spec-lint` prints the total. MS-12-008 closes the
+      other code, so the two cannot trade places.
+    verification: >-
+      `test/architecture/test_spec_kind_ratchet.py::test_no_pr_adds_a_missing_story_suppression`
+      fails on each spec that gained the code since the merge base, and
+      `test/metadata/specs/test_growth_guard.py` exercises the guard on fixture repositories
+      for an added, removed and unchanged suppression, a relabel in and out, and the
+      logged skip when no base ref is available.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SR-11-003
+      note: guards the suppression escape hatch SR-11-003 provides against growth
+    - rel_type: depends_on
+      spec_id: SR-11-004
+      note: the same suppression code silences this advisory, so dead suppressions are in scope
+    adr:
+    - ADR-0038
+    tags:
+    - documentation
+    - tooling
+  - id: MS-12-008
+    priority: MUST
+    kind: process
+    statement: >-
+      A test MUST assert that no spec in the live corpus carries
+      `lint_suppress: [protocol_kind_with_code_reference]`.
+    rationale: >-
+      MS-12-006 adds a second escape hatch next to the one MS-12-007 guards. If only one of
+      the two is held, a pass can swap suppressions from the guarded code to the unguarded
+      one: one total falls, the other grows, and every gate stays green. The code has never
+      had a carrier, so it is held at that terminal value outright rather than by a growth
+      guard; admitting a carrier means amending this requirement.
+    verification: >-
+      `test/architecture/test_spec_kind_ratchet.py::test_no_spec_carries_protocol_kind_with_code_reference`
+      loads the live corpus and fails, naming each carrier, when any spec carries the code.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-12-007
+      note: closes MS-12-006's suppression code alongside the code MS-12-007 guards
+    - rel_type: depends_on
+      spec_id: MS-12-006
+      note: holds the suppression escape hatch MS-12-006 provides at no carrier
+    adr:
+    - ADR-0038
+    tags:
+    - documentation
+    - tooling
+  - id: MS-12-009
+    priority: MUST
+    kind: process
+    statement: >-
+      When every implementation must obey the spec because Vultron inherits it from a standard
+      beneath it — ActivityStreams 2.0, ActivityPub, or HTTP — the spec MUST be classified as
+      `foundation`, and it MUST carry the tag naming that standard (`as2`, `activitypub`, or
+      `http`). spec-lint MUST emit a hard error for a `foundation` spec whose effective tags name
+      none of the three.
+    rationale: >-
+      Addressing and delivery, HTTP status codes, and rules that only restate ActivityStreams
+      (every `id` is an IRI) bind every implementation, but Vultron does not own them. Filing them
+      as `protocol` inflates what Vultron defines; filing them as `project` hides them from
+      implementers, who read `protocol` and `foundation` together. Where Vultron requires one
+      form among several the standard allows, the rule is Vultron's own and is `protocol`. The
+      tag lets a reader trace each rule to the standard that owns it.
+    verification: >-
+      `test/metadata/specs/test_lint.py::test_foundation_without_standard_tag_is_hard_error`
+      fails a `foundation` spec with no standard tag, and
+      `::test_foundation_with_standard_tag_passes` and
+      `::test_foundation_standard_tag_inherited_from_file_passes` accept each of the three tags,
+      on the spec or its file. The classification itself is a judgement no check inspects.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-12-005
+      note: applies only when MS-12-001 and MS-12-002 did not already match
+    adr:
+    - ADR-0134
+    tags:
+    - documentation
+    - tooling
+  - id: MS-12-010
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A spec that mixes kinds MUST be split along what other participants can observe. The
+      original ID MUST keep the half that states what is emitted or observed, reworded so any
+      implementation could obey it, and the half that states how this codebase does it MUST move
+      to a new `project` ID whose `relationships:` name the original ID.
+    rationale: >-
+      Keeping the original ID on the protocol half keeps its user stories, test markers and
+      citations where implementers look, so the PR-only growth guards (SR-05-005, MS-12-007) see
+      no new uncovered protocol spec and no new suppression. Worked example: default-embargo
+      creation. The protocol half says other participants never observe the intermediate
+      Proposed state; the project half says this codebase applies PROPOSE and ACCEPT atomically
+      in one behavior tree node.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-12-005
+      note: the split MS-12-005 runs before the decision tree
+    adr:
+    - ADR-0134
+    tags:
+    - documentation
+  - id: MS-12-011
+    priority: MUST
+    kind: process
+    statement: >-
+      Changing a spec's kind MUST NOT remove the tests or `@pytest.mark.spec` markers that already
+      verify it, whatever the destination kind. A spec relabeled from `protocol` to `project`, for
+      example, keeps its tests and markers even though `project` does not require them.
+    rationale: >-
+      A test that verifies a rule is evidence the rule holds, and a kind change does not change
+      whether it holds. Dropping markers on a relabel would turn a re-judgement sweep into a way
+      to shed coverage, and a later relabel back would find the tests gone.
+    verification: >-
+      `test/architecture/test_spec_coverage_ratchet.py::test_no_pr_drops_a_marker_while_changing_a_kind`
+      fails a pull request in which an ID whose kind differs from the merge base has lost every
+      marker it had there, and `test/metadata/specs/test_growth_guard.py` exercises it on fixture
+      repositories: a relabel that drops its marker, one that keeps it, a marker dropped with no
+      relabel, a relabel of an unmarked spec, a retired spec, and the skip with no base. A test
+      deleted while another test still marks the spec is not detected; that part is checked in
+      review.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-12-005
+      note: constrains how the kind the decision tree assigns is applied
+    adr:
+    - ADR-0134
+    tags:
+    - documentation
+    - tooling
+- id: MS-13
+  title: Spec Item Format Selection (StatementSpec vs BehavioralSpec)
+  specs:
+  - id: MS-13-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A spec item MUST use BehavioralSpec format (with preconditions, steps[], and
+      postconditions fields) when it describes a sequential, stateful process that has a
+      defined start state, ordered actions, and terminal conditions.
+    rationale: >-
+      StatementSpec statement text is a single normative sentence. Encoding ordered
+      sub-steps as numbered lists inside that sentence violates MS-05-001 (no inline
+      prose explanations) and makes the start state, step ordering, and terminal
+      conditions invisible to conformance tooling.
+    tags:
+    - documentation
+  - id: MS-13-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A spec item MUST use StatementSpec format when it expresses a capability
+      constraint, behavioral property, or structural rule that does not depend on
+      step ordering — i.e., it specifies a required outcome or invariant, not a
+      prescribed sequence of actions.
+    rationale: >-
+      BehavioralSpec's steps[] field implies ordering that is not meaningful for
+      property requirements; StatementSpec is simpler and more appropriate.
+    tags:
+    - documentation
+  - id: MS-13-003
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A spec group whose items describe a demo scenario workflow MUST include a
+      trigger field with type: scenario_start to indicate to conformance tooling that
+      the group is a process workflow, not a property group.
+    rationale: >-
+      The trigger field allows tooling to classify groups by activation kind without
+      parsing item content. scenario_start distinguishes demo-script-triggered
+      workflows from message_received and state_entered behavioral groups.
+    tags:
+    - documentation
+  - id: MS-13-004
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A spec group with trigger type scenario_start MUST contain at least one
+      BehavioralSpec item with a non-empty steps field describing the ordered
+      protocol exchange.
+    rationale: >-
+      Mixed groups are permitted — terminal-state assertions and infrastructure
+      constraints MAY remain StatementSpec — but the sequential workflow itself
+      MUST be expressed as BehavioralSpec so that conformance tooling and CI can
+      verify ECA structure without parsing prose. This requirement is enforced by
+      spec-lint (SR-04-003); a group with only StatementSpec items causes a hard
+      error. See CONCERN-1650 for the regression that prompted this rule.
+    tags:
+    - documentation
+- id: MS-14
+  title: ADR Status as Confidence Signal
+  specs:
+  - id: MS-14-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Every ADR under docs/adr/ (excluding the template and index) MUST declare
+      a non-empty status field whose value is a member of the AdrStatus StrEnum
+      (proposed, accepted, accepted-provisional, deprecated, rejected,
+      superseded); the inline MADR form "superseded by <link>" is accepted and
+      normalised to superseded.
+    rationale: >-
+      The status field is the primary confidence signal that reaches coding
+      agents (deepen-context weights ADR trust by it). A blank or non-standard
+      status leaves agents to treat an unvalidated decision as settled fact.
+      ADR-0024 shipped with a blank status; this rule prevents recurrence.
+      AdrStatus is the fixed vocabulary (SR-02-002) the linter typechecks
+      against. Enforced by spec-lint. See ADR-0043 and notes/specs-vs-adrs.md.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-11-004
+      note: extends ADR/spec cross-referencing with a status-confidence rule
+    adr:
+    - ADR-0043
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0024
+  - id: MS-14-002
+    priority: SHOULD
+    kind: process
+    statement: >-
+      An ADR's status value SHOULD agree with its prose. An ADR whose body
+      contains provisional markers (e.g. "formed in sand", "not concrete",
+      "provisional", "forward-looking", "will converge", "SHOULD refine this
+      ADR", "status will advance") SHOULD NOT declare status: accepted; it
+      SHOULD use accepted-provisional or proposed.
+    rationale: >-
+      A status/prose contradiction is a landmine: the agent trusts status:
+      accepted while the body admits the design is unvalidated. ADR-0025 was the
+      motivating case. spec-lint emits an advisory warning (not a hard error)
+      because the substring scan can false-positive on ADRs that merely discuss
+      provisional-ness; flagged ADRs are decision-audit candidates for human
+      adjudication. An ADR that legitimately discusses provisional-ness (e.g.
+      ADR-0043, which defines the vocabulary) MAY opt out with frontmatter
+      'lint_suppress: [status_prose_contradiction]', mirroring the spec-level
+      lint_suppress mechanism (SR-02-011).
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0025
+    - ADR-0043
+  - id: MS-14-003
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      An ADR's placement in docs/adr/index.md (Accepted / Proposed / Rejected /
+      Superseded-Archived sections) MUST agree with its own status field, and a
+      retired ADR (status deprecated or superseded) MUST be listed under the
+      Superseded / Archived section with a forward link to its replacement, not
+      under Accepted.
+    rationale: >-
+      Index-vs-frontmatter drift (ADR-0027 was listed provisional in the index
+      while its file said accepted) misleads both humans and the agents that
+      read the index.
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0027
+  - id: MS-14-004
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A newly-retired ADR (status deprecated or superseded) SHOULD be moved to
+      docs/adr/archived/ so it stays out of the default docs/adr/ context sweep;
+      ADRs retired before this convention MAY remain in place until next touched.
+    rationale: >-
+      Archiving retired ADRs keeps outdated decisions out of the default
+      docs/adr/ sweep so agents must deliberately seek them. Applied forward
+      (SHOULD, not a retroactive MUST) to avoid churn on already-superseded
+      ADRs that are still referenced by path. See ADR-0043.
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0043
+  - id: MS-14-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      ADR frontmatter MUST validate against the AdrFrontmatter Pydantic model
+      (vultron/metadata/adr/schema.py), and a retired ADR MUST carry a
+      superseded_by pointer that resolves to a real ADR file. Enforced by the
+      loader (vultron/metadata/adr/loader.py) via pytest and pre-commit,
+      mirroring the notes frontmatter registry (NF-03, NF-04).
+    rationale: >-
+      ADRs are the confidence signal agents trust as ground truth, yet were the
+      only structured-metadata artifact without a schema — validated only by
+      regex bolt-ons in spec-lint. A Pydantic model makes status typechecking,
+      the superseded_by-when-retired rule, and dangling-target detection real
+      validation rather than string-scraping. See ADR-0043.
+    adr:
+    - ADR-0043
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      docs/adr/index.md MUST be generated from ADR frontmatter (uv run
+      adr-index --write), and an ADR, archived or not, MUST NOT be referenced in
+      the mkdocs nav: each MUST instead be matched by the not_in_nav patterns in
+      mkdocs.yml and reached through the index. CI (uv run adr-index --check)
+      fails on drift.
+    rationale: >-
+      The index was a hand-maintained list that rotted: ADR-0027 was filed
+      under the wrong index section. Generating it makes that drift
+      mechanically impossible to merge. The nav rule was once the opposite,
+      requiring every non-archived ADR in the nav, but decision records are
+      project working record, which stays out of the reader-facing nav
+      (DF-11-003), and the generated index is their routing page (DF-11-006).
+      An ADR in neither the nav nor not_in_nav breaks mkdocs --strict on an
+      omitted-file warning, so the check requires the pattern match too. See
+      ADR-0043 and MS-14-003.
+    adr:
+    - ADR-0043
+    tags:
+    - documentation
+    - tooling
+    adr:
+    - ADR-0027
+  - id: MS-14-007
+    priority: MUST
+    kind: process
+    statement: >-
+      An ADR's `status` MUST be at least the lifecycle epoch computed for it (ADR-0120). Epoch 1
+      (`proposed`) ends at whichever comes first: day 14 after `updated`, or a spec requirement that cites the
+      ADR in `adr:` and is verified by a test file that exists (MS-14-010), counted in the tree
+      being checked: the pull request's head for a check on a pull request, `main` for the
+      scheduled check.
+      Epoch 3 (`accepted`) starts at day 28 after `updated`; between the two the epoch is 2
+      (`accepted-provisional`). A pull request that materially edits an ADR (its `updated` date
+      changes, or the ADR is new) MUST leave the status on the epoch for that date or carry a
+      `status_override:` whose value is a human's reason, and a check comparing the pull request
+      against its base MUST fail it otherwise. No merge-blocking check may depend on today's date
+      for an ADR the pull request did not materially edit. A scheduled check MUST report every ADR
+      whose status is behind today's epoch through one tracking issue that closes itself when none
+      remain, and MUST NOT fail the build.
+    rationale: >-
+      Elapsed time alone is the wrong signal that an ADR has had its chance to be revised; the
+      first test-verified dependent is, because the material test asks whether something built on
+      the old text would now be wrong. The timers are a backstop so every ADR hardens. A
+      merge-blocking check reading today's date would turn `main` red with no commit to blame
+      (ADR-0110, 2026-10-08), so the clock's drift is reported instead (ARCH-18-004). Boundaries
+      are counted in whole days (14 and 28) because `updated` is a date. The dependency is
+      counted on the pull request's head because the pull request that creates it must already
+      show its effect (MS-14-010).
+    verification: >-
+      `test/metadata/test_adr_lifecycle.py` checks the 14- and 28-day boundaries, that a
+      test-verified dependent ends epoch 1 and is counted on the pull request's head, that a material edit and a new ADR must match their
+      epoch or carry an override, that an edit leaving `updated` alone passes, and that the drift
+      report lists an ADR behind its epoch and not one ahead of it. `test/metadata/specs/test_lint.py`
+      checks that `spec-lint` does not fail a status the clock has made stale.
+      `test/ci/test_adr_lifecycle_workflows.py` checks that `adr-lifecycle.yml` runs the edit check
+      against the merge base on pull requests and that `adr-status-drift.yml` reports at least
+      hourly and never fails the build.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-001
+    adr:
+    - ADR-0120
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-008
+    priority: MUST
+    kind: process
+    verification: >-
+      `test/metadata/test_adr_lifecycle.py` checks that the ADR schema rejects an ADR without the
+      three fields; the real ADR registry loading in `test/metadata/test_adr_frontmatter.py` checks
+      the migration.
+    statement: >-
+      ADR frontmatter MUST carry `created` (set once, never changed), `updated` (changed only by a
+      material edit), and `revision` (an integer incremented by each material edit). Existing ADRs
+      MUST be migrated with `created = updated = date` and `revision = 1`.
+    rationale: >-
+      The epochs of ADR-0120 are measured from `updated`, so it must move only when the decision
+      changes; `date` was rewritten by editorial edits and cannot serve. `created` is the immutable
+      birth date and `revision` counts how many times the decision has changed.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-005
+    adr:
+    - ADR-0120
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-009
+    priority: MUST
+    kind: process
+    statement: >-
+      A pre-commit check (`adr-lifecycle-check`) MUST fail a diff that changes the Decision Outcome
+      or Considered Options section of an epoch-3 ADR without adding a dated Amendment block, and
+      MUST fail a diff that bumps `updated` on an ADR that was past epoch 1 unless the ADR carries
+      a `status_override`. The same check MUST also run on every pull request that changes an ADR,
+      against the merge base, so a skipped local hook cannot bypass it.
+    rationale: >-
+      ADR-0120 forbids rewriting an accepted ADR under its own number, and the audit that produced
+      it found exactly that done by agents. The rule is only as strong as the gate that refuses the
+      edit, and a reviewer reading a large diff does not reliably see a changed section. A heading
+      that names "Amendment" and a date is the mechanical mark of a dated Amendment block.
+    verification: >-
+      `test/metadata/test_adr_lifecycle.py` checks each refused and each permitted edit, and
+      `test/ci/test_adr_lifecycle_workflows.py` checks that the pull-request job runs it against the
+      merge base.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-007
+    adr:
+    - ADR-0120
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-010
+    priority: MUST
+    kind: process
+    statement: >-
+      A pull request after which an ADR that is `proposed` on its base first has a test-verified
+      dependent (MS-14-007) MUST, in the same pull request, set that ADR's status to
+      `accepted-provisional`, and the check comparing the pull request against its base MUST fail it
+      otherwise. This holds however the dependent is created: by adding a requirement that cites
+      the ADR, by adding `adr:` or a verification to an existing requirement, or by adding the test
+      file a verification names.
+    rationale: >-
+      The dependency ends epoch 1 (MS-14-007), but it lands in a spec and a test, usually in a
+      pull request that never touches the ADR. The pull request that changed the facts owns the
+      status, as a material edit already does; leaving the flip to the scheduled drift report would
+      leave the ADR reading `proposed`, and free to rewrite, while code depends on it. The check
+      sees that the named test file exists, not that it passes.
+    verification: >-
+      `test/metadata/test_adr_lifecycle.py` checks that the dependents are found, that a pull
+      request creating the first test-verified dependent of a `proposed` ADR fails unless it flips the
+      status, whether it adds a requirement, edits one or adds the named test file, and that one
+      adding a dependent of an ADR already past epoch 1 passes.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-007
+    adr:
+    - ADR-0120
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-011
+    priority: MUST
+    kind: project
+    statement: >-
+      ADR supersession links MUST be recorded in both directions: every `superseded_by` or
+      `partially_superseded_by` entry on an ADR MUST be matched by a `supersedes` or
+      `partially_supersedes` entry, respectively, on the ADR it names, and every successor-side
+      entry MUST be matched by the reverse pointer on the ADR it names. Each of the four fields
+      MUST accept a list of ADRs as well as a single one, and the loader MUST fail when any pair
+      is one-sided, comparing entries by ADR number whatever form the pointer is written in.
+    rationale: >-
+      A successor can retire several ADRs (ADR-0099 retired two), which a single-valued field
+      could not record, and with only the forward pointer checked the successor side drifted out
+      of date. An agent reading the successor needs to see what it replaced, and a loader check
+      fails a one-sided link in CI. Planned in #3848 and built in #4351.
+    verification: >-
+      `test/metadata/test_adr_frontmatter.py` checks that each of the four fields accepts a single
+      ADR or a list (`TestSupersessionFieldsAreLists`), that the loader fails a one-sided
+      `superseded_by` / `supersedes` or `partially_superseded_by` / `partially_supersedes` pair in
+      each direction and accepts a matched pair whatever pointer form either side uses
+      (`TestTwoWaySupersession`), and that the real ADR corpus loads
+      (`test_all_adr_files_have_valid_frontmatter`). `test/metadata/test_adr_index_gen.py` checks
+      that the generated index shows the successor side and joins list-valued pointers.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-005
+    adr:
+    - ADR-0043
+    tags:
+    - documentation
+    - tooling
+  - id: MS-14-012
+    priority: MUST
+    kind: process
+    statement: >-
+      An ADR's status MUST only move forward through the epochs. A status ahead of the computed
+      epoch that the ADR already carried on the base stands: it is not a fault for the scheduled
+      check, nor for a pull request that does not materially edit the ADR, and a material edit
+      that restarts the timers keeps it under the `status_override:` that MS-14-007 and MS-14-009
+      already require of that edit. A pull request that changes `status` to a value ahead of the
+      epoch computed for it MUST add or change a `status_override:` whose value is a human's
+      reason; an override already on the base does not satisfy this. The check comparing the pull
+      request against its base MUST fail it otherwise.
+    rationale: >-
+      ADR-0120 exists so that a citation keeps meaning what it meant. When the timers were lengthened
+      (from 3 and 10 days to 14 and 28), ADRs already `accepted` under the old timers would have
+      computed as `accepted-provisional`; demoting them would loosen the edit tiers on decisions
+      agents had already built on. Treating the computed epoch as a floor covers that change and any
+      later one. The guard keeps a promotion ahead of the clock a visible human act rather than a
+      silent frontmatter edit, and an override left from an earlier, unrelated reason would make
+      every later promotion silent again.
+    verification: >-
+      `test/metadata/test_adr_lifecycle.py` checks that a status ahead of its epoch carried on the
+      base passes both the edit check and the drift report, and that a pull request moving a status
+      ahead of its epoch fails without a `status_override:`, fails when the override is unchanged
+      from the base, and passes when it adds or changes one, including a status revived from
+      `rejected` or `deprecated`. It also checks that a status moved back fails with or without
+      an override.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MS-14-007
+    adr:
+    - ADR-0120
+    tags:
+    - documentation
+    - tooling
+- id: MS-15
+  title: Spec Statements and ADR Edits Must Not Reference Phantom Paths or Phantom Symbols
+  specs:
+  - id: MS-15-001
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A spec item's `statement`, `verification`, `behavioral step`, `precondition`,
+      and `postcondition` fields MUST NOT reference a file path or directory path
+      that does not exist.
+    rationale: >-
+      A normative statement naming non-existent infrastructure is a stale-premise
+      landmine: the agent invents something inconsistent with the codebase or
+      silently ignores a MUST. DEMOMA-19-008 named a `conftest.py` registry that
+      had never existed; an audit found 18 phantom-path clauses. Behavioral step,
+      precondition, and postcondition fields are scanned in addition to statement
+      and verification because they are equally normative. `rationale` legitimately
+      cites gone paths and is excluded.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-04-001
+      note: extends spec-authoring rules with a path-existence guarantee
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-002
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A spec item's `statement` and `verification` fields MUST NOT use an absolute
+      path or a `..` segment.
+    rationale: >-
+      Absolute paths and parent-traversal segments are deployment-specific and will
+      not resolve correctly in the repo-relative context used by spec-lint.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-003
+    priority: MUST
+    kind: process
+    statement: >-
+      A spec-first requirement that deliberately names a file yet to be created MUST
+      either use a placeholder form (e.g. `test_XXX_invariants.py`) or opt out with
+      `lint_suppress: [phantom_path_ref]`.
+    rationale: >-
+      The placeholder or lint_suppress mechanism makes the spec-first intent explicit
+      rather than silently passing a phantom-path check by accident.
+    verification: >-
+      `test_lint_phantom_path_placeholder_exempt` and
+      `test_lint_phantom_path_suppress` in `test/metadata/specs/test_lint.py` confirm
+      both opt-out forms clear the hard error.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-004
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A spec item's `statement`, `verification`, `behavioral step`, `precondition`,
+      and `postcondition` fields MUST NOT reference a backticked all-caps code
+      symbol containing at least one underscore that appears nowhere in the
+      `vultron/` or `test/` Python sources.
+    rationale: >-
+      MS-15-001 only inspects backticked tokens containing a directory separator, so
+      a bare symbol name passed it silently. That gap let the retired
+      `SEMANTICS_ACTIVITY_PATTERNS` name survive across five spec files, eight of
+      them MUST-level `kind: protocol` statements, from the registry move until
+      issue #3022. A MUST about a symbol nobody can find is worse than an absent
+      requirement: the agent either invents a replacement or drops the obligation.
+      The single-underscore floor excludes the token shapes that are not symbols —
+      RFC 2119 keywords, protocol shorthands, one-word state names. Resolution is
+      textual and tree-wide rather than a binding lookup, preferring a false
+      negative over blocking a legitimate reference. `rationale` is excluded, as in
+      MS-15-001: the problem it names (MS-10-012) may be a removed symbol that
+      must not return.
+    verification: >-
+      `test_lint_phantom_symbol_is_hard_error` in `test/metadata/specs/test_lint.py`
+      confirms a spec naming an absent symbol exits non-zero; the sibling
+      `_existing_symbol_passes` and `_resolves_from_test_tree` cases confirm a live
+      symbol in either tree is accepted.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
+      note: extends the phantom-reference guarantee from paths to code symbols
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-005
+    priority: MUST
+    kind: process
+    statement: >-
+      A requirement that deliberately names a retired code symbol, or a convention
+      token that was never code, MUST opt out with
+      `lint_suppress: [phantom_symbol_ref]`.
+    rationale: >-
+      Two legitimate reasons to name a symbol that does not resolve: recording that
+      it was removed (the retired SE-08-005 documented the removal of a semantic), and naming
+      a proposed spec-authoring tag rather than an identifier (PROTO-04-001's
+      `PROD_ONLY`). Requiring the explicit opt-out keeps both visible as deliberate
+      choices instead of leaving them indistinguishable from the stale MUSTs
+      MS-15-004 exists to catch.
+    verification: >-
+      `test_lint_phantom_symbol_suppress` in `test/metadata/specs/test_lint.py`
+      confirms the opt-out clears the hard error.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-004
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-006
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A change that edits an ADR MUST NOT add to it a backticked file path,
+      directory path or code symbol that resolves nowhere: a path that does not
+      exist in the repository, or a symbol that appears nowhere in the `vultron/`
+      or `test/` Python sources. Recognized symbol shapes are underscored all-caps
+      constants, CamelCase class names, called names such as `snake_case()`, and
+      members of a CamelCase class or all-caps members after a dot. The rule is
+      scoped to references the change adds to a record it edits: a reference
+      present on the merge base, however stale, and a change that edits no ADR are
+      outside it. The pre-commit check `adr-added-reference-check` MUST enforce it
+      against `HEAD`, and the same check MUST run on every pull request that
+      changes an ADR, against the merge base, so a skipped local hook cannot
+      bypass it.
+    rationale: >-
+      ADR-0127 makes an ADR a historical record: a reference that aged after it
+      was written is an accurate account of the code as it then stood, so a
+      refactor owes the record nothing and no check keyed on code changes may
+      fail on it. A reference newly written into a record is different — it
+      should resolve on the day it is written, and that is a question about the
+      change's own diff. Comparing against the merge base is the shape MS-14-009
+      already uses. The spec-corpus check of MS-15-004 reads only underscored
+      constants, which misses the class and function names that make up the
+      aged references in the corpus, so this check reads more shapes. It
+      resolves textually, preferring a false negative to refusing a legitimate
+      reference, as MS-15-004 does.
+    verification: >-
+      `test/metadata/test_adr_added_refs.py` checks that an added unresolvable
+      reference fails at its position, that one present on the base or one that
+      resolves passes, that a code change alone never fails it, and that each
+      symbol shape the spec-corpus check misses is read;
+      `test/ci/test_adr_lifecycle_workflows.py` checks that the pre-commit hook
+      runs it on ADR files and that the pull-request job runs it against the
+      merge base.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-001
+      note: extends the phantom-reference guarantee to references an edit adds to an ADR
+    - rel_type: refines
+      spec_id: MS-15-004
+    adr:
+    - ADR-0127
+    tags:
+    - documentation
+    - tooling
+  - id: MS-15-007
+    priority: MUST
+    kind: process
+    statement: >-
+      An ADR edit that deliberately adds a reference that does not resolve — a
+      symbol or path the record annotates as removed, or a convention token that
+      was never code — MUST opt the record out in its frontmatter with
+      `lint_suppress: [phantom_symbol_ref]` for a symbol or
+      `lint_suppress: [phantom_path_ref]` for a path. The opt-out covers the
+      whole record: every later edit to it adds references of that kind
+      unchecked.
+    rationale: >-
+      The annotated-removal house style ("that mechanism and that module were
+      deleted in #2940") names a symbol precisely because it is gone, so it can
+      never resolve. The opt-out mirrors MS-15-005 for requirements and keeps the
+      choice visible rather than indistinguishable from a mistyped name.
+    verification: >-
+      `test_inline_removal_annotation_passes_with_the_opt_out` and
+      `test_each_opt_out_covers_only_its_own_kind` in
+      `test/metadata/test_adr_added_refs.py` confirm each opt-out clears its own
+      kind of reference and no other.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-15-006
+    adr:
+    - ADR-0127
+    tags:
+    - documentation
+    - tooling
+
+- id: MS-16
+  title: Long-Lived Docs Must Not State Unverifiable, Drift-Prone Facts
+  specs:
+  - id: MS-16-001
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A spec statement, notes file, or AGENTS.md entry MUST NOT restate a
+      count that will drift independently of the authoritative source.
+      When cross-referencing another spec item, omit the count and cite the
+      source by ID: write "the universal types (DEMOMA-16-001)" not "the five
+      universal types (DEMOMA-16-001)". Counts in enumerations that are the
+      authoritative source (e.g. DEMOMA-16-001 itself listing its own members)
+      are not subject to this rule.
+    rationale: >-
+      Counts restated in cross-references drift silently: when the authoritative
+      requirement is updated, its sibling references and cross-file citations
+      are not. The linter validates that a referenced spec ID resolves; it
+      has no opinion about the prose next to it. A reader who encounters the
+      stale count first gets a false picture of the system. The count adds no
+      normative force — "the universal types (DEMOMA-16-001)" is equally
+      specific because the ID is the authoritative pointer. This class of
+      drift required 12 coordinated edits when `engage_case` was promoted
+      to a fifth universal semantic type in ISSUE-2266 (CONCERN-2277).
+      The same principle extends beyond spec cross-references to any
+      long-lived document: notes files, AGENTS.md pitfall entries, and
+      architecture docs MUST NOT state counts such as "there are 4
+      unimplemented nodes" or "15 xfails" — these are snapshots guaranteed
+      to be wrong when read in the future.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-04-001
+      note: extends spec-authoring rules with a count-drift prohibition
+    tags:
+    - documentation
+  - id: MS-16-002
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      A long-lived document — a spec, a notes file, AGENTS.md, or a `docs/`
+      table that mirrors a code, spec, or config inventory — MUST NOT state a
+      fact that no automated check could falsify and that drifts independently
+      of its source. The governing test is "could a test fail on this
+      sentence?": a restated count (MS-16-001) is one instance; a per-item
+      runtime outcome ("✅ passes"), a forecast ("resolved by #789"), or a
+      free-prose claim copied from source are others. Each such fact MUST
+      either be made verifiable — derived from, or ratcheted against, its
+      source — or removed in favour of a pointer to where the live answer
+      lives.
+    rationale: >-
+      A fact nothing can check is a fact nobody does check, so it rots first,
+      and it rots into a confident wrong answer rather than into silence —
+      which costs more than no doc at all. MS-16-001 caught the most common
+      instance (counts); this entry generalises it from "is this a number?"
+      to "could a test fail on this sentence?". Witnessed twice: the
+      case-ledger invariant tables (ISSUE-3337), where the two columns no
+      test could hold were 100% wrong while every source-derivable column
+      stayed right; and the scenario table (the `rcvcv` and `vc` rows of
+      `vultron/demo/scenario/README.md`, ISSUE-3450 / CONCERN-3466), where a
+      free-prose column named four actors for a five-actor scenario. Before
+      concluding a column is unverifiable, check whether it conflates more
+      than one fact — a column answering two questions at once is unverifiable
+      as a unit while each part may be individually derivable; the procedure
+      for that triage lives in `notes/documentation-sweeps.md`.
+    relationships:
+    - rel_type: derives_from
+      spec_id: MS-16-001
+      note: generalises the count-drift prohibition to any unverifiable, drift-prone fact
+    tags:
+    - documentation
+- id: MS-17
+  title: Metadata Loader Failure Attribution
+  description: >-
+    Rules for how the file-walking loaders under `vultron/metadata/` report a file they
+    cannot read. These loaders back the pre-commit hooks and the `spec-dump` / `spec-lint` /
+    `append-history` / `adr-index` entry points, so their error output is the first thing an
+    author sees after a bad edit.
+  specs:
+  - id: MS-17-001
+    priority: MUST
+    kind: project
+    statement: >-
+      A loader under `vultron/metadata/` that walks a set of files and validates each one MUST
+      attribute every failure to the file that caused it, naming the repository-relative path
+      and — when the underlying parser supplies a position — the line and column, in the form
+      `path:line:col`. A message that reports only a position, or only a positional index into
+      the parsed structure, does not satisfy this requirement.
+    rationale: >-
+      Each of these loaders reads a whole directory, so a position without a filename
+      identifies nothing: the corpus under `specs/` alone spans dozens of files in which
+      "line 404" is ambiguous. PyYAML compounds this, because a loader that hands it text
+      rather than a named stream gets a mark reading `<unicode string>` — a position
+      attributed to a source that does not exist on disk. The file name is knowledge only the
+      loader holds, so only the loader can supply it.
+    verification: >-
+      A unit test corrupts one file in a temporary directory for each loader and asserts the
+      raised error names that file, and that no `<unicode string>` marker survives in the
+      message.
+    tags:
+    - tooling
+  - id: MS-17-002
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      A YAML parse error or a schema-validation error MUST NOT escape such a loader as an
+      unhandled traceback. Both the parse and the model validation of each file MUST be
+      reported as a `ValueError`, the type these loaders already document raising.
+    rationale: >-
+      A YAML scanner error is not a `ValueError`, so a caller guarding
+      `except (ValidationError, ValueError)` never sees it and the tool exits through a
+      traceback instead of its own error format, in which no frame names the offending file.
+      Which step raised also decides the output's shape: a parse fault escapes as a traceback and
+      suppresses the loader's own reporting, while a validation fault is caught and rendered as
+      the tool's error line.
+    verification: >-
+      A unit test asserts that a malformed file raises `ValueError` from each loader rather
+      than a bare parser exception, and that the linter's exit path prints its own error
+      prefix rather than a traceback.
+    tags:
+    - tooling
+  - id: MS-17-003
+    priority: MUST
+    kind: project
+    statement: >-
+      The attribution required by MS-17-001 and MS-17-002 MUST be obtained from a single
+      shared helper in `vultron/metadata/file_loading.py`, not reimplemented per loader.
+      A loader that walks files MUST route both its parse step and its validation step
+      through that helper.
+    rationale: >-
+      The same wrapper was written independently in the ADR loader and in the history entry
+      loaders, in as many message shapes as there were copies, while the notes and spec
+      loaders were left without one — so what an author sees depends on which directory they
+      edited rather than on what they got wrong. A shared helper is also the only way an
+      improvement reaches all of them: no hand-written copy read the parser's position mark, and
+      the history CLI's copy reported no path at all.
+    verification: >-
+      A ratchet test asserts that no module under `vultron/metadata/` other than
+      `file_loading.py` re-raises a caught exception as a path-prefixed `ValueError` — the
+      shape every hand-written copy takes. Asserting instead that no module catches a
+      YAML-specific exception would be vacuous: every copy catches bare `Exception`, so such a
+      test passes with all of the duplication still in place.
+    tags:
+    - tooling
+  - id: MS-17-004
+    priority: MUST
+    kind: project
+    statement: >-
+      An exception class raised by the shared helper to report loader failures MUST be a
+      `ValueError` subclass defined within the tooling layer. The `VultronError` hierarchy
+      required by EH-01-002 governs protocol code and MUST NOT be extended into
+      `vultron/metadata/`.
+    rationale: >-
+      SR-03-009 makes this the tooling layer's first custom exception class, which is what brings
+      EH-01-002 into contact with it — today's loaders raise the built-in `ValueError`, so that
+      rule has never applied here. Obeying it now would invert the contract: `VultronError`
+      derives from `Exception`, not `ValueError`, so a caller guarding
+      `except (ValidationError, ValueError)` would miss the new error as it misses today's
+      scanner error. `vultron/errors.py` is the protocol domain's; this is tooling.
+    verification: >-
+      A unit test asserts the helper's exception type is a `ValueError` subclass and that a
+      caller guarding only `except (ValidationError, ValueError)` catches it. A ratchet test
+      asserts that no module under `vultron/metadata/` imports from `vultron/errors.py`.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-17-002
+      note: fixes the concrete exception type that satisfies the ValueError requirement
+    tags:
+    - tooling
+- id: MS-18
+  title: One Wire Form per Protocol Act
+  description: >-
+    How a requirement handles an act that ActivityStreams lets a sender express in more
+    than one wire form, so that the reference implementation's habit never reads as a
+    protocol rule and a receiver never pays for forms no sender needs.
+  specs:
+  - id: MS-18-001
+    priority: MUST
+    kind: process
+    adr:
+    - ADR-0137
+    statement: >-
+      When ActivityStreams allows more than one wire form for one protocol act, the
+      `protocol` requirement for that act MUST name exactly one form. Each other form that
+      was considered MUST be recorded as a deferred alternative in an open question on the
+      Open Questions page (`docs/topics/future_work/open_questions.md`), and a form the
+      protocol does not name is not a protocol message.
+    rationale: >-
+      A receiver that must accept every allowed form pays for each form any sender picks,
+      and when several forms are allowed the reference implementation's choice is all a
+      reader sees, so its habit reads as a protocol rule (the `create_note` occasion said
+      the `Create` "precedes the Add", #4550). Deferring the other forms keeps them open for
+      later design without binding any receiver now.
+    verification: >-
+      Inspection: no two `protocol` requirements name different wire forms for the same
+      act (for the case records, VAM-01-011 names the one attaching message), and
+      `docs/topics/future_work/_oq-create-then-add.md` lists the forms not named.
+    tags:
+    - documentation
+  - id: MS-18-002
+    priority: MUST_NOT
+    kind: process
+    statement: >-
+      A requirement, a semantic registry occasion or a reader-facing page MUST NOT allow
+      several wire forms for one protocol act and then record which of them this codebase
+      sends; the choice is made once, in the `protocol` requirement (MS-18-001).
+    rationale: >-
+      A per-message "allowed versus sent" marker was weighed and rejected (#4550): it keeps
+      every receiver accepting forms that no implementation needs to send, and it is one
+      more hand-kept fact that drifts from the emitters (MS-16-002).
+    verification: >-
+      Inspection: `Occasion` in `vultron/semantic_registry/_occasion.py` has no field
+      recording whether this codebase sends the occasion.
+    relationships:
+    - rel_type: refines
+      spec_id: MS-18-001
+      note: rules out the allow-several-then-mark-one alternative
+    tags:
+    - documentation

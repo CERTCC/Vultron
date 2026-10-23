@@ -1,11 +1,37 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
-  "asType": "Invite",
-  "id": "https://vultron.example/cases/VDR-20991514/invitation/1",
-  "name": "https://vultron.example/organizations/vendor Invite https://vultron.example/organizations/coordinator to https://vultron.example/cases/VDR-20991514",
-  "content": "We're inviting you to participate in case VENDOR Case #20991514.",
+  "type": "Invite",
+  "id": "urn:uuid:5ee42b3b-ef6a-42db-9953-7684b8e2095f/invitation/1",
+  "name": "https://vultron.example/organizations/vendorco Invite Coordinator LLC to urn:uuid:5ee42b3b-ef6a-42db-9953-7684b8e2095f/stub",
+  "context": "urn:uuid:5ee42b3b-ef6a-42db-9953-7684b8e2095f",
+  "content": "We're inviting you to participate in case VendorCo Case #52213084.",
   "to": "https://vultron.example/organizations/coordinator",
-  "actor": "https://vultron.example/organizations/vendor",
-  "target": "https://vultron.example/cases/VDR-20991514",
-  "object": "https://vultron.example/organizations/coordinator"
+  "actor": "https://vultron.example/organizations/vendorco",
+  "target": {
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "type": "VulnerabilityCaseStub",
+    "id": "urn:uuid:5ee42b3b-ef6a-42db-9953-7684b8e2095f/stub",
+    "caseId": "urn:uuid:5ee42b3b-ef6a-42db-9953-7684b8e2095f",
+    "summary": "A memory-corruption vulnerability in widget — details shared after acceptance."
+  },
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Organization",
+    "id": "https://vultron.example/organizations/coordinator",
+    "name": "Coordinator LLC",
+    "published": "2026-10-01T23:41:56+00:00",
+    "updated": "2026-10-01T23:41:56+00:00",
+    "inbox": {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "OrderedCollection",
+      "id": "https://vultron.example/organizations/coordinator/inbox",
+      "items": []
+    },
+    "outbox": {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "OrderedCollection",
+      "id": "https://vultron.example/organizations/coordinator/outbox",
+      "items": []
+    }
+  }
 }

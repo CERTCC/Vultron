@@ -1,0 +1,178 @@
+id: LST
+title: Lifecycle-Staged Domain Types
+description: Rules for lifecycle-staged domain types anchored on guaranteed-field changes. A lifecycle milestone earns a distinct
+  staged type only when it changes the set of required (non-None) fields; milestones that only gate permitted actions are
+  modeled as predicates and preconditions rather than new types.
+scope:
+- prototype
+- production
+tags:
+- protocol
+- state-machine
+groups:
+- id: LST-01
+  title: Field-Set Governing Principle
+  specs:
+  - id: LST-01-001
+    priority: MUST
+    kind: project
+    statement: A lifecycle milestone MUST be modeled as a distinct staged type only when it changes the set of guaranteed
+      (required, non-None) fields on the domain object.
+    rationale: A subtype whose field set is identical to its parent's adds type ceremony without a type-checker payoff and
+      invites combinatorial proliferation. See ADR-0033.
+    verification: Inspection of `vultron/core/models/` confirms that each staged type introduces at least one new non-None
+      field relative to its parent type.
+    adr:
+    - ADR-0033
+  - id: LST-01-002
+    priority: MUST
+    kind: project
+    statement: A milestone that only changes which actions are permitted, without changing which fields are present, MUST
+      be modeled in the transition model and precondition specs, not as a distinct type.
+    rationale: Action-gating is a precondition on transitions, not a change in data shape. See ADR-0033 and LST-05.
+    verification: Inspection of `vultron/core/models/` confirms that no staged type exists whose field set is identical
+      to its parent's; action-gating milestones appear only in transition logic.
+    adr:
+    - ADR-0033
+- id: LST-02
+  title: VulnerabilityCase Staged Types
+  specs:
+  - id: LST-02-001
+    priority: MUST
+    kind: protocol
+    statement: 'The VulnerabilityCase staged family MUST consist of exactly three types: `IncomingReport` (report data, no
+      case), `Case` (a case exists), and `EmbargoedCase` (an embargo is active), because only these boundaries change the
+      guaranteed-field set.'
+    rationale: Case existence and embargo-active each add a guaranteed field; no other case-universal milestone does. See
+      ADR-0033.
+    verification: 'Inspection of `vultron/core/models/` confirms exactly three VulnerabilityCase staged types exist:
+      `IncomingReport`, `Case`, and `EmbargoedCase`.'
+    adr:
+    - ADR-0033
+    stories:
+    - story_2022_012
+    - story_2022_014
+    - story_2022_023
+  - id: LST-02-002
+    priority: MUST
+    kind: protocol
+    statement: A `Case` MUST guarantee at least one vulnerability report, the reporter and receiver participants (at least
+      two parties), and a seeded `case_statuses` list.
+    rationale: ADR-0041 (superseding ADR-0015) requires the CASE_MANAGER to author all initialization entries when accepting a
+      CaseProposal, so these structural minimums are guaranteed for any case that exists.
+    verification: A unit test confirms that constructing a `Case` without a vulnerability report or without at least two
+      participants raises a validation error.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-10-001
+    adr:
+    - ADR-0041
+    stories:
+    - story_2022_012
+    - story_2022_013
+    - story_2022_038
+  - id: LST-02-003
+    priority: MUST
+    kind: protocol
+    statement: An `EmbargoedCase` MUST guarantee `active_embargo` is non-None and `em_state` is in {ACTIVE, REVISE}.
+    rationale: The EM machine never returns to NONE/PROPOSED once ACTIVE, so this is a monotonic milestone with a genuine
+      type-level non-None guarantee.
+    verification: A unit test confirms that `EmbargoedCase.model_validate(...)` raises a validation error when
+      `active_embargo` is None or `em_state` is outside `{ACTIVE, REVISE}`.
+    stories:
+    - story_2022_014
+    - story_2022_023
+  - id: LST-02-004
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      `test/core/models/test_staged_case.py::TestNoRMStagedTypes` confirms
+      `staged_case` exports only `IncomingReport`, `Case` and `EmbargoedCase`, none
+      of them an RM-state type.
+    statement: Per-participant RM state (valid, accepted, deferred) MUST NOT be modeled as a VulnerabilityCase staged type.
+    rationale: RM state is per-participant, not case-universal; a case-level RM type is ill-defined ("valid according to whom?").
+      See LST-04.
+- id: LST-03
+  title: No Subtypes for Status Objects
+  specs:
+  - id: LST-03-001
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      Inspection confirms `ParticipantStatus` and `CaseStatus` have no lifecycle-staged
+      subclasses.
+    statement: '`ParticipantStatus` and `CaseStatus` MUST NOT be given lifecycle-staged subtypes, because no RM/vfd/EM/pxa
+      milestone adds a field to them.'
+    rationale: Their state fields are always-present enums; milestones change values, not the field set. Per LST-01-001 they
+      earn no type. See ADR-0033.
+    adr:
+    - ADR-0033
+- id: LST-04
+  title: Ratchets as Predicates and State Groups
+  specs:
+  - id: LST-04-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Per-participant RM and vfd ratchets, and case-level EM and pxa ratchets, MUST be modeled as state-group tuples
+      and `is_*()` predicates, extending the existing `RM_ACTIVE` / `EM_NEGOTIATING` / `is_rm_at_least()` helpers in `vultron/core/states/`.
+    rationale: These milestones are monotonic value transitions without field-set changes; predicates give ergonomic checks
+      without a subtype. See ADR-0033.
+    adr:
+    - ADR-0033
+- id: LST-05
+  title: Read-Boundary Promotion and Transition Model
+  specs:
+  - id: LST-05-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: A core function requiring a narrowed staged type MUST obtain it by validating the generic object at its entry
+      boundary (e.g. `EmbargoedCase.model_validate(case)`), which narrows on success and raises immediately on invariant violation.
+    rationale: Applies ADR-0032's validate-at-the-edge pattern at the DataLayer read boundary; the subtype's own validator
+      is the promotion logic.
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-15-002
+    adr:
+    - ADR-0032
+  - id: LST-05-002
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      Inspection of the domain models confirms none declares a persisted lifecycle-stage
+      field; the stage is derived at the read boundary.
+    statement: The lifecycle stage MUST NOT be stored as a persisted field on any domain object.
+    rationale: A stored stage can drift from the underlying invariants, creating two sources of truth. See ADR-0033 transition
+      model.
+    adr:
+    - ADR-0033
+  - id: LST-05-002b
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The staged type MUST always be re-derived from the base case data at read time; the base case
+      data is the single source of truth for stage determination.
+    verification: Inspection of `vultron/core/models/` confirms no staged type stores its stage as a persisted field;
+      stage is always derived by re-validating base case data at read time.
+    relationships:
+    - rel_type: refines
+      spec_id: LST-05-002
+    adr:
+    - ADR-0033
+    stories:
+    - story_2022_088
+    - story_2022_045
+  - id: LST-05-003
+    priority: MUST
+    kind: protocol
+    statement: 'Staged types MUST remain round-trippable through the DataLayer: a persisted staged object rehydrates to the
+      base type and re-validates to its staged type without loss.'
+    rationale: Rehydration always yields a valid object; the staged-type guarantee must survive persistence. See ADR-0033.
+    verification: Integration tests in `test/demo/` confirm that a persisted `EmbargoedCase` rehydrates to `Case` and
+      re-validates to `EmbargoedCase` without field loss.
+    adr:
+    - ADR-0033
+    stories:
+    - story_2022_045
+    - story_2022_088

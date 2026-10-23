@@ -1,7 +1,11 @@
 ---
 status: accepted
 date: 2023-10-23
+created: 2023-10-23
+updated: 2023-10-23
+revision: 1
 deciders: adh
+stakeholder_type: [project-contributor]
 ---
 # Model Processes with Behavior Trees
 

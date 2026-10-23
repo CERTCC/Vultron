@@ -1,0 +1,421 @@
+#!/usr/bin/env python
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Actor-local in-memory pending-assertion store.
+
+:class:`PendingAssertionStore` tracks outbound log-entry assertions that
+have been emitted but not yet confirmed by a canonical
+``Announce(CaseLedgerEntry)`` or ``Reject(CaseLedgerEntry)`` round-trip.
+While an entry is *pending* and within the configurable timeout window,
+duplicate re-emits for the same ``(case_id, semantic_type, object_id)`` triple
+are suppressed.
+
+This is **not** persisted and **not** a DataLayer entity.  The store is
+intentionally ephemeral: entries are lost on actor restart (the catch-up
+gate in #791 replays any unconfirmed log entries after restart).
+
+Spec: SYNC-11-001 through SYNC-11-005.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Literal
+
+from vultron.core.models._helpers import now_utc
+from vultron.core.models.protocol_pair import ProtocolPair
+from vultron.primitives import require_non_empty
+
+logger = logging.getLogger(__name__)
+
+#: Default suppression window in seconds.
+DEFAULT_PENDING_ASSERTION_TIMEOUT: float = 180.0
+
+#: Module-level per-actor store registry.  Keyed by actor URI string.
+#: Pure in-memory — no DataLayer interaction.
+_STORES: dict[str, PendingAssertionStore] = {}
+
+
+#: ``result_out`` key a trigger tree's ask arm writes the queued activity id
+#: to, for the trigger base to record as a pending assertion (SYNC-11-002).
+ASSERTED_ACTIVITY_KEY = "asserted_activity_id"
+
+
+@dataclass
+class PendingAssertion:
+    """A single tracked outbound assertion awaiting canonical confirmation.
+
+    Attributes:
+        case_id: URI of the parent :class:`VulnerabilityCase`.
+        semantic_type: The assertion's semantic type (matches
+            ``CaseLedgerEntry.semantic_type``).
+        object_id: Full URI of the asserted activity or primary object
+            (matches ``CaseLedgerEntry.log_object_id``).
+        emitted_at: UTC timestamp when the assertion was emitted.
+        status: Lifecycle state — ``"pending"``, ``"cleared"``,
+            or ``"timed_out"``.
+        subject_id: What the assertion is *about*, when a repeat of it would
+            carry a new activity id — the proposal an embargo answer names,
+            the embargo a teardown ends, the terms a proposal offers.  A
+            duplicate trigger is recognised by this, not by ``object_id``
+            (SYNC-11-002).  ``None`` when the activity id is the subject.
+    """
+
+    case_id: str
+    semantic_type: str
+    object_id: str
+    emitted_at: datetime = field(default_factory=now_utc)
+    status: Literal["pending", "cleared", "timed_out"] = "pending"
+    subject_id: str | None = None
+
+    def __post_init__(self) -> None:
+        # CS-08-001 for a stdlib dataclass: both ids are references.
+        require_non_empty(self.case_id, "case_id")
+        require_non_empty(self.object_id, "object_id")
+        if self.subject_id is not None:
+            require_non_empty(self.subject_id, "subject_id")
+
+
+class PendingAssertionStore:
+    """Actor-local in-memory store for outbound assertion tracking.
+
+    Suppresses duplicate near-term re-emits while waiting for the canonical
+    ``CaseLedgerEntry`` round-trip.  An entry is suppressed if its status is
+    ``"pending"`` and it has not exceeded ``timeout_seconds``.
+
+    Cleared when a matching canonical ``Announce(CaseLedgerEntry)`` arrives at
+    the actor.  Timed-out entries are marked ``"timed_out"`` and no longer
+    suppress future decisions.
+
+    Setting ``timeout_seconds=0`` disables suppression entirely.
+
+    The store is keyed by :class:`~vultron.core.models.protocol_pair.ProtocolPair`
+    (replacing the raw ``(case_id, semantic_type, object_id)`` tuple from earlier
+    versions).  The three-argument helpers (``add``, ``is_suppressed``,
+    ``clear``) remain for backward compatibility and construct a ``ProtocolPair``
+    internally.
+
+    Args:
+        timeout_seconds: Suppression window in seconds.  Defaults to
+            :data:`DEFAULT_PENDING_ASSERTION_TIMEOUT` (180 s).  Zero
+            disables suppression.
+    """
+
+    def __init__(
+        self, timeout_seconds: float = DEFAULT_PENDING_ASSERTION_TIMEOUT
+    ) -> None:
+        self.timeout_seconds = timeout_seconds
+        self._store: dict[ProtocolPair, PendingAssertion] = {}
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _key(case_id: str, semantic_type: str, object_id: str) -> ProtocolPair:
+        return ProtocolPair(
+            case_id=case_id,
+            request_semantic_type=semantic_type,
+            object_id=object_id,
+        )
+
+    def _check_expired(self, entry: PendingAssertion) -> bool:
+        """Return True and mark ``timed_out`` when the entry has expired.
+
+        Only acts on ``"pending"`` entries; ``"cleared"`` and already
+        ``"timed_out"`` entries are left unchanged.
+        """
+        if entry.status != "pending":
+            return False
+        now = now_utc()
+        age = (now - entry.emitted_at).total_seconds()
+        if age >= self.timeout_seconds:
+            entry.status = "timed_out"
+            logger.error(
+                "pending_assertions: entry timed out after %.0fs "
+                "case_id=%s semantic_type=%s object_id=%.32s…",
+                age,
+                entry.case_id,
+                entry.semantic_type,
+                entry.object_id,
+            )
+            return True
+        return False
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def add(
+        self,
+        case_id: str,
+        semantic_type: str,
+        object_id: str,
+        subject_id: str | None = None,
+    ) -> None:
+        """Record a just-emitted assertion as *pending*.
+
+        Overwrites any previous entry for the same triple so that a
+        successful re-commit after a timeout resets the clock.
+
+        Args:
+            case_id: URI of the parent :class:`VulnerabilityCase`.
+            semantic_type: The assertion's semantic type.
+            object_id: Full URI of the asserted activity or primary object.
+            subject_id: What the assertion is about, when a repeat would
+                carry a new activity id (see :class:`PendingAssertion`).
+        """
+        key = self._key(case_id, semantic_type, object_id)
+        self._store[key] = PendingAssertion(
+            case_id=case_id,
+            semantic_type=semantic_type,
+            object_id=object_id,
+            subject_id=subject_id,
+        )
+        logger.debug(
+            "pending_assertions: added entry "
+            "case_id=%s semantic_type=%s object_id=%.32s…",
+            case_id,
+            semantic_type,
+            object_id,
+        )
+
+    def is_suppressed(
+        self, case_id: str, semantic_type: str, object_id: str
+    ) -> bool:
+        """Return ``True`` iff a pending, unexpired entry exists.
+
+        Zero ``timeout_seconds`` disables suppression (always returns
+        ``False``).  Already-cleared or timed-out entries never suppress.
+
+        Args:
+            case_id: URI of the parent :class:`VulnerabilityCase`.
+            semantic_type: The assertion's semantic type.
+            object_id: Full URI of the asserted activity or primary object.
+        """
+        if self.timeout_seconds == 0:
+            return False
+        key = self._key(case_id, semantic_type, object_id)
+        entry = self._store.get(key)
+        if entry is None:
+            return False
+        if self._check_expired(entry):
+            return False
+        return entry.status == "pending"
+
+    def pending_for_subject(
+        self, case_id: str, semantic_type: str, subject_id: str
+    ) -> PendingAssertion | None:
+        """Return the pending, unexpired assertion about *subject_id*, if any.
+
+        The duplicate check for an assertion whose repeat would carry a new
+        activity id (SYNC-11-002): the same embargo answer, teardown or terms
+        asked for again inside the window.  Honours the timeout exactly as
+        :meth:`is_suppressed` does — zero disables suppression, and an
+        expired entry is marked ``timed_out`` and no longer matches.
+        """
+        if self.timeout_seconds == 0:
+            return None
+        for entry in list(self._store.values()):
+            if (
+                entry.case_id == case_id
+                and entry.semantic_type == semantic_type
+                and entry.subject_id == subject_id
+                and not self._check_expired(entry)
+                and entry.status == "pending"
+            ):
+                return entry
+        return None
+
+    def clear(self, case_id: str, semantic_type: str, object_id: str) -> None:
+        """Mark a pending entry as *cleared* on canonical confirmation.
+
+        A no-op when no matching entry exists or when the entry is already
+        cleared / timed out.
+
+        Args:
+            case_id: URI of the parent :class:`VulnerabilityCase`.
+            semantic_type: The assertion's semantic type.
+            object_id: Full URI of the asserted activity / primary object.
+        """
+        key = self._key(case_id, semantic_type, object_id)
+        entry = self._store.get(key)
+        if entry is None or entry.status != "pending":
+            return
+        entry.status = "cleared"
+        logger.debug(
+            "pending_assertions: cleared entry "
+            "case_id=%s semantic_type=%s object_id=%.32s…",
+            case_id,
+            semantic_type,
+            object_id,
+        )
+
+    def clear_activity(
+        self, case_id: str, activity_id: str
+    ) -> list[PendingAssertion]:
+        """Clear every pending entry for the asserted activity *activity_id*.
+
+        The CASE_MANAGER's refusal notice names the refused activity, not the
+        semantic type it would have been ledgered under, so this matches on the
+        case and the activity alone (CLP-06-006, CLP-05-001).
+
+        Args:
+            case_id: URI of the parent :class:`VulnerabilityCase`.
+            activity_id: The refused activity's id.
+
+        An entry past its timeout is marked ``timed_out`` here, as
+        :meth:`is_suppressed` marks it, and is not cleared: it was no longer
+        pending.  Zero ``timeout_seconds`` disables expiry here too.
+
+        Returns:
+            The entries this call cleared; empty when none was pending.
+        """
+        cleared = [
+            entry
+            for entry in list(self._store.values())
+            if entry.case_id == case_id
+            and entry.object_id == activity_id
+            and (self.timeout_seconds == 0 or not self._check_expired(entry))
+            and entry.status == "pending"
+        ]
+        for entry in cleared:
+            self.clear(entry.case_id, entry.semantic_type, entry.object_id)
+        return cleared
+
+    def expire_timed_out(self) -> int:
+        """Sweep the store and expire all overdue pending entries.
+
+        Returns:
+            Number of entries transitioned to ``"timed_out"`` this sweep.
+        """
+        count = sum(
+            1 for e in list(self._store.values()) if self._check_expired(e)
+        )
+        return count
+
+    def __len__(self) -> int:
+        """Return the total number of tracked entries (all statuses)."""
+        return len(self._store)
+
+
+# ---------------------------------------------------------------------------
+# Module-level per-actor registry (production convenience)
+# ---------------------------------------------------------------------------
+
+
+def get_pending_assertion_store(
+    actor_id: str,
+    timeout_seconds: float = DEFAULT_PENDING_ASSERTION_TIMEOUT,
+) -> PendingAssertionStore:
+    """Return (or lazily create) the per-actor :class:`PendingAssertionStore`.
+
+    The returned store is the *singleton* for *actor_id* in this process.
+    This is pure in-memory state — no DataLayer interaction.
+
+    In unit tests, prefer constructing a :class:`PendingAssertionStore`
+    directly and injecting it, then call :func:`_reset_stores` in a
+    teardown fixture to prevent cross-test leakage.
+
+    Args:
+        actor_id: URI of the actor whose store to retrieve / create.
+        timeout_seconds: Used only when creating a new store for this
+            actor.  Ignored when the store already exists.
+    """
+    if actor_id not in _STORES:
+        _STORES[actor_id] = PendingAssertionStore(
+            timeout_seconds=timeout_seconds
+        )
+    return _STORES[actor_id]
+
+
+def record_pending_assertion(
+    actor_id: str,
+    case_id: str,
+    semantic_type: str,
+    activity_id: str,
+    subject_id: str | None = None,
+) -> None:
+    """Record an assertion *actor_id* just sent to the CASE_MANAGER.
+
+    The one entry point every trigger that asks the manager instead of
+    writing shared state uses (SYNC-11-002, ASK-04-008): the note trigger,
+    the add-object and add-report triggers, the five embargo triggers (all
+    through ``SvcBTTriggerBase._record_asserted_activity``) and the received
+    P/X/A cascade's teardown ask
+    (``SendTerminateEmbargoActivityNode``).  The matching
+    ``Announce(CaseLedgerEntry)`` clears it (SYNC-11-003).
+    """
+    get_pending_assertion_store(actor_id).add(
+        case_id, semantic_type, activity_id, subject_id=subject_id
+    )
+    logger.info(
+        "Actor '%s' asserted '%s' on case '%s' to the CASE_MANAGER;"
+        " pending its canonical commit (activity_id=%s)",
+        actor_id,
+        semantic_type,
+        case_id,
+        activity_id,
+    )
+
+
+def suppressed_repeat_reason(
+    actor_id: str,
+    case_id: str,
+    semantic_type: str,
+    subject_id: str,
+) -> str | None:
+    """Why a repeat ask about *subject_id* is suppressed, or ``None``.
+
+    The one check every asker makes before sending (SYNC-11-002): the embargo
+    triggers' ``SvcEmbargoTriggerBase._suppressed_duplicate()`` and the
+    cascade's ``TeardownAskPendingNode`` read the same store with the same
+    key, so an ask from either path suppresses a repeat from the other.
+    ``None`` means nothing is pending: never asked, cleared by the announced
+    commit (SYNC-11-003), or timed out (SYNC-11-005).
+    """
+    pending = get_pending_assertion_store(actor_id).pending_for_subject(
+        case_id, semantic_type, subject_id
+    )
+    if pending is None:
+        return None
+    return (
+        f"actor '{actor_id}' already asked the CASE_MANAGER for"
+        f" '{semantic_type}' about '{subject_id}' on case '{case_id}'"
+        f" (activity_id={pending.object_id}, pending since"
+        f" {pending.emitted_at.isoformat()}) — duplicate suppressed, not"
+        " re-emitted (SYNC-11-002)"
+    )
+
+
+def _reset_stores() -> None:
+    """Clear the global per-actor store registry.
+
+    **Test-only.**  Call from a teardown fixture to prevent cross-test
+    leakage of pending-assertion state.
+    """
+    _STORES.clear()
+
+
+__all__ = [
+    "ASSERTED_ACTIVITY_KEY",
+    "DEFAULT_PENDING_ASSERTION_TIMEOUT",
+    "PendingAssertion",
+    "PendingAssertionStore",
+    "ProtocolPair",
+    "get_pending_assertion_store",
+    "record_pending_assertion",
+    "_reset_stores",
+]

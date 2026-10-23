@@ -1,0 +1,148 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Embargo rejection trigger use case.
+
+A participant's rejection is ``Reject(Invite(EmbargoEvent))``, its own
+consent.  The case owner's rejection is its decision for the case,
+``Reject(EmbargoEvent, target=Case)``, which rejects the proposal and writes
+no consent (ADR-0122).  A CASE_MANAGER that is not the owner builds no
+``Reject``: a CASE_MANAGER-sent ``Reject(Invite(EmbargoEvent))`` is its
+abandonment of the proposal (EMB-16-001), so it records its own consent as
+its ``Update(EmbargoConsent)`` of the row, and the response reports that
+``Update`` as its activity (MSM-07-004, TRIG-04-001).
+"""
+
+import json
+import logging
+from typing import ClassVar, cast
+
+import py_trees.behaviour
+
+from vultron.core.behaviors.embargo.nodes import (
+    EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE,
+)
+from vultron.core.behaviors.embargo.trigger_tree import (
+    reject_embargo_proposal_trigger_bt,
+    reject_embargo_trigger_bt,
+)
+from vultron.core.behaviors.sender_entitlement import (
+    is_case_owner as _is_case_owner,
+)
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.use_cases.triggers._base import SvcEmbargoTriggerBase
+from vultron.core.use_cases.triggers._helpers import (
+    _resolve_embargo_proposal,
+    resolve_actor,
+    resolve_case,
+)
+from vultron.core.use_cases.triggers.requests import (
+    RejectEmbargoTriggerRequest,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class SvcRejectEmbargoUseCase(SvcEmbargoTriggerBase):
+    _assertion_semantic_type: ClassVar[str] = (
+        MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE.value
+    )
+
+    def _prepare(self) -> None:
+        request = cast(RejectEmbargoTriggerRequest, self._request)
+        dl = self._dl
+
+        actor = resolve_actor(request.actor_id, dl)
+        self._actor_id = actor.id_
+        self._case = resolve_case(request.case_id, dl)
+        # An open proposal, or — when named — the actor's received Invite
+        # for the embargo in force (EP-09-012).
+        self._proposal_id, self._embargo_id = _resolve_embargo_proposal(
+            self._case,
+            request.proposal_id,
+            self._actor_id,
+            dl,
+            self._received_activities,
+        )
+        self._is_owner = _is_case_owner(self._case, self._actor_id)
+
+    def _asserted_semantic_type(self) -> str:
+        if self._is_owner:
+            return EMBARGO_PROPOSAL_REJECTION_SEMANTIC_TYPE
+        return self._assertion_semantic_type
+
+    def _assertion_subject(self) -> str:
+        return self._proposal_id
+
+    def _build_tree(self) -> py_trees.behaviour.Behaviour:
+        def _build_activity(to: list[str] | None) -> tuple[str, str]:
+            if self._is_owner:
+                reject_id, reject_blob = self._factory.reject_embargo_proposal(
+                    embargo_id=self._embargo_id,
+                    case_id=self._case.id_,
+                    actor=self._actor_id,
+                    to=to,
+                )
+            else:
+                reject_id, reject_blob = self._factory.reject_embargo(
+                    proposal_id=self._proposal_id,
+                    case_id=self._case.id_,
+                    actor=self._actor_id,
+                    to=to,
+                )
+            self._captured["activity"] = json.loads(reject_blob)
+            return reject_id, reject_blob
+
+        if self._is_owner:
+            return reject_embargo_proposal_trigger_bt(
+                case_id=self._case.id_,
+                embargo_id=self._embargo_id,
+                result_out=self._result_out,
+                activity_builder=_build_activity,
+            )
+        # A participant sends its Reject(Invite); a non-owner CASE_MANAGER
+        # instead commits its Update(EmbargoConsent) of the row, which the
+        # tree writes to the response (MSM-07-004, TRIG-04-001).
+        return reject_embargo_trigger_bt(
+            case_id=self._case.id_,
+            embargo_id=self._embargo_id,
+            result_out=self._result_out,
+            activity_builder=_build_activity,
+            own_consent_out=self._captured,
+        )
+
+    def _log_lifecycle_result(self) -> None:
+        lr = self._lifecycle_result
+        if self._is_owner and lr.em_after != lr.em_before:
+            logger.info(
+                "Actor '%s' rejected embargo proposal '%s' on case '%s'"
+                " (EM %s → %s)",
+                self._actor_id,
+                self._proposal_id,
+                self._case.id_,
+                lr.em_before,
+                lr.em_after,
+            )
+        else:
+            logger.info(
+                "Actor '%s' rejected embargo proposal '%s'; recorded"
+                " participant consent for embargo '%s' on case '%s'"
+                " (EM unchanged at %s)",
+                self._actor_id,
+                self._proposal_id,
+                self._embargo_id,
+                self._case.id_,
+                lr.em_after,
+            )

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -14,6 +14,7 @@
 """
 Provides vulnerability discovery behaviors
 """
+
 from vultron.bt.base.bt_node import BtNode
 from vultron.bt.base.factory import (
     condition_check,
@@ -27,7 +28,7 @@ from vultron.bt.messaging.outbound.behaviors import EmitCV, EmitRS
 from vultron.bt.report_management.conditions import RMnotInStateStart
 from vultron.bt.report_management.transitions import q_rm_to_R
 from vultron.bt.roles.conditions import RoleIsNotVendor
-from vultron.bt.roles.states import CVDRoles
+from vultron.bt.roles.enums import CVDRolesFlag
 from vultron.bt.vul_discovery.fuzzer import (
     DiscoverVulnerability,
     HaveDiscoveryPriority,
@@ -37,7 +38,7 @@ from vultron.bt.vul_discovery.fuzzer import (
 
 def have_discovery_capability(obj: BtNode) -> bool:
     """True if the participant has the ability to discover vulnerabilities."""
-    return obj.bb.CVD_role & CVDRoles.FINDER
+    return bool(obj.bb.CVD_role & CVDRolesFlag.FINDER)
 
 
 HaveDiscoveryCapability = condition_check(

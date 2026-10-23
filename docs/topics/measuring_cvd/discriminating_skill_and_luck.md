@@ -1,3 +1,11 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+page_type: explanation
+description: >
+  The skill coefficient, which normalizes an observed frequency against the baseline.
+---
+
 # Discriminating Skill and Luck in Observations
 
 {% include-markdown "../../includes/not_normative.md" %}
@@ -50,9 +58,9 @@ reproduced below for convenience:
 
 {% include-markdown "../../includes/tab_exp_freq.md" %}
 
-Recall that the mean of a binomial distribution is simply the
+Recall that the mean of a binomial distribution is the
 probability of success $p$, and that the mean of a weighted mixture of
-two binomial distributions is simply the weighted mixture of the
+two binomial distributions is the weighted mixture of the
 individual means. Therefore our model adds a parameter $\alpha_d$ to
 represent the weighting between our success rates arising from skill
 $p_{skill}$ and luck $p_{luck}$. Because there are 12 desiderata
@@ -189,7 +197,7 @@ uncertainty.
     observations using the binomial's variance $np(1-p)$, because of
     boundary conditions at 0 and 1 we should not assume symmetric error. An
     extensive discussion of uncertainty in the binomial distribution is
-    given in [@brown2001interval].
+    given in [Brown et al. (2001)](https://doi.org/10.1214/ss/1009213286){:target="_blank"}.
     
     However, for our purpose the Beta distribution lends itself to this
     problem nicely. The Beta distribution is specified by two parameters

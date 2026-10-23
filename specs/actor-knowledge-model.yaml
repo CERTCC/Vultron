@@ -1,0 +1,248 @@
+id: AKM
+title: Actor Knowledge Model
+description: >-
+  Defines the Actor Knowledge Model: a Vultron Actor's knowledge of the world is strictly
+  bounded by the ActivityStreams 2.0 activities it has received. Actors must not assume
+  recipients hold objects that were not explicitly included in prior activities; DataLayer
+  access is private and non-shareable, and all inter-Actor communication occurs exclusively
+  through the AS2 wire protocol.
+scope:
+- prototype
+- production
+tags:
+- messaging
+- protocol
+- federation
+groups:
+- id: AKM-01
+  title: DataLayer Isolation
+  specs:
+  - id: AKM-01-001
+    priority: MUST_NOT
+    kind: project
+    verification: >-
+      Inspection confirms each actor's DataLayer is constructed per actor and that no
+      code path hands one actor's DataLayer instance to another actor's use cases or
+      behavior trees.
+    statement: >-
+      Each Actor's DataLayer is private to that Actor and MUST NOT be accessible to any other
+      Actor.
+  - id: AKM-01-002
+    priority: MUST_NOT
+    kind: protocol
+    verification: >-
+      Inspection confirms co-located actors exchange case traffic only through inbox
+      POSTs and outbox delivery, with no direct read or write of a peer actor's
+      DataLayer and no in-process call into a peer's use cases.
+    statement: >-
+      Actors that are co-located on the same server or within the same process MUST still
+      exchange protocol messages through each other's inboxes, and MUST NOT communicate by
+      reading or writing each other's local state or by calling into each other directly.
+- id: AKM-02
+  title: Knowledge Boundaries
+  specs:
+  - id: AKM-02-001
+    priority: MUST_NOT
+    kind: protocol
+    verification_debt: '#3612'
+    statement: >-
+      An Actor MUST NOT assume that a recipient has knowledge of any object that has not been
+      explicitly included in a prior activity sent to that recipient.
+    stories:
+    - story_2022_053
+  - id: AKM-02-002
+    priority: MUST_NOT
+    kind: protocol
+    verification: >-
+      Satisfied in this codebase through AKM-02-004: inspection of the outbound activity
+      factories confirms each embeds inline the objects a recipient cannot be expected to
+      hold already, and uses a bare reference only for an object the recipient already
+      has, such as the case it participates in.
+    statement: >-
+      Actors MUST NOT name an object the recipient cannot be expected to hold already by a
+      reference the recipient cannot dereference (AKM-05-003, AKM-05-004). Such an object
+      is carried inline, or by a reference the recipient can fetch.
+  - id: AKM-02-004
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry inline every object a recipient cannot be expected to hold
+      already, and MUST use a bare reference only for an object the recipient already
+      has, such as the case it participates in.
+    rationale: >-
+      How this codebase meets AKM-02-002; split from it so AKM-02-002 states only what
+      other participants observe (MS-12-010). This codebase does not yet dereference
+      (AKM-05-003), so a reference to an object its recipient does not hold could not be
+      resolved. Carrying the object inline instead is a shortcut of this prototype
+      reference implementation, not a protocol rule.
+    verification: >-
+      `test/architecture/test_introduced_objects_inline.py` classifies every outbound
+      activity factory: each one introducing an object refuses it as a bare id and
+      carries it inline, and each one carrying an object the recipient already holds
+      takes it through a parameter typed to refuse a bare id.
+    relationships:
+    - rel_type: implements
+      spec_id: AKM-02-002
+  - id: AKM-02-003
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A case named in an activity's `target` MUST take one of two forms: the case URI,
+      when the recipient already holds the case (a participant or the CASE_MANAGER being
+      addressed about it, as in the full-case Invite of CM-11-010); or the case stub
+      (`VulnerabilityCaseStub`, CM-11-013) the stub Invite sends to an actor that does
+      not yet hold the case. A full case MUST NOT travel in `target`.
+    verification: >-
+      `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks
+      every trigger-port activity's `target`: a case there is a URI or an object of type
+      `VulnerabilityCaseStub`.
+    adr:
+    - ADR-0114
+    stories:
+    - story_2022_053
+    - story_2022_024
+  - id: AKM-02-005
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase's activity factories MUST reduce a full case given as `target` to its
+      URI and leave a case stub or a URI unchanged. `target` is the one slot in which
+      this codebase carries a case by reference rather than inline.
+    rationale: >-
+      How this codebase meets AKM-02-003; split from it so AKM-02-003 states only the
+      forms other participants observe in `target` (MS-12-010). That every other slot
+      carries the case inline follows from this codebase's inline-object shortcut
+      (AKM-02-004, AKM-03-003), not from the protocol.
+    verification: >-
+      `test/wire/as2/factories/test_case_context.py` checks `case_target_ref` reduces a
+      full case to its URI and leaves a stub and a URI alone.
+    relationships:
+    - rel_type: implements
+      spec_id: AKM-02-003
+- id: AKM-03
+  title: Outbound Activity Object Integrity
+  specs:
+  - id: AKM-03-001
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Outbound initiating activities (Create, Offer, Invite, Announce, Add, Remove, Update,
+      Join, Ignore, Leave) MUST carry, as their `object`, the domain object they act on,
+      inline or by reference.
+    verification: Integration tests in `test/demo/` confirm that outbound initiating activities carry the domain
+      object they act on in their `object` field.
+    stories:
+    - story_2022_053
+  - id: AKM-03-003
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST carry the `object` of every outbound activity as a fully inline
+      typed object, never as a bare URI reference or an `as_Link`. AKM-03-002 enforces
+      this at delivery.
+    rationale: >-
+      How this codebase meets AKM-03-001 and MV-09-001; split from them so they state
+      only what other participants observe (MS-12-010). A receiver of this codebase does
+      not dereference (AKM-05-003), so it could not resolve a reference to learn the
+      activity's semantic type. Carrying the object inline is a shortcut of this
+      prototype reference implementation, not a protocol rule.
+    note: >-
+      The rule binds the activity's own `object`. An `Invite(EmbargoEvent)` nested as the
+      object of an ER may name its terms by URI: the ER answers the Invite by id and type,
+      both inline, and needs no terms (ADR-0123).
+    verification: >-
+      Integration tests in `test/demo/` confirm that outbound initiating activities
+      include a fully serialized `object` field rather than a bare URI reference.
+      `vultron/adapters/driving/fastapi/outbox_delivery.py` raises
+      `VultronValidationError` when `object_` is a bare string URI rather than a typed
+      object. `test/architecture/test_introduced_objects_inline.py` classifies every
+      activity factory, and checks that each one introducing an object refuses it as a
+      bare id and carries it inline, and that every example activity does the same.
+    relationships:
+    - rel_type: implements
+      spec_id: AKM-03-001
+    - rel_type: implements
+      spec_id: MV-09-001
+  - id: AKM-03-002
+    priority: MUST
+    kind: project
+    statement: >-
+      The outbox handler MUST enforce object integrity at delivery time as a last-resort runtime
+      guard.
+    verification: A unit test confirms that the outbox handler rejects an activity whose `object` field is a bare URI
+      reference rather than a fully inline typed domain object.
+- id: AKM-04
+  title: 'Future: Known-Object Tracking'
+  specs:
+  - id: AKM-04-001
+    priority: MAY
+    kind: protocol
+    statement: >-
+      A future implementation MAY track which objects have been shared with each participant
+      (e.g., via `CaseLedgerEntry` hash-chain records) to avoid redundant full-object transmission.
+    scope:
+    - production
+- id: AKM-05
+  title: Actor Addressing and Discovery
+  specs:
+  - id: AKM-05-001
+    priority: MUST_NOT
+    kind: foundation
+    verification: >-
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcInviteActorToCaseUseCase::test_invite_proceeds_when_invitee_not_in_dl`
+      confirms an invite is addressed to a peer with no local `CoreActor` record.
+    statement: >-
+      The absence of a local record of a peer actor MUST NOT prevent an actor from
+      addressing an outbound activity to that peer. The peer's deliverable http(s) URI is
+      sufficient for addressing; a fully resolved actor record is an enrichment (directory
+      service), not a precondition for protocol participation.
+    tags:
+    - activitypub
+  - id: AKM-05-002
+    priority: SHOULD
+    kind: architecture
+    statement: >-
+      When an actor is first named by URI and no local record exists, the implementation
+      SHOULD attempt resolution via the injected `ActorDiscoveryCallOutBundle`
+      (Retriever call-out, ADR-0024, ADR-0025) before minting a minimal record.
+      A FAILURE result from the backend SHOULD produce an explicit WARNING rather than
+      a silent default.
+    scope:
+    - production
+  - id: AKM-05-003
+    priority: SHOULD
+    kind: protocol
+    statement: >-
+      An implementation SHOULD support object dereference: fetching the full object named
+      by a URI through an API call to the actor or service that holds it.
+    rationale: >-
+      Several rules let a sender name an object by reference instead of inlining it, and
+      each is sound only where the receiver can resolve the reference. The CP-01-009
+      by-reference `actor` form is one. A prototype may inline everything and resolve
+      nothing, so the capability is a SHOULD there (AKM-05-004 makes it a MUST in
+      production).
+    scope:
+    - prototype
+    stories:
+    - story_2022_014
+    note: >-
+      Until an implementation supports dereference, every refusal that stands in for it
+      is conditional on that gap and lapses once dereference exists: the bare-URI `actor`
+      on `Create(CaseProposal)` (CP-01-010) and the unreadable-record refusal of
+      EMB-18-003. The mechanism is tracked in #3258 and #3739.
+  - id: AKM-05-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A production implementation MUST support object dereference (AKM-05-003): given a URI
+      it has not seen, it MUST be able to fetch the object through an API call.
+    verification: >-
+      A production deployment is given a URI it holds no record for and fetches the
+      object it names through an API call; the fetch returns the typed object.
+    scope:
+    - production
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-003
+    stories:
+    - story_2022_014

@@ -1,0 +1,1870 @@
++-- >_CvdProtocolRoot_1
+    |-> a_Snapshot_2
+    |-> ?_DiscoverVulnerabilityBt_3
+    |   |-> ^_RMnotInStateStart_4
+    |   |   L-> c_q_rm_in_START_5
+    |   |-> >_FindVulnerabilities_6
+    |   |   |-> c_HaveDiscoveryCapability_7
+    |   |   |-> HaveDiscoveryPriority_8
+    |   |   |-> z_DiscoverVulnerability_9
+    |   |   |-> ?_transition_q_rm_to_RECEIVED_10
+    |   |   |   |-> c_q_rm_in_RECEIVED_11
+    |   |   |   L-> >_transition_to_q_rm_RECEIVED_if_allowed_12
+    |   |   |       |-> ?_allowed_start_states_for_q_rm_RECEIVED_13
+    |   |   |       |   L-> c_q_rm_in_START_14
+    |   |   |       L-> a_q_rm_to_RECEIVED_15
+    |   |   |-> !_Emit_RS_16
+    |   |   L-> ?_SeeIfVendorIsAware_17
+    |   |       |-> ^_RoleIsNotVendor_18
+    |   |       |   L-> c_RoleIsVendor_19
+    |   |       L-> >_VendorBecomesAware_20
+    |   |           |-> ^_CSinStateVendorUnaware_21
+    |   |           |   L-> c_CSinStateVendorAware_22
+    |   |           |-> a_q_cs_to_V_23
+    |   |           L-> !_Emit_CV_24
+    |   L-> NoVulFound_25
+    |-> l__ReceiveMessagesBt_26
+    |   L-> >__ReceiveNextMessage_27
+    |       |-> ^_RMnotInStateClosed_28
+    |       |   L-> c_q_rm_in_CLOSED_29
+    |       |-> c_MsgQueueNotEmpty_30
+    |       L-> ?__ProcessMessage_31
+    |           |-> >__ProcessNextMessage_32
+    |           |   |-> c_MsgQueueNotEmpty_33
+    |           |   |-> a_PopMessage_34
+    |           |   |-> a_LogMsg_35
+    |           |   |-> ?__HandleMessage_36
+    |           |   |   |-> >_ProcessRMMessagesBt_37
+    |           |   |   |   |-> ?_IsRMMessage_38
+    |           |   |   |   |   |-> c_IsMsgType_RK_39
+    |           |   |   |   |   |-> c_IsMsgType_RS_40
+    |           |   |   |   |   |-> c_IsMsgType_RI_41
+    |           |   |   |   |   |-> c_IsMsgType_RV_42
+    |           |   |   |   |   |-> c_IsMsgType_RD_43
+    |           |   |   |   |   |-> c_IsMsgType_RA_44
+    |           |   |   |   |   |-> c_IsMsgType_RC_45
+    |           |   |   |   |   L-> c_IsMsgType_RE_46
+    |           |   |   |   L-> ?__HandleRmMessage_47
+    |           |   |   |       |-> c_IsMsgType_RK_48
+    |           |   |   |       |-> >__HandleAckableRmMessage_49
+    |           |   |   |       |   |-> ?__ChooseRmMsgReaction_50
+    |           |   |   |       |   |   |-> >__HandleRs_51
+    |           |   |   |       |   |   |   |-> c_IsMsgType_RS_52
+    |           |   |   |       |   |   |   |-> ?__LeaveRmStart_53
+    |           |   |   |       |   |   |   |   |-> ^_RMnotInStateStart_54
+    |           |   |   |       |   |   |   |   |   L-> c_q_rm_in_START_55
+    |           |   |   |       |   |   |   |   L-> ?_transition_q_rm_to_RECEIVED_56
+    |           |   |   |       |   |   |   |       |-> c_q_rm_in_RECEIVED_57
+    |           |   |   |       |   |   |   |       L-> >_transition_to_q_rm_RECEIVED_if_allowed_58
+    |           |   |   |       |   |   |   |           |-> ?_allowed_start_states_for_q_rm_RECEIVED_59
+    |           |   |   |       |   |   |   |           |   L-> c_q_rm_in_START_60
+    |           |   |   |       |   |   |   |           L-> a_q_rm_to_RECEIVED_61
+    |           |   |   |       |   |   |   L-> ?__RecognizeVendorNotifiedIfNecessary_62
+    |           |   |   |       |   |   |       |-> ^_RoleIsNotVendor_63
+    |           |   |   |       |   |   |       |   L-> c_RoleIsVendor_64
+    |           |   |   |       |   |   |       L-> >__SetVendorAware_65
+    |           |   |   |       |   |   |           |-> c_CSinStateVendorAware_66
+    |           |   |   |       |   |   |           |-> a_q_cs_to_V_67
+    |           |   |   |       |   |   |           L-> !_Emit_CV_68
+    |           |   |   |       |   |   |-> >__HandleRe_69
+    |           |   |   |       |   |   |   |-> c_IsMsgType_RE_70
+    |           |   |   |       |   |   |   L-> ?_FollowUpOnErrorMessage_71
+    |           |   |   |       |   |   |       |-> z_UniformSucceedFail_72
+    |           |   |   |       |   |   |       L-> !_Emit_GI_73
+    |           |   |   |       |   |   L-> ^_RMnotInStateStart_74
+    |           |   |   |       |   |       L-> c_q_rm_in_START_75
+    |           |   |   |       |   L-> !_Emit_RK_76
+    |           |   |   |       L-> !_Emit_RE_77
+    |           |   |   |-> >_ProcessEMMessagesBt_78
+    |           |   |   |   |-> ?_IsEMMessage_79
+    |           |   |   |   |   |-> c_IsMsgType_EK_80
+    |           |   |   |   |   |-> c_IsMsgType_EP_81
+    |           |   |   |   |   |-> c_IsMsgType_ER_82
+    |           |   |   |   |   |-> c_IsMsgType_EA_83
+    |           |   |   |   |   |-> c_IsMsgType_EP_84
+    |           |   |   |   |   |-> c_IsMsgType_ER_85
+    |           |   |   |   |   |-> c_IsMsgType_EA_86
+    |           |   |   |   |   |-> c_IsMsgType_ET_87
+    |           |   |   |   |   L-> c_IsMsgType_EE_88
+    |           |   |   |   L-> ?__HandleEmMessage_89
+    |           |   |   |       |-> c_IsMsgType_EK_90
+    |           |   |   |       |-> >__HandleAndAckEmMsg_91
+    |           |   |   |       |   |-> ?__HandleAckable_92
+    |           |   |   |       |   |   |-> >__HandleEe_93
+    |           |   |   |       |   |   |   |-> c_IsMsgType_EE_94
+    |           |   |   |       |   |   |   L-> ?_FollowUpOnErrorMessage_95
+    |           |   |   |       |   |   |       |-> z_UniformSucceedFail_96
+    |           |   |   |       |   |   |       L-> !_Emit_GI_97
+    |           |   |   |       |   |   |-> >__HandleEt_98
+    |           |   |   |       |   |   |   |-> c_IsMsgType_ET_99
+    |           |   |   |       |   |   |   L-> ?__EnsureEmbargoExited_100
+    |           |   |   |       |   |   |       |-> c_q_em_in_EXITED_101
+    |           |   |   |       |   |   |       L-> >__RecognizeEmbargoExit_102
+    |           |   |   |       |   |   |           |-> ?_EMinStateActiveOrRevise_103
+    |           |   |   |       |   |   |           |   |-> c_q_em_in_ACTIVE_104
+    |           |   |   |       |   |   |           |   L-> c_q_em_in_REVISE_105
+    |           |   |   |       |   |   |           L-> ?_transition_q_em_to_EXITED_106
+    |           |   |   |       |   |   |               |-> c_q_em_in_EXITED_107
+    |           |   |   |       |   |   |               L-> >_transition_to_q_em_EXITED_if_allowed_108
+    |           |   |   |       |   |   |                   |-> ?_allowed_start_states_for_q_em_EXITED_109
+    |           |   |   |       |   |   |                   |   |-> c_q_em_in_ACTIVE_110
+    |           |   |   |       |   |   |                   |   L-> c_q_em_in_REVISE_111
+    |           |   |   |       |   |   |                   L-> a_q_em_to_EXITED_112
+    |           |   |   |       |   |   |-> >__HandleEr_113
+    |           |   |   |       |   |   |   |-> c_IsMsgType_ER_114
+    |           |   |   |       |   |   |   L-> ?__EnsureRejectionRecognized_115
+    |           |   |   |       |   |   |       |-> c_q_em_in_NONE_116
+    |           |   |   |       |   |   |       L-> >__RecognizeRejection_117
+    |           |   |   |       |   |   |           |-> c_q_em_in_PROPOSED_118
+    |           |   |   |       |   |   |           L-> ?_transition_q_em_to_NONE_119
+    |           |   |   |       |   |   |               |-> c_q_em_in_NONE_120
+    |           |   |   |       |   |   |               L-> >_transition_to_q_em_NONE_if_allowed_121
+    |           |   |   |       |   |   |                   |-> ?_allowed_start_states_for_q_em_NONE_122
+    |           |   |   |       |   |   |                   |   |-> c_q_em_in_PROPOSED_123
+    |           |   |   |       |   |   |                   |   L-> c_q_em_in_NONE_124
+    |           |   |   |       |   |   |                   L-> a_q_em_to_NONE_125
+    |           |   |   |       |   |   |-> >__HandleCSpxa_126
+    |           |   |   |       |   |   |   |-> >_CSinStateNotPublicNoExploitNoAttacks_127
+    |           |   |   |       |   |   |   |   |-> ^_CSinStatePublicUnaware_128
+    |           |   |   |       |   |   |   |   |   L-> c_CSinStatePublicAware_129
+    |           |   |   |       |   |   |   |   |-> ^_CSinStateNoExploitPublic_130
+    |           |   |   |       |   |   |   |   |   L-> c_CSinStateExploitPublic_131
+    |           |   |   |       |   |   |   |   L-> ^_CSinStateNoAttacksObserved_132
+    |           |   |   |       |   |   |   |       L-> c_CSinStateAttacksObserved_133
+    |           |   |   |       |   |   |   L-> ?__HandleMessagesInpxa_134
+    |           |   |   |       |   |   |       |-> >__HandleEp_135
+    |           |   |   |       |   |   |       |   |-> c_IsMsgType_EP_136
+    |           |   |   |       |   |   |       |   L-> ?__EnsureProposalRecognized_137
+    |           |   |   |       |   |   |       |       |-> c_q_em_in_PROPOSED_138
+    |           |   |   |       |   |   |       |       L-> >__RecognizeProposal_139
+    |           |   |   |       |   |   |       |           |-> c_q_em_in_NONE_140
+    |           |   |   |       |   |   |       |           L-> ?_transition_q_em_to_PROPOSED_141
+    |           |   |   |       |   |   |       |               |-> c_q_em_in_PROPOSED_142
+    |           |   |   |       |   |   |       |               L-> >_transition_to_q_em_PROPOSED_if_allowed_143
+    |           |   |   |       |   |   |       |                   |-> ?_allowed_start_states_for_q_em_PROPOSED_144
+    |           |   |   |       |   |   |       |                   |   |-> c_q_em_in_NONE_145
+    |           |   |   |       |   |   |       |                   |   L-> c_q_em_in_PROPOSED_146
+    |           |   |   |       |   |   |       |                   L-> a_q_em_to_PROPOSED_147
+    |           |   |   |       |   |   |       |-> >__HandleEa_148
+    |           |   |   |       |   |   |       |   |-> c_IsMsgType_EA_149
+    |           |   |   |       |   |   |       |   L-> ?__EnsureEmbargoActivated_150
+    |           |   |   |       |   |   |       |       |-> c_q_em_in_ACTIVE_151
+    |           |   |   |       |   |   |       |       L-> >__RecognizeActivation_152
+    |           |   |   |       |   |   |       |           |-> c_q_em_in_PROPOSED_153
+    |           |   |   |       |   |   |       |           L-> ?_transition_q_em_to_ACTIVE_154
+    |           |   |   |       |   |   |       |               |-> c_q_em_in_ACTIVE_155
+    |           |   |   |       |   |   |       |               L-> >_transition_to_q_em_ACTIVE_if_allowed_156
+    |           |   |   |       |   |   |       |                   |-> ?_allowed_start_states_for_q_em_ACTIVE_157
+    |           |   |   |       |   |   |       |                   |   |-> c_q_em_in_PROPOSED_158
+    |           |   |   |       |   |   |       |                   |   L-> c_q_em_in_REVISE_159
+    |           |   |   |       |   |   |       |                   L-> a_q_em_to_ACTIVE_160
+    |           |   |   |       |   |   |       |-> >__HandleEv_161
+    |           |   |   |       |   |   |       |   |-> c_IsMsgType_EP_162
+    |           |   |   |       |   |   |       |   L-> ?__EnsureEmbargoRevisionRecognized_163
+    |           |   |   |       |   |   |       |       |-> c_q_em_in_REVISE_164
+    |           |   |   |       |   |   |       |       L-> >__RecognizeRevision_165
+    |           |   |   |       |   |   |       |           |-> c_q_em_in_ACTIVE_166
+    |           |   |   |       |   |   |       |           L-> ?_transition_q_em_to_REVISE_167
+    |           |   |   |       |   |   |       |               |-> c_q_em_in_REVISE_168
+    |           |   |   |       |   |   |       |               L-> >_transition_to_q_em_REVISE_if_allowed_169
+    |           |   |   |       |   |   |       |                   |-> ?_allowed_start_states_for_q_em_REVISE_170
+    |           |   |   |       |   |   |       |                   |   |-> c_q_em_in_ACTIVE_171
+    |           |   |   |       |   |   |       |                   |   L-> c_q_em_in_REVISE_172
+    |           |   |   |       |   |   |       |                   L-> a_q_em_to_REVISE_173
+    |           |   |   |       |   |   |       L-> >__HandleRevisionResponse_174
+    |           |   |   |       |   |   |           |-> ?__CheckEjOrEcMsg_175
+    |           |   |   |       |   |   |           |   |-> c_IsMsgType_ER_176
+    |           |   |   |       |   |   |           |   L-> c_IsMsgType_EA_177
+    |           |   |   |       |   |   |           L-> ?__EnsureEmActive_178
+    |           |   |   |       |   |   |               |-> c_q_em_in_ACTIVE_179
+    |           |   |   |       |   |   |               L-> >__HandleEjOrEcMsg_180
+    |           |   |   |       |   |   |                   |-> c_q_em_in_REVISE_181
+    |           |   |   |       |   |   |                   L-> ?__SelectEjOrEcResponse_182
+    |           |   |   |       |   |   |                       |-> >__HandleEj_183
+    |           |   |   |       |   |   |                       |   |-> c_IsMsgType_ER_184
+    |           |   |   |       |   |   |                       |   L-> ?_transition_q_em_to_ACTIVE_185
+    |           |   |   |       |   |   |                       |       |-> c_q_em_in_ACTIVE_186
+    |           |   |   |       |   |   |                       |       L-> >_transition_to_q_em_ACTIVE_if_allowed_187
+    |           |   |   |       |   |   |                       |           |-> ?_allowed_start_states_for_q_em_ACTIVE_188
+    |           |   |   |       |   |   |                       |           |   L-> c_q_em_in_REVISE_189
+    |           |   |   |       |   |   |                       |           L-> a_q_em_to_ACTIVE_190
+    |           |   |   |       |   |   |                       L-> >__HandleEc_191
+    |           |   |   |       |   |   |                           |-> c_IsMsgType_EA_192
+    |           |   |   |       |   |   |                           L-> ?_transition_q_em_to_ACTIVE_193
+    |           |   |   |       |   |   |                               |-> c_q_em_in_ACTIVE_194
+    |           |   |   |       |   |   |                               L-> >_transition_to_q_em_ACTIVE_if_allowed_195
+    |           |   |   |       |   |   |                                   |-> ?_allowed_start_states_for_q_em_ACTIVE_196
+    |           |   |   |       |   |   |                                   |   |-> c_q_em_in_PROPOSED_197
+    |           |   |   |       |   |   |                                   |   L-> c_q_em_in_REVISE_198
+    |           |   |   |       |   |   |                                   L-> a_q_em_to_ACTIVE_199
+    |           |   |   |       |   |   L-> >__AvoidNonViableEmbargo_200
+    |           |   |   |       |   |       |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_201
+    |           |   |   |       |   |       |   L-> >_CSinStateNotPublicNoExploitNoAttacks_202
+    |           |   |   |       |   |       |       |-> ^_CSinStatePublicUnaware_203
+    |           |   |   |       |   |       |       |   L-> c_CSinStatePublicAware_204
+    |           |   |   |       |   |       |       |-> ^_CSinStateNoExploitPublic_205
+    |           |   |   |       |   |       |       |   L-> c_CSinStateExploitPublic_206
+    |           |   |   |       |   |       |       L-> ^_CSinStateNoAttacksObserved_207
+    |           |   |   |       |   |       |           L-> c_CSinStateAttacksObserved_208
+    |           |   |   |       |   |       L-> ?_TerminateEmbargoBt_209
+    |           |   |   |       |   |           |-> ?_EMinStateNoneOrExited_210
+    |           |   |   |       |   |           |   |-> c_q_em_in_NONE_211
+    |           |   |   |       |   |           |   L-> c_q_em_in_EXITED_212
+    |           |   |   |       |   |           |-> >_ConsiderAbandoningProposedEmbargo_213
+    |           |   |   |       |   |           |   |-> c_q_em_in_PROPOSED_214
+    |           |   |   |       |   |           |   |-> ?_SufficientCauseToAbandonProposedEmbargo_215
+    |           |   |   |       |   |           |   |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_216
+    |           |   |   |       |   |           |   |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_217
+    |           |   |   |       |   |           |   |   |       |-> ^_CSinStatePublicUnaware_218
+    |           |   |   |       |   |           |   |   |       |   L-> c_CSinStatePublicAware_219
+    |           |   |   |       |   |           |   |   |       |-> ^_CSinStateNoExploitPublic_220
+    |           |   |   |       |   |           |   |   |       |   L-> c_CSinStateExploitPublic_221
+    |           |   |   |       |   |           |   |   |       L-> ^_CSinStateNoAttacksObserved_222
+    |           |   |   |       |   |           |   |   |           L-> c_CSinStateAttacksObserved_223
+    |           |   |   |       |   |           |   |   L-> ?_OtherReasonToExitEmbargo_224
+    |           |   |   |       |   |           |   |       |-> >_MaybeExitWhenDeployed_225
+    |           |   |   |       |   |           |   |       |   |-> c_CSinStateFixDeployed_226
+    |           |   |   |       |   |           |   |       |   L-> z_ExitEmbargoWhenDeployed_227
+    |           |   |   |       |   |           |   |       |-> >_MaybeExitWhenFixReady_228
+    |           |   |   |       |   |           |   |       |   |-> c_CSinStateFixReady_229
+    |           |   |   |       |   |           |   |       |   |-> ^_RoleIsNotDeployer_230
+    |           |   |   |       |   |           |   |       |   |   L-> c_RoleIsDeployer_231
+    |           |   |   |       |   |           |   |       |   L-> z_ExitEmbargoWhenFixReady_232
+    |           |   |   |       |   |           |   |       L-> z_ExitEmbargoForOtherReason_233
+    |           |   |   |       |   |           |   |-> ?_transition_q_em_to_NONE_234
+    |           |   |   |       |   |           |   |   |-> c_q_em_in_NONE_235
+    |           |   |   |       |   |           |   |   L-> >_transition_to_q_em_NONE_if_allowed_236
+    |           |   |   |       |   |           |   |       |-> ?_allowed_start_states_for_q_em_NONE_237
+    |           |   |   |       |   |           |   |       |   |-> c_q_em_in_PROPOSED_238
+    |           |   |   |       |   |           |   |       |   L-> c_q_em_in_NONE_239
+    |           |   |   |       |   |           |   |       L-> a_q_em_to_NONE_240
+    |           |   |   |       |   |           |   L-> !_Emit_ER_241
+    |           |   |   |       |   |           L-> >_ConsiderTerminatingActiveEmbargo_242
+    |           |   |   |       |   |               |-> ?_EMinStateActiveOrRevise_243
+    |           |   |   |       |   |               |   |-> c_q_em_in_ACTIVE_244
+    |           |   |   |       |   |               |   L-> c_q_em_in_REVISE_245
+    |           |   |   |       |   |               |-> ?_SufficientCauseToTerminateActiveEmbargo_246
+    |           |   |   |       |   |               |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_247
+    |           |   |   |       |   |               |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_248
+    |           |   |   |       |   |               |   |       |-> ^_CSinStatePublicUnaware_249
+    |           |   |   |       |   |               |   |       |   L-> c_CSinStatePublicAware_250
+    |           |   |   |       |   |               |   |       |-> ^_CSinStateNoExploitPublic_251
+    |           |   |   |       |   |               |   |       |   L-> c_CSinStateExploitPublic_252
+    |           |   |   |       |   |               |   |       L-> ^_CSinStateNoAttacksObserved_253
+    |           |   |   |       |   |               |   |           L-> c_CSinStateAttacksObserved_254
+    |           |   |   |       |   |               |   |-> z_EmbargoTimerExpired_255
+    |           |   |   |       |   |               |   L-> ?_OtherReasonToExitEmbargo_256
+    |           |   |   |       |   |               |       |-> >_MaybeExitWhenDeployed_257
+    |           |   |   |       |   |               |       |   |-> c_CSinStateFixDeployed_258
+    |           |   |   |       |   |               |       |   L-> z_ExitEmbargoWhenDeployed_259
+    |           |   |   |       |   |               |       |-> >_MaybeExitWhenFixReady_260
+    |           |   |   |       |   |               |       |   |-> c_CSinStateFixReady_261
+    |           |   |   |       |   |               |       |   |-> ^_RoleIsNotDeployer_262
+    |           |   |   |       |   |               |       |   |   L-> c_RoleIsDeployer_263
+    |           |   |   |       |   |               |       |   L-> z_ExitEmbargoWhenFixReady_264
+    |           |   |   |       |   |               |       L-> z_ExitEmbargoForOtherReason_265
+    |           |   |   |       |   |               |-> OnEmbargoExit_266
+    |           |   |   |       |   |               |-> ?_transition_q_em_to_EXITED_267
+    |           |   |   |       |   |               |   |-> c_q_em_in_EXITED_268
+    |           |   |   |       |   |               |   L-> >_transition_to_q_em_EXITED_if_allowed_269
+    |           |   |   |       |   |               |       |-> ?_allowed_start_states_for_q_em_EXITED_270
+    |           |   |   |       |   |               |       |   |-> c_q_em_in_ACTIVE_271
+    |           |   |   |       |   |               |       |   L-> c_q_em_in_REVISE_272
+    |           |   |   |       |   |               |       L-> a_q_em_to_EXITED_273
+    |           |   |   |       |   |               L-> !_Emit_ET_274
+    |           |   |   |       |   L-> !_Emit_EK_275
+    |           |   |   |       L-> !_Emit_EE_276
+    |           |   |   |-> >_ProcessCSMessagesBt_277
+    |           |   |   |   |-> ?_IsCSMessage_278
+    |           |   |   |   |   |-> c_IsMsgType_CK_279
+    |           |   |   |   |   |-> c_IsMsgType_CV_280
+    |           |   |   |   |   |-> c_IsMsgType_CF_281
+    |           |   |   |   |   |-> c_IsMsgType_CD_282
+    |           |   |   |   |   |-> c_IsMsgType_CP_283
+    |           |   |   |   |   |-> c_IsMsgType_CX_284
+    |           |   |   |   |   |-> c_IsMsgType_CA_285
+    |           |   |   |   |   L-> c_IsMsgType_CE_286
+    |           |   |   |   L-> ?__HandleCsMessageTypes_287
+    |           |   |   |       |-> c_IsMsgType_CK_288
+    |           |   |   |       |-> >__HandleAndAckNormalCsMessages_289
+    |           |   |   |       |   |-> ?__HandleAckableCsMessages_290
+    |           |   |   |       |   |   |-> >__HandleCpCxCa_291
+    |           |   |   |       |   |   |   |-> ?__CpCxCa_292
+    |           |   |   |       |   |   |   |   |-> >__HandleCp_293
+    |           |   |   |       |   |   |   |   |   |-> c_IsMsgType_CP_294
+    |           |   |   |       |   |   |   |   |   L-> ?__EnsureCsInP_295
+    |           |   |   |       |   |   |   |   |       |-> c_CSinStatePublicAware_296
+    |           |   |   |       |   |   |   |   |       L-> a_q_cs_to_P_297
+    |           |   |   |       |   |   |   |   |-> >__HandleCx_298
+    |           |   |   |       |   |   |   |   |   |-> c_IsMsgType_CX_299
+    |           |   |   |       |   |   |   |   |   L-> ?__EnsureCsInPX_300
+    |           |   |   |       |   |   |   |   |       |-> >_CSinStatePublicAwareAndExploitPublic_301
+    |           |   |   |       |   |   |   |   |       |   |-> c_CSinStatePublicAware_302
+    |           |   |   |       |   |   |   |   |       |   L-> c_CSinStateExploitPublic_303
+    |           |   |   |       |   |   |   |   |       L-> >__CsToXThenP_304
+    |           |   |   |       |   |   |   |   |           |-> ?__EnsureCsInX_305
+    |           |   |   |       |   |   |   |   |           |   |-> c_CSinStateExploitPublic_306
+    |           |   |   |       |   |   |   |   |           |   L-> a_q_cs_to_X_307
+    |           |   |   |       |   |   |   |   |           |-> ?__EnsureCsInP_308
+    |           |   |   |       |   |   |   |   |           |   |-> c_CSinStatePublicAware_309
+    |           |   |   |       |   |   |   |   |           |   L-> a_q_cs_to_P_310
+    |           |   |   |       |   |   |   |   |           L-> !_Emit_CP_311
+    |           |   |   |       |   |   |   |   L-> >__HandleCa_312
+    |           |   |   |       |   |   |   |       |-> c_IsMsgType_CA_313
+    |           |   |   |       |   |   |   |       L-> ?__EnsureCsInA_314
+    |           |   |   |       |   |   |   |           |-> c_CSinStateAttacksObserved_315
+    |           |   |   |       |   |   |   |           L-> a_q_cs_to_A_316
+    |           |   |   |       |   |   |   L-> ?_TerminateEmbargoBt_317
+    |           |   |   |       |   |   |       |-> ?_EMinStateNoneOrExited_318
+    |           |   |   |       |   |   |       |   |-> c_q_em_in_NONE_319
+    |           |   |   |       |   |   |       |   L-> c_q_em_in_EXITED_320
+    |           |   |   |       |   |   |       |-> >_ConsiderAbandoningProposedEmbargo_321
+    |           |   |   |       |   |   |       |   |-> c_q_em_in_PROPOSED_322
+    |           |   |   |       |   |   |       |   |-> ?_SufficientCauseToAbandonProposedEmbargo_323
+    |           |   |   |       |   |   |       |   |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_324
+    |           |   |   |       |   |   |       |   |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_325
+    |           |   |   |       |   |   |       |   |   |       |-> ^_CSinStatePublicUnaware_326
+    |           |   |   |       |   |   |       |   |   |       |   L-> c_CSinStatePublicAware_327
+    |           |   |   |       |   |   |       |   |   |       |-> ^_CSinStateNoExploitPublic_328
+    |           |   |   |       |   |   |       |   |   |       |   L-> c_CSinStateExploitPublic_329
+    |           |   |   |       |   |   |       |   |   |       L-> ^_CSinStateNoAttacksObserved_330
+    |           |   |   |       |   |   |       |   |   |           L-> c_CSinStateAttacksObserved_331
+    |           |   |   |       |   |   |       |   |   L-> ?_OtherReasonToExitEmbargo_332
+    |           |   |   |       |   |   |       |   |       |-> >_MaybeExitWhenDeployed_333
+    |           |   |   |       |   |   |       |   |       |   |-> c_CSinStateFixDeployed_334
+    |           |   |   |       |   |   |       |   |       |   L-> z_ExitEmbargoWhenDeployed_335
+    |           |   |   |       |   |   |       |   |       |-> >_MaybeExitWhenFixReady_336
+    |           |   |   |       |   |   |       |   |       |   |-> c_CSinStateFixReady_337
+    |           |   |   |       |   |   |       |   |       |   |-> ^_RoleIsNotDeployer_338
+    |           |   |   |       |   |   |       |   |       |   |   L-> c_RoleIsDeployer_339
+    |           |   |   |       |   |   |       |   |       |   L-> z_ExitEmbargoWhenFixReady_340
+    |           |   |   |       |   |   |       |   |       L-> z_ExitEmbargoForOtherReason_341
+    |           |   |   |       |   |   |       |   |-> ?_transition_q_em_to_NONE_342
+    |           |   |   |       |   |   |       |   |   |-> c_q_em_in_NONE_343
+    |           |   |   |       |   |   |       |   |   L-> >_transition_to_q_em_NONE_if_allowed_344
+    |           |   |   |       |   |   |       |   |       |-> ?_allowed_start_states_for_q_em_NONE_345
+    |           |   |   |       |   |   |       |   |       |   |-> c_q_em_in_PROPOSED_346
+    |           |   |   |       |   |   |       |   |       |   L-> c_q_em_in_NONE_347
+    |           |   |   |       |   |   |       |   |       L-> a_q_em_to_NONE_348
+    |           |   |   |       |   |   |       |   L-> !_Emit_ER_349
+    |           |   |   |       |   |   |       L-> >_ConsiderTerminatingActiveEmbargo_350
+    |           |   |   |       |   |   |           |-> ?_EMinStateActiveOrRevise_351
+    |           |   |   |       |   |   |           |   |-> c_q_em_in_ACTIVE_352
+    |           |   |   |       |   |   |           |   L-> c_q_em_in_REVISE_353
+    |           |   |   |       |   |   |           |-> ?_SufficientCauseToTerminateActiveEmbargo_354
+    |           |   |   |       |   |   |           |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_355
+    |           |   |   |       |   |   |           |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_356
+    |           |   |   |       |   |   |           |   |       |-> ^_CSinStatePublicUnaware_357
+    |           |   |   |       |   |   |           |   |       |   L-> c_CSinStatePublicAware_358
+    |           |   |   |       |   |   |           |   |       |-> ^_CSinStateNoExploitPublic_359
+    |           |   |   |       |   |   |           |   |       |   L-> c_CSinStateExploitPublic_360
+    |           |   |   |       |   |   |           |   |       L-> ^_CSinStateNoAttacksObserved_361
+    |           |   |   |       |   |   |           |   |           L-> c_CSinStateAttacksObserved_362
+    |           |   |   |       |   |   |           |   |-> z_EmbargoTimerExpired_363
+    |           |   |   |       |   |   |           |   L-> ?_OtherReasonToExitEmbargo_364
+    |           |   |   |       |   |   |           |       |-> >_MaybeExitWhenDeployed_365
+    |           |   |   |       |   |   |           |       |   |-> c_CSinStateFixDeployed_366
+    |           |   |   |       |   |   |           |       |   L-> z_ExitEmbargoWhenDeployed_367
+    |           |   |   |       |   |   |           |       |-> >_MaybeExitWhenFixReady_368
+    |           |   |   |       |   |   |           |       |   |-> c_CSinStateFixReady_369
+    |           |   |   |       |   |   |           |       |   |-> ^_RoleIsNotDeployer_370
+    |           |   |   |       |   |   |           |       |   |   L-> c_RoleIsDeployer_371
+    |           |   |   |       |   |   |           |       |   L-> z_ExitEmbargoWhenFixReady_372
+    |           |   |   |       |   |   |           |       L-> z_ExitEmbargoForOtherReason_373
+    |           |   |   |       |   |   |           |-> OnEmbargoExit_374
+    |           |   |   |       |   |   |           |-> ?_transition_q_em_to_EXITED_375
+    |           |   |   |       |   |   |           |   |-> c_q_em_in_EXITED_376
+    |           |   |   |       |   |   |           |   L-> >_transition_to_q_em_EXITED_if_allowed_377
+    |           |   |   |       |   |   |           |       |-> ?_allowed_start_states_for_q_em_EXITED_378
+    |           |   |   |       |   |   |           |       |   |-> c_q_em_in_ACTIVE_379
+    |           |   |   |       |   |   |           |       |   L-> c_q_em_in_REVISE_380
+    |           |   |   |       |   |   |           |       L-> a_q_em_to_EXITED_381
+    |           |   |   |       |   |   |           L-> !_Emit_ET_382
+    |           |   |   |       |   |   |-> c_IsMsgType_CV_383
+    |           |   |   |       |   |   |-> c_IsMsgType_CF_384
+    |           |   |   |       |   |   |-> c_IsMsgType_CD_385
+    |           |   |   |       |   |   L-> >__HandleCe_386
+    |           |   |   |       |   |       |-> c_IsMsgType_CE_387
+    |           |   |   |       |   |       L-> ?_FollowUpOnErrorMessage_388
+    |           |   |   |       |   |           |-> z_UniformSucceedFail_389
+    |           |   |   |       |   |           L-> !_Emit_GI_390
+    |           |   |   |       |   L-> !_Emit_CK_391
+    |           |   |   |       L-> !_Emit_CE_392
+    |           |   |   L-> >_ProcessMessagesOtherBt_393
+    |           |   |       |-> ?_IsGMMessage_394
+    |           |   |       |   |-> c_IsMsgType_GK_395
+    |           |   |       |   |-> c_IsMsgType_GI_396
+    |           |   |       |   L-> c_IsMsgType_GE_397
+    |           |   |       L-> ?__HandleGmMessage_398
+    |           |   |           |-> c_IsMsgType_GK_399
+    |           |   |           L-> >__HandleAckableGmMessages_400
+    |           |   |               |-> ?__HandleGmMessageTypes_401
+    |           |   |               |   |-> c_IsMsgType_GI_402
+    |           |   |               |   L-> >__HandleGeMessage_403
+    |           |   |               |       |-> c_IsMsgType_GE_404
+    |           |   |               |       L-> ?_FollowUpOnErrorMessage_405
+    |           |   |               |           |-> z_UniformSucceedFail_406
+    |           |   |               |           L-> !_Emit_GI_407
+    |           |   |               L-> !_Emit_GK_408
+    |           |   L-> a_UnsetCurrentMsg_409
+    |           L-> a_PushMessage_410
+    |-> ?_ReportManagementBt_411
+    |   |-> c_RmStart_412
+    |   |-> c_RmClosed_413
+    |   |-> >_RmReceived_414
+    |   |   |-> c_q_rm_in_RECEIVED_415
+    |   |   L-> ?_RMValidateBt_416
+    |   |       |-> c_q_rm_in_VALID_417
+    |   |       |-> >__HandleRmI_418
+    |   |       |   |-> c_q_rm_in_INVALID_419
+    |   |       |   L-> ?__EnsureAdequateValidationInfo_420
+    |   |       |       |-> z_EnoughValidationInfo_421
+    |   |       |       L-> >__GetMoreValidationInfo_422
+    |   |       |           |-> z_GatherValidationInfo_423
+    |   |       |           L-> z_NoNewValidationInfo_424
+    |   |       |-> >__ValidationSequence_425
+    |   |       |   |-> ?_RMinStateReceivedOrInvalid_426
+    |   |       |   |   |-> c_q_rm_in_RECEIVED_427
+    |   |       |   |   L-> c_q_rm_in_INVALID_428
+    |   |       |   |-> z_EvaluateReportCredibility_429
+    |   |       |   |-> z_EvaluateReportValidity_430
+    |   |       |   L-> >__ValidateReport_431
+    |   |       |       |-> ?_transition_q_rm_to_VALID_432
+    |   |       |       |   |-> c_q_rm_in_VALID_433
+    |   |       |       |   L-> >_transition_to_q_rm_VALID_if_allowed_434
+    |   |       |       |       |-> ?_allowed_start_states_for_q_rm_VALID_435
+    |   |       |       |       |   |-> c_q_rm_in_RECEIVED_436
+    |   |       |       |       |   L-> c_q_rm_in_INVALID_437
+    |   |       |       |       L-> a_q_rm_to_VALID_438
+    |   |       |       L-> !_Emit_RV_439
+    |   |       L-> >__InvalidateReport_440
+    |   |           |-> ?_transition_q_rm_to_INVALID_441
+    |   |           |   |-> c_q_rm_in_INVALID_442
+    |   |           |   L-> >_transition_to_q_rm_INVALID_if_allowed_443
+    |   |           |       |-> ?_allowed_start_states_for_q_rm_INVALID_444
+    |   |           |       |   L-> c_q_rm_in_RECEIVED_445
+    |   |           |       L-> a_q_rm_to_INVALID_446
+    |   |           L-> !_Emit_RI_447
+    |   |-> >_RmInvalid_448
+    |   |   |-> c_q_rm_in_INVALID_449
+    |   |   L-> ?_CloseOrValidate_450
+    |   |       |-> ?_RMCloseBt_451
+    |   |       |   |-> c_q_rm_in_CLOSED_452
+    |   |       |   L-> >__ReportClosureSequence_453
+    |   |       |       |-> >__CloseCriteriaMet_454
+    |   |       |       |   |-> ?__DeployedDeferredOrInvalid_455
+    |   |       |       |   |   |-> c_CSinStateFixDeployed_456
+    |   |       |       |   |   |-> c_q_rm_in_DEFERRED_457
+    |   |       |       |   |   L-> c_q_rm_in_INVALID_458
+    |   |       |       |   L-> z_OtherCloseCriteriaMet_459
+    |   |       |       |-> PreCloseAction_460
+    |   |       |       L-> >__CloseAndNotify_461
+    |   |       |           |-> ?_transition_q_rm_to_CLOSED_462
+    |   |       |           |   |-> c_q_rm_in_CLOSED_463
+    |   |       |           |   L-> >_transition_to_q_rm_CLOSED_if_allowed_464
+    |   |       |           |       |-> ?_allowed_start_states_for_q_rm_CLOSED_465
+    |   |       |           |       |   |-> c_q_rm_in_INVALID_466
+    |   |       |           |       |   |-> c_q_rm_in_DEFERRED_467
+    |   |       |           |       |   L-> c_q_rm_in_ACCEPTED_468
+    |   |       |           |       L-> a_q_rm_to_CLOSED_469
+    |   |       |           L-> !_Emit_RC_470
+    |   |       L-> ?_RMValidateBt_471
+    |   |           |-> c_q_rm_in_VALID_472
+    |   |           |-> >__HandleRmI_473
+    |   |           |   |-> c_q_rm_in_INVALID_474
+    |   |           |   L-> ?__EnsureAdequateValidationInfo_475
+    |   |           |       |-> z_EnoughValidationInfo_476
+    |   |           |       L-> >__GetMoreValidationInfo_477
+    |   |           |           |-> z_GatherValidationInfo_478
+    |   |           |           L-> z_NoNewValidationInfo_479
+    |   |           |-> >__ValidationSequence_480
+    |   |           |   |-> ?_RMinStateReceivedOrInvalid_481
+    |   |           |   |   |-> c_q_rm_in_RECEIVED_482
+    |   |           |   |   L-> c_q_rm_in_INVALID_483
+    |   |           |   |-> z_EvaluateReportCredibility_484
+    |   |           |   |-> z_EvaluateReportValidity_485
+    |   |           |   L-> >__ValidateReport_486
+    |   |           |       |-> ?_transition_q_rm_to_VALID_487
+    |   |           |       |   |-> c_q_rm_in_VALID_488
+    |   |           |       |   L-> >_transition_to_q_rm_VALID_if_allowed_489
+    |   |           |       |       |-> ?_allowed_start_states_for_q_rm_VALID_490
+    |   |           |       |       |   |-> c_q_rm_in_RECEIVED_491
+    |   |           |       |       |   L-> c_q_rm_in_INVALID_492
+    |   |           |       |       L-> a_q_rm_to_VALID_493
+    |   |           |       L-> !_Emit_RV_494
+    |   |           L-> >__InvalidateReport_495
+    |   |               |-> ?_transition_q_rm_to_INVALID_496
+    |   |               |   |-> c_q_rm_in_INVALID_497
+    |   |               |   L-> >_transition_to_q_rm_INVALID_if_allowed_498
+    |   |               |       |-> ?_allowed_start_states_for_q_rm_INVALID_499
+    |   |               |       |   L-> c_q_rm_in_RECEIVED_500
+    |   |               |       L-> a_q_rm_to_INVALID_501
+    |   |               L-> !_Emit_RI_502
+    |   |-> >_RmValid_503
+    |   |   |-> c_q_rm_in_VALID_504
+    |   |   L-> ?_RMPrioritizeBt_505
+    |   |       |-> >__ConsiderGatheringMorePrioritizationInfo_506
+    |   |       |   |-> ?_RMinStateDeferredOrAccepted_507
+    |   |       |   |   |-> c_q_rm_in_DEFERRED_508
+    |   |       |   |   L-> c_q_rm_in_ACCEPTED_509
+    |   |       |   L-> ?__EnsureAdequatePrioritizationInfo_510
+    |   |       |       |-> z_EnoughPrioritizationInfo_511
+    |   |       |       L-> >__GetMorePrioritizationInfo_512
+    |   |       |           |-> z_GatherPrioritizationInfo_513
+    |   |       |           L-> z_NoNewPrioritizationInfo_514
+    |   |       |-> >__DecideIfFurtherActionNeeded_515
+    |   |       |   |-> ?_RMinStateValidOrDeferredOrAccepted_516
+    |   |       |   |   |-> c_q_rm_in_VALID_517
+    |   |       |   |   |-> c_q_rm_in_DEFERRED_518
+    |   |       |   |   L-> c_q_rm_in_ACCEPTED_519
+    |   |       |   |-> a_EvaluatePriority_520
+    |   |       |   |-> c_PriorityNotDefer_521
+    |   |       |   L-> ?__EnsureRmAccepted_522
+    |   |       |       |-> c_q_rm_in_ACCEPTED_523
+    |   |       |       L-> >__TransitionToRmAccepted_524
+    |   |       |           |-> OnAccept_525
+    |   |       |           |-> ?_transition_q_rm_to_ACCEPTED_526
+    |   |       |           |   |-> c_q_rm_in_ACCEPTED_527
+    |   |       |           |   L-> >_transition_to_q_rm_ACCEPTED_if_allowed_528
+    |   |       |           |       |-> ?_allowed_start_states_for_q_rm_ACCEPTED_529
+    |   |       |           |       |   |-> c_q_rm_in_VALID_530
+    |   |       |           |       |   L-> c_q_rm_in_DEFERRED_531
+    |   |       |           |       L-> a_q_rm_to_ACCEPTED_532
+    |   |       |           L-> !_Emit_RA_533
+    |   |       L-> ?__EnsureRmDeferred_534
+    |   |           |-> c_q_rm_in_DEFERRED_535
+    |   |           L-> >__TransitionToRmDeferred_536
+    |   |               |-> OnDefer_537
+    |   |               |-> ?_transition_q_rm_to_DEFERRED_538
+    |   |               |   |-> c_q_rm_in_DEFERRED_539
+    |   |               |   L-> >_transition_to_q_rm_DEFERRED_if_allowed_540
+    |   |               |       |-> ?_allowed_start_states_for_q_rm_DEFERRED_541
+    |   |               |       |   |-> c_q_rm_in_VALID_542
+    |   |               |       |   L-> c_q_rm_in_ACCEPTED_543
+    |   |               |       L-> a_q_rm_to_DEFERRED_544
+    |   |               L-> !_Emit_RD_545
+    |   |-> >_RmDeferred_546
+    |   |   |-> c_q_rm_in_DEFERRED_547
+    |   |   L-> ?_CloseOrPrioritize_548
+    |   |       |-> ?_RMCloseBt_549
+    |   |       |   |-> c_q_rm_in_CLOSED_550
+    |   |       |   L-> >__ReportClosureSequence_551
+    |   |       |       |-> >__CloseCriteriaMet_552
+    |   |       |       |   |-> ?__DeployedDeferredOrInvalid_553
+    |   |       |       |   |   |-> c_CSinStateFixDeployed_554
+    |   |       |       |   |   |-> c_q_rm_in_DEFERRED_555
+    |   |       |       |   |   L-> c_q_rm_in_INVALID_556
+    |   |       |       |   L-> z_OtherCloseCriteriaMet_557
+    |   |       |       |-> PreCloseAction_558
+    |   |       |       L-> >__CloseAndNotify_559
+    |   |       |           |-> ?_transition_q_rm_to_CLOSED_560
+    |   |       |           |   |-> c_q_rm_in_CLOSED_561
+    |   |       |           |   L-> >_transition_to_q_rm_CLOSED_if_allowed_562
+    |   |       |           |       |-> ?_allowed_start_states_for_q_rm_CLOSED_563
+    |   |       |           |       |   |-> c_q_rm_in_INVALID_564
+    |   |       |           |       |   |-> c_q_rm_in_DEFERRED_565
+    |   |       |           |       |   L-> c_q_rm_in_ACCEPTED_566
+    |   |       |           |       L-> a_q_rm_to_CLOSED_567
+    |   |       |           L-> !_Emit_RC_568
+    |   |       L-> ?_RMPrioritizeBt_569
+    |   |           |-> >__ConsiderGatheringMorePrioritizationInfo_570
+    |   |           |   |-> ?_RMinStateDeferredOrAccepted_571
+    |   |           |   |   |-> c_q_rm_in_DEFERRED_572
+    |   |           |   |   L-> c_q_rm_in_ACCEPTED_573
+    |   |           |   L-> ?__EnsureAdequatePrioritizationInfo_574
+    |   |           |       |-> z_EnoughPrioritizationInfo_575
+    |   |           |       L-> >__GetMorePrioritizationInfo_576
+    |   |           |           |-> z_GatherPrioritizationInfo_577
+    |   |           |           L-> z_NoNewPrioritizationInfo_578
+    |   |           |-> >__DecideIfFurtherActionNeeded_579
+    |   |           |   |-> ?_RMinStateValidOrDeferredOrAccepted_580
+    |   |           |   |   |-> c_q_rm_in_VALID_581
+    |   |           |   |   |-> c_q_rm_in_DEFERRED_582
+    |   |           |   |   L-> c_q_rm_in_ACCEPTED_583
+    |   |           |   |-> a_EvaluatePriority_584
+    |   |           |   |-> c_PriorityNotDefer_585
+    |   |           |   L-> ?__EnsureRmAccepted_586
+    |   |           |       |-> c_q_rm_in_ACCEPTED_587
+    |   |           |       L-> >__TransitionToRmAccepted_588
+    |   |           |           |-> OnAccept_589
+    |   |           |           |-> ?_transition_q_rm_to_ACCEPTED_590
+    |   |           |           |   |-> c_q_rm_in_ACCEPTED_591
+    |   |           |           |   L-> >_transition_to_q_rm_ACCEPTED_if_allowed_592
+    |   |           |           |       |-> ?_allowed_start_states_for_q_rm_ACCEPTED_593
+    |   |           |           |       |   |-> c_q_rm_in_VALID_594
+    |   |           |           |       |   L-> c_q_rm_in_DEFERRED_595
+    |   |           |           |       L-> a_q_rm_to_ACCEPTED_596
+    |   |           |           L-> !_Emit_RA_597
+    |   |           L-> ?__EnsureRmDeferred_598
+    |   |               |-> c_q_rm_in_DEFERRED_599
+    |   |               L-> >__TransitionToRmDeferred_600
+    |   |                   |-> OnDefer_601
+    |   |                   |-> ?_transition_q_rm_to_DEFERRED_602
+    |   |                   |   |-> c_q_rm_in_DEFERRED_603
+    |   |                   |   L-> >_transition_to_q_rm_DEFERRED_if_allowed_604
+    |   |                   |       |-> ?_allowed_start_states_for_q_rm_DEFERRED_605
+    |   |                   |       |   |-> c_q_rm_in_VALID_606
+    |   |                   |       |   L-> c_q_rm_in_ACCEPTED_607
+    |   |                   |       L-> a_q_rm_to_DEFERRED_608
+    |   |                   L-> !_Emit_RD_609
+    |   L-> >_RmAccepted_610
+    |       |-> c_q_rm_in_ACCEPTED_611
+    |       L-> ?_CloseOrPrioritizeOrWork_612
+    |           |-> ?_RMCloseBt_613
+    |           |   |-> c_q_rm_in_CLOSED_614
+    |           |   L-> >__ReportClosureSequence_615
+    |           |       |-> >__CloseCriteriaMet_616
+    |           |       |   |-> ?__DeployedDeferredOrInvalid_617
+    |           |       |   |   |-> c_CSinStateFixDeployed_618
+    |           |       |   |   |-> c_q_rm_in_DEFERRED_619
+    |           |       |   |   L-> c_q_rm_in_INVALID_620
+    |           |       |   L-> z_OtherCloseCriteriaMet_621
+    |           |       |-> PreCloseAction_622
+    |           |       L-> >__CloseAndNotify_623
+    |           |           |-> ?_transition_q_rm_to_CLOSED_624
+    |           |           |   |-> c_q_rm_in_CLOSED_625
+    |           |           |   L-> >_transition_to_q_rm_CLOSED_if_allowed_626
+    |           |           |       |-> ?_allowed_start_states_for_q_rm_CLOSED_627
+    |           |           |       |   |-> c_q_rm_in_INVALID_628
+    |           |           |       |   |-> c_q_rm_in_DEFERRED_629
+    |           |           |       |   L-> c_q_rm_in_ACCEPTED_630
+    |           |           |       L-> a_q_rm_to_CLOSED_631
+    |           |           L-> !_Emit_RC_632
+    |           L-> >_PrioritizeDoWork_633
+    |               |-> ?_RMPrioritizeBt_634
+    |               |   |-> >__ConsiderGatheringMorePrioritizationInfo_635
+    |               |   |   |-> ?_RMinStateDeferredOrAccepted_636
+    |               |   |   |   |-> c_q_rm_in_DEFERRED_637
+    |               |   |   |   L-> c_q_rm_in_ACCEPTED_638
+    |               |   |   L-> ?__EnsureAdequatePrioritizationInfo_639
+    |               |   |       |-> z_EnoughPrioritizationInfo_640
+    |               |   |       L-> >__GetMorePrioritizationInfo_641
+    |               |   |           |-> z_GatherPrioritizationInfo_642
+    |               |   |           L-> z_NoNewPrioritizationInfo_643
+    |               |   |-> >__DecideIfFurtherActionNeeded_644
+    |               |   |   |-> ?_RMinStateValidOrDeferredOrAccepted_645
+    |               |   |   |   |-> c_q_rm_in_VALID_646
+    |               |   |   |   |-> c_q_rm_in_DEFERRED_647
+    |               |   |   |   L-> c_q_rm_in_ACCEPTED_648
+    |               |   |   |-> a_EvaluatePriority_649
+    |               |   |   |-> c_PriorityNotDefer_650
+    |               |   |   L-> ?__EnsureRmAccepted_651
+    |               |   |       |-> c_q_rm_in_ACCEPTED_652
+    |               |   |       L-> >__TransitionToRmAccepted_653
+    |               |   |           |-> OnAccept_654
+    |               |   |           |-> ?_transition_q_rm_to_ACCEPTED_655
+    |               |   |           |   |-> c_q_rm_in_ACCEPTED_656
+    |               |   |           |   L-> >_transition_to_q_rm_ACCEPTED_if_allowed_657
+    |               |   |           |       |-> ?_allowed_start_states_for_q_rm_ACCEPTED_658
+    |               |   |           |       |   |-> c_q_rm_in_VALID_659
+    |               |   |           |       |   L-> c_q_rm_in_DEFERRED_660
+    |               |   |           |       L-> a_q_rm_to_ACCEPTED_661
+    |               |   |           L-> !_Emit_RA_662
+    |               |   L-> ?__EnsureRmDeferred_663
+    |               |       |-> c_q_rm_in_DEFERRED_664
+    |               |       L-> >__TransitionToRmDeferred_665
+    |               |           |-> OnDefer_666
+    |               |           |-> ?_transition_q_rm_to_DEFERRED_667
+    |               |           |   |-> c_q_rm_in_DEFERRED_668
+    |               |           |   L-> >_transition_to_q_rm_DEFERRED_if_allowed_669
+    |               |           |       |-> ?_allowed_start_states_for_q_rm_DEFERRED_670
+    |               |           |       |   |-> c_q_rm_in_VALID_671
+    |               |           |       |   L-> c_q_rm_in_ACCEPTED_672
+    |               |           |       L-> a_q_rm_to_DEFERRED_673
+    |               |           L-> !_Emit_RD_674
+    |               L-> ?_RMDoWorkBt_675
+    |                   |-> ?_Deployment_676
+    |                   |   |-> c_CSinStateFixDeployed_677
+    |                   |   |-> >__ShouldStayInRmDeferred_678
+    |                   |   |   |-> c_q_rm_in_DEFERRED_679
+    |                   |   |   L-> z_NoNewDeploymentInfo_680
+    |                   |   |-> >__DeployIfDesired_681
+    |                   |   |   |-> c_RoleIsDeployer_682
+    |                   |   |   |-> ?__DecideWhetherToDeploy_683
+    |                   |   |   |   |-> c_q_rm_in_DEFERRED_684
+    |                   |   |   |   |-> c_q_rm_in_ACCEPTED_685
+    |                   |   |   |   |-> >__DecideToAcceptDeploymentTasking_686
+    |                   |   |   |   |   |-> z_PrioritizeDeployment_687
+    |                   |   |   |   |   |-> ?_transition_q_rm_to_ACCEPTED_688
+    |                   |   |   |   |   |   |-> c_q_rm_in_ACCEPTED_689
+    |                   |   |   |   |   |   L-> >_transition_to_q_rm_ACCEPTED_if_allowed_690
+    |                   |   |   |   |   |       |-> ?_allowed_start_states_for_q_rm_ACCEPTED_691
+    |                   |   |   |   |   |       |   |-> c_q_rm_in_VALID_692
+    |                   |   |   |   |   |       |   L-> c_q_rm_in_DEFERRED_693
+    |                   |   |   |   |   |       L-> a_q_rm_to_ACCEPTED_694
+    |                   |   |   |   |   L-> !_Emit_RA_695
+    |                   |   |   |   L-> >__DeferDeploymentTasking_696
+    |                   |   |   |       |-> ?_transition_q_rm_to_DEFERRED_697
+    |                   |   |   |       |   |-> c_q_rm_in_DEFERRED_698
+    |                   |   |   |       |   L-> >_transition_to_q_rm_DEFERRED_if_allowed_699
+    |                   |   |   |       |       |-> ?_allowed_start_states_for_q_rm_DEFERRED_700
+    |                   |   |   |       |       |   |-> c_q_rm_in_VALID_701
+    |                   |   |   |       |       |   L-> c_q_rm_in_ACCEPTED_702
+    |                   |   |   |       |       L-> a_q_rm_to_DEFERRED_703
+    |                   |   |   |       L-> !_Emit_RD_704
+    |                   |   |   L-> ?__Deploy_705
+    |                   |   |       |-> c_q_rm_in_DEFERRED_706
+    |                   |   |       |-> c_CSinStateFixDeployed_707
+    |                   |   |       |-> >__DeployFixWhenReady_708
+    |                   |   |       |   |-> ?__DecideAbilityToDeploy_709
+    |                   |   |       |   |   |-> c_RoleIsVendor_710
+    |                   |   |       |   |   L-> >_CSinStateNotDeployedButPublicAware_711
+    |                   |   |       |   |       |-> ^_CSinStateFixNotDeployed_712
+    |                   |   |       |   |       |   L-> c_CSinStateFixDeployed_713
+    |                   |   |       |   |       L-> c_CSinStatePublicAware_714
+    |                   |   |       |   |-> >_CSinStateVendorAwareFixReadyFixNotDeployed_715
+    |                   |   |       |   |   |-> c_CSinStateVendorAware_716
+    |                   |   |       |   |   |-> c_CSinStateFixReady_717
+    |                   |   |       |   |   L-> ^_CSinStateFixNotDeployed_718
+    |                   |   |       |   |       L-> c_CSinStateFixDeployed_719
+    |                   |   |       |   |-> z_DeployFix_720
+    |                   |   |       |   |-> >_q_cs_to_D_721
+    |                   |   |       |   |   |-> >_CSinStateVendorAwareAndFixReady_722
+    |                   |   |       |   |   |   |-> c_CSinStateVendorAware_723
+    |                   |   |       |   |   |   L-> c_CSinStateFixReady_724
+    |                   |   |       |   |   L-> a__q_cs_to_D_725
+    |                   |   |       |   L-> !_Emit_CD_726
+    |                   |   |       |-> z_MitigationDeployed_727
+    |                   |   |       L-> >__DeployMitigationWhenReady_728
+    |                   |   |           |-> z_MitigationAvailable_729
+    |                   |   |           L-> z_DeployMitigation_730
+    |                   |   L-> >__MonitorDeploymentIfDesired_731
+    |                   |       |-> z_MonitoringRequirement_732
+    |                   |       L-> MonitorDeployment_733
+    |                   |-> ?_DevelopFix_734
+    |                   |   |-> ^_RoleIsNotVendor_735
+    |                   |   |   L-> c_RoleIsVendor_736
+    |                   |   |-> >_CSinStateVendorAwareAndFixReady_737
+    |                   |   |   |-> c_CSinStateVendorAware_738
+    |                   |   |   L-> c_CSinStateFixReady_739
+    |                   |   L-> >__CreateFixForAcceptedReports_740
+    |                   |       |-> c_q_rm_in_ACCEPTED_741
+    |                   |       |-> z_CreateFix_742
+    |                   |       |-> >_q_cs_to_F_743
+    |                   |       |   |-> c_CSinStateVendorAware_744
+    |                   |       |   L-> a__q_cs_to_F_745
+    |                   |       L-> !_Emit_CF_746
+    |                   |-> >_MaybeReportToOthers_747
+    |                   |   |-> z_HaveReportToOthersCapability_748
+    |                   |   L-> ?__ReportToOthers_749
+    |                   |       |-> ^__TotalEffortLimitMet_750
+    |                   |       |   L-> c_ReportingEffortAvailable_751
+    |                   |       L-> >__IdentifyAndNotifyParticipants_752
+    |                   |           |-> ?__IdentifyParticipants_753
+    |                   |           |   |-> z_AllPartiesKnown_754
+    |                   |           |   L-> >__IdentifyPotentialCaseParticipants_755
+    |                   |           |       |-> >__IdentifyVendors_756
+    |                   |           |       |   |-> z_MoreVendors_757
+    |                   |           |       |   L-> InjectVendor_758
+    |                   |           |       |-> >__IdentifyCoordinators_759
+    |                   |           |       |   |-> z_MoreCoordinators_760
+    |                   |           |       |   L-> InjectCoordinator_761
+    |                   |           |       L-> >__IdentifyOthers_762
+    |                   |           |           |-> z_MoreOthers_763
+    |                   |           |           L-> InjectOther_764
+    |                   |           L-> ?__NotifyOthers_765
+    |                   |               |-> z_NotificationsComplete_766
+    |                   |               L-> >__SelectAndProcessRecipient_767
+    |                   |                   |-> ChooseRecipient_768
+    |                   |                   L-> ?__PruneOrNotifyRecipient_769
+    |                   |                       |-> >__PruneRecipients_770
+    |                   |                       |   |-> ?__DecideWhetherToPruneRecipient_771
+    |                   |                       |   |   |-> z_RcptNotInQrmS_772
+    |                   |                       |   |   L-> z_RecipientEffortExceeded_773
+    |                   |                       |   L-> a_RemoveRecipient_774
+    |                   |                       L-> >__NotifyRecipient_775
+    |                   |                           |-> ?__EnsureOkToNotify_776
+    |                   |                           |   |-> ?_EMinStateNoneOrProposeOrRevise_777
+    |                   |                           |   |   |-> c_q_em_in_NONE_778
+    |                   |                           |   |   |-> c_q_em_in_PROPOSED_779
+    |                   |                           |   |   L-> c_q_em_in_REVISE_780
+    |                   |                           |   L-> >__EnsureRcptPolicyCompatibleWithExistingEmbargo_781
+    |                   |                           |       |-> ?_EMinStateActiveOrRevise_782
+    |                   |                           |       |   |-> c_q_em_in_ACTIVE_783
+    |                   |                           |       |   L-> c_q_em_in_REVISE_784
+    |                   |                           |       L-> z_PolicyCompatible_785
+    |                   |                           |-> z_FindContact_786
+    |                   |                           L-> >__EngageParticipant_787
+    |                   |                               |-> a_ReportToNewParticipant_788
+    |                   |                               |-> a_ConnectNewParticipantToCase_789
+    |                   |                               L-> a_BringNewParticipantUpToSpeed_790
+    |                   |-> ?_MonitorThreats_791
+    |                   |   |-> >__EndEmbargoIfEventsWarrant_792
+    |                   |   |   |-> =__MonitorExternalEvents_793
+    |                   |   |   |   |-> >__NoticeAttack_794
+    |                   |   |   |   |   |-> z_MonitorAttacks_795
+    |                   |   |   |   |   |-> a_q_cs_to_A_796
+    |                   |   |   |   |   L-> !_Emit_CA_797
+    |                   |   |   |   |-> >__NoticeExploit_798
+    |                   |   |   |   |   |-> z_MonitorExploits_799
+    |                   |   |   |   |   |-> ?__EnsureCsInPublic_800
+    |                   |   |   |   |   |   |-> c_CSinStatePublicAware_801
+    |                   |   |   |   |   |   L-> >__MoveToCsPublic_802
+    |                   |   |   |   |   |       |-> a_q_cs_to_P_803
+    |                   |   |   |   |   |       L-> !_Emit_CP_804
+    |                   |   |   |   |   |-> a_q_cs_to_X_805
+    |                   |   |   |   |   L-> !_Emit_CX_806
+    |                   |   |   |   L-> >__NoticePublicReport_807
+    |                   |   |   |       |-> z_MonitorPublicReports_808
+    |                   |   |   |       L-> >__MoveToCsPublic_809
+    |                   |   |   |           |-> a_q_cs_to_P_810
+    |                   |   |   |           L-> !_Emit_CP_811
+    |                   |   |   L-> ?_TerminateEmbargoBt_812
+    |                   |   |       |-> ?_EMinStateNoneOrExited_813
+    |                   |   |       |   |-> c_q_em_in_NONE_814
+    |                   |   |       |   L-> c_q_em_in_EXITED_815
+    |                   |   |       |-> >_ConsiderAbandoningProposedEmbargo_816
+    |                   |   |       |   |-> c_q_em_in_PROPOSED_817
+    |                   |   |       |   |-> ?_SufficientCauseToAbandonProposedEmbargo_818
+    |                   |   |       |   |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_819
+    |                   |   |       |   |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_820
+    |                   |   |       |   |   |       |-> ^_CSinStatePublicUnaware_821
+    |                   |   |       |   |   |       |   L-> c_CSinStatePublicAware_822
+    |                   |   |       |   |   |       |-> ^_CSinStateNoExploitPublic_823
+    |                   |   |       |   |   |       |   L-> c_CSinStateExploitPublic_824
+    |                   |   |       |   |   |       L-> ^_CSinStateNoAttacksObserved_825
+    |                   |   |       |   |   |           L-> c_CSinStateAttacksObserved_826
+    |                   |   |       |   |   L-> ?_OtherReasonToExitEmbargo_827
+    |                   |   |       |   |       |-> >_MaybeExitWhenDeployed_828
+    |                   |   |       |   |       |   |-> c_CSinStateFixDeployed_829
+    |                   |   |       |   |       |   L-> z_ExitEmbargoWhenDeployed_830
+    |                   |   |       |   |       |-> >_MaybeExitWhenFixReady_831
+    |                   |   |       |   |       |   |-> c_CSinStateFixReady_832
+    |                   |   |       |   |       |   |-> ^_RoleIsNotDeployer_833
+    |                   |   |       |   |       |   |   L-> c_RoleIsDeployer_834
+    |                   |   |       |   |       |   L-> z_ExitEmbargoWhenFixReady_835
+    |                   |   |       |   |       L-> z_ExitEmbargoForOtherReason_836
+    |                   |   |       |   |-> ?_transition_q_em_to_NONE_837
+    |                   |   |       |   |   |-> c_q_em_in_NONE_838
+    |                   |   |       |   |   L-> >_transition_to_q_em_NONE_if_allowed_839
+    |                   |   |       |   |       |-> ?_allowed_start_states_for_q_em_NONE_840
+    |                   |   |       |   |       |   |-> c_q_em_in_PROPOSED_841
+    |                   |   |       |   |       |   L-> c_q_em_in_NONE_842
+    |                   |   |       |   |       L-> a_q_em_to_NONE_843
+    |                   |   |       |   L-> !_Emit_ER_844
+    |                   |   |       L-> >_ConsiderTerminatingActiveEmbargo_845
+    |                   |   |           |-> ?_EMinStateActiveOrRevise_846
+    |                   |   |           |   |-> c_q_em_in_ACTIVE_847
+    |                   |   |           |   L-> c_q_em_in_REVISE_848
+    |                   |   |           |-> ?_SufficientCauseToTerminateActiveEmbargo_849
+    |                   |   |           |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_850
+    |                   |   |           |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_851
+    |                   |   |           |   |       |-> ^_CSinStatePublicUnaware_852
+    |                   |   |           |   |       |   L-> c_CSinStatePublicAware_853
+    |                   |   |           |   |       |-> ^_CSinStateNoExploitPublic_854
+    |                   |   |           |   |       |   L-> c_CSinStateExploitPublic_855
+    |                   |   |           |   |       L-> ^_CSinStateNoAttacksObserved_856
+    |                   |   |           |   |           L-> c_CSinStateAttacksObserved_857
+    |                   |   |           |   |-> z_EmbargoTimerExpired_858
+    |                   |   |           |   L-> ?_OtherReasonToExitEmbargo_859
+    |                   |   |           |       |-> >_MaybeExitWhenDeployed_860
+    |                   |   |           |       |   |-> c_CSinStateFixDeployed_861
+    |                   |   |           |       |   L-> z_ExitEmbargoWhenDeployed_862
+    |                   |   |           |       |-> >_MaybeExitWhenFixReady_863
+    |                   |   |           |       |   |-> c_CSinStateFixReady_864
+    |                   |   |           |       |   |-> ^_RoleIsNotDeployer_865
+    |                   |   |           |       |   |   L-> c_RoleIsDeployer_866
+    |                   |   |           |       |   L-> z_ExitEmbargoWhenFixReady_867
+    |                   |   |           |       L-> z_ExitEmbargoForOtherReason_868
+    |                   |   |           |-> OnEmbargoExit_869
+    |                   |   |           |-> ?_transition_q_em_to_EXITED_870
+    |                   |   |           |   |-> c_q_em_in_EXITED_871
+    |                   |   |           |   L-> >_transition_to_q_em_EXITED_if_allowed_872
+    |                   |   |           |       |-> ?_allowed_start_states_for_q_em_EXITED_873
+    |                   |   |           |       |   |-> c_q_em_in_ACTIVE_874
+    |                   |   |           |       |   L-> c_q_em_in_REVISE_875
+    |                   |   |           |       L-> a_q_em_to_EXITED_876
+    |                   |   |           L-> !_Emit_ET_877
+    |                   |   L-> NoThreatsFound_878
+    |                   |-> ?_Publication_879
+    |                   |   |-> >__EnsureAllDesiredItemsArePublished_880
+    |                   |   |   |-> ?__EnsurePublicationPriorityIsSet_881
+    |                   |   |   |   |-> z_PublicationIntentsSet_882
+    |                   |   |   |   L-> PrioritizePublicationIntents_883
+    |                   |   |   L-> z_AllPublished_884
+    |                   |   L-> >__PublishWhenReady_885
+    |                   |       |-> >__PreparePublication_886
+    |                   |       |   |-> ?__MaybePrepareExploitForPublication_887
+    |                   |       |   |   |-> z_NoPublishExploit_888
+    |                   |       |   |   |-> z_ExploitReady_889
+    |                   |       |   |   |-> ?__ReadyExploitForPublication_890
+    |                   |       |   |   |   |-> ?_AcquireExploit_891
+    |                   |       |   |   |   |   |-> z_HaveExploit_892
+    |                   |       |   |   |   |   |-> >__AcquireExploitIfDesired_893
+    |                   |       |   |   |   |   |   |-> ?__EnsureExploitPriorityIsSet_894
+    |                   |       |   |   |   |   |   |   |-> z_ExploitPrioritySet_895
+    |                   |       |   |   |   |   |   |   L-> EvaluateExploitPriority_896
+    |                   |       |   |   |   |   |   |-> z_ExploitDesired_897
+    |                   |       |   |   |   |   |   L-> ?__AttemptExploitAcquisition_898
+    |                   |       |   |   |   |   |       |-> z_FindExploit_899
+    |                   |       |   |   |   |   |       |-> z_DevelopExploit_900
+    |                   |       |   |   |   |   |       L-> z_PurchaseExploit_901
+    |                   |       |   |   |   |   L-> z_ExploitDeferred_902
+    |                   |       |   |   |   L-> z_PrepareExploit_903
+    |                   |       |   |   L-> ReprioritizeExploit_904
+    |                   |       |   |-> ?__MaybePrepareFixForPublication_905
+    |                   |       |   |   |-> z_NoPublishFix_906
+    |                   |       |   |   |-> >_CSinStateVendorAwareAndFixReady_907
+    |                   |       |   |   |   |-> c_CSinStateVendorAware_908
+    |                   |       |   |   |   L-> c_CSinStateFixReady_909
+    |                   |       |   |   |-> >__ReadyFixForPublication_910
+    |                   |       |   |   |   |-> ?_DevelopFix_911
+    |                   |       |   |   |   |   |-> ^_RoleIsNotVendor_912
+    |                   |       |   |   |   |   |   L-> c_RoleIsVendor_913
+    |                   |       |   |   |   |   |-> >_CSinStateVendorAwareAndFixReady_914
+    |                   |       |   |   |   |   |   |-> c_CSinStateVendorAware_915
+    |                   |       |   |   |   |   |   L-> c_CSinStateFixReady_916
+    |                   |       |   |   |   |   L-> >__CreateFixForAcceptedReports_917
+    |                   |       |   |   |   |       |-> c_q_rm_in_ACCEPTED_918
+    |                   |       |   |   |   |       |-> z_CreateFix_919
+    |                   |       |   |   |   |       |-> >_q_cs_to_F_920
+    |                   |       |   |   |   |       |   |-> c_CSinStateVendorAware_921
+    |                   |       |   |   |   |       |   L-> a__q_cs_to_F_922
+    |                   |       |   |   |   |       L-> !_Emit_CF_923
+    |                   |       |   |   |   L-> z_PrepareFix_924
+    |                   |       |   |   L-> ReprioritizeFix_925
+    |                   |       |   L-> ?__MaybePrepareReportForPublication_926
+    |                   |       |       |-> z_NoPublishReport_927
+    |                   |       |       |-> z_PrepareReport_928
+    |                   |       |       L-> ReprioritizeReport_929
+    |                   |       |-> ?_EmbargoManagementBt_930
+    |                   |       |   |-> ?_RMinStateStartOrClosed_931
+    |                   |       |   |   |-> c_q_rm_in_START_932
+    |                   |       |   |   L-> c_q_rm_in_CLOSED_933
+    |                   |       |   |-> c_q_em_in_EXITED_934
+    |                   |       |   |-> >_AvoidNewEmbargoWhenNotInCs_pxa_935
+    |                   |       |   |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_936
+    |                   |       |   |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_937
+    |                   |       |   |   |       |-> ^_CSinStatePublicUnaware_938
+    |                   |       |   |   |       |   L-> c_CSinStatePublicAware_939
+    |                   |       |   |   |       |-> ^_CSinStateNoExploitPublic_940
+    |                   |       |   |   |       |   L-> c_CSinStateExploitPublic_941
+    |                   |       |   |   |       L-> ^_CSinStateNoAttacksObserved_942
+    |                   |       |   |   |           L-> c_CSinStateAttacksObserved_943
+    |                   |       |   |   L-> c_q_em_in_NONE_944
+    |                   |       |   |-> >_EmNone_945
+    |                   |       |   |   |-> c_q_em_in_NONE_946
+    |                   |       |   |   L-> ?_EnsureSufficientEffortToAchieveEmbargo_947
+    |                   |       |   |       |-> z_StopProposingEmbargo_948
+    |                   |       |   |       L-> >_ProposeEmbargoBt_949
+    |                   |       |   |           |-> ?_EMinStateNoneOrPropose_950
+    |                   |       |   |           |   |-> c_q_em_in_NONE_951
+    |                   |       |   |           |   L-> c_q_em_in_PROPOSED_952
+    |                   |       |   |           |-> >_CSinStateNotPublicNoExploitNoAttacks_953
+    |                   |       |   |           |   |-> ^_CSinStatePublicUnaware_954
+    |                   |       |   |           |   |   L-> c_CSinStatePublicAware_955
+    |                   |       |   |           |   |-> ^_CSinStateNoExploitPublic_956
+    |                   |       |   |           |   |   L-> c_CSinStateExploitPublic_957
+    |                   |       |   |           |   L-> ^_CSinStateNoAttacksObserved_958
+    |                   |       |   |           |       L-> c_CSinStateAttacksObserved_959
+    |                   |       |   |           |-> ?_AvoidNewEmbargoesInCsDeployedUnlessReason_960
+    |                   |       |   |           |   |-> c_CSinStateFixDeployed_961
+    |                   |       |   |           |   L-> z_ReasonToProposeEmbargoWhenDeployed_962
+    |                   |       |   |           |-> SelectEmbargoOfferTerms_963
+    |                   |       |   |           L-> ?_ConsiderProposingEmbargo_964
+    |                   |       |   |               |-> >_AvoidCounterProposal_965
+    |                   |       |   |               |   |-> ?_EMinStateProposeOrRevise_966
+    |                   |       |   |               |   |   |-> c_q_em_in_PROPOSED_967
+    |                   |       |   |               |   |   L-> c_q_em_in_REVISE_968
+    |                   |       |   |               |   L-> ^_AvoidEmbargoCounterProposal_969
+    |                   |       |   |               |       L-> z_WillingToCounterEmbargoProposal_970
+    |                   |       |   |               |-> >_ProposeNewEmbargo_971
+    |                   |       |   |               |   |-> ?_EMinStateNoneOrPropose_972
+    |                   |       |   |               |   |   |-> c_q_em_in_NONE_973
+    |                   |       |   |               |   |   L-> c_q_em_in_PROPOSED_974
+    |                   |       |   |               |   |-> ?_transition_q_em_to_PROPOSED_975
+    |                   |       |   |               |   |   |-> c_q_em_in_PROPOSED_976
+    |                   |       |   |               |   |   L-> >_transition_to_q_em_PROPOSED_if_allowed_977
+    |                   |       |   |               |   |       |-> ?_allowed_start_states_for_q_em_PROPOSED_978
+    |                   |       |   |               |   |       |   |-> c_q_em_in_NONE_979
+    |                   |       |   |               |   |       |   L-> c_q_em_in_PROPOSED_980
+    |                   |       |   |               |   |       L-> a_q_em_to_PROPOSED_981
+    |                   |       |   |               |   L-> !_Emit_EP_982
+    |                   |       |   |               L-> >_ProposeEmbargoRevision_983
+    |                   |       |   |                   |-> ?_EMinStateActiveOrRevise_984
+    |                   |       |   |                   |   |-> c_q_em_in_ACTIVE_985
+    |                   |       |   |                   |   L-> c_q_em_in_REVISE_986
+    |                   |       |   |                   |-> ?_transition_q_em_to_REVISE_987
+    |                   |       |   |                   |   |-> c_q_em_in_REVISE_988
+    |                   |       |   |                   |   L-> >_transition_to_q_em_REVISE_if_allowed_989
+    |                   |       |   |                   |       |-> ?_allowed_start_states_for_q_em_REVISE_990
+    |                   |       |   |                   |       |   |-> c_q_em_in_ACTIVE_991
+    |                   |       |   |                   |       |   L-> c_q_em_in_REVISE_992
+    |                   |       |   |                   |       L-> a_q_em_to_REVISE_993
+    |                   |       |   |                   L-> !_Emit_EP_994
+    |                   |       |   |-> >_EmProposed_995
+    |                   |       |   |   |-> c_q_em_in_PROPOSED_996
+    |                   |       |   |   L-> ?_ChooseEmProposedResponse_997
+    |                   |       |   |       |-> ?_TerminateEmbargoBt_998
+    |                   |       |   |       |   |-> ?_EMinStateNoneOrExited_999
+    |                   |       |   |       |   |   |-> c_q_em_in_NONE_1000
+    |                   |       |   |       |   |   L-> c_q_em_in_EXITED_1001
+    |                   |       |   |       |   |-> >_ConsiderAbandoningProposedEmbargo_1002
+    |                   |       |   |       |   |   |-> c_q_em_in_PROPOSED_1003
+    |                   |       |   |       |   |   |-> ?_SufficientCauseToAbandonProposedEmbargo_1004
+    |                   |       |   |       |   |   |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1005
+    |                   |       |   |       |   |   |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1006
+    |                   |       |   |       |   |   |   |       |-> ^_CSinStatePublicUnaware_1007
+    |                   |       |   |       |   |   |   |       |   L-> c_CSinStatePublicAware_1008
+    |                   |       |   |       |   |   |   |       |-> ^_CSinStateNoExploitPublic_1009
+    |                   |       |   |       |   |   |   |       |   L-> c_CSinStateExploitPublic_1010
+    |                   |       |   |       |   |   |   |       L-> ^_CSinStateNoAttacksObserved_1011
+    |                   |       |   |       |   |   |   |           L-> c_CSinStateAttacksObserved_1012
+    |                   |       |   |       |   |   |   L-> ?_OtherReasonToExitEmbargo_1013
+    |                   |       |   |       |   |   |       |-> >_MaybeExitWhenDeployed_1014
+    |                   |       |   |       |   |   |       |   |-> c_CSinStateFixDeployed_1015
+    |                   |       |   |       |   |   |       |   L-> z_ExitEmbargoWhenDeployed_1016
+    |                   |       |   |       |   |   |       |-> >_MaybeExitWhenFixReady_1017
+    |                   |       |   |       |   |   |       |   |-> c_CSinStateFixReady_1018
+    |                   |       |   |       |   |   |       |   |-> ^_RoleIsNotDeployer_1019
+    |                   |       |   |       |   |   |       |   |   L-> c_RoleIsDeployer_1020
+    |                   |       |   |       |   |   |       |   L-> z_ExitEmbargoWhenFixReady_1021
+    |                   |       |   |       |   |   |       L-> z_ExitEmbargoForOtherReason_1022
+    |                   |       |   |       |   |   |-> ?_transition_q_em_to_NONE_1023
+    |                   |       |   |       |   |   |   |-> c_q_em_in_NONE_1024
+    |                   |       |   |       |   |   |   L-> >_transition_to_q_em_NONE_if_allowed_1025
+    |                   |       |   |       |   |   |       |-> ?_allowed_start_states_for_q_em_NONE_1026
+    |                   |       |   |       |   |   |       |   |-> c_q_em_in_PROPOSED_1027
+    |                   |       |   |       |   |   |       |   L-> c_q_em_in_NONE_1028
+    |                   |       |   |       |   |   |       L-> a_q_em_to_NONE_1029
+    |                   |       |   |       |   |   L-> !_Emit_ER_1030
+    |                   |       |   |       |   L-> >_ConsiderTerminatingActiveEmbargo_1031
+    |                   |       |   |       |       |-> ?_EMinStateActiveOrRevise_1032
+    |                   |       |   |       |       |   |-> c_q_em_in_ACTIVE_1033
+    |                   |       |   |       |       |   L-> c_q_em_in_REVISE_1034
+    |                   |       |   |       |       |-> ?_SufficientCauseToTerminateActiveEmbargo_1035
+    |                   |       |   |       |       |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1036
+    |                   |       |   |       |       |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1037
+    |                   |       |   |       |       |   |       |-> ^_CSinStatePublicUnaware_1038
+    |                   |       |   |       |       |   |       |   L-> c_CSinStatePublicAware_1039
+    |                   |       |   |       |       |   |       |-> ^_CSinStateNoExploitPublic_1040
+    |                   |       |   |       |       |   |       |   L-> c_CSinStateExploitPublic_1041
+    |                   |       |   |       |       |   |       L-> ^_CSinStateNoAttacksObserved_1042
+    |                   |       |   |       |       |   |           L-> c_CSinStateAttacksObserved_1043
+    |                   |       |   |       |       |   |-> z_EmbargoTimerExpired_1044
+    |                   |       |   |       |       |   L-> ?_OtherReasonToExitEmbargo_1045
+    |                   |       |   |       |       |       |-> >_MaybeExitWhenDeployed_1046
+    |                   |       |   |       |       |       |   |-> c_CSinStateFixDeployed_1047
+    |                   |       |   |       |       |       |   L-> z_ExitEmbargoWhenDeployed_1048
+    |                   |       |   |       |       |       |-> >_MaybeExitWhenFixReady_1049
+    |                   |       |   |       |       |       |   |-> c_CSinStateFixReady_1050
+    |                   |       |   |       |       |       |   |-> ^_RoleIsNotDeployer_1051
+    |                   |       |   |       |       |       |   |   L-> c_RoleIsDeployer_1052
+    |                   |       |   |       |       |       |   L-> z_ExitEmbargoWhenFixReady_1053
+    |                   |       |   |       |       |       L-> z_ExitEmbargoForOtherReason_1054
+    |                   |       |   |       |       |-> OnEmbargoExit_1055
+    |                   |       |   |       |       |-> ?_transition_q_em_to_EXITED_1056
+    |                   |       |   |       |       |   |-> c_q_em_in_EXITED_1057
+    |                   |       |   |       |       |   L-> >_transition_to_q_em_EXITED_if_allowed_1058
+    |                   |       |   |       |       |       |-> ?_allowed_start_states_for_q_em_EXITED_1059
+    |                   |       |   |       |       |       |   |-> c_q_em_in_ACTIVE_1060
+    |                   |       |   |       |       |       |   L-> c_q_em_in_REVISE_1061
+    |                   |       |   |       |       |       L-> a_q_em_to_EXITED_1062
+    |                   |       |   |       |       L-> !_Emit_ET_1063
+    |                   |       |   |       |-> >_EvaluateAndAcceptProposedEmbargo_1064
+    |                   |       |   |       |   |-> z_EvaluateEmbargoProposal_1065
+    |                   |       |   |       |   |-> OnEmbargoAccept_1066
+    |                   |       |   |       |   |-> ?_transition_q_em_to_ACTIVE_1067
+    |                   |       |   |       |   |   |-> c_q_em_in_ACTIVE_1068
+    |                   |       |   |       |   |   L-> >_transition_to_q_em_ACTIVE_if_allowed_1069
+    |                   |       |   |       |   |       |-> ?_allowed_start_states_for_q_em_ACTIVE_1070
+    |                   |       |   |       |   |       |   |-> c_q_em_in_PROPOSED_1071
+    |                   |       |   |       |   |       |   L-> c_q_em_in_REVISE_1072
+    |                   |       |   |       |   |       L-> a_q_em_to_ACTIVE_1073
+    |                   |       |   |       |   L-> !_Emit_EA_1074
+    |                   |       |   |       |-> >_CounterEmbargoProposal_1075
+    |                   |       |   |       |   |-> z_WillingToCounterEmbargoProposal_1076
+    |                   |       |   |       |   L-> >_ProposeEmbargoBt_1077
+    |                   |       |   |       |       |-> ?_EMinStateNoneOrPropose_1078
+    |                   |       |   |       |       |   |-> c_q_em_in_NONE_1079
+    |                   |       |   |       |       |   L-> c_q_em_in_PROPOSED_1080
+    |                   |       |   |       |       |-> >_CSinStateNotPublicNoExploitNoAttacks_1081
+    |                   |       |   |       |       |   |-> ^_CSinStatePublicUnaware_1082
+    |                   |       |   |       |       |   |   L-> c_CSinStatePublicAware_1083
+    |                   |       |   |       |       |   |-> ^_CSinStateNoExploitPublic_1084
+    |                   |       |   |       |       |   |   L-> c_CSinStateExploitPublic_1085
+    |                   |       |   |       |       |   L-> ^_CSinStateNoAttacksObserved_1086
+    |                   |       |   |       |       |       L-> c_CSinStateAttacksObserved_1087
+    |                   |       |   |       |       |-> ?_AvoidNewEmbargoesInCsDeployedUnlessReason_1088
+    |                   |       |   |       |       |   |-> c_CSinStateFixDeployed_1089
+    |                   |       |   |       |       |   L-> z_ReasonToProposeEmbargoWhenDeployed_1090
+    |                   |       |   |       |       |-> SelectEmbargoOfferTerms_1091
+    |                   |       |   |       |       L-> ?_ConsiderProposingEmbargo_1092
+    |                   |       |   |       |           |-> >_AvoidCounterProposal_1093
+    |                   |       |   |       |           |   |-> ?_EMinStateProposeOrRevise_1094
+    |                   |       |   |       |           |   |   |-> c_q_em_in_PROPOSED_1095
+    |                   |       |   |       |           |   |   L-> c_q_em_in_REVISE_1096
+    |                   |       |   |       |           |   L-> ^_AvoidEmbargoCounterProposal_1097
+    |                   |       |   |       |           |       L-> z_WillingToCounterEmbargoProposal_1098
+    |                   |       |   |       |           |-> >_ProposeNewEmbargo_1099
+    |                   |       |   |       |           |   |-> ?_EMinStateNoneOrPropose_1100
+    |                   |       |   |       |           |   |   |-> c_q_em_in_NONE_1101
+    |                   |       |   |       |           |   |   L-> c_q_em_in_PROPOSED_1102
+    |                   |       |   |       |           |   |-> ?_transition_q_em_to_PROPOSED_1103
+    |                   |       |   |       |           |   |   |-> c_q_em_in_PROPOSED_1104
+    |                   |       |   |       |           |   |   L-> >_transition_to_q_em_PROPOSED_if_allowed_1105
+    |                   |       |   |       |           |   |       |-> ?_allowed_start_states_for_q_em_PROPOSED_1106
+    |                   |       |   |       |           |   |       |   |-> c_q_em_in_NONE_1107
+    |                   |       |   |       |           |   |       |   L-> c_q_em_in_PROPOSED_1108
+    |                   |       |   |       |           |   |       L-> a_q_em_to_PROPOSED_1109
+    |                   |       |   |       |           |   L-> !_Emit_EP_1110
+    |                   |       |   |       |           L-> >_ProposeEmbargoRevision_1111
+    |                   |       |   |       |               |-> ?_EMinStateActiveOrRevise_1112
+    |                   |       |   |       |               |   |-> c_q_em_in_ACTIVE_1113
+    |                   |       |   |       |               |   L-> c_q_em_in_REVISE_1114
+    |                   |       |   |       |               |-> ?_transition_q_em_to_REVISE_1115
+    |                   |       |   |       |               |   |-> c_q_em_in_REVISE_1116
+    |                   |       |   |       |               |   L-> >_transition_to_q_em_REVISE_if_allowed_1117
+    |                   |       |   |       |               |       |-> ?_allowed_start_states_for_q_em_REVISE_1118
+    |                   |       |   |       |               |       |   |-> c_q_em_in_ACTIVE_1119
+    |                   |       |   |       |               |       |   L-> c_q_em_in_REVISE_1120
+    |                   |       |   |       |               |       L-> a_q_em_to_REVISE_1121
+    |                   |       |   |       |               L-> !_Emit_EP_1122
+    |                   |       |   |       L-> >_RejectProposedEmbargo_1123
+    |                   |       |   |           |-> OnEmbargoReject_1124
+    |                   |       |   |           |-> ?_transition_q_em_to_NONE_1125
+    |                   |       |   |           |   |-> c_q_em_in_NONE_1126
+    |                   |       |   |           |   L-> >_transition_to_q_em_NONE_if_allowed_1127
+    |                   |       |   |           |       |-> ?_allowed_start_states_for_q_em_NONE_1128
+    |                   |       |   |           |       |   |-> c_q_em_in_PROPOSED_1129
+    |                   |       |   |           |       |   L-> c_q_em_in_NONE_1130
+    |                   |       |   |           |       L-> a_q_em_to_NONE_1131
+    |                   |       |   |           L-> !_Emit_ER_1132
+    |                   |       |   |-> >_EmActive_1133
+    |                   |       |   |   |-> c_q_em_in_ACTIVE_1134
+    |                   |       |   |   L-> ?_ChooseEmActiveResponse_1135
+    |                   |       |   |       |-> ?_TerminateEmbargoBt_1136
+    |                   |       |   |       |   |-> ?_EMinStateNoneOrExited_1137
+    |                   |       |   |       |   |   |-> c_q_em_in_NONE_1138
+    |                   |       |   |       |   |   L-> c_q_em_in_EXITED_1139
+    |                   |       |   |       |   |-> >_ConsiderAbandoningProposedEmbargo_1140
+    |                   |       |   |       |   |   |-> c_q_em_in_PROPOSED_1141
+    |                   |       |   |       |   |   |-> ?_SufficientCauseToAbandonProposedEmbargo_1142
+    |                   |       |   |       |   |   |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1143
+    |                   |       |   |       |   |   |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1144
+    |                   |       |   |       |   |   |   |       |-> ^_CSinStatePublicUnaware_1145
+    |                   |       |   |       |   |   |   |       |   L-> c_CSinStatePublicAware_1146
+    |                   |       |   |       |   |   |   |       |-> ^_CSinStateNoExploitPublic_1147
+    |                   |       |   |       |   |   |   |       |   L-> c_CSinStateExploitPublic_1148
+    |                   |       |   |       |   |   |   |       L-> ^_CSinStateNoAttacksObserved_1149
+    |                   |       |   |       |   |   |   |           L-> c_CSinStateAttacksObserved_1150
+    |                   |       |   |       |   |   |   L-> ?_OtherReasonToExitEmbargo_1151
+    |                   |       |   |       |   |   |       |-> >_MaybeExitWhenDeployed_1152
+    |                   |       |   |       |   |   |       |   |-> c_CSinStateFixDeployed_1153
+    |                   |       |   |       |   |   |       |   L-> z_ExitEmbargoWhenDeployed_1154
+    |                   |       |   |       |   |   |       |-> >_MaybeExitWhenFixReady_1155
+    |                   |       |   |       |   |   |       |   |-> c_CSinStateFixReady_1156
+    |                   |       |   |       |   |   |       |   |-> ^_RoleIsNotDeployer_1157
+    |                   |       |   |       |   |   |       |   |   L-> c_RoleIsDeployer_1158
+    |                   |       |   |       |   |   |       |   L-> z_ExitEmbargoWhenFixReady_1159
+    |                   |       |   |       |   |   |       L-> z_ExitEmbargoForOtherReason_1160
+    |                   |       |   |       |   |   |-> ?_transition_q_em_to_NONE_1161
+    |                   |       |   |       |   |   |   |-> c_q_em_in_NONE_1162
+    |                   |       |   |       |   |   |   L-> >_transition_to_q_em_NONE_if_allowed_1163
+    |                   |       |   |       |   |   |       |-> ?_allowed_start_states_for_q_em_NONE_1164
+    |                   |       |   |       |   |   |       |   |-> c_q_em_in_PROPOSED_1165
+    |                   |       |   |       |   |   |       |   L-> c_q_em_in_NONE_1166
+    |                   |       |   |       |   |   |       L-> a_q_em_to_NONE_1167
+    |                   |       |   |       |   |   L-> !_Emit_ER_1168
+    |                   |       |   |       |   L-> >_ConsiderTerminatingActiveEmbargo_1169
+    |                   |       |   |       |       |-> ?_EMinStateActiveOrRevise_1170
+    |                   |       |   |       |       |   |-> c_q_em_in_ACTIVE_1171
+    |                   |       |   |       |       |   L-> c_q_em_in_REVISE_1172
+    |                   |       |   |       |       |-> ?_SufficientCauseToTerminateActiveEmbargo_1173
+    |                   |       |   |       |       |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1174
+    |                   |       |   |       |       |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1175
+    |                   |       |   |       |       |   |       |-> ^_CSinStatePublicUnaware_1176
+    |                   |       |   |       |       |   |       |   L-> c_CSinStatePublicAware_1177
+    |                   |       |   |       |       |   |       |-> ^_CSinStateNoExploitPublic_1178
+    |                   |       |   |       |       |   |       |   L-> c_CSinStateExploitPublic_1179
+    |                   |       |   |       |       |   |       L-> ^_CSinStateNoAttacksObserved_1180
+    |                   |       |   |       |       |   |           L-> c_CSinStateAttacksObserved_1181
+    |                   |       |   |       |       |   |-> z_EmbargoTimerExpired_1182
+    |                   |       |   |       |       |   L-> ?_OtherReasonToExitEmbargo_1183
+    |                   |       |   |       |       |       |-> >_MaybeExitWhenDeployed_1184
+    |                   |       |   |       |       |       |   |-> c_CSinStateFixDeployed_1185
+    |                   |       |   |       |       |       |   L-> z_ExitEmbargoWhenDeployed_1186
+    |                   |       |   |       |       |       |-> >_MaybeExitWhenFixReady_1187
+    |                   |       |   |       |       |       |   |-> c_CSinStateFixReady_1188
+    |                   |       |   |       |       |       |   |-> ^_RoleIsNotDeployer_1189
+    |                   |       |   |       |       |       |   |   L-> c_RoleIsDeployer_1190
+    |                   |       |   |       |       |       |   L-> z_ExitEmbargoWhenFixReady_1191
+    |                   |       |   |       |       |       L-> z_ExitEmbargoForOtherReason_1192
+    |                   |       |   |       |       |-> OnEmbargoExit_1193
+    |                   |       |   |       |       |-> ?_transition_q_em_to_EXITED_1194
+    |                   |       |   |       |       |   |-> c_q_em_in_EXITED_1195
+    |                   |       |   |       |       |   L-> >_transition_to_q_em_EXITED_if_allowed_1196
+    |                   |       |   |       |       |       |-> ?_allowed_start_states_for_q_em_EXITED_1197
+    |                   |       |   |       |       |       |   |-> c_q_em_in_ACTIVE_1198
+    |                   |       |   |       |       |       |   L-> c_q_em_in_REVISE_1199
+    |                   |       |   |       |       |       L-> a_q_em_to_EXITED_1200
+    |                   |       |   |       |       L-> !_Emit_ET_1201
+    |                   |       |   |       |-> z_CurrentEmbargoAcceptable_1202
+    |                   |       |   |       L-> >_ProposeEmbargoBt_1203
+    |                   |       |   |           |-> ?_EMinStateNoneOrPropose_1204
+    |                   |       |   |           |   |-> c_q_em_in_NONE_1205
+    |                   |       |   |           |   L-> c_q_em_in_PROPOSED_1206
+    |                   |       |   |           |-> >_CSinStateNotPublicNoExploitNoAttacks_1207
+    |                   |       |   |           |   |-> ^_CSinStatePublicUnaware_1208
+    |                   |       |   |           |   |   L-> c_CSinStatePublicAware_1209
+    |                   |       |   |           |   |-> ^_CSinStateNoExploitPublic_1210
+    |                   |       |   |           |   |   L-> c_CSinStateExploitPublic_1211
+    |                   |       |   |           |   L-> ^_CSinStateNoAttacksObserved_1212
+    |                   |       |   |           |       L-> c_CSinStateAttacksObserved_1213
+    |                   |       |   |           |-> ?_AvoidNewEmbargoesInCsDeployedUnlessReason_1214
+    |                   |       |   |           |   |-> c_CSinStateFixDeployed_1215
+    |                   |       |   |           |   L-> z_ReasonToProposeEmbargoWhenDeployed_1216
+    |                   |       |   |           |-> SelectEmbargoOfferTerms_1217
+    |                   |       |   |           L-> ?_ConsiderProposingEmbargo_1218
+    |                   |       |   |               |-> >_AvoidCounterProposal_1219
+    |                   |       |   |               |   |-> ?_EMinStateProposeOrRevise_1220
+    |                   |       |   |               |   |   |-> c_q_em_in_PROPOSED_1221
+    |                   |       |   |               |   |   L-> c_q_em_in_REVISE_1222
+    |                   |       |   |               |   L-> ^_AvoidEmbargoCounterProposal_1223
+    |                   |       |   |               |       L-> z_WillingToCounterEmbargoProposal_1224
+    |                   |       |   |               |-> >_ProposeNewEmbargo_1225
+    |                   |       |   |               |   |-> ?_EMinStateNoneOrPropose_1226
+    |                   |       |   |               |   |   |-> c_q_em_in_NONE_1227
+    |                   |       |   |               |   |   L-> c_q_em_in_PROPOSED_1228
+    |                   |       |   |               |   |-> ?_transition_q_em_to_PROPOSED_1229
+    |                   |       |   |               |   |   |-> c_q_em_in_PROPOSED_1230
+    |                   |       |   |               |   |   L-> >_transition_to_q_em_PROPOSED_if_allowed_1231
+    |                   |       |   |               |   |       |-> ?_allowed_start_states_for_q_em_PROPOSED_1232
+    |                   |       |   |               |   |       |   |-> c_q_em_in_NONE_1233
+    |                   |       |   |               |   |       |   L-> c_q_em_in_PROPOSED_1234
+    |                   |       |   |               |   |       L-> a_q_em_to_PROPOSED_1235
+    |                   |       |   |               |   L-> !_Emit_EP_1236
+    |                   |       |   |               L-> >_ProposeEmbargoRevision_1237
+    |                   |       |   |                   |-> ?_EMinStateActiveOrRevise_1238
+    |                   |       |   |                   |   |-> c_q_em_in_ACTIVE_1239
+    |                   |       |   |                   |   L-> c_q_em_in_REVISE_1240
+    |                   |       |   |                   |-> ?_transition_q_em_to_REVISE_1241
+    |                   |       |   |                   |   |-> c_q_em_in_REVISE_1242
+    |                   |       |   |                   |   L-> >_transition_to_q_em_REVISE_if_allowed_1243
+    |                   |       |   |                   |       |-> ?_allowed_start_states_for_q_em_REVISE_1244
+    |                   |       |   |                   |       |   |-> c_q_em_in_ACTIVE_1245
+    |                   |       |   |                   |       |   L-> c_q_em_in_REVISE_1246
+    |                   |       |   |                   |       L-> a_q_em_to_REVISE_1247
+    |                   |       |   |                   L-> !_Emit_EP_1248
+    |                   |       |   L-> >_EmRevise_1249
+    |                   |       |       |-> c_q_em_in_REVISE_1250
+    |                   |       |       L-> ?_ChooseEmReviseResponse_1251
+    |                   |       |           |-> ?_TerminateEmbargoBt_1252
+    |                   |       |           |   |-> ?_EMinStateNoneOrExited_1253
+    |                   |       |           |   |   |-> c_q_em_in_NONE_1254
+    |                   |       |           |   |   L-> c_q_em_in_EXITED_1255
+    |                   |       |           |   |-> >_ConsiderAbandoningProposedEmbargo_1256
+    |                   |       |           |   |   |-> c_q_em_in_PROPOSED_1257
+    |                   |       |           |   |   |-> ?_SufficientCauseToAbandonProposedEmbargo_1258
+    |                   |       |           |   |   |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1259
+    |                   |       |           |   |   |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1260
+    |                   |       |           |   |   |   |       |-> ^_CSinStatePublicUnaware_1261
+    |                   |       |           |   |   |   |       |   L-> c_CSinStatePublicAware_1262
+    |                   |       |           |   |   |   |       |-> ^_CSinStateNoExploitPublic_1263
+    |                   |       |           |   |   |   |       |   L-> c_CSinStateExploitPublic_1264
+    |                   |       |           |   |   |   |       L-> ^_CSinStateNoAttacksObserved_1265
+    |                   |       |           |   |   |   |           L-> c_CSinStateAttacksObserved_1266
+    |                   |       |           |   |   |   L-> ?_OtherReasonToExitEmbargo_1267
+    |                   |       |           |   |   |       |-> >_MaybeExitWhenDeployed_1268
+    |                   |       |           |   |   |       |   |-> c_CSinStateFixDeployed_1269
+    |                   |       |           |   |   |       |   L-> z_ExitEmbargoWhenDeployed_1270
+    |                   |       |           |   |   |       |-> >_MaybeExitWhenFixReady_1271
+    |                   |       |           |   |   |       |   |-> c_CSinStateFixReady_1272
+    |                   |       |           |   |   |       |   |-> ^_RoleIsNotDeployer_1273
+    |                   |       |           |   |   |       |   |   L-> c_RoleIsDeployer_1274
+    |                   |       |           |   |   |       |   L-> z_ExitEmbargoWhenFixReady_1275
+    |                   |       |           |   |   |       L-> z_ExitEmbargoForOtherReason_1276
+    |                   |       |           |   |   |-> ?_transition_q_em_to_NONE_1277
+    |                   |       |           |   |   |   |-> c_q_em_in_NONE_1278
+    |                   |       |           |   |   |   L-> >_transition_to_q_em_NONE_if_allowed_1279
+    |                   |       |           |   |   |       |-> ?_allowed_start_states_for_q_em_NONE_1280
+    |                   |       |           |   |   |       |   |-> c_q_em_in_PROPOSED_1281
+    |                   |       |           |   |   |       |   L-> c_q_em_in_NONE_1282
+    |                   |       |           |   |   |       L-> a_q_em_to_NONE_1283
+    |                   |       |           |   |   L-> !_Emit_ER_1284
+    |                   |       |           |   L-> >_ConsiderTerminatingActiveEmbargo_1285
+    |                   |       |           |       |-> ?_EMinStateActiveOrRevise_1286
+    |                   |       |           |       |   |-> c_q_em_in_ACTIVE_1287
+    |                   |       |           |       |   L-> c_q_em_in_REVISE_1288
+    |                   |       |           |       |-> ?_SufficientCauseToTerminateActiveEmbargo_1289
+    |                   |       |           |       |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1290
+    |                   |       |           |       |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1291
+    |                   |       |           |       |   |       |-> ^_CSinStatePublicUnaware_1292
+    |                   |       |           |       |   |       |   L-> c_CSinStatePublicAware_1293
+    |                   |       |           |       |   |       |-> ^_CSinStateNoExploitPublic_1294
+    |                   |       |           |       |   |       |   L-> c_CSinStateExploitPublic_1295
+    |                   |       |           |       |   |       L-> ^_CSinStateNoAttacksObserved_1296
+    |                   |       |           |       |   |           L-> c_CSinStateAttacksObserved_1297
+    |                   |       |           |       |   |-> z_EmbargoTimerExpired_1298
+    |                   |       |           |       |   L-> ?_OtherReasonToExitEmbargo_1299
+    |                   |       |           |       |       |-> >_MaybeExitWhenDeployed_1300
+    |                   |       |           |       |       |   |-> c_CSinStateFixDeployed_1301
+    |                   |       |           |       |       |   L-> z_ExitEmbargoWhenDeployed_1302
+    |                   |       |           |       |       |-> >_MaybeExitWhenFixReady_1303
+    |                   |       |           |       |       |   |-> c_CSinStateFixReady_1304
+    |                   |       |           |       |       |   |-> ^_RoleIsNotDeployer_1305
+    |                   |       |           |       |       |   |   L-> c_RoleIsDeployer_1306
+    |                   |       |           |       |       |   L-> z_ExitEmbargoWhenFixReady_1307
+    |                   |       |           |       |       L-> z_ExitEmbargoForOtherReason_1308
+    |                   |       |           |       |-> OnEmbargoExit_1309
+    |                   |       |           |       |-> ?_transition_q_em_to_EXITED_1310
+    |                   |       |           |       |   |-> c_q_em_in_EXITED_1311
+    |                   |       |           |       |   L-> >_transition_to_q_em_EXITED_if_allowed_1312
+    |                   |       |           |       |       |-> ?_allowed_start_states_for_q_em_EXITED_1313
+    |                   |       |           |       |       |   |-> c_q_em_in_ACTIVE_1314
+    |                   |       |           |       |       |   L-> c_q_em_in_REVISE_1315
+    |                   |       |           |       |       L-> a_q_em_to_EXITED_1316
+    |                   |       |           |       L-> !_Emit_ET_1317
+    |                   |       |           |-> >_EvaluateAndAcceptProposedEmbargo_1318
+    |                   |       |           |   |-> z_EvaluateEmbargoProposal_1319
+    |                   |       |           |   |-> OnEmbargoAccept_1320
+    |                   |       |           |   |-> ?_transition_q_em_to_ACTIVE_1321
+    |                   |       |           |   |   |-> c_q_em_in_ACTIVE_1322
+    |                   |       |           |   |   L-> >_transition_to_q_em_ACTIVE_if_allowed_1323
+    |                   |       |           |   |       |-> ?_allowed_start_states_for_q_em_ACTIVE_1324
+    |                   |       |           |   |       |   |-> c_q_em_in_PROPOSED_1325
+    |                   |       |           |   |       |   L-> c_q_em_in_REVISE_1326
+    |                   |       |           |   |       L-> a_q_em_to_ACTIVE_1327
+    |                   |       |           |   L-> !_Emit_EA_1328
+    |                   |       |           |-> >_CounterEmbargoProposal_1329
+    |                   |       |           |   |-> z_WillingToCounterEmbargoProposal_1330
+    |                   |       |           |   L-> >_ProposeEmbargoBt_1331
+    |                   |       |           |       |-> ?_EMinStateNoneOrPropose_1332
+    |                   |       |           |       |   |-> c_q_em_in_NONE_1333
+    |                   |       |           |       |   L-> c_q_em_in_PROPOSED_1334
+    |                   |       |           |       |-> >_CSinStateNotPublicNoExploitNoAttacks_1335
+    |                   |       |           |       |   |-> ^_CSinStatePublicUnaware_1336
+    |                   |       |           |       |   |   L-> c_CSinStatePublicAware_1337
+    |                   |       |           |       |   |-> ^_CSinStateNoExploitPublic_1338
+    |                   |       |           |       |   |   L-> c_CSinStateExploitPublic_1339
+    |                   |       |           |       |   L-> ^_CSinStateNoAttacksObserved_1340
+    |                   |       |           |       |       L-> c_CSinStateAttacksObserved_1341
+    |                   |       |           |       |-> ?_AvoidNewEmbargoesInCsDeployedUnlessReason_1342
+    |                   |       |           |       |   |-> c_CSinStateFixDeployed_1343
+    |                   |       |           |       |   L-> z_ReasonToProposeEmbargoWhenDeployed_1344
+    |                   |       |           |       |-> SelectEmbargoOfferTerms_1345
+    |                   |       |           |       L-> ?_ConsiderProposingEmbargo_1346
+    |                   |       |           |           |-> >_AvoidCounterProposal_1347
+    |                   |       |           |           |   |-> ?_EMinStateProposeOrRevise_1348
+    |                   |       |           |           |   |   |-> c_q_em_in_PROPOSED_1349
+    |                   |       |           |           |   |   L-> c_q_em_in_REVISE_1350
+    |                   |       |           |           |   L-> ^_AvoidEmbargoCounterProposal_1351
+    |                   |       |           |           |       L-> z_WillingToCounterEmbargoProposal_1352
+    |                   |       |           |           |-> >_ProposeNewEmbargo_1353
+    |                   |       |           |           |   |-> ?_EMinStateNoneOrPropose_1354
+    |                   |       |           |           |   |   |-> c_q_em_in_NONE_1355
+    |                   |       |           |           |   |   L-> c_q_em_in_PROPOSED_1356
+    |                   |       |           |           |   |-> ?_transition_q_em_to_PROPOSED_1357
+    |                   |       |           |           |   |   |-> c_q_em_in_PROPOSED_1358
+    |                   |       |           |           |   |   L-> >_transition_to_q_em_PROPOSED_if_allowed_1359
+    |                   |       |           |           |   |       |-> ?_allowed_start_states_for_q_em_PROPOSED_1360
+    |                   |       |           |           |   |       |   |-> c_q_em_in_NONE_1361
+    |                   |       |           |           |   |       |   L-> c_q_em_in_PROPOSED_1362
+    |                   |       |           |           |   |       L-> a_q_em_to_PROPOSED_1363
+    |                   |       |           |           |   L-> !_Emit_EP_1364
+    |                   |       |           |           L-> >_ProposeEmbargoRevision_1365
+    |                   |       |           |               |-> ?_EMinStateActiveOrRevise_1366
+    |                   |       |           |               |   |-> c_q_em_in_ACTIVE_1367
+    |                   |       |           |               |   L-> c_q_em_in_REVISE_1368
+    |                   |       |           |               |-> ?_transition_q_em_to_REVISE_1369
+    |                   |       |           |               |   |-> c_q_em_in_REVISE_1370
+    |                   |       |           |               |   L-> >_transition_to_q_em_REVISE_if_allowed_1371
+    |                   |       |           |               |       |-> ?_allowed_start_states_for_q_em_REVISE_1372
+    |                   |       |           |               |       |   |-> c_q_em_in_ACTIVE_1373
+    |                   |       |           |               |       |   L-> c_q_em_in_REVISE_1374
+    |                   |       |           |               |       L-> a_q_em_to_REVISE_1375
+    |                   |       |           |               L-> !_Emit_EP_1376
+    |                   |       |           L-> >_RejectRevision_1377
+    |                   |       |               |-> OnEmbargoReject_1378
+    |                   |       |               |-> ?_transition_q_em_to_ACTIVE_1379
+    |                   |       |               |   |-> c_q_em_in_ACTIVE_1380
+    |                   |       |               |   L-> >_transition_to_q_em_ACTIVE_if_allowed_1381
+    |                   |       |               |       |-> ?_allowed_start_states_for_q_em_ACTIVE_1382
+    |                   |       |               |       |   L-> c_q_em_in_REVISE_1383
+    |                   |       |               |       L-> a_q_em_to_ACTIVE_1384
+    |                   |       |               L-> !_Emit_ER_1385
+    |                   |       |-> ?_EMinStateNoneOrExited_1386
+    |                   |       |   |-> c_q_em_in_NONE_1387
+    |                   |       |   L-> c_q_em_in_EXITED_1388
+    |                   |       |-> z_Publish_1389
+    |                   |       |-> a_q_cs_to_P_1390
+    |                   |       L-> !_Emit_CP_1391
+    |                   |-> ?_AssignVulID_1392
+    |                   |   |-> z_IdAssigned_1393
+    |                   |   L-> >__AssignIdIfInScope_1394
+    |                   |       |-> z_InScope_1395
+    |                   |       L-> ?__AssignOrRequestId_1396
+    |                   |           |-> >__AssignIdIfPossible_1397
+    |                   |           |   |-> z_IsIDAssignmentAuthority_1398
+    |                   |           |   |-> z_IdAssignable_1399
+    |                   |           |   L-> AssignId_1400
+    |                   |           L-> z_RequestId_1401
+    |                   |-> ?_AcquireExploit_1402
+    |                   |   |-> z_HaveExploit_1403
+    |                   |   |-> >__AcquireExploitIfDesired_1404
+    |                   |   |   |-> ?__EnsureExploitPriorityIsSet_1405
+    |                   |   |   |   |-> z_ExploitPrioritySet_1406
+    |                   |   |   |   L-> EvaluateExploitPriority_1407
+    |                   |   |   |-> z_ExploitDesired_1408
+    |                   |   |   L-> ?__AttemptExploitAcquisition_1409
+    |                   |   |       |-> z_FindExploit_1410
+    |                   |   |       |-> z_DevelopExploit_1411
+    |                   |   |       L-> z_PurchaseExploit_1412
+    |                   |   L-> z_ExploitDeferred_1413
+    |                   L-> OtherWork_1414
+    L-> ?_EmbargoManagementBt_1415
+        |-> ?_RMinStateStartOrClosed_1416
+        |   |-> c_q_rm_in_START_1417
+        |   L-> c_q_rm_in_CLOSED_1418
+        |-> c_q_em_in_EXITED_1419
+        |-> >_AvoidNewEmbargoWhenNotInCs_pxa_1420
+        |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1421
+        |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1422
+        |   |       |-> ^_CSinStatePublicUnaware_1423
+        |   |       |   L-> c_CSinStatePublicAware_1424
+        |   |       |-> ^_CSinStateNoExploitPublic_1425
+        |   |       |   L-> c_CSinStateExploitPublic_1426
+        |   |       L-> ^_CSinStateNoAttacksObserved_1427
+        |   |           L-> c_CSinStateAttacksObserved_1428
+        |   L-> c_q_em_in_NONE_1429
+        |-> >_EmNone_1430
+        |   |-> c_q_em_in_NONE_1431
+        |   L-> ?_EnsureSufficientEffortToAchieveEmbargo_1432
+        |       |-> z_StopProposingEmbargo_1433
+        |       L-> >_ProposeEmbargoBt_1434
+        |           |-> ?_EMinStateNoneOrPropose_1435
+        |           |   |-> c_q_em_in_NONE_1436
+        |           |   L-> c_q_em_in_PROPOSED_1437
+        |           |-> >_CSinStateNotPublicNoExploitNoAttacks_1438
+        |           |   |-> ^_CSinStatePublicUnaware_1439
+        |           |   |   L-> c_CSinStatePublicAware_1440
+        |           |   |-> ^_CSinStateNoExploitPublic_1441
+        |           |   |   L-> c_CSinStateExploitPublic_1442
+        |           |   L-> ^_CSinStateNoAttacksObserved_1443
+        |           |       L-> c_CSinStateAttacksObserved_1444
+        |           |-> ?_AvoidNewEmbargoesInCsDeployedUnlessReason_1445
+        |           |   |-> c_CSinStateFixDeployed_1446
+        |           |   L-> z_ReasonToProposeEmbargoWhenDeployed_1447
+        |           |-> SelectEmbargoOfferTerms_1448
+        |           L-> ?_ConsiderProposingEmbargo_1449
+        |               |-> >_AvoidCounterProposal_1450
+        |               |   |-> ?_EMinStateProposeOrRevise_1451
+        |               |   |   |-> c_q_em_in_PROPOSED_1452
+        |               |   |   L-> c_q_em_in_REVISE_1453
+        |               |   L-> ^_AvoidEmbargoCounterProposal_1454
+        |               |       L-> z_WillingToCounterEmbargoProposal_1455
+        |               |-> >_ProposeNewEmbargo_1456
+        |               |   |-> ?_EMinStateNoneOrPropose_1457
+        |               |   |   |-> c_q_em_in_NONE_1458
+        |               |   |   L-> c_q_em_in_PROPOSED_1459
+        |               |   |-> ?_transition_q_em_to_PROPOSED_1460
+        |               |   |   |-> c_q_em_in_PROPOSED_1461
+        |               |   |   L-> >_transition_to_q_em_PROPOSED_if_allowed_1462
+        |               |   |       |-> ?_allowed_start_states_for_q_em_PROPOSED_1463
+        |               |   |       |   |-> c_q_em_in_NONE_1464
+        |               |   |       |   L-> c_q_em_in_PROPOSED_1465
+        |               |   |       L-> a_q_em_to_PROPOSED_1466
+        |               |   L-> !_Emit_EP_1467
+        |               L-> >_ProposeEmbargoRevision_1468
+        |                   |-> ?_EMinStateActiveOrRevise_1469
+        |                   |   |-> c_q_em_in_ACTIVE_1470
+        |                   |   L-> c_q_em_in_REVISE_1471
+        |                   |-> ?_transition_q_em_to_REVISE_1472
+        |                   |   |-> c_q_em_in_REVISE_1473
+        |                   |   L-> >_transition_to_q_em_REVISE_if_allowed_1474
+        |                   |       |-> ?_allowed_start_states_for_q_em_REVISE_1475
+        |                   |       |   |-> c_q_em_in_ACTIVE_1476
+        |                   |       |   L-> c_q_em_in_REVISE_1477
+        |                   |       L-> a_q_em_to_REVISE_1478
+        |                   L-> !_Emit_EP_1479
+        |-> >_EmProposed_1480
+        |   |-> c_q_em_in_PROPOSED_1481
+        |   L-> ?_ChooseEmProposedResponse_1482
+        |       |-> ?_TerminateEmbargoBt_1483
+        |       |   |-> ?_EMinStateNoneOrExited_1484
+        |       |   |   |-> c_q_em_in_NONE_1485
+        |       |   |   L-> c_q_em_in_EXITED_1486
+        |       |   |-> >_ConsiderAbandoningProposedEmbargo_1487
+        |       |   |   |-> c_q_em_in_PROPOSED_1488
+        |       |   |   |-> ?_SufficientCauseToAbandonProposedEmbargo_1489
+        |       |   |   |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1490
+        |       |   |   |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1491
+        |       |   |   |   |       |-> ^_CSinStatePublicUnaware_1492
+        |       |   |   |   |       |   L-> c_CSinStatePublicAware_1493
+        |       |   |   |   |       |-> ^_CSinStateNoExploitPublic_1494
+        |       |   |   |   |       |   L-> c_CSinStateExploitPublic_1495
+        |       |   |   |   |       L-> ^_CSinStateNoAttacksObserved_1496
+        |       |   |   |   |           L-> c_CSinStateAttacksObserved_1497
+        |       |   |   |   L-> ?_OtherReasonToExitEmbargo_1498
+        |       |   |   |       |-> >_MaybeExitWhenDeployed_1499
+        |       |   |   |       |   |-> c_CSinStateFixDeployed_1500
+        |       |   |   |       |   L-> z_ExitEmbargoWhenDeployed_1501
+        |       |   |   |       |-> >_MaybeExitWhenFixReady_1502
+        |       |   |   |       |   |-> c_CSinStateFixReady_1503
+        |       |   |   |       |   |-> ^_RoleIsNotDeployer_1504
+        |       |   |   |       |   |   L-> c_RoleIsDeployer_1505
+        |       |   |   |       |   L-> z_ExitEmbargoWhenFixReady_1506
+        |       |   |   |       L-> z_ExitEmbargoForOtherReason_1507
+        |       |   |   |-> ?_transition_q_em_to_NONE_1508
+        |       |   |   |   |-> c_q_em_in_NONE_1509
+        |       |   |   |   L-> >_transition_to_q_em_NONE_if_allowed_1510
+        |       |   |   |       |-> ?_allowed_start_states_for_q_em_NONE_1511
+        |       |   |   |       |   |-> c_q_em_in_PROPOSED_1512
+        |       |   |   |       |   L-> c_q_em_in_NONE_1513
+        |       |   |   |       L-> a_q_em_to_NONE_1514
+        |       |   |   L-> !_Emit_ER_1515
+        |       |   L-> >_ConsiderTerminatingActiveEmbargo_1516
+        |       |       |-> ?_EMinStateActiveOrRevise_1517
+        |       |       |   |-> c_q_em_in_ACTIVE_1518
+        |       |       |   L-> c_q_em_in_REVISE_1519
+        |       |       |-> ?_SufficientCauseToTerminateActiveEmbargo_1520
+        |       |       |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1521
+        |       |       |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1522
+        |       |       |   |       |-> ^_CSinStatePublicUnaware_1523
+        |       |       |   |       |   L-> c_CSinStatePublicAware_1524
+        |       |       |   |       |-> ^_CSinStateNoExploitPublic_1525
+        |       |       |   |       |   L-> c_CSinStateExploitPublic_1526
+        |       |       |   |       L-> ^_CSinStateNoAttacksObserved_1527
+        |       |       |   |           L-> c_CSinStateAttacksObserved_1528
+        |       |       |   |-> z_EmbargoTimerExpired_1529
+        |       |       |   L-> ?_OtherReasonToExitEmbargo_1530
+        |       |       |       |-> >_MaybeExitWhenDeployed_1531
+        |       |       |       |   |-> c_CSinStateFixDeployed_1532
+        |       |       |       |   L-> z_ExitEmbargoWhenDeployed_1533
+        |       |       |       |-> >_MaybeExitWhenFixReady_1534
+        |       |       |       |   |-> c_CSinStateFixReady_1535
+        |       |       |       |   |-> ^_RoleIsNotDeployer_1536
+        |       |       |       |   |   L-> c_RoleIsDeployer_1537
+        |       |       |       |   L-> z_ExitEmbargoWhenFixReady_1538
+        |       |       |       L-> z_ExitEmbargoForOtherReason_1539
+        |       |       |-> OnEmbargoExit_1540
+        |       |       |-> ?_transition_q_em_to_EXITED_1541
+        |       |       |   |-> c_q_em_in_EXITED_1542
+        |       |       |   L-> >_transition_to_q_em_EXITED_if_allowed_1543
+        |       |       |       |-> ?_allowed_start_states_for_q_em_EXITED_1544
+        |       |       |       |   |-> c_q_em_in_ACTIVE_1545
+        |       |       |       |   L-> c_q_em_in_REVISE_1546
+        |       |       |       L-> a_q_em_to_EXITED_1547
+        |       |       L-> !_Emit_ET_1548
+        |       |-> >_EvaluateAndAcceptProposedEmbargo_1549
+        |       |   |-> z_EvaluateEmbargoProposal_1550
+        |       |   |-> OnEmbargoAccept_1551
+        |       |   |-> ?_transition_q_em_to_ACTIVE_1552
+        |       |   |   |-> c_q_em_in_ACTIVE_1553
+        |       |   |   L-> >_transition_to_q_em_ACTIVE_if_allowed_1554
+        |       |   |       |-> ?_allowed_start_states_for_q_em_ACTIVE_1555
+        |       |   |       |   |-> c_q_em_in_PROPOSED_1556
+        |       |   |       |   L-> c_q_em_in_REVISE_1557
+        |       |   |       L-> a_q_em_to_ACTIVE_1558
+        |       |   L-> !_Emit_EA_1559
+        |       |-> >_CounterEmbargoProposal_1560
+        |       |   |-> z_WillingToCounterEmbargoProposal_1561
+        |       |   L-> >_ProposeEmbargoBt_1562
+        |       |       |-> ?_EMinStateNoneOrPropose_1563
+        |       |       |   |-> c_q_em_in_NONE_1564
+        |       |       |   L-> c_q_em_in_PROPOSED_1565
+        |       |       |-> >_CSinStateNotPublicNoExploitNoAttacks_1566
+        |       |       |   |-> ^_CSinStatePublicUnaware_1567
+        |       |       |   |   L-> c_CSinStatePublicAware_1568
+        |       |       |   |-> ^_CSinStateNoExploitPublic_1569
+        |       |       |   |   L-> c_CSinStateExploitPublic_1570
+        |       |       |   L-> ^_CSinStateNoAttacksObserved_1571
+        |       |       |       L-> c_CSinStateAttacksObserved_1572
+        |       |       |-> ?_AvoidNewEmbargoesInCsDeployedUnlessReason_1573
+        |       |       |   |-> c_CSinStateFixDeployed_1574
+        |       |       |   L-> z_ReasonToProposeEmbargoWhenDeployed_1575
+        |       |       |-> SelectEmbargoOfferTerms_1576
+        |       |       L-> ?_ConsiderProposingEmbargo_1577
+        |       |           |-> >_AvoidCounterProposal_1578
+        |       |           |   |-> ?_EMinStateProposeOrRevise_1579
+        |       |           |   |   |-> c_q_em_in_PROPOSED_1580
+        |       |           |   |   L-> c_q_em_in_REVISE_1581
+        |       |           |   L-> ^_AvoidEmbargoCounterProposal_1582
+        |       |           |       L-> z_WillingToCounterEmbargoProposal_1583
+        |       |           |-> >_ProposeNewEmbargo_1584
+        |       |           |   |-> ?_EMinStateNoneOrPropose_1585
+        |       |           |   |   |-> c_q_em_in_NONE_1586
+        |       |           |   |   L-> c_q_em_in_PROPOSED_1587
+        |       |           |   |-> ?_transition_q_em_to_PROPOSED_1588
+        |       |           |   |   |-> c_q_em_in_PROPOSED_1589
+        |       |           |   |   L-> >_transition_to_q_em_PROPOSED_if_allowed_1590
+        |       |           |   |       |-> ?_allowed_start_states_for_q_em_PROPOSED_1591
+        |       |           |   |       |   |-> c_q_em_in_NONE_1592
+        |       |           |   |       |   L-> c_q_em_in_PROPOSED_1593
+        |       |           |   |       L-> a_q_em_to_PROPOSED_1594
+        |       |           |   L-> !_Emit_EP_1595
+        |       |           L-> >_ProposeEmbargoRevision_1596
+        |       |               |-> ?_EMinStateActiveOrRevise_1597
+        |       |               |   |-> c_q_em_in_ACTIVE_1598
+        |       |               |   L-> c_q_em_in_REVISE_1599
+        |       |               |-> ?_transition_q_em_to_REVISE_1600
+        |       |               |   |-> c_q_em_in_REVISE_1601
+        |       |               |   L-> >_transition_to_q_em_REVISE_if_allowed_1602
+        |       |               |       |-> ?_allowed_start_states_for_q_em_REVISE_1603
+        |       |               |       |   |-> c_q_em_in_ACTIVE_1604
+        |       |               |       |   L-> c_q_em_in_REVISE_1605
+        |       |               |       L-> a_q_em_to_REVISE_1606
+        |       |               L-> !_Emit_EP_1607
+        |       L-> >_RejectProposedEmbargo_1608
+        |           |-> OnEmbargoReject_1609
+        |           |-> ?_transition_q_em_to_NONE_1610
+        |           |   |-> c_q_em_in_NONE_1611
+        |           |   L-> >_transition_to_q_em_NONE_if_allowed_1612
+        |           |       |-> ?_allowed_start_states_for_q_em_NONE_1613
+        |           |       |   |-> c_q_em_in_PROPOSED_1614
+        |           |       |   L-> c_q_em_in_NONE_1615
+        |           |       L-> a_q_em_to_NONE_1616
+        |           L-> !_Emit_ER_1617
+        |-> >_EmActive_1618
+        |   |-> c_q_em_in_ACTIVE_1619
+        |   L-> ?_ChooseEmActiveResponse_1620
+        |       |-> ?_TerminateEmbargoBt_1621
+        |       |   |-> ?_EMinStateNoneOrExited_1622
+        |       |   |   |-> c_q_em_in_NONE_1623
+        |       |   |   L-> c_q_em_in_EXITED_1624
+        |       |   |-> >_ConsiderAbandoningProposedEmbargo_1625
+        |       |   |   |-> c_q_em_in_PROPOSED_1626
+        |       |   |   |-> ?_SufficientCauseToAbandonProposedEmbargo_1627
+        |       |   |   |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1628
+        |       |   |   |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1629
+        |       |   |   |   |       |-> ^_CSinStatePublicUnaware_1630
+        |       |   |   |   |       |   L-> c_CSinStatePublicAware_1631
+        |       |   |   |   |       |-> ^_CSinStateNoExploitPublic_1632
+        |       |   |   |   |       |   L-> c_CSinStateExploitPublic_1633
+        |       |   |   |   |       L-> ^_CSinStateNoAttacksObserved_1634
+        |       |   |   |   |           L-> c_CSinStateAttacksObserved_1635
+        |       |   |   |   L-> ?_OtherReasonToExitEmbargo_1636
+        |       |   |   |       |-> >_MaybeExitWhenDeployed_1637
+        |       |   |   |       |   |-> c_CSinStateFixDeployed_1638
+        |       |   |   |       |   L-> z_ExitEmbargoWhenDeployed_1639
+        |       |   |   |       |-> >_MaybeExitWhenFixReady_1640
+        |       |   |   |       |   |-> c_CSinStateFixReady_1641
+        |       |   |   |       |   |-> ^_RoleIsNotDeployer_1642
+        |       |   |   |       |   |   L-> c_RoleIsDeployer_1643
+        |       |   |   |       |   L-> z_ExitEmbargoWhenFixReady_1644
+        |       |   |   |       L-> z_ExitEmbargoForOtherReason_1645
+        |       |   |   |-> ?_transition_q_em_to_NONE_1646
+        |       |   |   |   |-> c_q_em_in_NONE_1647
+        |       |   |   |   L-> >_transition_to_q_em_NONE_if_allowed_1648
+        |       |   |   |       |-> ?_allowed_start_states_for_q_em_NONE_1649
+        |       |   |   |       |   |-> c_q_em_in_PROPOSED_1650
+        |       |   |   |       |   L-> c_q_em_in_NONE_1651
+        |       |   |   |       L-> a_q_em_to_NONE_1652
+        |       |   |   L-> !_Emit_ER_1653
+        |       |   L-> >_ConsiderTerminatingActiveEmbargo_1654
+        |       |       |-> ?_EMinStateActiveOrRevise_1655
+        |       |       |   |-> c_q_em_in_ACTIVE_1656
+        |       |       |   L-> c_q_em_in_REVISE_1657
+        |       |       |-> ?_SufficientCauseToTerminateActiveEmbargo_1658
+        |       |       |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1659
+        |       |       |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1660
+        |       |       |   |       |-> ^_CSinStatePublicUnaware_1661
+        |       |       |   |       |   L-> c_CSinStatePublicAware_1662
+        |       |       |   |       |-> ^_CSinStateNoExploitPublic_1663
+        |       |       |   |       |   L-> c_CSinStateExploitPublic_1664
+        |       |       |   |       L-> ^_CSinStateNoAttacksObserved_1665
+        |       |       |   |           L-> c_CSinStateAttacksObserved_1666
+        |       |       |   |-> z_EmbargoTimerExpired_1667
+        |       |       |   L-> ?_OtherReasonToExitEmbargo_1668
+        |       |       |       |-> >_MaybeExitWhenDeployed_1669
+        |       |       |       |   |-> c_CSinStateFixDeployed_1670
+        |       |       |       |   L-> z_ExitEmbargoWhenDeployed_1671
+        |       |       |       |-> >_MaybeExitWhenFixReady_1672
+        |       |       |       |   |-> c_CSinStateFixReady_1673
+        |       |       |       |   |-> ^_RoleIsNotDeployer_1674
+        |       |       |       |   |   L-> c_RoleIsDeployer_1675
+        |       |       |       |   L-> z_ExitEmbargoWhenFixReady_1676
+        |       |       |       L-> z_ExitEmbargoForOtherReason_1677
+        |       |       |-> OnEmbargoExit_1678
+        |       |       |-> ?_transition_q_em_to_EXITED_1679
+        |       |       |   |-> c_q_em_in_EXITED_1680
+        |       |       |   L-> >_transition_to_q_em_EXITED_if_allowed_1681
+        |       |       |       |-> ?_allowed_start_states_for_q_em_EXITED_1682
+        |       |       |       |   |-> c_q_em_in_ACTIVE_1683
+        |       |       |       |   L-> c_q_em_in_REVISE_1684
+        |       |       |       L-> a_q_em_to_EXITED_1685
+        |       |       L-> !_Emit_ET_1686
+        |       |-> z_CurrentEmbargoAcceptable_1687
+        |       L-> >_ProposeEmbargoBt_1688
+        |           |-> ?_EMinStateNoneOrPropose_1689
+        |           |   |-> c_q_em_in_NONE_1690
+        |           |   L-> c_q_em_in_PROPOSED_1691
+        |           |-> >_CSinStateNotPublicNoExploitNoAttacks_1692
+        |           |   |-> ^_CSinStatePublicUnaware_1693
+        |           |   |   L-> c_CSinStatePublicAware_1694
+        |           |   |-> ^_CSinStateNoExploitPublic_1695
+        |           |   |   L-> c_CSinStateExploitPublic_1696
+        |           |   L-> ^_CSinStateNoAttacksObserved_1697
+        |           |       L-> c_CSinStateAttacksObserved_1698
+        |           |-> ?_AvoidNewEmbargoesInCsDeployedUnlessReason_1699
+        |           |   |-> c_CSinStateFixDeployed_1700
+        |           |   L-> z_ReasonToProposeEmbargoWhenDeployed_1701
+        |           |-> SelectEmbargoOfferTerms_1702
+        |           L-> ?_ConsiderProposingEmbargo_1703
+        |               |-> >_AvoidCounterProposal_1704
+        |               |   |-> ?_EMinStateProposeOrRevise_1705
+        |               |   |   |-> c_q_em_in_PROPOSED_1706
+        |               |   |   L-> c_q_em_in_REVISE_1707
+        |               |   L-> ^_AvoidEmbargoCounterProposal_1708
+        |               |       L-> z_WillingToCounterEmbargoProposal_1709
+        |               |-> >_ProposeNewEmbargo_1710
+        |               |   |-> ?_EMinStateNoneOrPropose_1711
+        |               |   |   |-> c_q_em_in_NONE_1712
+        |               |   |   L-> c_q_em_in_PROPOSED_1713
+        |               |   |-> ?_transition_q_em_to_PROPOSED_1714
+        |               |   |   |-> c_q_em_in_PROPOSED_1715
+        |               |   |   L-> >_transition_to_q_em_PROPOSED_if_allowed_1716
+        |               |   |       |-> ?_allowed_start_states_for_q_em_PROPOSED_1717
+        |               |   |       |   |-> c_q_em_in_NONE_1718
+        |               |   |       |   L-> c_q_em_in_PROPOSED_1719
+        |               |   |       L-> a_q_em_to_PROPOSED_1720
+        |               |   L-> !_Emit_EP_1721
+        |               L-> >_ProposeEmbargoRevision_1722
+        |                   |-> ?_EMinStateActiveOrRevise_1723
+        |                   |   |-> c_q_em_in_ACTIVE_1724
+        |                   |   L-> c_q_em_in_REVISE_1725
+        |                   |-> ?_transition_q_em_to_REVISE_1726
+        |                   |   |-> c_q_em_in_REVISE_1727
+        |                   |   L-> >_transition_to_q_em_REVISE_if_allowed_1728
+        |                   |       |-> ?_allowed_start_states_for_q_em_REVISE_1729
+        |                   |       |   |-> c_q_em_in_ACTIVE_1730
+        |                   |       |   L-> c_q_em_in_REVISE_1731
+        |                   |       L-> a_q_em_to_REVISE_1732
+        |                   L-> !_Emit_EP_1733
+        L-> >_EmRevise_1734
+            |-> c_q_em_in_REVISE_1735
+            L-> ?_ChooseEmReviseResponse_1736
+                |-> ?_TerminateEmbargoBt_1737
+                |   |-> ?_EMinStateNoneOrExited_1738
+                |   |   |-> c_q_em_in_NONE_1739
+                |   |   L-> c_q_em_in_EXITED_1740
+                |   |-> >_ConsiderAbandoningProposedEmbargo_1741
+                |   |   |-> c_q_em_in_PROPOSED_1742
+                |   |   |-> ?_SufficientCauseToAbandonProposedEmbargo_1743
+                |   |   |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1744
+                |   |   |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1745
+                |   |   |   |       |-> ^_CSinStatePublicUnaware_1746
+                |   |   |   |       |   L-> c_CSinStatePublicAware_1747
+                |   |   |   |       |-> ^_CSinStateNoExploitPublic_1748
+                |   |   |   |       |   L-> c_CSinStateExploitPublic_1749
+                |   |   |   |       L-> ^_CSinStateNoAttacksObserved_1750
+                |   |   |   |           L-> c_CSinStateAttacksObserved_1751
+                |   |   |   L-> ?_OtherReasonToExitEmbargo_1752
+                |   |   |       |-> >_MaybeExitWhenDeployed_1753
+                |   |   |       |   |-> c_CSinStateFixDeployed_1754
+                |   |   |       |   L-> z_ExitEmbargoWhenDeployed_1755
+                |   |   |       |-> >_MaybeExitWhenFixReady_1756
+                |   |   |       |   |-> c_CSinStateFixReady_1757
+                |   |   |       |   |-> ^_RoleIsNotDeployer_1758
+                |   |   |       |   |   L-> c_RoleIsDeployer_1759
+                |   |   |       |   L-> z_ExitEmbargoWhenFixReady_1760
+                |   |   |       L-> z_ExitEmbargoForOtherReason_1761
+                |   |   |-> ?_transition_q_em_to_NONE_1762
+                |   |   |   |-> c_q_em_in_NONE_1763
+                |   |   |   L-> >_transition_to_q_em_NONE_if_allowed_1764
+                |   |   |       |-> ?_allowed_start_states_for_q_em_NONE_1765
+                |   |   |       |   |-> c_q_em_in_PROPOSED_1766
+                |   |   |       |   L-> c_q_em_in_NONE_1767
+                |   |   |       L-> a_q_em_to_NONE_1768
+                |   |   L-> !_Emit_ER_1769
+                |   L-> >_ConsiderTerminatingActiveEmbargo_1770
+                |       |-> ?_EMinStateActiveOrRevise_1771
+                |       |   |-> c_q_em_in_ACTIVE_1772
+                |       |   L-> c_q_em_in_REVISE_1773
+                |       |-> ?_SufficientCauseToTerminateActiveEmbargo_1774
+                |       |   |-> ^_CSinStatePublicAwareOrExploitPublicOrAttacksObserved_1775
+                |       |   |   L-> >_CSinStateNotPublicNoExploitNoAttacks_1776
+                |       |   |       |-> ^_CSinStatePublicUnaware_1777
+                |       |   |       |   L-> c_CSinStatePublicAware_1778
+                |       |   |       |-> ^_CSinStateNoExploitPublic_1779
+                |       |   |       |   L-> c_CSinStateExploitPublic_1780
+                |       |   |       L-> ^_CSinStateNoAttacksObserved_1781
+                |       |   |           L-> c_CSinStateAttacksObserved_1782
+                |       |   |-> z_EmbargoTimerExpired_1783
+                |       |   L-> ?_OtherReasonToExitEmbargo_1784
+                |       |       |-> >_MaybeExitWhenDeployed_1785
+                |       |       |   |-> c_CSinStateFixDeployed_1786
+                |       |       |   L-> z_ExitEmbargoWhenDeployed_1787
+                |       |       |-> >_MaybeExitWhenFixReady_1788
+                |       |       |   |-> c_CSinStateFixReady_1789
+                |       |       |   |-> ^_RoleIsNotDeployer_1790
+                |       |       |   |   L-> c_RoleIsDeployer_1791
+                |       |       |   L-> z_ExitEmbargoWhenFixReady_1792
+                |       |       L-> z_ExitEmbargoForOtherReason_1793
+                |       |-> OnEmbargoExit_1794
+                |       |-> ?_transition_q_em_to_EXITED_1795
+                |       |   |-> c_q_em_in_EXITED_1796
+                |       |   L-> >_transition_to_q_em_EXITED_if_allowed_1797
+                |       |       |-> ?_allowed_start_states_for_q_em_EXITED_1798
+                |       |       |   |-> c_q_em_in_ACTIVE_1799
+                |       |       |   L-> c_q_em_in_REVISE_1800
+                |       |       L-> a_q_em_to_EXITED_1801
+                |       L-> !_Emit_ET_1802
+                |-> >_EvaluateAndAcceptProposedEmbargo_1803
+                |   |-> z_EvaluateEmbargoProposal_1804
+                |   |-> OnEmbargoAccept_1805
+                |   |-> ?_transition_q_em_to_ACTIVE_1806
+                |   |   |-> c_q_em_in_ACTIVE_1807
+                |   |   L-> >_transition_to_q_em_ACTIVE_if_allowed_1808
+                |   |       |-> ?_allowed_start_states_for_q_em_ACTIVE_1809
+                |   |       |   |-> c_q_em_in_PROPOSED_1810
+                |   |       |   L-> c_q_em_in_REVISE_1811
+                |   |       L-> a_q_em_to_ACTIVE_1812
+                |   L-> !_Emit_EA_1813
+                |-> >_CounterEmbargoProposal_1814
+                |   |-> z_WillingToCounterEmbargoProposal_1815
+                |   L-> >_ProposeEmbargoBt_1816
+                |       |-> ?_EMinStateNoneOrPropose_1817
+                |       |   |-> c_q_em_in_NONE_1818
+                |       |   L-> c_q_em_in_PROPOSED_1819
+                |       |-> >_CSinStateNotPublicNoExploitNoAttacks_1820
+                |       |   |-> ^_CSinStatePublicUnaware_1821
+                |       |   |   L-> c_CSinStatePublicAware_1822
+                |       |   |-> ^_CSinStateNoExploitPublic_1823
+                |       |   |   L-> c_CSinStateExploitPublic_1824
+                |       |   L-> ^_CSinStateNoAttacksObserved_1825
+                |       |       L-> c_CSinStateAttacksObserved_1826
+                |       |-> ?_AvoidNewEmbargoesInCsDeployedUnlessReason_1827
+                |       |   |-> c_CSinStateFixDeployed_1828
+                |       |   L-> z_ReasonToProposeEmbargoWhenDeployed_1829
+                |       |-> SelectEmbargoOfferTerms_1830
+                |       L-> ?_ConsiderProposingEmbargo_1831
+                |           |-> >_AvoidCounterProposal_1832
+                |           |   |-> ?_EMinStateProposeOrRevise_1833
+                |           |   |   |-> c_q_em_in_PROPOSED_1834
+                |           |   |   L-> c_q_em_in_REVISE_1835
+                |           |   L-> ^_AvoidEmbargoCounterProposal_1836
+                |           |       L-> z_WillingToCounterEmbargoProposal_1837
+                |           |-> >_ProposeNewEmbargo_1838
+                |           |   |-> ?_EMinStateNoneOrPropose_1839
+                |           |   |   |-> c_q_em_in_NONE_1840
+                |           |   |   L-> c_q_em_in_PROPOSED_1841
+                |           |   |-> ?_transition_q_em_to_PROPOSED_1842
+                |           |   |   |-> c_q_em_in_PROPOSED_1843
+                |           |   |   L-> >_transition_to_q_em_PROPOSED_if_allowed_1844
+                |           |   |       |-> ?_allowed_start_states_for_q_em_PROPOSED_1845
+                |           |   |       |   |-> c_q_em_in_NONE_1846
+                |           |   |       |   L-> c_q_em_in_PROPOSED_1847
+                |           |   |       L-> a_q_em_to_PROPOSED_1848
+                |           |   L-> !_Emit_EP_1849
+                |           L-> >_ProposeEmbargoRevision_1850
+                |               |-> ?_EMinStateActiveOrRevise_1851
+                |               |   |-> c_q_em_in_ACTIVE_1852
+                |               |   L-> c_q_em_in_REVISE_1853
+                |               |-> ?_transition_q_em_to_REVISE_1854
+                |               |   |-> c_q_em_in_REVISE_1855
+                |               |   L-> >_transition_to_q_em_REVISE_if_allowed_1856
+                |               |       |-> ?_allowed_start_states_for_q_em_REVISE_1857
+                |               |       |   |-> c_q_em_in_ACTIVE_1858
+                |               |       |   L-> c_q_em_in_REVISE_1859
+                |               |       L-> a_q_em_to_REVISE_1860
+                |               L-> !_Emit_EP_1861
+                L-> >_RejectRevision_1862
+                    |-> OnEmbargoReject_1863
+                    |-> ?_transition_q_em_to_ACTIVE_1864
+                    |   |-> c_q_em_in_ACTIVE_1865
+                    |   L-> >_transition_to_q_em_ACTIVE_if_allowed_1866
+                    |       |-> ?_allowed_start_states_for_q_em_ACTIVE_1867
+                    |       |   L-> c_q_em_in_REVISE_1868
+                    |       L-> a_q_em_to_ACTIVE_1869
+                    L-> !_Emit_ER_1870

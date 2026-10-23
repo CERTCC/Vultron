@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Shared fixtures for participant-node tests."""
+
+import pytest
+
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
+from vultron.core.models.actor import VultronService
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.report import VulnerabilityReport
+
+
+@pytest.fixture
+def actor_id() -> str:
+    return "https://example.org/actors/vendor"
+
+
+@pytest.fixture
+def actor(bt_scenario: BTTestScenario, actor_id: str) -> VultronService:
+    obj = VultronService(id_=actor_id, name="Vendor Co")
+    bt_scenario.dl.create(obj)
+    return obj
+
+
+@pytest.fixture
+def report(bt_scenario: BTTestScenario) -> VulnerabilityReport:
+    obj = VulnerabilityReport(
+        name="TEST-001", content="Test vulnerability report"
+    )
+    bt_scenario.dl.create(obj)
+    return obj
+
+
+@pytest.fixture
+def case_obj(
+    bt_scenario: BTTestScenario, report: VulnerabilityReport
+) -> VulnerabilityCase:
+    case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/case-001",
+        name="Test Case",
+        vulnerability_reports=[report.id_],
+    )
+    bt_scenario.dl.create(case)
+    return case

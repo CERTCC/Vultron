@@ -1,0 +1,85 @@
+# Every verification_debt marker names an open owner issue (MS-10-006).
+#
+# Two checks, split by who can cause a closed owner:
+#
+# - closing-pr: a pull request that closes an owner issue while a marker or
+#   the owner table still names it fails. Closing the owner is that PR's own
+#   act, so failing it races no other PR. Runs on every PR (no path filter: any
+#   PR body can say "Closes #N") and re-runs when the body is edited.
+# - open-owners: an owner closed by hand is caused by no PR, so this never
+#   fails the build — failing would turn every PR in flight red (ARCH-18-004).
+#   It runs hourly and on each push to main, and files or updates one tracking
+#   issue while any owner is closed, closing it again once all are open.
+
+name: Verification Debt Owners
+
+on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches: ["main"]
+    paths:
+      - "specs/**"
+      - "vultron/metadata/specs/**"
+      - ".github/workflows/verification-debt-owners.yml"
+  schedule:
+    - cron: "17 * * * *"  # Hourly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  closing-pr:
+    name: PR Closes No Owner Still In Use
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Check the owner issues this PR closes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: PYTHONPATH='' uv run spec-lint specs/ --check-closing-pr "$PR_NUMBER"
+
+  open-owners:
+    name: Owner Issues Open (reports, never fails)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: Check every owner issue is open
+        id: owners
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: PYTHONPATH='' uv run spec-lint specs/ --check-debt-owners
+      - name: File or update the tracking issue
+        # failure() also catches checkout or setup failing first (CISEC-05).
+        if: failure() || steps.owners.outcome == 'failure'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-verification-debt-owners
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close the tracking issue
+        if: steps.owners.outcome == 'success'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-verification-debt-owners
+          token: ${{ secrets.GITHUB_TOKEN }}

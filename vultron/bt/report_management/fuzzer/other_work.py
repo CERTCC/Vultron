@@ -14,9 +14,9 @@
 """
 Provides fuzzer leaf nodes for the report management workflow.
 """
+
 from vultron.bt.base.factory import fuzzer
 from vultron.bt.base.fuzzer import AlwaysSucceed
-
 
 # do other work under this node
 OtherWork = fuzzer(

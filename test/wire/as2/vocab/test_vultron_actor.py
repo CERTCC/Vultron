@@ -1,0 +1,301 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+Tests for as_VultronPerson, as_VultronOrganization, as_VultronService, and
+as_VultronActorMixin (EP-01-001).
+"""
+
+import unittest
+from datetime import timedelta
+
+from pydantic import ValidationError
+
+from vultron.core.models.actor import (
+    CoreActor,
+    VultronApplication as CoreVultronApplication,
+    VultronGroup as CoreVultronGroup,
+    VultronOrganization as CoreVultronOrganization,
+    VultronPerson as CoreVultronPerson,
+    VultronService as CoreVultronService,
+)
+from vultron.core.models.registry import CORE_TYPE_MAP
+from vultron.wire.as2.enums import as_ActorType
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.registry import WIRE_TYPE_MAP
+from vultron.wire.as2.vocab.objects.embargo_policy import as_EmbargoPolicy
+from vultron.wire.as2.vocab.objects.vultron_actor import (
+    as_VultronApplication,
+    as_VultronGroup,
+    as_VultronOrganization,
+    as_VultronPerson,
+    as_VultronService,
+)
+
+ACTOR_ID = "https://example.org/actors/vendor"
+INBOX = "https://example.org/actors/vendor/inbox"
+
+
+def _make_policy(actor_id: str = ACTOR_ID) -> as_EmbargoPolicy:
+    """A policy for *actor_id* — the profile that carries it (EP-01-001)."""
+    return as_EmbargoPolicy(
+        actor_id=actor_id,
+        inbox=f"{actor_id}/inbox",
+        preferred_duration=timedelta(days=90),
+        minimum_duration=timedelta(days=45),
+        maximum_duration=timedelta(days=180),
+        notes="Prefer 90 days.",
+    )
+
+
+class TestVultronPersonBasics(unittest.TestCase):
+    """as_VultronPerson retains Person type and supports embargo_policy."""
+
+    def test_as_type_is_person(self):
+        p = as_VultronPerson(id_="https://example.org/users/alice")
+        self.assertEqual(as_ActorType.PERSON, p.type_)
+
+    def test_embargo_policy_defaults_to_none(self):
+        p = as_VultronPerson(id_="https://example.org/users/alice")
+        self.assertIsNone(p.embargo_policy)
+
+    def test_embargo_policy_inline_object(self):
+        policy = _make_policy()
+        p = as_VultronPerson(
+            id_=ACTOR_ID,
+            embargo_policy=policy,
+        )
+        assert isinstance(p.embargo_policy, as_EmbargoPolicy)
+        self.assertEqual(policy.id_, p.embargo_policy.id_)
+        self.assertEqual(
+            timedelta(days=90), p.embargo_policy.preferred_duration
+        )
+
+    def test_embargo_policy_reference_string_is_refused(self):
+        """The policy is carried inline as part of the profile, never as a
+        reference to fetch (EP-01-001, CP-01-010)."""
+        with self.assertRaises(ValidationError) as ctx:
+            as_VultronPerson.model_validate(
+                {
+                    "id": "https://example.org/users/alice",
+                    "embargoPolicy": "https://example.org/policies/alice-ep",
+                }
+            )
+        # The refusal names the legacy shape and the operator remedy.
+        self.assertIn("must be carried inline", str(ctx.exception))
+        self.assertIn("must be reset", str(ctx.exception))
+
+    def test_another_actors_policy_is_refused(self):
+        """A profile carries only its own policy (EP-01-001, CP-01-010)."""
+        with self.assertRaises(ValidationError):
+            as_VultronPerson(
+                id_="https://example.org/users/alice",
+                embargo_policy=_make_policy(),
+            )
+
+    def test_is_instance_of_core_actor(self):
+        p = as_VultronPerson()
+        self.assertIsInstance(p, CoreActor)
+
+    def test_json_round_trip_no_policy(self):
+        p = as_VultronPerson(
+            name="Alice", id_="https://example.org/users/alice"
+        )
+        j = p.model_dump_json(by_alias=True, exclude_none=True)
+        self.assertIn("Person", j)
+        self.assertNotIn("embargoPolicy", j)
+
+    def test_json_round_trip_with_inline_policy(self):
+        policy = _make_policy()
+        p = as_VultronPerson(
+            name="Alice",
+            id_=ACTOR_ID,
+            embargo_policy=policy,
+        )
+        j = p.model_dump_json(by_alias=True, exclude_none=True)
+        self.assertIn("Person", j)
+        self.assertIn("embargoPolicy", j)
+        self.assertIn("EmbargoPolicy", j)
+
+
+class TestVultronOrganizationBasics(unittest.TestCase):
+    """as_VultronOrganization retains Organization type and supports
+    embargo_policy."""
+
+    def test_as_type_is_organization(self):
+        org = as_VultronOrganization(id_="https://example.org/orgs/vendor")
+        self.assertEqual(as_ActorType.ORGANIZATION, org.type_)
+
+    def test_embargo_policy_defaults_to_none(self):
+        org = as_VultronOrganization(id_="https://example.org/orgs/vendor")
+        self.assertIsNone(org.embargo_policy)
+
+    def test_embargo_policy_inline_object(self):
+        policy = _make_policy()
+        org = as_VultronOrganization(
+            id_=ACTOR_ID,
+            embargo_policy=policy,
+        )
+        assert isinstance(org.embargo_policy, as_EmbargoPolicy)
+        self.assertEqual(
+            timedelta(days=90), org.embargo_policy.preferred_duration
+        )
+
+    def test_is_instance_of_core_actor(self):
+        org = as_VultronOrganization()
+        self.assertIsInstance(org, CoreActor)
+
+
+class TestVultronServiceBasics(unittest.TestCase):
+    """as_VultronService retains Service type and supports embargo_policy."""
+
+    def test_as_type_is_service(self):
+        svc = as_VultronService(id_="https://example.org/services/bot")
+        self.assertEqual(as_ActorType.SERVICE, svc.type_)
+
+    def test_embargo_policy_defaults_to_none(self):
+        svc = as_VultronService(id_="https://example.org/services/bot")
+        self.assertIsNone(svc.embargo_policy)
+
+    def test_is_instance_of_core_actor(self):
+        svc = as_VultronService()
+        self.assertIsInstance(svc, CoreActor)
+
+
+class TestVultronActorTypePreservation(unittest.TestCase):
+    """Subclass types remain distinct and don't override each other."""
+
+    def test_person_and_org_have_different_types(self):
+        p = as_VultronPerson()
+        org = as_VultronOrganization()
+        self.assertNotEqual(p.type_, org.type_)
+
+    def test_person_type_is_not_service(self):
+        p = as_VultronPerson()
+        svc = as_VultronService()
+        self.assertNotEqual(p.type_, svc.type_)
+
+
+class TestWireActorVocabularyAndRoundTrip(unittest.TestCase):
+    def test_vocabulary_points_to_wire_actor_types(self):
+        # ARCH-12-003: WIRE_TYPE_MAP["Actor"] must be the wire as_Actor, not CoreActor.
+        # CoreActor was removed from VOCABULARY in issue #1992.
+        # ARCH-23-002: actor type_ value keys live in WIRE_TYPE_MAP, not VOCABULARY.
+        self.assertIs(WIRE_TYPE_MAP["Actor"], as_Actor)
+        self.assertIs(WIRE_TYPE_MAP["Person"], as_VultronPerson)
+        self.assertIs(WIRE_TYPE_MAP["Organization"], as_VultronOrganization)
+        self.assertIs(WIRE_TYPE_MAP["Service"], as_VultronService)
+        self.assertIs(WIRE_TYPE_MAP["Application"], as_VultronApplication)
+        self.assertIs(WIRE_TYPE_MAP["Group"], as_VultronGroup)
+
+    def test_service_type_resolves_to_vultron_service_in_both_maps(self):
+        """Core and wire agree on what a ``Service`` row is (#4612).
+
+        The deleted ``CaseActor`` declared ``type: "Service"`` too, and by
+        import order it took ``CORE_TYPE_MAP["Service"]`` while
+        ``WIRE_TYPE_MAP["Service"]`` stayed ``VultronService``.
+        """
+        self.assertIs(CORE_TYPE_MAP["Service"], CoreVultronService)
+        self.assertIs(WIRE_TYPE_MAP["Service"], CoreVultronService)
+
+    def test_actor_class_names_are_not_wire_type_map_keys(self):
+        """VM-01-008: the wire ``type`` value is the only key (issue #2982).
+
+        ``as_VultronPerson`` used to register under ``VultronPerson`` too — a
+        key no AS2 payload ever carries, which let a caller holding the *core*
+        class name resolve a wire class by name coincidence (ARCH-23-002).
+        """
+        for class_stem in (
+            "VultronPerson",
+            "VultronOrganization",
+            "VultronService",
+            "VultronApplication",
+            "VultronGroup",
+        ):
+            self.assertNotIn(class_stem, WIRE_TYPE_MAP)
+
+    def test_core_person_to_wire_person_model_validate_round_trip(self):
+        core_actor = CoreVultronPerson(
+            id_="https://example.org/actors/alice",
+            name="Alice",
+            inbox="https://example.org/actors/alice/inbox",
+            outbox="https://example.org/actors/alice/outbox",
+            preferred_username="alice",
+            endpoints={"sharedInbox": "https://example.org/inbox"},
+            embargo_policy=_make_policy("https://example.org/actors/alice"),
+        )
+
+        wire_actor = as_VultronPerson.model_validate(
+            core_actor.model_dump(mode="json")
+        )
+
+        self.assertEqual(core_actor.id_, wire_actor.id_)
+        self.assertEqual(core_actor.name, wire_actor.name)
+        self.assertEqual(core_actor.type_, wire_actor.type_)
+        self.assertEqual(core_actor.inbox, wire_actor.inbox)
+        self.assertEqual(core_actor.outbox, wire_actor.outbox)
+        self.assertEqual(
+            core_actor.preferred_username,
+            wire_actor.preferred_username,
+        )
+        self.assertEqual(core_actor.endpoints, wire_actor.endpoints)
+        self.assertEqual(core_actor.embargo_policy, wire_actor.embargo_policy)
+
+
+class TestVultronActorAliasesAreCore(unittest.TestCase):
+    """After ARCH-25-003 (ADR-0099), as_* names are direct aliases for core classes."""
+
+    def test_person_alias_is_core(self):
+        self.assertIs(as_VultronPerson, CoreVultronPerson)
+
+    def test_organization_alias_is_core(self):
+        self.assertIs(as_VultronOrganization, CoreVultronOrganization)
+
+    def test_service_alias_is_core(self):
+        self.assertIs(as_VultronService, CoreVultronService)
+
+    def test_application_alias_is_core(self):
+        self.assertIs(as_VultronApplication, CoreVultronApplication)
+
+    def test_group_alias_is_core(self):
+        self.assertIs(as_VultronGroup, CoreVultronGroup)
+
+    def test_instances_are_core_actors(self):
+        for wire_cls in (
+            as_VultronPerson,
+            as_VultronOrganization,
+            as_VultronService,
+            as_VultronApplication,
+            as_VultronGroup,
+        ):
+            with self.subTest(wire_cls=wire_cls.__name__):
+                self.assertIsInstance(wire_cls(), CoreActor)
+
+    def test_inbox_is_string(self):
+        p = as_VultronPerson(
+            id_="https://example.org/actors/alice",
+            inbox="https://example.org/actors/alice/inbox",
+        )
+        self.assertIsInstance(p.inbox, str)
+
+    def test_embargo_policy_preserved(self):
+        policy = _make_policy()
+        p = as_VultronPerson(
+            id_=ACTOR_ID,
+            embargo_policy=policy,
+        )
+        self.assertIsNotNone(p.embargo_policy)
+
+
+if __name__ == "__main__":
+    unittest.main()

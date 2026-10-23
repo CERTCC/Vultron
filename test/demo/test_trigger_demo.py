@@ -1,0 +1,130 @@
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""In-process test for the trigger exchange demo (#4254).
+
+Each demo is run inside its own ``demo_environment`` (as ``run_exchange_demos``
+does) and asserted on its own settled outcome *before* teardown resets the
+stores, rather than only on "no ERROR SUMMARY" (#2241).
+"""
+
+import logging
+
+import pytest
+
+from test.demo._helpers import (
+    expect_trusted_introductions,
+    make_client,
+    route_exchange_demo_at_testclient,
+)
+from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.report_case_link import VultronReportCaseLink
+from vultron.core.states.rm import RM
+from vultron.demo.exchange import trigger_demo as demo
+from vultron.demo.utils import (
+    assert_demo_success,
+    demo_environment,
+    reset_demo_failures,
+)
+
+
+@pytest.fixture(scope="module")
+def demo_env(client):
+    """Route the demo's client at the in-process TestClient (DEMOMA-26-002)."""
+    with route_exchange_demo_at_testclient(client, demo) as base:
+        yield base
+
+
+def _run(base: str, demo_fn, caplog: pytest.LogCaptureFixture):
+    """Run *demo_fn*; return ``(link, vendor_rm, vendor_rms)`` read before teardown.
+
+    *link* is the vendor's report link; *vendor_rm* is the vendor's RM state as
+    a participant of the linked case, or ``None`` when there is no such case;
+    *vendor_rms* is every RM state its participant record holds, in order.
+    The reporter must take the vendor's case introduction on the trusted route
+    (CBT-01-005, #4675).
+    """
+    reset_demo_failures()
+    client = make_client(base)
+    with (
+        caplog.at_level(logging.WARNING),
+        expect_trusted_introductions(caplog),
+        demo_environment(client) as (reporter, vendor, coordinator),
+    ):
+        demo_fn(client, reporter, vendor, coordinator)
+        assert_demo_success()
+        dl = get_datalayer(vendor.id_)
+        (link,) = [
+            obj
+            for obj in dl.list_objects("ReportCaseLink")
+            if isinstance(obj, VultronReportCaseLink)
+        ]
+        vendor_rm = None
+        vendor_rms: list[RM] = []
+        case = dl.read(link.case_id) if link.case_id else None
+        if isinstance(case, VulnerabilityCase):
+            pid = case.actor_participant_index.get(vendor.id_)
+            participant = dl.read(pid) if pid else None
+            if isinstance(participant, CaseParticipant):
+                status = participant.participant_status
+                assert status is not None
+                vendor_rm = status.rm.state
+                vendor_rms = [
+                    s.rm.state for s in participant.participant_statuses
+                ]
+        return link, vendor_rm, vendor_rms
+
+
+def test_validate_and_engage_settles_on_an_accepted_case(demo_env, caplog):
+    """Validate then engage: the vendor's record went VALID, then ACCEPTED.
+
+    The validate trigger sends and writes nothing, its report link included
+    (RSH-08-006): the vendor's VALID is the CASE_MANAGER's status, copied
+    into its replica from the ledger, so it is read from the participant
+    record, not the link.
+    """
+    link, vendor_rm, vendor_rms = _run(
+        demo_env, demo.demo_validate_and_engage, caplog
+    )
+    assert link.case_id is not None
+    assert RM.VALID in vendor_rms
+    assert vendor_rms.index(RM.VALID) < vendor_rms.index(RM.ACCEPTED)
+    assert vendor_rm == RM.ACCEPTED
+
+
+@pytest.mark.spec("CM-23-019")
+def test_invalidate_and_close_settles_closed(demo_env, caplog):
+    """Invalidate then close: the vendor leaves its case RM.CLOSED, never engaged.
+
+    The CaseActor still creates the case when the report arrives (the vendor's
+    ``Create(CaseProposal)``), so a case exists; what distinguishes this run
+    is that the vendor is never ``RM.ACCEPTED`` on it.  Once the case holds
+    the report, the vendor closes it by ``Leave(VulnerabilityCase)``, not
+    ``Close(Report)`` (CM-23-019): the CaseActor ledgers the owner's closure
+    and the vendor's replica replays it, so its participant ends
+    ``RM.CLOSED``.  Its report link keeps the ``INVALID`` it recorded.
+    """
+    link, vendor_rm, _ = _run(demo_env, demo.demo_invalidate_and_close, caplog)
+    assert link.rm_state == RM.INVALID
+    assert link.case_id is not None
+    assert vendor_rm == RM.CLOSED
+
+
+def test_every_run_is_registered():
+    """Both outcomes run under ``vultron-demo trigger``."""
+    assert [fn for _, fn in demo._ALL_DEMOS] == [
+        demo.demo_validate_and_engage,
+        demo.demo_invalidate_and_close,
+    ]

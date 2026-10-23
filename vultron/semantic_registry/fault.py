@@ -1,0 +1,101 @@
+"""ProcessingFault semantic registry entries.
+
+Covers the Create(ProcessingFault) NACK flow (ADR-0080, ASK-07-001).
+"""
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from vultron.core.behaviors.sender_entitlement import AddresseeSide
+from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.events.fault import (
+    CreateProcessingFaultReceivedEvent,
+    RefusalNoticeReceivedEvent,
+)
+from vultron.core.use_cases.received.fault import (
+    CreateProcessingFaultReceivedUseCase,
+    RefusalNoticeReceivedUseCase,
+)
+from vultron.semantic_registry._entry import SemanticEntry
+from vultron.semantic_registry._occasion import (
+    MessagePage,
+    Occasion,
+)
+from vultron.wire.as2.extractor._instances import (
+    CreateProcessingFaultPattern,
+    RefusalNoticePattern,
+)
+
+ENTRIES: list[SemanticEntry] = [
+    SemanticEntry(
+        semantics=MessageSemantics.CREATE_PROCESSING_FAULT,
+        pattern=CreateProcessingFaultPattern,
+        event_class=CreateProcessingFaultReceivedEvent,
+        use_case_class=CreateProcessingFaultReceivedUseCase,
+        phrase="{actor} reported a processing fault",
+        wire_activity_class=None,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when="a Participant has received a message it cannot process",
+                anchor="create-processing-fault",
+                addressee=AddresseeSide.CASE_MANAGER,
+                heading="Create processing fault",
+                description=(
+                    "Tells the sender that its message was received but not "
+                    "understood, or understood but its processing failed on "
+                    "the receiver's internal error. It names the failed "
+                    "activity and a failure "
+                    "class, with no implementation diagnostics. This fault "
+                    "serves the not-understood purpose of the formal RE, EE, "
+                    "CE and GE messages."
+                ),
+                example="create_processing_fault",
+                evolved=True,
+            ),
+        ),
+        page=MessagePage.FAULTS_AND_ACKNOWLEDGEMENTS,
+    ),
+    # The most general Reject pattern: every Reject that nests a specific
+    # activity is registered ahead of it (SE-03-002).
+    SemanticEntry(
+        semantics=MessageSemantics.REFUSAL_NOTICE,
+        pattern=RefusalNoticePattern,
+        event_class=RefusalNoticeReceivedEvent,
+        use_case_class=RefusalNoticeReceivedUseCase,
+        phrase="{actor} refused an assertion",
+        wire_activity_class=None,
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "the Case Manager has refused a participant's assertion"
+                    " because a precondition did not hold"
+                ),
+                anchor="refusal-notice",
+                addressee=AddresseeSide.PARTICIPANT,
+                heading="Refusal notice",
+                description=(
+                    "Tells the participant that its assertion was received "
+                    "and understood but refused, so it had no effect. It "
+                    "carries the refused activity inline and names the "
+                    "refusing guard's reason. This notice serves the declined "
+                    "purpose of the formal RE, EE, CE and GE messages."
+                ),
+                example="refusal_notice",
+                evolved=True,
+            ),
+        ),
+        page=MessagePage.FAULTS_AND_ACKNOWLEDGEMENTS,
+    ),
+]

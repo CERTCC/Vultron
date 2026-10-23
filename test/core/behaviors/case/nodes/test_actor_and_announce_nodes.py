@@ -1,0 +1,1103 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Tests for AcceptCaseOwnershipTransferNode, SeedAnnouncedCaseNode,
+and EmitInviteActorToCaseNode._read_suggested_roles."""
+
+import json
+from typing import Any, cast
+
+import py_trees
+import pytest
+from py_trees.common import Status
+
+from test.support.case_owner import CASE_OWNER_ID
+from test.support.embargo_register import register
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.actor import (
+    EmitInviteActorToCaseNode,
+)
+from vultron.core.behaviors.case.nodes.announce import SeedAnnouncedCaseNode
+from vultron.core.behaviors.case.nodes.ownership_transfer import (
+    AcceptCaseOwnershipTransferNode,
+    AcceptRecordedOwnershipOfferNode,
+)
+from vultron.core.models._helpers import _as_id, days_from_now_utc, now_utc
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.actor import (
+    AnnounceVulnerabilityCaseReceivedEvent,
+)
+from vultron.core.states.participant_embargo_consent import (
+    EmbargoConsentState,
+)
+from vultron.enums.roles import CVDRole
+from vultron.semantic_registry import extract_event
+from vultron.wire.as2.factories import announce_vulnerability_case_activity
+from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+)
+
+ACTOR_ID = "https://example.org/actors/owner"
+NEW_OWNER_ID = "https://example.org/actors/coordinator"
+CASE_ID = "https://example.org/cases/case-actor-node-01"
+CASE_ID2 = "https://example.org/cases/case-announce-01"
+
+
+@pytest.fixture
+def store_for():
+    """Factory: the store belonging to a given actor.
+
+    Each test class here executes as a different actor, and a BT's store follows
+    its executing actor (ADR-0073), so the store cannot be a single module-wide
+    fixture. Classes override ``dl`` with the actor they run as.
+
+    Explicitly closed: an unclosed sqlite3 connection is collected at an
+    unpredictable moment and pytest promotes the resulting ResourceWarning to a
+    failure via PytestUnraisableExceptionWarning.
+    """
+    created: list[SqliteDataLayer] = []
+
+    def _make(actor_id: str) -> SqliteDataLayer:
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=actor_id)
+        created.append(dl)
+        return dl
+
+    yield _make
+    for dl in created:
+        dl.close()
+
+
+@pytest.fixture
+def dl(store_for):
+    """Default store: the new owner, whom most trees in this file execute as."""
+    return store_for(NEW_OWNER_ID)
+
+
+@pytest.fixture
+def bridge(dl):
+    return BTBridge(
+        datalayer=dl,
+        wire_render_port=As2WireRenderAdapter(),
+        sync_port=SyncActivityAdapter(dl),
+    )
+
+
+# ---------------------------------------------------------------------------
+# AcceptCaseOwnershipTransferNode
+# ---------------------------------------------------------------------------
+
+
+CAUSE_ID = "https://example.org/activities/ot-accepted-offer"
+
+
+class TestAcceptCaseOwnershipTransferNode:
+    """Unit tests for AcceptCaseOwnershipTransferNode.
+
+    These run the node alone, as an actor that is not the case's
+    CASE_MANAGER, to pin the role changes it writes; the ledger entries it
+    commits for them are stubbed here and covered at the CASE_MANAGER by
+    ``test/core/use_cases/received/test_ownership_transfer_replay.py``.
+    """
+
+    @pytest.fixture
+    def bridge(self, dl):
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        return BTBridge(
+            datalayer=dl,
+            trigger_activity=MagicMock(spec=TriggerActivityAdapter),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+
+    @pytest.fixture(autouse=True)
+    def _entries_stubbed(self):
+        from unittest.mock import patch
+
+        from vultron.core.behaviors.case.nodes.ownership_transfer import (
+            _TransferCaseOwnershipNode,
+        )
+
+        with patch.object(_TransferCaseOwnershipNode, "_record_consequences"):
+            yield
+
+    @pytest.mark.spec("CM-21-002")
+    def test_transfers_ownership(self, bridge, dl) -> None:
+        """Happy path: case.attributed_to updated to new_owner_id."""
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Node Test",
+            attributed_to=ACTOR_ID,
+        )
+        dl.create(case)
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.SUCCESS
+        refreshed = cast(Any, dl.read(CASE_ID))
+        assert refreshed is not None
+        owner = refreshed.attributed_to
+        owner_id = (
+            owner
+            if isinstance(owner, str)
+            else getattr(owner, "id_", str(owner))
+        )
+        assert owner_id == NEW_OWNER_ID
+
+    def test_idempotent_when_already_owned(self, bridge, dl) -> None:
+        """SUCCESS without mutation when case already has the new owner."""
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Node Idempotent",
+            attributed_to=NEW_OWNER_ID,
+        )
+        dl.create(case)
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.SUCCESS
+
+    def test_fails_when_case_not_found(self, bridge, dl) -> None:
+        """FAILURE when case is absent from DataLayer."""
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id="https://example.org/cases/missing",
+            new_owner_id=NEW_OWNER_ID,
+            cause_id=CAUSE_ID,
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.FAILURE
+
+    @pytest.mark.spec("CM-21-011")
+    def test_recorded_offer_node_fails_without_a_recorded_offer(
+        self, bridge, dl
+    ) -> None:
+        """The recorded-Offer variant names no owner it cannot read, so it
+        fails and leaves ownership unchanged rather than guessing one."""
+        case = as_VulnerabilityCase(
+            id_=CASE_ID, name="OT Node No Offer", attributed_to=ACTOR_ID
+        )
+        dl.create(case)
+        tree = AcceptRecordedOwnershipOfferNode(
+            case_id=CASE_ID, offer_id="https://example.org/activities/none"
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.FAILURE
+        refreshed = cast(Any, dl.read(CASE_ID))
+        assert _as_id(refreshed.attributed_to) == ACTOR_ID
+
+    @pytest.mark.spec("CM-21-002")
+    def test_grants_case_owner_role_to_participant(self, bridge, dl) -> None:
+        """New owner's participant record gains CVDRole.CASE_OWNER on transfer."""
+        participant = CaseParticipant(
+            id_="https://example.org/participants/p-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(participant)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Role Grant Test",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={
+                NEW_OWNER_ID: participant.id_,
+            },
+        )
+        dl.create(case)
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.SUCCESS
+        refreshed_participant = cast(Any, dl.read(participant.id_))
+        assert refreshed_participant is not None
+        assert CVDRole.CASE_OWNER in refreshed_participant.case_roles
+
+    @pytest.mark.spec("CM-21-003")
+    @pytest.mark.spec("CM-21-008")
+    def test_strips_case_owner_role_from_previous_owner(
+        self, bridge, dl
+    ) -> None:
+        """Previous owner's participant loses CVDRole.CASE_OWNER on transfer (CM-21-003)."""
+        old_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-old-owner",
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_OWNER, CVDRole.COORDINATOR],
+        )
+        new_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(old_owner_participant)
+        dl.create(new_owner_participant)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Role Strip Test",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={
+                ACTOR_ID: old_owner_participant.id_,
+                NEW_OWNER_ID: new_owner_participant.id_,
+            },
+        )
+        dl.create(case)
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.SUCCESS
+        refreshed_old = cast(Any, dl.read(old_owner_participant.id_))
+        assert refreshed_old is not None
+        assert CVDRole.CASE_OWNER not in refreshed_old.case_roles
+        # Other roles are preserved — CM-21-003
+        assert CVDRole.COORDINATOR in refreshed_old.case_roles
+
+    @pytest.mark.spec("CM-21-001")
+    def test_at_most_one_case_owner_after_transfer(self, bridge, dl) -> None:
+        """Exactly one participant holds CVDRole.CASE_OWNER after transfer (CM-21-001)."""
+        old_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-old-owner",
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        new_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(old_owner_participant)
+        dl.create(new_owner_participant)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT At-Most-One Test",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={
+                ACTOR_ID: old_owner_participant.id_,
+                NEW_OWNER_ID: new_owner_participant.id_,
+            },
+        )
+        dl.create(case)
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+        )
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+        assert result.status == Status.SUCCESS
+        all_participants = [
+            cast(Any, dl.read(old_owner_participant.id_)),
+            cast(Any, dl.read(new_owner_participant.id_)),
+        ]
+        owners = [
+            p for p in all_participants if CVDRole.CASE_OWNER in p.case_roles
+        ]
+        assert len(owners) == 1
+        assert owners[0].id_ == new_owner_participant.id_
+
+    def test_atomic_rollback_on_save_failure(self, bridge, dl) -> None:
+        """Failed save_many leaves both participants unchanged (CM-21-004)."""
+        from unittest.mock import patch
+
+        old_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-old-owner",
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        new_owner_participant = CaseParticipant(
+            id_="https://example.org/participants/p-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(old_owner_participant)
+        dl.create(new_owner_participant)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Atomic Test",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={
+                ACTOR_ID: old_owner_participant.id_,
+                NEW_OWNER_ID: new_owner_participant.id_,
+            },
+        )
+        dl.create(case)
+
+        # Patch save_many to raise, simulating a storage failure mid-commit.
+        # BTBridge catches and logs the exception rather than re-raising it, so
+        # we assert on DataLayer state — not on the raised exception.
+        with patch.object(
+            dl, "save_many", side_effect=RuntimeError("db down")
+        ):
+            tree = AcceptCaseOwnershipTransferNode(
+                case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+            )
+            bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+
+        # Because save_many was never called, no write reached the DataLayer.
+        # Both participants must be exactly as they were before the attempt.
+        old_refreshed = cast(Any, dl.read(old_owner_participant.id_))
+        new_refreshed = cast(Any, dl.read(new_owner_participant.id_))
+        assert CVDRole.CASE_OWNER in old_refreshed.case_roles, (
+            "CM-21-004: old owner should still hold CASE_OWNER after failed transfer"
+        )
+        assert CVDRole.CASE_OWNER not in new_refreshed.case_roles, (
+            "CM-21-004: new owner must not gain CASE_OWNER from a failed transfer"
+        )
+
+
+def _owned_case(dl) -> tuple[CaseParticipant, CaseParticipant]:
+    """A case ACTOR_ID owns, with NEW_OWNER_ID as a plain participant."""
+    old = CaseParticipant(
+        id_="https://example.org/participants/p-old-owner",
+        attributed_to=ACTOR_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_OWNER],
+    )
+    new = CaseParticipant(
+        id_="https://example.org/participants/p-new-owner",
+        attributed_to=NEW_OWNER_ID,
+        context=CASE_ID,
+        case_roles=[CVDRole.COORDINATOR],
+    )
+    dl.create(old)
+    dl.create(new)
+    dl.create(
+        as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Entries Test",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={ACTOR_ID: old.id_, NEW_OWNER_ID: new.id_},
+        )
+    )
+    return old, new
+
+
+class TestTransferRecordsEachChange:
+    """Every change has a committed entry, or none is made (CLP-07-013)."""
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_without_the_trigger_port_nothing_is_written(
+        self, bridge, dl
+    ) -> None:
+        """No entry can be built, so the transfer writes nothing (ARCH-15-001)."""
+        old, new = _owned_case(dl)
+
+        result = bridge.execute_with_setup(
+            tree=AcceptCaseOwnershipTransferNode(
+                case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+            ),
+            actor_id=NEW_OWNER_ID,
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        assert _as_id(cast(Any, dl.read(CASE_ID)).attributed_to) == ACTOR_ID
+        assert cast(Any, dl.read(old.id_)).has_role(CVDRole.CASE_OWNER)
+        assert not cast(Any, dl.read(new.id_)).has_role(CVDRole.CASE_OWNER)
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_entry_that_does_not_commit_fails_the_transfer(
+        self, dl
+    ) -> None:
+        from unittest.mock import MagicMock, patch
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+
+        old, new = _owned_case(dl)
+        port = MagicMock(spec=TriggerActivityAdapter)
+        port.record_case_participant_updated.return_value = ("urn:x", "{}")
+        bridge = BTBridge(datalayer=dl, trigger_activity=port)
+
+        with patch(
+            "vultron.core.behaviors.case.nodes.ownership_transfer_apply"
+            ".commit_emitted_activity",
+            side_effect=RuntimeError("ledger commit failed"),
+        ):
+            result = bridge.execute_with_setup(
+                tree=AcceptCaseOwnershipTransferNode(
+                    case_id=CASE_ID,
+                    new_owner_id=NEW_OWNER_ID,
+                    cause_id=CAUSE_ID,
+                ),
+                actor_id=NEW_OWNER_ID,
+            )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is False
+        # The entries commit before the change is saved: no change without
+        # its entry (CLP-07-013).
+        assert _as_id(cast(Any, dl.read(CASE_ID)).attributed_to) == ACTOR_ID
+        assert cast(Any, dl.read(old.id_)).has_role(CVDRole.CASE_OWNER)
+        assert not cast(Any, dl.read(new.id_)).has_role(CVDRole.CASE_OWNER)
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_entry_that_cannot_be_built_fails_the_transfer(
+        self, dl
+    ) -> None:
+        """A port error is a FAILURE with nothing changed, not a crash."""
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.errors import VultronActivityConstructionError
+
+        old, new = _owned_case(dl)
+        port = MagicMock(spec=TriggerActivityAdapter)
+        port.record_case_participant_updated.side_effect = (
+            VultronActivityConstructionError("invalid arguments")
+        )
+        bridge = BTBridge(datalayer=dl, trigger_activity=port)
+
+        result = bridge.execute_with_setup(
+            tree=AcceptCaseOwnershipTransferNode(
+                case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+            ),
+            actor_id=NEW_OWNER_ID,
+        )
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is False
+        assert _as_id(cast(Any, dl.read(CASE_ID)).attributed_to) == ACTOR_ID
+        assert cast(Any, dl.read(old.id_)).has_role(CVDRole.CASE_OWNER)
+        assert not cast(Any, dl.read(new.id_)).has_role(CVDRole.CASE_OWNER)
+
+
+# ---------------------------------------------------------------------------
+# SeedAnnouncedCaseNode
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def case():
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID2, name="Seed Announce Test"
+    )
+
+
+def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
+    """*case* with an owner, so it names a ledger position (SYNC-16-005)."""
+    return as_VulnerabilityCase(
+        id_=case.id_, name=case.name, attributed_to=ACTOR_ID
+    )
+
+
+def _announce_event_for(
+    case: as_VulnerabilityCase,
+) -> AnnounceVulnerabilityCaseReceivedEvent:
+    activity = announce_vulnerability_case_activity(
+        case, actor=ACTOR_ID, context=case.id_
+    )
+    event = extract_event(activity)
+    assert event.semantic_type == MessageSemantics.ANNOUNCE_VULNERABILITY_CASE
+    return cast(AnnounceVulnerabilityCaseReceivedEvent, event)
+
+
+@pytest.fixture
+def announce_event(case) -> AnnounceVulnerabilityCaseReceivedEvent:
+    return _announce_event_for(case)
+
+
+class TestSeedAnnouncedCaseNode:
+    """Unit tests for SeedAnnouncedCaseNode."""
+
+    @pytest.fixture
+    def dl(self, store_for):
+        """This class executes as ACTOR_ID, so that is its store."""
+        return store_for(ACTOR_ID)
+
+    @pytest.mark.spec("CM-06-002")
+    def test_saves_case_when_absent(
+        self, bridge, dl, case, announce_event
+    ) -> None:
+        """MV-10-003: case is persisted when not yet in DataLayer."""
+        assert dl.read(CASE_ID2) is None
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=case, request=announce_event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=announce_event
+        )
+        assert result.status == Status.SUCCESS
+        assert dl.read(CASE_ID2) is not None
+
+    @pytest.mark.spec("PCR-02-004")
+    def test_replaces_a_case_already_present(
+        self, bridge, dl, case, announce_event
+    ) -> None:
+        """PCR-02-004: a copy the guard admitted replaces the held case."""
+        copy = _owned(case)
+        dl.create(copy.model_copy(update={"name": "held case"}))
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2,
+            case_obj=copy,
+            request=announce_event,
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=announce_event
+        )
+        assert result.status == Status.SUCCESS
+        assert cast(as_VulnerabilityCase, dl.read(CASE_ID2)).name == (
+            "Seed Announce Test"
+        )
+
+    def test_replacing_a_held_case_logs_at_info(
+        self, bridge, dl, case, announce_event, caplog
+    ) -> None:
+        """Replacing a held case is a state change, so INFO (SL-04-007).
+
+        The guard ahead of the node has judged the copy current by its
+        ledger position (SYNC-16-006); the node replaces the case (PCR-02-004).
+        """
+        import logging
+
+        copy = _owned(case)
+        dl.create(copy)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2,
+            case_obj=copy,
+            request=announce_event,
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            bridge.execute_with_setup(
+                tree=tree, actor_id=ACTOR_ID, activity=announce_event
+            )
+
+        replace_records = [
+            r for r in caplog.records if "replacing case" in r.getMessage()
+        ]
+        assert replace_records, "Expected the replacement log entry"
+        assert all(r.levelno == logging.INFO for r in replace_records)
+
+    def test_persisted_case_has_no_inline_participants(
+        self, bridge, dl, announce_event
+    ) -> None:
+        """Persisted VulnerabilityCase must not carry inline CaseParticipant objects.
+
+        Regression for #2233 write path: _build_case_object materialises inline
+        participants for delivery so that store_embedded_participants on the
+        receiver side can project and persist them.  SeedAnnouncedCaseNode must
+        normalise case_participants to string IDs *before* saving the case, so
+        the stored row never carries stale inline snapshots that would freeze
+        the RM state visible to update_participant_rm_state.
+        """
+        participant_id = f"{CASE_ID2}/participants/vendor-inline-001"
+        actor_id = "https://example.org/actors/vendor-inline-001"
+
+        # Simulate what _build_case_object produces: a case carrying a fully
+        # materialised inline wire CaseParticipant rather than a bare string ID.
+        inline_participant = as_CaseParticipant(
+            id_=participant_id,
+            attributed_to=actor_id,
+            context=CASE_ID2,
+        )
+        case_with_inline = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID2,
+            name="Inline Participant Write-Path Test",
+        )
+        case_with_inline.actor_participant_index[actor_id] = participant_id
+        case_with_inline.case_participants.append(inline_participant)  # type: ignore[arg-type]
+
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2,
+            case_obj=case_with_inline,
+            request=announce_event,
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=announce_event
+        )
+        assert result.status == Status.SUCCESS
+
+        stored = dl.read(CASE_ID2)
+        assert stored is not None
+        for ref in stored.case_participants:
+            assert isinstance(ref, str), (
+                "Persisted case_participants must contain only string IDs; "
+                f"found inline {type(ref).__name__!r} — write-path bug (#2233)"
+            )
+        # Standalone participant record must also exist
+        assert dl.read(participant_id) is not None, (
+            "Standalone CaseParticipant record must be stored alongside the case"
+        )
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_stores_the_inline_embargo_the_case_names(
+        self, bridge, dl
+    ) -> None:
+        """An inline active embargo becomes a record this store can read."""
+        embargo = EmbargoEvent(
+            id_=f"{CASE_ID2}/embargo_events/inline",
+            context=CASE_ID2,
+            end_time=days_from_now_utc(45),
+        )
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID2,
+            name="Inline Embargo",
+            embargo_register=register(active=embargo),
+        )
+        event = _announce_event_for(case)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=case, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.SUCCESS
+        assert isinstance(dl.read(embargo.id_), EmbargoEvent)
+        assert dl.read(CASE_ID2) is not None
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_refuses_a_case_naming_an_unheld_embargo(self, bridge, dl) -> None:
+        """A bare embargo id this store cannot read is refused, not seeded."""
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID2,
+            name="Unheld Embargo",
+            embargo_register=register(
+                active=f"{CASE_ID2}/embargo_events/unheld"
+            ),
+        )
+        event = _announce_event_for(case)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=case, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.FAILURE
+        assert dl.read(CASE_ID2) is None
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_refuses_a_reannounce_naming_an_unheld_embargo(
+        self, bridge, dl, case
+    ) -> None:
+        """An already-held case is left as stored, participants included."""
+        dl.create(case)
+        participant_id = f"{CASE_ID2}/participants/reannounced"
+        reannounced = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID2,
+            name="Re-announced",
+            embargo_register=register(
+                active=f"{CASE_ID2}/embargo_events/unheld"
+            ),
+            case_participants=[
+                as_CaseParticipant(
+                    id_=participant_id,
+                    attributed_to=ACTOR_ID,
+                    context=CASE_ID2,
+                    embargo_consents=[
+                        EmbargoConsent(
+                            embargo_id=f"{CASE_ID2}/embargo_events/unheld",
+                            state=EmbargoConsentState.UNINVITED,
+                        )
+                    ],
+                )
+            ],
+        )
+        event = _announce_event_for(reannounced)
+        tree = SeedAnnouncedCaseNode(
+            case_id=CASE_ID2, case_obj=reannounced, request=event
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=ACTOR_ID, activity=event
+        )
+        assert result.status == Status.FAILURE
+        stored = dl.read(CASE_ID2)
+        assert stored is not None
+        assert stored.active_embargo is None
+        assert dl.read(participant_id) is None
+
+
+# ---------------------------------------------------------------------------
+# EmitInviteActorToCaseNode._read_suggested_roles (AC-3, Issue-1405)
+# ---------------------------------------------------------------------------
+
+INVITEE_ID = "https://example.org/actors/invitee-ac3"
+AC3_CASE_ID = "https://example.org/cases/ac3-case"
+
+
+class TestEmitInviteActorToCaseNodeReadSuggestedRoles:
+    """AC-3: _read_suggested_roles() returns None when suggested_roles absent."""
+
+    def setup_method(self):
+        py_trees.blackboard.Blackboard.enable_activity_stream()
+        self.node = EmitInviteActorToCaseNode(
+            invitee_id=INVITEE_ID,
+            case_id=AC3_CASE_ID,
+        )
+        self.node.setup()
+
+    def teardown_method(self):
+        py_trees.blackboard.Blackboard.disable_activity_stream()
+        py_trees.blackboard.Blackboard.clear()
+
+    def test_returns_none_when_key_absent(self):
+        """AC-3: _read_suggested_roles() returns None on KeyError (key not set)."""
+        result = self.node._read_suggested_roles()
+        assert result is None, (
+            f"AC-3: expected None when suggested_roles absent, got {result!r}"
+        )
+
+
+class TestEmitInviteActorToCaseNodeQueuesBeforeCommitting:
+    """AC-3 (#3821): the emitting tree's commit is the Invite's only commit.
+
+    The CASE_MANAGER builds the Invite, appends it to its outbox, then
+    commits it, and the Invite carries no ``cc:`` copy back to the manager
+    (CM-17-006, ADR-0109, ADR-0119).
+    """
+
+    @pytest.fixture
+    def dl(self, store_for):
+        return store_for(ACTOR_ID)
+
+    @pytest.mark.spec("CM-17-006")
+    def test_invite_has_no_cc_and_is_appended_to_the_outbox_before_the_commit(
+        self, dl, monkeypatch
+    ):
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        case = as_VulnerabilityCase(
+            id_=AC3_CASE_ID,
+            name="AC3 commit order",
+            attributed_to=ACTOR_ID,
+            stub_summary="Security issue — details shared after acceptance",
+        )
+        dl.create(case)
+
+        def _invite_entries() -> list[CaseLedgerEntry]:
+            return [
+                e
+                for e in dl.list_objects("CaseLedgerEntry")
+                if isinstance(e, CaseLedgerEntry)
+                and e.semantic_type == "invite_actor_to_case"
+            ]
+
+        ledger_at_append: list[list[str | None]] = []
+        original_append = SqliteDataLayer.outbox_append
+
+        def _spy(self_dl, activity_id):
+            ledger_at_append.append(
+                [e.payload_snapshot.get("id") for e in _invite_entries()]
+            )
+            return original_append(self_dl, activity_id)
+
+        monkeypatch.setattr(SqliteDataLayer, "outbox_append", _spy)
+
+        node = EmitInviteActorToCaseNode(
+            invitee_id=INVITEE_ID,
+            case_id=AC3_CASE_ID,
+            attributed_to=NEW_OWNER_ID,
+            roles=["vendor"],
+        )
+        result = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute_with_setup(tree=node, actor_id=ACTOR_ID)
+        assert result.status == Status.SUCCESS
+
+        outbox = dl.outbox_list()
+        assert len(outbox) == 1
+        invite_id = outbox[0]
+        invite = dl.read(invite_id)
+        assert getattr(invite, "cc", None) in (None, [])
+        assert getattr(invite, "actor", None) == ACTOR_ID
+        assert getattr(invite, "attributed_to", None) == NEW_OWNER_ID
+
+        entries = _invite_entries()
+        assert [e.payload_snapshot.get("id") for e in entries] == [invite_id]
+        assert "cc" not in entries[0].payload_snapshot
+        # The one append came before the entry was committed (ADR-0119).
+        assert ledger_at_append == [[]]
+
+
+class TestEmitInviteActorToCaseNodePassesRolesNoneToFactory:
+    """AC-2 (ISSUE-1406): factory.invite_actor_to_case() called with roles=None.
+
+    When ``suggested_roles`` is absent from the blackboard (as in the
+    ``create_accept_actor_recommendation_received_tree`` path), the node
+    must pass ``roles=None`` to the factory — no silent default substitution
+    (ADR-0032, BT-HELPER-01).
+    """
+
+    @pytest.fixture
+    def dl(self, store_for):
+        """This class executes as ACTOR_ID, so that is its store."""
+        return store_for(ACTOR_ID)
+
+    def test_invite_actor_to_case_called_with_roles_none(self, dl):
+        """AC-2: roles=None passed to factory when suggested_roles absent."""
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            as_VulnerabilityCase,
+        )
+
+        # attributed_to triggers genesis_hash computation so the internal
+        # commit_log_entry_tree inside EmitInviteActorToCaseNode can bootstrap.
+        case = as_VulnerabilityCase(
+            id_=AC3_CASE_ID,
+            name="AC2 test case",
+            attributed_to=ACTOR_ID,
+        )
+        dl.create(case)
+
+        mock_factory = MagicMock(spec=TriggerActivityAdapter)
+        mock_factory.invite_actor_to_case.return_value = (
+            "urn:uuid:ac2-invite-001",
+            json.dumps(
+                {
+                    "id_": "urn:uuid:ac2-invite-001",
+                    "type": "Invite",
+                    "actor": ACTOR_ID,
+                    # The real factory always emits ``published``; the commit
+                    # boundary requires it (CLP-07-011).
+                    "published": now_utc().isoformat(),
+                    "object_": {"type": "CoreActor", "id_": INVITEE_ID},
+                    "target": {
+                        "type": "VulnerabilityCase",
+                        "id_": AC3_CASE_ID,
+                    },
+                    "context": AC3_CASE_ID,
+                }
+            ),
+        )
+
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        node = EmitInviteActorToCaseNode(
+            invitee_id=INVITEE_ID,
+            case_id=AC3_CASE_ID,
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=ACTOR_ID)
+
+        assert result.status == Status.SUCCESS
+        mock_factory.invite_actor_to_case.assert_called_once()
+        call_kwargs = mock_factory.invite_actor_to_case.call_args
+        actual_roles = call_kwargs.kwargs.get(
+            "roles",
+            call_kwargs.args[3] if len(call_kwargs.args) > 3 else "MISSING",
+        )
+        assert actual_roles is None, (
+            f"AC-2: invite_actor_to_case must be called with roles=None "
+            f"when suggested_roles is absent, got {actual_roles!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# AC-5a / AC-5b: EmitProposeCaseOwnershipTransferNode and
+#               EmitAcceptCaseOwnershipTransferNode BT-layer routing tests
+# ---------------------------------------------------------------------------
+
+_OT_OWNER_ID = "https://example.org/actors/ot-owner"
+_OT_CASE_ACTOR_ID = "https://example.org/actors/ot-case-actor"
+_OT_TRANSFEREE_ID = "https://example.org/actors/ot-transferee"
+_OT_CASE_ID = "https://example.org/cases/ot-emit-test-01"
+
+
+def _make_ot_case(dl: SqliteDataLayer) -> None:
+    """Seed a case with a CASE_MANAGER participant so resolve_case_manager_id
+    returns _OT_CASE_ACTOR_ID from _OT_CASE_ID."""
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.enums.roles import CVDRole as _CVDRole
+    from vultron.wire.as2.vocab.objects.vulnerability_case import (
+        as_VulnerabilityCase as _VC,
+    )
+
+    case = _VC(
+        id_=_OT_CASE_ID,
+        name="OT Emit Test",
+        attributed_to=_OT_OWNER_ID,
+    )
+    owner_p = CaseParticipant(
+        id_=f"{_OT_CASE_ID}/participants/owner",
+        attributed_to=_OT_OWNER_ID,
+        context=_OT_CASE_ID,
+        case_roles=[_CVDRole.CASE_OWNER],
+    )
+    ca_p = CaseParticipant(
+        id_=f"{_OT_CASE_ID}/participants/case-actor",
+        attributed_to=_OT_CASE_ACTOR_ID,
+        context=_OT_CASE_ID,
+        case_roles=[_CVDRole.CASE_MANAGER],
+    )
+    case.actor_participant_index[_OT_OWNER_ID] = owner_p.id_
+    case.actor_participant_index[_OT_CASE_ACTOR_ID] = ca_p.id_
+    case.case_participants.append(owner_p.id_)
+    case.case_participants.append(ca_p.id_)
+    dl.create(case)
+    dl.create(owner_p)
+    dl.create(ca_p)
+
+
+class TestEmitOwnershipTransferNodes:
+    """AC-5a / AC-5b: Emit nodes address activities to the CaseActor (ADR-0053).
+
+    The two tests execute as *different* actors — the offering owner and the
+    accepting transferee — so each builds its own store rather than sharing one.
+    Each seeds the case into its own replica, which is what actually holds in
+    production: both parties have a replica naming the same CaseActor.
+    """
+
+    @pytest.mark.spec("CM-21-005", "DL-08-003")
+    def test_emit_offer_to_is_case_actor_id(self, store_for):
+        """AC-5a: EmitProposeCaseOwnershipTransferNode sets to=[case_actor_id]."""
+        dl = store_for(_OT_OWNER_ID)
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes.ownership_transfer import (
+            EmitProposeCaseOwnershipTransferNode,
+        )
+
+        _make_ot_case(dl)
+
+        captured: dict = {}
+        node = EmitProposeCaseOwnershipTransferNode(
+            case_id=_OT_CASE_ID,
+            transferee_id=_OT_TRANSFEREE_ID,
+            captured=captured,
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        result = bridge.execute_with_setup(tree=node, actor_id=_OT_OWNER_ID)
+
+        assert result.status == Status.SUCCESS, (
+            f"EmitProposeCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        )
+        activity = captured.get("activity", {})
+        # ADR-0053 / CM-21-005: the proposal is routed to the CaseActor, not
+        # the transferee.
+        assert _OT_CASE_ACTOR_ID in activity.get("to", []), (
+            f"proposal must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
+            f"got to={activity.get('to')!r}"
+        )
+        # CM-24-004, ADR-0109: the owner sends its own proposal, naming no
+        # one else as its author; the CASE_MANAGER's Offer is the delegated
+        # emit (ADR-0148).
+        assert activity.get("actor") == _OT_OWNER_ID
+        assert "attributedTo" not in activity
+        # Queued in the owner's own outbox, not the CASE_MANAGER's.
+        assert activity["id"] in dl.outbox_list()
+        # The inner Offer names the transferee as its target, carried inline
+        # as an Actor, never a bare id (DL-08-003).
+        inner = activity.get("object")
+        assert isinstance(inner, dict) and inner.get("type") == "Offer"
+        target = inner.get("target")
+        assert isinstance(target, dict), (
+            f"the inner Offer must carry the transferee inline; got {target!r}"
+        )
+        assert target.get("id") == _OT_TRANSFEREE_ID, (
+            f"the inner Offer must name the transferee ({_OT_TRANSFEREE_ID}); "
+            f"got target={target!r}"
+        )
+
+    @pytest.mark.spec("CM-21-006")
+    def test_emit_accept_to_is_case_actor_id(self, store_for):
+        """AC-5b: EmitAcceptCaseOwnershipTransferNode sets to=[case_actor_id].
+
+        Uses a mock TriggerActivityAdapter to capture the ``to`` kwarg that
+        the node passes to ``accept_case_ownership_transfer()``.  The node
+        resolves the CaseActor via ``resolve_case_manager_id`` *before*
+        calling the factory, so the mock's call_args faithfully records the
+        routing decision (ADR-0053 / CM-21-006).
+        """
+        dl = store_for(_OT_TRANSFEREE_ID)
+        from unittest.mock import MagicMock
+
+        from vultron.adapters.driven.trigger_activity_adapter import (
+            TriggerActivityAdapter,
+        )
+        from vultron.core.behaviors.case.nodes.ownership_transfer import (
+            EmitAcceptCaseOwnershipTransferNode,
+        )
+
+        _make_ot_case(dl)
+
+        _accept_id = "https://example.org/activities/ot-accept-mock-01"
+        mock_factory = MagicMock(spec=TriggerActivityAdapter)
+        mock_factory.accept_case_ownership_transfer.return_value = (
+            _accept_id,
+            {"id": _accept_id, "type": "Accept", "to": [_OT_CASE_ACTOR_ID]},
+        )
+
+        node = EmitAcceptCaseOwnershipTransferNode(
+            offer_id="https://example.org/activities/ot-offer-01",
+            case_id=_OT_CASE_ID,
+        )
+        bridge = BTBridge(
+            datalayer=dl,
+            trigger_activity=mock_factory,
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        )
+        result = bridge.execute_with_setup(
+            tree=node, actor_id=_OT_TRANSFEREE_ID
+        )
+
+        assert result.status == Status.SUCCESS, (
+            f"EmitAcceptCaseOwnershipTransferNode must succeed; feedback: {node.feedback_message}"
+        )
+        mock_factory.accept_case_ownership_transfer.assert_called_once()
+        call_kwargs = mock_factory.accept_case_ownership_transfer.call_args
+        to_arg = call_kwargs.kwargs.get("to") or (
+            call_kwargs.args[2] if len(call_kwargs.args) > 2 else None
+        )
+        # ADR-0053 / CM-21-006: Accept is routed to the CaseActor.
+        assert to_arg is not None, (
+            "to= must be passed to accept_case_ownership_transfer"
+        )
+        assert _OT_CASE_ACTOR_ID in to_arg, (
+            f"Accept must be addressed to the CaseActor ({_OT_CASE_ACTOR_ID}); "
+            f"got to={to_arg!r}"
+        )

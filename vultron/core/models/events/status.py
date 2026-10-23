@@ -1,0 +1,64 @@
+"""Per-semantic inbound domain event types for case and participant status activities."""
+
+from typing import TYPE_CHECKING, Literal, cast
+
+from vultron.core.models.events.base import MessageSemantics, VultronEvent
+
+if TYPE_CHECKING:
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.case_status import CaseStatus
+    from vultron.core.models.participant_status import ParticipantStatus
+else:
+    VulnerabilityCase = object
+    CaseStatus = object
+    CaseParticipant = object
+    ParticipantStatus = object
+
+
+class AddCaseStatusToCaseReceivedEvent(VultronEvent):
+    """Actor added a CaseStatus to a VulnerabilityCase."""
+
+    semantic_type: Literal[MessageSemantics.ADD_CASE_STATUS_TO_CASE] = (
+        MessageSemantics.ADD_CASE_STATUS_TO_CASE
+    )
+
+    @property
+    def status_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def status(self) -> "CaseStatus | ParticipantStatus | None":
+        return cast("CaseStatus | ParticipantStatus | None", self.object_)
+
+    @property
+    def case_id(self) -> str | None:
+        return self.target_id
+
+    @property
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.target)
+
+
+class AddParticipantStatusToParticipantReceivedEvent(VultronEvent):
+    """Actor added a ParticipantStatus to a CaseParticipant."""
+
+    semantic_type: Literal[
+        MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+    ] = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+
+    @property
+    def status_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def status(self) -> "CaseStatus | ParticipantStatus | None":
+        return cast("CaseStatus | ParticipantStatus | None", self.object_)
+
+    @property
+    def participant_id(self) -> str | None:
+        return self.target_id
+
+    @property
+    def participant(self) -> "CaseParticipant | None":
+        return cast("CaseParticipant | None", self.target)

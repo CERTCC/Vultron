@@ -1,0 +1,57 @@
+[
+  {
+    "demo": "rccv-extension",
+    "test_file": "test/ci/invariants/test_rccv_extension_invariants.py",
+    "full_suite_only": true
+  },
+  {
+    "demo": "rccv-handoff",
+    "test_file": "test/ci/invariants/test_rccv_handoff_invariants.py",
+    "full_suite_only": true
+  },
+  {
+    "demo": "rcv",
+    "test_file": "test/ci/invariants/test_rcv_invariants.py",
+    "full_suite_only": true
+  },
+  {
+    "demo": "rcv-embargo",
+    "test_file": "test/ci/invariants/test_rcv_embargo_invariants.py",
+    "full_suite_only": false
+  },
+  {
+    "demo": "rcv-reject",
+    "test_file": "test/ci/invariants/test_rcv_reject_invariants.py",
+    "full_suite_only": false
+  },
+  {
+    "demo": "rcvcv",
+    "test_file": "test/ci/invariants/test_rcvcv_invariants.py",
+    "full_suite_only": false
+  },
+  {
+    "demo": "rcvv-embargo",
+    "test_file": "test/ci/invariants/test_rcvv_embargo_invariants.py",
+    "full_suite_only": false
+  },
+  {
+    "demo": "rv",
+    "test_file": "test/ci/invariants/test_rv_invariants.py",
+    "full_suite_only": false
+  },
+  {
+    "demo": "rvcv-extension",
+    "test_file": "test/ci/invariants/test_rvcv_extension_invariants.py",
+    "full_suite_only": true
+  },
+  {
+    "demo": "rvcv-handoff",
+    "test_file": "test/ci/invariants/test_rvcv_handoff_invariants.py",
+    "full_suite_only": false
+  },
+  {
+    "demo": "rvv",
+    "test_file": "test/ci/invariants/test_rvv_invariants.py",
+    "full_suite_only": true
+  }
+]

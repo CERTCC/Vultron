@@ -1,0 +1,23 @@
+<!-- Generated from SEMANTIC_REGISTRY — do not edit; edit the occasions and run `uv run msm-occasions --write` -->
+
+!!! info "Attacks observed in a case status"
+
+    Tells a participant that the case status now records that attackers are exploiting the vulnerability.
+
+    - **When…** the Case Manager records that attackers are exploiting the vulnerability
+    - **Send:** `Add(CaseStatus)[target=VulnerabilityCase]`
+    - **Send to:** a participant
+    - **Sent by:** the case manager
+    - **Distinguished by:** `pxaState` = `pxA`
+    - **Reference:** [Attacks observed in a case status](../../cs.md#attacks-observed)
+
+    ??? example "Example activity"
+
+        ```python exec="true" idprefix=""
+        from vultron.wire.as2.vocab.examples.vocab_examples import (
+            add_attacks_observed_to_case,
+            json2md,
+        )
+
+        print(json2md(add_attacks_observed_to_case()))
+        ```

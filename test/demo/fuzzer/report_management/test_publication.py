@@ -1,0 +1,368 @@
+"""Tests for vultron.demo.fuzzer.report_management.publication."""
+
+import py_trees
+import pytest
+
+from vultron.demo.fuzzer.base import (
+    AlmostAlwaysFail,
+    AlmostAlwaysSucceed,
+    AlwaysSucceed,
+    OftenSucceed,
+    UsuallyFail,
+    UsuallySucceed,
+)
+from vultron.demo.fuzzer.call_out_point import (
+    ActuatorCallOutPoint,
+    ComposerCallOutPoint,
+    EvaluatorCallOutPoint,
+)
+from vultron.demo.fuzzer.report_management.publication import (
+    AllPublished,
+    DraftAdvisoryArtifact,
+    ExploitReady,
+    NoPublishExploit,
+    NoPublishFix,
+    NoPublishReport,
+    PrepareExploit,
+    PrepareFix,
+    PrepareReport,
+    PrioritizePublicationIntents,
+    PublicationIntentsSet,
+    Publish,
+    ReprioritizeExploit,
+    ReprioritizeFix,
+    ReprioritizeReport,
+    ReviewAdvisoryDraft,
+    ReviseAdvisoryDraft,
+    SubmitAdvisoryArtifact,
+)
+
+_ALL_NODES = [
+    AllPublished,
+    PublicationIntentsSet,
+    PrioritizePublicationIntents,
+    Publish,
+    NoPublishExploit,
+    ExploitReady,
+    PrepareExploit,
+    ReprioritizeExploit,
+    NoPublishFix,
+    PrepareFix,
+    ReprioritizeFix,
+    NoPublishReport,
+    PrepareReport,
+    ReprioritizeReport,
+    # Production Collapse 4 nodes (ADR-0030 / BT-20-004)
+    DraftAdvisoryArtifact,
+    ReviewAdvisoryDraft,
+    ReviseAdvisoryDraft,
+    SubmitAdvisoryArtifact,
+]
+
+
+@pytest.mark.parametrize("node_cls", _ALL_NODES)
+def test_node_is_behaviour(node_cls):
+    """Each node must be a py_trees Behaviour."""
+    node = node_cls()
+    assert isinstance(node, py_trees.behaviour.Behaviour)
+
+
+@pytest.mark.parametrize("node_cls", _ALL_NODES)
+def test_node_has_docstring(node_cls):
+    """Each node must have a non-empty docstring (BT-16-003)."""
+    assert node_cls.__doc__ and node_cls.__doc__.strip()
+
+
+@pytest.mark.parametrize("node_cls", _ALL_NODES)
+def test_node_name_defaults_to_class_name(node_cls):
+    """Default name must be the class name."""
+    node = node_cls()
+    assert node.name == node_cls.__name__
+
+
+@pytest.mark.parametrize("node_cls", _ALL_NODES)
+def test_node_name_custom(node_cls):
+    """Custom name must be respected."""
+    node = node_cls(name="custom")
+    assert node.name == "custom"
+
+
+@pytest.mark.parametrize("node_cls", _ALL_NODES)
+def test_update_returns_status(node_cls):
+    """update() must return a valid py_trees Status."""
+    node = node_cls()
+    node.setup()
+    status = node.update()
+    assert status in (
+        py_trees.common.Status.SUCCESS,
+        py_trees.common.Status.FAILURE,
+        py_trees.common.Status.RUNNING,
+    )
+
+
+# --- Base type assertions ---
+
+
+def test_all_published_base_type():
+    assert issubclass(AllPublished, AlmostAlwaysFail)
+
+
+def test_publication_intents_set_base_type():
+    assert issubclass(PublicationIntentsSet, UsuallyFail)
+
+
+def test_prioritize_publication_intents_base_type():
+    assert issubclass(PrioritizePublicationIntents, AlwaysSucceed)
+
+
+def test_prioritize_publication_intents_is_evaluator():
+    """Surviving Collapse-2 Evaluator subclasses the Evaluator shape mixin."""
+    from vultron.demo.fuzzer.call_out_point import EvaluatorCallOutPoint
+
+    assert issubclass(PrioritizePublicationIntents, EvaluatorCallOutPoint)
+
+
+def test_prioritize_publication_intents_output_is_structured_record():
+    """AC-3: output key is the typed PublicationIntentDecision (not str)."""
+    from vultron.core.behaviors.report.publication_intent import (
+        INTENT_DECISION_KEY,
+        PublicationIntentDecision,
+    )
+
+    output_keys = PrioritizePublicationIntents.output_keys
+    assert INTENT_DECISION_KEY in output_keys
+    assert output_keys[INTENT_DECISION_KEY] is PublicationIntentDecision
+    assert "publication_intents_verdict" not in output_keys
+
+
+def test_publish_base_type():
+    assert issubclass(Publish, AlmostAlwaysSucceed)
+
+
+def test_no_publish_exploit_base_type():
+    assert issubclass(NoPublishExploit, UsuallySucceed)
+
+
+def test_exploit_ready_base_type():
+    assert issubclass(ExploitReady, OftenSucceed)
+
+
+def test_prepare_exploit_base_type():
+    assert issubclass(PrepareExploit, AlmostAlwaysSucceed)
+
+
+def test_prepare_exploit_is_composer():
+    assert issubclass(PrepareExploit, ComposerCallOutPoint)
+
+
+def test_prepare_exploit_output_keys_declared():
+    assert "prepared_exploit_artifact" in PrepareExploit.output_keys
+
+
+def test_prepare_exploit_output_key_type_is_str():
+    assert PrepareExploit.output_keys["prepared_exploit_artifact"] is str
+
+
+def test_prepare_exploit_docstring_has_blackboard_contract():
+    assert (
+        PrepareExploit.__doc__
+        and "Blackboard contract" in PrepareExploit.__doc__
+    )
+
+
+def test_reprioritize_exploit_base_type():
+    assert issubclass(ReprioritizeExploit, AlwaysSucceed)
+
+
+def test_no_publish_fix_base_type():
+    assert issubclass(NoPublishFix, AlmostAlwaysFail)
+
+
+def test_prepare_fix_base_type():
+    assert issubclass(PrepareFix, AlmostAlwaysSucceed)
+
+
+def test_prepare_fix_is_composer():
+    assert issubclass(PrepareFix, ComposerCallOutPoint)
+
+
+def test_prepare_fix_output_keys_declared():
+    assert "prepared_fix_artifact" in PrepareFix.output_keys
+
+
+def test_prepare_fix_output_key_type_is_str():
+    assert PrepareFix.output_keys["prepared_fix_artifact"] is str
+
+
+def test_prepare_fix_docstring_has_blackboard_contract():
+    assert PrepareFix.__doc__ and "Blackboard contract" in PrepareFix.__doc__
+
+
+def test_reprioritize_fix_base_type():
+    assert issubclass(ReprioritizeFix, AlwaysSucceed)
+
+
+def test_no_publish_report_base_type():
+    assert issubclass(NoPublishReport, AlmostAlwaysFail)
+
+
+def test_prepare_report_base_type():
+    assert issubclass(PrepareReport, AlmostAlwaysSucceed)
+
+
+def test_reprioritize_report_base_type():
+    assert issubclass(ReprioritizeReport, AlwaysSucceed)
+
+
+# --- Success rate assertions ---
+
+
+def test_all_published_success_rate():
+    assert AllPublished.success_rate == pytest.approx(0.10)
+
+
+def test_publication_intents_set_success_rate():
+    assert PublicationIntentsSet.success_rate == pytest.approx(0.25)
+
+
+def test_prioritize_publication_intents_success_rate():
+    assert PrioritizePublicationIntents.success_rate == pytest.approx(1.0)
+
+
+def test_publish_success_rate():
+    assert Publish.success_rate == pytest.approx(0.90)
+
+
+def test_no_publish_exploit_success_rate():
+    assert NoPublishExploit.success_rate == pytest.approx(0.75)
+
+
+def test_exploit_ready_success_rate():
+    assert ExploitReady.success_rate == pytest.approx(0.70)
+
+
+def test_prepare_exploit_success_rate():
+    assert PrepareExploit.success_rate == pytest.approx(0.90)
+
+
+def test_reprioritize_exploit_success_rate():
+    assert ReprioritizeExploit.success_rate == pytest.approx(1.0)
+
+
+def test_no_publish_fix_success_rate():
+    assert NoPublishFix.success_rate == pytest.approx(0.10)
+
+
+def test_prepare_fix_success_rate():
+    assert PrepareFix.success_rate == pytest.approx(0.90)
+
+
+def test_reprioritize_fix_success_rate():
+    assert ReprioritizeFix.success_rate == pytest.approx(1.0)
+
+
+def test_no_publish_report_success_rate():
+    assert NoPublishReport.success_rate == pytest.approx(0.10)
+
+
+def test_prepare_report_success_rate():
+    assert PrepareReport.success_rate == pytest.approx(0.90)
+
+
+def test_reprioritize_report_success_rate():
+    assert ReprioritizeReport.success_rate == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# Production Collapse 4 nodes (ADR-0030 / BT-20-004)
+# ---------------------------------------------------------------------------
+
+
+def test_draft_advisory_artifact_is_composer():
+    assert issubclass(DraftAdvisoryArtifact, ComposerCallOutPoint)
+
+
+def test_draft_advisory_artifact_base_type():
+    assert issubclass(DraftAdvisoryArtifact, AlmostAlwaysSucceed)
+
+
+def test_draft_advisory_artifact_success_rate():
+    assert DraftAdvisoryArtifact.success_rate == pytest.approx(0.90)
+
+
+def test_draft_advisory_artifact_output_key_declared():
+    from vultron.core.behaviors.report.publish_artifact_tree import (
+        DRAFT_ARTIFACT_KEY,
+    )
+
+    assert DRAFT_ARTIFACT_KEY in DraftAdvisoryArtifact.output_keys
+
+
+def test_draft_advisory_artifact_output_key_type_is_str():
+    from vultron.core.behaviors.report.publish_artifact_tree import (
+        DRAFT_ARTIFACT_KEY,
+    )
+
+    assert DraftAdvisoryArtifact.output_keys[DRAFT_ARTIFACT_KEY] is str
+
+
+def test_review_advisory_draft_is_evaluator():
+    assert issubclass(ReviewAdvisoryDraft, EvaluatorCallOutPoint)
+
+
+def test_review_advisory_draft_base_type():
+    assert issubclass(ReviewAdvisoryDraft, AlwaysSucceed)
+
+
+def test_review_advisory_draft_success_rate():
+    assert ReviewAdvisoryDraft.success_rate == pytest.approx(1.0)
+
+
+def test_review_advisory_draft_output_key_declared():
+    from vultron.core.behaviors.report.publish_artifact_tree import (
+        REVIEW_DECISION_KEY,
+        AdvisoryReviewDecision,
+    )
+
+    assert REVIEW_DECISION_KEY in ReviewAdvisoryDraft.output_keys
+    assert (
+        ReviewAdvisoryDraft.output_keys[REVIEW_DECISION_KEY]
+        is AdvisoryReviewDecision
+    )
+
+
+def test_revise_advisory_draft_is_composer():
+    assert issubclass(ReviseAdvisoryDraft, ComposerCallOutPoint)
+
+
+def test_revise_advisory_draft_base_type():
+    assert issubclass(ReviseAdvisoryDraft, AlmostAlwaysSucceed)
+
+
+def test_revise_advisory_draft_success_rate():
+    assert ReviseAdvisoryDraft.success_rate == pytest.approx(0.90)
+
+
+def test_revise_advisory_draft_output_key_declared():
+    from vultron.core.behaviors.report.publish_artifact_tree import (
+        DRAFT_ARTIFACT_KEY,
+    )
+
+    assert DRAFT_ARTIFACT_KEY in ReviseAdvisoryDraft.output_keys
+
+
+def test_submit_advisory_artifact_is_actuator():
+    assert issubclass(SubmitAdvisoryArtifact, ActuatorCallOutPoint)
+
+
+def test_submit_advisory_artifact_base_type():
+    assert issubclass(SubmitAdvisoryArtifact, AlmostAlwaysSucceed)
+
+
+def test_submit_advisory_artifact_success_rate():
+    assert SubmitAdvisoryArtifact.success_rate == pytest.approx(0.90)
+
+
+def test_submit_advisory_artifact_no_output_keys():
+    """Actuator is a side-effect node — it declares no output keys."""
+    assert SubmitAdvisoryArtifact.output_keys == {}

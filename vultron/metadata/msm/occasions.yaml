@@ -1,0 +1,1173 @@
+# The occasion table, generated from SEMANTIC_REGISTRY (ADR-0128).
+# Do not edit: edit the occasions and run `uv run msm-occasions --write`.
+# Internal; not a published interface (#2959).
+format_version: 3
+groups:
+- page: rm
+  title: Report
+  mechanics: false
+  occasions:
+  - anchor: create-report
+    heading: Create report
+    when: a Reporter has written up a vulnerability and is about to submit the report
+    send: Create(VulnerabilityReport)
+    send_to: an actor outside any case
+    sent_by: 'any actor (usually: reporter)'
+    semantics: create_report
+    status: none
+    description: Mints the vulnerability report object. It precedes the Offer that submits
+      the report.
+    seen_in:
+    - path: howto/activitypub/activities/report_vulnerability.md
+      title: How to Report a Vulnerability
+    example: create_report
+  - anchor: report-submission
+    heading: Report Submission (RS)
+    when: a Reporter submits a vulnerability report to a Vendor or Coordinator
+    send: Offer(VulnerabilityReport)
+    send_to: an actor outside any case
+    sent_by: 'any actor (usually: reporter)'
+    semantics: submit_report
+    shorthand: RS
+    status: direct
+    description: Offers the report to a new Participant. The Offer may carry proposed embargo
+      terms.
+    seen_in:
+    - path: howto/activitypub/activities/report_vulnerability.md
+      title: How to Report a Vulnerability
+    example: submit_report
+  - anchor: report-acknowledgment
+    heading: Report Acknowledgment (RK)
+    when: a report receiver has read a submitted report
+    send: Read(Offer(VulnerabilityReport))
+    send_to: an actor outside any case
+    sent_by: 'the addressee of the vulnerability report offer (usually: vendor, coordinator)'
+    semantics: ack_report
+    shorthand: RK
+    status: direct
+    description: Acknowledges receipt of the submitted report. Report submission is not replicated
+      through the case ledger, so the acknowledgment is an explicit message.
+    seen_in:
+    - path: howto/activitypub/activities/acknowledge.md
+      title: How to Acknowledge a Report
+    - path: howto/activitypub/activities/report_vulnerability.md
+      title: How to Report a Vulnerability
+    example: read_report
+  - anchor: report-valid
+    heading: Validate report
+    when: a report receiver judges the report valid
+    send: Accept(Offer(VulnerabilityReport))
+    send_to: the case manager
+    sent_by: 'a participant (usually: vendor, coordinator)'
+    semantics: validate_report
+    shorthand: RV
+    status: expansion
+    description: Designates the report as valid, moving the sender's RM state to Valid.
+    seen_in:
+    - path: howto/activitypub/activities/report_vulnerability.md
+      title: How to Report a Vulnerability
+    example: validate_report
+  - anchor: report-invalid
+    heading: Invalidate report
+    when: a report receiver judges the report invalid
+    send: TentativeReject(Offer(VulnerabilityReport))
+    send_to: the case manager
+    sent_by: 'a participant (usually: vendor, coordinator)'
+    semantics: invalidate_report
+    shorthand: RI
+    status: expansion
+    description: Designates the report as invalid, moving the sender's RM state to Invalid.
+    seen_in:
+    - path: howto/activitypub/activities/report_vulnerability.md
+      title: How to Report a Vulnerability
+    example: invalidate_report
+  - anchor: report-closed
+    heading: Close report
+    when: a report receiver closes a report no case holds
+    send: Reject(Offer(VulnerabilityReport))
+    send_to: an actor outside any case
+    sent_by: 'the addressee of the vulnerability report offer (usually: vendor, coordinator)'
+    semantics: close_report
+    shorthand: RC
+    status: expansion
+    description: Closes the report, moving the sender's RM state to Closed. Once a case holds
+      the report, its Case Owner closes the case with Leave(VulnerabilityCase) instead, and
+      every receiver refuses a Close(Report) for it.
+    seen_in:
+    - path: howto/activitypub/activities/manage_case.md
+      title: How to Advance a Case Through Report Management
+    - path: howto/activitypub/activities/report_vulnerability.md
+      title: How to Report a Vulnerability
+    example: close_report
+  - anchor: report-accepted
+    heading: Report/Case Accepted (RA)
+    when: a Participant accepts the case for further action
+    send: Join(VulnerabilityCase)
+    send_to: the case manager
+    sent_by: a participant
+    semantics: engage_case
+    shorthand: RA
+    status: direct
+    description: Joins the case, moving the sender's RM state to Accepted. Engaging is a case-participation
+      decision, so the verb names the case rather than the report.
+    seen_in:
+    - path: howto/activitypub/activities/manage_case.md
+      title: How to Advance a Case Through Report Management
+    example: engage_case
+  - anchor: report-deferred
+    heading: Report/Case Deferred (RD)
+    when: a Participant defers further action on the case
+    send: Ignore(VulnerabilityCase)
+    send_to: the case manager
+    sent_by: a participant
+    semantics: defer_case
+    shorthand: RD
+    status: direct
+    description: Ignores the case, moving the sender's RM state to Deferred. Deferring is
+      a case-participation decision, so the verb names the case rather than the report.
+    seen_in:
+    - path: howto/activitypub/activities/manage_case.md
+      title: How to Advance a Case Through Report Management
+    example: defer_case
+- page: case_proposal
+  title: Case proposal
+  mechanics: false
+  occasions:
+  - anchor: create-case-proposal
+    heading: Create case proposal
+    when: a report receiver asks a Case Actor Service to open a case for a report
+    send: Create(CaseProposal)
+    send_to: an actor outside any case
+    sent_by: 'the case proposal''s author (usually: vendor, coordinator)'
+    semantics: create_case_proposal
+    status: none
+    description: Submits a case proposal for the attached report to the service's inbox. No
+      case exists yet.
+    seen_in: []
+    example: create_case_proposal
+  - anchor: accept-case-proposal
+    heading: Accept case proposal
+    when: a Case Actor Service agrees to open the proposed case
+    send: Accept(CaseProposal)
+    send_to: an actor outside any case
+    sent_by: the addressee of the case proposal
+    semantics: accept_case_proposal
+    status: none
+    description: Accepts the case proposal and tells the proposing actor that a case will
+      be opened for its report.
+    seen_in: []
+    example: accept_case_proposal
+  - anchor: reject-case-proposal
+    heading: Reject case proposal
+    when: a Case Actor Service declines to open the proposed case
+    send: Reject(CaseProposal)
+    send_to: an actor outside any case
+    sent_by: the addressee of the case proposal
+    semantics: reject_case_proposal
+    status: none
+    description: Rejects the case proposal. No case is opened.
+    seen_in: []
+    example: reject_case_proposal
+- page: case_management
+  title: Case and participants
+  mechanics: false
+  occasions:
+  - anchor: create-case
+    heading: Create case
+    when: the Case Manager has opened a case for a submitted report
+    send: Create(VulnerabilityCase)
+    send_to: a participant
+    sent_by: the addressee of the case proposal or vulnerability report offer
+    semantics: create_case
+    status: none
+    description: Mints the vulnerability case, seats its initial participants and links the
+      report.
+    seen_in:
+    - path: howto/activitypub/activities/initialize_case.md
+      title: How to Initialize a Case
+    example: create_case
+  - anchor: add-report-to-case
+    heading: Add report to case
+    when: the Case Owner links a further report to an existing case
+    send: Add(VulnerabilityReport)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case owner
+    semantics: add_report_to_case
+    status: none
+    description: Adds a vulnerability report to the case named by the target.
+    seen_in:
+    - path: howto/activitypub/activities/initialize_case.md
+      title: How to Initialize a Case
+    example: add_report_to_case
+  - anchor: update-case-owner
+    heading: Update case owner
+    when: the Case Manager records the new Case Owner once a case ownership transfer is accepted
+    send: Update(VulnerabilityCase)
+    send_to: a participant
+    sent_by: not handled
+    semantics: update_case_owner
+    status: none
+    description: Carries the case with its new owner in attributedTo. The Case Manager commits
+      it after the Accept of the transfer and after each participant record whose CASE_OWNER
+      role moved.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: update_case
+  - anchor: offer-case-participant-role
+    heading: Offer case participant role
+    when: the Case Owner offers a CVD role on the case to another participant
+    send: Offer(CaseParticipantRole)[context=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case owner
+    semantics: offer_case_participant_role
+    status: none
+    description: Offers one role on the case to the participant named by the target. The Case
+      Manager records the offer and forwards it to that participant.
+    seen_in:
+    - path: howto/activitypub/activities/role_delegation.md
+      title: How to Delegate a Role to Another Participant
+    example: offer_case_participant_role
+  - anchor: accept-case-participant-role
+    heading: Accept case participant role
+    when: a participant accepts a role offered to it on the case
+    send: Accept(Offer(CaseParticipantRole)[context=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the addressee of the case participant role offer
+    semantics: accept_case_participant_role
+    status: none
+    description: Accepts the offered role. The participant holds the role once the Case Manager
+      records the acceptance.
+    seen_in:
+    - path: howto/activitypub/activities/role_delegation.md
+      title: How to Delegate a Role to Another Participant
+    example: accept_case_participant_role
+  - anchor: reject-case-participant-role
+    heading: Reject case participant role
+    when: a participant declines a role offered to it on the case
+    send: Reject(Offer(CaseParticipantRole)[context=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the addressee of the case participant role offer
+    semantics: reject_case_participant_role
+    status: none
+    description: Declines the offered role. The roster does not change.
+    seen_in:
+    - path: howto/activitypub/activities/role_delegation.md
+      title: How to Delegate a Role to Another Participant
+    example: reject_case_participant_role
+  - anchor: propose-case-ownership-transfer
+    heading: Propose case ownership transfer
+    when: the Case Owner proposes to transfer ownership of the case to another actor
+    send: Offer(Offer(VulnerabilityCase))
+    send_to: the case manager
+    sent_by: the case owner
+    semantics: propose_case_ownership_transfer
+    status: none
+    description: 'Asks the Case Manager to offer the case to another actor, for example from
+      a Reporter to a Coordinator. The inner Offer names the case, the new owner as its target
+      and, optionally, an `endTime` after which the Case Manager refuses an answer: the offer
+      is then closed, with nothing recorded or sent. The Case Manager makes the offer itself.'
+    seen_in: []
+    example: propose_case_ownership_transfer
+  - anchor: offer-case-ownership-transfer
+    heading: Offer case ownership transfer
+    when: the Case Manager offers the case to the actor the Case Owner proposed
+    send: Offer(VulnerabilityCase)
+    send_to: a participant
+    sent_by: the case manager
+    semantics: offer_case_ownership_transfer
+    status: none
+    description: 'Offers the case to the actor named by the target, on the Case Owner''s behalf:
+      `attributedTo` names the owner. This is the one offer of the transfer, the one the new
+      owner accepts or rejects. It carries the proposal''s `endTime`, if any.'
+    seen_in: []
+    example: offer_case_ownership_transfer
+  - anchor: accept-case-ownership-transfer
+    heading: Accept case ownership transfer
+    when: an actor accepts an offer of case ownership
+    send: Accept(Offer(VulnerabilityCase))
+    send_to: the case manager
+    sent_by: the addressee of the vulnerability case offer
+    semantics: accept_case_ownership_transfer
+    status: none
+    description: Accepts the ownership transfer offer.
+    seen_in: []
+    example: accept_case_ownership_transfer
+  - anchor: reject-case-ownership-transfer
+    heading: Reject case ownership transfer
+    when: an actor declines an offer of case ownership
+    send: Reject(Offer(VulnerabilityCase))
+    send_to: the case manager
+    sent_by: the addressee of the vulnerability case offer
+    semantics: reject_case_ownership_transfer
+    status: none
+    description: Declines the ownership transfer offer. The current Case Owner keeps the case.
+    seen_in: []
+    example: reject_case_ownership_transfer
+  - anchor: withdraw-case-ownership-transfer
+    heading: Withdraw case ownership transfer
+    when: the Case Owner withdraws its proposal while the offer of case ownership is open
+    send: Undo(Offer(Offer(VulnerabilityCase)))
+    send_to: the case manager
+    sent_by: the case owner
+    semantics: undo_case_ownership_transfer
+    status: none
+    description: Withdraws the proposal, and with it the Case Manager's offer, before the
+      offer is answered. The current Case Owner keeps the case.
+    seen_in: []
+    example: undo_case_ownership_transfer
+  - anchor: invite-actor-to-case
+    heading: Invite actor to case
+    when: the Case Manager invites an actor to join the case
+    send: Invite(Actor)[target=VulnerabilityCaseStub]
+    send_to: a participant
+    sent_by: the case manager
+    semantics: invite_actor_to_case
+    status: none
+    description: Sends a Stub Invite carrying the case stub and the embargo terms the invitee
+      would agree to.
+    seen_in:
+    - path: howto/activitypub/activities/initialize_participant.md
+      title: How to Seat a Participant on an Existing Case
+    - path: howto/activitypub/activities/invite_actor.md
+      title: How to Invite an Actor to a Case
+    example: rm_invite_to_case
+  - anchor: accept-invite-to-case
+    heading: Accept invite to case
+    when: an invited actor agrees to join the case
+    send: Accept(Invite(Actor)[target=VulnerabilityCaseStub])
+    send_to: the case manager
+    sent_by: the invitee
+    semantics: accept_invite_actor_to_case
+    status: none
+    description: Accepts the Stub Invite. The actor joins the case at RM Received.
+    seen_in:
+    - path: howto/activitypub/activities/initialize_participant.md
+      title: How to Seat a Participant on an Existing Case
+    - path: howto/activitypub/activities/invite_actor.md
+      title: How to Invite an Actor to a Case
+    example: accept_invite_to_case
+  - anchor: reject-invite-to-case
+    heading: Reject invite to case
+    when: an invited actor declines to join the case
+    send: Reject(Invite(Actor)[target=VulnerabilityCaseStub])
+    send_to: the case manager
+    sent_by: the invitee
+    semantics: reject_invite_actor_to_case
+    status: none
+    description: Rejects the Stub Invite, which closes the invitee's participant record.
+    seen_in:
+    - path: howto/activitypub/activities/invite_actor.md
+      title: How to Invite an Actor to a Case
+    example: reject_invite_to_case
+  - anchor: invite-actor-to-full-case
+    heading: Send Full-Case Invite
+    when: the Case Manager has replayed the case ledger to a newly joined Participant
+    send: Invite(Actor)[target=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the case manager
+    semantics: invite_actor_to_full_case
+    status: none
+    description: Sends the Full-Case Invite, which asks the Participant to judge the case.
+      It carries the Case Manager's ledger position as the floor the reply must reach.
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
+    example: invite_to_full_case
+  - anchor: accept-full-case-invite
+    heading: Accept Full-Case Invite
+    when: a Participant asked by a Full-Case Invite judges the case valid
+    send: Accept(Invite(Actor)[target=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the invitee
+    semantics: accept_invite_actor_to_full_case
+    shorthand: RV
+    status: expansion
+    description: Accepts the Full-Case Invite, which records RM Valid. It carries the sender's
+      own ledger position.
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
+    example: accept_full_case_invite
+  - anchor: tentatively-reject-full-case-invite
+    heading: Tentatively reject Full-Case Invite
+    when: a Participant asked by a Full-Case Invite judges the case invalid
+    send: TentativeReject(Invite(Actor)[target=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the invitee
+    semantics: tentative_reject_invite_actor_to_full_case
+    shorthand: RI
+    status: expansion
+    description: Tentatively rejects the Full-Case Invite, which records RM Invalid. It carries
+      the sender's own ledger position.
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
+    example: tentative_reject_full_case_invite
+  - anchor: reject-full-case-invite
+    heading: Reject Full-Case Invite
+    when: a Participant asked by a Full-Case Invite closes the case
+    send: Reject(Invite(Actor)[target=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the invitee
+    semantics: reject_invite_actor_to_full_case
+    shorthand: RC
+    status: expansion
+    description: Rejects the Full-Case Invite, which records RM Closed. It carries the sender's
+      own ledger position.
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
+    example: reject_full_case_invite
+  - anchor: announce-vulnerability-case
+    heading: Announce vulnerability case
+    when: the Case Manager has admitted a new Participant to the case
+    send: Announce(VulnerabilityCase)
+    send_to: a participant
+    sent_by: the case manager
+    semantics: announce_vulnerability_case
+    status: none
+    description: Sends the full case to the newly admitted Participant once its acceptance
+      clears the embargo consent checks.
+    seen_in:
+    - path: howto/activitypub/activities/invite_actor.md
+      title: How to Invite an Actor to a Case
+    example: announce_case
+  - anchor: close-case
+    heading: Close case
+    when: a Participant ends its participation in the case
+    send: Leave(VulnerabilityCase)
+    send_to: the case manager
+    sent_by: the case owner or a participant
+    semantics: close_case
+    status: none
+    description: Leaves the case, moving the sender's RM state to Closed.
+    seen_in:
+    - path: howto/activitypub/activities/manage_case.md
+      title: How to Advance a Case Through Report Management
+    example: close_case
+  - anchor: add-case-participant-to-case
+    heading: Add case participant to case
+    when: the Case Owner reinstates a removed Participant
+    send: Add(CaseParticipant)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case owner
+    semantics: add_case_participant_to_case
+    status: none
+    description: Asks the Case Manager to reinstate the participant record named by the object.
+      The Participant becomes active again and receives the ledger entries it missed.
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
+    example: add_coordinator_participant_to_case
+  - anchor: remove-case-participant-from-case
+    heading: Remove case participant from case
+    when: the Case Owner removes a Participant from active participation
+    send: Remove(CaseParticipant)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case owner
+    semantics: remove_case_participant_from_case
+    status: none
+    description: Asks the Case Manager to remove the participant record named by the object.
+      The removed Participant receives a direct notice.
+    seen_in:
+    - path: howto/activitypub/activities/manage_participants.md
+      title: How to Manage a Case Roster
+    example: remove_participant_from_case
+  - anchor: create-case-participant
+    heading: Create case participant
+    when: the Case Manager creates a participant record, such as the inert record for the
+      invitee of a stub Invite
+    send: Create(CaseParticipant)
+    send_to: a participant
+    sent_by: not handled
+    semantics: create_case_participant
+    status: none
+    description: 'Carries the new participant record in full: its roles, statuses, joined
+      mark and consent rows.'
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: create_participant
+  - anchor: update-case-participant
+    heading: Update case participant
+    when: the Case Manager changes a participant record, such as moving the CASE_OWNER role
+      on an ownership transfer
+    send: Update(CaseParticipant)
+    send_to: a participant
+    sent_by: not handled
+    semantics: update_case_participant
+    status: none
+    description: Carries the changed participant record in full, as the Case Manager stored
+      it.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: update_participant
+- page: em
+  title: Embargo
+  mechanics: false
+  occasions:
+  - anchor: embargo-termination
+    heading: Embargo Termination (ET)
+    when: the Case Owner terminates the active embargo
+    send: Remove(Event)
+    send_to: the case manager
+    sent_by: the case manager or the case owner
+    semantics: remove_embargo_event_from_case
+    shorthand: ET
+    status: direct
+    description: Terminates the embargo with immediate effect.
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: remove_embargo
+  - anchor: embargo-termination-notice
+    heading: Tell a participant the embargo has ended
+    when: the Case Manager ends the active embargo, on its own decision or on the Case Owner's
+    send: Remove(Event)
+    send_to: a participant
+    sent_by: the case manager
+    semantics: remove_embargo_event_from_case
+    status: direct
+    description: Tells one participant that the embargo has ended, with immediate effect.
+      The Case Manager sends one to each participant other than itself, naming the Case Owner
+      in `attributedTo` when the Case Owner asked for the termination.
+    notes: The wire form is the Embargo Termination (ET) a Case Owner sends; only its sender
+      and addressee differ.
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: notify_embargo_termination
+  - anchor: announce-embargo
+    heading: Announce embargo
+    when: the Case Manager states the terms of the embargo in force
+    send: Announce(Event)[context=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the case manager
+    distinguished_by: register status of the named embargo `ACTIVE`
+    semantics: announce_embargo_event_to_case
+    status: none
+    description: Tells participants the terms of the active embargo. It proposes nothing.
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: announce_embargo
+  - anchor: announce-embargo-termination
+    heading: Announce embargo termination
+    when: the Case Manager has applied an Embargo Termination a Case Owner sent before the
+      end time
+    send: Announce(Event)[context=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the case manager
+    distinguished_by: register status of the named embargo `TERMINATED`
+    semantics: announce_embargo_event_to_case
+    status: none
+    description: Tells the active participants other than the Case Manager and any Closed
+      Participant that the embargo it names is terminated. It proposes nothing.
+    notes: 'A termination the Case Manager starts itself, or one at the end time, sends no
+      announcement: after the end time, the Case Manager''s own end-time check ends the embargo
+      before it applies a Case Owner''s termination.'
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: announce_embargo_termination
+  - anchor: embargo-proposal
+    heading: Embargo Proposal (EP)
+    when: a Participant proposes embargo terms for a case with no active embargo
+    send: Invite(Event)[context=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case manager or an active participant
+    distinguished_by: EM state `NONE` or `PROPOSED`
+    semantics: invite_to_embargo_on_case
+    shorthand: EP
+    status: collapse
+    description: Proposes embargo terms, such as an end date and time.
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    example: propose_embargo
+  - anchor: embargo-revision-proposal
+    heading: Embargo Revision Proposal (EV)
+    when: a Participant proposes revised terms for the active embargo
+    send: Invite(Event)[context=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case manager or an active participant
+    distinguished_by: EM state `ACTIVE` or `REVISE`
+    semantics: invite_to_embargo_on_case
+    shorthand: EV
+    status: collapse
+    description: Proposes a revision to the terms of the active embargo. The wire form is
+      the same as a first proposal; the receiver's EM state makes it a revision.
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: propose_embargo_revision
+  - anchor: relay-embargo-proposal
+    heading: Ask a participant about proposed embargo terms
+    when: the Case Manager asks a Participant to answer embargo terms another Participant
+      proposed
+    send: Invite(Event)[context=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the case manager
+    semantics: invite_to_embargo_on_case
+    status: collapse
+    description: Asks one participant to accept or reject proposed embargo terms, or a proposed
+      revision. The Case Manager sends one to each participant other than the proposer, naming
+      the proposer in `attributedTo`, and the participant's answer names this Invite.
+    notes: The wire form is the Embargo Proposal (EP) or Embargo Revision Proposal (EV) a
+      participant sends; only its sender and addressee differ.
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    example: relay_embargo_proposal
+  - anchor: embargo-proposal-acceptance
+    heading: Embargo Proposal Acceptance (EA)
+    when: a Participant agrees to proposed embargo terms
+    send: Accept(Invite(Event)[context=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the invitee
+    distinguished_by: EM state `PROPOSED`
+    semantics: accept_invite_to_embargo_on_case
+    shorthand: EA
+    status: collapse
+    description: Records the sender's own consent to the proposed terms. The embargo becomes
+      active only when the Case Owner sends its decision.
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    example: accept_embargo
+  - anchor: embargo-revision-acceptance
+    heading: Embargo Revision Acceptance (EC)
+    when: a Participant agrees to a proposed embargo revision
+    send: Accept(Invite(Event)[context=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the invitee
+    distinguished_by: EM state `REVISE`
+    semantics: accept_invite_to_embargo_on_case
+    shorthand: EC
+    status: collapse
+    description: Records the sender's own consent to the revision. The revision replaces the
+      active embargo only when the Case Owner sends its decision.
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: accept_embargo_revision
+  - anchor: embargo-proposal-rejection
+    heading: Embargo Proposal Rejection (ER)
+    when: a Participant refuses proposed embargo terms
+    send: Reject(Invite(Event)[context=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the invitee
+    distinguished_by: EM state `PROPOSED`
+    semantics: reject_invite_to_embargo_on_case
+    shorthand: ER
+    status: collapse
+    description: Records the sender's own refusal of the proposed terms. The proposal is rejected
+      for the case only when the Case Owner sends its decision.
+    notes: The Case Manager sends the same activity when it abandons an open proposal once
+      the case is public, an exploit is public or attacks are observed. Its Reject cancels
+      the proposal, and each Invite it relayed for the proposal is then withdrawn.
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    example: reject_embargo
+  - anchor: embargo-revision-rejection
+    heading: Embargo Revision Rejection (EJ)
+    when: a Participant refuses a proposed embargo revision
+    send: Reject(Invite(Event)[context=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the invitee
+    distinguished_by: EM state `REVISE`
+    semantics: reject_invite_to_embargo_on_case
+    shorthand: EJ
+    status: collapse
+    description: Records the sender's own refusal of the revision. The Case Owner keeps the
+      prior terms by sending its decision.
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: reject_embargo_revision
+  - anchor: withdraw-embargo-invite
+    heading: Withdraw an embargo invitation
+    when: the Case Manager abandons an open embargo proposal once the case is public, an exploit
+      is public or attacks are observed
+    send: Undo(Invite(Event)[context=VulnerabilityCase])
+    send_to: a participant
+    sent_by: not handled
+    semantics: undo_invite_to_embargo_on_case
+    status: none
+    description: Withdraws an Invite the Case Manager sent for the abandoned proposal. The
+      Case Manager first rejects the proposal it received, which cancels it, then withdraws
+      each Invite it relayed for it. When the Case Manager made the proposal itself, withdrawing
+      that proposal is the cancel.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: undo_embargo_invite
+  - anchor: activate-embargo
+    heading: Activate embargo
+    when: the Case Owner decides to activate a proposed embargo
+    send: Accept(Event)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case owner
+    semantics: activate_embargo_on_case
+    status: none
+    description: Activates the proposal for the case. If an embargo is already active, the
+      proposal replaces it.
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: activate_embargo
+  - anchor: reject-embargo-proposal
+    heading: Reject embargo proposal
+    when: the Case Owner decides to reject a proposed embargo
+    send: Reject(Event)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case owner
+    semantics: reject_embargo_proposal_on_case
+    status: none
+    description: Rejects the proposal for the case. An active embargo stays in force on its
+      current terms.
+    seen_in:
+    - path: howto/activitypub/activities/establish_embargo.md
+      title: How to Establish an Embargo
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: reject_embargo_proposal
+  - anchor: embargo-withdrawal
+    heading: Withdraw from embargo
+    when: a Participant bound by the active embargo stops complying with it
+    send: Leave(Event)[context=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: a participant
+    semantics: withdraw_from_embargo_on_case
+    status: none
+    description: Ends the sender's own consent to the embargo in force, and to any revision
+      it had agreed to. The embargo stays in force for every other participant.
+    seen_in:
+    - path: howto/activitypub/activities/manage_embargo.md
+      title: How to Revise or Terminate an Embargo
+    example: withdraw_from_embargo
+  - anchor: create-embargo-event
+    heading: Create embargo event
+    when: the Case Manager has created a case and, with it, an embargo such as the default
+      embargo
+    send: Create(EmbargoEvent)
+    send_to: a participant
+    sent_by: not handled
+    semantics: create_embargo_event
+    status: none
+    description: Carries the new embargo in full, its start and end times included. It follows
+      the case's genesis entry.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: create_embargo_event
+  - anchor: create-embargo-consent
+    heading: Create embargo consent
+    when: the Case Manager creates a participant's consent row for an embargo, such as the
+      UNINVITED row a proposal writes
+    send: Create(EmbargoConsent)
+    send_to: a participant
+    sent_by: not handled
+    semantics: create_embargo_consent
+    status: none
+    description: 'Carries the new consent row in full: the embargo it answers, the participant
+      it belongs to and its state.'
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: create_embargo_consent
+  - anchor: update-embargo-consent
+    heading: Update embargo consent
+    when: the Case Manager changes a participant's consent row, such as an invitation timing
+      out, the rows carried over at activation or a change of its own consent
+    send: Update(EmbargoConsent)
+    send_to: a participant
+    sent_by: not handled
+    semantics: update_embargo_consent
+    status: none
+    description: Carries the changed consent row in full. A Case Manager with an embargo stake
+      of its own records a change of its own consent this way, never as a Reject of the Invite.
+    notes: Each participant learns of it from the case ledger, so it is addressed to nobody.
+    seen_in: []
+    example: update_embargo_consent
+- page: cs
+  title: Case status
+  mechanics: false
+  occasions:
+  - anchor: public-awareness
+    heading: Public awareness in a case status
+    when: the Case Manager records that the public knows of the vulnerability
+    send: Add(CaseStatus)[target=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the case manager
+    distinguished_by: '`pxaState` = `Pxa`'
+    semantics: add_case_status_to_case
+    shorthand: CP
+    status: collapse
+    description: Tells a participant that the case status now records that the public knows
+      of the vulnerability.
+    notes: Only the Case Manager sends a case status, as its record of the `pxaState` it adopted,
+      and a receiver refuses one from any other sender. A participant reports public awareness,
+      a public exploit or observed attacks in its own participant status instead.
+    seen_in: []
+    example: add_public_awareness_to_case
+  - anchor: exploit-public
+    heading: Exploit public in a case status
+    when: the Case Manager records that an exploit for the vulnerability is public
+    send: Add(CaseStatus)[target=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the case manager
+    distinguished_by: '`pxaState` = `PXa`'
+    semantics: add_case_status_to_case
+    shorthand: CX
+    status: collapse
+    description: Tells a participant that the case status now records that an exploit is publicly
+      available.
+    notes: Only the Case Manager sends a case status, as its record of the `pxaState` it adopted,
+      and a receiver refuses one from any other sender. A participant reports public awareness,
+      a public exploit or observed attacks in its own participant status instead.
+    seen_in: []
+    example: add_exploit_public_to_case
+  - anchor: attacks-observed
+    heading: Attacks observed in a case status
+    when: the Case Manager records that attackers are exploiting the vulnerability
+    send: Add(CaseStatus)[target=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the case manager
+    distinguished_by: '`pxaState` = `pxA`'
+    semantics: add_case_status_to_case
+    shorthand: CA
+    status: collapse
+    description: Tells a participant that the case status now records that attackers are exploiting
+      the vulnerability.
+    notes: Only the Case Manager sends a case status, as its record of the `pxaState` it adopted,
+      and a receiver refuses one from any other sender. A participant reports public awareness,
+      a public exploit or observed attacks in its own participant status instead.
+    seen_in: []
+    example: add_attacks_observed_to_case
+  - anchor: vendor-awareness
+    heading: Vendor Awareness (CV)
+    when: a Vendor becomes aware of the vulnerability
+    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
+    sent_by: 'the case manager or the case owner or the participant status''s author (usually:
+      vendor)'
+    distinguished_by: '`vfState` = `Vf`'
+    semantics: add_participant_status_to_participant
+    shorthand: CV
+    status: collapse
+    description: Announces that the report has reached the Vendor whose participant record
+      is the target.
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: add_vendor_awareness_to_participant
+  - anchor: fix-readiness
+    heading: Fix Readiness (CF)
+    when: a Vendor has a fix ready
+    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
+    sent_by: 'the case manager or the case owner or the participant status''s author (usually:
+      vendor)'
+    distinguished_by: '`vfState` = `VF`'
+    semantics: add_participant_status_to_participant
+    shorthand: CF
+    status: collapse
+    description: Announces that the Vendor whose participant record is the target has a fix
+      ready.
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: add_fix_readiness_to_participant
+  - anchor: fix-deployed
+    heading: Fix Deployed (CD)
+    when: a Deployer has deployed the fix
+    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
+    sent_by: 'the case manager or the case owner or the participant status''s author (usually:
+      deployer)'
+    distinguished_by: '`dState` = `D`'
+    semantics: add_participant_status_to_participant
+    shorthand: CD
+    status: collapse
+    description: Announces that the Deployer whose participant record is the target has deployed
+      the fix.
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: add_fix_deployment_to_participant
+  - anchor: participant-public-awareness
+    heading: Public awareness in a participant status
+    when: a Participant learns that the public knows of the vulnerability
+    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
+    sent_by: the case manager or the case owner or the participant status's author
+    distinguished_by: '`caseStatus.pxaState` = `Pxa`'
+    semantics: add_participant_status_to_participant
+    shorthand: CP
+    status: collapse
+    description: Announces, in the sender's own participant status, evidence that the vulnerability
+      is known to the public.
+    notes: A participant status is a snapshot of every dimension the sender holds, so it can
+      also carry an unchanged `vfState` or `dState`; the dimension that changed makes the
+      occasion. The report is the sender's view of the case status, not a change to it. The
+      Case Manager records the status on the sender's participant record and chooses whether
+      to adopt the reported `pxaState` for the case, by default only with the Case Owner's
+      authorization. Only an adopted value changes the case status, and while an embargo is
+      active or proposed, it ends or abandons the embargo.
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: add_public_awareness_to_participant
+  - anchor: participant-exploit-public
+    heading: Exploit public in a participant status
+    when: a Participant learns that an exploit for the vulnerability is public
+    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
+    sent_by: the case manager or the case owner or the participant status's author
+    distinguished_by: '`caseStatus.pxaState` = `PXa`'
+    semantics: add_participant_status_to_participant
+    shorthand: CX
+    status: collapse
+    description: Announces, in the sender's own participant status, evidence that an exploit
+      is publicly available.
+    notes: A participant status is a snapshot of every dimension the sender holds, so it can
+      also carry an unchanged `vfState` or `dState`; the dimension that changed makes the
+      occasion. The report is the sender's view of the case status, not a change to it. The
+      Case Manager records the status on the sender's participant record and chooses whether
+      to adopt the reported `pxaState` for the case, by default only with the Case Owner's
+      authorization. Only an adopted value changes the case status, and while an embargo is
+      active or proposed, it ends or abandons the embargo.
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: add_exploit_public_to_participant
+  - anchor: participant-attacks-observed
+    heading: Attacks observed in a participant status
+    when: a Participant observes attacks that exploit the vulnerability
+    send: Add(ParticipantStatus)[target=CaseParticipant]
+    send_to: the case manager
+    sent_by: the case manager or the case owner or the participant status's author
+    distinguished_by: '`caseStatus.pxaState` = `pxA`'
+    semantics: add_participant_status_to_participant
+    shorthand: CA
+    status: collapse
+    description: Announces, in the sender's own participant status, evidence that attackers
+      are exploiting the vulnerability.
+    notes: A participant status is a snapshot of every dimension the sender holds, so it can
+      also carry an unchanged `vfState` or `dState`; the dimension that changed makes the
+      occasion. The report is the sender's view of the case status, not a change to it. The
+      Case Manager records the status on the sender's participant record and chooses whether
+      to adopt the reported `pxaState` for the case, by default only with the Case Owner's
+      authorization. Only an adopted value changes the case status, and while an embargo is
+      active or proposed, it ends or abandons the embargo.
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: add_attacks_observed_to_participant
+- page: general
+  title: General
+  mechanics: false
+  occasions:
+  - anchor: suggest-actor-to-case
+    heading: Suggest actor to case
+    when: a Participant suggests an actor that the case should include
+    send: Offer(Actor)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: a participant
+    distinguished_by: sender is not the case owner
+    semantics: offer_actor_to_case
+    shorthand: GI
+    status: expansion
+    description: Recommends an actor to the Case Manager for the case named by the target.
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
+      title: How to Suggest an Actor for a Case
+    example: recommend_actor
+  - anchor: request-invite-actor-to-case
+    heading: Ask the Case Manager to invite an actor
+    when: the Case Owner decides to invite an actor to the case
+    send: Offer(Actor)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: a participant
+    distinguished_by: sender is the case owner
+    semantics: offer_actor_to_case
+    status: expansion
+    description: Asks the Case Manager to invite the actor named by the object to the case
+      named by the target, with the roles in `suggestedRoles`. For an actor with no record
+      on the case, or an invitee that has not answered, the Case Manager answers with the
+      Stub Invite to that actor, not with an offer to the Case Owner.
+    seen_in:
+    - path: howto/activitypub/activities/invite_actor.md
+      title: How to Invite an Actor to a Case
+    example: request_invite_actor_to_case
+  - anchor: offer-case-participant
+    heading: Offer case participant
+    when: the Case Manager presents a suggested actor to the Case Owner
+    send: Offer(CaseParticipant)[target=VulnerabilityCase]
+    send_to: a participant
+    sent_by: the case manager
+    semantics: offer_case_participant
+    shorthand: GI
+    status: expansion
+    description: Forwards the recommendation as a proposed participant record, carrying the
+      original recommendation's ID and the default roles it assigned.
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
+      title: How to Suggest an Actor for a Case
+    example: offer_case_participant
+  - anchor: accept-case-participant-offer
+    heading: Accept case participant offer
+    when: the Case Owner approves a suggested actor
+    send: Accept(Offer(CaseParticipant)[target=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the case owner
+    semantics: accept_offer_case_participant
+    shorthand: GI
+    status: expansion
+    description: Accepts the proposed participant record. The Case Manager then invites the
+      suggested actor.
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
+      title: How to Suggest an Actor for a Case
+    example: accept_case_participant_offer
+  - anchor: reject-case-participant-offer
+    heading: Reject case participant offer
+    when: the Case Owner declines a suggested actor
+    send: Reject(Offer(CaseParticipant)[target=VulnerabilityCase])
+    send_to: the case manager
+    sent_by: the case owner
+    semantics: reject_offer_case_participant
+    shorthand: GI
+    status: expansion
+    description: Rejects the proposed participant record. The Case Manager tells the recommender.
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
+      title: How to Suggest an Actor for a Case
+    example: reject_case_participant_offer
+  - anchor: accept-actor-recommendation
+    heading: Accept actor recommendation
+    when: the Case Manager tells a recommender that the actor it suggested will be invited
+    send: Accept(Offer(Actor)[target=VulnerabilityCase])
+    send_to: a participant
+    sent_by: the case manager
+    semantics: accept_actor_recommendation
+    shorthand: GI
+    status: expansion
+    description: Accepts the recommender's suggestion, with `inReplyTo` naming it. The Case
+      Manager sends it once the Case Owner approves, or at once when the suggested actor is
+      already invited or has joined.
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
+      title: How to Suggest an Actor for a Case
+    example: accept_actor_recommendation
+  - anchor: reject-actor-recommendation
+    heading: Reject actor recommendation
+    when: the Case Manager tells a recommender that the Case Owner declined the actor it suggested
+    send: Reject(Offer(Actor)[target=VulnerabilityCase])
+    send_to: a participant
+    sent_by: the case manager
+    semantics: reject_actor_recommendation
+    shorthand: GI
+    status: expansion
+    description: Declines the recommender's suggestion, with `inReplyTo` naming it. The suggested
+      actor is not invited.
+    seen_in:
+    - path: howto/activitypub/activities/suggest_actor.md
+      title: How to Suggest an Actor for a Case
+    example: reject_actor_recommendation
+  - anchor: add-note-to-case
+    heading: Add note to case
+    when: a Participant posts a note to the case
+    send: Add(Note)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: an active participant
+    semantics: add_note_to_case
+    shorthand: GI
+    status: expansion
+    description: 'Posts the note to the case named by the target, with the note carried inline
+      as the object: the Case Manager stores the note, attaches it to the case and records
+      the attachment in the case ledger. It is the one message that attaches a note: a received
+      Create of a note is not a protocol message.'
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: add_note_to_case
+  - anchor: remove-note-from-case
+    heading: Remove note from case
+    when: a note's author or the Case Owner withdraws a note from the case
+    send: Remove(Note)[target=VulnerabilityCase]
+    send_to: the case manager
+    sent_by: the case owner or the note's author
+    semantics: remove_note_from_case
+    shorthand: GI
+    status: expansion
+    description: Removes the note from the case named by the target.
+    seen_in:
+    - path: howto/activitypub/activities/status_updates.md
+      title: How to Post a Status Update or a Case Note
+    example: remove_note_from_case
+- page: faults_and_acknowledgements
+  title: Faults and acknowledgments
+  mechanics: true
+  occasions:
+  - anchor: create-processing-fault
+    heading: Create processing fault
+    when: a Participant has received a message it cannot process
+    send: Create(ProcessingFault)
+    send_to: the case manager
+    sent_by: not yet checked
+    semantics: create_processing_fault
+    status: evolved
+    description: Tells the sender that its message was received but not understood, or understood
+      but its processing failed on the receiver's internal error. It names the failed activity
+      and a failure class, with no implementation diagnostics. This fault serves the not-understood
+      purpose of the formal RE, EE, CE and GE messages.
+    seen_in:
+    - path: howto/activitypub/activities/error.md
+      title: How to Report a Protocol Fault
+    example: create_processing_fault
+  - anchor: refusal-notice
+    heading: Refusal notice
+    when: the Case Manager has refused a participant's assertion because a precondition did
+      not hold
+    send: Reject(Activity)
+    send_to: a participant
+    sent_by: the case manager
+    semantics: refusal_notice
+    status: evolved
+    description: Tells the participant that its assertion was received and understood but
+      refused, so it had no effect. It carries the refused activity inline and names the refusing
+      guard's reason. This notice serves the declined purpose of the formal RE, EE, CE and
+      GE messages.
+    seen_in: []
+    example: refusal_notice
+- page: ledger_replication
+  title: Ledger replication
+  mechanics: true
+  occasions:
+  - anchor: announce-case-ledger-entry
+    heading: Announce case ledger entry
+    when: the Case Manager has committed a case event to the case ledger
+    send: Announce(CaseLedgerEntry)
+    send_to: a participant
+    sent_by: the case manager
+    semantics: announce_case_ledger_entry
+    status: none
+    description: Fans out the newly committed ledger entry to each active participant.
+    seen_in: []
+    example: announce_case_ledger_entry
+  - anchor: reject-case-ledger-entry
+    heading: Reject case ledger entry
+    when: a received ledger entry does not chain onto the Participant's own ledger
+    send: Reject(CaseLedgerEntry)
+    send_to: the case manager
+    sent_by: an active participant, including one that has left the case
+    semantics: reject_case_ledger_entry
+    status: evolved
+    description: Tells the Case Manager that the entry's previous hash does not match the
+      sender's ledger tail, and the Case Manager replays every entry after the last accepted
+      hash. This negative acknowledgment serves the purpose of the formal EK and CK messages.
+    seen_in: []
+    example: reject_case_ledger_entry

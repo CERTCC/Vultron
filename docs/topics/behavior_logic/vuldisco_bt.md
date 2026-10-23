@@ -1,4 +1,28 @@
+---
+stakeholder_type: [project-contributor]
+---
+
 # Vulnerability Discovery Behavior
+
+## Requirements
+
+The behavioral requirements for this tree are specified in the
+[Protocol Specifications](../../reference/specs/protocol.md):
+
+- [CSB-09](../../reference/specs/protocol.md#csb-09) — Enter CS V (Vendor Aware)
+
+!!! note "Implementation approach"
+
+    The behavior tree diagram below illustrates one conformant implementation of these requirements.
+    Implementations are not required to use behavior trees — any approach that satisfies the
+    requirements above is conformant.
+
+!!! note "Legacy design diagram"
+
+    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
+    match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for
+    auto-generated documentation from the current implementation.
 
 CVD is built on the idea that vulnerabilities exist to be found. There are two ways for a CVD Participant to
 find out about a vulnerability. Either they discover it themselves, or they hear about it from someone else.

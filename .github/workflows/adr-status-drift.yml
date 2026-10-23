@@ -1,0 +1,57 @@
+# Report every ADR whose status disagrees with today's lifecycle epoch
+# (MS-14-007, ADR-0120). Reports through one tracking issue and never fails
+# the build: an ADR crossing an epoch boundary is caused by the clock, not by
+# a commit, so failing on it would turn main and every open pull request red
+# at an arbitrary time (ARCH-18-004). A human flips the status.
+
+name: ADR Status Drift
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "docs/adr/**"
+      - "vultron/metadata/adr/**"
+      - ".github/workflows/adr-status-drift.yml"
+  schedule:
+    - cron: "23 * * * *"  # Hourly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  report-drift:
+    name: ADR Status Matches Epoch (reports, never fails)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/debounce-main-push
+      - name: Set up Python and uv
+        uses: ./.github/actions/setup-python-uv
+      - name: List ADRs whose status disagrees with their epoch
+        id: drift
+        continue-on-error: true
+        run: PYTHONPATH='' uv run python -m vultron.metadata.adr.lifecycle --report-drift
+      - name: File or update the tracking issue
+        # failure() also catches checkout or setup failing first (CISEC-05).
+        if: failure() || steps.drift.outcome == 'failure'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: notify
+          workflow-label: ci:workflow-adr-status-drift
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close the tracking issue
+        if: steps.drift.outcome == 'success'
+        uses: ./.github/actions/notify-failure
+        with:
+          mode: close
+          workflow-label: ci:workflow-adr-status-drift
+          token: ${{ secrets.GITHUB_TOKEN }}

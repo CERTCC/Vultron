@@ -1,0 +1,273 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Case creation nodes for the report behavior tree."""
+
+from py_trees.common import Status
+
+from vultron.core.behaviors.helpers import (
+    DataLayerActionWithPorts,
+    PortInformation,
+)
+from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.models.activity import VultronCreateCaseActivity
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.offer_record import VultronOfferRecord
+from vultron.core.predicates.addressing import (
+    normalise_actor_id,
+    same_actor_id,
+)
+from vultron.errors import VultronAlreadyExistsError
+
+
+def _append_addressee_ids(addressees: list[str], value: object) -> None:
+    if value is None:
+        return
+    if isinstance(value, str):
+        addressees.append(value)
+        return
+    if isinstance(value, list):
+        for item in value:
+            _append_addressee_ids(addressees, item)
+        return
+    addressee_id = getattr(value, "id_", None)
+    if isinstance(addressee_id, str):
+        addressees.append(addressee_id)
+
+
+def _collect_create_case_addressees(
+    actor: object,
+    report: object,
+    offer_record: VultronOfferRecord | None,
+    actor_id: str,
+) -> list[str]:
+    """Collect CreateCase notification recipients from actor, report, and offer record.
+
+    Per ADR-0035 DL-06-001: reads offer addressees from the core
+    ``VultronOfferRecord``, not from the stored wire Offer activity.
+    """
+    addressees: list[str] = []
+    for value in (
+        actor,
+        getattr(report, "attributed_to", None) if report is not None else None,
+        offer_record.offer_to if offer_record is not None else None,
+        offer_record.offer_actor_id if offer_record is not None else None,
+    ):
+        _append_addressee_ids(addressees, value)
+    # The ids come from different writers in different spellings, so each is
+    # normalised: an actor named twice is addressed once, and the executing
+    # actor is left out however the report spelled it (OID-01-006).
+    return [
+        addressee
+        for addressee in {normalise_actor_id(a) for a in addressees}
+        if not same_actor_id(addressee, actor_id)
+    ]
+
+
+class CreateCaseNode(DataLayerActionWithPorts, StateWriteCapable):
+    """
+    Create VulnerabilityCase from validated report.
+
+    Creates a new VulnerabilityCase containing the validated report and persists
+    it to the DataLayer. Stores the case ID in the blackboard for subsequent nodes.
+
+    This node implements case creation from the validate_report handler.
+
+    Note: Named CreateCaseNode (not CreateCaseActivity) to avoid conflict with
+    as_CreateCase activity class.
+    """
+
+    def __init__(self, report_id: str, name: str | None = None):
+        """
+        Initialize CreateCaseNode.
+
+        Args:
+            report_id: ID of VulnerabilityReport to include in case
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "case_id": PortInformation(data_type=str, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {"case_id": "/case_id"}
+
+    def update(self) -> Status:
+        """
+        Create VulnerabilityCase and persist to DataLayer.
+
+        Returns:
+            SUCCESS if case created, FAILURE on error
+        """
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        try:
+            report_obj = self.datalayer.read(
+                self.report_id, raise_on_missing=True
+            )
+            if report_obj is None:
+                self.logger.error(
+                    "%s: Report %s not found", self.name, self.report_id
+                )
+                return Status.FAILURE
+
+            report_id_ref = report_obj.id_
+            case = VulnerabilityCase(
+                name=f"Case for Report {self.report_id}",
+                vulnerability_reports=[report_id_ref],
+                attributed_to=self.actor_id,
+            )
+
+            try:
+                self.datalayer.create(case)
+                self.logger.info(
+                    "%s: Created VulnerabilityCase %s: %s",
+                    self.name,
+                    case.id_,
+                    case.name,
+                )
+            except VultronAlreadyExistsError as e:
+                self.logger.warning(
+                    "%s: VulnerabilityCase %s already exists: %s",
+                    self.name,
+                    case.id_,
+                    e,
+                )
+
+            self._set_output("case_id", case.id_)
+            return Status.SUCCESS
+
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error("%s: Error creating case: %s", self.name, e)  # noqa: TRY400  # ruff-baseline #3353
+            return Status.FAILURE
+
+
+class CreateCaseActivity(DataLayerActionWithPorts):
+    """
+    Create CreateCaseActivity activity for case creation notification.
+
+    Generates a CreateCaseActivity activity to notify relevant actors about the new case.
+    Collects addressees from actor, report.attributed_to, and offer.to fields.
+
+    This node implements activity generation from the validate_report handler.
+    """
+
+    def __init__(self, report_id: str, offer_id: str, name: str | None = None):
+        """
+        Initialize CreateCaseActivity node.
+
+        Args:
+            report_id: ID of VulnerabilityReport (for addressee collection)
+            offer_id: ID of Offer (for addressee collection)
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.report_id = report_id
+        self.offer_id = offer_id
+
+    INPUT_PORTS: dict[str, PortInformation] = {
+        **DataLayerActionWithPorts.INPUT_PORTS,
+        "case_id": PortInformation(data_type=str, required=True),
+    }
+
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "activity_id": PortInformation(data_type=str, required=True),
+    }
+
+    @classmethod
+    def _domain_port_remappings(cls) -> dict[str, str]:
+        return {
+            "case_id": "/case_id",
+            "activity_id": "/activity_id",
+        }
+
+    def initialise(self) -> None:
+        super().initialise()
+        self.case_id_bb: str = self.get_input("case_id")
+
+    def update(self) -> Status:
+        """
+        Create CreateCaseActivity activity and persist to DataLayer.
+
+        Returns:
+            SUCCESS if activity created, FAILURE on error
+        """
+        if (f := self._require_datalayer_and_actor()) is not None:
+            return f
+        assert self.datalayer is not None
+        assert self.actor_id is not None
+        try:
+            case_id = self.case_id_bb
+            if case_id is None:
+                self.logger.error(
+                    "%s: case_id not found in blackboard", self.name
+                )
+                return Status.FAILURE
+
+            actor = self.datalayer.read(self.actor_id, raise_on_missing=True)
+            report = self.datalayer.read(self.report_id, raise_on_missing=True)
+            record_id = VultronOfferRecord.build_id(self.offer_id)
+            raw_record = self.datalayer.read(record_id)
+            offer_record = (
+                raw_record
+                if isinstance(raw_record, VultronOfferRecord)
+                else None
+            )
+            addressees = _collect_create_case_addressees(
+                actor, report, offer_record, self.actor_id
+            )
+            self.logger.info(
+                "%s: Notifying addressees: %s", self.name, addressees
+            )
+
+            case_obj = self.datalayer.read(case_id)
+            create_case_activity = VultronCreateCaseActivity(
+                actor=self.actor_id,
+                object_=case_obj if case_obj is not None else case_id,
+                context=case_id,
+                to=addressees if addressees else None,
+            )
+
+            try:
+                self.datalayer.create(create_case_activity)
+                self.logger.info(
+                    "%s: Created CreateCaseActivity activity: %s",
+                    self.name,
+                    create_case_activity.id_,
+                )
+            except VultronAlreadyExistsError as e:
+                self.logger.warning(
+                    "%s: CreateCaseActivity activity %s already exists: %s",
+                    self.name,
+                    create_case_activity.id_,
+                    e,
+                )
+
+            self._set_output("activity_id", create_case_activity.id_)
+            return Status.SUCCESS
+
+        except Exception as e:  # noqa: BLE001  # ruff-baseline #3768
+            self.logger.error(  # noqa: TRY400  # ruff-baseline #3353
+                "%s: Error creating CreateCaseActivity activity: %s",
+                self.name,
+                e,
+            )
+            return Status.FAILURE

@@ -1,0 +1,375 @@
+---
+title: "Vultron Concept Taxonomy"
+status: active
+description: >
+  Reference definitions for the distinct concepts that together constitute
+  Vultron. Use this document to understand what each named concept covers,
+  what it excludes, and how the concepts relate to each other.
+stakeholder_type: [platform-developer, project-contributor]
+level: 300
+page_type: reference
+---
+
+# Vultron Concept Taxonomy
+
+The name "Vultron" covers several distinct concepts.
+Each concept has a defined scope, and each plays a different role.
+This document names each concept, defines its scope, and describes the relationships between them.
+It is a scope document, not a registry of definitions: where the [Vultron Protocol Specification](vultron-spec/index.md) defines a concept normatively, this page says what the concept covers and links to the specification for the definition.
+The [Glossary](glossary.md) is the registry of term names and the aliases to avoid.
+
+---
+
+## Quick Reference
+
+| Concept | One-line definition |
+|---|---|
+| [vultron-core](#vultron-core) | The abstract protocol: state machines, transitions, and process logic |
+| [vultron-wire](#vultron-wire) | The message format: ActivityStreams 2.0 (AS2) vocabulary plus semantic mapping |
+| [vultron-transport](#vultron-transport) | The delivery mechanism: how messages move between participants |
+| [Vultron capability sets](#vultron-capability-sets) | The named groups of capabilities that define participation levels and roles |
+| [Capability shapes](#capability-shapes) | The taxonomy of optional, pluggable capability patterns |
+| [Vultron roles](#vultron-roles) | Case-level participation assignments for actors |
+| [Vultron-enabled applications](#vultron-enabled-applications) | Systems and components built on top of Vultron |
+
+---
+
+## Protocol Concepts
+
+These three concepts define the protocol itself.
+They are independent of any specific implementation language.
+
+### vultron-core
+
+**Definition.** The abstract Vultron protocol: the state machines for Report Management (RM), Embargo Management (EM), [Participant Embargo Consent (PEC)](../topics/behavior_logic/use-cases/embargo-lifecycle.md), and the vendor-path (VFD) and public-path (PXA) case state dimensions, the valid transitions between states, the process logic that drives those transitions, and the behavioral conformance rules that define correct observable behavior.
+
+**What is in scope.**
+
+- The five state machines and their transition tables
+- The behavioral conformance specifications (RMB, EMB, CSB) that state correct outputs for given inputs
+- The ordering and cascade rules between dimensions (for example, when an EM transition must trigger a PEC bulk update)
+- The process model: how N independent participants coordinate through message passing
+
+**What is out of scope.**
+
+- The Python module `vultron/core/` — that is the reference implementation of this concept, not the concept itself
+- The behavior trees — those are one valid mechanism for executing vultron-core, not a required part of it
+- The message format — that is vultron-wire
+- The delivery mechanism — that is vultron-transport
+
+**Relationship to other concepts.**
+
+- vultron-wire carries the semantic meaning that vultron-core defines.
+- vultron-transport moves vultron-wire messages between participants.
+- The behavioral conformance specifications (RMB, EMB, CSB) are part of the vultron-core capability set. They are not a separate layer.
+- An implementation of vultron-core is a "coordination engine" for Coordinated Vulnerability Disclosure (CVD). That label describes what the implementation does, not a separate concept.
+
+!!! note "Implementation note (reference only)"
+    In the Python reference implementation, vultron-core maps to the `vultron/core/`
+    module: the hexagonal inner circle that has no imports from the wire or adapter
+    layers. This mapping is specific to the reference implementation and does not
+    constrain how vultron-core is implemented in other languages.
+
+---
+
+### vultron-wire
+
+**Definition.** The Vultron message format: the ActivityStreams 2.0 vocabulary for Vultron activities and objects, and the semantic mapping that assigns a protocol meaning to each activity type and payload combination.
+
+**What is in scope.**
+
+- The AS2 vocabulary: the set of valid activity types and object types defined by the Vultron protocol
+- The JavaScript Object Notation (JSON) schemas that define conformant message structure
+- The semantic mapping: "this activity type with this payload carries this protocol meaning"
+- The boundary is the serialized JSON output. What a conformant message looks like as JSON is vultron-wire. How that JSON is produced (for example, by Pydantic models) is not.
+
+**What is out of scope.**
+
+- The Pydantic model classes in the reference implementation — those produce vultron-wire output, but they are not vultron-wire itself
+- Valid message sequences and ordering — those are a vultron-core concern, because they emerge from the state machines
+- How messages are delivered — that is vultron-transport
+
+**Relationship to other concepts.**
+
+- vultron-wire conformance without vultron-core conformance has limited use. A system can produce well-formed messages but cannot participate meaningfully if it does not implement the state machines.
+- Partial conformance claims are possible: "I conform to these sequences in core via wire, but not those others."
+- vultron-transport carries vultron-wire messages. The message schema is transport-agnostic.
+
+!!! note "Name under review"
+    "Wire" implies delivery to some readers. Candidate renames include "vultron-messages"
+    and "vultron-vocabulary." No decision has been made. See [open ideas](#open-ideas).
+
+---
+
+### vultron-transport
+
+**Definition.** The delivery layer: the mechanisms by which vultron-wire messages move between participants.
+
+This concept is analogous to TAXII in the STIX/TAXII pairing, where STIX is the data format and TAXII is the transport protocol.
+
+**What is in scope.**
+
+- The Representational State Transfer (REST) delivery profile over the Hypertext Transfer Protocol (HTTP): how endpoints are structured, how messages are sent and received
+- The ActivityPub federation profile: inbox/outbox semantics, HTTP Signatures, actor addressing
+- Participant discovery: how a participant finds other Vultron actors (webfinger is the anticipated mechanism, consistent with its use alongside ActivityPub in systems such as Mastodon)
+
+**What is out of scope.**
+
+- Message format and semantic meaning — those are vultron-wire
+- Protocol routing rules (for example, the single-writer rule and the requirement that all case-scoped messages route through the CASE_MANAGER) — those are vultron-core rules that apply at the protocol layer, not the transport layer
+
+**Relationship to other concepts.**
+
+- vultron-transport carries vultron-wire messages. The same JSON payload is deliverable over REST or ActivityPub.
+- The routing topology rule (Participant → CASE_MANAGER → all Participants) is a vultron-core protocol rule. It governs message routing regardless of which transport is in use.
+
+!!! note "Current status"
+    The REST profile is in use in the reference implementation. The ActivityPub
+    federation profile is planned (see issue #2068). Participant discovery via
+    webfinger is anticipated but not yet specified.
+
+---
+
+## Capability Concepts
+
+These concepts describe what a Vultron implementation or component can do.
+
+### Vultron capability sets
+
+**Definition.** A capability set is a named group of protocol obligations an implementation takes on.
+It is a property of *software*, distinct from a role, which is a position an actor holds in a case.
+A capability is one specific thing a system can do within the Vultron protocol.
+
+The capability sets are defined normatively in [§12.2 Capability Sets in the Vultron Protocol Specification](vultron-spec/conformance.md#122-capability-sets).
+This page names them and says how they relate to the other concepts; it does not restate their obligations.
+
+| Capability set | What it covers | Normative definition |
+|---|---|---|
+| **Case Observer** | The participation floor every case Participant provides: track the five state machines, take part in embargo negotiation, and route case-scoped messages through the CASE_MANAGER. There is no sub-Observer participation level. | [Case Observer capability set](vultron-spec/conformance.md#case-observer-capability-set) |
+| **Case Decision** | The Case Owner's governance obligations, separable from hosting a case. | [Case Decision capability set](vultron-spec/conformance.md#case-decision-capability-set) |
+| **Case Hosting** | The Case Manager's infrastructure obligations, separable from deciding for a case: host the actor enacting the CASE_MANAGER role and run the canonical ledger. | [Case Hosting capability set](vultron-spec/conformance.md#case-hosting-capability-set) |
+
+Which transitions a Participant may drive on top of the Case Observer floor depends on the roles it holds; [§12.4 Role-Specific Normative Requirements](vultron-spec/conformance.md#124-role-specific-normative-requirements) states those role-specific requirements.
+Common combinations of capability sets and roles have names — Hosting Coordinator, Self-coordinating Vendor, Bug Bounty Platform — listed under [Named configurations](vultron-spec/conformance.md#named-configurations) in the specification.
+
+#### Optional domain capability sets
+
+Optional capabilities are organized by domain function.
+
+Examples of domain capability sets:
+
+- **CNA capabilities** — assign Common Vulnerabilities and Exposures (CVE) IDs as a CVE Numbering Authority (CNA) does (typically Actuator shape, calling the CVE assignment API)
+- **Prioritization capabilities** — assess report severity or priority (typically Evaluator or Retriever shape)
+- **Exploit detection capabilities** — detect or assess exploit availability (typically Retriever shape, or a Sentinel that watches for new exploits)
+
+A capability set name describes business function.
+A [capability shape](#capability-shapes) describes the technical connection contract.
+These two dimensions are orthogonal: the same domain set may use multiple shapes.
+
+**A conformance claim names capability sets and roles directly.**
+Examples: `Case Observer / Vendor`, `Case Observer + Case Decision + Case Hosting / Coordinator + Case Owner`.
+
+**What is in scope.**
+
+- All protocol behaviors a system can implement, required or optional
+- Named capability sets as defined groupings of required capabilities
+- Optional domain capability sets organized by business function
+
+**What is out of scope.**
+
+- The conformance test layers (L1–L4) — those describe what a test verifies, not what a system provides.
+  Capability sets and test layers are orthogonal.
+
+**Relationship to other concepts.**
+
+- Capability shapes provide the technical contract taxonomy for optional capabilities.
+- Vultron roles use capability sets to define prerequisites for role assignment.
+
+---
+
+### Capability shapes
+
+**Definition.** The taxonomy of optional, pluggable capability patterns. Each capability shape defines a contract for a specific category of automation that can connect to the behavior engine at a call-out point.
+
+**Previous name.** This concept was previously named "agent shapes" or "coordination agent taxonomy." That name was accurate when written. It is now replaced because "agent" has acquired strong connotations of large language model (LLM)-based autonomous systems, which was not the original intent. "Capability shape" describes what the concept actually covers: the pattern that a capability takes.
+
+**The four capability shapes.** The shapes are Evaluator, Retriever, Composer, and Actuator.
+Each is a contract stating what a call-out point accepts and what it returns.
+The contracts are defined in [Annex G.1 The Four Capability Shapes in the Vultron Protocol Specification](vultron-spec/annex-g-capability-shapes.md#g1-the-four-capability-shapes), which this page does not restate.
+
+**Sentinel is not a shape.** A Sentinel is a call-in integration pattern: it monitors a condition and, when the condition fires, acts on its own initiative by calling a Vultron trigger endpoint or sending protocol messages. The behavior engine never consults it, so it has no call-out point node, no blackboard contract, and no backend factory. The classifying criterion is which party initiates (BT-18-013, [ADR-0097](../adr/0097-capability-layer-four-shapes-and-core-declared-contracts.md)).
+
+A capability shape defines the contract. A concrete implementation that satisfies the contract is a Vultron-compatible capability of that shape.
+
+**What is in scope.**
+
+- The four shapes and their contracts (what each shape accepts and returns)
+- The classification rule for each shape
+
+**What is out of scope.**
+
+- The specific technology used to fulfill a shape (a shape may be fulfilled by a human, an automated script, an LLM, or any other mechanism)
+- The Sentinel call-in pattern — it answers no call-out point, so it has no shape contract
+- The Fuzzer Node — that is a simulator-layer stub that occupies a call-out point until a real capability is wired in; it is not a capability shape itself
+
+**Relationship to other concepts.**
+
+- Capability shapes are orthogonal to capability sets. A Case Observer implementation may have zero capability shapes implemented. A Sentinel does not require anything beyond the trigger endpoints or protocol messages any actor already exposes.
+- Capability shapes are the taxonomy for the optional capabilities in [Vultron capability sets](#vultron-capability-sets).
+- In the reference implementation, a capability shape maps to a Port (abstract interface). A concrete capability implementation maps to an Adapter. This mapping is specific to the hexagonal architecture of the Python codebase and is not required of other implementations.
+
+---
+
+## Participation Concepts
+
+### Vultron roles
+
+**Definition.** Case-level participation assignments. A role describes what an actor is doing in a specific case.
+
+Roles are not properties of systems. They are assignments within a case.
+
+**Two categories of roles.**
+Both are defined in [§2.2 Roles in the Vultron Protocol Specification](vultron-spec/introduction.md#22-roles) and developed in [§12.3 Role Taxonomy](vultron-spec/conformance.md#123-role-taxonomy); this page names them and does not restate the definitions.
+
+**Process roles** — Reporter, Vendor, Deployer, Coordinator, CVE Numbering Authority (CNA), and Observer — define what an actor does within a case and which protocol transitions it is authorized to drive ([§12.3.1 Process Roles](vultron-spec/conformance.md#1231-process-roles), [§12.4 Role-Specific Normative Requirements](vultron-spec/conformance.md#124-role-specific-normative-requirements)).
+
+**Protocol authority roles** — Case Owner and Case Manager — define what an actor controls in the protocol machinery ([§12.3.2 Protocol Coordination Roles (protocol authority)](vultron-spec/conformance.md#1232-protocol-coordination-roles-protocol-authority)).
+The Case Manager is the Participant that writes the canonical case ledger and relays case-scoped messages on the Case Owner's behalf; it is the case's single-writer authority.
+That authority follows the role, never the name, Uniform Resource Identifier (URI), or hosting location of the actor that holds it (ADR-0088).
+
+**Role assignment.**
+
+Roles are assigned, not self-declared.
+
+1. A case starts with a Case Owner (the actor who initiated the case).
+2. The Case Owner may delegate the Case Manager role to another actor.
+3. The Case Manager designates other actors into process roles.
+
+Self-assignment is not permitted. This rule prevents an actor from declaring a role (for example, Coordinator) on a case it is not ready to coordinate.
+
+**Capabilities and roles.**
+
+The relationship between capabilities and roles is bidirectional.
+
+- Capabilities are a prerequisite for a role. Having the right capabilities means an actor can perform the role. It does not mean the actor automatically holds the role.
+- Holding a role in a case means other participants expect the actor to have the capabilities that role requires.
+
+**What is in scope.**
+
+- The two categories of roles and their definitions
+- The assignment chain (Case Owner → Case Manager → others)
+- The bidirectional relationship between capabilities and roles
+
+**Relationship to other concepts.**
+
+- A role claim creates capability expectations. If an actor holds the Coordinator role, other participants expect it to have the Coordinator role extension set.
+- The Case Observer capability set is the minimum protocol floor for case participation. Role extension sets add further expectations on top of that floor.
+
+---
+
+## Ecosystem Concepts
+
+### Vultron-enabled applications
+
+**Definition.** Systems and components built using Vultron. This concept covers the full range: end-user applications, coordination automation components, and the reference implementation itself.
+
+**Examples.**
+
+- A Product Security Incident Response Team (PSIRT) portal that uses the Vultron protocol to manage vulnerability cases — this implements vultron-core, vultron-wire, and vultron-transport, and holds process roles within its cases.
+- A Sentinel component that monitors threat feeds and reports PXA observations into a case — this is a call-in integration, not a capability shape: it acts on its own initiative through the case's trigger endpoints.
+- The Python reference implementation in this repository — this implements the full stack: vultron-core, vultron-wire, vultron-transport, and some capability shapes.
+
+**What is in scope.**
+
+- Any system that implements one or more Vultron protocol concepts
+- Coordination automation components (implementations of capability shapes)
+- Full-stack implementations that participate in CVD coordination
+
+**What is out of scope.**
+
+- The protocol itself — that is vultron-core, vultron-wire, and vultron-transport
+- Systems that merely cite or reference Vultron without implementing it
+
+**Relationship to other concepts.**
+
+- A Vultron-enabled application that implements vultron-core, vultron-wire, and vultron-transport at the Case Observer level or above is a "coordination engine" in the sense that it can coordinate CVD cases. That label is descriptive vocabulary for what the application does, not a separate taxonomy concept.
+
+---
+
+## Architectural Views
+
+Three architectural views are planned for this taxonomy. Each view answers a different question.
+
+### View 1 — Layered module view
+
+This view answers the question: what are the layers of Vultron, and how do they depend on each other?
+
+The layers, from lowest to highest:
+
+1. **vultron-core** — the protocol foundation. All other layers depend on vultron-core.
+2. **vultron-wire** — the message format layer. Translates vultron-core protocol meanings into serialized messages.
+3. **vultron-transport** — the delivery layer. Carries vultron-wire messages between participants.
+4. **Capability shapes** — the integration surface. Sits at the boundary between the protocol engine and optional automation. Capability shapes are defined by vultron-core (the call-out points) and implemented by Vultron-compatible capabilities.
+5. **Vultron-enabled applications** — the top layer. Uses all lower layers to participate in CVD coordination.
+
+Vultron roles and Vultron-compatible capabilities are not layers. They describe aspects of participation and implementation, respectively, that apply across the full stack.
+
+### View 2 — Peer-to-peer component-and-connector view
+
+This view answers the question: how do two Vultron participants communicate?
+
+This view is planned and not yet drawn. It will show:
+
+- How two participants exchange vultron-wire messages over vultron-transport
+- How the CASE_MANAGER mediates all case-scoped messages
+- How case state replicates from the CASE_MANAGER to participants via ledger entries
+- Where capability shapes connect to the behavior engine
+
+### View 3 — Conformance view (custom)
+
+This view answers the question: what do I need to build to claim a specific capability set or role?
+
+The [Conformance Matrix](conformance_matrix.md) draws it as tables checked against the specification:
+
+- A capability set matrix: rows are roles, columns are the capability sets, and cells show required versus optional
+- The transitions each role is authorized to drive
+- Named configuration profiles as pre-filled rows
+
+---
+
+## Open Ideas
+
+These questions are noted for future resolution. They do not block use of this taxonomy.
+
+1. **vultron-wire name review.** "Wire" implies delivery to some readers. Candidate renames: "vultron-messages," "vultron-vocabulary." No decision has been made. Log as a GitHub issue when ready to decide.
+
+2. **vultron-transport: discovery scope.** Participant discovery via webfinger is anticipated as part of vultron-transport. It is not yet specified. Related to ActivityPub federation work (issue #2068).
+
+3. **Role capability prerequisites.** The full mapping of which capabilities each role extension set requires is not yet specified. The conformance view (above) will address this when drawn.
+
+4. **Named configurations: canonical name.** "Hosting Coordinator" and "Autonomous Coordinator" have both been in use. The specification's [Named configurations](vultron-spec/conformance.md#named-configurations) table uses "Hosting Coordinator"; this page follows it.
+
+---
+
+## Dissolved Concepts
+
+These labels were candidates for this taxonomy but did not survive review.
+
+| Label | Outcome |
+|---|---|
+| vultron-behaviors | Dissolved. The behavioral conformance specifications (RMB, EMB, CSB) are part of vultron-core. "Behavior trees" are one implementation mechanism for vultron-core, not a separate taxonomy concept. |
+| coordination engine | Demoted to descriptive vocabulary. A Vultron-enabled application that implements vultron-core at the Case Observer level or above is a "coordination engine" for CVD. This label describes what the application does, not a separate concept. |
+| T0 / Consumer | Dropped. A parse-only entity has nothing useful to do with Vultron data if it cannot honor embargoes. Case Observer is the participation floor. |
+| T1 / Participant | Collapsed into the Case Observer capability set. |
+| T2 / Coordinator | Split into three separable concepts: Coordinator role extension set, Case Decision capability set, and Case Hosting capability set. |
+| T0/T1/T2 tier notation | Eradicated. Conformance claims name capability sets and roles directly. Example: `Case Observer / Vendor` replaces `T1 / Vendor`. |
+
+---
+
+## Related Documents
+
+- [Glossary](glossary.md) — domain terminology for the Vultron protocol and reference implementation
+- [Vultron Protocol Specification](vultron-spec/index.md) — normative protocol specification including capability sets and role taxonomy
+- ADR-0024 — Coordination Agent Taxonomy (original "agent shapes" decision; capability shapes is the updated name)
+- ADR-0038 — Four-Tier Specification Taxonomy (how specification files are classified; partially superseded by ADR-0134)
+- ADR-0134 — Who Must Obey a Rule Decides Its Spec Kind (the five kinds, including `foundation`, and the split rule)

@@ -1,0 +1,266 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+Unit tests for CVDRole StrEnum.
+
+Spec coverage:
+- BTND-05-001: CVDRoles MUST include a CASE_OWNER flag value.
+"""
+
+from enum import StrEnum
+
+import pytest
+
+from vultron.enums.roles import (
+    RETIRED_ROLE_VALUES,
+    CVDRole,
+    parse_role,
+    serialize_roles,
+    validate_roles,
+)
+
+
+def test_cvdrole_is_str_enum():
+    """CVDRole must be a StrEnum."""
+    assert issubclass(CVDRole, StrEnum)
+
+
+def test_atomic_roles_exist():
+    """All expected atomic roles must exist."""
+    expected = {
+        "REPORTER",
+        "VENDOR",
+        "DEPLOYER",
+        "COORDINATOR",
+        "OBSERVER",
+        "CASE_OWNER",
+        "CASE_MANAGER",
+        "CVE_NUMBERING_AUTHORITY",
+    }
+    actual = {m.name for m in CVDRole}
+    assert expected == actual
+
+
+def test_case_owner_exists():
+    """CVDRole.CASE_OWNER must exist (BTND-05-001)."""
+    assert hasattr(CVDRole, "CASE_OWNER")
+    assert CVDRole.CASE_OWNER in CVDRole
+
+
+def test_cve_numbering_authority_exists():
+    """CVDRole.CVE_NUMBERING_AUTHORITY must exist."""
+    assert hasattr(CVDRole, "CVE_NUMBERING_AUTHORITY")
+    assert CVDRole.CVE_NUMBERING_AUTHORITY in CVDRole
+
+
+def test_cve_numbering_authority_value():
+    """CVE_NUMBERING_AUTHORITY value is the expected lowercase string."""
+    assert CVDRole.CVE_NUMBERING_AUTHORITY == "cve_numbering_authority"
+
+
+def test_cve_numbering_authority_lookup():
+    """CVE_NUMBERING_AUTHORITY can be looked up by value and name."""
+    assert (
+        CVDRole("cve_numbering_authority") is CVDRole.CVE_NUMBERING_AUTHORITY
+    )
+    assert (
+        CVDRole["CVE_NUMBERING_AUTHORITY"] is CVDRole.CVE_NUMBERING_AUTHORITY
+    )
+
+
+def test_cna_role_is_orthogonal_to_vendor():
+    """A participant may hold both CVE_NUMBERING_AUTHORITY and VENDOR simultaneously."""
+    roles = [CVDRole.VENDOR, CVDRole.CVE_NUMBERING_AUTHORITY]
+    assert CVDRole.VENDOR in roles
+    assert CVDRole.CVE_NUMBERING_AUTHORITY in roles
+
+
+def test_cna_role_is_orthogonal_to_coordinator():
+    """A participant may hold both CVE_NUMBERING_AUTHORITY and COORDINATOR simultaneously."""
+    roles = [CVDRole.COORDINATOR, CVDRole.CVE_NUMBERING_AUTHORITY]
+    assert CVDRole.COORDINATOR in roles
+    assert CVDRole.CVE_NUMBERING_AUTHORITY in roles
+
+
+def test_values_are_lowercase():
+    """All CVDRole values must be lowercase strings."""
+    for role in CVDRole:
+        assert role.value == role.value.lower(), (
+            f"{role.name}.value should be lowercase, got {role.value!r}"
+        )
+
+
+def test_name_value_relationship():
+    """Each member's name is the uppercase version of its value."""
+    for role in CVDRole:
+        assert role.name == role.value.upper(), (
+            f"{role.name}: name={role.name!r} value={role.value!r}"
+        )
+
+
+def test_string_equality():
+    """CVDRole members compare equal to their string values."""
+    assert CVDRole.REPORTER == "reporter"
+    assert CVDRole.VENDOR == "vendor"
+    assert CVDRole.CASE_OWNER == "case_owner"
+
+
+def test_lookup_by_value():
+    """CVDRole can be looked up by lowercase string value."""
+    assert CVDRole("reporter") is CVDRole.REPORTER
+    assert CVDRole("vendor") is CVDRole.VENDOR
+    assert CVDRole("case_owner") is CVDRole.CASE_OWNER
+
+
+def test_lookup_by_name():
+    """CVDRole can be looked up by name."""
+    assert CVDRole["REPORTER"] is CVDRole.REPORTER
+    assert CVDRole["VENDOR"] is CVDRole.VENDOR
+
+
+def test_no_combination_aliases():
+    """CVDRole must not have combination aliases like FINDER_REPORTER.
+
+    The names are those of the legacy ``CVDRolesFlag`` bitmask combinations.
+    """
+    assert not hasattr(CVDRole, "FINDER_REPORTER")
+    assert not hasattr(CVDRole, "FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR")
+
+
+def test_no_no_role():
+    """CVDRole must not have a NO_ROLE member (empty list represents no role)."""
+    assert not hasattr(CVDRole, "NO_ROLE")
+
+
+def test_list_membership():
+    """list[CVDRole] membership check works correctly."""
+    roles = [CVDRole.REPORTER, CVDRole.VENDOR]
+    assert CVDRole.REPORTER in roles
+    assert CVDRole.VENDOR in roles
+    assert CVDRole.COORDINATOR not in roles
+
+
+# --- serialize_roles ---
+
+
+def test_serialize_roles_empty():
+    """serialize_roles([]) returns an empty list."""
+    assert serialize_roles([]) == []
+
+
+def test_serialize_roles_single():
+    """serialize_roles emits lowercase string values."""
+    assert serialize_roles([CVDRole.VENDOR]) == ["vendor"]
+
+
+def test_serialize_roles_multiple():
+    """serialize_roles emits all role values in order."""
+    roles = [CVDRole.REPORTER, CVDRole.COORDINATOR]
+    assert serialize_roles(roles) == ["reporter", "coordinator"]
+
+
+# --- validate_roles ---
+
+
+def test_validate_roles_from_enum_members():
+    """validate_roles passes CVDRole members through unchanged."""
+    roles = [CVDRole.REPORTER, CVDRole.VENDOR]
+    assert validate_roles(roles) == [CVDRole.REPORTER, CVDRole.VENDOR]
+
+
+def test_validate_roles_from_strings():
+    """validate_roles coerces lowercase string values to CVDRole."""
+    result = validate_roles(["reporter", "vendor"])
+    assert result == [CVDRole.REPORTER, CVDRole.VENDOR]
+
+
+def test_validate_roles_empty():
+    """validate_roles([]) returns an empty list."""
+    assert validate_roles([]) == []
+
+
+def test_validate_roles_none_returns_empty():
+    """validate_roles returns [] for None (field omitted)."""
+    assert validate_roles(None) == []  # type: ignore[arg-type]
+
+
+def test_validate_roles_non_list_raises():
+    """validate_roles raises ValueError for non-list, non-None input."""
+    with pytest.raises(ValueError, match="must be a list"):
+        validate_roles("reporter")  # type: ignore[arg-type]
+
+
+def test_validate_roles_invalid_value():
+    """validate_roles raises ValueError for unknown string values."""
+    with pytest.raises(ValueError):
+        validate_roles(["no_role"])
+
+
+def test_roundtrip():
+    """serialize_roles -> validate_roles roundtrip preserves roles."""
+    original = [CVDRole.REPORTER, CVDRole.COORDINATOR, CVDRole.CASE_OWNER]
+    serialized = serialize_roles(original)
+    assert validate_roles(serialized) == original
+
+
+def test_validate_roles_refuses_a_non_string_item():
+    """A list item that is neither a string nor a CVDRole is refused, not dropped."""
+    with pytest.raises(ValueError, match="items must be CVDRole strings"):
+        validate_roles([1, "vendor"])
+
+
+def test_validate_roles_error_names_the_field():
+    """The error names the field the caller validates, not a fixed config key."""
+    with pytest.raises(ValueError, match=r"^proposerCaseRoles must be a list"):
+        validate_roles("vendor", field_name="proposerCaseRoles")
+
+
+# --- retired roles (ADR-0078) ---
+
+
+def test_finder_is_not_a_role():
+    """FINDER is retired (ADR-0078): an actor who found and reported holds REPORTER."""
+    assert not hasattr(CVDRole, "FINDER")
+    assert "finder" not in {role.value for role in CVDRole}
+
+
+def test_retired_values_are_not_members():
+    """No retired wire value names a live CVDRole member."""
+    live = {role.value for role in CVDRole}
+    assert set(RETIRED_ROLE_VALUES).isdisjoint(live)
+
+
+@pytest.mark.parametrize("value", ["finder", "FINDER", "Finder"])
+def test_parse_role_refuses_finder_with_its_retirement_reason(value):
+    """A stored or inbound "finder" is refused with the reason, never aliased."""
+    with pytest.raises(ValueError, match="ADR-0078"):
+        parse_role(value)
+
+
+def test_validate_roles_refuses_finder():
+    """validate_roles refuses a role list carrying the retired "finder" value."""
+    with pytest.raises(ValueError, match="retired"):
+        validate_roles(["finder", "reporter"])
+
+
+def test_parse_role_is_case_insensitive_for_live_roles():
+    """parse_role lowercases before lookup, as validate_roles always has."""
+    assert parse_role("Reporter") is CVDRole.REPORTER
+
+
+def test_parse_role_refuses_unknown_value():
+    """An unknown role string is refused."""
+    with pytest.raises(ValueError):
+        parse_role("no_role")

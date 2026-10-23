@@ -1,0 +1,595 @@
+#!/usr/bin/env python
+# pyright: reportGeneralTypeIssues=false
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+Custom Activity Streams Activities for VulnerabilityCase objects.
+Each activity should have a VulnerabilityCase object as either its target or object.
+"""
+
+from typing import Any, ClassVar
+
+from pydantic import Field, model_validator
+
+from vultron.core.models.ledger_position import LedgerPosition
+from vultron.primitives import NonEmptyString
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
+    as_Add,
+    as_Announce,
+    as_Create,
+    as_Ignore,
+    as_Invite,
+    as_Join,
+    as_Leave,
+    as_Offer,
+    as_Reject,
+    as_TentativeReject,
+    as_Undo,
+    as_Update,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant_role import (
+    as_CaseParticipantRole,
+)
+from vultron.wire.as2.vocab.objects.case_status import as_CaseStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import (
+    as_VulnerabilityCase,
+    as_VulnerabilityCaseRef,
+    as_VulnerabilityCaseStub,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+########################################################################################
+# Activities in which the VulnerabilityCase is a target
+########################################################################################
+
+
+class _AddReportToCaseActivity(as_Add):
+    """Add a VulnerabilityReport to a VulnerabilityCase
+    object_: as_VulnerabilityReport
+    target: as_VulnerabilityCase
+    """
+
+    object_: as_VulnerabilityReport = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: as_VulnerabilityCaseRef = None
+    # The report's Offer provenance, carried on the CASE_MANAGER's
+    # ``add_report_to_case`` entry for the case's participants, who were never
+    # sent the Offer (CP-01-007, CM-11-020).  The same pair, and the same
+    # wire keys, as ``as_CaseProposal.offer_id``/``offer_actor_id``.
+    offer_id: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="offerId",
+        serialization_alias="offerId",
+        description="URI of the Offer(VulnerabilityReport) the report arrived in.",
+    )
+    offer_actor_id: NonEmptyString | None = Field(
+        default=None,
+        validation_alias="offerActorId",
+        serialization_alias="offerActorId",
+        description="URI of the actor that sent the Offer named by offer_id.",
+    )
+
+
+# add CaseParticipant to VulnerabilityCase
+# see _AddParticipantToCaseActivity in case_participant.py
+
+
+# add CaseStatus to VulnerabilityCase
+class _AddStatusToCaseActivity(as_Add):
+    """Add a CaseStatus to a VulnerabilityCase.
+    This should only be performed by the case owner.
+    Other case participants can add a case status to their participant record, which the case
+    owner should then add to the case if appropriate.
+    object_: as_CaseStatus
+    target: as_VulnerabilityCase
+    """
+
+    object_: as_CaseStatus = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: as_VulnerabilityCaseRef = None
+
+
+########################################################################################
+# Activities in which the VulnerabilityCase is an object #
+########################################################################################
+
+
+# create a VulnerabilityCase
+class _CreateCaseActivity(as_Create):
+    """Create a VulnerabilityCase.
+    object_: as_VulnerabilityCase
+    """
+
+    object_: as_VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+# Add a Note to a VulnerabilityCase
+class _AddNoteToCaseActivity(as_Add):
+    """Add a Note to a VulnerabilityCase.
+    object_: Note
+    target: as_VulnerabilityCase
+    """
+
+    object_: as_Note = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: as_VulnerabilityCaseRef = None
+
+
+# update a VulnerabilityCase
+class _UpdateCaseActivity(as_Update):
+    """Update a VulnerabilityCase.
+
+    The CASE_MANAGER's own act naming a new Case Owner, committed as its
+    ``update_case_owner`` ledger entry (CM-21-002, CLP-07-013).  The registry
+    recognizes it, but no received use case handles it, so an inbox reports
+    a received one as "no use case found" (ADR-0140).
+
+    object_: as_VulnerabilityCase
+    """
+
+    object_: as_VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+#####
+# Custom Activity Streams Activities specific to the Vultron Protocol
+#####
+
+
+# join a case
+class _RmEngageCaseActivity(as_Join):
+    """The actor is has joined (i.e., is actively working on) a case.
+    This represents the Vultron Message Type RA, and indicates that the actor is now in the RM.ACCEPTED state.
+    object_: as_VulnerabilityCase
+    """
+
+    object_: as_VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RmDeferCaseActivity(as_Ignore):
+    """The actor is deferring a case.
+    This implies that the actor is no longer actively working on the case.
+    Deferring a case does not imply that the actor is abandoning the case entirely,
+    it just means that the actor is no longer actively working on it.
+    This represents the Vultron Message Type RD, and indicates that the actor is now in the RM.DEFERRED state.
+    Contrast with _RmCloseCaseActivity, which indicates that the actor is abandoning the case entirely.
+    object_: as_VulnerabilityCase
+    """
+
+    object_: as_VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RmCloseCaseActivity(as_Leave):
+    """The actor is ending their participation in the case and closing their local copy of the case.
+    This corresponds to the Vultron RC message type.
+    Case closure is considered a permanent Leave from the case.
+    If the case owner (attributedTo) is the actor, then the case is closed for all participants.
+    If the actor is not the case owner, then the actor should be removed from the case participants.
+    object_: as_VulnerabilityCase
+    """
+
+    object_: as_VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _OfferCaseParticipantRoleActivity(as_Offer):
+    """Offer a CVDRole to an Actor in a VulnerabilityCase context (ADR-0039).
+
+    Wire format: ``Offer(CaseParticipantRole, target=Actor,
+    context=VulnerabilityCase)``
+
+    Replaces the deprecated ``_OfferCaseManagerRoleActivity`` for role
+    delegation.  The ``object_`` carries the specific ``CVDRole`` being
+    offered, making the activity self-describing and eliminating the
+    target-field ambiguity of the previous format.
+
+    object_: as_CaseParticipantRole (required — carries the CVDRole)
+    target: as_Actor (required — the Actor receiving the role offer)
+    context: as_VulnerabilityCase or str URI (required)
+
+    Declares **both** ``object_`` and ``target`` in
+    :attr:`inline_required_refs`, because neither can be read back from the
+    sender's store once collapsed to an id:
+
+    - ``object_`` is minted inline by ``offer_case_participant_role_activity``
+      and never persisted as a record of its own, so its id resolves to nothing
+      (DL-08-001).  Since ``Offer`` is an initiating type, the outbox gate then
+      refuses the whole activity for carrying a bare string (AKM-03-003).
+    - ``target`` is the *peer* receiving the role.  Under ADR-0073 a peer's
+      record lives in the store of whichever actor knows it, which is not the
+      sender's (DL-08-003) — the same reason ``_RmInviteToCaseActivity``
+      declares its invitee.
+
+    This ``target`` is typed ``as_Actor`` rather than a ref union, so an id
+    there is not merely unresolvable but off-type: read-back yields a plain
+    ``as_Offer`` that no longer matches this class, and the receiver cannot
+    dispatch it at all.
+
+    See SE-08-003, ADR-0039.
+    """
+
+    object_: as_CaseParticipantRole = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: as_Actor = Field(
+        ..., validation_alias="target", serialization_alias="target"
+    )
+    context: as_VulnerabilityCase | NonEmptyString = Field(
+        ..., validation_alias="context", serialization_alias="context"
+    )
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset(
+        {"object_", "target"}
+    )
+
+
+class _AcceptCaseParticipantRoleActivity(as_Accept):
+    """Target actor accepts the canonical role-delegation offer (ADR-0039).
+
+    - object_: the ``_OfferCaseParticipantRoleActivity`` being accepted
+    See SE-08-003, ADR-0039.
+    """
+
+    object_: _OfferCaseParticipantRoleActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RejectCaseParticipantRoleActivity(as_Reject):
+    """Target actor rejects the canonical role-delegation offer (ADR-0039).
+
+    - object_: the ``_OfferCaseParticipantRoleActivity`` being rejected
+    See SE-08-003, ADR-0039.
+    """
+
+    object_: _OfferCaseParticipantRoleActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _OfferCaseOwnershipTransferActivity(as_Offer):
+    """The actor is offering to transfer ownership of the case to another actor.
+
+    The case MUST be provided as an inline ``VulnerabilityCase`` object so that
+    the recipient can identify the object type unambiguously during semantic
+    pattern matching.  Passing only a string URI makes the activity
+    indistinguishable from a ``SUBMIT_REPORT`` Offer and causes incorrect
+    dispatch.
+
+    object_: as_VulnerabilityCase (inline — not a bare string ID)
+    target: as_Actor (the transferee)
+
+    Declares ``target`` in :attr:`inline_required_refs` (DL-08-003). The
+    transferee is a *peer*: under ADR-0073 its record lives in the store of
+    whichever actor knows it, and neither the offerer nor the CASE_MANAGER is
+    obliged to hold it. Dehydrated to its id, the stored Offer had nothing to
+    read the transferee back from, and the CASE_MANAGER's ledger commit then
+    refused the bare ``target`` (CLP-07-006, #4843).
+    :func:`~vultron.wire.as2.factories.offer_case_ownership_transfer_activity`
+    wraps a bare transferee id as an ``as_Actor`` so it travels inline.
+    """
+
+    object_: as_VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: as_ActorRef = None
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"target"})
+
+
+class _ProposeCaseOwnershipTransferActivity(as_Offer):
+    """The Case Owner proposes an ownership transfer to the CASE_MANAGER.
+
+    Wire format: ``Offer(Offer(VulnerabilityCase), context=VulnerabilityCase)``
+    (ADR-0148).  The inner Offer is the template of the one Offer the
+    CASE_MANAGER makes to the transferee: its object is the case, its
+    ``target`` the transferee and its ``endTime`` the deadline to answer.
+    The proposal's shape, an Offer of an Offer, is what tells it apart from
+    the CASE_MANAGER's ``Offer(VulnerabilityCase)``, so neither pattern needs
+    a sender check (ADR-0039).
+
+    object_: _OfferCaseOwnershipTransferActivity (inline, required)
+    context: as_VulnerabilityCase or str URI (required): the case the
+        proposal is about, which the inner Offer's object must name
+
+    Declares ``object_`` in :attr:`inline_required_refs`: the inner Offer is
+    minted inline and never stored on its own, so its id resolves to nothing
+    (DL-08-001).
+    """
+
+    object_: _OfferCaseOwnershipTransferActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    context: as_VulnerabilityCase | NonEmptyString = Field(
+        ..., validation_alias="context", serialization_alias="context"
+    )
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+
+
+class _AcceptCaseOwnershipTransferActivity(as_Accept):
+    """The actor is accepting an offer to transfer ownership of the case.
+
+    - object_: the _OfferCaseOwnershipTransferActivity being accepted (inline
+      typed object required — bare string IDs are rejected at construction time)
+    """
+
+    object_: _OfferCaseOwnershipTransferActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RejectCaseOwnershipTransferActivity(as_Reject):
+    """The actor is rejecting an offer to transfer ownership of the case.
+
+    - object_: the _OfferCaseOwnershipTransferActivity being rejected (inline
+      typed object required — bare string IDs are rejected at construction time)
+    """
+
+    object_: _OfferCaseOwnershipTransferActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _UndoCaseOwnershipTransferActivity(as_Undo):
+    """The Case Owner is withdrawing its ownership-transfer proposal.
+
+    Sent by the Case Owner that made the proposal, addressed to the
+    CASE_MANAGER, which withdraws the Offer it made from it (CM-21-015,
+    ADR-0148).
+
+    - object_: the _ProposeCaseOwnershipTransferActivity being withdrawn
+      (inline typed object required — bare string IDs are rejected at
+      construction time)
+    """
+
+    object_: _ProposeCaseOwnershipTransferActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+
+class _RmInviteToCaseActivity(as_Invite):
+    """The actor is inviting another actor to a case.
+    This corresponds to the Vultron Message Type RS when a case already exists.
+    See also _RmSubmitReportActivity for the scenario when a case does not exist yet.
+    object_: the Actor being invited
+    target: the ``as_VulnerabilityCaseStub`` naming the case (CM-11-013);
+        required, so an Invite whose target is a URI or a full case is not
+        this class
+    roles: inherited from as_Invite (CM-17-003)
+
+    Declares ``object_`` in :attr:`inline_required_refs` (DL-08-003). The
+    invitee is by definition a *peer* — under ADR-0073 its record lives in the
+    store of whichever actor knows it, and the sender here is the Case Actor,
+    which does not. Dehydrating the invitee to its id therefore had nothing to
+    read it back from, so the stored Invite came back carrying a bare string and
+    outbox delivery refused it (AKM-03-003) after exhausting its retries. The
+    invitation never arrived, and the invitee's ``reject-case-invite`` then
+    answered 404 for an invite it had never been told about (#2548, rcv-reject).
+    """
+
+    object_: as_Actor = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: as_VulnerabilityCaseStub = Field(...)
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+
+
+class _RmAcceptInviteToCaseActivity(as_Accept):
+    """The actor is accepting an invitation to a case.
+    This corresponds to the Vultron Message Type RV when the case already exists.
+    See also _RmValidateReportActivity for the scenario when the case does not exist yet.
+
+    object_: the _RmInviteToCaseActivity being accepted (inline typed object
+        required — bare string IDs are rejected at construction time)
+    """
+
+    object_: _RmInviteToCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def set_in_reply_to_from_invite(self):
+        if self.in_reply_to is None:
+            object.__setattr__(self, "in_reply_to", self.object_.id_)
+        return self
+
+
+class _RmRejectInviteToCaseActivity(as_Reject):
+    """The actor is rejecting an invitation to a case.
+    This corresponds to the Vultron Message Type RI when the case already exists.
+    See also _RmInvalidateReportActivity for the scenario when the case does not exist yet.
+
+    `object_`: the `_RmInviteToCaseActivity` being rejected (inline typed
+        object required — bare string IDs are rejected at construction time)
+    """
+
+    object_: _RmInviteToCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def set_in_reply_to_from_invite(self):
+        if self.in_reply_to is None:
+            object.__setattr__(self, "in_reply_to", self.object_.id_)
+        return self
+
+
+def _check_ledger_position_content(activity: Any, what: str) -> None:
+    """Require *activity*'s ``content`` to be a ledger position's JSON dump.
+
+    The position travels in the standard AS2 ``content`` slot as the
+    ``LedgerPosition`` model's own JSON dump (VAM-04-011..014), so a missing,
+    blank or non-parsing ``content`` is not a full-case message.
+    """
+    content = activity.content
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError(
+            f"{what} must carry its ledger position as JSON in `content`"
+        )
+    LedgerPosition.model_validate_json(content)
+
+
+class _RmInviteToFullCaseActivity(as_Invite):
+    """The CASE_MANAGER asks a joined participant to judge the case.
+
+    ``Invite(Actor)[target=VulnerabilityCase]`` — the full-case Invite
+    (VAM-04-011, CM-11-010, ADR-0121).  The ``target`` is the plain case URI:
+    the invitee already holds the case from the Announce (AKM-02-003).  The
+    CASE_MANAGER's ledger position when it issued the Invite, the floor the
+    participant's reply must reach, is the JSON dump of a
+    :class:`~vultron.core.models.ledger_position.LedgerPosition` in
+    ``content``.
+
+    Declares ``object_`` in :attr:`inline_required_refs`: the invitee is a
+    peer the sender holds no record of (see :class:`_RmInviteToCaseActivity`).
+    """
+
+    object_: as_Actor = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+    target: NonEmptyString = Field(...)
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
+
+    @model_validator(mode="after")
+    def _content_is_a_ledger_position(self):
+        _check_ledger_position_content(self, "the full-case Invite")
+        return self
+
+
+def _check_full_case_reply(reply: Any) -> None:
+    """Shared rules of the three replies to the full-case Invite.
+
+    A reply carries the replier's ledger position in ``content``
+    (CM-11-011) and answers the Invite it embeds.
+    """
+    _check_ledger_position_content(reply, "a reply to the full-case Invite")
+    if reply.in_reply_to is None:
+        object.__setattr__(reply, "in_reply_to", reply.object_.id_)
+
+
+class _RmAcceptFullCaseInviteActivity(as_Accept):
+    """The participant judges the case valid: RV, ``RECEIVED → VALID``.
+
+    `object_`: the `_RmInviteToFullCaseActivity` being accepted.  Carries the
+    replier's ledger position (VAM-04-012, CM-11-011).
+    """
+
+    object_: _RmInviteToFullCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def _validate_reply(self):
+        _check_full_case_reply(self)
+        return self
+
+
+class _RmTentativeRejectFullCaseInviteActivity(as_TentativeReject):
+    """The participant judges the case invalid: RI, ``RECEIVED → INVALID``.
+
+    Carries the replier's ledger position (VAM-04-013, CM-11-011).
+    """
+
+    object_: _RmInviteToFullCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def _validate_reply(self):
+        _check_full_case_reply(self)
+        return self
+
+
+class _RmRejectFullCaseInviteActivity(as_Reject):
+    """The participant closes the case: RC, ``RECEIVED → CLOSED``.
+
+    Carries the replier's ledger position (VAM-04-014, CM-11-011).
+    """
+
+    object_: _RmInviteToFullCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def _validate_reply(self):
+        _check_full_case_reply(self)
+        return self
+
+
+class _RmRejectCloseCaseActivity(as_Reject):
+    """The Case Actor declines an owner's Leave(VulnerabilityCase) close.
+
+    Emitted per CM-23-011: when the Case Owner sends Leave(VulnerabilityCase)
+    while the case still holds an active embargo, the Case Actor declines the
+    closure with an ``as:Reject`` ("received and understood but declined",
+    MSM-05-001) instead of running the CM-23-002 closure sequence.  The owner
+    must terminate the embargo first, then re-issue the close.
+
+    `object_`: the `_RmCloseCaseActivity` (the Leave) being declined (inline
+        typed object required — bare string IDs are rejected at construction
+        time).
+    """
+
+    object_: _RmCloseCaseActivity = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    @model_validator(mode="after")
+    def set_in_reply_to_from_leave(self):
+        if self.in_reply_to is None:
+            object.__setattr__(self, "in_reply_to", self.object_.id_)
+        return self
+
+
+class _AnnounceVulnerabilityCaseActivity(as_Announce):
+    """The case owner announces full case details to a newly accepted invitee.
+
+    Sent by the case owner after an ``Accept(Invite)`` is received and the
+    invitee's embargo consent has been verified (MV-10-003 through MV-10-006).
+    The full :class:`VulnerabilityCase` is sent as the inline object so the
+    recipient can seed their local DataLayer.
+
+    ``object_``: :class:`VulnerabilityCase` — the complete case object.
+
+    Declares ``object_`` in :attr:`inline_required_refs` (DL-08-001): the
+    copy is the message, not a reference to the case the receiver already
+    holds.  Collapsed to an id, the receiver's rebuild of the activity read
+    back its own stored case instead of the copy, so a replica holding the
+    case could never be updated by one, and the copy's ledger position was
+    lost (SYNC-16-005, SYNC-16-006).
+    """
+
+    object_: as_VulnerabilityCase = Field(
+        ..., validation_alias="object", serialization_alias="object"
+    )
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})

@@ -1,11 +1,18 @@
-# Implementing Vultron
+---
+stakeholder_type: [cvd-practitioner, platform-developer]
+level: 200
+page_type: routing
+contents: generated
+---
+
+# How-to Guides
 
 {% include-markdown "../includes/not_normative.md" %}
 
-Here we collect some guidance for potential implementations of Vultron.
+This section collects guidance for potential implementations of Vultron, and for the programs preparing to coordinate through it.
 
-While a complete protocol implementation specification remains a work in progress, we do have a few additional
-suggestions for potential implementers.
+A complete protocol implementation specification remains a work in progress; a few additional
+suggestions for potential implementers follow.
 
 <!-- hr to force spacing -->
 <br/>
@@ -14,31 +21,33 @@ suggestions for potential implementers.
 
 !!! tip inline end "Prerequisites"
 
-    The [Implementing Vultron](index.md) section assumes that you have:
+    The [How-to Guides](index.md) section assumes that you have:
     
     - an interest in implementing the Vultron Protocol
     - basic familiarity with the Vultron Protocol
-    - familiarity with the CVD process in general
+    - familiarity with the Coordinated Vulnerability Disclosure (CVD) process in general
 
-    If you are unfamiliar with the Vultron Protocol, we recommend that you start with [Understanding Vultron](../topics/index.md).
+    If you are unfamiliar with the Vultron Protocol, start with [Explanation](../topics/index.md).
     For technical reference, see [Reference](../reference/index.md).
-    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
+    If you're just trying to understand the CVD process, start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
 In this section, you will find:
 
 <div class="grid cards" markdown>
 
-- :material-database: an abstract [case object](case_object.md) for use in tracking MPCVD cases
-- :fontawesome-solid-gears: Notes on the [core Vultron Protocol subprocesses](process_implementation.md) (RM, EM, and CS), including how the CS model might integrate with
-other processes
-- :simple-activitypub: An in-depth exploration of applying the [ActivityPub](activitypub/index.md) protocol as an underlying foundation to
-  the Vultron Protocol.
-- :material-calendar-month: A few thoughts on the [Embargo Management Process](em_icalendar.md) and how it might be implemented using the `iCalendar` protocol.
-- :material-format-list-bulleted: [General notes](general_implementation.md) on future implementations.
+<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+
+- [Adopt Vultron in Your CVD Program](adopt_vultron.md) — Take a Coordinated Vulnerability Disclosure program from its current practice to one that can coordinate cases through Vultron: name your roles, choose a conformance claim, map your intake to the report states, publish your embargo defaults, and decide which judgment calls stay yours.
+- [Measuring Your CVD Program](measure_your_cvd_program.md) — Score your own program's closed cases against the chance baseline from the Measuring CVD research, and read the result as a skill indicator you can act on.
+- [Process Implementation](process_implementation.md) — Where an existing ticketing, embargo, or threat-monitoring workflow emits Vultron messages, milestone by milestone.
+- [Vultron ActivityPub](activitypub/index.md) — The shape of a Vultron activity on the wire: ActivityStreams 2.0 verbs, Vultron objects, and the fields a receiver reads to tell activities apart.
+- [Wiring a Capability](wire_capability.md) — Wire a capability into the reference implementation, replacing a call-out stub with real backend logic.
+
+<!-- END GENERATED SECTION CONTENTS -->
 
 </div>
 
-Over time, we plan to expand this section of the documentation to include:
+This section will expand over time to include:
 
 - Basic data model examples
 - Behavior logic implementation examples
@@ -50,5 +59,5 @@ Over time, we plan to expand this section of the documentation to include:
 
     The protocol and data structures outlined in this documentation are intended to facilitate interoperability among individual 
     organizations' workflow management systems.
-    As such, they are focused on the exchange of information and data necessary for the MPCVD process to function and will 
+    As such, they are focused on the exchange of information and data necessary for the Multi-Party CVD (MPCVD) process to function and will 
     not likely be sufficient to fully address any individual organization's vulnerability response process.

@@ -1,0 +1,218 @@
+---
+status: accepted
+date: 2026-08-14
+created: 2026-08-14
+updated: 2026-08-14
+revision: 1
+deciders: Vultron maintainers
+consulted: CERT/CC CVD research team
+informed: Vultron contributors
+stakeholder_type: [project-contributor]
+---
+
+# Outbox Terminal State: Per-Activity Attempt Counter, 4xx Classification, and Dead-Letter Store
+
+## Context and Problem Statement
+
+The outbound HTTP delivery path has retry limits at every layer, but they do not
+compose into a bound on total delivery attempts. A permanently undeliverable activity
+is retried indefinitely because the only cross-pass counter (`err_count` in
+`outbox_handler.py`) is a function-local variable that resets on each drain pass;
+there is no per-activity attempt count and no dead-letter destination.
+
+Layered on top are four tuning defects: a 5 s POST timeout already rejected as
+too aggressive elsewhere, retry-on-4xx (bare `except Exception`), no jitter on
+the inner retry, and no connection-pool limits. Together these caused an 8,872-exception
+connection storm in CI (`fccv-handoff` run 31732029289), and `err_count`'s abort
+scope — breaking the whole outbox drain rather than skipping the offending activity —
+delayed healthy ledger-entry deliveries past the scenario timeout.
+
+This ADR decides:
+
+1. How to give an undeliverable activity a finite total-attempt budget that
+   survives drain-pass resets.
+2. What happens when that budget is exhausted (dead-letter destination).
+3. Whether 4xx responses should consume inner retry slots.
+4. How to prevent one failing activity from blocking other activities in the same
+   drain pass.
+5. That the delivery timeout, retry parameters, and connection-pool limits become
+   configurable on `HttpDeliveryAdapter`.
+
+Source concern: CERTCC/Vultron#2302. See also CERTCC/Vultron#1880 (the analogous
+inbound unprocessable-activity question — that concern's terminal-state answer SHOULD
+be unified with this model in a future ADR).
+
+## Decision Drivers
+
+- **Bounded reliability envelope.** An unbounded retry is a runaway-resource condition;
+  a protocol reference implementation must have a finite give-up condition.
+- **Operator visibility.** Nothing currently distinguishes "not yet delivered" from
+  "will never be delivered". Operators need a visible, queryable signal.
+- **Delivery isolation.** One failing activity must not starve healthy activities.
+- **Simplicity.** The model should require minimal new persistence primitives; the
+  existing DataLayer `dead_letter` pattern (already used for inbound unresolvable
+  objects) is the preferred anchor.
+- **ADR-0042 is not in question.** HTTP-only delivery is settled; this ADR concerns
+  the reliability envelope around that decision.
+
+## Considered Options
+
+### Option A — Discard on exhaustion (no dead letter)
+
+Track attempts; when exhausted, log at CRITICAL and remove from the outbox queue.
+Simplest implementation but loses the activity record permanently.
+
+### Option B — Persisted attempt counter + dead-letter store (chosen)
+
+Add an attempt count to the outbox queue entry (persisted with the entry so it
+survives drain-pass resets). On exhaustion: move the activity to a dead-letter store
+in the DataLayer, log at ERROR, stop requeueing. The dead-letter store is readable
+by operators without log access.
+
+### Option C — Protocol-level NACK on exhaustion
+
+On exhaustion, send a protocol-level error notification to the activity's originator.
+Addresses the analogous inbound question (CONCERN-2302 cross-references CERTCC/Vultron#1880
+which asks exactly this). Out of scope here: the inbound terminal-state model is
+unsettled and a joint decision would double scope. Deferred to #1880.
+
+## Decision Outcome
+
+Chosen option: **Option B — persisted attempt counter + dead-letter store.**
+
+### Per-activity attempt counter (OX-13-001)
+
+Each outbox queue entry tracks a `total_attempts` counter, persisted alongside the
+activity ID in the queue. The counter is incremented on every delivery failure —
+whether the failure occurs inside `_deliver_with_retry` (inner retry exhausted) or
+is caught by `outbox_handler`'s per-pass error handling. The counter survives
+`outbox_handler` invocations and reflects the activity's cumulative delivery history
+across all drain passes.
+
+### Maximum attempts and dead-letter (OX-13-002, OX-13-003, OX-13-004)
+
+`max_total_attempts` is a configurable parameter (default: 12, chosen as
+`(DEFAULT_MAX_RETRIES + 1) × ~3` drain passes — a budget that absorbs transient
+failures without running indefinitely). When exhausted:
+
+1. The activity is removed from the outbox queue.
+2. It is written to a dead-letter store in the DataLayer (keyed by activity ID).
+3. An ERROR-level log entry records the activity ID, failed recipients, and total
+   attempt count.
+
+Dead-letter entries are readable from the DataLayer so operators can inspect
+exhausted activities without log access (OX-13-004).
+
+Each `OutboxDeadLetterEntry` also carries a `ledger_entry_id` field — the URI of
+the `CaseLedgerEntry` the activity was replicating, or `None` for non-ledger
+activities (OX-14-001, OX-14-003). The value is resolved at exhaustion time by
+reading the activity back from the DataLayer and inspecting `object_.id_` when
+`object_.type_ == "CaseLedgerEntry"`. The `CaseLedgerEntry` is always committed
+before its fan-out activity is queued (emit-after-commit invariant, OX-14-002),
+so the entry is always resolvable when dead-lettering occurs.
+
+**Protocol-level NACK**: out of scope in this ADR. If the protocol eventually
+requires a terminal error notification (the question raised by #1880), that can be
+layered onto exhaustion without changing the data model here.
+
+### 4xx responses are terminal, not retryable (OX-13-005)
+
+`HttpDeliveryAdapter._deliver_with_retry` catches `httpx.HTTPStatusError` separately
+from connection/timeout errors. On a 4xx response, it raises `DeliveryError`
+immediately without sleeping or consuming inner retry slots. Only HTTP 5xx,
+connection errors (`httpx.ConnectError`, `httpx.ConnectTimeout`), and read timeouts
+are retried with exponential backoff.
+
+Rationale: a 422 Unprocessable Entity for a schema-invalid payload will never
+succeed with the same payload; burning four retry attempts with backoff and then
+requeueing indefinitely is a positive-feedback loop (more load → more 422s →
+more retries → more load).
+
+### Per-activity abort scope (OX-13-006, OX-13-010, OX-13-011)
+
+`outbox_handler`'s per-pass error handling is restructured so that `err_count` is
+reset after each activity (not per-pass). When an activity hits the per-pass cap:
+
+- The current pass **continues** — other activities in the queue are unaffected.
+- The activity stays in the persistent queue (it was re-queued immediately on
+  failure) and is recorded in an in-memory `capped_this_pass` set.
+- Whenever the loop pops an activity that is in `capped_this_pass`, it re-queues it
+  **without attempting delivery** and without incrementing the attempt counter.
+  This ensures the activity is deferred to the next drain pass without being lost
+  on a crash (OX-13-011).
+- The pass ends when every remaining queued item is in `capped_this_pass`.
+
+> **Implementation note:** The queue tail belongs to the *current* pass, not the
+> next one — the drain loop is `while outbox_list()`, so any item appended during
+> the loop is popped in the same pass.
+> Holding capped activities in memory and re-queuing after the loop would widen the
+> crash-loss window (activities in memory are gone on a crash mid-pass), so they
+> are kept in the persistent queue throughout and skipped via the set.
+
+The per-pass cap is retained as a backstop against a single activity consuming all
+delivery bandwidth in one pass; it is now per-activity rather than per-drain.
+
+### Timeout, jitter, and connection-pool limits (SYNC-05-004)
+
+`HttpDeliveryAdapter` gains a `timeout` constructor parameter (default 30 s,
+replacing the hardcoded 5 s). `_deliver_with_retry` adds jitter
+(`random.uniform(0, 0.5)` seconds) before each sleep to desynchronise retry waves
+from fan-out failures. `emit()` constructs `httpx.AsyncClient` with
+`httpx.Limits(max_connections=20, max_keepalive_connections=5)` to bound connection
+pool growth.
+
+### Consequences
+
+- Good — every activity has a finite total-attempt budget visible to operators.
+- Good — 4xx responses no longer consume retry budget or contribute to storms.
+- Good — a single failing activity cannot delay healthy activities in the same pass.
+- Good — delivery timeout, retry parameters, and pool limits are configurable from
+  one construction site.
+- Neutral — introduces a `total_attempts` field on outbox queue entries; existing
+  entries without the field are treated as having `total_attempts = 0` (backward
+  compatible).
+- Deferred — protocol-level NACK on exhaustion, and the inbound terminal-state
+  model (#1880), are not decided here.
+
+## Inbox Unification (IE-06-004, #4168)
+
+The original decision text at line 40 and § "More Information" above noted that
+the analogous inbound question "SHOULD be unified with this model in a future ADR."
+That future ADR was superseded by spec requirement IE-06-004, which mandates the
+same persisted attempt counter and dead-letter store for inbox processing.
+The implementation landed in CERTCC/Vultron#4168:
+
+- A shared `QueueAttemptEntry` SQLModel table (composite PK: `queue`, `activity_id`)
+  backs both inbox and outbox attempt counters.
+  The former outbox-only `OutboxAttemptEntry` table (`vultron_outbox_attempts`)
+  is removed; all outbox methods use the shared table with `queue="outbox"`.
+  Attempt counts in an existing store's old table are **not migrated**: they are
+  dropped, which resets in-flight outbox retry budgets to zero on upgrade.
+  The cost is bounded (at most one extra retry budget per undelivered activity),
+  and a reset only widens the retry window, so no counter migration is warranted.
+  Stores that predate the per-actor layout are orphaned regardless (ADR-0073,
+  #2551), which is a separate upgrade path.
+  `create_all` neither reads nor drops the leftover table in old files.
+- `InboxDeadLetterEntry(CoreRecord)` mirrors `OutboxDeadLetterEntry` and is
+  stored via `dl.save()` / `dl.by_type()`.
+- `RetryStore` extends `OutboxRetryStore` with the inbox-specific methods;
+  `SqliteDataLayer` satisfies both protocols structurally.
+- `AppConfig.max_inbox_retry_attempts` (default 12, matching the outbox default)
+  makes the inbox retry budget configurable.
+
+## Generated Requirements
+
+- `specs/outbox.yaml` OX-13-001 through OX-13-006
+- `specs/outbox.yaml` OX-14-001 through OX-14-003
+- `specs/sync-ledger-replication.yaml` SYNC-05-004
+
+## More Information
+
+- Source concern: CERTCC/Vultron#2302
+- Inbound analogue (deferred): CERTCC/Vultron#1880
+- Timeout consolidation coordination: CERTCC/Vultron#2202 AC-7
+- Parent epic: CERTCC/Vultron#2231
+- Implementation Tasks: CERTCC/Vultron#2315 (abort-scope + 4xx),
+  CERTCC/Vultron#2316 (timeout + jitter + limits),
+  CERTCC/Vultron#2317 (attempt counter + dead letter),
+  CERTCC/Vultron#2891 (OX-14 ledger entry correlation)

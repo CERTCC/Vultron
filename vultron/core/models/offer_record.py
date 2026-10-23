@@ -1,0 +1,103 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Core state record capturing the domain facts from a submitted report Offer.
+
+Per ADR-0035 DL-06-002: every domain fact an actor must remember from a
+received protocol message MUST be recorded as core state at extraction time.
+Core MUST NOT reconstruct such a fact by re-reading the stored activity later.
+
+``VultronOfferRecord`` captures the three domain facts that core uses from the
+Offer(VulnerabilityReport) wire activity:
+
+- ``report_id``: the URI of the embedded ``VulnerabilityReport``
+- ``offer_actor_id``: the URI of the actor that submitted the report (used for
+  fallback addressing when no case is found)
+- ``offer_to``: the original ``to`` field of the Offer (used to compute
+  ``CreateCaseActivity`` addressees)
+
+The record is keyed deterministically by ``offer_id`` via :meth:`build_id`,
+so core can look it up given only the offer ID.
+"""
+
+import urllib.parse
+from typing import Any, Literal
+
+from pydantic import Field, model_validator
+
+from vultron.core.models.base import (
+    CoreRecord,
+    NonEmptyString,
+    UriString,
+    with_record_id,
+)
+from vultron.core.models.wire_keys import wire_key
+
+
+class VultronOfferRecord(CoreRecord):
+    """Core state record for the domain facts carried in a report Offer.
+
+    Stored by the adapter layer (``TriggerActivityAdapter.submit_report``)
+    immediately after the Offer activity is created.  Core reads this record
+    instead of re-reading the stored wire Offer activity.
+    """
+
+    type_: Literal["OfferRecord"] = Field(
+        default="OfferRecord",
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    offer_id: UriString = Field(..., description="URI of the Offer activity")
+    report_id: UriString = Field(
+        ..., description="URI of the embedded VulnerabilityReport"
+    )
+    offer_actor_id: UriString = Field(
+        ..., description="URI of the actor that submitted the Offer"
+    )
+    offer_to: list[NonEmptyString] = Field(
+        default_factory=list,
+        description="'to' recipients from the original Offer",
+    )
+
+    @classmethod
+    def build_id(cls, offer_id: str) -> str:
+        """Return the stable DataLayer ID for *offer_id*."""
+        slug = urllib.parse.quote(offer_id, safe="")
+        return f"offer-record/{slug}"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _set_id(cls, data: Any) -> Any:
+        """Compute ``id_`` deterministically from ``offer_id``."""
+        if isinstance(data, dict):
+            offer_id = data.get("offer_id")
+            if offer_id is not None:
+                data = with_record_id(data, cls.build_id(offer_id))
+        return data
+
+
+#: The AS2 keys under which a canonical ``add_report_to_case`` payload snapshot
+#: carries the two Offer provenance facts (CP-01-007).  They are provenance read
+#: from the ledger; no invited actor rebuilds a :class:`VultronOfferRecord` from
+#: them, because it was never sent the Offer (CM-11-020, ISSUE-2134).
+#:
+#: A payload snapshot is a *wire object*: CLP-07-011 makes it the AS2
+#: serialization of the inbound activity, so its keys are AS2-spelled by
+#: definition.  These two are snapshot-only extension properties with no core
+#: model of their own to carry a field alias, so they are derived here from this
+#: record's field names — core code names the core field and never types the
+#: camelCase (ARCH-25-002, ADR-0099).
+SNAPSHOT_OFFER_ID_KEY = wire_key("offer_id", VultronOfferRecord)
+SNAPSHOT_OFFER_ACTOR_ID_KEY = wire_key("offer_actor_id", VultronOfferRecord)

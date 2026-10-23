@@ -1,4 +1,17 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+page_type: explanation
+description: >
+  Extending the measure to a case in which every affected vendor and product has its own history.
+---
+
 # Measuring and Benchmarking MPCVD
+
+{% include-markdown "../../includes/not_normative.md" %}
+
+This page extends the skill measure and the benchmarks of the preceding pages to a case with more than one affected vendor or product.
+It assumes the set of desiderata $\mathbb{D}$ from [Desirable Histories](./desirable_histories.md), the skill coefficient $\alpha_d$ from [Discriminating Skill and Luck](./discriminating_skill_and_luck.md), and the benchmark constant $c_d$ from [Benchmarking CVD](./benchmarking.md).
 
 Multiparty Coordinated Vulnerability Disclosure (MPCVD) is the
 process of coordinating the creation, release, publication, and
@@ -89,21 +102,15 @@ behaving independently of all the others. Therefore:
     $$
 
     where $N_{vprod}$ represents the number of vendor-product pairs.
+    The constant is five rather than the six substates of the [Case State (CS) model](../process_models/cs/cs_model.md), because the causal constraints $D \Rightarrow F \Rightarrow V$ and $X \Rightarrow P \Rightarrow V$ collapse those six substates into five dimensions.
 
-This is of course undesirable, as it would result in a wide distribution
-of realized histories that more closely resemble the randomness
-assumptions outlined above than a skillful, coordinated effort. Further
-discussion of measuring MPCVD skill can be found below.
+This is undesirable, as it would result in a wide distribution of realized histories that more closely resemble the randomness assumptions of [A Random Walk through CVD States](./random_walk.md) than a skillful, coordinated effort.
+Further discussion of measuring MPCVD skill can be found in [MPCVD Benchmarks](#mpcvd-benchmarks) below.
 
 !!! tip "Reducing Dimensionality of MPCVD Cases is a good thing"
 
-    For now, we posit that the goal of a good MPCVD
-    process is to reduce the dimensionality of a given MPCVD case as
-    much as is possible (i.e., to the 5 dimensions of a single vendor
-    CVD case we have presented above).
-    Experience shows that a full dimension reduction is
-    unlikely in most cases, but that does not detract from the value of
-    having the goal.
+    For now, we posit that the goal of a good MPCVD process is to reduce the dimensionality of a given MPCVD case as much as is possible (i.e., to the dimensions of the single-vendor CVD case described in [CS States](../process_models/cs/cs_model.md)).
+    Experience shows that a full dimension reduction is unlikely in most cases, but that does not detract from the value of having the goal.
 
 !!! tip "Reducing Complexity within a Vendor Organization"
 
@@ -140,7 +147,7 @@ set of recommended actions derived from those states.
 One possible function would be to apply a simple voting heuristic such
 as waiting for a simple majority of vendors to reach a state before
 taking action as that state recommends. In our 4/5 $VFdpxa$ example, the
-coordinating parties would simply behave as if the case were in that
+coordinating parties would behave as if the case were in that
 state for all.
 
 Another function could be to weight vendors and products by some
@@ -206,7 +213,7 @@ users of other affected products to unnecessary risks.
     $$
 
     Where $m = |\mathcal{M}| \geq 1$. The edge case when $|\mathcal{M}| = 1$
-    is simply the regular (non-multiparty) case.
+    is the regular (non-multiparty) case.
 
     We can then set desired criteria for the set $\mathcal{M}$, as in the
     benchmarks described in [Benchmarking](./benchmarking.md). In the MPCVD case, we propose to generalize the

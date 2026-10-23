@@ -2,6 +2,7 @@
 """
 Provides threat monitoring behaviors for the Vultron BT.
 """
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,7 +16,6 @@ Provides threat monitoring behaviors for the Vultron BT.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 from vultron.bt.base.factory import fallback_node, parallel_node, sequence_node
 from vultron.bt.case_state.conditions import CSinStatePublicAware
 from vultron.bt.case_state.transitions import q_cs_to_A, q_cs_to_P, q_cs_to_X
@@ -27,7 +27,6 @@ from vultron.bt.report_management.fuzzer.monitor_threats import (
     MonitorPublicReports,
     NoThreatsFound,
 )
-
 
 _NoticeAttack = sequence_node(
     "_NoticeAttack",

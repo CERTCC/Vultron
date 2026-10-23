@@ -1,0 +1,335 @@
+---
+name: bugfix
+description: >
+  Fix a bug using investigate-first discipline. The agent does all its
+  homework before talking to the user — reproduces the symptom, forms a
+  root-cause hypothesis, scans peer files, and drafts a fix plan. The user
+  gets one structured briefing and confirms before any code is written.
+---
+
+# Skill: Bugfix
+
+No code is written until the agent has completed its own investigation and
+the user has confirmed the plan. The reporter is not omniscient — treat the
+issue as a symptom description and determine the facts independently before
+presenting findings.
+
+See [REFERENCE.md](REFERENCE.md) for the sibling-scan pattern, escalation
+pattern, and archive format.
+
+## Phase 0 — Sync
+
+Move the worktree HEAD to `origin/main` before loading any context. Do **not**
+use `git checkout main` — that branch may be checked out in another worktree.
+
+```bash
+git fetch origin main && git reset --hard origin/main
+```
+
+If this fails, stop and investigate before proceeding.
+
+## Phase 1 — Identify and Claim
+
+1. If the user specified a GitHub issue number, skip to step 3. **Several
+   numbers is a bundle**: fix all of them in one PR that closes every member.
+   Follow `.agents/skills/shared/bundling.md` § "Executing a bundle" — every
+   member must be a Bug (name the right skill for any that is not), each gets
+   its own failing test, and Phase 3 presents one briefing covering all members
+   plus the single design idea they share.
+2. Query open Bug-type issues and present via `ask_user`. Include a
+   **"Create a new bug"** option at the end:
+
+   ```bash
+   gh issue list --repo CERTCC/Vultron --limit 1000 \
+     --json number,title,issueType \
+     --jq '.[] | select(.issueType.name == "Bug") | "#\(.number): \(.title)"'
+   ```
+
+   If the user selects **"Create a new bug"**: ask for a description,
+   synthesize a title, then **before creating** determine the required fields:
+
+   0. **Invoke `orient-agent` first.** `calve-epics` Mode 1 matches the bug
+      against open Epics using domain terminology drawn from the spec map,
+      the glossary term index, and the schedule — all of which `orient-agent`
+      loads.
+      Running the match before that context is loaded makes it unreliable.
+      Step 3 below then becomes a no-op.
+
+   1. **Parent epic** — invoke `calve-epics` Mode 1 to find the best-fit open
+      Epic. If it reports no match, present an `AskUserQuestion` with the top 5
+      closest epics plus "Specify other epic number". **A parent epic is
+      required** — do not create the issue until one is confirmed.
+
+   `BUG_BODY` includes a `Governing specs:` line naming the spec IDs the
+   correct behavior is defined by (or `none — <reason>`); see
+   `shared/issue-creation-requirements.md` § "Governing specs".
+
+   Then create with the required fields:
+
+   ```bash
+   BUG_TYPE_ID=$(bash .agents/skills/shared/board-id.sh issue-type Bug)
+   ISSUE_NUMBER=$(.agents/skills/manage-github-issue/manage_github_issue.sh \
+     --title "${BUG_TITLE}" \
+     --body "${BUG_BODY}" \
+     --issue-type-id "${BUG_TYPE_ID}" \
+     --parent "${EPIC_NUMBER}" \
+     --planned)
+   ```
+
+3. Invoke `orient-agent` to load baseline context.
+4. Fetch the issue body and comments.
+
+4.5. **Pre-claim defect verification** — before claiming, verify the
+     described defect still exists on `origin/main` HEAD:
+
+     Search for the specific symptom, anti-pattern, or code path described
+     in the issue body (grep or `git log -S "<key term>" -- <file>`). If the defect cannot be reproduced on `origin/main`,
+     it may have been fixed by a prior PR that lacked a `Closes #N` footer.
+
+     If the defect is absent from `origin/main`:
+
+     1. Post a reference comment identifying any PR that likely fixed it:
+
+        ```bash
+        gh issue comment <N> --repo CERTCC/Vultron --body "$(cat <<'EOF'
+        The described defect is not present on `origin/main`. It appears to
+        have been fixed by #<PR> without a `Closes #N` footer. Closing.
+        EOF
+        )"
+        ```
+
+     2. Close the issue:
+
+        ```bash
+        gh issue close <N> --repo CERTCC/Vultron
+        ```
+
+     3. **Stop.** Do not claim, branch, or investigate further.
+
+     If the defect is confirmed present, proceed to step 5 and claim.
+
+5. Claim the issue:
+
+   ```bash
+   bash .agents/skills/shared/claim-issue.sh <N> bug <slug> [<OTHER_MEMBERS>...]
+   ```
+
+   Abort immediately if this exits non-zero.
+
+## Phase 2 — Investigate (no user questions)
+
+Before presenting anything to the user, complete the full investigation.
+The reporter is not omniscient — treat the issue as a symptom description
+and determine the facts independently.
+
+### 2a — Verify the symptom exists
+
+Search `vultron/`, `test/`, and `.claude/skills/` for the reported behavior.
+Locate the specific file and line where it manifests.
+
+**Prior-fix check**: run `git log -S "<key term>" -- <file>` on `origin/main`
+to confirm the bug has not already been fixed by a prior PR that lacked a
+`Closes #N` footer. If it is already fixed, post a reference comment and
+close the issue. Do not proceed.
+
+### 2b — Identify the root cause
+
+Trace the code path that produces the symptom. Form a specific hypothesis
+with file:line evidence — not "looks like X" but "Y at `path/to/file.py:42`
+is called with Z, which causes W because...".
+
+### 2c — Verify the hypothesis
+
+Confirm the root cause accounts for the symptom (not just correlated). Ask:
+"If I fix this, does the symptom disappear? Could the same symptom arise
+from a different path?"
+
+### 2d — Sibling scan (MANDATORY)
+
+Search for the same structural pattern in:
+
+- Peer files in the same directory or module
+- Sibling demo scenarios (same naming convention, e.g., `rvcv_*`, `rccv_*`)
+- Other actors or handlers that implement the same protocol step
+
+Document each hit with file:line and whether it exhibits the same bug. Do
+not skip this step even if the issue body says the bug is isolated. See
+[REFERENCE.md](REFERENCE.md) § "Sibling Scan Pattern".
+
+### 2e — Fix options
+
+Identify 1–2 concrete approaches to fix the root cause. For each, note the
+key tradeoff (e.g., minimal-invasive vs. root-cause-correct; fix-in-place
+vs. file-sibling-issues).
+
+### 2f — Test strategy
+
+Identify the specific failing test that will prove the bug exists. Name it:
+"I'll add `test_<what>_<when>_<expected>` in `test/<path>.py`."
+
+### 2g — Deepen context
+
+Invoke `deepen-context` with focus hints derived from the investigation
+(e.g., `"BT node write boundary"`, `"EM state transition"`), and pass as the
+**spec floor** the issue's `Governing specs:` line plus any spec IDs cited in
+the issue body, comments, or code you traced. Keep the **Spec manifest** it
+returns: it goes in the Phase 3 briefing and the PR body.
+
+## Phase 3 — Present Findings (BLOCKING)
+
+Present the briefing as a **plain-text message** and end your turn — do
+**not** use `ask_user` here. The user often redirects or adds context at this
+step, and a plain reply in the normal prompt wraps where the `ask_user` notes
+field does not. With no question box open, nothing hides the briefing.
+
+Write it per `.agents/skills/shared/asking-the-user.md`: plain language, no
+bare IDs, every option spelled out. Cover each item from Phase 2 with concrete
+evidence, in whatever order reads best:
+
+- **What's broken** — the symptom, and where you reproduced it (`file:line`
+  plus a few words on what that code does).
+- **Why it happens** — the root cause, with the evidence behind it.
+- **Other places with the same bug** — each one with its location and what it
+  is, or "none found."
+- **The fix** — what you will change, in plain terms. Name an alternative if
+  there is a real one, and say why you prefer your choice.
+- **How the test proves it** — the test name, location, and what it checks.
+- **Requirements that apply** — from the Spec manifest in 2g, each ID with a
+  short description of what it requires.
+
+End with one specific question, such as: **"Should I go ahead with this fix,
+including the other places listed?"** Tell the user they can also narrow the
+scope (fix only some places and file the rest as issues) or point you
+somewhere else.
+
+- **Confirms**: proceed to Phase 4.
+- **Redirects** to a different area: update understanding and return to
+  Phase 2 for the redirected scope.
+- **Narrows scope**: the user is explicitly deferring specific sibling hits —
+  this *is* Gate 1 approval, given directly. File each deferred hit as a Bug
+  issue. Everything not narrowed out is still fixed now.
+
+**Do not begin implementation until the user confirms the plan.**
+
+## Phase 4 — Implement
+
+Once the plan is confirmed:
+
+0. **Compose-before-create gate (blocking)**: before writing any new code,
+   load `.agents/skills/shared/compose-before-create.md` and apply the
+   per-subsystem search patterns for every subsystem the fix touches (use
+   cases, wire handlers, adapters, demo helpers). If an existing artifact
+   covers the requirement, compose or subclass it — do not re-implement.
+
+1. **Write a failing test first** — confirm it fails before fixing.
+
+   **Regression test exception**: if test infrastructure cost is genuinely
+   disproportionate, skip the test but create a follow-up Bug issue explaining
+   why. Do not silently omit the test.
+
+2. **Fix the root cause** — not just the symptom. "The root cause is out of
+   scope" is a deferral: it must clear Gate 1 in
+   `.agents/skills/shared/completeness-doctrine.md` (a **measured remainder** and
+   explicit approval), not be asserted. If it clears the gate, fix the symptom,
+   file a Bug issue for the root cause, and document the cause before closing.
+
+3. **Handle sibling hits** (these are *first-order* findings — revealed by the
+   original bug — so the default is **fix now**, never defer):
+   - Fix each one in this PR.
+   - If a hit is an **"also" excursion** (fails the "also" test in the
+     completeness doctrine), also file a Bug issue via `manage-github-issue`
+     and have this PR **close** it: add `- Closes #NNN` to the PR body with a
+     one-line "why". Filing the record does not mean leaving the work.
+   - Defer a sibling hit only through Gate 1 (measured remainder + approval).
+     See [REFERENCE.md](REFERENCE.md) § "Escalation". With no human to approve
+     (unattended), DEFER is unavailable: fix the hit in this PR or hold the PR.
+     Filing an issue for it is not a way to merge.
+
+4. **Spec backstop (blocking)**: resolve the Spec manifest from 2g against
+   the diff per `deepen-context` § "Backstop" until
+   `spec-backstop --manifest /tmp/spec-manifest-<issue>.txt` exits 0; the
+   resolved manifest goes into the PR body. A docs-only fix makes the tool
+   report that it derived nothing — expected, and it means your selection is
+   the only check.
+
+5. **Iterate**: run `run-linters` and the tests relevant to the fix (the
+   reproduction test and its neighbors, `uv run pytest <path> -n 0`); refine
+   until they pass. Do not run the full unit or integration suite here:
+   `create-pr` runs it exactly once before the first push (PAD-18-008).
+   Apply branch-ownership and pre-existing-failure rules from
+   `completeness-doctrine.md`. A failing check holds the PR whatever
+   its cause (§ "Never Merge on Red"); never bypass a pre-commit hook (sole
+   exception: the devcontainer `actionlint` hang, `notes/devcontainer-tooling.md`).
+
+6. **Pre-review self-check** — once the fix is finished, run the four items in
+   `.agents/skills/shared/pre-review-self-check.md` (affected-text sweep,
+   failure-path pass, branch coverage, reuse check) on the diff, fix what they
+   turn up, and write the four results under `Self-check:` in the PR body's
+   `## Verification` section. The post-push triage checks the same four items
+   against the diff.
+
+7. **Finalize** — in this order. `archive-history` comes *after* `create-pr`
+   because its entry body carries the PR URL, which does not exist until the PR
+   is open (see that skill's "Always invoke AFTER the PR is opened").
+   - Do **not** set a `size:` label: the `pr-size-label` workflow measures the
+     whole-PR diff and applies it (PAD-05-002), and the Issue keeps its estimate
+     (PAD-05-010). See `shared/sizing.md`.
+   - Invoke `create-pr`. One bundle is one PR: the body carries `- Closes #N`
+     once per member, in bundle order, and the Changes section names each
+     member's fix (`bundling.md` § "Executing a bundle"). The body includes
+     a `## Specs` section carrying the Spec manifest from 2g
+     (`pr-body-guide.md` § "Specs").
+
+     ```text
+     type:         implementation
+     title:        fix: <short title>
+     body:         <per pr-body-guide.md implementation template>
+     labels:       <topic labels only — never size:, see above>
+     issue_number: <N>        # the first bundle member
+     manifest:     /tmp/spec-manifest-<N>.txt   # the resolved backstop manifest
+     ```
+
+   - Invoke `check-docs-sync` while CI runs in the cloud to identify any
+     `docs/` updates required by the fix (PD-03-007). Apply small updates
+     inline and commit them. A large multi-page rewrite that is not done
+     inline is deferred to a `type:Concern` issue listing the pages, and
+     recorded as `Docs: deferred to #N` — only with the user's approval
+     (Gate 1); unattended, run `write-docs` inline or hold the PR.
+   - **Record the outcome** (PD-03-008): edit the PR body to replace the
+     `Docs: pending check-docs-sync` placeholder `create-pr` wrote with the
+     `Docs:` line `check-docs-sync` reported, and push any docs commit. Then
+     run `pr-body-lint --pr-json` at the final stage, with
+     `--closes-work-item` (a bugfix PR closes a `Bug`, so it needs a `Docs:`
+     line even when it changes no `.py`), and fix every finding (PAD-20-005;
+     `check-docs-sync` § Step 5). Do this before `archive-history`.
+   - Invoke `archive-history` — once per bundle member, each entry carrying the
+     same PR URL:
+
+     ```text
+     TYPE    = implementation
+     SOURCE  = ISSUE-<N>
+     TITLE   = <short bug title>
+     BODY    = issue number, symptoms, root cause, fix summary, PR link
+     ```
+
+   - Apply the nearby-debt rule (`completeness-doctrine.md` § "Net Issues: Close
+     More Than You Open"): fix open `opened:debt` issues whose `Where:` names a
+     file in the diff, close them in the PR, and put the `Issues:` line in the PR
+     body. Any issue you file takes `--opened-as`.
+   - Run the **upward-reflection checklist** per
+     `.agents/skills/shared/upward-reflection.md` and **route** each triggered
+     item to the destination that file specifies (BW-07-004). Most route to a
+     GitHub issue or an in-session fix, not to a learning file.
+   - Invoke `commit` if any learning files were created in
+     `plan/incoming/learnings/` outside the PR branch.
+
+## Constraints
+
+- Implementation is blocked until the user confirms the Phase 3 plan.
+- Follow test-first discipline; never fix before the failing test exists.
+- Several issue numbers is a bundle, not a menu: fix every member in one PR
+  (`.agents/skills/shared/bundling.md`). Each member keeps its own failing test.
+- The session is not done while the PR body still reads
+  `Docs: pending check-docs-sync` (Phase 4 finalize, PD-03-008).
+- **If the session is interrupted**: invoke `bugfix-handoff` immediately.
+  Do not attempt further resolution.

@@ -1,0 +1,1088 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Unit tests for DataLayer-aware BT helper nodes."""
+
+import json
+from collections.abc import Callable
+
+import py_trees
+import pytest
+from py_trees.common import Status
+
+from test.support.participant_status import advance_participant_rm
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.helpers import (
+    CreateObject,
+    DataLayerAction,
+    DataLayerCondition,
+    FindParticipantByActorIdNode,
+    ReadObject,
+    UpdateObject,
+    _EmitSingleActivityBase,
+)
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    as_VulnerabilityReport,
+)
+
+# Test implementation of abstract base classes
+
+
+class AlwaysTrueCondition(DataLayerCondition):
+    """Test condition that always returns SUCCESS."""
+
+    def update(self) -> Status:
+        self.feedback_message = "Condition is true"
+        return Status.SUCCESS
+
+
+class AlwaysFalseCondition(DataLayerCondition):
+    """Test condition that always returns FAILURE."""
+
+    def update(self) -> Status:
+        self.feedback_message = "Condition is false"
+        return Status.FAILURE
+
+
+class NoOpAction(DataLayerAction):
+    """Test action that always succeeds without side effects."""
+
+    def update(self) -> Status:
+        self.feedback_message = "Action completed"
+        return Status.SUCCESS
+
+
+# Fixtures
+
+
+@pytest.fixture
+def datalayer():
+    """Create in-memory DataLayer for testing."""
+    return SqliteDataLayer(
+        "sqlite:///:memory:",
+        actor_id="https://example.org/actors/actor-1",
+    )
+
+
+@pytest.fixture
+def bridge(datalayer):
+    """Create BTBridge with test DataLayer."""
+    return BTBridge(datalayer)
+
+
+@pytest.fixture
+def sample_report():
+    """Sample as_VulnerabilityReport for testing CRUD operations."""
+    return as_VulnerabilityReport(
+        id_="https://example.org/objects/test-123",
+        name="Test Object",
+    )
+
+
+# Keep the old name as an alias for backward compat within this module
+@pytest.fixture
+def sample_record(datalayer, sample_report):
+    """Fixture that saves sample_report and returns it (backward-compat)."""
+    datalayer.save(sample_report)
+    return sample_report
+
+
+# Tests for DataLayerCondition base class
+
+
+def test_condition_base_class_setup(bridge, datalayer):
+    """Verify DataLayerCondition sets up blackboard access correctly."""
+    tree = AlwaysTrueCondition(name="TestCondition")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+    assert "Condition is true" in result.feedback_message
+
+
+def test_condition_accesses_datalayer_from_blackboard(bridge, datalayer):
+    """Verify condition node can access DataLayer from blackboard."""
+
+    class CheckDataLayerAccess(DataLayerCondition):
+        def update(self) -> Status:
+            if self.datalayer is None:
+                self.feedback_message = "DataLayer is None"
+                return Status.FAILURE
+            if self.actor_id is None:
+                self.feedback_message = "actor_id is None"
+                return Status.FAILURE
+            self.feedback_message = f"Access OK for {self.actor_id}"
+            return Status.SUCCESS
+
+    tree = CheckDataLayerAccess(name="CheckAccess")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+    assert (
+        "Access OK for https://example.org/actors/actor-1"
+        in result.feedback_message
+    )
+
+
+def test_condition_base_class_not_implemented(bridge, datalayer):
+    """Verify base class raises NotImplementedError if update() not overridden."""
+
+    class UnimplementedCondition(DataLayerCondition):
+        pass  # Don't override update()
+
+    tree = UnimplementedCondition(name="Unimplemented")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    # Should fail because update() raises NotImplementedError
+    assert result.status == Status.FAILURE
+    assert result.errors is not None
+
+
+# Tests for DataLayerAction base class
+
+
+def test_action_base_class_setup(bridge, datalayer):
+    """Verify DataLayerAction sets up blackboard access correctly."""
+    tree = NoOpAction(name="TestAction")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+    assert "Action completed" in result.feedback_message
+
+
+def test_action_accesses_datalayer_from_blackboard(bridge, datalayer):
+    """Verify action node can access DataLayer from blackboard."""
+
+    class CheckDataLayerAccess(DataLayerAction):
+        def update(self) -> Status:
+            if self.datalayer is None:
+                self.feedback_message = "DataLayer is None"
+                return Status.FAILURE
+            if self.actor_id is None:
+                self.feedback_message = "actor_id is None"
+                return Status.FAILURE
+            self.feedback_message = f"Access OK for {self.actor_id}"
+            return Status.SUCCESS
+
+    tree = CheckDataLayerAccess(name="CheckAccess")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+    assert (
+        "Access OK for https://example.org/actors/actor-1"
+        in result.feedback_message
+    )
+
+
+def test_action_base_class_not_implemented(bridge, datalayer):
+    """Verify base class raises NotImplementedError if update() not overridden."""
+
+    class UnimplementedAction(DataLayerAction):
+        pass  # Don't override update()
+
+    tree = UnimplementedAction(name="Unimplemented")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    # Should fail because update() raises NotImplementedError
+    assert result.status == Status.FAILURE
+    assert result.errors is not None
+
+
+# Tests for ReadObject node
+
+
+def test_find_participant_by_actor_id_success_writes_blackboard(
+    bridge, datalayer
+):
+    """FindParticipantByActorIdNode stores the matched participant."""
+    target_actor_id = "https://example.org/actors/vendor-1"
+    participant = CaseParticipant(
+        id_="https://example.org/participants/vendor-1",
+        attributed_to=target_actor_id,
+        context="https://example.org/cases/case-1",
+    )
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/case-1",
+        name="Case 1",
+        case_participants=[participant.id_],
+        actor_participant_index={target_actor_id: participant.id_},
+        attributed_to="https://example.org/actors/case-manager",
+    )
+    datalayer.save(participant)
+    datalayer.save(case)
+
+    class AssertParticipantOnBlackboard(DataLayerCondition):
+        def setup(self, **kwargs):
+            super().setup(**kwargs)
+            self.blackboard.register_key(
+                key="found_participant", access=py_trees.common.Access.READ
+            )
+
+        def update(self) -> Status:
+            found = self.blackboard.get("found_participant")
+            if not isinstance(found, CaseParticipant):
+                self.feedback_message = "No participant found on blackboard"
+                return Status.FAILURE
+            self.feedback_message = f"Found participant {found.id_}"
+            return Status.SUCCESS
+
+    tree = py_trees.composites.Sequence(
+        name="FindParticipantAndAssert",
+        memory=False,
+        children=[
+            FindParticipantByActorIdNode(
+                case_id=case.id_,
+                target_actor_id=target_actor_id,
+                participant_key="found_participant",
+            ),
+            AssertParticipantOnBlackboard(
+                name="AssertParticipantOnBlackboard"
+            ),
+        ],
+    )
+
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+    assert result.status == Status.SUCCESS
+
+
+def test_find_participant_by_actor_id_fails_when_case_missing(bridge):
+    """FindParticipantByActorIdNode returns FAILURE when case is missing."""
+    node = FindParticipantByActorIdNode(
+        case_id="https://example.org/cases/missing",
+        target_actor_id="https://example.org/actors/vendor-1",
+    )
+    # Runs as the store's own actor. vendor-1 is the participant being looked
+    # *up* (target_actor_id), not the actor doing the looking — conflating the
+    # two is what per-actor storage now makes visible.
+    result = bridge.execute_with_setup(
+        node, actor_id="https://example.org/actors/actor-1"
+    )
+    assert result.status == Status.FAILURE
+
+
+def test_find_participant_by_actor_id_fails_when_actor_not_participant(
+    bridge, datalayer
+):
+    """FindParticipantByActorIdNode returns FAILURE on actor mismatch."""
+    participant = CaseParticipant(
+        id_="https://example.org/participants/vendor-2",
+        attributed_to="https://example.org/actors/vendor-2",
+        context="https://example.org/cases/case-2",
+    )
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/case-2",
+        name="Case 2",
+        case_participants=[participant.id_],
+        attributed_to="https://example.org/actors/case-manager",
+    )
+    datalayer.save(participant)
+    datalayer.save(case)
+
+    node = FindParticipantByActorIdNode(
+        case_id=case.id_,
+        target_actor_id="https://example.org/actors/vendor-1",
+    )
+    # Runs as the store's own actor. vendor-1 is the participant being looked
+    # *up* (target_actor_id), not the actor doing the looking — conflating the
+    # two is what per-actor storage now makes visible.
+    result = bridge.execute_with_setup(
+        node, actor_id="https://example.org/actors/actor-1"
+    )
+    assert result.status == Status.FAILURE
+
+
+def test_find_participant_by_actor_id_fails_on_index_divergence(
+    bridge, datalayer
+):
+    """FindParticipantByActorIdNode fails fast on participant/index mismatch."""
+    target_actor_id = "https://example.org/actors/vendor-1"
+    case = VulnerabilityCase(
+        id_="https://example.org/cases/case-diverge",
+        name="Case Divergence",
+        case_participants=[],
+        actor_participant_index={
+            target_actor_id: "https://example.org/participants/p1"
+        },
+        attributed_to="https://example.org/actors/case-manager",
+    )
+    datalayer.save(case)
+
+    node = FindParticipantByActorIdNode(
+        case_id=case.id_,
+        target_actor_id=target_actor_id,
+    )
+    result = bridge.execute_with_setup(
+        node, actor_id="https://example.org/actors/actor-1"
+    )
+    assert result.status == Status.FAILURE
+    assert "divergence" in result.feedback_message
+
+
+def test_find_participant_by_actor_id_reads_live_record_for_inline_object(
+    bridge, datalayer
+):
+    """FindParticipantByActorIdNode must read the live DL record, not a stale inline.
+
+    Regression for #2233: when case_participants contains an inline
+    CaseParticipant, the old code returned it directly.  If the standalone DL
+    record had advanced past the inline snapshot, downstream nodes would see
+    stale RM state.  Fix: for non-string refs, do dl.read(id_) to get the live
+    record; fall back to the inline only when the DL record is absent.
+    """
+    target_actor_id = "https://example.org/actors/vendor-live"
+    participant_id = "https://example.org/participants/vendor-live"
+    case_id = "https://example.org/cases/case-live"
+
+    from vultron.core.states.rm import RM
+
+    # Live DL record at VALID (simulates what validate-report produces)
+    live = CaseParticipant(
+        id_=participant_id,
+        attributed_to=target_actor_id,
+        context=case_id,
+    )
+    advance_participant_rm(
+        live, RM.RECEIVED, actor=target_actor_id, context=case_id
+    )
+    advance_participant_rm(
+        live, RM.VALID, actor=target_actor_id, context=case_id
+    )
+    datalayer.save(live)
+
+    # Case has an inline CaseParticipant at RECEIVED (stale snapshot)
+    stale_inline = CaseParticipant(
+        id_=participant_id,
+        attributed_to=target_actor_id,
+        context=case_id,
+    )
+    advance_participant_rm(
+        stale_inline, RM.RECEIVED, actor=target_actor_id, context=case_id
+    )
+
+    case = VulnerabilityCase(
+        id_=case_id,
+        name="Case Live",
+        case_participants=[stale_inline],  # inline, not string ID
+        actor_participant_index={target_actor_id: participant_id},
+        attributed_to="https://example.org/actors/case-manager",
+    )
+    datalayer.save(case)
+
+    captured: list[CaseParticipant] = []
+
+    class CaptureBBParticipant(DataLayerCondition):
+        def setup(self, **kwargs):
+            super().setup(**kwargs)
+            self.blackboard.register_key(
+                key="found_live", access=py_trees.common.Access.READ
+            )
+
+        def update(self) -> Status:
+            found = self.blackboard.get("found_live")
+            if isinstance(found, CaseParticipant):
+                captured.append(found)
+            return Status.SUCCESS
+
+    tree = py_trees.composites.Sequence(
+        name="FindAndCapture",
+        memory=False,
+        children=[
+            FindParticipantByActorIdNode(
+                case_id=case_id,
+                target_actor_id=target_actor_id,
+                participant_key="found_live",
+            ),
+            CaptureBBParticipant(name="Capture"),
+        ],
+    )
+
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+    assert result.status == Status.SUCCESS
+    assert len(captured) == 1
+    found_participant = captured[0]
+    assert found_participant.participant_statuses[-1].rm.state == RM.VALID, (
+        "Expected live RM.VALID from DL, not stale RM.RECEIVED from inline copy"
+    )
+
+
+def test_read_object_success(bridge, datalayer, sample_record):
+    """Verify ReadObject retrieves object from DataLayer."""
+    # Read object using BT node (sample_record fixture already saved it)
+    tree = ReadObject(
+        table="VulnerabilityReport",
+        object_id="https://example.org/objects/test-123",
+    )
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+    assert "Read VulnerabilityReport" in result.feedback_message
+
+
+def test_read_object_stores_in_blackboard(bridge, datalayer, sample_record):
+    """Verify ReadObject stores retrieved object in blackboard."""
+
+    # Create sequence: Read object, then check blackboard
+    class CheckBlackboard(DataLayerCondition):
+        def setup(self, **kwargs):
+            super().setup(**kwargs)
+            self.blackboard.register_key(
+                key="object_test-123",  # Simplified key from ReadObject
+                access=py_trees.common.Access.READ,
+            )
+
+        def update(self) -> Status:
+            obj = getattr(self.blackboard, "object_test-123", None)
+            if obj is None:
+                self.feedback_message = "Object not in blackboard"
+                return Status.FAILURE
+            # obj is a PersistableModel (Pydantic BaseModel)
+            name = getattr(obj, "name", None)
+            if name != "Test Object":
+                self.feedback_message = f"Object name incorrect: {name!r}"
+                return Status.FAILURE
+            self.feedback_message = "Object verified in blackboard"
+            return Status.SUCCESS
+
+    tree = py_trees.composites.Sequence(
+        name="ReadAndCheck",
+        memory=False,
+        children=[
+            ReadObject(
+                table="VulnerabilityReport",
+                object_id="https://example.org/objects/test-123",
+            ),
+            CheckBlackboard(name="CheckBlackboard"),
+        ],
+    )
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+
+
+def test_read_object_not_found(bridge, datalayer):
+    """Verify ReadObject returns FAILURE when object not found."""
+    tree = ReadObject(
+        table="Object", object_id="https://example.org/objects/nonexistent"
+    )
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.FAILURE
+    assert "not found" in result.feedback_message.lower()
+
+
+def test_read_object_custom_name(bridge, datalayer, sample_record):
+    """Verify ReadObject accepts custom node name."""
+    tree = ReadObject(
+        table="VulnerabilityReport",
+        object_id="https://example.org/objects/test-123",
+        name="CustomReadName",
+    )
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+    # Check tree node has custom name
+    assert tree.name == "CustomReadName"
+
+
+# Tests for UpdateObject node
+
+
+def test_update_object_success(bridge, datalayer, sample_record):
+    """Verify UpdateObject modifies object in DataLayer."""
+    # Read object, then update it (sample_record fixture already saved it)
+    tree = py_trees.composites.Sequence(
+        name="ReadAndUpdate",
+        memory=False,
+        children=[
+            ReadObject(
+                table="VulnerabilityReport",
+                object_id="https://example.org/objects/test-123",
+            ),
+            UpdateObject(
+                object_id="https://example.org/objects/test-123",
+                updates={"name": "Updated Name"},
+            ),
+        ],
+    )
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+
+    # Verify update persisted to DataLayer
+    updated = datalayer.read("https://example.org/objects/test-123")
+    assert updated is not None
+    assert getattr(updated, "name", None) == "Updated Name"
+
+
+def test_update_object_custom_name(bridge, datalayer, sample_record):
+    """Verify UpdateObject accepts custom node name."""
+    tree = py_trees.composites.Sequence(
+        name="ReadAndUpdate",
+        memory=False,
+        children=[
+            ReadObject(
+                table="VulnerabilityReport",
+                object_id="https://example.org/objects/test-123",
+            ),
+            UpdateObject(
+                object_id="https://example.org/objects/test-123",
+                updates={"name": "Updated Name"},
+                name="CustomUpdateName",
+            ),
+        ],
+    )
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+    # Check second child has custom name
+    assert tree.children[1].name == "CustomUpdateName"
+
+
+# Tests for CreateObject node
+
+
+def test_create_object_success(bridge, datalayer):
+    """Verify CreateObject persists new object to DataLayer."""
+    new_object = {
+        "id_": "https://example.org/objects/new-object",
+        "type_": "Object",
+        "name": "New Object",
+    }
+
+    tree = CreateObject(table="Object", object_data=new_object)
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+    assert "Created" in result.feedback_message
+
+    # Verify object persisted to DataLayer
+    created = datalayer.get("Object", "https://example.org/objects/new-object")
+    assert created is not None
+    assert created["data_"]["name"] == "New Object"
+
+
+def test_create_object_missing_id_fails(bridge, datalayer):
+    """Verify CreateObject fails if object_data missing 'id_' field."""
+    invalid_object = {
+        "type_": "Object",
+        "name": "Invalid Object",
+        # Missing 'id_' field
+    }
+
+    tree = CreateObject(table="Object", object_data=invalid_object)
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.FAILURE
+    assert "missing required 'id_' field" in result.feedback_message.lower()
+
+
+def test_create_object_custom_name(bridge, datalayer):
+    """Verify CreateObject accepts custom node name."""
+    new_object = {
+        "id_": "https://example.org/objects/new-object",
+        "type_": "Object",
+        "name": "New Object",
+    }
+
+    tree = CreateObject(
+        table="Object", object_data=new_object, name="CustomCreateName"
+    )
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+    assert tree.name == "CustomCreateName"
+
+
+# Integration tests
+
+
+def test_full_crud_workflow(bridge, datalayer):
+    """Verify complete CRUD workflow using helper nodes."""
+    initial_object = {
+        "id_": "https://example.org/objects/workflow-test",
+        "type_": "VulnerabilityReport",
+        "name": "Initial Name",
+    }
+
+    tree = py_trees.composites.Sequence(
+        name="CRUDWorkflow",
+        memory=False,
+        children=[
+            # Create object
+            CreateObject(
+                table="VulnerabilityReport", object_data=initial_object
+            ),
+            # Read it back
+            ReadObject(
+                table="VulnerabilityReport",
+                object_id="https://example.org/objects/workflow-test",
+            ),
+            # Update it
+            UpdateObject(
+                object_id="https://example.org/objects/workflow-test",
+                updates={"name": "Updated Name"},
+            ),
+        ],
+    )
+
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    assert result.status == Status.SUCCESS
+
+    # Verify final state in DataLayer
+    final = datalayer.read("https://example.org/objects/workflow-test")
+    assert final is not None
+    assert getattr(final, "name", None) == "Updated Name"
+
+
+def test_actor_isolation(bridge, datalayer, sample_record):
+    """One actor's BT cannot read another actor's record (CM-01-001).
+
+    Previously this asserted that *both* actors read the record successfully and
+    then closed with ``assert ... or True`` — a tautology, so the isolation it
+    named was never checked and the shared pool it depended on made the real
+    property untestable. Under ADR-0073 the store follows the executing actor,
+    so actor-2 legitimately finds nothing: that absence is the invariant.
+    """
+    object_id = "https://example.org/objects/test-123"
+
+    # actor-1 owns the store the record was seeded in, so it reads it back.
+    result1 = bridge.execute_with_setup(
+        ReadObject(table="VulnerabilityReport", object_id=object_id),
+        actor_id="https://example.org/actors/actor-1",
+    )
+    assert result1.status == Status.SUCCESS
+
+    # actor-2 runs against its own store, which has never seen the record.
+    result2 = bridge.execute_with_setup(
+        ReadObject(table="VulnerabilityReport", object_id=object_id),
+        actor_id="actor-2",
+    )
+    assert result2.status == Status.FAILURE, (
+        "actor-2 must not be able to read a record held only in actor-1's"
+        " store — that is the CM-01-001 violation #2238 was filed about"
+    )
+
+
+def test_error_propagation(bridge, datalayer):
+    """Verify errors in helper nodes propagate correctly."""
+
+    class RaiseExceptionAction(DataLayerAction):
+        def update(self) -> Status:
+            raise ValueError("Intentional test error")
+
+    tree = RaiseExceptionAction(name="ErrorAction")
+    result = bridge.execute_with_setup(
+        tree, actor_id="https://example.org/actors/actor-1"
+    )
+
+    # Should capture exception and return FAILURE
+    assert result.status == Status.FAILURE
+    assert result.errors is not None
+    assert "Intentional test error" in result.feedback_message
+
+
+# Tests for BT logger fix (py_trees orphaned-logger root cause)
+
+
+def test_condition_logger_is_managed_not_orphaned():
+    """DataLayerCondition.logger must be a managed logging.Logger, not an
+    orphaned py_trees.logging.Logger with parent=None."""
+    import logging
+
+    node = AlwaysTrueCondition(name="TestLogger")
+    assert isinstance(node.logger, logging.Logger), (
+        "self.logger must be the stdlib logging.Logger, not py_trees.logging.Logger"
+    )
+    # A managed logger always has a parent (at minimum the root logger).
+    assert node.logger.parent is not None, (
+        "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+    )
+
+
+def test_action_logger_is_managed_not_orphaned():
+    """DataLayerAction.logger must be a managed logging.Logger, not an
+    orphaned py_trees.logging.Logger with parent=None."""
+    import logging
+
+    node = NoOpAction(name="TestLogger")
+    assert isinstance(node.logger, logging.Logger)
+    assert node.logger.parent is not None, (
+        "self.logger.parent is None — logger is orphaned and log calls will be silently dropped"
+    )
+
+
+def test_condition_logger_name_includes_class(bridge, datalayer):
+    """Logger name should include the subclass name so log output is identifiable."""
+    node = AlwaysTrueCondition(name="test-node")
+    assert "AlwaysTrueCondition" in node.logger.name
+
+
+# Tests for _require_* guard helpers on DataLayerCondition
+
+
+def test_condition_require_datalayer_returns_failure_when_none():
+    """_require_datalayer() returns FAILURE when datalayer is not set."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    # datalayer defaults to None (no bridge/setup)
+    result = node._require_datalayer()
+    assert result == Status.FAILURE
+    assert node.feedback_message == "DataLayer not available"
+
+
+def test_condition_require_datalayer_returns_none_when_set(datalayer):
+    """_require_datalayer() returns None (no failure) when datalayer is set."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    node.datalayer = datalayer
+    result = node._require_datalayer()
+    assert result is None
+
+
+def test_condition_require_datalayer_and_actor_returns_failure_when_both_none():
+    """_require_datalayer_and_actor() returns FAILURE when both are None."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    result = node._require_datalayer_and_actor()
+    assert result == Status.FAILURE
+
+
+def test_condition_require_datalayer_and_actor_returns_failure_when_actor_none(
+    datalayer,
+):
+    """_require_datalayer_and_actor() returns FAILURE when only actor_id is None."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    node.datalayer = datalayer
+    node.actor_id = None
+    result = node._require_datalayer_and_actor()
+    assert result == Status.FAILURE
+
+
+def test_condition_require_datalayer_and_actor_returns_failure_when_datalayer_none():
+    """_require_datalayer_and_actor() returns FAILURE when only datalayer is None."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    node.actor_id = "https://example.org/actors/a1"
+    result = node._require_datalayer_and_actor()
+    assert result == Status.FAILURE
+
+
+def test_condition_require_datalayer_and_actor_returns_none_when_both_set(
+    datalayer,
+):
+    """_require_datalayer_and_actor() returns None when both datalayer and actor_id are set."""
+    node = AlwaysTrueCondition(name="GuardTest")
+    node.datalayer = datalayer
+    node.actor_id = "https://example.org/actors/a1"
+    result = node._require_datalayer_and_actor()
+    assert result is None
+
+
+# Tests for _require_* guard helpers on DataLayerAction
+
+
+def test_action_require_datalayer_returns_failure_when_none():
+    """DataLayerAction._require_datalayer() returns FAILURE when datalayer is not set."""
+    node = NoOpAction(name="GuardTest")
+    result = node._require_datalayer()
+    assert result == Status.FAILURE
+    assert node.feedback_message == "DataLayer not available"
+
+
+def test_action_require_datalayer_returns_none_when_set(datalayer):
+    """DataLayerAction._require_datalayer() returns None when datalayer is set."""
+    node = NoOpAction(name="GuardTest")
+    node.datalayer = datalayer
+    result = node._require_datalayer()
+    assert result is None
+
+
+def test_action_require_datalayer_and_actor_returns_failure_when_none():
+    """DataLayerAction._require_datalayer_and_actor() returns FAILURE when both None."""
+    node = NoOpAction(name="GuardTest")
+    result = node._require_datalayer_and_actor()
+    assert result == Status.FAILURE
+
+
+def test_action_require_datalayer_and_actor_returns_none_when_both_set(
+    datalayer,
+):
+    """DataLayerAction._require_datalayer_and_actor() returns None when both set."""
+    node = NoOpAction(name="GuardTest")
+    node.datalayer = datalayer
+    node.actor_id = "https://example.org/actors/a1"
+    result = node._require_datalayer_and_actor()
+    assert result is None
+
+
+def test_action_require_factory_returns_failure_when_none():
+    """DataLayerAction._require_factory() returns FAILURE when factory is not set."""
+    node = NoOpAction(name="GuardTest")
+    result = node._require_factory()
+    assert result == Status.FAILURE
+    assert node.feedback_message == "trigger_activity_factory not available"
+
+
+def test_action_require_factory_returns_none_when_set():
+    """DataLayerAction._require_factory() returns None when factory is set."""
+    from unittest.mock import MagicMock
+
+    from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+    node = NoOpAction(name="GuardTest")
+    node.trigger_activity_factory = MagicMock(spec=TriggerActivityPort)
+    result = node._require_factory()
+    assert result is None
+
+
+def test_action_logger_emits_via_caplog(bridge, datalayer, caplog):
+    """Log messages from BT action nodes propagate to caplog (not silently dropped)."""
+    import logging
+
+    class LoggingAction(DataLayerAction):
+        def update(self) -> Status:
+            self.logger.info("BT action log message emitted")
+            return Status.SUCCESS
+
+    with caplog.at_level(logging.INFO):
+        tree = LoggingAction(name="LogAction")
+        bridge.execute_with_setup(
+            tree, actor_id="https://example.org/actors/a1"
+        )
+
+    assert any(
+        "BT action log message emitted" in r.message for r in caplog.records
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests for _EmitSingleActivityBase
+# ---------------------------------------------------------------------------
+
+_ACTOR_URI = "https://example.org/actors/emit-test-actor"
+
+
+class _StubEmitNode(_EmitSingleActivityBase):
+    """Concrete stub — delegates to injected callables set before use."""
+
+    factory_fn: Callable[["_StubEmitNode"], tuple[str, str]] | None = None
+    on_success_fn: Callable[["_StubEmitNode", str, str], None] | None = None
+
+    def _call_factory(self) -> tuple[str, str]:
+        if self.factory_fn is None:
+            raise NotImplementedError("no factory_fn set on _StubEmitNode")
+        return self.factory_fn(self)
+
+    def _on_success(self, activity_id: str, activity_blob: str) -> None:
+        if self.on_success_fn is not None:
+            self.on_success_fn(self, activity_id, activity_blob)
+
+
+class TestEmitSingleActivityBase:
+    """Unit tests for _EmitSingleActivityBase guard+emit+outbox contract."""
+
+    def test_call_factory_raises_not_implemented_on_base(self):
+        """`_call_factory()` raises NotImplementedError when not overridden."""
+        node = _EmitSingleActivityBase.__new__(_EmitSingleActivityBase)
+        with pytest.raises(NotImplementedError):
+            node._call_factory()
+
+    def test_on_success_default_is_noop(self):
+        """`_on_success()` does nothing when not overridden."""
+        node = _EmitSingleActivityBase.__new__(_EmitSingleActivityBase)
+        node._on_success("some-id", "{}")  # must not raise
+
+    def test_update_fails_when_datalayer_missing(self, datalayer):
+        """Returns FAILURE immediately when DataLayer is not available."""
+        from vultron.core.behaviors.bridge import BTBridge
+
+        node = _StubEmitNode()
+        bridge = BTBridge(datalayer)
+        result = bridge.execute_with_setup(node, actor_id=None)  # type: ignore[arg-type]
+        assert result.status == Status.FAILURE
+
+    def test_update_fails_when_factory_missing(self, datalayer):
+        """Returns FAILURE when trigger_activity_factory is not wired."""
+        from vultron.core.behaviors.bridge import BTBridge
+
+        node = _StubEmitNode()
+        bridge = BTBridge(datalayer)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+        assert result.status == Status.FAILURE
+
+    def test_update_succeeds_and_queues_outbox(self, datalayer):
+        """SUCCESS path: calls factory, queues outbox, returns SUCCESS."""
+        from unittest.mock import MagicMock
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-001"
+        activity_dict = {"id": activity_id, "type": "Create"}
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        node = _StubEmitNode()
+        node.factory_fn = lambda self_node: (
+            activity_id,
+            json.dumps(activity_dict),
+        )
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert result.status == Status.SUCCESS
+
+    def test_update_stores_activity_in_captured(self, datalayer):
+        """When _captured is provided, sets captured['activity'] on success."""
+        from unittest.mock import MagicMock
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-002"
+        activity_dict = {"id": activity_id, "type": "Accept"}
+        captured: dict = {}
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        node = _StubEmitNode(captured=captured)
+        node.factory_fn = lambda self_node: (
+            activity_id,
+            json.dumps(activity_dict),
+        )
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert captured.get("activity") == activity_dict
+
+    def test_update_calls_on_success_hook(self, datalayer):
+        """_on_success() is called with activity_id and activity_dict on SUCCESS."""
+        from unittest.mock import MagicMock
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-003"
+        activity_dict = {"id": activity_id}
+        activity_blob = json.dumps(activity_dict)
+        calls: list = []
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        node = _StubEmitNode()
+        node.factory_fn = lambda self_node: (activity_id, activity_blob)
+        node.on_success_fn = lambda self_node, aid, ablob: calls.append(
+            (aid, ablob)
+        )
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert result.status == Status.SUCCESS
+        assert calls == [(activity_id, activity_blob)]
+
+    def test_update_returns_failure_on_factory_exception(self, datalayer):
+        """Returns FAILURE and sets feedback_message when factory raises."""
+        from unittest.mock import MagicMock
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        def _raising(self_node):
+            raise RuntimeError("factory exploded")
+
+        node = _StubEmitNode()
+        node.factory_fn = _raising
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        assert result.status == Status.FAILURE
+        assert "failed" in node.feedback_message
+
+    def test_on_success_raising_after_committed_write_propagates(
+        self, datalayer
+    ):
+        """Exception in _on_success() propagates; outbox write already committed.
+
+        _on_success() runs outside the try/except block (see helpers.py), so
+        a hook that raises is NOT silently swallowed as Status.FAILURE.  The
+        exception bubbles to the BT executor, which is the correct behaviour:
+        it signals an unexpected hook bug rather than masking a committed write
+        as a retryable failure.
+
+        Tracks DEFER from code-review of #2582 / issue #2609.
+        """
+        from unittest.mock import MagicMock
+
+        from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.ports.trigger_activity import TriggerActivityPort
+
+        activity_id = "https://example.org/activities/emit-hook-raise"
+        activity_dict = {"id": activity_id}
+        factory = MagicMock(spec=TriggerActivityPort)
+
+        def _factory_fn(self_node):
+            return (activity_id, json.dumps(activity_dict))
+
+        def _raising_hook(self_node, aid, adict):
+            raise RuntimeError("hook exploded after write committed")
+
+        node = _StubEmitNode()
+        node.factory_fn = _factory_fn
+        node.on_success_fn = _raising_hook
+        bridge = BTBridge(datalayer, trigger_activity=factory)
+        result = bridge.execute_with_setup(node, actor_id=_ACTOR_URI)
+
+        # BTBridge catches uncaught exceptions from update() and surfaces them
+        # as result.errors. The key contract being tested: because _on_success()
+        # is OUTSIDE the try block, its exception bypasses the feedback_message
+        # path — result.errors is set rather than feedback_message.
+        assert result.status == Status.FAILURE
+        assert result.errors is not None
+        # feedback_message was NOT set by the normal except path
+        assert "failed" not in (node.feedback_message or "")

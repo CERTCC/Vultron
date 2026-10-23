@@ -1,0 +1,226 @@
+id: AR
+title: Agentic Readiness
+description: Requirements for API and CLI design that enable reliable interaction by automated agents and AI systems. Covers
+  machine-parseable interfaces, structured response formats, and observable behavior that supports agentic workflows.
+scope:
+- prototype
+- production
+tags:
+- tooling
+groups:
+- id: AR-01
+  title: API Discoverability
+  specs:
+  - id: AR-01-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The API MUST expose a machine-readable OpenAPI JSON schema at `/openapi.json`
+  - id: AR-01-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The API MUST expose rendered documentation UI at `/docs` and `/redoc` in development environments
+  - id: AR-01-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Every endpoint MUST have a unique, stable `operationId` following the `{resource}_{action}` naming convention
+  - id: AR-01-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: All possible HTTP response codes for each endpoint MUST be declared in the OpenAPI spec with typed response
+      models
+    scope:
+    - production
+- id: AR-02
+  title: State and Workflow Transitions
+  specs:
+  - id: AR-02-001
+    priority: SHOULD
+    kind: project
+    statement: Resources with a `status` field SHOULD include a `next_allowed_actions` list identifying valid state transitions
+      from the current state
+    scope:
+    - production
+  - id: AR-02-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: All valid states and state transitions for state machine resources MUST be documented
+  - id: AR-02-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Endpoints with prerequisites MUST return a structured error using the `error` field value `"PreconditionFailedError"`
+      when invoked out of sequence
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: EH-05-001
+- id: AR-03
+  title: Stable Error Types
+  specs:
+  - id: AR-03-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The API MUST use the `error` field (per `error-handling.md` EH-05-001) as a stable, machine-parseable error
+      type identifier
+    relationships:
+    - rel_type: depends_on
+      spec_id: EH-05-001
+- id: AR-04
+  title: Long-Running Operations
+  specs:
+  - id: AR-04-001
+    priority: SHOULD
+    kind: architecture
+    statement: Long-running operations SHOULD return a job or task object immediately with a stable `id` and `status` field
+    scope:
+    - production
+  - id: AR-04-002
+    priority: SHOULD
+    kind: architecture
+    statement: A separate polling endpoint or webhook mechanism SHOULD be available to report operation completion
+    scope:
+    - production
+- id: AR-05
+  title: Pagination
+  specs:
+  - id: AR-05-001
+    priority: SHOULD
+    kind: architecture
+    statement: Collection endpoints SHOULD expose `limit` and `offset` (or `cursor`) query parameters with documented defaults
+      and maximums
+- id: AR-06
+  title: Bulk Operations
+  specs:
+  - id: AR-06-001
+    priority: MAY
+    kind: architecture
+    statement: Resources that agents may need to create, update, or delete in quantity MAY expose batch endpoints (e.g., `POST
+      /v1/items/batch`)
+    scope:
+    - production
+- id: AR-10
+  title: Actor Discovery Profile
+  specs:
+  - id: AR-10-001
+    priority: MUST
+    kind: project
+    statement: The API MUST expose `GET /actors/{actor_id}/profile` returning an ActivityStreams actor profile document for
+      actor discovery and federation
+    rationale: >-
+      The route path is this server's REST choice. A peer finds an actor from its
+      `id` and the endpoints its actor document names (IE-02-001), never from a path
+      convention, so another implementation may serve the document anywhere. Only
+      this codebase must obey the path, so it is `project` (ADR-0134).
+    verification: 'Integration tests confirm that `GET /actors/{actor_id}/profile` returns an ActivityStreams actor profile
+      with `Content-Type: application/activity+json`.'
+    stories:
+    - story_2022_028
+    - story_2022_034
+  - id: AR-10-002
+    priority: MUST
+    kind: foundation
+    statement: The profile endpoint MUST return HTTP 404 when the actor is not found
+    rationale: >-
+      HTTP defines 404 Not Found as the answer to a request for a resource the server
+      does not have (HTTP-03-005). Vultron inherits the rule.
+    verification: >-
+      `test_get_actor_profile_not_found_returns_404` in
+      `test/adapters/driving/fastapi/routers/test_actors.py` confirms that
+      `GET /actors/{unknown_id}/profile` returns HTTP 404.
+    tags:
+    - http
+  - id: AR-10-003
+    priority: MUST
+    kind: project
+    statement: The profile endpoint MUST support both full actor URI and short actor ID (e.g., `vendorco`) as the `actor_id`
+      path parameter
+    rationale: >-
+      Accepting a short ID in the path is a convenience of this server's REST routes
+      (AR-10-001); on the wire an actor is named by its full `id` (MV-05-001). Only
+      this codebase must obey it, so it is `project` (ADR-0134).
+    verification: Integration tests confirm that both a short actor ID (e.g., `vendorco`) and a full actor URI resolve
+      to the same actor profile document via `GET /actors/{actor_id}/profile`.
+    stories:
+    - story_2022_034
+- id: AR-07
+  title: CVD Action Rules API
+  specs:
+  - id: AR-07-001
+    priority: SHOULD
+    kind: protocol
+    statement: The system SHOULD expose an endpoint that returns the set of valid CVD actions available to a participant given
+      current case state and their role
+  - id: AR-07-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The action rules response MUST be a machine-parseable JSON object that includes:
+      (a) the current case state, (b) the requesting participant's CVD role, (c) a list
+      of valid action identifiers available in the current state, and (d) for each
+      unavailable action, the reason it is disallowed.
+    verification: Integration tests confirm that the action rules endpoint returns a JSON object containing the current
+      case state, the participant's CVD role, available action identifiers, and per-unavailable-action reason strings.
+    stories:
+    - story_2022_088
+    - story_2022_086
+  - id: AR-07-003
+    priority: MUST
+    kind: project
+    statement: The action rules endpoint MUST be reflected in the OpenAPI schema per AR-01-001
+    verification: Inspection of the `GET /openapi.json` response confirms the action rules endpoint path and response
+      schema are present in the OpenAPI spec.
+    scope:
+    - production
+    relationships:
+    - rel_type: depends_on
+      spec_id: CM-07-001
+    - rel_type: depends_on
+      spec_id: CM-07-002
+    - rel_type: depends_on
+      spec_id: CM-07-003
+- id: AR-08
+  title: CLI Interface
+  specs:
+  - id: AR-08-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The CLI MUST be installable as a Python package entry point defined in `pyproject.toml`
+    scope:
+    - production
+  - id: AR-08-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Every CLI command MUST support a structured JSON output mode (e.g., `--output json`) emitting machine-parseable
+      JSON to stdout
+    scope:
+    - production
+  - id: AR-08-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: CLI commands MUST exit with code `0` on success, `1` on handled error, and `2` on usage or argument error
+    scope:
+    - production
+  - id: AR-08-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: CLI commands wrapping API calls MUST surface the `error` field and `request_id` from API error responses in
+      their JSON error output
+    scope:
+    - production
+  - id: AR-08-005
+    priority: SHOULD
+    kind: project
+    statement: Long-running CLI commands SHOULD support `--wait` / `--no-wait` flags; `--no-wait` returns the job object immediately
+    scope:
+    - production

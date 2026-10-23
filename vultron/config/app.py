@@ -1,0 +1,309 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Application configuration — server, database, and top-level settings.
+
+Per ``specs/configuration.yaml`` CFG-01 through CFG-06, CFG-07-005.
+
+This module is part of the neutral ``vultron/config/`` sub-package. It MUST
+NOT import from ``vultron.adapters`` or ``vultron.core``.
+"""
+
+from __future__ import annotations
+
+import functools
+import logging
+import os
+from collections.abc import Generator
+from contextlib import contextmanager
+from enum import StrEnum
+from pathlib import Path
+from typing import Any, Literal
+
+import yaml
+from pydantic import BaseModel, Field, field_validator
+from pydantic.fields import FieldInfo
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+
+from vultron.config.actor import ActorConfig
+from vultron.config.ledger import LedgerConfig
+
+logger = logging.getLogger(__name__)
+
+#: Valid log-level names accepted by :attr:`ServerConfig.log_level`.
+LogLevelName = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+
+class RunMode(StrEnum):
+    """Operational mode for the Vultron server.
+
+    ``PROTOTYPE`` activates demo-only endpoints and relaxed validation.
+    ``PROD`` enforces production-level constraints.
+    """
+
+    PROTOTYPE = "prototype"
+    PROD = "prod"
+
+
+class YamlConfigSource(PydanticBaseSettingsSource):
+    """``pydantic-settings`` source that loads configuration from a YAML file.
+
+    The file path is resolved from the ``VULTRON_CONFIG`` environment variable
+    (default: ``config.yaml`` in the working directory).  If the variable is
+    set but the file does not exist, :class:`FileNotFoundError` is raised at
+    startup.  If neither is set and no default file exists, an empty dict is
+    returned so all fields fall back to their defaults.
+    """
+
+    def _yaml_data(self) -> dict[str, Any]:
+        path = os.environ.get("VULTRON_CONFIG", "config.yaml")
+        p = Path(path)
+        if os.environ.get("VULTRON_CONFIG") and not p.exists():
+            raise FileNotFoundError(
+                f"VULTRON_CONFIG points to non-existent file: {path}"
+            )
+        if not p.exists():
+            return {}
+        logger.debug("Loading configuration from %s", p)
+        with p.open() as fh:
+            return yaml.safe_load(fh) or {}
+
+    def get_field_value(
+        self, field: FieldInfo, field_name: str
+    ) -> tuple[Any, str, bool]:
+        # pydantic-settings 2.x dispatches via __call__(); this satisfies the ABC.
+        data = self._yaml_data()
+        return data.get(field_name), field_name, False
+
+    def __call__(self) -> dict[str, Any]:
+        return self._yaml_data()
+
+
+class ServerConfig(BaseModel):
+    """HTTP server settings.
+
+    Attributes:
+        base_url: Base URL of the Vultron server, used for constructing
+            object IDs.  MUST include the API path prefix: an actor's id is the
+            URL that reaches it, and a hosted actor is named
+            ``{base_url}/actors/{slug}``, so a value without ``/api/v2`` mints
+            ids that address nothing (DL-07-006).  Defaults to
+            ``"http://localhost:7999/api/v2"``, matching the shape the compose
+            files set, so a local run resolves actors the way a deployed one
+            does.
+        log_level: Root log level name.  Must be one of ``DEBUG``, ``INFO``,
+            ``WARNING``, ``ERROR``, or ``CRITICAL``.  Defaults to ``"INFO"``.
+        ledger_stream_poll_seconds: How often (in seconds) an open demo case
+            ledger stream re-reads the actor's DataLayer for new entries
+            (``GET /actors/{id}/demo/cases/{case_id}/log/stream``, ADR-0104).
+            Must be positive.  Defaults to 0.25.
+    """
+
+    base_url: str = "http://localhost:7999/api/v2"
+    log_level: LogLevelName = "INFO"
+    ledger_stream_poll_seconds: float = Field(default=0.25, gt=0)
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, v: str) -> str:
+        """Require an http:// or https:// scheme."""
+        if not v.startswith(("http://", "https://")):
+            raise ValueError(
+                f"base_url must start with http:// or https://, got: {v!r}"
+            )
+        return v
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def normalize_log_level(cls, v: object) -> object:
+        """Normalise log level strings to uppercase before validation."""
+        if isinstance(v, str):
+            return v.upper()
+        return v
+
+
+class DatabaseConfig(BaseModel):
+    """Database connection settings.
+
+    Attributes:
+        db_url: SQLAlchemy connection URL.  Defaults to
+            ``"sqlite:///vultron.db"``.
+    """
+
+    db_url: str = "sqlite:///vultron.db"
+
+
+class AppConfig(BaseSettings):
+    """Unified application configuration loaded from YAML and environment.
+
+    Loading precedence (lowest → highest):
+
+    1. YAML config file (path from ``VULTRON_CONFIG``, default
+       ``config.yaml``)
+    2. Environment variables (``VULTRON_SERVER__BASE_URL``, etc.)
+
+    Attributes:
+        server: HTTP server settings.
+        database: Database connection settings.
+        actor: Actor policy settings (default CVD roles, case creation policy).
+        ledger: Case-ledger timestamp tolerances applied at the CaseActor
+            commit boundary (CLP-14-009).
+        mode: Operational mode (``prototype`` or ``prod``).
+        pre_bootstrap_queue_timeout_seconds: How long (in seconds) a
+            pre-bootstrap inbox queue is held before it expires.  When the
+            window lapses, queued activity IDs are dropped and a replay
+            ``Question`` is sent to the case creator (CBT-03-003,
+            CBT-03-004).  Override via
+            ``VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS``.  Defaults to
+            300 (5 minutes) (CBT-03-005).
+        max_inbox_retry_attempts: Maximum cumulative processing attempts for
+            a single inbox activity before it is moved to the dead-letter
+            store (IE-06-004).  Matches the outbox default of 12 so that
+            inbox and outbox share the same retry budget.  Override via
+            ``VULTRON_MAX_INBOX_RETRY_ATTEMPTS``.  Defaults to 12.
+    """
+
+    server: ServerConfig = ServerConfig()
+    database: DatabaseConfig = DatabaseConfig()
+    actor: ActorConfig = ActorConfig()
+    ledger: LedgerConfig = LedgerConfig()
+    mode: RunMode = RunMode.PROTOTYPE
+    pre_bootstrap_queue_timeout_seconds: int = 300
+    max_inbox_retry_attempts: int = 12
+
+    model_config = SettingsConfigDict(
+        env_prefix="VULTRON_",
+        env_nested_delimiter="__",
+    )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Precedence: YAML file (lowest) < environment variables (highest).
+        # In pydantic-settings 2.x, the FIRST source in the tuple has the
+        # HIGHEST priority (it wins in the deep-merge).
+        return (env_settings, YamlConfigSource(settings_cls))
+
+
+@functools.cache
+def get_config() -> AppConfig:
+    """Return the cached :class:`AppConfig` instance.
+
+    Loads configuration on first call, then returns the same instance for
+    all subsequent calls.  The cache is owned by ``functools.cache`` rather
+    than a module global; use :func:`clear_config_cache` to drop it (the next
+    call reloads) or :func:`reload_config` to drop it and reload at once.
+
+    Returns:
+        The active :class:`AppConfig` instance.
+    """
+    return AppConfig()
+
+
+def clear_config_cache() -> None:
+    """Drop the cached :class:`AppConfig` without loading a new one.
+
+    The next :func:`get_config` call reloads from the environment as it stands
+    then.  This is the test-teardown form (CFG-06-003): unlike
+    :func:`reload_config`, it does not read the environment while a test's
+    ``monkeypatch`` changes are still in force.
+    """
+    get_config.cache_clear()
+
+
+def load_actor_config() -> ActorConfig:
+    """Return the local actor's policy :class:`~vultron.config.actor.ActorConfig`.
+
+    Delegates to :func:`get_config` so actor policy is read from the same
+    unified config as all other application settings (CFG-07-005).
+
+    Configuration sources, in decreasing priority:
+
+    1. ``VULTRON_ACTOR__AUTO_CREATE_CASE`` / ``VULTRON_ACTOR__DEFAULT_CASE_ROLES``
+       environment variables.
+    2. ``actor:`` section in the YAML file at ``VULTRON_CONFIG``
+       (default: ``config.yaml``).
+    3. Hard-coded defaults (``auto_create_case=True``,
+       ``default_case_roles=[]``).
+
+    Returns:
+        The :class:`~vultron.config.actor.ActorConfig` from the active
+        :class:`AppConfig`.
+    """
+    return get_config().actor
+
+
+def reload_config() -> AppConfig:
+    """Clear the cached config and return a freshly loaded :class:`AppConfig`.
+
+    Call this in test teardown fixtures (or ``autouse`` fixtures) to ensure
+    each test starts with a clean configuration state.
+
+    Returns:
+        A newly loaded :class:`AppConfig` instance.
+    """
+    clear_config_cache()
+    return get_config()
+
+
+@contextmanager
+def config_override(**env_updates: str) -> Generator[AppConfig, None, None]:
+    """Atomically patch env vars, reload the config cache, and restore on exit.
+
+    Sets each key in *env_updates* as an environment variable, reloads the
+    config cache, yields the updated :class:`AppConfig`, then restores the
+    original environment values and reloads again in a ``finally`` block so
+    that the restore always happens even when the body raises (CFG-06-006).
+
+    This makes the incorrect ``monkeypatch.undo()``-after-``reload_config()``
+    ordering impossible by construction (CONCERN-2323).
+
+    Example::
+
+        with config_override(VULTRON_SERVER__BASE_URL="http://test:8080") as cfg:
+            assert cfg.server.base_url == "http://test:8080"
+        # env and cache are restored here
+
+    Args:
+        **env_updates: Environment variable names mapped to override values.
+
+    Yields:
+        The updated :class:`AppConfig` instance after reloading.
+    """
+    originals: dict[str, str | None] = {
+        key: os.environ.get(key) for key in env_updates
+    }
+    for key, value in env_updates.items():
+        os.environ[key] = value
+    try:
+        reload_config()
+        yield get_config()
+    finally:
+        for key, original in originals.items():
+            if original is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = original
+        reload_config()

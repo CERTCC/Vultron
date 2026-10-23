@@ -1,0 +1,433 @@
+id: IMPLTS
+title: Vultron Project Technology Stack
+description: >-
+  This specification defines the normative technology constraints and implementation requirements
+  for the Vultron prototype implementation.
+scope:
+- prototype
+- production
+tags:
+- tooling
+groups:
+- id: IMPLTS-01
+  title: Runtime and Language
+  specs:
+  - id: IMPLTS-01-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The implementation MUST use Python 3.12 or later.
+  - id: IMPLTS-01-007
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Before updating the `requires-python` floor in `pyproject.toml`, the full test suite
+      MUST pass on the target Python version in CI, and all static type checks (`mypy`, `pyright`)
+      and linters MUST pass under the new runtime
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-01-001
+  - id: IMPLTS-01-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The backend API MUST be implemented using FastAPI.
+  - id: IMPLTS-01-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The backend API MUST expose an OpenAPI specification.
+  - id: IMPLTS-01-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The system MUST use Pydantic for data validation and data modeling.
+  - id: IMPLTS-01-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The application MUST use Python’s standard logging framework for structured logging.
+  - id: IMPLTS-01-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The behavior tree engine MUST be implemented using py_trees.
+- id: IMPLTS-02
+  title: Persistence and Data
+  specs:
+  - id: IMPLTS-02-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The prototype MUST use SQLModel/SQLite for lightweight local persistence.
+  - id: IMPLTS-02-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The system MUST support SQLite-based storage for demo and local development
+      use.
+  - id: IMPLTS-02-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The system MUST support ISO 8601 date/time parsing and formatting using isodate.
+  - id: IMPLTS-02-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The system MUST support graph construction and analysis using networkx.
+- id: IMPLTS-03
+  title: Interfaces and Tooling
+  specs:
+  - id: IMPLTS-03-001
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: Command line interfaces MUST be implemented using `click`.
+  - id: IMPLTS-03-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The system MUST use `httpx` for all HTTP client interactions, including outbound inbox delivery and demo HTTP calls. The `requests` library MUST NOT be used.
+  - id: IMPLTS-03-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The project MUST include automated tests implemented using `pytest`.
+  - id: IMPLTS-03-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The project MUST support task automation using `make`.
+- id: IMPLTS-04
+  title: Documentation and Visualization
+  specs:
+  - id: IMPLTS-04-001
+    priority: SHOULD
+    kind: project
+    statement: The project SHOULD generate static documentation using MkDocs.
+  - id: IMPLTS-04-002
+    priority: SHOULD
+    kind: project
+    statement: The documentation SHOULD use `mkdocstrings` for API reference generation.
+  - id: IMPLTS-04-003
+    priority: SHOULD
+    kind: project
+    statement: The documentation theme SHOULD use Material for MkDocs.
+  - id: IMPLTS-04-004
+    priority: SHOULD
+    kind: project
+    statement: >-
+      The documentation SHOULD support Mermaid diagrams for behavior trees, state machines,
+      and process diagrams.
+- id: IMPLTS-05
+  title: Containerization and Deployment
+  specs:
+  - id: IMPLTS-05-001
+    priority: SHOULD
+    kind: project
+    statement: The system SHOULD support containerization using Docker.
+  - id: IMPLTS-05-002
+    priority: SHOULD
+    kind: project
+    statement: Multi-container demo environments SHOULD be orchestrated using `docker-compose`.
+  - id: IMPLTS-05-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The project MUST use GitHub Actions for CI/CD.
+  - id: IMPLTS-05-004
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: CI workflows MUST include automated testing.
+  - id: IMPLTS-05-005
+    priority: SHOULD
+    kind: project
+    statement: >-
+      CI workflows SHOULD support static site generation and deployment to GitHub Pages.
+  - id: IMPLTS-05-006
+    priority: SHOULD
+    kind: project
+    statement: Static documentation SHOULD be hosted via GitHub Pages.
+  - id: IMPLTS-05-007
+    priority: MUST
+    kind: process
+    verification_debt: '#2571'
+    statement: Source code MUST be hosted in GitHub using git for version control.
+- id: IMPLTS-07
+  title: Code Quality Tooling
+  specs:
+  - id: IMPLTS-07-002
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The project MUST use pyright for static type checking.
+    relationships:
+    - rel_type: implements
+      spec_id: CS-11-001
+  - id: IMPLTS-07-003
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: The project MUST use mypy for static type checking.
+    relationships:
+    - rel_type: implements
+      spec_id: CS-11-001
+  - id: IMPLTS-07-008
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    adr:
+    - ADR-0094
+    statement: >-
+      All functions and methods MUST have cyclomatic complexity ≤ 10, the generally accepted
+      upper bound for maintainable code. Enforced via `max-complexity = 10` under
+      `[tool.ruff.lint.mccabe]` in `pyproject.toml`, as part of the ruff CI gate and
+      pre-commit hook.
+    rationale: >-
+      The threshold is unchanged; only its enforcement point moved when ADR-0094 retired
+      `.flake8`. `C901` is the ruff rule that reports it, and it is the project's single
+      complexity gate — the competing `PLR09xx` counters are deliberately excluded so that
+      two differently-calibrated gates cannot disagree.
+    relationships:
+  - id: IMPLTS-07-005
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    adr:
+    - ADR-0094
+    statement: >-
+      The CI pipeline MUST run tests (`pytest`), ruff (`ruff check` and `ruff format --check`),
+      `mypy`, and `pyright` as separate parallel jobs. The build job MUST only execute when
+      all parallel jobs pass.
+    rationale: >-
+      Parallel execution surfaces all failures simultaneously, reducing fix-cycle time and
+      preserving the known-clean codebase baseline. ADR-0094 collapsed the separate Black and
+      flake8 jobs into one ruff job; lint and format remain a single job because ruff performs
+      both in about a second, so splitting them would cost more in runner startup than it saves.
+  - id: IMPLTS-07-006
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      The pytest configuration in `[tool.pytest.ini_options]` MUST include
+      `filterwarnings = ["error"]` so that test-suite warnings are treated as errors.
+  - id: IMPLTS-07-009
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      pyright MUST run in CI on every commit to `main` and on every pull request
+      targeting `main`.
+    rationale: Static type checking must be enforced on every change to the main branch.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-002
+  - id: IMPLTS-07-010
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: pyright MUST pass with zero errors.
+    rationale: A zero-error gate ensures the codebase remains fully type-correct under pyright.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-002
+  - id: IMPLTS-07-011
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      mypy MUST run in CI on every commit to `main` and on every pull request
+      targeting `main`.
+    rationale: Static type checking must be enforced on every change to the main branch.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-003
+  - id: IMPLTS-07-012
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: mypy MUST pass with zero errors.
+    rationale: A zero-error gate ensures the codebase remains fully type-correct under mypy.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-003
+  - id: IMPLTS-07-015
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Existing warnings MUST be resolved before the `filterwarnings = ["error"]`
+      setting is activated.
+    rationale: >-
+      Unresolved pre-existing warnings must be cleared to avoid a broken CI state
+      when the filterwarnings gate is enabled.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-006
+  - id: IMPLTS-07-016
+    priority: MUST_NOT
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      New warnings MUST NOT be introduced after `filterwarnings = ["error"]` is
+      active.
+    rationale: >-
+      Preventing new warnings maintains the zero-warning discipline established by
+      the filterwarnings setting.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-006
+  - id: IMPLTS-07-017
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0094
+    statement: >-
+      The project MUST use ruff as its sole Python linter and formatter, configured under
+      `[tool.ruff]` in `pyproject.toml`, and ruff MUST be enforced via pre-commit hooks AND
+      in the CI pipeline. Black, flake8 and isort MUST NOT be reintroduced alongside it.
+    rationale: >-
+      One tool covering linting, formatting and import ordering removes the ungated-isort
+      drift trap and reduces the whole-tree gate from tens of seconds to about one, which is
+      the cost paid on every commit that edits a Python file. The prohibition on
+      reintroduction is CS-15-001 applied to tooling: leaving a superseded linter in place as
+      a fallback recreates the duplicate-gate problem ADR-0094 removed.
+    verification: >-
+      `pyproject.toml` contains a `[tool.ruff]` table; `.flake8`, `[tool.black]` and
+      `[tool.isort]` are absent; `black`, `flake8` and `isort` are absent from the `dev`
+      dependency group; and `.pre-commit-config.yaml` defines a ruff hook and no black or
+      flake8 hook.
+    relationships:
+    - rel_type: implements
+      spec_id: CS-01-001
+    - rel_type: implements
+      spec_id: CS-02-001
+  - id: IMPLTS-07-018
+    priority: MUST
+    kind: project
+    adr:
+    - ADR-0094
+    statement: >-
+      `ruff check` and `ruff format --check` MUST run in CI on every commit to `main` and on
+      every pull request targeting `main`, and both MUST pass with zero findings.
+    rationale: >-
+      Carries forward the obligations retired with IMPLTS-07-013 and IMPLTS-07-014. A
+      zero-finding gate is only meaningful because the baseline mechanism in IMPLTS-07-020
+      keeps known residue visible rather than silently tolerated.
+    verification: >-
+      The `lint-ruff` job in `.github/workflows/python-app.yml` runs both commands without an
+      exit-code override and without path operands, and the `build` job lists it in `needs`.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-017
+  - id: IMPLTS-07-019
+    priority: MUST
+    kind: process
+    adr:
+    - ADR-0094
+    statement: >-
+      Every entry in the ruff `ignore` list MUST carry an inline comment stating what the rule
+      reports and why this project does not enforce it. An entry MAY cite a tracking issue in
+      place of a standing rationale when the exclusion is provisional.
+    rationale: >-
+      An unexplained exclusion is indistinguishable from an oversight, so nobody dares delete
+      it and the list only grows. Requiring a stated reason makes the `ignore` block the
+      authoritative record of what the project has deliberately chosen not to enforce, and
+      makes tightening a legible one-line change rather than an archaeology exercise. This is
+      the same discipline CS-23-001 imposes on a sanctioned broad `except`.
+    verification: >-
+      Every line of the `ignore` array in `[tool.ruff.lint]` is preceded by or carries a
+      comment; a reviewer can state the reason for each exclusion without consulting history.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-017
+  - id: IMPLTS-07-020
+    priority: MUST
+    kind: process
+    adr:
+    - ADR-0094
+    statement: >-
+      A ruff finding suppressed to keep the gate green — as distinct from a rule excluded
+      project-wide under IMPLTS-07-019 — MUST be suppressed with a per-line `# noqa` marker
+      naming both the rule and the issue that tracks its removal, and `RUF100` MUST remain
+      selected.
+    rationale: >-
+      `RUF100` reports a `# noqa` that suppresses nothing, making ruff itself the ratchet: a
+      new violation without a marker fails, and a fixed site whose marker was left behind
+      also fails. That is the property set ADR-0064 required — growth fails, silent progress
+      fails, completion forces removal — with no hand-maintained backlog. Naming the tracking
+      issue separates a scheduled cleanup from an unjustified suppression. ADR-0094 records
+      why file-scoped `per-file-ignores` cannot substitute.
+    verification: >-
+      `RUF100` is absent from the `ignore` list, and every `# noqa` added for baselining names
+      a rule code and an issue number.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-017
+  - id: IMPLTS-07-021
+    priority: MUST
+    kind: process
+    adr:
+    - ADR-0094
+    statement: >-
+      The scope of a lint, format, or type check MUST be declared in that tool's configuration
+      file, not in the arguments of the commands that invoke it. Callers — CI jobs, pre-commit
+      hooks, agent skills, and documented developer commands — MUST invoke the tool with no
+      path operands.
+    rationale: >-
+      A scope expressed as command-line arguments is duplicated at every call site and drifts
+      silently, because nothing compares the spellings. ADR-0094 records two drifts that were
+      live when it was written — one left code formatted but never linted, the other made some
+      pull requests type-check less than commits did. Declaring scope once makes a scope change
+      one edit to one file, and makes caller disagreement impossible rather than unlikely.
+    verification: >-
+      No invocation of `ruff`, `mypy` or `pyright` in `.github/workflows/`, `.agents/skills/`,
+      `.pre-commit-config.yaml`, `Makefile`, `CONTRIBUTING.md`, or `docs/developer/` passes a
+      path operand, and each tool's configuration declares its own scope. `Makefile` and
+      `CONTRIBUTING.md` are named explicitly because they are the two call sites most easily
+      missed: the `Makefile` carries both a `flake8` target and an aggregate `lint` target, and
+      `CONTRIBUTING.md` is the invocation new contributors copy.
+    relationships:
+    - rel_type: refines
+      spec_id: IMPLTS-07-017
+    - rel_type: constrains
+      spec_id: IMPLTS-07-005
+- id: IMPLTS-06
+  title: Optional and Prototype Extensions
+  specs:
+  - id: IMPLTS-06-001
+    priority: MAY
+    kind: project
+    statement: The system MAY provide interactive demo interfaces using Streamlit.
+  - id: IMPLTS-06-002
+    priority: MAY
+    kind: project
+    statement: The project MAY use uv for Python environment and dependency management.
+  - id: IMPLTS-06-003
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      The system MUST NOT carry rdflib or owlready2 as dependencies. The OWL/TTL
+      ontology under `ontology/` is retained as a working record and is withheld
+      from the published site, so nothing reads it at runtime or at docs-build
+      time.
+    rationale: >-
+      Both libraries existed solely for `vultron/scripts/ontology2md.py`, which
+      rendered the ontology into five `docs/reference/ontology/` pages at
+      build time. #3551 withheld those pages, leaving the script with no callers
+      and two RDF libraries in the runtime dependency set — and therefore in
+      every deployed container image — for no runtime purpose. The script and
+      both dependencies were removed in #3570. Reintroducing either means
+      reopening the question of whether the ontology is a maintained artifact.
+    verification: >-
+      `test/architecture/test_no_rdf_dependencies.py` fails if either library
+      is declared in any `pyproject.toml` dependency group or imported by any
+      module under `vultron/` or `test/`.
+  - id: IMPLTS-06-004
+    priority: MAY
+    kind: project
+    statement: The system MAY use numpy and pandas for data manipulation and analysis.

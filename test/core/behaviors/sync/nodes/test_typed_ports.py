@@ -1,0 +1,466 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""Typed-Ports isolation tests for sync domain nodes (AC-4, issue #1885).
+
+Covers BTND-03-011 (NoDataAvailable on missing required port) and happy-path
+execution via BTTestScenario for sync Type-B nodes.
+
+Also covers the ``log_entry`` ledger-handoff type contract
+(#2907): the key carries a ``CaseLedgerEntry`` and every declaration
+says so, so a wrong-typed value is rejected at the port instead of reaching the
+``cast(CaseLedgerEntry, ...)`` in each node's ``update()``.
+"""
+
+from typing import Any
+
+import py_trees
+import pytest
+from py_trees.ports import NoDataAvailable
+
+import vultron.core.behaviors.sync.nodes as sync_nodes_pkg
+from test.core.behaviors.bt_harness import BTTestScenario
+from test.core.behaviors.port_contract import (
+    PortDecl,
+    decl_id,
+    discover_port_declarations,
+)
+from vultron.core.behaviors.sync.nodes.chain import (
+    PersistLogEntryNode,
+    UpdateReplicationStateNode,
+)
+from vultron.core.behaviors.sync.nodes.fanout import (
+    CollectLogEntryRecipientsNode,
+    SendLogEntryToEachNode,
+)
+from vultron.core.behaviors.sync.nodes.participant_status_effect import (
+    ApplyParticipantStatusFromLedgerNode,
+)
+from vultron.core.behaviors.sync.nodes.receive import (
+    CheckHashMatchesNode,
+    LogDeliveryConfirmationNode,
+)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+ACTOR_ID = "https://example.org/actors/vendor"
+LEDGER_CASE_ID = "https://example.org/cases/case-ledger"
+
+#: The ledger-entry handoff key, with the physical blackboard key its
+#: logical port is remapped to (static, not execution-scoped).  The replay
+#: hands off the case id instead (``replay_case_id``): the Reject that names
+#: no entry has none to hand off (SYNC-16-007).
+LEDGER_PORTS: dict[str, str] = {
+    "log_entry": "/log_entry",
+}
+
+#: Constructor kwargs for every node in the discovered ledger-port roster.  A
+#: new node must be registered here; the coverage test below fails otherwise,
+#: so it cannot be silently dropped from the enforcement tests.
+LEDGER_NODE_KWARGS: dict[str, dict[str, Any]] = {
+    "CollectLogEntryRecipientsNode": {"case_id": LEDGER_CASE_ID},
+    "CreateLogEntryNode": {
+        "case_id": LEDGER_CASE_ID,
+        "object_id": "https://example.org/activities/act-001",
+        "semantic_type": "close_case",
+    },
+    "PersistLogEntryNode": {"name": "PersistLogEntry"},
+    "SendLogEntryToEachNode": {},
+}
+
+#: Extra blackboard context a node needs before its ``initialise()`` reaches
+#: the ledger port.  None does since the replay hands off a case id.
+LEDGER_TICK_EXTRAS: dict[str, dict[str, Any]] = {}
+
+
+LEDGER_READERS, LEDGER_WRITERS = discover_port_declarations(
+    sync_nodes_pkg, LEDGER_PORTS
+)
+
+
+def _build_ledger_node(node_cls: type) -> Any:
+    return node_cls(**LEDGER_NODE_KWARGS[node_cls.__name__])
+
+
+# ---------------------------------------------------------------------------
+# receive.py — LogDeliveryConfirmationNode
+# ---------------------------------------------------------------------------
+
+
+class TestLogDeliveryConfirmationNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = LogDeliveryConfirmationNode(name="LogDeliveryConfirmation")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_missing_activity_raises_no_data_available(self) -> None:
+        node = LogDeliveryConfirmationNode(name="LogDeliveryConfirmation")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("activity")
+
+    def test_failure_when_required_ports_absent(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        """Ticked with no domain context, the node fails rather than hangs.
+
+        Formerly named ``test_failure_when_datalayer_absent``, which it never
+        tested: ``BTBridge.setup_tree`` always injects a datalayer, so the
+        ``_require_datalayer()`` guard is unreachable from this harness. What
+        actually fails the tick is the missing ``activity`` port
+        (CONCERN-3019).
+        """
+        result = bt_scenario.run(
+            LogDeliveryConfirmationNode(name="LogDeliveryConfirmation"),
+            actor_id=ACTOR_ID,
+        )
+        bt_scenario.assert_failure(
+            result, reason="Input port 'activity'", allow_internal=True
+        )
+
+
+# ---------------------------------------------------------------------------
+# receive.py — CheckHashMatchesNode
+# ---------------------------------------------------------------------------
+
+
+class TestCheckHashMatchesNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = CheckHashMatchesNode(name="CheckHashMatches")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_missing_activity_raises_no_data_available(self) -> None:
+        node = CheckHashMatchesNode(name="CheckHashMatches")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("activity")
+
+    def test_missing_tail_hash_raises_no_data_available(self) -> None:
+        node = CheckHashMatchesNode(name="CheckHashMatches")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("tail_hash")
+
+
+# ---------------------------------------------------------------------------
+# chain.py — UpdateReplicationStateNode
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateReplicationStateNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = UpdateReplicationStateNode(name="UpdateReplicationState")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_missing_activity_raises_no_data_available(self) -> None:
+        node = UpdateReplicationStateNode(name="UpdateReplicationState")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("activity")
+
+
+# ---------------------------------------------------------------------------
+# chain.py — PersistLogEntryNode
+# ---------------------------------------------------------------------------
+
+
+class TestPersistLogEntryNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = PersistLogEntryNode(name="PersistLogEntry")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_missing_log_entry_raises_no_data_available(self) -> None:
+        node = PersistLogEntryNode(name="PersistLogEntry")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("log_entry")
+
+
+# ---------------------------------------------------------------------------
+# participant_status_effect.py — ApplyParticipantStatusFromLedgerNode
+# ---------------------------------------------------------------------------
+
+
+class TestApplyParticipantStatusFromLedgerNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = ApplyParticipantStatusFromLedgerNode(
+            name="ApplyParticipantStatusFromLedger"
+        )
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_missing_activity_raises_no_data_available(self) -> None:
+        node = ApplyParticipantStatusFromLedgerNode(
+            name="ApplyParticipantStatusFromLedger"
+        )
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("activity")
+
+
+# ---------------------------------------------------------------------------
+# fanout.py — SendLogEntryToEachNode
+# ---------------------------------------------------------------------------
+
+
+class TestSendLogEntryToEachNodePorts:
+    def test_missing_datalayer_raises_no_data_available(self) -> None:
+        node = SendLogEntryToEachNode(name="SendLogEntryToEach")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("datalayer")
+
+    def test_missing_log_entry_raises_no_data_available(self) -> None:
+        node = SendLogEntryToEachNode(name="SendLogEntryToEach")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("log_entry")
+
+    def test_missing_fanout_recipients_raises_no_data_available(self) -> None:
+        node = SendLogEntryToEachNode(name="SendLogEntryToEach")
+        node.setup_ports()
+        with pytest.raises(NoDataAvailable):
+            node.get_input("fanout_recipients")
+
+
+# ---------------------------------------------------------------------------
+# fanout.py — CollectLogEntryRecipientsNode output port (AC-4, BTND-03-012)
+# ---------------------------------------------------------------------------
+
+
+class TestCollectLogEntryRecipientsNodeOutputPorts:
+    def test_writes_fanout_recipients_on_success(
+        self, bt_scenario: BTTestScenario
+    ) -> None:
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+
+        case_id = "https://example.org/cases/case-001"
+        case = VulnerabilityCase(
+            id_=case_id,
+            name="Test Case",
+            attributed_to=ACTOR_ID,
+        )
+        bt_scenario.seed(case)
+        entry = CaseLedgerEntry(
+            case_id=case_id,
+            log_object_id="https://example.org/activities/act-001",
+            semantic_type="close_case",
+        )
+        result = bt_scenario.run(
+            CollectLogEntryRecipientsNode(case_id=case_id),
+            actor_id=ACTOR_ID,
+            log_entry=entry,
+        )
+        bt_scenario.assert_success(result)
+        written = py_trees.blackboard.Blackboard.storage.get(
+            "/fanout_recipients"
+        )
+        assert written is not None
+        assert isinstance(written, list)
+
+
+# ---------------------------------------------------------------------------
+# fanout.py — recipient collectors hard-fail on a missing case (#3101, ADR-0087)
+# ---------------------------------------------------------------------------
+
+
+class TestFanoutCollectorsRequireCase:
+    """Both recipient collectors are Regime 1 (ADR-0087, #3101).
+
+    Fan-out runs *after* the local commit persisted the entry to the case, so a
+    ``case_id`` that no longer resolves is an anomaly — not a routine
+    zero-recipient skip. Before #3101 these nodes warned, emitted ``[]``, and
+    returned SUCCESS, silently dropping replication of a committed entry even
+    though the commit tree treats non-SUCCESS as a real failure (ADR-0073,
+    BT-05-006). They now hard-fail through ``_require_case``.
+    """
+
+    @pytest.mark.parametrize("node_cls", [CollectLogEntryRecipientsNode])
+    def test_missing_case_fails(
+        self, bt_scenario: BTTestScenario, node_cls: type
+    ) -> None:
+        case_id = "https://example.org/cases/absent-case"
+        # log_entry is a required port, so provide one — the failure must come
+        # from the unresolved case, not from a missing hand-off value.
+        entry = CaseLedgerEntry(
+            case_id=case_id,
+            log_object_id="https://example.org/activities/act-001",
+            semantic_type="close_case",
+        )
+        result = bt_scenario.run(
+            node_cls(case_id=case_id),
+            actor_id=ACTOR_ID,
+            log_entry=entry,
+        )
+        bt_scenario.assert_failure(result)
+        assert result.feedback_message == (
+            f"case '{case_id}' not found in DataLayer"
+        )
+        # No recipients written: the flip is a hard fail, not a silent [].
+        assert (
+            py_trees.blackboard.Blackboard.storage.get("/fanout_recipients")
+            is None
+        )
+
+
+# ---------------------------------------------------------------------------
+# Ledger-entry handoff type contract (#2907)
+# ---------------------------------------------------------------------------
+
+
+def _make_ledger_entry() -> CaseLedgerEntry:
+    return CaseLedgerEntry(
+        case_id=LEDGER_CASE_ID,
+        log_object_id="https://example.org/activities/act-001",
+        semantic_type="close_case",
+    )
+
+
+class TestLedgerPortRosterDiscovery:
+    @pytest.mark.parametrize("port", sorted(LEDGER_PORTS))
+    def test_port_has_a_reader_and_a_writer(self, port: str) -> None:
+        """Guard against a refactor that silently empties the parametrize."""
+        assert any(p == port for _, p in LEDGER_READERS), (
+            f"no {port} readers discovered"
+        )
+        assert any(p == port for _, p in LEDGER_WRITERS), (
+            f"no {port} writers discovered"
+        )
+
+    def test_constructor_table_matches_the_discovered_roster(self) -> None:
+        """The table and the roster stay in step in both directions.
+
+        Missing entries would drop a node from the enforcement tests; stale
+        ones would outlive the node they name and never be noticed.
+        """
+        discovered = {
+            cls.__name__ for cls, _ in LEDGER_READERS + LEDGER_WRITERS
+        }
+        assert discovered == set(LEDGER_NODE_KWARGS)
+
+    def test_tick_extras_name_only_discovered_nodes(self) -> None:
+        """A stale ``LEDGER_TICK_EXTRAS`` key would mask nothing but confuse."""
+        discovered = {cls.__name__ for cls, _ in LEDGER_READERS}
+        assert set(LEDGER_TICK_EXTRAS) <= discovered
+
+
+@pytest.mark.spec("BTND-03-009")
+class TestLedgerPortDeclarations:
+    """Every tracked ledger port declares ``CaseLedgerEntry`` as its type.
+
+    A port typed this way refuses any value that is not a ``CaseLedgerEntry``.
+    """
+
+    @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)
+    def test_reader_declares_ledger_entry(self, decl: PortDecl) -> None:
+        node_cls, port_name = decl
+        port = node_cls.input_ports()[port_name]  # type: ignore[attr-defined]
+        assert port.data_type is CaseLedgerEntry
+        assert port.required is True
+
+    @pytest.mark.parametrize("decl", LEDGER_WRITERS, ids=decl_id)
+    def test_writer_declares_ledger_entry(self, decl: PortDecl) -> None:
+        node_cls, port_name = decl
+        port = node_cls.output_ports()[port_name]  # type: ignore[attr-defined]
+        assert port.data_type is CaseLedgerEntry
+        assert port.required is True
+
+
+@pytest.mark.spec("BTND-03-011")
+class TestLedgerPortInputEnforcement:
+    # py_trees' blackboard storage is a process-global singleton; the repo-wide
+    # autouse `clear_py_trees_blackboard` in test/conftest.py
+    # clears it around every test (TB-06-005).
+
+    @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)
+    def test_wrong_type_raises_type_error(self, decl: PortDecl) -> None:
+        node_cls, port = decl
+        node = _build_ledger_node(node_cls)
+        node.setup()
+        py_trees.blackboard.Blackboard.set(LEDGER_PORTS[port], "not-an-entry")
+        with pytest.raises(TypeError, match="not of type"):
+            node.get_input(port)
+
+    @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)
+    def test_ledger_entry_is_accepted(self, decl: PortDecl) -> None:
+        node_cls, port = decl
+        node = _build_ledger_node(node_cls)
+        node.setup()
+        entry = _make_ledger_entry()
+        py_trees.blackboard.Blackboard.set(LEDGER_PORTS[port], entry)
+        assert node.get_input(port) is entry
+
+
+@pytest.mark.spec("BTND-03-012")
+class TestLedgerPortOutputEnforcement:
+    @pytest.mark.parametrize("decl", LEDGER_WRITERS, ids=decl_id)
+    def test_writer_rejects_wrong_type(self, decl: PortDecl) -> None:
+        node_cls, port = decl
+        node = _build_ledger_node(node_cls)
+        node.setup()
+        with pytest.raises(TypeError, match="not of type"):
+            node._set_output(port, "not-an-entry")
+
+    @pytest.mark.parametrize("decl", LEDGER_WRITERS, ids=decl_id)
+    def test_writer_accepts_ledger_entry(self, decl: PortDecl) -> None:
+        node_cls, port = decl
+        node = _build_ledger_node(node_cls)
+        node.setup()
+        entry = _make_ledger_entry()
+        node._set_output(port, entry)
+        assert py_trees.blackboard.Blackboard.get(LEDGER_PORTS[port]) is entry
+
+
+@pytest.mark.spec("BTND-03-011")
+class TestLedgerPortTickLevelEnforcement:
+    """The type check is reached on the real production read path.
+
+    Every ledger-port reader calls ``get_input()`` directly in
+    ``initialise()``, so the ``TypeError`` propagates out of the tick and
+    ``BTBridge.execute_tree`` converts it into a tree-level FAILURE carrying
+    the type-mismatch message. Asserting on that message (not merely on
+    FAILURE) is what distinguishes a rejected value from a node that quietly
+    treated the junk as absent.
+    """
+
+    @pytest.mark.parametrize("decl", LEDGER_READERS, ids=decl_id)
+    def test_junk_on_key_fails_tree_with_type_error(
+        self, bt_scenario: BTTestScenario, decl: PortDecl
+    ) -> None:
+        node_cls, port = decl
+        result = bt_scenario.run(
+            _build_ledger_node(node_cls),
+            actor_id=ACTOR_ID,
+            **{port: "not-an-entry"},
+            **LEDGER_TICK_EXTRAS.get(node_cls.__name__, {}),
+        )
+        # A wrong-typed port value is a programming error, so the tree reports
+        # internal_error=True — that crash path is exactly this test's subject
+        # (CONCERN-3019, and the #2907 case that raised it).
+        bt_scenario.assert_failure(
+            result, reason="not of type", allow_internal=True
+        )
+        errors = result.errors or []
+        assert any("not of type" in err for err in errors), (
+            f"expected a port type-mismatch error, got {errors}"
+        )

@@ -1,0 +1,104 @@
+#!/usr/bin/env python
+"""This module provides enum related utility functions"""
+
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from collections.abc import Iterable
+from enum import Enum
+
+
+def _item_tuple(item: Enum) -> tuple[type, str | int]:
+    """Returns a tuple of the enum type and value
+    Args:
+        item: an enum item
+    Returns:
+        a tuple of the enum type and value
+    """
+    return (type(item), item.value)
+
+
+def enum_list_to_string_list(enum_iter: Iterable) -> list:
+    """Converts an iterator of enums to a list of strings
+
+    Args:
+        enum_iter: an iterator of enums
+
+    Returns:
+        a list of strings
+    """
+    return [f"{type(x).__name__}.{x.name}" for x in enum_iter]
+
+
+def enum_item_in_list(item: Enum, enum_iter: Iterable) -> bool:
+    """Checks if an enum item is in a list of enum items
+    Avoids the problem of comparing enums from different enums
+
+    Args:
+        item: an enum item
+        enum_iter: a list of enum items
+
+    Returns:
+
+    """
+    # the lists may contain the same integer value from different enums
+    # so we can't use the in operator directly
+
+    # the lists may also contain the same string value from different enums
+    # so we cant compare the name attributes either
+
+    # both the item value and item type must match
+    types = [_item_tuple(x) for x in enum_iter]
+    item_tup = _item_tuple(item)
+    return item_tup in types
+
+
+def uniq_enum_iter(enum_iter: Iterable) -> Iterable:
+    """Returns an iterator of unique enums from an iterator of enums
+
+    Args:
+        enum_iter: an iterator of enums, can be from different enums
+
+    Returns:
+        an iterator of unique enums
+    """
+    seen = set()
+    for item in enum_iter:
+        item_tup = _item_tuple(item)
+        if item_tup not in seen:
+            yield item
+            seen.add(item_tup)
+
+
+def unique_enum_list(enum_iter: Iterable) -> list:
+    """Returns a list of unique enums from a list of enums
+
+    Args:
+        enum_iter: a list of enums, can be from different enums
+
+    Returns:
+        a list of unique enums
+    """
+    return list(uniq_enum_iter(enum_iter))
+
+
+def enum2title(enum_item: Enum) -> str:
+    """Converts an enum item to a title string
+
+    Args:
+        enum_item: an enum item
+
+    Returns:
+        a title string
+    """
+    return enum_item.name.replace("_", " ").title()

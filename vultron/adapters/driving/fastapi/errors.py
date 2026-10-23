@@ -1,0 +1,112 @@
+from collections.abc import Generator
+from contextlib import contextmanager
+
+from fastapi import HTTPException, status
+from pydantic import ValidationError as PydanticValidationError
+
+from vultron.errors import (
+    VultronError,
+    VultronInvalidStateTransitionError,
+    VultronNotFoundError,
+    VultronValidationError,
+)
+
+
+@contextmanager
+def domain_error_translation() -> Generator[None, None, None]:
+    """Context manager that translates domain exceptions to HTTPExceptions."""
+    try:
+        yield
+    except (VultronError, PydanticValidationError) as e:
+        raise translate_domain_errors(e)  # noqa: B904  # ruff-baseline #3353
+
+
+def conflict_http_exception(
+    message: str, *, activity_id: str | None = None
+) -> HTTPException:
+    """A 409 carrying the structured EH-05-001 body every conflict uses."""
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "status": 409,
+            "error": "Conflict",
+            "message": message,
+            "activity_id": activity_id,
+        },
+    )
+
+
+def translate_domain_errors(exc: Exception) -> HTTPException:
+    """Convert a domain exception to an appropriate HTTPException."""
+    if isinstance(exc, VultronNotFoundError):
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "status": 404,
+                "error": "NotFound",
+                "message": str(exc),
+                "activity_id": None,
+            },
+        )
+    if isinstance(exc, VultronInvalidStateTransitionError):
+        return conflict_http_exception(
+            str(exc), activity_id=getattr(exc, "activity_id", None)
+        )
+    if isinstance(exc, (VultronValidationError, PydanticValidationError)):
+        detail: dict[str, object] = {
+            "status": 422,
+            "error": "ValidationError",
+            "message": str(exc),
+            "activity_id": getattr(exc, "activity_id", None),
+        }
+        # EH-05-002: when the boundary recognised more than one violation,
+        # surface them as structured entries so callers are not forced to parse
+        # `message` — a fragility ISSUE-2112 named, since a change to internal
+        # check order silently alters which error a text parser picks up.
+        # `message` still renders the whole set, so text-only consumers are no
+        # worse off.
+        violations = getattr(exc, "violations", ())
+        if violations:
+            detail["details"] = [
+                {
+                    "message": violation.message,
+                    "classification": violation.classification,
+                    "dimensions": list(violation.dimensions),
+                }
+                for violation in violations
+            ]
+        return HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=detail,
+        )
+    raise exc
+
+
+class VultronApiError(VultronError):
+    """Base class for all Vultron API v2 errors."""
+
+
+class VultronApiValidationError(VultronApiError, ValueError):
+    """Raised when there is a validation error in the API request."""
+
+
+class VultronApiDispatchError(VultronApiError, RuntimeError):
+    """Raised when there is an error dispatching an activity to its handler."""
+
+
+class VultronApiHandlerMissingSemanticError(VultronApiError, ValueError):
+    """Raised when a dispatchable activity is missing a semantic_type."""
+
+    def __init__(self):
+        super().__init__("Dispatchable activity is missing semantic_type")
+
+
+class VultronApiHandlerSemanticMismatchError(VultronApiError, ValueError):
+    """Raised when the semantics of an activity do not match the expected semantics for its handler."""
+
+    def __init__(self, expected: str, actual: str):
+        self.expected = expected
+        self.actual = actual
+        super().__init__(
+            f"Semantic mismatch: expected '{expected}', got '{actual}'"
+        )

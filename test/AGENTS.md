@@ -1,0 +1,200 @@
+# AGENTS.md — test/
+
+This directory contains all pytest tests for the Vultron project. Test
+structure mirrors the source layout under `vultron/`.
+
+See the root `AGENTS.md` for project-wide guidance. This file holds the rules you
+need on *every* run; the longer pitfall write-ups live in
+[`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md).
+
+---
+
+## ⚠️ Running the Test Suite — ONE RUN RULE (MUST)
+
+```bash
+log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)
+```
+
+Run **exactly once**; never re-run for counts, a longer tail, or `-q`. `-n auto`
+is sized to the slot's cgroup, not `nproc` ([pitfalls](../notes/testing-pitfalls.md)).
+
+**Read `exit:` before the tail — it is the verdict; the tail is only detail.**
+Never pipe the run into `tail` (`… 2>&1 | tail -5`) or through `tee`: a pipeline
+exits with `tail`'s status, so a killed run reports 0 and shows its last output
+where the summary line would be — indistinguishable from a pass if you
+only read the tail. The redirect form above is the default for every run, not a
+diagnostic fallback. See
+[`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md) § "A Killed `pytest`
+Run Reports Exit 0 Under `tail -5`".
+
+## Running a Specific Test File
+
+```bash
+uv run pytest test/test_semantic_activity_patterns.py -v
+```
+
+<!-- markdownlint-disable-next-line MD013 -->
+Before a Pull Request's first push, if `vultron/demo/` or `test/demo/` was touched, run the full suite (after the push, a fix commit is gated by `targeted-tests`, PAD-18-002/003): `log="/tmp/vultron-$(basename "$(git rev-parse --show-toplevel)")-tests.log"; timeout -k 30 1800 uv run pytest -m "" -n auto --tb=short > "$log" 2>&1; rc=$?; tail -5 "$log"; echo "exit: $rc"; (exit $rc)`.
+
+---
+
+## Test Layout and Expectations
+
+- `test/` mirrors `vultron/`; test files named `test_*.py`; fixtures in
+  `conftest.py` at each level.
+- 80%+ line coverage overall; 100% for message validation, semantic extraction,
+  dispatch routing, error handling. See `specs/testability.yaml`.
+- Use `monkeypatch` for DI; real SQLite for integration tests; verify logs with
+  `caplog`; test success and error paths.
+- Use full Pydantic models in tests (not string IDs/primitives). Match semantic
+  types to structure (TB-05-004, TB-05-005). Use full URIs for actor/object fields.
+- Handler tests MUST verify: semantic dispatch, state transitions, outbox
+  activities, error conditions, idempotency. See `specs/handler-protocol.yaml`.
+- Testing step MUST use a single agent instance.
+- When splitting `nodes.py` → `nodes/`, mirror the split in the test layout
+  (NODES-SPLIT-883) — see
+  [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md) § "Test Layout and
+  Markers".
+
+---
+
+## Timeouts Are Two-Tier
+
+| Tier | Ceiling | Set in |
+|---|---|---|
+| Unit (default) | 30s | `timeout = 30`, `pyproject.toml` |
+| `@pytest.mark.integration` | 60s | `INTEGRATION_TIMEOUT_SECONDS`, `test/conftest.py` |
+
+`timeout_method = "signal"`: a trip fails that one test and the session goes on.
+An explicit `@pytest.mark.timeout(N)` wins over the tier default, is a last
+resort, and MUST carry a comment explaining why. Why these numbers, and why the
+method matters more than the ceiling:
+[`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md) § "Per-Test Timeout
+Guardrail".
+
+---
+
+## `test/demo/` Tests Are Auto-Marked `integration` by a Directory Hook
+
+`test/demo/conftest.py` marks **every** test there `integration`, and `addopts`
+is `-m 'not integration'` — so a bare run of one demo file silently deselects it
+("N deselected", 0 passed), which reads like a collection error. Always `-m ""`:
+
+```bash
+uv run pytest test/demo/test_something.py -m ""
+```
+
+---
+
+## Demo Integration Test Isolation
+
+Each actor MUST use a **distinct `DataLayer` instance**; mark tests
+`@pytest.mark.integration`. See
+[`vultron/adapters/driven/AGENTS.md`](../vultron/adapters/driven/AGENTS.md)
+§ "Co-located actor isolation" and § "Reentrancy Guard".
+
+An `actor_id` *is* a store name and a BT's store follows its executing actor —
+both hazards, plus the `@pytest.mark.executes_as` fix for the second:
+[`notes/datalayer-design.md`](../notes/datalayer-design.md) § "One Actor Id Is
+One Database".
+
+CI failures: [`notes/demo-ci-diagnostics.md`](../notes/demo-ci-diagnostics.md).
+The invariant harness is a separate job from the demo run, read separately:
+[`notes/demo-ci-invariants.md`](../notes/demo-ci-invariants.md).
+
+---
+
+## Pytest Collection Hygiene
+
+### `filterwarnings = ["error"]` Does Not Catch All Warnings
+
+It converts `warnings.warn()` to errors, but does NOT catch `ResourceWarning` /
+`"Exception ignored in:"` at process teardown. After running the suite, scan for
+these — they're still bugs. Fix by explicitly closing resources in fixtures.
+
+### Pytest Helper Enums Must Not Use `Test*` Names
+
+Pytest treats `Test*` classes as test candidates even when they're helper enums.
+Use neutral names: `MockEnum`, `ExampleState`, `FixtureEnum`. Enforced by
+`test/test_pytest_collection_hygiene.py`.
+
+### Tests Verifying a Protocol- or Foundation-Kind Requirement MUST Carry `@pytest.mark.spec`
+
+(SR-05-004, ISSUE-2117, ISSUE-4528)
+
+Without a marker the PR-only coverage guard (SR-05-005,
+`test/architecture/test_spec_coverage_ratchet.py`) cannot enforce coverage, so
+the conformance-critical requirement becomes unverifiable. Add
+`@pytest.mark.spec("<ID>")` to every test exercising a `kind: protocol` or
+`kind: foundation` entry; `spec-coverage` lists the IDs of both kinds still
+unmarked. The strict-`xfail` pattern for a spec not implemented yet:
+[`notes/spec-authoring-rules.md`](../notes/spec-authoring-rules.md).
+
+### Renaming a Mark Touches Three Files
+
+`pyproject.toml`, `.github/workflows/`, and the test sources — all in the same
+changeset, or pytest collects 0 tests (exit code 5). Verification commands:
+[`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md) § "Pytest Mark
+Consistency".
+
+---
+
+## Config in Fixtures
+
+`vultron/config/app.py` caches `get_config()` process-wide. Prefer
+`config_override()`; where you cannot, `monkeypatch.undo()` MUST precede
+`reload_config()` in teardown, or the patched value is pinned into the cache for
+the rest of the session. A module that depends on a `VULTRON_*` setting MUST set
+it itself rather than borrowing another module's leak. Both rules, the
+autouse leak guard and its function-scope-only limitation:
+[`notes/configuration.md`](../notes/configuration.md) § "Testing Pattern".
+
+---
+
+## Pitfall Index
+
+Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
+
+- **A `filterwarnings` exemption listed *before* `"error"` is a no-op** (SR-05-007)
+  — later entries win, so the warning becomes a session-aborting exception. Verify
+  behaviourally in a `pytester` sub-session; `pytest.warns`/`catch_warnings`
+  replace the ini filters and cannot see the escalation.
+- **Vacuous assertions** — broadcast guards need a third participant; hash-chain
+  comparisons need presence checks before equality (`"" == ""` passes);
+  `MagicMock` needs `spec=` wherever code uses `isinstance()`; the genesis-hash
+  path needs a stored case (CLP-08-004); `call_args.args` over `call_args[0]`.
+- **A test that "falls back to" a value for *malformed* input is asserting a
+  bug** — absent input and unreadable input are different.
+- **A FAILURE test must prove the harness can produce its named reason** — the
+  scenario always injects a datalayer and a trigger-activity adapter, so
+  "failure when X absent" for either is unreachable; assert the reason
+  (`assert_failure(result, reason=...)`), not just the status, and note that
+  `allow_internal=True` requires a `reason`.
+- **Process-global state** — reset only in root `test/conftest.py` (blackboard,
+  per-actor registries; no per-directory copy, #3996); define test BT subclasses
+  at module level; test-local `CoreObject`/`CoreRecord` subclasses pollute
+  `CORE_VOCABULARY`/`CORE_TYPE_MAP` (use `isolated_core_registries`);
+  `SUBFAILED` in `unittest` subtests does not fail pytest; `caplog.set_level()`
+  in a fixture captures other fixtures' setup.
+- **BT test patterns** — pass a deterministic factory when the default is
+  probabilistic; contract-test wrappers inherit the *production* node class; stub
+  every probabilistic node *except* the one under test;
+  `ResolveCaseManagerNode` needs a CASE_MANAGER participant in the fixture.
+- **Fixtures that silently miss deliveries** — the outbox `BackgroundTasks`
+  emitter has two resolution paths, patch both; a `_TestClientRouter` WARNING for
+  an unregistered host is a config-leak signal; `rm -rf devlogs/` before running
+  the invariant harness locally.
+- **Coverage shape** — one test per distinct lookup path when consolidating
+  helpers; trigger use cases need per-use-case tests
+  ([`notes/triggers-test-coverage.md`](../notes/triggers-test-coverage.md)).
+- **The timeout *method* sets what a trip costs; the ceiling only sets how
+  often** — `thread` killed the session or xdist worker, `signal` fails one test
+  (#3603); a dead worker fails the run, and gate exit 124 means it hung (#4809).
+- **A marker sweep that counts declarations misses a directory hook** — grepping
+  `pytestmark` calls `test/demo/` non-compliant when its hook marks it 100%; ask
+  what collected items carry via a probe; the tier is asserted over the real
+  collection (#3604).
+- **SYNC replication test setup** — `notes/sync-ledger-replication.md` § "SYNC
+  Replication Test Patterns". A `LedgerNetwork` is rebuilt from its ledger at
+  teardown; direct CASE_MANAGER setup writes call `bypass_ledger()`
+  ([`notes/case-ledger-authority.md`](../notes/case-ledger-authority.md)).

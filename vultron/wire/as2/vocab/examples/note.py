@@ -1,0 +1,58 @@
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from vultron.wire.as2.factories import add_note_to_case_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Add,
+    as_Remove,
+)
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.examples._base import (
+    _example_stamp,
+    base_url,
+    case,
+    finder,
+)
+
+
+def note() -> as_Note:
+    _case = case()
+    _note = as_Note(
+        name="Note",
+        id_=f"{base_url}/notes/1",
+        content="This is a note.",
+        context=_case.id_,
+        **_example_stamp(),
+    )
+    return _note
+
+
+def add_note_to_case() -> as_Add:
+    _finder = finder()
+    _case = case()
+    _note = note()
+
+    activity = add_note_to_case_activity(
+        _note, actor=_finder.id_, target=_case.id_
+    )
+
+    return activity
+
+
+def remove_note_from_case() -> as_Remove:
+    """``Remove(Note)[target=VulnerabilityCase]``: the note's author withdraws it."""
+    return as_Remove(
+        actor=finder().id_,
+        object_=note(),
+        target=case().id_,
+    )

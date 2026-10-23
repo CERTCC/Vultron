@@ -2,6 +2,7 @@
 """
 Provides report_to_others behavior tree nodes.
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -29,11 +30,11 @@ from vultron.bt.embargo_management.conditions import (
     EMinStateActiveOrRevise,
     EMinStateNoneOrProposeOrRevise,
 )
+from vultron.bt.messaging.message import Message
 from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.fuzzer.report_to_others import (
     AllPartiesKnown,
     ChooseRecipient,
-    FindContact,
     HaveReportToOthersCapability,
     InjectCoordinator,
     InjectOther,
@@ -46,8 +47,8 @@ from vultron.bt.report_management.fuzzer.report_to_others import (
     RcptNotInQrmS,
     RecipientEffortExceeded,
 )
-from vultron.case_states.states import CS
-from vultron.sim.messages import Message
+from vultron.core.states.cs import CS
+from vultron.errors import VultronError
 
 # from vultron.sim.communications import Message
 
@@ -56,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 def reporting_effort_available(obj: BtNode) -> bool:
     """True if reporting effort budget remains"""
-    return obj.bb.reporting_effort_budget > 0
+    return bool(obj.bb.reporting_effort_budget > 0)
 
 
 _ReportingEffortAvailable = condition_check(
@@ -70,17 +71,26 @@ _TotalEffortLimitMet = invert(
 )
 
 _IdentifyVendors = sequence_node(
-    "_IdentifyVendors", """XXX""", MoreVendors, InjectVendor
+    "_IdentifyVendors",
+    "Checks for more vendors to notify, then injects one into the candidate list",
+    MoreVendors,
+    InjectVendor,
 )
 
 
 _IdentifyCoordinators = sequence_node(
-    "_IdentifyCoordinators", """XXX""", MoreCoordinators, InjectCoordinator
+    "_IdentifyCoordinators",
+    "Checks for more coordinators to notify, then injects one into the candidate list",
+    MoreCoordinators,
+    InjectCoordinator,
 )
 
 
 _IdentifyOthers = sequence_node(
-    "_IdentifyOthers", """XXX""", MoreOthers, InjectOther
+    "_IdentifyOthers",
+    "Checks for more other parties to notify, then injects one into the candidate list",
+    MoreOthers,
+    InjectOther,
 )
 
 
@@ -118,12 +128,12 @@ def remove_recipient(obj: BtNode) -> bool:
     if current is None:
         return True
 
-    logger.debug(f"Removing {current} from potential participants list")
+    logger.debug("Removing %s from potential participants list", current)
     try:
         obj.bb.case.potential_participants.remove(current)
     except ValueError:
         logger.warning(
-            f"Unable to remove {current}, not in potential participants list"
+            "Unable to remove %s, not in potential participants list", current
         )
     obj.bb.currently_notifying = None
     return True
@@ -134,7 +144,7 @@ _RemoveRecipient = action_node("RemoveRecipient", remove_recipient)
 
 _PruneRecipients = sequence_node(
     "_PruneRecipients",
-    """XXX""",
+    "Decides whether to prune a recipient, then removes them from the candidate list",
     _DecideWhetherToPruneRecipient,
     _RemoveRecipient,
 )
@@ -167,7 +177,7 @@ def report_to_new_participant(obj: BtNode) -> bool:
         dm = obj.bb.dm_func
         dm(message=report, recipient=obj.bb.currently_notifying)
     except AttributeError:
-        logger.warning(f"Node blackboard dm_func is not set. No message sent.")
+        logger.warning("Node blackboard dm_func is not set. No message sent.")
         return False
 
     return True
@@ -183,7 +193,7 @@ def connect_new_participant_to_case(obj: BtNode) -> bool:
     # wire up their inbox to the case
     add_func = obj.bb.add_participant_func
     if add_func is None:
-        logger.warning(f"Node blackboard add_participant_func is not set.")
+        logger.warning("Node blackboard add_participant_func is not set.")
         return False
 
     add_func(obj.bb.currently_notifying)
@@ -200,15 +210,33 @@ def bring_new_participant_up_to_speed(obj: BtNode) -> bool:
     # EM state is global to the case
     obj.bb.currently_notifying.bt.bb.q_em = obj.bb.q_em
 
-    # FIXME this doesn't work with the new CS enumerations
-    # CS.PXA is 000111, so only the P, X, and A states carry over
-    obj.bb.currently_notifying.bt.bb.q_cs = CS.PXA & obj.bb.q_cs
+    # vfd it per participant
+    # but pxa is per case
+    our_q_cs = obj.bb.q_cs
+    their_q_cs = obj.bb.currently_notifying.bt.bb.q_cs
 
+    # they can keep whatever vf+d state they had
+    their_vf = their_q_cs.value.vf_state.name
+    their_d = their_q_cs.value.d_state.name
+    # but we need to set their pxa state to match ours
+    our_pxa = our_q_cs.value.pxa_state.name
+
+    # construct the new CS name
+    new_cs_name = their_vf + their_d + our_pxa
+    # look up the new CS enum
+    # and set their state to it
+    try:
+        new_val = CS[new_cs_name]
+    except KeyError:
+        logger.error("Invalid new case state name %s", new_cs_name)  # noqa: TRY400  # ruff-baseline #3353
+        raise VultronError(f"Invalid new case state name {new_cs_name}")  # noqa: B904  # ruff-baseline #3353
+
+    obj.bb.currently_notifying.bt.bb.q_cs = new_val
     return True
 
 
 _BringNewParticipantUpToSpeed = action_node(
-    "BringNewParticipantUpToSpeed", bring_new_participant_up_to_speed
+    name="BringNewParticipantUpToSpeed", func=bring_new_participant_up_to_speed
 )
 
 
@@ -225,9 +253,8 @@ _EngageParticipant = sequence_node(
 #  will also need to sync case pxa and embargo status with new participant
 _NotifyRecipient = sequence_node(
     "_NotifyRecipient",
-    "Checks if it is ok to notify a recipient, finds their contact info, then notifies them",
+    "Checks if it is ok to notify a recipient, then notifies them",
     _EnsureOkToNotify,
-    FindContact,
     _EngageParticipant,
 )
 

@@ -1,3 +1,11 @@
+---
+stakeholder_type: [process-researcher]
+level: 500
+page_type: explanation
+description: >
+  How often each history and each desired ordering occurs under that baseline.
+---
+
 # Reasoning over Possible Histories
 
 {% include-markdown "../../includes/not_normative.md" %}
@@ -6,7 +14,7 @@ Our goal in this section is to formulate a way to rank our
 undifferentiated desiderata $\mathbb{D}$ from
 [On the Desirability of Possible Histories](./desirable_histories.md) in order to develop the concept of CVD
 skill and its measurement in [Discriminating Skill and Luck](discriminating_skill_and_luck.md).
-This will provide a baseline expectation about [CS events](../process_models/cs/events.md).
+This will provide a baseline expectation about [CS events](../process_models/cs/transitions.md#cs-input-symbols).
 
 ## History Frequency Analysis
 
@@ -22,8 +30,9 @@ history, which we denote as $f_h$.
     in the history $h$. We are only concerned with histories that meet our
     sequence constraints, namely $h \in \mathcal{H}$.
     
-    $$\label{eq:history_freq}
-        f_h = \prod_{i=0}^{5} p(\sigma_{i+1}|h_i) %\textrm{ where } \sigma_i \in h \textrm{ and } h \in H$$
+    $$
+        f_h = \prod_{i=0}^{5} p(\sigma_{i+1}|h_i)
+    $$
 
 The [Possible Histories table](./possible_histories.md) displays the value of $f_h$ for each history.
 Having an expected frequency ($f_h$) for each history $h$ will
@@ -186,7 +195,7 @@ order $(\mathbb{D},\leq_{\mathbb{D}})$ just described.
 
     We observe that
     $\mathbb{D}^{h}$ acts as a Boolean vector of desiderata met by a given
-    $h$. Since $0 \leq f_d \leq 1$, simply taking its inverse could in the
+    $h$. Since $0 \leq f_d \leq 1$, taking its inverse could in the
     general case lead to some large values for rare events. For convenience,
     we use $-log(f_d)$ as our proxy for skill. For example, if a desideratum
     were found to occur in every case (indicating no skill required),
@@ -197,7 +206,7 @@ order $(\mathbb{D},\leq_{\mathbb{D}})$ just described.
     Taking the dot product of $\mathbb{D}^h$ with the set of $-log(f_d)$
     values for each $d \in \mathbb{D}$ represented as a vector, we arrive at
     a single value representing the skill exhibited for each history $h$.
-    Careful readers may note that this value is equivalent to the
+    This value is equivalent to the
      [TF-IDF](https://en.wikipedia.org/wiki/Tf%E2%80%93idf){:target="_blank"} score for
     a search for the "skill terms" represented by $\mathbb{D}$ across the
     corpus of possible histories $\mathcal{H}$.
