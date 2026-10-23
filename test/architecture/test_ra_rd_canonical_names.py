@@ -30,7 +30,9 @@ _REPO = Path(__file__).parents[2]
 
 _KEY_REFS = [
     _REPO / "docs/reference/formal_protocol/messages.md",
-    _REPO / "docs/reference/quick_reference.md",
+    # The Protocol Quick Reference renders its formal message table from this
+    # generated fragment (MSM-06-004), so the names are checked at the source.
+    _REPO / "docs/reference/messages/_occasions/shorthands.md",
     _REPO / "docs/reference/glossary.md",
     _REPO / "docs/_acronyms/index.md",
 ]
