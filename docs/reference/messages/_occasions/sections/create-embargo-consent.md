@@ -7,7 +7,7 @@ Carries the new consent row in full: the embargo it answers, the participant it 
 - **When…** the Case Manager creates a participant's consent row for an embargo, such as the UNINVITED row a proposal writes
 - **Send:** `Create(EmbargoConsent)`
 - **Send to:** a participant
-- **Sent by:** not handled
+- **Sent by:** internal to the case manager
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 Each participant learns of it from the case ledger, so it is addressed to nobody.

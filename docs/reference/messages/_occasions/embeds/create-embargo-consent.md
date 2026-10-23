@@ -7,7 +7,7 @@
     - **When…** the Case Manager creates a participant's consent row for an embargo, such as the UNINVITED row a proposal writes
     - **Send:** `Create(EmbargoConsent)`
     - **Send to:** a participant
-    - **Sent by:** not handled
+    - **Sent by:** internal to the case manager
     - **Reference:** [Create embargo consent](../../em.md#create-embargo-consent)
 
     ??? example "Example activity"

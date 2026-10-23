@@ -5,7 +5,7 @@
 Ends the sender's own consent to the embargo in force, and to any revision it had agreed to. The embargo stays in force for every other participant.
 
 - **When…** a Participant bound by the active embargo stops complying with it
-- **Send:** `Leave(Event)[context=VulnerabilityCase]`
+- **Send:** `Leave(EmbargoEvent)[context=VulnerabilityCase]`
 - **Send to:** the case manager
 - **Sent by:** a participant
 - **Seen in:** [How to Revise or Terminate an Embargo](../../../../howto/activitypub/activities/manage_embargo.md)

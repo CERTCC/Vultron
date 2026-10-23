@@ -46,7 +46,7 @@ state and notify others of its own transitions.
   transitions occur
 - MUST receive and update local state when notified of other participants'
   transitions
-- MUST participate in embargo negotiation: responding to `Invite(Event)`, and
+- MUST participate in embargo negotiation: responding to `Invite(EmbargoEvent)`, and
   recording consent or refusal via PEC
 - MUST route all case-scoped messages through the CASE_MANAGER ([§5.4.2 Routing Topology](../layers.md#542-routing-topology))
 - MAY report PXA observations; no VFD drive obligations unless a role extension

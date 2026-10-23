@@ -7,7 +7,7 @@
     - **When…** the Case Manager creates a participant record, such as the inert record for the invitee of a stub Invite
     - **Send:** `Create(CaseParticipant)`
     - **Send to:** a participant
-    - **Sent by:** not handled
+    - **Sent by:** internal to the case manager
     - **Reference:** [Create case participant](../../case_management.md#create-case-participant)
 
     ??? example "Example activity"

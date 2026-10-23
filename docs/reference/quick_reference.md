@@ -68,7 +68,7 @@ The state transition that emits each type is on [Messages](formal_protocol/messa
 {% include-markdown "./messages/_occasions/shorthands.md" %}
 
 The formal set and the wire vocabulary are many-to-many ([Mapping status](messages/index.md#mapping-status)).
-Several types share one wire activity, as `EP` and `EV` share `Invite(Event)`, and the occasion's section states what tells them apart.
+Several types share one wire activity, as `EP` and `EV` share `Invite(EmbargoEvent)`, and the occasion's section states what tells them apart.
 A type whose row reads "none" has no wire activity of its own: [Faults and Acknowledgments](messages/faults_and_acknowledgements.md) describes the fault reporting and the cumulative hash-chain acknowledgment that replace such types.
 
 ## State Transition Summary

@@ -1,7 +1,7 @@
 ---
 title: "Annex C Notation Reference"
 description: >
-  Informative Annex C of the Vultron Protocol Specification: the mathematical and diagram notation of the formal treatment.
+  Informative Annex C of the Vultron Protocol Specification: the mathematical and diagram notation of the formal treatment, and Wire Activity notation.
 stakeholder_type: [platform-developer]
 level: 400
 page_type: reference
@@ -11,7 +11,7 @@ page_type: reference
 
 {% include-markdown "./_full-page-tip.md" %}
 
-This page holds informative Annex C of the [Vultron Protocol Specification](index.md): the mathematical and diagram notation of the formal treatment.
+This page holds informative Annex C of the [Vultron Protocol Specification](index.md): the mathematical and diagram notation of the formal treatment, and the notation for writing a Wire Activity.
 It includes the symbols of each Deterministic Finite Automaton (DFA) the formal treatment defines.
 
 {% include-markdown "./_annex-c.md" %}

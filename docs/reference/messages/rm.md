@@ -59,19 +59,19 @@ The CASE_MANAGER sends no notice when the sender is not a participant of the cas
 {% include-markdown "./_occasions/sections/report-valid.md" %}
 
 - **Triggering transition:** Received or Invalid → Valid ({R,I} → V).
-- **Second wire form:** a participant that joined through an Invite sends `Accept(Invite(Actor, target=VulnerabilityCase))` instead, answering the full-case Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)); see [Accept Full-Case Invite](case_management.md#accept-full-case-invite).
+- **Second wire form:** a participant that joined through an Invite sends `Accept(Invite(Actor)[target=VulnerabilityCase])` instead, answering the full-case Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)); see [Accept Full-Case Invite](case_management.md#accept-full-case-invite).
   It never validates the original report Offer ([CM-11-020](../specs/protocol.md#cm-11-020)).
 
 {% include-markdown "./_occasions/sections/report-invalid.md" %}
 
 - **Triggering transition:** Received → Invalid (R → I).
-- **Second wire form:** a participant that joined through an Invite sends `TentativeReject(Invite(Actor, target=VulnerabilityCase))` instead, answering the full-case Invite ([VAM-04-013](../specs/protocol.md#vam-04-013)); see [Tentatively reject Full-Case Invite](case_management.md#tentatively-reject-full-case-invite).
+- **Second wire form:** a participant that joined through an Invite sends `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` instead, answering the full-case Invite ([VAM-04-013](../specs/protocol.md#vam-04-013)); see [Tentatively reject Full-Case Invite](case_management.md#tentatively-reject-full-case-invite).
 
 {% include-markdown "./_occasions/sections/report-closed.md" %}
 
 - **Triggering transition:** Received, Invalid, Deferred, or Accepted → Closed ({R,I,D,A} → C).
-- **Second wire form:** a participant that joined through an Invite closes with `Reject(Invite(Actor, target=VulnerabilityCase))` ([VAM-04-014](../specs/protocol.md#vam-04-014)); see [Reject Full-Case Invite](case_management.md#reject-full-case-invite).
-- **Stub Invite decline:** an invitee that declines its stub Invite sends `Reject(Invite(Actor, target=VulnerabilityCaseStub))`, which is not an `RC` message.
+- **Second wire form:** a participant that joined through an Invite closes with `Reject(Invite(Actor)[target=VulnerabilityCase])` ([VAM-04-014](../specs/protocol.md#vam-04-014)); see [Reject Full-Case Invite](case_management.md#reject-full-case-invite).
+- **Stub Invite decline:** an invitee that declines its stub Invite sends `Reject(Invite(Actor)[target=VulnerabilityCaseStub])`, which is not an `RC` message.
   On receipt, the CASE_MANAGER moves the invitee's RM state to Closed ([CM-11-007](../specs/protocol.md#cm-11-007)); see [Reject invite to case](case_management.md#reject-invite-to-case).
 - **Fault axis:** the `Reject(Offer(VulnerabilityReport))` activity also appears as an ordinary refusal in the fault-and-acknowledgment mapping (MSM-05-003); see [Faults and Acknowledgments](faults_and_acknowledgements.md#asreject-is-overloaded).
 

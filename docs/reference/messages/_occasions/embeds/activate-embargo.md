@@ -5,7 +5,7 @@
     Activates the proposal for the case. If an embargo is already active, the proposal replaces it.
 
     - **When…** the Case Owner decides to activate a proposed embargo
-    - **Send:** `Accept(Event)[target=VulnerabilityCase]`
+    - **Send:** `Accept(EmbargoEvent)[target=VulnerabilityCase]`
     - **Send to:** the case manager
     - **Sent by:** the case owner
     - **Reference:** [Activate embargo](../../em.md#activate-embargo)

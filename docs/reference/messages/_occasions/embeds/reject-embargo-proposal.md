@@ -5,7 +5,7 @@
     Rejects the proposal for the case. An active embargo stays in force on its current terms.
 
     - **When…** the Case Owner decides to reject a proposed embargo
-    - **Send:** `Reject(Event)[target=VulnerabilityCase]`
+    - **Send:** `Reject(EmbargoEvent)[target=VulnerabilityCase]`
     - **Send to:** the case manager
     - **Sent by:** the case owner
     - **Reference:** [Reject embargo proposal](../../em.md#reject-embargo-proposal)

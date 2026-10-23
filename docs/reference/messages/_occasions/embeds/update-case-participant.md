@@ -7,7 +7,7 @@
     - **When…** the Case Manager changes a participant record, such as moving the CASE_OWNER role on an ownership transfer
     - **Send:** `Update(CaseParticipant)`
     - **Send to:** a participant
-    - **Sent by:** not handled
+    - **Sent by:** internal to the case manager
     - **Reference:** [Update case participant](../../case_management.md#update-case-participant)
 
     ??? example "Example activity"

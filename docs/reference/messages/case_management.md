@@ -94,7 +94,7 @@ This offer is distinct from `Offer(CaseParticipant)`, which forwards an actor re
 - **Triggering transition:** none — roster action.
 - **Example artifact:** [reject_case_participant_role.json](../examples/reject_case_participant_role.json).
 
-The dedicated object type is preferred over a `target`-field discriminator ([SE-08-003](../specs/protocol.md#se-08-003)), and the earlier wire format `Offer(VulnerabilityCase, target=CaseParticipant)` for offering a role has been removed.
+The dedicated object type is preferred over a `target`-field discriminator ([SE-08-003](../specs/protocol.md#se-08-003)), and the earlier wire format `Offer(VulnerabilityCase)[target=CaseParticipant]` for offering a role has been removed.
 
 {% include-markdown "./_occasions/sections/propose-case-ownership-transfer.md" %}
 
