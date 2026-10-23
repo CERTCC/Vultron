@@ -109,7 +109,7 @@ Because the index run has no holes, a hole means an entry is missing. Suppose
 a receiver gets an entry that does not extend its chain, and whose `log_index`
 is greater than its tail index plus one. The receiver asks the CASE_MANAGER to
 replay what it missed, and it may hold the early entry aside until the missing
-ones arrive ([SYNC-14-001, SYNC-14-002](../../reference/specs/protocol.md#sync-14)). A replica
+ones arrive ([SYNC-14-001](../../reference/specs/protocol.md#sync-14-001), [SYNC-14-002](../../reference/specs/protocol.md#sync-14-002)). A replica
 must hold every entry from genesis through the position it has acknowledged
 before it takes new protocol-significant actions on the case
 ([SYNC-10-004](../../reference/specs/protocol.md#sync-10-004)). Refused assertions

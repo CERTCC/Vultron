@@ -9,7 +9,11 @@ Two passes over every ``docs/**/*.md``:
    ``[MV-03-002](../specs/protocol.md#mv-03)``. With the hook in place the
    requirement's own anchor is a valid target, so each such link — link text a
    single requirement ID, href a group anchor on a spec kind page — is
-   repointed at ``#mv-03-002``.
+   repointed at ``#mv-03-002``. A link whose text lists several IDs of that
+   group, ``[MV-10-004, MV-10-005](../specs/protocol.md#mv-10)``, is split into
+   one link per ID, each on its own kind's page: a relabel can move one ID off
+   the page while the group anchor still resolves there, so the build and
+   pass 2 both miss it (#4894).
 
 2. **Any link whose anchor does not render on the page it names.** A
    requirement, group or file anchor appears only on the page(s) of the kinds
@@ -49,10 +53,13 @@ from vultron.metadata.specs.schema import SpecKind  # noqa: E402
 
 _SLUGS = "|".join(sorted(_KIND_SLUG.values()))
 
-#: ``[XX-NN-NNN](<prefix>specs/<slug>.md#xx-nn)`` — a requirement ID as link
-#: text, a group anchor on a spec kind page as href.
+_SPEC_ID = r"[A-Z][A-Z0-9]{1,7}-\d{2}-\d{3}[a-z]?"
+
+#: ``[XX-NN-NNN](<prefix>specs/<slug>.md#xx-nn)`` — one requirement ID, or a
+#: comma-separated list of them, as link text; a group anchor on a spec kind
+#: page as href.
 _GROUP_LINK_RE = re.compile(
-    r"\[(?P<id>[A-Z][A-Z0-9]{1,7}-\d{2}-\d{3})\]"
+    r"\[(?P<ids>" + _SPEC_ID + r"(?:,\s*" + _SPEC_ID + r")*)\]"
     r"\((?P<prefix>[^)#\s]*?)specs/(?P<slug>" + _SLUGS + r")\.md"
     r"#(?P<group>[a-z0-9]+-\d{2})\)"
 )
@@ -70,7 +77,12 @@ _KIND_ORDER = [_KIND_SLUG[k] for k in SpecKind]
 
 
 class _Repointer:
-    """Rewrite one matched group-anchor citation; keep the running tallies."""
+    """Rewrite one matched group-anchor citation; keep the running tallies.
+
+    Every ID in the link text must belong to the anchored group, or the link
+    is left alone: a list that names another group's ID is not a citation of
+    this group's items.
+    """
 
     def __init__(self, registry: SpecRegistry) -> None:
         self._registry = registry
@@ -79,20 +91,33 @@ class _Repointer:
         self.rerouted = 0
 
     def __call__(self, match: re.Match[str]) -> str:
-        spec_id = match.group("id")
-        if match.group("group") != spec_id.lower().rsplit("-", 1)[0]:
-            return match.group(0)  # not this requirement's group anchor
-        try:
-            kind = self._registry.get_effective_kind(spec_id)
-        except KeyError:
-            self.unknown[spec_id] += 1
-            return match.group(0)
-        slug = _KIND_SLUG[kind]
-        if slug != match.group("slug"):
-            self.rerouted += 1
-        self.rewritten += 1
+        spec_ids = re.split(r",\s*", match.group("ids"))
+        group = match.group("group")
+        if any(group != _group_of(spec_id) for spec_id in spec_ids):
+            return match.group(0)  # not these requirements' group anchor
+        slugs: list[str] = []
+        for spec_id in spec_ids:
+            try:
+                kind = self._registry.get_effective_kind(spec_id)
+            except KeyError:
+                self.unknown[spec_id] += 1
+                return match.group(0)
+            slugs.append(_KIND_SLUG[kind])
         prefix = match.group("prefix")
-        return f"[{spec_id}]({prefix}specs/{slug}.md#{spec_id.lower()})"
+        links: list[str] = []
+        for spec_id, slug in zip(spec_ids, slugs, strict=True):
+            if slug != match.group("slug"):
+                self.rerouted += 1
+            self.rewritten += 1
+            links.append(
+                f"[{spec_id}]({prefix}specs/{slug}.md#{spec_id.lower()})"
+            )
+        return ", ".join(links)
+
+
+def _group_of(spec_id: str) -> str:
+    """The group anchor of *spec_id*: ``MV-10-004`` → ``mv-10``."""
+    return spec_id.lower().rsplit("-", 1)[0]
 
 
 class _Rerouter:

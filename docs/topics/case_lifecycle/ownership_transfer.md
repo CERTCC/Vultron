@@ -21,7 +21,7 @@ A change of owner matters to everyone in the case, not only to the two participa
 Every participant needs to know who decides for the case now.
 The only way a participant learns about a change to the case is through an entry in the case ledger, and only the CASE_MANAGER writes those entries ([The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md)).
 
-So the owner's proposal, the answer, and a withdrawal are all sent to the CASE_MANAGER, not to the other party directly ([CM-21-005, CM-21-006, CM-21-010, CM-21-015](../../reference/specs/protocol.md#cm-21), [ADR-0053](../../adr/0053-ownership-transfer-routed-via-caseactor.md)).
+So the owner's proposal, the answer, and a withdrawal are all sent to the CASE_MANAGER, not to the other party directly ([CM-21-005](../../reference/specs/protocol.md#cm-21-005), [CM-21-006](../../reference/specs/protocol.md#cm-21-006), [CM-21-010](../../reference/specs/protocol.md#cm-21-010), [CM-21-015](../../reference/specs/protocol.md#cm-21-015), [ADR-0053](../../adr/0053-ownership-transfer-routed-via-caseactor.md)).
 If they went directly between the two parties, no ledger entry would be written, and the other participants would never learn that ownership had changed.
 
 ---
@@ -96,7 +96,7 @@ It refuses an `Accept` from anyone else, or a second `Accept` of the same offer,
 The new owner is the actor the recorded offer names, not whoever sent the acceptance.
 A participant's own copy of the case takes the ownership change only from the CASE_MANAGER.
 On an acceptance, the CASE_MANAGER moves the `CASE_OWNER` role in a single step: the previous owner loses it and the new owner gains it together, so the CASE_MANAGER's case never has two owners or none ([CM-21-001 through CM-21-004](../../reference/specs/protocol.md#cm-21)).
-The previous owner keeps any other roles it held and stays a participant in the case ([CM-21-008, CM-21-009](../../reference/specs/protocol.md#cm-21)).
+The previous owner keeps any other roles it held and stays a participant in the case ([CM-21-008](../../reference/specs/protocol.md#cm-21-008), [CM-21-009](../../reference/specs/protocol.md#cm-21-009)).
 The CASE_MANAGER records the acceptance in the ledger and sends the entry to every participant ([CM-21-007](../../reference/specs/protocol.md#cm-21-007)).
 
 The acceptance entry records what the proposed owner sent, not the changes it causes.
