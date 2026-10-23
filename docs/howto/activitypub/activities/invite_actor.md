@@ -38,9 +38,9 @@ sequenceDiagram
     participant CA as CASE_MANAGER
     actor A as Actor
     activate O
-    O ->> CA: Offer(Actor)[target=VulnerabilityCase, suggestedRoles=roles]
+    O ->> CA: Offer(Actor)[target=VulnerabilityCase]
     activate CA
-    CA ->>+ A: Invite(Actor)[target=VulnerabilityCaseStub, attributedTo=owner]
+    CA ->>+ A: Invite(Actor)[target=VulnerabilityCaseStub]
     note over CA: Records inert CaseParticipant (RM Received)
     note over A: Consider invitation
     alt Accept Invitation

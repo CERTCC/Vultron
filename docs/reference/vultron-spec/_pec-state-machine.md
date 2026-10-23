@@ -106,7 +106,7 @@ While a revision is only proposed, the prior embargo is in force and every signa
 The proposer's row for the revision is `AGREED`, because proposing terms is consenting to them, and every other participant gets an `UNINVITED` row for it.
 A signatory that agrees to the revision records that on the revision's row, and one that declines it refuses those terms and nothing more, on that row only (MSM-07-003, MSM-07-004).
 
-A signatory withdraws by leaving the embargo in force with `Leave(EmbargoEvent)`, not by rejecting an invitation to it (MSM-07-010).
+A signatory withdraws by leaving the embargo in force with `Leave(Event)`, not by rejecting an invitation to it (MSM-07-010).
 The withdrawal declines its row for the embargo in force and every open proposal's row it had agreed to, because every open proposal is a revision of the embargo it is leaving.
 A `Reject` of the active embargo from an `AGREED` row is refused with a reported reason (MSM-07-004).
 The case owner does not leave an embargo; it ends one by terminating it.

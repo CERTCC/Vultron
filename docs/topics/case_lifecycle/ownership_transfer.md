@@ -30,8 +30,9 @@ If they went directly between the two parties, no ledger entry would be written,
 
 ```text
 Owner sends trigger: offer-case-ownership-transfer
-  → Owner sends Offer(Offer(VulnerabilityCase)[target=transferee])
-                      [context=case]                 ← the proposal
+  → Owner sends Offer(Offer(VulnerabilityCase))    ← the proposal
+      inner target: transferee
+      context:      case_id
       actor:        owner_id          (the owner's own activity)
       to:           [case_actor_id]   ← MUST route through Case Actor (CM-21-005)
 
@@ -43,7 +44,8 @@ Case Actor inbox receives the proposal:
      transferee it can address.                      ← CM-21-005
   2. Commits CaseLedgerEntry (the proposal).
   3. Makes the offer and queues it to the transferee:
-       Offer(VulnerabilityCase)[target=transferee]
+       Offer(VulnerabilityCase)
+       target:        transferee
        id:            derived from the proposal
        actor:         case_actor_id   (delegated-message contract)
        attributed_to: owner_id
@@ -165,8 +167,8 @@ Ownership stays where it was, and the owner may propose the case again at once.
 ```text
 Owner sends trigger: offer-case-ownership-transfer
   with end_time (optional)                              ← TRIG-11-007
-  → Offer(Offer(VulnerabilityCase)[endTime=deadline])
-  → the Case Actor's Offer(VulnerabilityCase)[endTime=deadline]
+  → Offer(Offer(VulnerabilityCase)), inner endTime: deadline
+  → the Case Actor's Offer(VulnerabilityCase), endTime: deadline
 
 Case Actor inbox receives an Accept, Reject or Undo of the offer,
 or a new proposal for the case:

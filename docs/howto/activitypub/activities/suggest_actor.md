@@ -44,7 +44,7 @@ sequenceDiagram
     A ->> CA: Offer(Actor)[target=VulnerabilityCase]
     activate CA
     Note over CA: Record in ledger, assign default roles
-    CA ->> B: Offer(CaseParticipant)[target=VulnerabilityCase, origin=Offer]
+    CA ->> B: Offer(CaseParticipant)[target=VulnerabilityCase]
     activate B
     alt Accept Suggestion
         B ->> CA: Accept(Offer(CaseParticipant)[target=VulnerabilityCase])

@@ -52,9 +52,9 @@ This is why a normal case trace shows no proposal exchange at all: submitting a 
 
 **A local decision to negotiate.** The `propose_embargo`, `propose_embargo_revision`, and `terminate_embargo` triggers.
 
-**An inbound overture.** Either an Embargo Proposal (EP) carrying terms, or an `Invite(EmbargoEvent)` asking one actor for its consent.
+**An inbound overture.** Either an Embargo Proposal (EP) carrying terms, or an `Invite(Event)` asking one actor for its consent.
 These are the two flows the response decision handles (EMB-15).
-An answer to an invitation, `Accept` or `Reject` of the `Invite(EmbargoEvent)`, is always the sender's own consent and moves only that sender's row, the case owner's included (MSM-07-003, MSM-07-004).
+An answer to an invitation, `Accept` or `Reject` of the `Invite(Event)`, is always the sender's own consent and moves only that sender's row, the case owner's included (MSM-07-003, MSM-07-004).
 The case's embargo moves only when the case owner decides it, with `Accept(Event)[target=VulnerabilityCase]` or `Reject(Event)[target=VulnerabilityCase]` (MSM-07-008, MSM-07-009).
 
 **A deadline passing.** An invitation carries a respond-by instant, and an unanswered invitation eventually times out, which is not a refusal — see [Inaction is an answer](#inaction-is-an-answer) below.
@@ -94,11 +94,11 @@ The transitions themselves are small and fixed:
 
 | Message received | Register step | EM result |
 |---|---|---|
-| Embargo Proposal (EP), `Invite(EmbargoEvent)` | a new `PROPOSED` entry | `NONE` to `PROPOSED` (EMB-01-001); stays `PROPOSED` or `REVISE` for a further proposal |
-| Embargo Revision (EV), `Invite(EmbargoEvent)` | a new `PROPOSED` entry | `ACTIVE` to `REVISE`; the active embargo stays in force (EMB-03-001) |
+| Embargo Proposal (EP), `Invite(Event)` | a new `PROPOSED` entry | `NONE` to `PROPOSED` (EMB-01-001); stays `PROPOSED` or `REVISE` for a further proposal |
+| Embargo Revision (EV), `Invite(Event)` | a new `PROPOSED` entry | `ACTIVE` to `REVISE`; the active embargo stays in force (EMB-03-001) |
 | Embargo Acceptance (EA) or Revision Acceptance (EC), the case owner's `Accept(Event)[target=VulnerabilityCase]` | the named entry becomes `ACTIVE`, superseding any entry in force | to `ACTIVE` once no other proposal is open, otherwise to or staying at `REVISE` (EMB-02-001) |
 | Embargo Rejection (ER) or Revision Rejection (EJ), the case owner's `Reject(Event)[target=VulnerabilityCase]` | the named entry becomes `REJECTED` | `PROPOSED` to `NONE`, or `REVISE` to `ACTIVE`, once no other proposal is open; otherwise unchanged (EMB-06-001) |
-| Embargo Termination (ET), `Remove(Event)[origin=VulnerabilityCase]` | the `ACTIVE` entry becomes `TERMINATED`, and every open proposal `CANCELLED` | `ACTIVE` or `REVISE` to `EXITED`, immediately |
+| Embargo Termination (ET), `Remove(Event)` | the `ACTIVE` entry becomes `TERMINATED`, and every open proposal `CANCELLED` | `ACTIVE` or `REVISE` to `EXITED`, immediately |
 
 The formal protocol has each receiver acknowledge these with EK; in this implementation the case manager's commit and announcement of the received activity is that acknowledgment, and no EK message exists (EP-09-009, MSM-02-009).
 
@@ -122,7 +122,7 @@ Every Participant Embargo Consent change is a side effect of an EM activity or a
 | The case owner's `Accept(Event)[target=VulnerabilityCase]` (EA, or EC for a revision) | to `ACTIVE`, or to `REVISE` while another proposal stays open | the owner's row for the activated embargo becomes `AGREED` unless it already is; a revision that ends no later than the embargo it replaces carries over every Participant whose row for the replaced embargo is `AGREED`, and one that ends later writes nothing, so a signatory that has not agreed to it has lapsed (MSM-07-005, MSM-07-008) |
 | The case owner's `Reject(Event)[target=VulnerabilityCase]` (ER, or EJ for a revision) | `PROPOSED` to `NONE`, or `REVISE` to `ACTIVE` with the prior terms standing, once no other proposal is open; once public disclosure, a public exploit or an attack is known, the rejection of the last open revision is followed in the same act by the case manager's termination (ET, EMB-04-002), so the revision ends `REJECTED` and the embargo `TERMINATED` | none, the owner's included (MSM-07-009) |
 | Withdrawal, `Leave(Event)` of the embargo in force | none | the withdrawing Participant's `AGREED` row for the embargo in force becomes `DECLINED`, as does every row it had marked `AGREED` for an open revision; the embargo stays in force for everyone else (MSM-07-010) |
-| Embargo Termination (ET), `Remove(Event)[origin=VulnerabilityCase]` | `ACTIVE` or `REVISE` to `EXITED` | none is written: with no `ACTIVE` entry nobody is a signatory, and no message is sent for consent (MSM-07-006) |
+| Embargo Termination (ET), `Remove(Event)` | `ACTIVE` or `REVISE` to `EXITED` | none is written: with no `ACTIVE` entry nobody is a signatory, and no message is sent for consent (MSM-07-006) |
 | Invitation deadline passes | none | that invitation's `INVITED` row moves to `TIMED_OUT`, recorded in the case ledger (MSM-07-007) |
 
 One activity can therefore move both scopes at once: the case owner's `Accept(Event)[target=VulnerabilityCase]` activates the embargo *and* makes the owner a signatory.
@@ -161,7 +161,7 @@ An act whose entry fails to commit changes nothing.
 | Owner's rejection, `Reject(Event)[target=VulnerabilityCase]` | the rejected proposal | nothing |
 | Abandonment once the case is public: the case manager's `Reject(Invite(Event))` of a proposal it received, or its `Undo(Invite(Event))` of one it sent itself | the canceled proposal | an `Undo(Invite(Event))` of each invitation the case manager relayed for that proposal, which changes nothing more |
 | Withdrawal, `Leave(Event)` | no register change | an `Update(EmbargoConsent)` moving the withdrawing Participant's row for the embargo in force to `DECLINED`, and one for each open revision it had agreed to (MSM-07-010) |
-| Termination, `Remove(Event)[origin=VulnerabilityCase]` | the end of the embargo in force and the cancellation of every open proposal (EP-08-004) | nothing: a termination writes no consent row (MSM-07-006) |
+| Termination, `Remove(Event)` | the end of the embargo in force and the cancellation of every open proposal (EP-08-004) | nothing: a termination writes no consent row (MSM-07-006) |
 | Invitation deadline passes | the expiry of that invitation (CM-28-009) | an `Update(EmbargoConsent)` moving the row to `TIMED_OUT` |
 | Late `Accept` of the current embargo | the `Accept` itself, as for an on-time `Accept`: the row it states, `AGREED` | nothing: the `Accept` is that row's entry |
 | Late `Accept` of a superseded embargo | the fresh invitation, relayed on behalf of the current embargo's proposer | an `Update(EmbargoConsent)` moving the row to `INVITED`, with its deadline |
@@ -259,7 +259,7 @@ They are notification and integration hooks that fire after the transition and c
 
 ## Inaction is an answer
 
-An `Invite(EmbargoEvent)` carries a respond-by instant, and silence past it ends the invitation — the **pocket veto**.
+An `Invite(Event)` carries a respond-by instant, and silence past it ends the invitation — the **pocket veto**.
 A Participant whose row is `INVITED` and that does not answer within the window has that row moved to `TIMED_OUT`, not `DECLINED`: silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-004, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
 The deadline belongs to one invitation and is recorded on that invitation's `INVITED` row, so a Participant can hold several open invitations with different deadlines, and one passing times out only its own row (CM-28-013).
 
@@ -306,7 +306,7 @@ Embargo messages route through the case manager like every other case-scoped mes
 A Participant does not announce its embargo stance to the other Participants itself.
 
 Teardown is the exception worth naming, because its addressing is prescribed.
-The `Announce(EmbargoEvent)` that follows a teardown the Case Owner asked for must be authored by the actor holding `CVDRole.CASE_MANAGER` and addressed to every active Participant *except* the announcing actor — never to the case manager itself (EMB-19-001).
+The `Announce(Event)` that follows a teardown the Case Owner asked for must be authored by the actor holding `CVDRole.CASE_MANAGER` and addressed to every active Participant *except* the announcing actor — never to the case manager itself (EMB-19-001).
 A Closed Participant is left out, as it is from all case content (CM-23-004).
 A teardown the case manager starts itself, including one at the embargo's end time, sends no announcement.
 When the case manager is the only Participant, the announcement is skipped rather than sent with an empty recipient list (EMB-19-002).
