@@ -1180,7 +1180,7 @@ class TestSvcAcceptCaseInviteUseCase:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        addressed = activity_of(result).get("to")
+        addressed = activity_of(result).get("to") or []
         assert addressed == [case_manager.id_]
         assert owner.id_ not in addressed
 
