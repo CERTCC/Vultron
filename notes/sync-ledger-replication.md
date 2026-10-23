@@ -104,25 +104,26 @@ hashes must stay valid if the chain later becomes a Merkle tree (SYNC-01-005).
 
 ## Every Case Activity States Its Sender's Ledger Position (SYNC-18)
 
-- **One slot, `ledgerTail`.** Every case activity carries its sender's tail as
-  the activity's `ledgerTail`, the term and shape SYNC-16-005 puts on a case
-  copy. Do not add a position to `content` or `context`: the full-case Invite,
-  its replies (VAM-04-011..014) and `Reject(CaseLedgerEntry)` (SYNC-03-004) move
-  off those slots, so one fact keeps one wire form (ADR-0156).
+- **One slot, `ledgerPosition`.** Every case activity carries its sender's tail as
+  the activity's `ledgerPosition`, the term and shape SYNC-16-005 puts on a case
+  copy, so one fact keeps one wire form (ADR-0156). Add no new position to `content`
+  or `context`. The full-case Invite, its replies (VAM-04-011..014) and
+  `Reject(CaseLedgerEntry)` (SYNC-03-004) still use those slots until #5109 moves
+  them, amending VAM-04-011..014 and retiring SYNC-03-004.
 - **Stamp in the factory, from the ledger.** Read the tail with
-  `ledger_tail_position()` when the activity is built; never store it on the
-  case. A resend relays the sealed body, so it keeps the first position
-  (SYNC-18-002, OX-07-001).
-- **A lag is a record, never a refusal.** Log it at DEBUG, judge the act as
-  before, and answer the position as SYNC-17 does. Staleness about a replaced
-  object is already caught by the object the act names (EP-09-004); CM-11-012's
-  floor is the one per-activity rule (SYNC-18-004).
+  `ledger_tail_position()` when the activity is built. A resend relays the sealed
+  body, so it keeps the first position (SYNC-18-002, OX-07-001).
+- **A lag is a record, never a refusal.** Log it at DEBUG and judge the act as
+  before (SYNC-18-004). An answer to a replaced embargo is already caught, because
+  its consent row accepts no trigger (CM-18-003); CM-11-012's floor is the one
+  per-activity rule.
 - **A split is a repair.** A position the CASE_MANAGER does not hold means the
   sender's chain split from the canonical ledger: log at ERROR and re-seed an
   active participant through SYNC-16-003's rate-bounded path (SYNC-18-005).
 - **The stamp is a position statement.** It says the sender has applied up to
-  that entry, the fact `Read(CaseLedgerEntry)` states in a quiet period (#5098),
-  so both feed the one acknowledged position in `VultronReplicationState`.
+  that entry, the fact `Read(CaseLedgerEntry)` states in a quiet period. Answer it
+  the same way: record the acknowledged position and replay a lag, for active
+  participants only (SYNC-18-007, composing SYNC-17-003/004).
 
 ### Open Questions
 
@@ -131,6 +132,8 @@ hashes must stay valid if the chain later becomes a Merkle tree (SYNC-01-005).
   participant's own divergence fault (SYNC-16-001), or refuse the act, as
   CM-11-012 refuses a full-case reply naming an entry the ledger lacks. Refusing
   makes the stamp a gate after all; revisit when a split is seen outside a test.
+  The `Read` answer to a split differs today (SYNC-17-005: WARNING, nothing sent);
+  decide both together.
 
 ## Commit Discipline
 
