@@ -120,8 +120,8 @@ completed closure) gets no entry, only the case-file change it causes.
 **The field is `semantic_type`, wire key `semanticType` (CLP-02-014).** The
 glossary names "event type" as a term to avoid for it. The hash chain hashes
 the field under its own name, as `object_id` already is. An entry still
-carrying the retired `eventType` key is refused, never aliased: a stored row
-means the store must be reset, a received one that its sender is out of date
+carrying the retired `eventType` key is refused, never aliased (CLP-02-015): a
+stored row means the store must be reset, a received one that its sender is out of date
 (`notes/datalayer-design.md`).
 
 ## Refusals Go to the Process Log

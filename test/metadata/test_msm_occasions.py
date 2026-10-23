@@ -778,6 +778,88 @@ def test_the_message_types_page_opens_with_the_whole_table():
     assert _includes(_MESSAGES / "index.md") == [f"{_FROM_PAGES}/lookup.md"]
 
 
+_QUICK_REFERENCE = _DOCS / "reference/quick_reference.md"
+
+
+def _glance_section() -> str:
+    """The quick reference's "Message Types at a Glance" section, as written."""
+    text = _QUICK_REFERENCE.read_text(encoding="utf-8")
+    start = text.index("\n## Message Types at a Glance\n")
+    end = text.index("\n## ", start + 1)
+    return text[start:end]
+
+
+@pytest.mark.spec("MSM-06-004")
+def test_quick_reference_includes_the_generated_message_tables():
+    """The section embeds both generated tables and writes no table row of
+    its own, whatever its columns are called (#5066)."""
+    fragments = Path(gen.FRAGMENT_DIR).relative_to("docs/reference").as_posix()
+    section = _glance_section()
+    assert [posixpath.normpath(p) for p in _INCLUDE.findall(section)] == [
+        f"{fragments}/lookup.md",
+        f"{fragments}/shorthands.md",
+    ]
+    rows = [
+        line for line in section.splitlines() if line.lstrip().startswith("|")
+    ]
+    assert rows == []
+
+
+@pytest.mark.spec("MSM-06-004")
+def test_shorthand_table_lists_every_shorthand_with_its_carriers(table):
+    """Each row links the first occasion of each wire activity that carries
+    its shorthand, in table order, or "none" on its family page."""
+    rows = gen.render_shorthands(table).splitlines()[2:]
+    by_type = dict(zip(ProtocolShorthand, rows, strict=True))
+    for shorthand, line in by_type.items():
+        assert line.startswith(
+            f"| `{shorthand.value}` | {shorthand.formal_name} |"
+        )
+        expected: dict[str, str] = {}
+        for group in table.groups:
+            for row in group.occasions:
+                if row.shorthand is shorthand:
+                    expected.setdefault(
+                        row.send, f"../{group.page.value}.md#{row.anchor}"
+                    )
+        if expected:
+            assert _LINK.findall(line) == list(expected.values()), line
+            assert "[none]" not in line, line
+        else:
+            page, _ = gen.SHORTHAND_FAMILIES[shorthand.value[0]]
+            assert line.endswith(
+                f" | [none](../{page.value}.md#{gen.NO_WIRE_ANCHOR}) |"
+            ), line
+    assert by_type[ProtocolShorthand.RS] == (
+        "| `RS` | Report Submission | RM"
+        " | [`Offer(VulnerabilityReport)`](../rm.md#report-submission) |"
+    )
+
+
+@pytest.mark.spec("MSM-06-004")
+def test_shorthand_table_links_each_wire_activity_once(table):
+    """Two occasions of one shorthand on one wire activity link the first."""
+    group, row = _rows(table)["fix-readiness"]
+    twin = row.model_copy(update={"anchor": "fix-readiness-twin"})
+    doubled = table.model_copy(
+        update={
+            "groups": (group.model_copy(update={"occasions": (row, twin)}),)
+        }
+    )
+    line = next(
+        line
+        for line in gen.render_shorthands(doubled).splitlines()
+        if line.startswith("| `CF`")
+    )
+    assert _LINK.findall(line) == ["../cs.md#fix-readiness"], line
+
+
+@pytest.mark.spec("MSM-06-004")
+def test_every_formal_model_page_has_the_no_wire_activity_section():
+    for page, _ in gen.SHORTHAND_FAMILIES.values():
+        assert gen.NO_WIRE_ANCHOR in _slugs(_MESSAGES / f"{page.value}.md")
+
+
 @pytest.mark.spec("MSM-08-004")
 def test_each_message_page_includes_its_slice_and_each_section_once(table):
     """Each occasion anchor resolves to exactly one section on its page: the
@@ -848,7 +930,8 @@ def test_no_fragment_is_exempt_from_lint_docs():
 
 def test_tables_carry_no_exec_block():
     """A table is mostly links, which an exec block would hide from MkDocs."""
-    for path in _FRAGMENTS.glob("lookup*.md"):
+    tables = [*_FRAGMENTS.glob("lookup*.md"), _FRAGMENTS / "shorthands.md"]
+    for path in tables:
         assert "exec=" not in path.read_text(encoding="utf-8"), path
 
 

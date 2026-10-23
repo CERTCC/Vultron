@@ -192,7 +192,7 @@ class _EmitParticipantStatusActivityBase(_EmitSingleActivityBase):
     lives here.  The ``result_out`` dict must be populated by the preceding
     ``TransitionCStoFix*`` node (keys: ``status_id``, ``participant_id``).
 
-    Per ADR-0021 CLP-10-001: trigger trees MUST address fix-readiness
+    Per ADR-0021 CLP-10-027: trigger trees MUST address fix-readiness
     activities to the Case Actor (CASE_MANAGER) so the CaseActor can
     commit a canonical ledger entry.
 
@@ -289,7 +289,7 @@ class EmitCFActivity(_EmitParticipantStatusActivityBase):
     :class:`TransitionCStoFixReady` and queues the resulting activity ID
     via ``record_outbox_item``.
 
-    Per ADR-0021 CLP-10-001: trigger trees MUST address fix-readiness
+    Per ADR-0021 CLP-10-027: trigger trees MUST address fix-readiness
     activities to the Case Actor (CASE_MANAGER) so the CaseActor can
     commit a canonical ledger entry.
 

@@ -114,7 +114,7 @@ class AnnounceVulnerabilityCaseReceivedUseCase:
             ),
         )
         if verdict.disposition is HandlerDisposition.SKIPPED:
-            # The guard logged the stale copy (SYNC-16-006).
+            # The guard logged the stale copy (SYNC-16-006, CLP-04-008).
             return verdict
         if verdict.disposition is not HandlerDisposition.APPLIED:
             logger.warning(

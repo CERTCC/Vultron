@@ -164,7 +164,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """Create and persist an ``Accept(Offer)`` validate-report activity.
 
         Returns ``(activity_id, activity_dict)``.
-        Per ADR-0021 CLP-10-001: routes the activity to the Case Actor.
+        Per ADR-0021 CLP-10-027: routes the activity to the Case Actor.
         """
         ...
 
@@ -211,7 +211,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
     ) -> tuple[str, str]:
         """Create and persist a ``Leave(VulnerabilityCase)`` close-case activity.
 
-        Per ADR-0021 CLP-10-001: routes the activity to the Case Actor so the
+        Per ADR-0021 CLP-10-027: routes the activity to the Case Actor so the
         CaseActor can commit a canonical ledger entry.
         Returns ``(activity_id, activity_dict)``.
         """

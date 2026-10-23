@@ -23,6 +23,9 @@ artifacts, and ``--check`` fails on any difference (MSM-06-001):
   ``##`` group per message page: the case lifecycle first, then protocol
   mechanics.
 - ``docs/reference/messages/_occasions/lookup-<page>.md`` — one page's slice.
+- ``docs/reference/messages/_occasions/shorthands.md`` — the formal message
+  set, each shorthand with the wire activities that carry it, for the
+  Protocol Quick Reference (MSM-06-004).
 - ``docs/reference/messages/_occasions/sections/<anchor>.md`` — one section
   per occasion, anchored by the occasion's ID.
 - ``docs/reference/messages/_occasions/embeds/<anchor>.md`` — one embed per
@@ -483,6 +486,61 @@ def render_whole(table: OccasionTable) -> str:
     return "\n\n".join(blocks)
 
 
+#: The formal-model message page and state machine of each shorthand family,
+#: keyed by the shorthand's first letter.
+SHORTHAND_FAMILIES: dict[str, tuple[MessagePage, str]] = {
+    "R": (MessagePage.RM, "RM"),
+    "E": (MessagePage.EM, "EM"),
+    "C": (MessagePage.CS, "CS"),
+    "G": (MessagePage.GENERAL, "General"),
+}
+
+#: The anchor of the section each formal-model message page ends with, which
+#: covers the shorthands that have no dedicated wire activity.
+NO_WIRE_ANCHOR = "formal-messages-with-no-dedicated-wire-activity"
+
+
+def _shorthand_carriers(
+    table: OccasionTable,
+) -> dict[ProtocolShorthand, list[str]]:
+    """Link each shorthand's wire activities to their sections, once each."""
+    carriers: dict[ProtocolShorthand, dict[str, str]] = {
+        shorthand: {} for shorthand in ProtocolShorthand
+    }
+    for group in table.groups:
+        for row in group.occasions:
+            if row.shorthand is None:
+                continue
+            carriers[row.shorthand].setdefault(
+                row.send,
+                f"[{_code_cell(row.send)}](../{group.page.value}.md"
+                f"#{row.anchor})",
+            )
+    return {s: list(links.values()) for s, links in carriers.items()}
+
+
+def render_shorthands(table: OccasionTable) -> str:
+    """Render the formal message set, linking from :data:`FRAGMENT_DIR`.
+
+    One row per shorthand, in formal order, naming the wire activities whose
+    occasions carry it.  A shorthand no occasion carries links its family
+    page's section on shorthands with no dedicated wire activity.
+    """
+    carriers = _shorthand_carriers(table)
+    lines = [
+        "| Type | Name | Model | Wire activity |",
+        "| :---: | --- | :---: | --- |",
+    ]
+    for shorthand in ProtocolShorthand:
+        page, model = SHORTHAND_FAMILIES[shorthand.value[0]]
+        wire = ", ".join(carriers[shorthand]) or (
+            f"[none](../{page.value}.md#{NO_WIRE_ANCHOR})"
+        )
+        cells = (f"`{shorthand.value}`", shorthand.formal_name, model, wire)
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
 def formal_link(shorthand: ProtocolShorthand, prefix: str) -> str:
     """Link *shorthand*'s definition in the formal message set."""
     label = f"{shorthand.formal_name} ({shorthand.value})"
@@ -608,6 +666,9 @@ def desired_contents(
     table = validate(OccasionTable, loads_yaml(text, shown), path=shown)
     contents = {YAML_PATH: text}
     contents[f"{FRAGMENT_DIR}/lookup.md"] = _fragment(render_whole(table))
+    contents[f"{FRAGMENT_DIR}/shorthands.md"] = _fragment(
+        render_shorthands(table)
+    )
     for group in table.groups:
         contents[f"{FRAGMENT_DIR}/lookup-{group.page.value}.md"] = _fragment(
             render_slice(group)
@@ -736,6 +797,8 @@ __all__ = [
     "EMBED_DIR",
     "FRAGMENT_DIR",
     "FRAGMENT_MARKER",
+    "NO_WIRE_ANCHOR",
+    "SHORTHAND_FAMILIES",
     "STATUS_ANCHOR",
     "STATUS_PAGE",
     "TABLE_GROUPS",
@@ -755,6 +818,7 @@ __all__ = [
     "page_title",
     "render_embed",
     "render_section",
+    "render_shorthands",
     "render_slice",
     "render_whole",
     "seen_in_link",

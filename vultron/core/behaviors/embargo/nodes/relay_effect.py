@@ -177,13 +177,18 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         self.feedback_message = node.feedback_message
         return status
 
-    def _store_only(self, embargo_data: Any) -> Status:
+    def _store_only(
+        self,
+        embargo_data: Any,
+        detail: str = "each consent row it changes follows as its own entry",
+    ) -> Status:
         """Store the embargo the entry names; write nothing else.
 
-        For an entry whose consent consequences follow as entries of their
-        own (ADR-0124, CLP-07-013): each row the act changed (none, one, or
-        several, as for a withdrawal) is a later CASE_MANAGER
+        For an entry whose consequences follow as entries of their own
+        (ADR-0124, CLP-07-013): each consent row the act changed (none, one,
+        or several, as for a withdrawal) is a later CASE_MANAGER
         ``Update(EmbargoConsent)`` entry, which the consent slot copies.
+        *detail* says why nothing else moves, for the feedback message.
         """
         resolved = self._resolve(embargo_data)
         if isinstance(resolved, Status):
@@ -192,8 +197,7 @@ class _EmbargoRelayEffectNode(_LedgerEffectNode):
         entry = self._get_entry()
         self.feedback_message = (
             f"'{entry.semantic_type}' entry '{entry.id_}' of embargo"
-            f" '{embargo_id}' on case '{case.id_}': each consent row it"
-            " changes follows as its own entry"
+            f" '{embargo_id}' on case '{case.id_}': {detail}"
         )
         self.logger.debug("%s: %s", self.name, self.feedback_message)
         return Status.SUCCESS
@@ -443,18 +447,10 @@ class ApplyCreatedEmbargoFromLedgerNode(_EmbargoRelayEffectNode):
     """
 
     def update(self) -> Status:
-        resolved = self._resolve(
-            self._get_entry().payload_snapshot.get("object")
+        return self._store_only(
+            self._get_entry().payload_snapshot.get("object"),
+            detail="held; the case's register already names it",
         )
-        if isinstance(resolved, Status):
-            return resolved
-        case, embargo_id = resolved
-        self.feedback_message = (
-            f"Stored embargo '{embargo_id}' of case '{case.id_}' from its"
-            " create_embargo_event entry"
-        )
-        self.logger.info("%s: %s", self.name, self.feedback_message)
-        return Status.SUCCESS
 
 
 __all__ = [

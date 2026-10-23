@@ -50,6 +50,7 @@ def reset_config(monkeypatch, tmp_path):
         "VULTRON_MODE",
         "VULTRON_ACTOR__AUTO_CREATE_CASE",
         "VULTRON_ACTOR__DEFAULT_CASE_ROLES",
+        "VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS",
     ):
         monkeypatch.delenv(var, raising=False)
     reload_config()
@@ -380,3 +381,20 @@ def test_config_override_cache_restored_after_exit():
     with config_override(VULTRON_SERVER__BASE_URL="http://inside.test"):
         pass
     assert get_config().server.base_url == "http://localhost:7999/api/v2"
+
+
+# ---------------------------------------------------------------------------
+# CBT-03-005: the pre-bootstrap queue expiry default and its override
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("CBT-03-005")
+def test_defaults_pre_bootstrap_queue_timeout_seconds():
+    assert get_config().pre_bootstrap_queue_timeout_seconds == 300
+
+
+@pytest.mark.spec("CBT-03-005")
+def test_env_override_pre_bootstrap_queue_timeout_seconds(monkeypatch):
+    monkeypatch.setenv("VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS", "45")
+    reload_config()
+    assert get_config().pre_bootstrap_queue_timeout_seconds == 45

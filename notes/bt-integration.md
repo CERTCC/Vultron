@@ -372,11 +372,11 @@ guards, commit, effects.
    the Factory"). In a tree that commits to a case the factory runs the commit
    and both effect lists in one `ActTransaction` by default, so the act's
    entry becomes durable only when the act commits, and a failure keeps
-   nothing (CLP-07-015, ADR-0151); only a registered `OneActExemption` opts a
-   tree out. So an effect that fails as a normal outcome (a withheld status
-   adoption) must not return FAILURE, or the act loses its entry: make it the
-   success arm of a Selector. Read the stages through `received_stages()`,
-   which opens that block in place.
+   nothing (CLP-07-015, ADR-0151); only a registered `OneActExemption`
+   (CLP-07-016) opts a tree out. So an effect that fails as a normal outcome
+   (a withheld status adoption) must not return FAILURE, or the act loses its
+   entry: make it the success arm of a Selector. Read the stages through
+   `received_stages()`, which opens that block in place.
 
 **Intake is the only path that stores the received activity** (CLP-10-019). Do
 not add a per-tree store node or handler-local store helper. A receive tree
@@ -402,10 +402,11 @@ refuse its own commit. The `Announce(VulnerabilityCase)` tree passes
 `case_id=None` by decision: only the CASE_MANAGER sends it and only replicas
 receive it, so the gate could only skip. The CASE_MANAGER's own acts
 (`Update(VulnerabilityCase)`, `Create`/`Update(CaseParticipant)`,
-`Create`/`Update(EmbargoConsent)`) have no received tree: the registry
-recognizes each and the dispatcher reports "no use case found" (SE-05-002,
-ADR-0140). `Create(CaseStatus)`, `Create(ParticipantStatus)` and
-`Create(Event)` have none either, and resolve to `UNKNOWN`: storing the
+`Create(EmbargoEvent)`, `Create`/`Update(EmbargoConsent)`) have no received
+tree: the registry recognizes each and the dispatcher reports "no use case
+found" (SE-05-002, ADR-0140). `Create(CaseStatus)`, `Create(ParticipantStatus)`
+and a `Create` of any non-embargo `Event` have none either, and resolve to
+`UNKNOWN`: storing the
 record they carry would change the case file with no entry (CLP-07-013), and
 the protocol does not allow them:
 each record enters a case only by its one attaching message (VAM-01-011,

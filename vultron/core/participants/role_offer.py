@@ -28,7 +28,7 @@ A case may hold several role Offers open at once, to different targets or
 of different roles, so an Offer is closed only by an answer *to it*: an
 ``accept_case_participant_role`` or ``reject_case_participant_role`` entry
 whose snapshot carries this Offer or its forward as ``object``, read through
-``find_protocol_pair(answering=...)`` (CLP-11-001).
+``find_protocol_pair(answering=...)`` (CLP-11-001, CLP-11-005).
 """
 
 from dataclasses import dataclass

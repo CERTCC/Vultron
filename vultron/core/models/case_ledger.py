@@ -384,7 +384,7 @@ class CaseLedger:
 
     Every entry in the ledger is a canonical admitted assertion.  The ledger
     records only what happened, not what was refused.  Refusals are surfaced
-    through Python logging, not ledger entries (CLP-04-007).
+    through Python logging, not ledger entries (CLP-04-007, CLP-04-008).
 
     Usage example::
 

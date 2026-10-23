@@ -511,15 +511,20 @@ def _retired_create_activities() -> list[Any]:
 
     Each addressed to the receiver and naming the case the way the removed
     pattern required.  ``Create(CaseParticipant)`` is not among them: it is
-    the CASE_MANAGER's own act, which the registry recognizes (#4724).
-    ``Create(Note)`` is sent
+    the CASE_MANAGER's own act, which the registry recognizes (#4724), and
+    neither is ``Create(EmbargoEvent)`` (VAM-05-016).  A ``Create`` of a plain
+    ``Event`` is among them: only an ``EmbargoEvent`` object is recognized
+    (VAM-01-010).  ``Create(Note)`` is sent
     twice: once with the note's ``context`` naming the case (the form the
     removed route attached) and once with no case context at all.
     """
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Create,
     )
-    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+    from vultron.wire.as2.vocab.base.objects.object_types import (
+        as_Event,
+        as_Note,
+    )
     from vultron.wire.as2.vocab.objects.case_status import (
         as_CaseStatus,
         as_ParticipantStatus,
@@ -566,6 +571,19 @@ def _retired_create_activities() -> list[Any]:
                 to=[_RECEIVER_ID],
             ),
             id="note-without-case-context",
+        ),
+        pytest.param(
+            as_Create(
+                object_=as_Event(
+                    id_=f"{_RETIRED_CASE_ID}/events/plain",
+                    name="a plain event, not an embargo",
+                    context=_RETIRED_CASE_ID,
+                ),
+                context=_RETIRED_CASE_ID,
+                actor=_SENDER_ID,
+                to=[_RECEIVER_ID],
+            ),
+            id="plain-event",
         ),
     ]
 

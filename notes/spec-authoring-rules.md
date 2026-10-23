@@ -178,6 +178,12 @@ adoption reads as "no rule here", which is worse than one nobody has started.
   `test/architecture/test_spec_coverage_ratchet.py` fails a relabeled ID that
   lost every marker it had at the merge base. A relabel *into* `protocol` or
   `foundation` from another kind needs a marker in the same PR.
+- **A reworded statement re-checks its verification.** Touching a `protocol`
+  item brings its old `verification:` under MS-10-011, so gate a kind sweep on
+  `spec-lint --changed-since origin/main`; the bare run passes it (#4891).
+- **A split's `adr:` can end an ADR's epoch.** The first tested `project` item
+  that names a `proposed` ADR ends its epoch 1 (MS-14-010); cite only ADRs
+  already past it unless that move is meant (#4891).
 
 ### Valid `priority:` Values — Underscores, Not Spaces
 

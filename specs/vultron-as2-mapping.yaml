@@ -108,15 +108,17 @@ groups:
       proposed `EmbargoEvent` inline on the `Invite` that proposes it (VAM-05-005). An
       inbox MUST refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)` or
       `Create(Note)` as an unrecognized activity, and MUST report a received
-      `Create(CaseParticipant)` or `Create(Event)`, each the CASE_MANAGER's own record
-      of a creation (VAM-05-016), as "no use case found" (SE-05-002, ADR-0140).
+      `Create(CaseParticipant)` or `Create(EmbargoEvent)`, each the CASE_MANAGER's own
+      record of a creation (VAM-05-016), as "no use case found" (SE-05-002, ADR-0140).
+      Only a `Create` whose object is an `EmbargoEvent` is recognized: a `Create` of
+      any other `Event` is refused as an unrecognized activity.
     rationale: >-
       VAM-01-011 makes the single message the only protocol form and leaves how a
       receiver handles a stray `Create` to the receiver; this item is this codebase's
       answer. The removed `Create` routes stored their object with no ledger entry,
       which CLP-07-013 rules out (#4598), and the removed `Create(Note)` route made a
-      second form for attaching a note (#4707). `Create(Event)` came back as the
-      CASE_MANAGER's ledger record of an embargo its case's creation wrote (#5122),
+      second form for attaching a note (#4707). `Create(EmbargoEvent)` came back as
+      the CASE_MANAGER's ledger record of an embargo its case's creation wrote (#5122),
       which a replica copies from the ledger and no inbox handles. The inline rule
       binds what this codebase sends: a received `Invite` may still name its terms by
       URI (ADR-0123).
@@ -145,8 +147,10 @@ groups:
       case `context`, resolves to `UNKNOWN` and is refused, and that the case, the
       ledger and the outbox stay unchanged.
       `test_a_received_case_manager_act_is_recognized_and_unhandled` in the same file
-      confirms that a received `Create(CaseParticipant)` or `Create(Event)` is
-      recognized, reported unhandled, and changes nothing.
+      confirms that a received `Create(CaseParticipant)` or `Create(EmbargoEvent)` is
+      recognized, reported unhandled, and changes nothing, and
+      `test_received_create_of_a_case_record_is_refused_case_unchanged` confirms that
+      a received `Create` of a plain `Event` is refused as unrecognized.
     relationships:
     - rel_type: refines
       spec_id: VAM-01-011
@@ -929,9 +933,10 @@ groups:
     statement: >-
       `CREATE_EMBARGO_EVENT` MUST be represented as `Create(EmbargoEvent)`, carrying
       the embargo in full, its start and end times included. Only the CASE_MANAGER
-      sends it, once for each embargo a case's creation writes, such as the default
-      embargo (EP-04-002), committed right after the case's genesis entry and before
-      the case's other creation entries (CLP-07-013). No received use case handles it
+      commits it, as a ledger entry and never as a sent message, once for each
+      embargo a case's creation writes, such as the default embargo (EP-04-002),
+      right after the case's genesis entry and before the case's other creation
+      entries (CLP-07-013). No received use case handles it
       (SE-05-002, ADR-0140): a replica stores the embargo from the entry.
     rationale: >-
       The genesis entry names the case's embargoes by id, and no other entry carries

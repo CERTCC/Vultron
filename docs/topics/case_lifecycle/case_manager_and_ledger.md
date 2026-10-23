@@ -60,8 +60,8 @@ The objects a case is made of, including the roles a participant can hold, are d
 The ledger holds only the assertions the CASE_MANAGER admitted.
 The CASE_MANAGER's verdict on an assertion is called **Ledger Admission**: the assertion is either *admitted* or *refused* ([CLP-02-012](../../reference/specs/protocol.md#clp-02-012), [glossary](../../reference/glossary.md#sync-authority-replication)).
 It is the authoritative history of the case ([CLP-04-001](../../reference/specs/protocol.md#clp-04-001)).
-A refused assertion never becomes an entry.
-The CASE_MANAGER reports the refusal through its structured logs instead ([CLP-04-007](../../reference/specs/protocol.md#clp-04-007)).
+A refused assertion never becomes an entry ([CLP-04-007](../../reference/specs/protocol.md#clp-04-007)).
+The CASE_MANAGER reports the refusal through its structured logs instead ([CLP-04-008](../../reference/specs/project.md#clp-04-008)).
 
 Admitted and refused are not the same as the `Accept` and `Reject` activities.
 A participant that declines an invitation or an offer sends a `Reject`, and that `Reject` is a case event like the `Accept` it could have sent.

@@ -76,12 +76,18 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
 #: The record each creation entry carries, and where in its snapshot.
 _CREATION_RECORDS: Mapping[str, tuple[str, type[CoreObject]]] = {
     "create_case": ("object", VulnerabilityCase),
-    "create_embargo_event": ("object", EmbargoEvent),
     "add_report_to_case": ("object", VulnerabilityReport),
     "create_case_participant": ("object", CaseParticipant),
     "add_participant_status_to_participant": ("target", CaseParticipant),
     "add_case_status_to_case": ("object", CaseStatus),
 }
+
+#: Creation entries the replay stores rather than the seed, so a rebuild
+#: drives each one through its replica slot (``ApplyCreatedEmbargoFromLedgerNode``
+#: for ``create_embargo_event``, #5122).
+_REPLAYED_CREATION_ENTRIES: frozenset[str] = frozenset(
+    {"create_embargo_event"}
+)
 
 
 def run_use_case(
@@ -155,10 +161,14 @@ def creation_records(entries: Iterable[CaseLedgerEntry]) -> list[CoreObject]:
     """The records a ledger's leading creation entries carry, latest copy each.
 
     Read from the entries' snapshots alone, as a replica's copy is: a later
-    entry carrying the same record replaces the earlier copy.
+    entry carrying the same record replaces the earlier copy.  A creation
+    entry in ``_REPLAYED_CREATION_ENTRIES`` seeds nothing; its record
+    reaches the replica when the entry is replayed.
     """
     records: dict[str, CoreObject] = {}
     for entry in entries:
+        if str(entry.semantic_type) in _REPLAYED_CREATION_ENTRIES:
+            continue
         carried = _CREATION_RECORDS.get(str(entry.semantic_type))
         if carried is None:
             break
@@ -284,7 +294,8 @@ def _embargo_differences(
         held = manager_dl.read(embargo_id)
         copied = replica_dl.read(embargo_id)
         if not isinstance(held, EmbargoEvent):
-            # A test network may register an embargo it never stored; the
+            # A test network may register an embargo it never stored (the
+            # revision fixtures of test_embargo_termination_copy.py); the
             # replica then has nothing to copy either.
             if isinstance(copied, EmbargoEvent):
                 found.append(

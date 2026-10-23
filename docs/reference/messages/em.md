@@ -71,7 +71,7 @@ A revision that ends later sends no such notice, because those participants neve
 
 - **Protocol role:** each embargo a case's creation writes, such as the default embargo, is its own ledger entry, right after the case's genesis entry, carrying the embargo in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
   A replica built from the ledger alone reads the embargo's start and end times from it.
-- **Who sends it:** only the Case Manager.
+- **Who commits it:** only the Case Manager, as a ledger entry.
   No use case handles it on receipt: each replica stores the embargo from the ledger entry.
 
 {% include-markdown "./_occasions/sections/create-embargo-consent.md" %}

@@ -278,7 +278,7 @@ An actor that names by reference an object its recipient cannot be expected to h
 A production implementation MUST be able to fetch an object named by a URI it holds no record of ([AKM-05-004](../specs/protocol.md#akm-05-004)).
 
 A case ledger entry records the asserted activity as it was sent.
-Its payload snapshot is the received body of an activity the Case Manager received, or the sealed body of one it sent itself ([CLP-07-011](../specs/protocol.md#clp-07-011)).
+Its payload snapshot is the received body of an activity the Case Manager received, or the body it delivered for one it sent itself ([CLP-07-011](../specs/protocol.md#clp-07-011)).
 Each nested object stays as the asserting activity carried it: inline where its sender inlined it, by reference where its sender named an object every replica already holds ([CLP-07-006](../specs/protocol.md#clp-07-006)).
 The Case Manager never fills a reference in, because the entry hash covers the snapshot and nothing outside it, so a filled-in snapshot would record the Case Manager's reconstruction rather than what was sent.
 

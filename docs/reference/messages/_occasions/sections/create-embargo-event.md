@@ -5,7 +5,7 @@
 Carries the new embargo in full, its start and end times included. It follows the case's genesis entry.
 
 - **When…** the Case Manager has created a case and, with it, an embargo such as the default embargo
-- **Send:** `Create(Event)`
+- **Send:** `Create(EmbargoEvent)`
 - **Send to:** a participant
 - **Sent by:** not handled
 - **Mapping status:** [none](../../index.md#mapping-status)
