@@ -81,7 +81,7 @@ state ([§10.2 Routing Topology](interactions.md#102-routing-topology)).
     instruction to the recipient. An `RV` message means "I received this report
     and determined it was valid" — it does not ask the recipient to treat the
     report as valid. This holds throughout
-    [§4 Semantic Layer — Message Meanings](layers.md#4-semantic-layer-message-meanings-n) through [§11 Model Interactions and Cascade Rules](interactions.md#11-model-interactions-and-cascade-rules-n)
+    [§4 Messages](layers.md#4-messages-n) through [§11 Model Interactions and Cascade Rules](interactions.md#11-model-interactions-and-cascade-rules-n)
     and governs how every message description in those sections should be read.
 
     One construct is deliberately request-shaped: a proposal such as an embargo

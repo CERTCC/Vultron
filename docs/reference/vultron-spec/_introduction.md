@@ -22,7 +22,7 @@ each other; it is one of separate systems needing to stay consistent about a
 shared case. That is the problem Vultron addresses.
 
 Email carries the content of a CVD case but records none of its state. No
-participant can see which vendors have read the report, which have agreed to an
+participant can see which vendors have received the report, which have agreed to an
 embargo, or in what order events occurred. Adding a party mid-case means
 re-sending the history by hand, and nothing detects the gap if that fails. Vultron
 gives each of these an explicit, machine-checkable representation: report status

@@ -4,7 +4,7 @@
 
 Acknowledges receipt of the submitted report. Report submission is not replicated through the case ledger, so the acknowledgment is an explicit message.
 
-- **When…** a report receiver has read a submitted report
+- **When…** a report receiver has received a submitted report
 - **Send:** `Read(Offer(VulnerabilityReport))`
 - **Send to:** an actor outside any case
 - **Sent by:** the addressee of the vulnerability report offer (usually: vendor, coordinator)

@@ -106,7 +106,7 @@ nav:
     - Protocol Specification:
       - 'reference/vultron-spec/index.md'
       - Introduction and Overview: 'reference/vultron-spec/introduction.md'
-      - Protocol Layers: 'reference/vultron-spec/layers.md'
+      - Messages and Encoding: 'reference/vultron-spec/layers.md'
       - Case Tracking Models: 'reference/vultron-spec/tracking-models.md'
       - Coordination, Interactions, and Lifecycle: 'reference/vultron-spec/interactions.md'
       - Conformance: 'reference/vultron-spec/conformance.md'
@@ -390,6 +390,9 @@ plugins:
         howto/em_icalendar.md: topics/process_models/em/index.md
         howto/general_implementation.md: howto/activitypub/index.md
         reference/fv-demo-protocol.md: reference/rv-demo-protocol.md
+        # The section 4 and 5 fragments were renamed with their sections (#5148).
+        reference/vultron-spec/_semantic-layer.md: reference/vultron-spec/layers.md#4-messages-n
+        reference/vultron-spec/_syntactic-layer.md: reference/vultron-spec/layers.md#5-encoding-and-transport-n
         topics/background/notation.md: reference/notation.md
         topics/background/overview.md: topics/background/what-is-vultron.md
         # Terms and Definitions was merged into the glossary's roles section (#3624).

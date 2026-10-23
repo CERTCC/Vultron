@@ -61,7 +61,7 @@ The table is generated from the semantic registry, the list of patterns that [se
 
 ### Formal message set
 
-The formal message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$, each defined in [§4 Semantic Layer — Message Meanings in the specification](vultron-spec/layers.md#4-semantic-layer-message-meanings-n).
+The formal message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$, the union of the report management, embargo management, case state and general messages ([§4.13 Formal Message Set in the specification](vultron-spec/layers.md#413-formal-message-set)).
 The table below lists each type with the wire activities that carry it, and is generated from the same registry as the occasion table.
 The state transition that emits each type is on [Messages](formal_protocol/messages.md), and the response the formal protocol expects from a recipient is on [Transitions](formal_protocol/transitions.md).
 

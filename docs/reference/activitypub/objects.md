@@ -15,7 +15,7 @@ Vultron ActivityStreams (Vultron AS) is an extension of the
 [ActivityStreams vocabulary](https://www.w3.org/TR/activitystreams-vocabulary/){:target="_blank"}
 to describe the mapping of Vultron to ActivityStreams.
 This page shows each Vultron object as it appears on the wire.
-The normative definition of the object types is [§5.2 Object Types](../vultron-spec/layers.md#52-object-types) of the Vultron Protocol Specification; the activities that carry them are cataloged in [Message Types](../messages/index.md).
+The normative definition of the object types is [§4.3 Object Types](../vultron-spec/layers.md#43-object-types) of the Vultron Protocol Specification; the activities that carry them are cataloged in [Message Types](../messages/index.md).
 For why the extension is as small as it is, and when a new object type is minted
 rather than reusing a native one, see
 [Activity Vocabulary Design](../../topics/activity_vocabulary_design.md).

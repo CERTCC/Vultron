@@ -97,9 +97,9 @@ def test_number_plus_name_passes(tmp_path: Path, text: str) -> None:
 
 
 def test_cited_number_must_match_its_anchor(tmp_path: Path) -> None:
-    target = "../reference/vultron-spec/layers.md#47-knowledge-model"
+    target = "../reference/vultron-spec/layers.md#42-knowledge-model"
     assert _faults_for(tmp_path, "§4.8 Knowledge Model", target) == [
-        "cites §4.8 but links #47-knowledge-model"
+        "cites §4.8 but links #42-knowledge-model"
     ]
 
 
@@ -113,8 +113,8 @@ def test_cited_number_must_match_its_anchor(tmp_path: Path) -> None:
         ),
         (
             "Section 4.8 Knowledge Model",
-            "47-knowledge-model",
-            "cites §4.8 but links #47-knowledge-model",
+            "42-knowledge-model",
+            "cites §4.8 but links #42-knowledge-model",
         ),
         (
             "Annex G Capability Shapes",
@@ -140,9 +140,10 @@ def test_cited_section_must_be_the_anchored_one(
     [
         ("§13 Conformance", "13-conformance-n"),
         ("§15 Security Considerations", "15-security-considerations-ni"),
+        ("§4 Messages", "4-messages-n"),
         (
-            "§4 Semantic Layer — Message Meanings",
-            "4-semantic-layer-message-meanings-n",
+            "§8.1 VFD — Vendor Aware, Fix Ready, Fix Deployed",
+            "81-vfd-vendor-aware-fix-ready-fix-deployed",
         ),
         (
             "§9.4 Deadlines and the Pocket Veto in the Vultron Protocol "

@@ -3,7 +3,7 @@
   "type": "Read",
   "id": "urn:uuid:008968ab-9a77-47a2-b864-41800b9a4c52",
   "name": "https://vultron.example/organizations/vendorco Read https://vultron.example/users/finndervul Offer FDR-8675309",
-  "content": "We've read the report. We'll get back to you soon.",
+  "content": "We have received the report. We will get back to you soon.",
   "actor": "https://vultron.example/organizations/vendorco",
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",

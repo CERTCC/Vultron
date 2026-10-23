@@ -117,7 +117,7 @@ class InvalidateReportReceivedEvent(VultronEvent):
 
 
 class AckReportReceivedEvent(VultronEvent):
-    """Actor acknowledged (read) a VulnerabilityReport submission."""
+    """Actor acknowledged receipt of a VulnerabilityReport submission."""
 
     semantic_type: Literal[MessageSemantics.ACK_REPORT] = (
         MessageSemantics.ACK_REPORT

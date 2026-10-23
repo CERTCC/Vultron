@@ -19,8 +19,8 @@ provides (see the warning in [§13.1 Conformance Model Overview](../conformance.
 
 | Layer | Verifies |
 |---|---|
-| L1 — Syntax | Messages are well-formed against the wire format ([§5 Syntactic Layer — Wire Format](../layers.md#5-syntactic-layer-wire-format-n)) |
-| L2 — Semantics | Each message drives the correct state transition ([§4 Semantic Layer — Message Meanings](../layers.md#4-semantic-layer-message-meanings-n), [§6 Report Management (RM) State Machine](../tracking-models.md#6-report-management-rm-state-machine-n) through [§12 Participant Lifecycle Within a Case](../interactions.md#12-participant-lifecycle-within-a-case-n)) |
+| L1 — Syntax | Messages are well-formed against the wire format ([§5 Encoding and Transport](../layers.md#5-encoding-and-transport-n)) |
+| L2 — Semantics | Each message drives the correct state transition ([§4 Messages](../layers.md#4-messages-n), [§6 Report Management (RM) State Machine](../tracking-models.md#6-report-management-rm-state-machine-n) through [§12 Participant Lifecycle Within a Case](../interactions.md#12-participant-lifecycle-within-a-case-n)) |
 | L3 — Behavior | Correct observable outputs: right messages emitted and states reached, given input state plus received message |
 | L4 — Process | Correct internal decision structure (e.g. precondition before state write before side-effect) |
 

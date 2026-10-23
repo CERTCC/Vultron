@@ -205,9 +205,9 @@ Keep protocol text free of implementation accidents and drafting artifacts.
   "§6 Report Management (RM) State Machine", never a bare "§6", because a bare
   number does not say which page the section is on. An annex is cited as
   "Annex A Worked Example: Single-Vendor CVD": the "—" after the annex letter in
-  the heading is dropped, while a "—" inside a section name is kept ("§4 Semantic
-  Layer — Message Meanings"). Link text is mechanized (see "Mechanized"); check
-  citations in prose by hand.
+  the heading is dropped, while a "—" inside a section name is kept ("§8.1 VFD —
+  Vendor Aware, Fix Ready, Fix Deployed"). Link text is mechanized (see
+  "Mechanized"); check citations in prose by hand.
 - `[M]` Every reference to a Python source file is a clickable Markdown link
   pointing to a canonical GitHub URL — not a bare file path. The RFC must be
   usable as a standalone PDF.
@@ -282,12 +282,12 @@ source of imprecise language.
 Check after any structural reorganization or addition of new sections.
 
 - `[J]` Every structural concept used in normative prose in §3 Protocol
-  Overview or §4 Semantic Layer — Message Meanings is either defined in §2
-  Terminology or accompanied by a one-sentence gloss at first use. §4 Semantic
-  Layer — Message Meanings is on a different page from §2 Terminology, so a
-  concept it takes from there is also linked to it. A bare forward reference
-  `(§N.M)` is not sufficient for foundational concepts (`CaseLedgerEntry`, the
-  case manager, PEC state names, RM state names at point of gating use).
+  Overview or §4 Messages is either defined in §2 Terminology or accompanied by
+  a one-sentence gloss at first use. §4 Messages is on a different page from §2
+  Terminology, so a concept it takes from there is also linked to it. A bare
+  forward reference `(§N.M)` is not sufficient for foundational concepts
+  (`CaseLedgerEntry`, the case manager, PEC state names, RM state names at point
+  of gating use).
 - `[J]` When a state machine's state names are used normatively in a section
   more than one major section after the defining section, a compact reminder
   (a small table or admonition listing the state names with one-word glosses)
@@ -322,7 +322,7 @@ Check after any structural reorganization or addition of new sections.
   occurrence being a cross-reference. Common candidates: PEC provenance note
   (§6 Report Management (RM) State Machine / §9 Participant Embargo Consent
   (PEC) State Machine), ActivityPub conformance roadmap (§1.3 Relationship to
-  Existing Standards / §5.1 Base Vocabulary / §5.6 Transport Layer).
+  Existing Standards / §5.1 Base Vocabulary / §5.3 Transport).
 - `[J]` No body-text sentence asserting a normative fact (e.g., "some
   sequences carry normative weight") is immediately followed by an open
   question or admonition that contradicts or defers exactly that fact. Either
@@ -347,9 +347,9 @@ admonitions.
   Tracking Dimensions) is available as a standalone fragment for re-inclusion
   wherever the five-machine count is normatively required (currently §13.2
   Capability Sets).
-- `[J]` The shorthand-to-wire-form mapping table (§5.7 Shorthand to Wire Form
-  Mapping) is available as a standalone fragment for re-inclusion in the §13.5
-  Conformance Testing Approach context.
+- `[J]` The formal message set table (§4.13 Formal Message Set) is the generated
+  fragment `docs/reference/messages/_occasions/shorthands.md`, available for
+  re-inclusion in the §13.5 Conformance Testing Approach context.
 - `[J]` Repeated reference content (state tables, orienting notes) is a single
   include, not a retyped copy. Two copies of a state table will diverge.
 - `[J]` The named-configurations summary table (Hosting Coordinator /
@@ -369,11 +369,11 @@ Check when roles, object types, or message patterns are added or redefined.
   beyond the terminology definition and conformance listing. If a role has no
   direct state machine obligations, that fact is stated explicitly rather than
   left implied by absence.
-- `[J]` Every object type defined in §5.2 Object Types (`CaseProposal`,
-  `CaseLedgerEntry`, `VulnerabilityCase`, `ParticipantRecord`) has a
+- `[J]` Every object type defined in §4.3 Object Types (`CaseProposal`,
+  `CaseLedgerEntry`, `VulnerabilityCase`, `CaseParticipant`) has a
   corresponding lifecycle description — at minimum: when it is created, what
   state transitions it records or triggers, and when it is retired or
-  superseded. Object types that appear only in §5.2 Object Types and one or two
+  superseded. Object types that appear only in §4.3 Object Types and one or two
   incidental references elsewhere are flagged for lifecycle elaboration.
 - `[J]` The term `Observer` is annotated in §2 Terminology as carrying two
   meanings (process role and capability set). Readers are warned at the §2
