@@ -260,7 +260,7 @@ def _inline_ledger_entry(**keys: Any) -> dict[str, Any]:
     return {key: value for key, value in body.items() if value is not None}
 
 
-@pytest.mark.spec("CLP-02-014")
+@pytest.mark.spec("CLP-02-014", "CLP-02-015")
 @pytest.mark.spec("MV-11-002")
 @pytest.mark.parametrize(
     "keys",
@@ -275,7 +275,7 @@ def _inline_ledger_entry(**keys: Any) -> dict[str, Any]:
 def test_received_ledger_entry_carrying_event_type_is_refused(
     keys: dict[str, Any],
 ) -> None:
-    """A received entry still spelling ``eventType`` is refused (CLP-02-014).
+    """A received entry still spelling ``eventType`` is refused (CLP-02-015).
 
     The parse edge decides the key before the core class sees it, so the
     refusal must name the rename whether or not ``semanticType`` rides along;
@@ -290,7 +290,7 @@ def test_received_ledger_entry_carrying_event_type_is_refused(
     assert "renamed semanticType" in message
 
 
-@pytest.mark.spec("CLP-02-014")
+@pytest.mark.spec("CLP-02-014", "CLP-02-015")
 @pytest.mark.spec("MV-11-002")
 def test_event_type_on_a_non_ledger_object_is_refused_too() -> None:
     """``eventType`` is a retired name on every inline object, not only an entry.

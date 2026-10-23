@@ -15,7 +15,7 @@
 
 The CASE_MANAGER commits a received act's own entry, the case-file changes
 its entries carry and every consequence a later node in the act's tree
-commits in one DataLayer transaction (CLP-07-015, ADR-0146): when any of
+commits in one DataLayer transaction (CLP-07-016, ADR-0146): when any of
 them fails, none of them is kept.  ``create_receive_activity_tree`` gives
 every received tree that commits to a case that shape by default,
 ``ActTransaction[GuardedCommit, *replica_effects, CaseManagerGate]``, and a
@@ -65,7 +65,7 @@ from vultron.core.behaviors.embargo.nodes.relay import (
     RelayEmbargoInviteToEachNode,
 )
 
-pytestmark = pytest.mark.spec("CLP-07-015")
+pytestmark = pytest.mark.spec("CLP-07-015", "CLP-07-016")
 
 _B = "vultron/core/behaviors"
 
@@ -176,7 +176,7 @@ def test_every_received_act_commits_its_own_entry_in_one_act() -> None:
         outside,
         frozenset(ONE_ACT_EXEMPT_TREES),
         "drop the one_act_exemption, or register one with its reason"
-        " (CLP-07-015)",
+        " (CLP-07-016)",
     )
 
 
@@ -204,7 +204,7 @@ def test_received_later_nodes_run_in_their_acts_transaction() -> None:
         "later node outside its act's ActTransaction",
         actual,
         frozenset(OUTSIDE_AN_ACT),
-        "run the act and the node in one ActTransaction (CLP-07-015)",
+        "run the act and the node in one ActTransaction (CLP-07-016)",
     )
 
 

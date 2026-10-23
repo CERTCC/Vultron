@@ -70,7 +70,7 @@ A commit placed ahead of the `Create` therefore hands every Participant ledger e
 Each such entry takes the pre-genesis recovery path — buffer, `Reject`, replay from genesis — while the replica waits behind the whole fan-out (CP-09-009).
 Emitting the case first makes that recovery path what it was designed to be: a backstop for transport reordering, not the normal route.
 The revision relay comes after the ledger commits, because no modification of the case may start before its initialization is complete (CM-14-007).
-Case creation is one act: every step from the case to the revision relay is written in one storage transaction, so a step that fails keeps none of them, including the queued `Accept`, `Create` and `Invite` (CLP-07-015).
+Case creation is one act: every step from the case to the revision relay is written in one storage transaction, so a step that fails keeps none of them, including the queued `Accept`, `Create` and `Invite` (CLP-07-015, CLP-07-016).
 Delivery learns of the queued messages only once that transaction commits, so a failed creation sends nothing, and a redelivered proposal starts again from the beginning.
 No marker is stored for a later run to finish the creation.
 

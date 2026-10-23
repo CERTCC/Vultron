@@ -107,7 +107,8 @@ groups:
   - id: SYNC-01-004
     priority: MUST
     kind: protocol
-    statement: Canonical recorded log entries MUST be written through the CASE_MANAGER's single authoritative write path
+    statement: >-
+      Canonical recorded log entries MUST be written only by the CASE_MANAGER.
     verification: >-
       Integration tests in `test/demo/` confirm that all canonical log entry writes
       pass through the CASE_MANAGER's single authoritative write path.
@@ -261,9 +262,9 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST act on `Reject(CaseLedgerEntry)` only when the sender is an
-      active participant in the case (CM-10-004). From any other sender it MUST report
-      `REFUSED`, record no replication state for the sender, and replay no entry and no
-      case to it.
+      active participant in the case (CM-10-004). From any other sender it MUST refuse
+      the message, record no replication state for the sender, and replay no entry and
+      no case to it.
     rationale: >-
       A rejection with an empty last-accepted hash makes the CASE_MANAGER replay the whole
       ledger and announce the case, so an unchecked sender obtains embargoed content just by
@@ -285,11 +286,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST recompute the hash of a received `CaseLedgerEntry` from its content
-      and compare it with the entry's stated `entryHash` before buffering, applying or
-      storing the entry. An entry that states no hash, or whose content does not
-      reproduce it, MUST be refused and logged, and MUST NOT be buffered, applied or
-      stored.
+      A receiver MUST recompute the hash of a received `CaseLedgerEntry` from its
+      content and compare it with the entry's stated `entryHash` before buffering,
+      applying or storing the entry. An entry that states no hash, or whose content does
+      not reproduce it, MUST be refused, and MUST NOT be buffered, applied or stored.
     rationale: >-
       The predecessor check (SYNC-03-001) proves an entry claims the right place in the
       chain, not that its content is what was hashed. A refused entry is not answered
@@ -298,7 +298,7 @@ groups:
       refusal with a processing fault instead (SYNC-03-007). See #3744.
     verification: >-
       Tests marked `SYNC-03-006` deliver an entry whose content no longer matches its
-      hash and assert it is not stored, not buffered, and logged at ERROR.
+      hash and assert it is not stored and not buffered.
     stories:
     - story_2022_045
     - story_2022_088
@@ -340,31 +340,49 @@ groups:
     kind: protocol
     statement: >-
       When the CASE_MANAGER receives the SYNC-03-007 fault from an active participant of
-      the case (CM-10-004), it MUST log the fault at ERROR, MUST recompute the hash of
-      its own stored copy of the named entry as SYNC-03-006 does, and MUST log whether
-      that copy is intact, or that it holds no copy of the named entry. It MUST NOT send
-      anything, re-seed the peer or record replication state because of the fault. From
-      any other sender it MUST report `REFUSED`.
+      the case (CM-10-004), it MUST NOT send anything, re-seed the peer or record
+      replication state because of the fault. From any other sender it MUST refuse the
+      fault.
     rationale: >-
       A hash mismatch comes from deterministic content: a fault in rendering or parsing
       the wire form, or a broken stored entry the send-side check (SYNC-03-009) did not
       see because fan-out checked its in-memory copy. Neither a replay nor a re-seed can
-      repair it; only a code fix or an operator can. The fault's
-      purpose is to make the problem visible where the ledger is kept, and the self-check
-      says which side is broken. The reject-and-replay loop it leaves is already bounded
-      by the replay cooldown (SYNC-15-003, SYNC-15-013).
+      repair it; only a code fix or an operator can. The reject-and-replay loop it
+      leaves is already bounded by the replay cooldown (SYNC-15-003, SYNC-15-013).
     relationships:
     - rel_type: refines
       spec_id: SYNC-03-007
     - rel_type: refines
       spec_id: SYNC-16-002
     verification: >-
-      `test/core/behaviors/sync/test_hash_mismatch_fault.py` asserts the ERROR record and
-      the self-check result (intact, not intact, or no stored copy), an empty outbox and
-      unchanged replication state for a fault from an active participant of a seeded
-      case, and `REFUSED` for one from a sender that is not a participant of that case.
+      `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_changes_nothing`
+      asserts an empty outbox and unchanged replication state for a fault from an
+      active participant of a seeded case.
+      `::test_hash_mismatch_fault_from_a_non_participant_is_refused` asserts `REFUSED`
+      for one from a sender that is not a participant; it is a strict `xfail` until
+      #5094 builds the sender rule.
     stories:
     - story_2022_045
+  - id: SYNC-03-010
+    priority: MUST
+    kind: project
+    statement: >-
+      When this codebase's CASE_MANAGER receives the SYNC-03-007 fault from an active
+      participant of the case (CM-10-004), it MUST log the fault at ERROR, MUST
+      recompute the hash of its own stored copy of the named entry as SYNC-03-006 does,
+      and MUST log whether that copy is intact, or that it holds no copy of the named
+      entry.
+    rationale: >-
+      The fault's purpose is to make the problem visible where the ledger is kept, and
+      the self-check says which side is broken (SYNC-03-008).
+    verification: >-
+      `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_is_logged_at_error`
+      asserts the ERROR record for a fault from an active participant of a seeded case,
+      a strict `xfail` until #5094 builds the behavior and adds the self-check result
+      (intact, not intact, or no stored copy).
+    relationships:
+    - rel_type: implements
+      spec_id: SYNC-03-008
   - id: SYNC-03-009
     priority: MUST
     kind: protocol
@@ -422,7 +440,7 @@ groups:
     - story_2022_088
   - id: SYNC-04-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: Per-peer replication state MUST be persisted via the DataLayer so that it survives a leader restart
     verification: >-
       Integration tests in `test/demo/` confirm that per-peer replication state
@@ -445,7 +463,7 @@ groups:
     - story_2022_088
   - id: SYNC-05-002
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Retry and backoff parameters SHOULD be configurable
     verification: >-
       Inspection of the replication adapter confirms that retry count and backoff
@@ -496,7 +514,7 @@ groups:
       modelled as a distinct concept from case ownership.
   - id: SYNC-06-002
     priority: SHOULD
-    kind: protocol
+    kind: process
     statement: The conditions under which replication leadership changes SHOULD be documented in `notes/sync-ledger-replication.md`
     verification: >-
       Inspection of `notes/sync-ledger-replication.md` confirms that the conditions
@@ -522,7 +540,7 @@ groups:
     - story_2022_106
   - id: SYNC-06-004
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       A future multi-node CASE_MANAGER cluster (Phase 3) SHOULD provide high-availability write
       authority via Raft consensus. This is a distinct replication tier from participant
@@ -587,7 +605,7 @@ groups:
     - story_2022_081
   - id: SYNC-09-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: The CASE_MANAGER's behavior tree execution MUST be gated on holding the replication leadership role.
     rationale: In single-node deployments this gate is trivially satisfied. In multi-node deployments it prevents a
       deposed leader from continuing to write to the ledger after a new leader is elected.
@@ -599,7 +617,7 @@ groups:
     - story_2022_106
   - id: SYNC-09-004
     priority: MUST
-    kind: protocol
+    kind: project
     statement: In a multi-node deployment, the CASE_MANAGER's replication leadership gate MUST be checked against the
       Raft leader state.
     rationale: Raft leader state is the authoritative source of leadership in a multi-node cluster; checking any other
@@ -800,7 +818,7 @@ groups:
   specs:
   - id: SYNC-11-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       A participant actor SHOULD maintain an actor-local, in-memory pending-assertion store
       that records outbound assertion activities (e.g., Add(Note)) emitted toward the
@@ -808,7 +826,7 @@ groups:
       the suppression window is configurable and zero disables suppression
   - id: SYNC-11-002
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       After a participant successfully enqueues an assertion activity toward the CASE_MANAGER,
       the participant SHOULD record the (case_id, semantic_type, activity_id) triple in its
@@ -816,7 +834,7 @@ groups:
       suppressed while the round-trip is pending
   - id: SYNC-11-003
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       When a participant receives a matching Announce(CaseLedgerEntry) whose log_object_id
       equals a pending assertion's object_id, the participant's pending-assertion store
@@ -836,7 +854,7 @@ groups:
       by the single authoritative writer
   - id: SYNC-11-005
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       A pending assertion that exceeds its configured timeout window SHOULD be marked
       timed-out and SHOULD no longer suppress future re-emits, allowing operator retry or
@@ -899,7 +917,7 @@ groups:
   specs:
   - id: SYNC-13-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >-
       A CaseLedgerEntry record is written to an actor's DataLayer ONLY by that actor's core
       ledger write path — the CASE_MANAGER's authoritative append (SYNC-01-004) for its own
@@ -931,8 +949,10 @@ groups:
   - id: SYNC-13-005
     priority: MUST
     kind: protocol
-    statement: Only the CASE_MANAGER MUST author `CaseLedgerEntry` records for the primary case; no other code path may
-      write authoritative case ledger entries.
+    statement: >-
+      `CaseLedgerEntry` records for a case's authoritative ledger MUST be authored only
+      by the case's CASE_MANAGER; no other actor may write authoritative case ledger
+      entries.
     rationale: The CASE_MANAGER's single authoritative write path is the enforcement mechanism for the ledger's
       append-only integrity and the write-ownership guarantee required by SYNC-12.
     verification: >-
@@ -945,8 +965,9 @@ groups:
   - id: SYNC-13-006
     priority: MUST
     kind: protocol
-    statement: Participants MUST obtain replica `CaseLedgerEntry` records solely via the core
-      `Announce(CaseLedgerEntry)` receive behavior tree.
+    statement: >-
+      Participants MUST obtain replica `CaseLedgerEntry` records solely from received
+      `Announce(CaseLedgerEntry)` activities.
     rationale: Channelling all replica writes through the receive behavior tree ensures that effects are applied in
       the correct order and that the already-stored gate (SYNC-12-003) is the sole idempotency mechanism.
     verification: >-
@@ -972,10 +993,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A receiver MUST treat an inbound Announce(CaseLedgerEntry) as the announcement of a
-      ledger entry on first delivery, without needing any stored record of the entry; the
-      SYNC-12-003 already-stored gate MUST remain the sole mechanism that distinguishes
-      first delivery from repeat delivery.
+      A receiver MUST treat an inbound Announce(CaseLedgerEntry) as the announcement of
+      a ledger entry on first delivery, without needing any stored record of the entry;
+      whether the entry is already stored (SYNC-12-003) MUST be the only test that
+      distinguishes first delivery from repeat delivery.
     verification: >-
       Integration tests in `test/demo/` confirm that an inbound Announce(CaseLedgerEntry)
       is routed to ANNOUNCE_CASE_LEDGER_ENTRY on first delivery, without a DataLayer
@@ -1099,8 +1120,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The drain path MUST be the same apply-then-persist path used for in-order
-      delivery, starting from the received Announce as in-order delivery does.
+      Applying a drained entry MUST follow the same apply-then-persist rules as in-order
+      delivery, starting from the held Announce as in-order delivery starts from the
+      received one.
     rationale: Using a separate drain path risks diverging from the in-order path over time, reintroducing the
       ordering bugs that SYNC-12 was designed to prevent.
     verification: >-
@@ -1180,7 +1202,7 @@ groups:
         invariant
   - id: SYNC-14-006
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       The holding area SHOULD be bounded in size per case; when full it SHOULD evict the
       held Announce whose entry is farthest ahead of the current gap (highest log_index),
@@ -1216,8 +1238,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a participant receives an Announce(CaseLedgerEntry) but cannot reconstruct the
-      per-case genesis hash because the VulnerabilityCase is not yet present in its DataLayer
+      When a participant receives an Announce(CaseLedgerEntry) but cannot reconstruct
+      the per-case genesis hash because it does not yet hold the VulnerabilityCase
       (CLP-08-005), the participant MUST NOT silently discard the entry; it MUST send a
       Reject(CaseLedgerEntry) with last_accepted_hash="" to the CASE_MANAGER so that the
       CASE_MANAGER replays all entries from the beginning once the case is delivered.
@@ -1357,15 +1379,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a participant receives a valid Announce(CaseLedgerEntry) but cannot reconstruct the
-      per-case genesis hash because the VulnerabilityCase is not yet present in its DataLayer
-      (CLP-08-005), the participant MUST NOT rely solely on the reject/replay round-trip; it
-      MUST retain the Announce that carried the entry, as received, in the same non-ledger
-      holding area used for forward gaps (SYNC-14-001), keyed by the entry's prev_log_hash,
-      pending arrival of the case seed.  Unlike a forward gap
-      (SYNC-14-001) this hold applies without a tail_index comparison — no chain tail exists in
-      the pre-genesis window — so every entry for the missing case is held, including the
-      genesis entry (log_index 0) whose prev_log_hash equals the per-case genesis hash.
+      When a participant receives a valid Announce(CaseLedgerEntry) but cannot
+      reconstruct the per-case genesis hash because it does not yet hold the
+      VulnerabilityCase (CLP-08-005), the participant MUST NOT rely solely on the
+      reject/replay round-trip; it MUST retain the Announce that carried the entry, as
+      received, in the same non-ledger holding area used for forward gaps (SYNC-14-001),
+      keyed by the entry's prev_log_hash, pending arrival of the case seed. Unlike a
+      forward gap (SYNC-14-001) this hold applies without a tail_index comparison — no
+      chain tail exists in the pre-genesis window — so every entry for the missing case
+      is held, including the genesis entry (log_index 0) whose prev_log_hash equals the
+      per-case genesis hash.
     rationale: >-
       The reject/replay backstop (SYNC-15-001) does not converge under adversarial reordering
       for the same reason forward gaps are held (SYNC-14): replay re-announces entries
@@ -1552,10 +1575,9 @@ groups:
     kind: protocol
     statement: >-
       A processing fault that reports a failure to apply a `CaseLedgerEntry` MUST NOT be
-      committed to the case ledger, by the participant or by the CASE_MANAGER. It MUST
-      be surfaced through structured logging, and the CASE_MANAGER's response to it is
-      per-peer replication state (SYNC-04), except for the hash-mismatch fault, which it
-      only logs and self-checks (SYNC-03-008).
+      committed to the case ledger, by the participant or by the CASE_MANAGER. The
+      CASE_MANAGER's response to it is per-peer replication state (SYNC-04), except for
+      the hash-mismatch fault, which changes nothing (SYNC-03-008).
     rationale: >-
       It reports on replication, as `Reject(CaseLedgerEntry)` does. Ledgering it loops:
       the diverged replica cannot apply the entry that records its own fault, and a
@@ -1578,7 +1600,7 @@ groups:
     statement: >-
       When the CASE_MANAGER receives the SYNC-16-001 fault from an active participant of
       the case (CM-10-004), it MUST send that participant `Announce(VulnerabilityCase)`
-      of its current case. From any other sender it MUST report `REFUSED`, send nothing
+      of its current case. From any other sender it MUST refuse the fault, send nothing
       and record no replication state for the sender.
     rationale: >-
       The CASE_MANAGER's case is authoritative (PCR-03-001), and a copy carrying its
@@ -1623,16 +1645,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Each `VulnerabilityCase` MUST store `ledger_position`, the ledger position its
-      case file is a projection of: the `log_index` and `entry_hash` of the last entry
-      applied to it, or, before any, index -1 and the per-case genesis hash. Committing
-      an entry, or storing one as a replica, MUST move the position to that entry in
-      the same transaction that stores the entry, unless the position is already past
-      it or names it, which MUST leave the position unchanged. A ledger entry whose
+      Each `VulnerabilityCase` MUST store its ledger position (`ledgerPosition`), the
+      position its case file is a projection of: the `log_index` and `entry_hash` of the
+      last entry applied to it, or, before any, index -1 and the per-case genesis hash.
+      Committing an entry, or storing one as a replica, MUST move the position to that
+      entry atomically with storing the entry, unless the position is already past it
+      or names it, which MUST leave the position unchanged. A ledger entry whose
       `payloadSnapshot` carries the case MUST carry it at the position before that
       entry. The position MUST travel with the case on its wire form, so a copy names
-      the position it reflects, and a received case that carries none MUST be
-      refused.
+      the position it reflects, and a received case that carries none MUST be refused.
     rationale: >-
       A case copy is the case as applying the ledger up to some entry leaves it
       (ADR-0124); the position names that entry, so a receiver can tell a current
@@ -1667,11 +1688,11 @@ groups:
       CASE_MANAGER for a case it already holds, a repeat of an earlier Announce
       included, MUST compare the copy's ledger position (SYNC-16-005) with its own:
       the later of its chain's tail and its case's stored position. If its own is
-      already past the copy's, it MUST leave its case file unchanged and report
-      `SKIPPED`. If it holds an entry at the position's index, or its case names one
-      there, whose hash differs, it MUST leave its case file unchanged, report
-      `REFUSED` and log the conflict at ERROR. Otherwise it MUST replace its case file
-      with the copy, taking the copy's position.
+      already past the copy's, it MUST leave its case file unchanged, as for a repeat
+      delivery. If it holds an entry at the position's index, or its case names one
+      there, whose hash differs, it MUST leave its case file unchanged and refuse the
+      copy. Otherwise it MUST replace its case file with the copy, taking the copy's
+      position.
     rationale: >-
       The transport is unordered and the outbox retries, so an old copy can arrive late;
       replacing with it would drop the effects of the entries the replica already holds
@@ -1745,7 +1766,7 @@ groups:
     - story_2022_088
   - id: SYNC-16-008
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       The CASE_MANAGER SHOULD log at ERROR a SYNC-16-001 fault for an entry at or before
       the tail of the last re-seed it sent that peer.

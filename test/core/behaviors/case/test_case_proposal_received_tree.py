@@ -706,6 +706,7 @@ def _owner_roles(dl: SqliteDataLayer) -> list:
 @pytest.mark.spec("CP-09-001")
 @pytest.mark.spec("CP-09-002")
 @pytest.mark.spec("CM-14-009")
+@pytest.mark.spec("CBT-01-003")
 class TestADR0041OwnerParticipant:
     """ADR-0041 AC-1: report receiver added as CASE_OWNER at RM.RECEIVED.
 
@@ -3111,6 +3112,7 @@ def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
 
 @pytest.mark.spec("CM-02-001")
 @pytest.mark.spec("CM-02-010")
+@pytest.mark.spec("CBT-01-003")
 class TestCaseActorIsOneParticipantDistinctFromTheOwner:
     """The proposal flow's snapshot names exactly one CaseActor, and it is not the owner.
 

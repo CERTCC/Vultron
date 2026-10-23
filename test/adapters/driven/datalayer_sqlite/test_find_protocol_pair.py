@@ -388,6 +388,7 @@ def _seed_reply(dl, reply_id: str, answered: object) -> None:
 
 
 @pytest.mark.spec("CLP-11-001")
+@pytest.mark.spec("CLP-11-005")
 @pytest.mark.spec("CM-33-005")
 class TestFindProtocolPairAnswering:
     """With ``answering``, only a reply to one of those ids closes the pair."""

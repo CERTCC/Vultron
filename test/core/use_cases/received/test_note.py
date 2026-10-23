@@ -805,6 +805,7 @@ class TestNoteUseCases:
     # CaseLedgerEntry cascade tests (PCR-08-003, PCR-08-004) — AC-1
     # ------------------------------------------------------------------
 
+    @pytest.mark.spec("PCR-08-013")
     def test_add_note_commits_log_entry_when_sync_port_provided(
         self, make_payload
     ):

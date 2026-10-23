@@ -372,11 +372,11 @@ guards, commit, effects.
    the Factory"). In a tree that commits to a case the factory runs the commit
    and both effect lists in one `ActTransaction` by default, so the act's
    entry becomes durable only when the act commits, and a failure keeps
-   nothing (CLP-07-015, ADR-0151); only a registered `OneActExemption` opts a
-   tree out. So an effect that fails as a normal outcome (a withheld status
-   adoption) must not return FAILURE, or the act loses its entry: make it the
-   success arm of a Selector. Read the stages through `received_stages()`,
-   which opens that block in place.
+   nothing (CLP-07-015, ADR-0151); only a registered `OneActExemption`
+   (CLP-07-016) opts a tree out. So an effect that fails as a normal outcome
+   (a withheld status adoption) must not return FAILURE, or the act loses its
+   entry: make it the success arm of a Selector. Read the stages through
+   `received_stages()`, which opens that block in place.
 
 **Intake is the only path that stores the received activity** (CLP-10-019). Do
 not add a per-tree store node or handler-local store helper. A receive tree

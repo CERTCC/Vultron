@@ -171,7 +171,7 @@ class AppConfig(BaseSettings):
             ``Question`` is sent to the case creator (CBT-03-003,
             CBT-03-004).  Override via
             ``VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS``.  Defaults to
-            300 (5 minutes).
+            300 (5 minutes) (CBT-03-005).
         max_inbox_retry_attempts: Maximum cumulative processing attempts for
             a single inbox activity before it is moved to the dead-letter
             store (IE-06-004).  Matches the outbox default of 12 so that

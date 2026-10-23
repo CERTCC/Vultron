@@ -36,7 +36,7 @@ from vultron.core.behaviors.case.nodes.role_gates import (
 )
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
-pytestmark = pytest.mark.spec("CLP-07-015")
+pytestmark = pytest.mark.spec("CLP-07-015", "CLP-07-016")
 
 _ACTOR = "https://example.org/actors/act-actor"
 

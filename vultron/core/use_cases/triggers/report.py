@@ -161,7 +161,7 @@ class SvcAckReportUseCase(SvcActivityTriggerBase):
 class SvcValidateReportUseCase(SvcActivityTriggerBase):
     """Validate a report offer using the ValidateReportBT behavior tree.
 
-    Per ADR-0021 CLP-10-001: the validate trigger tree now emits an
+    Per ADR-0021 CLP-10-027: the validate trigger tree now emits an
     RmValidateReportActivity addressed to the Case Actor. This requires
     a TriggerActivityPort to construct the outbound activity.
 
