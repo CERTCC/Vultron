@@ -20,11 +20,11 @@ the data.
    with Docker — not required if you use the bundled samples):
 
    ```bash
-   bash integration_tests/demo/run_multi_actor_integration_test.sh fvv
+   bash integration_tests/demo/run_multi_actor_integration_test.sh rvv
    ```
 
    This writes per-actor `*-case-ledger.jsonl` files under the gitignored
-   `devlogs/<scenario>/` directory (e.g. `devlogs/fvv/finder/…-case-ledger.jsonl`).
+   `devlogs/<scenario>/` directory (e.g. `devlogs/rvv/reporter/…-case-ledger.jsonl`).
 
 2. **Start the UI:**
 
@@ -72,8 +72,13 @@ DemoSelector
 
 ## Semantic Types
 
-The case-ledger vocabulary (the mapper's `handleEntry` switch). Verbs not listed
-are recorded in the event log without changing machine state.
+The types the mapper's `handleEntry` switch depicts. The vocabulary itself is not
+declared in `ui/`: [semanticRegistry.ts](src/semanticRegistry.ts) reads it from the
+generated [src/data/semantic_registry.json](src/data/semantic_registry.json)
+(`uv run export-demo-semantics`; never edit it by hand). Every event-log line
+carries the registry's phrase for its entry, the same template the Python demo
+report renders. A registered type not listed below is logged without changing
+machine state; a type the registry does not list is logged as unhandled.
 
 | Semantic type | Visualization |
 |---|---|

@@ -287,6 +287,22 @@ A participant that already holds the case compares the copy's position with its 
 - Otherwise it replaces its case with the copy.
   If its chain falls short of the copy's position, it sends `Reject(CaseLedgerEntry)` with its own tail, and stores each entry at or before that position, replayed or drained from its holding area, as a no-op. (SYNC-16-007)
 
+Committing or storing an entry at or before the case's position leaves the position where it is, so a case a copy put ahead of its chain never moves back while the chain catches up.
+A participant refuses an entry at the position's index whose hash differs from the one the position names, and logs the conflict as an error, because that entry belongs to a different chain from the copy. (SYNC-16-007)
+A participant first seeded from a copy stores the entries up to the copy's position the same way, as no-ops. (SYNC-16-007)
+
+[I] In this implementation, the position travels as the `ledgerPosition` property of the case object, with `logIndex` and `entryHash` members.
+A received case with no owner or no `ledgerPosition` is refused when it is parsed, so every copy a replica judges names a position.
+The copy carries each participant and report as the CASE_MANAGER's store holds it when it sends the copy, because a replica that takes the copy replaces its own with them.
+The CASE_MANAGER receives its own announcement as a participant and skips it, because its case is the copy's source.
+A replica already past the position that holds a different entry at the position's index reports the conflict, not a stale copy, because the chains disagree.
+The replica's own position is the later of its chain's tail and its case's position, so a copy older than the one that last replaced its case is stale too.
+A re-delivery of the same announcement is judged the same way: current while the replica is still at the copy's position, stale once its chain is past it.
+A replica stores an entry the copy reflects without applying it, but still stores each record the entry carries that the copy names by id only, such as a note, a case status or a proposed embargo.
+The `Reject(CaseLedgerEntry)` names the last entry the replica's chain stores.
+A replica whose chain stores no entry has none to name, so its `Reject` names no entry, carries an empty last-accepted hash and names the case as its `target`; the CASE_MANAGER answers it with a replay from genesis. (SYNC-16-007)
+A `Reject` that names no entry but carries a hash is refused when it arrives.
+
 A divergence fault for an entry the last re-seed already reflected means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
 
 ---
@@ -437,8 +453,11 @@ last acknowledged log entry hash for each peer. (SYNC-04-001)
 Per-peer replication state MUST be persisted so that it survives a leader
 restart. (SYNC-04-002)
 
-When a Participant Actor sends any activity about a case to the case's CASE_MANAGER, it SHOULD state its ledger position for that case in the activity's `ledgerTail` property: the index and hash of the last canonical entry it has applied.
-This allows the CASE_MANAGER to detect that a participant is behind and replay missing entries without waiting for a `Reject`. (SYNC-03-004)
+When a Participant Actor sends any message to the CASE_MANAGER, it SHOULD
+include the hash of its last accepted canonical log entry as a parameter in
+the activity's `context` field. This allows the CASE_MANAGER to proactively
+detect that a participant is behind and immediately replay missing entries
+without waiting for an explicit sync request. (SYNC-03-004)
 
 ---
 
@@ -510,7 +529,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-03-001 | §5.1 | Receiver MUST reject on predecessor hash mismatch |
 | SYNC-03-002 | §5.2 | Sender MUST retry from last accepted hash after rejection |
 | SYNC-03-003 | §5.3 | Replication MUST be idempotent |
-| SYNC-03-004 | §9 | Participants SHOULD state their ledger position in `ledgerTail` |
+| SYNC-03-004 | §9 | Participants SHOULD include last accepted hash in context |
 | SYNC-03-006 | §5.1 | Receiver MUST refuse an entry whose content does not reproduce its hash |
 | SYNC-04-001 | §9 | Leader MUST track per-peer last acknowledged hash |
 | SYNC-04-002 | §9 | Per-peer state MUST be persisted across leader restart |
@@ -574,7 +593,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-16-004 | §5.5 | CASE_MANAGER MUST bound the re-seed rate per peer |
 | SYNC-16-005 | §5.5 | A case MUST store the ledger position it is a projection of, and carry it on the wire |
 | SYNC-16-006 | §5.5 | Participant MUST NOT replace its case with a stale or conflicting copy |
-| SYNC-16-007 | §5.5 | After replacement, participant MUST backfill to the copy's tail |
+| SYNC-16-007 | §5.5 | After replacement, participant MUST backfill to the copy's position |
 | SYNC-16-008 | §5.5 | CASE_MANAGER SHOULD log divergence after a re-seed as an error |
 
 ---

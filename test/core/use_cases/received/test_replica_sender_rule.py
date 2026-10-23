@@ -29,6 +29,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -89,7 +90,9 @@ def _deliver_offer_actor(
 ) -> HandlerResult:
     activity = recommend_actor_activity(
         as_Actor(id_=RECOMMENDED_ID),
-        target=as_VulnerabilityCase(id_=CASE_ID, name="ReplicaSenderRule"),
+        target=as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="ReplicaSenderRule"
+        ),
         actor=sender_id,
         to=[REPLICA_ID],
     )
@@ -116,7 +119,9 @@ def _deliver_participant_status(
         status,
         target=vendor,
         actor=sender_id,
-        context=as_VulnerabilityCase(id_=CASE_ID, name="ReplicaSenderRule"),
+        context=as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="ReplicaSenderRule"
+        ),
         to=[REPLICA_ID],
     )
     event = make_payload(activity, receiving_actor_id=REPLICA_ID)

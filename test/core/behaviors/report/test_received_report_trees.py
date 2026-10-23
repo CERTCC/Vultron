@@ -33,6 +33,7 @@ from typing import cast
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -134,7 +135,9 @@ def _setup_case_with_participant(
             )
         ],
     )
-    case = as_VulnerabilityCase(id_=CASE_ID, name="BT Test Case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="BT Test Case"
+    )
     case.vulnerability_reports.append(report_id)
     case.case_participants.append(participant.id_)
     case.actor_participant_index[actor_id] = participant.id_
@@ -271,7 +274,9 @@ class TestCreateParticipantStatusNodeClosed:
         )
 
         case = as_VulnerabilityCase(
-            id_=CASE_ID, vulnerability_reports=[REPORT_ID]
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            vulnerability_reports=[REPORT_ID],
         )
         dl.save(case)
         dl.save(CoreReport(id_=REPORT_ID))
@@ -350,7 +355,9 @@ class TestCreateParticipantStatusNodeInvalid:
         )
 
         case = as_VulnerabilityCase(
-            id_=CASE_ID, vulnerability_reports=[REPORT_ID]
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID,
+            vulnerability_reports=[REPORT_ID],
         )
         dl.save(case)
         dl.save(CoreReport(id_=REPORT_ID))

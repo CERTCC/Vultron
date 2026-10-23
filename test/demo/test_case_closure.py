@@ -27,6 +27,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import vultron.demo.utils as demo_utils
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, terminate
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -656,7 +657,9 @@ class TestWaitForOwnerReplicaEmbargoState:
     @pytest.mark.parametrize("canonical", [EM.EXITED, EM.NONE])
     def test_waits_on_the_owner_store_for_the_canonical_em(self, canonical):
         """The owner's own store is polled for the CASE_MANAGER's EM state."""
-        case = as_VulnerabilityCase(id_=_CASE, name="Case")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE, name="Case"
+        )
         if canonical == EM.EXITED:
             activate(case, f"{_CASE}/embargo_events/e1")
             terminate(case)

@@ -49,6 +49,7 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.embargo_consent import EmbargoConsent
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.embargo_termination import TerminationCause
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.participant_status import ParticipantStatus
@@ -163,7 +164,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         """Create and persist an ``Accept(Offer)`` validate-report activity.
 
         Returns ``(activity_id, activity_dict)``.
-        Per ADR-0021 CLP-10-001: routes the activity to the Case Actor.
+        Per ADR-0021 CLP-10-027: routes the activity to the Case Actor.
         """
         ...
 
@@ -210,7 +211,7 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
     ) -> tuple[str, str]:
         """Create and persist a ``Leave(VulnerabilityCase)`` close-case activity.
 
-        Per ADR-0021 CLP-10-001: routes the activity to the Case Actor so the
+        Per ADR-0021 CLP-10-027: routes the activity to the Case Actor so the
         CaseActor can commit a canonical ledger entry.
         Returns ``(activity_id, activity_dict)``.
         """
@@ -534,10 +535,32 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
 
     def record_case_created(
         self,
+        create_activity_id: str,
+    ) -> tuple[str, str]:
+        """The genesis ``Create(VulnerabilityCase)`` (``create_case``).
+
+        It is the ``Create`` the CASE_MANAGER built for the case under
+        *create_activity_id*, its sealed body verbatim: one activity, both
+        delivered and ledgered (CLP-07-011).  Unlike the other ``record_*``
+        methods it builds nothing.
+
+        Raises:
+            VultronNotFoundError: no body is sealed under *create_activity_id*.
+        """
+        ...
+
+    def record_embargo_event_created(
+        self,
+        embargo: EmbargoEvent,
         case_id: str,
         actor: str,
     ) -> tuple[str, str]:
-        """The genesis ``Create(VulnerabilityCase)`` (``create_case``), the case as stored."""
+        """``Create(EmbargoEvent)`` (``create_embargo_event``), the embargo in full.
+
+        For an embargo the case's creation wrote, such as the default embargo
+        (CLP-07-013).  An embargo is created once, so the id is derived from
+        its own id.
+        """
         ...
 
     def record_report_added_to_case(
@@ -655,14 +678,13 @@ class TriggerActivityPort(ReceivedActivityLoader, Protocol):
         self,
         case_id: str,
         actor: str,
-        semantic_type: str,
         object_id: str,
     ) -> tuple[str, str]:
         """``Announce(VulnerabilityCase)`` for the demo ``sync-log-entry`` verb.
 
         The stored case is carried inline.  The id is derived from the
-        CASE_MANAGER, the case, *semantic_type* and *object_id*, so one request
-        repeated commits one entry.
+        CASE_MANAGER, the case and *object_id*, so one request repeated
+        commits one entry.
         """
         ...
 

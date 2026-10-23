@@ -18,8 +18,8 @@
 Covers BTND-03-011 (NoDataAvailable on missing required port) and happy-path
 execution via BTTestScenario for sync Type-B nodes.
 
-Also covers the ``log_entry`` / ``replay_entry`` ledger-handoff type contract
-(#2907): both keys carry a ``CaseLedgerEntry`` and every declaration
+Also covers the ``log_entry`` ledger-handoff type contract
+(#2907): the key carries a ``CaseLedgerEntry`` and every declaration
 says so, so a wrong-typed value is rejected at the port instead of reaching the
 ``cast(CaseLedgerEntry, ...)`` in each node's ``update()``.
 """
@@ -57,20 +57,18 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 ACTOR_ID = "https://example.org/actors/vendor"
 LEDGER_CASE_ID = "https://example.org/cases/case-ledger"
 
-#: The two ledger-entry handoff keys, with the physical blackboard key each
-#: logical port is remapped to (both are static, not execution-scoped).
+#: The ledger-entry handoff key, with the physical blackboard key its
+#: logical port is remapped to (static, not execution-scoped).  The replay
+#: hands off the case id instead (``replay_case_id``): the Reject that names
+#: no entry has none to hand off (SYNC-16-007).
 LEDGER_PORTS: dict[str, str] = {
     "log_entry": "/log_entry",
-    "replay_entry": "/replay_entry",
 }
 
 #: Constructor kwargs for every node in the discovered ledger-port roster.  A
 #: new node must be registered here; the coverage test below fails otherwise,
 #: so it cannot be silently dropped from the enforcement tests.
 LEDGER_NODE_KWARGS: dict[str, dict[str, Any]] = {
-    "CollectAndSortCaseLedgerEntriesNode": {
-        "name": "CollectAndSortCaseLedgerEntries"
-    },
     "CollectLogEntryRecipientsNode": {"case_id": LEDGER_CASE_ID},
     "CreateLogEntryNode": {
         "case_id": LEDGER_CASE_ID,
@@ -79,17 +77,11 @@ LEDGER_NODE_KWARGS: dict[str, dict[str, Any]] = {
     },
     "PersistLogEntryNode": {"name": "PersistLogEntry"},
     "SendLogEntryToEachNode": {},
-    "SendMissingEntriesNode": {},
 }
 
 #: Extra blackboard context a node needs before its ``initialise()`` reaches
-#: the ledger port.  ``SendMissingEntriesNode`` reads ``case_actor_id`` first,
-#: so without it the tick fails on that port instead of the one under test.
-LEDGER_TICK_EXTRAS: dict[str, dict[str, Any]] = {
-    "SendMissingEntriesNode": {
-        "case_actor_id": "https://example.org/actors/case-actor"
-    },
-}
+#: the ledger port.  None does since the replay hands off a case id.
+LEDGER_TICK_EXTRAS: dict[str, dict[str, Any]] = {}
 
 
 LEDGER_READERS, LEDGER_WRITERS = discover_port_declarations(

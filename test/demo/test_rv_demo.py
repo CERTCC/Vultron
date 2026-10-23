@@ -41,6 +41,7 @@ from test.demo._helpers import (
     seed_replicas_for_case_participants,
     stub_closure_gate,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.utils import strip_id_prefix
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
@@ -722,7 +723,6 @@ class TestTriggerLogCommit:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            semantic_type="test_commit",
         )
 
         assert isinstance(entry_hash, str)
@@ -757,13 +757,13 @@ class TestTriggerLogCommit:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            semantic_type="event_a",
+            object_id=f"{case.id_}#event-a",
         )
         h2 = demo.trigger_log_commit(
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            semantic_type="event_b",
+            object_id=f"{case.id_}#event-b",
         )
 
         assert h1 != h2
@@ -799,7 +799,6 @@ class TestWaitForReporterLogEntry:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            semantic_type="test_wait",
         )
 
         # In single-server mode the vendor DataLayer is shared, so the entry
@@ -860,7 +859,6 @@ class TestVerifyReplicaState:
             client=vendor_client,
             actor_id=vendor.id_,
             case_id=case.id_,
-            semantic_type="demo_verification",
         )
 
         # Should not raise — single server means replica is trivially consistent
@@ -1007,7 +1005,10 @@ class TestActorNotifiesFixReady:
         # With the accumulator pattern, no exception propagates; failure is recorded.
         with demo.demo_step("vendor notifies fix ready on a missing case"):
             ActorSession(client=vendor_client, actor=vendor).with_case(
-                as_VulnerabilityCase(id_="https://example.org/does-not-exist")
+                as_VulnerabilityCase(
+                    attributed_to=CASE_OWNER_ID,
+                    id_="https://example.org/does-not-exist",
+                )
             ).notify_fix_ready()
         assert any(
             "does-not-exist" in f or "404" in f or "STEP FAILED" in f
@@ -1399,6 +1400,7 @@ class TestDumpCaseLogs:
         case_actor_client.get_list.return_value = case_actor_entries
 
         case = demo.as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case-dump-dedicated",
             actor_participant_index={
                 self._CASE_ACTOR_ID: (

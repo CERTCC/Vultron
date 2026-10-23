@@ -35,6 +35,11 @@ from pathlib import Path
 import pytest
 import yaml
 
+from test.support.ledger_labels import label_mismatch
+from test.support.ledger_status_repeats import (
+    CASE_STATUS_TYPES,
+    status_entry_faults,
+)
 from vultron.adapters.utils import strip_id_prefix
 from vultron.demo.helpers.harness import DUMP_CRASHED_REASON
 from vultron.demo.helpers.ledger_dump import (
@@ -1034,6 +1039,51 @@ def check_unique_payload_snapshot_ids(
                     f" {sorted(indices)}; CLP-07-002 violation)"
                 )
     return violations
+
+
+def check_status_entries_record_changes(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """No ``CaseStatus`` entry repeats the previous one unchanged, or is
+    mislabelled.
+
+    A ``CaseStatus`` entry equal to the previous one, apart from id, label
+    and times, records a change that changes nothing, which is not committed
+    (CLP-07-013, ADR-0152; #5123).  A ``CaseStatus`` label must name its own
+    states (#5124).  ``ParticipantStatus`` repeats are not checked here: a
+    same-state confirmation is valid on any run (BTND-10-001, CSB-16-001).
+    Read from the authoritative log; every replica holds a prefix of it.
+
+    Returns one violation string per faulty entry.
+    """
+    return status_entry_faults(
+        (
+            (log_index(e), semantic_type(e), payload(e))
+            for e in sorted(auth_entries(replicas), key=log_index)
+        ),
+        repeat_types=CASE_STATUS_TYPES,
+    )
+
+
+def check_semantic_type_is_registry_label(
+    replicas: dict[str, list[dict]],
+) -> list[str]:
+    """Each entry's ``semanticType`` is the registry's label for its payload (ADR-0140).
+
+    An entry stores its semantic type so replay can route on one string, but
+    the type is never chosen apart from the payload: the semantic registry's
+    matcher must return it for the entry's ``payloadSnapshot`` (ADR-0140 item
+    3, #4724).  Every replica is checked, since a replica copies the entry it
+    receives.  An entry whose snapshot does not parse is reported as such.
+
+    Returns one violation string per mismatched entry per replica.
+    """
+    return [
+        f"Actor {actor!r} logIndex={log_index(e)}: {reason}"
+        for actor, entries in replicas.items()
+        for e in entries
+        if (reason := label_mismatch(semantic_type(e), payload(e))) is not None
+    ]
 
 
 def for_each_replica(

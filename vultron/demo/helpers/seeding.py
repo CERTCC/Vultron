@@ -31,7 +31,7 @@ from vultron.core.behaviors.case.case_actor_identity import (
 )
 from vultron.core.behaviors.case.nodes.embargo import creation_time_embargo_id
 from vultron.core.behaviors.store_scope import store_for_actor
-from vultron.core.models._helpers import _as_id, from_now_utc
+from vultron.core.models._helpers import from_now_utc
 from vultron.core.models.actor import VultronService
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -1422,20 +1422,12 @@ def _seed_active_embargo(case_obj, dl) -> None:
     duration (EP-04-010, #3404), so this is stated here rather than inherited.
 
     Raises:
-        ValueError: when the case has no owner.
         VultronNotFoundError: when *dl* holds no actor record for the owner.
     """
     case_id = case_obj.id_
     if case_obj.active_embargo:
         return
-    owner_id = _as_id(case_obj.attributed_to)
-    if not owner_id:
-        # ``ResolveEmbargoDurationNode`` fails on a case with no owner rather
-        # than reading nobody's profile; the seeder mirrors it.
-        raise ValueError(
-            f"_seed_active_embargo: case {case_id!r} has no attributed_to,"
-            " so there is no owner profile to read the actor default from"
-        )
+    owner_id = case_obj.attributed_to
     resolved = resolve_initial_embargo_duration(
         sender_proposal=None,
         actor_default=actor_default_duration(

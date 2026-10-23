@@ -739,9 +739,12 @@ def every_demo_case_rebuilds_from_its_ledger():
 
     ``route_exchange_demo_at_testclient`` records each case that differs
     when it is rebuilt from its CASE_MANAGER's ledger into an empty store
-    (CLP-07-013, CM-23-016); this fails the test that left it.
+    (CLP-07-013, CM-23-016), and each entry whose ``semantic_type`` is not
+    the registry's label for its payload (ADR-0140, #4724); this fails the
+    test that left it.
     """
     from test.demo._helpers import (
+        LABELLED_ENTRIES,
         REBUILD_FAILURES,
         REBUILT_CASES,
         assert_no_rebuild_failures,
@@ -749,6 +752,7 @@ def every_demo_case_rebuilds_from_its_ledger():
 
     REBUILD_FAILURES.clear()
     REBUILT_CASES.clear()
+    LABELLED_ENTRIES.clear()
     yield
     assert_no_rebuild_failures()
 

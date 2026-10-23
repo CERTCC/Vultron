@@ -31,6 +31,7 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.behaviors.call_out import unwrap_call_out
 from vultron.core.behaviors.call_out.bundles.deploy_fix import (
     DEPLOY_FIX_DETERMINISTIC,
@@ -113,6 +114,7 @@ def case_with_deployer(
     deployer_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[deployer_participant.id_],
@@ -129,6 +131,7 @@ def case_with_deployer_and_case_manager(
     case_manager_participant: CaseParticipant,
 ) -> VulnerabilityCase:
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="Test Case",
         case_participants=[

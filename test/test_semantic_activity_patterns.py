@@ -1,8 +1,10 @@
+import importlib
 import itertools
 from typing import Any, cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.events import MessageSemantics
 from vultron.semantic_registry import (
     SEMANTIC_REGISTRY,
@@ -44,6 +46,14 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
     as_VulnerabilityCaseStub,
 )
+
+
+def _example_semantics(module: str, example: str) -> MessageSemantics:
+    """The semantic type extracted from a vocabulary example activity."""
+    examples = importlib.import_module(
+        f"vultron.wire.as2.vocab.examples.{module}"
+    )
+    return find_matching_semantics(getattr(examples, example)())
 
 
 @pytest.mark.spec("SE-03-001")
@@ -270,6 +280,7 @@ def test_offer_case_ownership_transfer_with_inline_case_dispatches_correctly():
     """An OfferCaseOwnershipTransferActivity with a full inline as_VulnerabilityCase
     must be classified as OFFER_CASE_OWNERSHIP_TRANSFER, not SUBMIT_REPORT."""
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/urn:uuid:test-case",
         name="TEST-001",
     )
@@ -344,7 +355,9 @@ def _make_case() -> as_VulnerabilityCaseStub:
         (as_Actor(id_=ACTOR_URI), CASE_URI),
         (
             as_Actor(id_=ACTOR_URI),
-            as_VulnerabilityCase(id_=CASE_URI, name="Full case"),
+            as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_URI, name="Full case"
+            ),
         ),
         (ACTOR_URI, as_VulnerabilityCaseStub(case_id=CASE_URI)),
     ],
@@ -472,7 +485,9 @@ def test_announce_vulnerability_case_pattern_matches():
     activities are routed to AnnounceVulnerabilityCaseReceivedUseCase.
     """
     case = as_VulnerabilityCase(
-        id_="https://example.org/cases/case-pattern-001", name="Pattern Test"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/case-pattern-001",
+        name="Pattern Test",
     )
     announce = announce_vulnerability_case_activity(
         case,
@@ -536,6 +551,7 @@ def test_rm_invite_projects_full_vulnerability_case_to_stub():
     """
     actor = as_Actor(id_="https://example.org/actors/alice")
     full_case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_="https://example.org/cases/c1",
         name="Full",
         stub_summary="Security issue — details shared after acceptance",
@@ -562,7 +578,9 @@ _CASE_URI = "https://example.org/cases/urn:uuid:test-case-mgr"
 
 
 def _make_case_manager_case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(id_=_CASE_URI, name="CASE-001")
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=_CASE_URI, name="CASE-001"
+    )
 
 
 @pytest.mark.spec("SE-08-003")
@@ -850,7 +868,9 @@ def test_strict_target_rejects_bare_string_uri():
     )
 
     case = as_VulnerabilityCase(
-        id_="https://example.org/cases/strict-target-test", name="T-001"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/strict-target-test",
+        name="T-001",
     )
 
     # Bare string target must NOT match when strict=True (AC-1 fix)
@@ -889,7 +909,9 @@ def test_strict_target_matches_typed_actor():
     )
 
     case = as_VulnerabilityCase(
-        id_="https://example.org/cases/strict-target-test", name="T-001"
+        attributed_to=CASE_OWNER_ID,
+        id_="https://example.org/cases/strict-target-test",
+        name="T-001",
     )
     actor = as_Actor(id_="https://example.org/actors/alice")
 
@@ -987,6 +1009,10 @@ def test_accept_case_participant_role_not_confused_with_other_accepts():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.spec("VAM-05-006")
+@pytest.mark.spec("VAM-05-007")
+@pytest.mark.spec("VAM-05-008")
+@pytest.mark.spec("VAM-05-009")
 @pytest.mark.spec("VAM-05-010")
 @pytest.mark.parametrize(
     ("example", "expected"),
@@ -1003,9 +1029,7 @@ def test_accept_case_participant_role_not_confused_with_other_accepts():
 def test_owner_embargo_decisions_are_distinct_from_invite_answers(
     example: str, expected: MessageSemantics
 ) -> None:
-    import vultron.wire.as2.vocab.examples.embargo as examples
-
-    assert find_matching_semantics(getattr(examples, example)()) == expected
+    assert _example_semantics("embargo", example) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -1081,7 +1105,7 @@ def test_undo_of_an_embargo_invite_is_not_the_ownership_withdrawal() -> None:
 
 def _proposal():
     return propose_case_ownership_transfer_activity(
-        as_VulnerabilityCase(name="Proposed"),
+        as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, name="Proposed"),
         target="https://example.org/coordinator",
         actor="https://example.org/vendor",
         to=["https://example.org/case-actor"],
@@ -1170,3 +1194,92 @@ def test_refusal_notice_pattern_matches_the_notice_example():
 
     assert RefusalNoticePattern.match(notice)
     assert find_matching_semantics(notice) is MessageSemantics.REFUSAL_NOTICE
+
+
+# ---------------------------------------------------------------------------
+# VAM-03-007, VAM-05-014 to VAM-05-016, VAM-06-004, VAM-06-005 — the
+# CASE_MANAGER's own acts are registry entries no use case handles (ADR-0140)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("VAM-03-007")
+@pytest.mark.spec("VAM-05-014")
+@pytest.mark.spec("VAM-05-015")
+@pytest.mark.spec("VAM-05-016")
+@pytest.mark.spec("VAM-06-004")
+@pytest.mark.spec("VAM-06-005")
+@pytest.mark.parametrize(
+    ("module", "example", "semantics"),
+    [
+        ("case", "update_case", MessageSemantics.UPDATE_CASE_OWNER),
+        (
+            "participant",
+            "create_participant",
+            MessageSemantics.CREATE_CASE_PARTICIPANT,
+        ),
+        (
+            "participant",
+            "update_participant",
+            MessageSemantics.UPDATE_CASE_PARTICIPANT,
+        ),
+        (
+            "embargo",
+            "create_embargo_event",
+            MessageSemantics.CREATE_EMBARGO_EVENT,
+        ),
+        (
+            "embargo",
+            "create_embargo_consent",
+            MessageSemantics.CREATE_EMBARGO_CONSENT,
+        ),
+        (
+            "embargo",
+            "update_embargo_consent",
+            MessageSemantics.UPDATE_EMBARGO_CONSENT,
+        ),
+    ],
+)
+def test_case_manager_acts_map_to_their_semantics(
+    module: str, example: str, semantics: MessageSemantics
+) -> None:
+    from vultron.semantic_registry import lookup_entry
+
+    assert _example_semantics(module, example) == semantics
+    assert not lookup_entry(semantics).handled
+
+
+# ---------------------------------------------------------------------------
+# VAM-02-002, VAM-05-003, VAM-05-005, VAM-08-002 — each wire form maps to
+# its semantic type
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("VAM-02-002")
+@pytest.mark.spec("VAM-05-003")
+@pytest.mark.spec("VAM-05-005")
+@pytest.mark.spec("VAM-08-002")
+@pytest.mark.parametrize(
+    ("module", "example", "semantics"),
+    [
+        ("report", "submit_report", MessageSemantics.SUBMIT_REPORT),
+        (
+            "embargo",
+            "remove_embargo",
+            MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+        ),
+        (
+            "embargo",
+            "propose_embargo",
+            MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+        ),
+        (
+            "status",
+            "add_status_to_case",
+            MessageSemantics.ADD_CASE_STATUS_TO_CASE,
+        ),
+    ],
+)
+def test_wire_form_examples_map_to_their_semantics(
+    module: str, example: str, semantics: MessageSemantics
+) -> None:
+    assert _example_semantics(module, example) == semantics

@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import unittest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.wire.as2.vocab.activities import actor
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -71,7 +72,10 @@ class MyTestCase(unittest.TestCase):
     ):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
-            _case = as_VulnerabilityCase(name=f"{actor_class.__name__} Case")
+            _case = as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
+                name=f"{actor_class.__name__} Case",
+            )
             _recommendation = actor._RecommendActorActivity(
                 actor=_actor, object_=_actor, target=_case
             )
@@ -104,7 +108,10 @@ class MyTestCase(unittest.TestCase):
     ):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
-            _case = as_VulnerabilityCase(name=f"{actor_class.__name__} Case")
+            _case = as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID,
+                name=f"{actor_class.__name__} Case",
+            )
             _object = cls(actor=_actor, object_=_actor, target=_case)  # type: ignore[arg-type]
 
             # check activity is correct type

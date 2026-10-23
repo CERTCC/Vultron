@@ -298,10 +298,10 @@ A message from a CASE_MANAGER can reach a participant before the bootstrap that 
 The participant holds such a message for a short time and does not apply it ([CBT-03-001](../../reference/specs/protocol.md#cbt-03-001), [CBT-03-002](../../reference/specs/protocol.md#cbt-03-002)).
 Holding a message does not make its sender trusted: only an invitation or the bootstrap creates a trust anchor ([PCR-03-004](../../reference/specs/protocol.md#pcr-03-004)).
 If the bootstrap arrives in time, normal checks resume.
-If it does not, the participant drops the held message and logs a warning.
-The sender must send that message again after the bootstrap ([CBT-03-003](../../reference/specs/protocol.md#cbt-03-003)).
+If it does not, the participant drops the held message, and the sender must send that message again after the bootstrap ([CBT-03-003](../../reference/specs/protocol.md#cbt-03-003)).
+The reference implementation logs a warning when it drops one ([CBT-03-006](../../reference/specs/project.md#cbt-03-006)).
 The participant should also ask the case creator, with a `Question`, to send the bootstrap again ([CBT-03-004](../../reference/specs/project.md#cbt-03-004)).
-The reference implementation holds a message for 300 seconds by default.
+The reference implementation holds a message for 300 seconds by default ([CBT-03-005](../../reference/specs/project.md#cbt-03-005)).
 
 We chose a bounded hold over an outright refusal on purpose.
 Refusing every early message would make delivery order part of protocol correctness, and the transport promises no order.

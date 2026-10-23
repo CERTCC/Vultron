@@ -46,7 +46,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
-from vultron.core.models._helpers import _as_id, from_now_utc
+from vultron.core.models._helpers import from_now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.participants.authority import resolve_case_manager_id
@@ -276,7 +276,7 @@ class InitializeCreationEmbargoNode(
         # creates the case itself, or the CASE_MANAGER creates it on the
         # owner's behalf from a proposal (CP-09-001, CP-09-003) — the case is
         # then attributed to the owner while the CASE_MANAGER runs this tree.
-        owner_actor_id = _as_id(stored_case.attributed_to)
+        owner_actor_id = stored_case.attributed_to
         if self.actor_id != owner_actor_id and self.actor_id != (
             resolve_case_manager_id(stored_case, self.datalayer)
         ):

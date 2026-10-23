@@ -28,6 +28,7 @@ from datetime import UTC, timedelta
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.wire_render import As2WireRenderAdapter
 from vultron.core.models.actor import VultronPerson, VultronService
 from vultron.core.models.base import VULTRON_CONTEXT_URI
@@ -83,7 +84,7 @@ def _assert_wire_dict(result: dict, expected_type: str) -> None:
 
 
 def test_render_vulnerability_case(adapter):
-    obj = VulnerabilityCase()
+    obj = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
     result = adapter.render(obj)
     _assert_wire_dict(result, "VulnerabilityCase")
 
@@ -166,7 +167,7 @@ def test_render_returns_camel_case_keys(adapter):
 
 def test_render_excludes_none_fields(adapter):
     """Output dict omits None-valued fields (exclude_none=True)."""
-    obj = VulnerabilityCase()
+    obj = VulnerabilityCase(attributed_to=CASE_OWNER_ID)
     result = adapter.render(obj)
     for key, val in result.items():
         assert val is not None, (
@@ -189,7 +190,9 @@ def test_render_same_object_twice_across_clock_tick_is_equal(
     from test.support.clock import SteppingClock
     from vultron.core.models import _helpers
 
-    obj = VulnerabilityCase(id_="https://example.org/cases/c1")
+    obj = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_="https://example.org/cases/c1"
+    )
     obj.case_statuses = [CaseStatus(context=obj.id_)]
     monkeypatch.setattr(_helpers, "datetime", SteppingClock(datetime.now(UTC)))
 

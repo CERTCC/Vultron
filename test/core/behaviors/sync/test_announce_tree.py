@@ -413,6 +413,7 @@ def _tampered(entry: CaseLedgerEntry) -> CaseLedgerEntry:
 
 @pytest.mark.spec("SYNC-03-006")
 @pytest.mark.spec("SYNC-12-001")
+@pytest.mark.spec("CLP-04-008")
 def test_replica_refuses_entry_whose_hash_does_not_match_content(
     bridge, datalayer, case_actor, case_obj, caplog
 ):

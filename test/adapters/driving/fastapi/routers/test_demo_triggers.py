@@ -33,6 +33,7 @@ from test.adapters.driving.fastapi.sse_helpers import (
     parse_sse_body,
     save_ledger_entry,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import (
     get_ledger_stream_shutdown,
@@ -151,10 +152,50 @@ def client_trigger_only(dl):
 @pytest.fixture
 def case_with_actor(dl, actor):
     """Create a as_VulnerabilityCase listing the actor as a participant."""
-    case_obj = as_VulnerabilityCase(name="TEST-DEMO-CASE-001")
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-DEMO-CASE-001"
+    )
     participant = as_CaseParticipant(
         attributed_to=actor.id_,
         context=case_obj.id_,
+    )
+    case_obj.case_participants.append(participant.id_)
+    case_obj.actor_participant_index[actor.id_] = participant.id_
+    dl.create(case_obj)
+    dl.create(participant)
+    _add_case_manager(case_obj, dl)
+    return case_obj
+
+
+def _make_vendor_case(dl, actor, vf=None) -> as_VulnerabilityCase:
+    """A case where the actor is an engaged VENDOR, at *vf* when given.
+
+    The VF hop vf→Vf is role-gated to the Vendor (ADR-0075), and fix readiness
+    (``VF``) entails RM ∈ {ACCEPTED, DEFERRED, CLOSED} (CSB-15), so the demo
+    ``notify-fix-ready`` ratchet needs both the role and an RM.ACCEPTED status
+    that the bare ``case_with_actor`` participant does not carry.
+    """
+    from vultron.core.models.dimensions import RmDimension, VfDimension
+    from vultron.core.states.rm import RM
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        as_ParticipantStatus,
+    )
+
+    case_obj = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="TEST-DEMO-VENDOR-CASE"
+    )
+    participant = as_CaseParticipant(
+        attributed_to=actor.id_,
+        context=case_obj.id_,
+        case_roles=[CVDRole.VENDOR],
+        participant_statuses=[
+            as_ParticipantStatus(
+                attributed_to=actor.id_,
+                context=case_obj.id_,
+                rm=RmDimension(state=RM.ACCEPTED),
+                vf=None if vf is None else VfDimension(state=vf),
+            )
+        ],
     )
     case_obj.case_participants.append(participant.id_)
     case_obj.actor_participant_index[actor.id_] = participant.id_
@@ -166,38 +207,8 @@ def case_with_actor(dl, actor):
 
 @pytest.fixture
 def vendor_case(dl, actor):
-    """A case where the actor is an engaged VENDOR at the initial VF state.
-
-    The VF hop vf→Vf is role-gated to the Vendor (ADR-0075), and fix readiness
-    (``VF``) entails RM ∈ {ACCEPTED, DEFERRED, CLOSED} (CSB-15), so the demo
-    ``notify-fix-ready`` ratchet needs both the role and an RM.ACCEPTED status
-    that the bare ``case_with_actor`` participant does not carry.
-    """
-    from vultron.core.models.dimensions import RmDimension
-    from vultron.core.states.rm import RM
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        as_ParticipantStatus,
-    )
-
-    case_obj = as_VulnerabilityCase(name="TEST-DEMO-VENDOR-CASE")
-    participant = as_CaseParticipant(
-        attributed_to=actor.id_,
-        context=case_obj.id_,
-        case_roles=[CVDRole.VENDOR],
-        participant_statuses=[
-            as_ParticipantStatus(
-                attributed_to=actor.id_,
-                context=case_obj.id_,
-                rm=RmDimension(state=RM.ACCEPTED),
-            )
-        ],
-    )
-    case_obj.case_participants.append(participant.id_)
-    case_obj.actor_participant_index[actor.id_] = participant.id_
-    dl.create(case_obj)
-    dl.create(participant)
-    _add_case_manager(case_obj, dl)
-    return case_obj
+    """A case where the actor is an engaged VENDOR at the initial VF state."""
+    return _make_vendor_case(dl, actor)
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +271,66 @@ class TestDemoNotifyFixReady:
         # ``client_demo`` runs the background flushes with a no-op emitter, so
         # nothing the route queued is left behind.
         assert set(dl.outbox_list()) - before == set()
+
+    @pytest.mark.spec("DEMOMA-07-001")
+    @pytest.mark.spec("BTND-10-001")
+    def test_a_vendor_already_at_vf_sends_only_the_vf_step(
+        self, client_demo: TestClient, dl, actor
+    ):
+        """An invited vendor is already at ``Vf``, so only ``Vf → VF`` is
+        sent: no no-change ``Vf`` status reaches the ledger (#5125)."""
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.cs import CS_vf
+
+        case = _make_vendor_case(dl, actor, vf=CS_vf.Vf)
+        before = {
+            obj.id_
+            for obj in dl.list_objects("ParticipantStatus")
+            if isinstance(obj, ParticipantStatus)
+        }
+
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/notify-fix-ready",
+            json={"case_id": case.id_},
+        )
+
+        assert response.status_code == status.HTTP_202_ACCEPTED, response.text
+        sent = [
+            obj
+            for obj in dl.list_objects("ParticipantStatus")
+            if isinstance(obj, ParticipantStatus) and obj.id_ not in before
+        ]
+        assert [s.vf.state for s in sent if s.vf is not None] == [CS_vf.VF]
+        assert len(sent) == 1
+        assert response.json()["status_id"] == sent[0].id_
+
+    @pytest.mark.spec("DEMOMA-07-001")
+    def test_a_vendor_already_at_vf_ready_is_refused(
+        self, client_demo: TestClient, dl, actor
+    ):
+        """A fix already ready leaves no step to send: 409, nothing sent."""
+        from vultron.core.models.participant_status import ParticipantStatus
+        from vultron.core.states.cs import CS_vf
+
+        case = _make_vendor_case(dl, actor, vf=CS_vf.VF)
+        before = len(list(dl.list_objects("ParticipantStatus")))
+
+        response = client_demo.post(
+            f"/actors/{actor.id_}/demo/notify-fix-ready",
+            json={"case_id": case.id_},
+        )
+
+        assert response.status_code == status.HTTP_409_CONFLICT, response.text
+        assert (
+            len(
+                [
+                    obj
+                    for obj in dl.list_objects("ParticipantStatus")
+                    if isinstance(obj, ParticipantStatus)
+                ]
+            )
+            == before
+        )
 
     def test_unknown_case_returns_404(self, client_demo: TestClient, actor):
         response = client_demo.post(
@@ -409,7 +480,6 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": managed_case.id_,
                 "object_id": managed_case.id_,
-                "semantic_type": "demo_sync",
             },
         )
         assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
@@ -425,7 +495,7 @@ class TestDemoSyncLogEntry:
         entry = dl.read(body["log_entry_id"])
         assert entry is not None
         assert entry.entry_hash == body["entry_hash"]
-        assert entry.semantic_type == "demo_sync"
+        assert entry.semantic_type == "announce_vulnerability_case"
 
     @pytest.mark.spec("TRIG-01-003")
     def test_unknown_actor_returns_404(
@@ -436,18 +506,35 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": managed_case.id_,
                 "object_id": managed_case.id_,
-                "semantic_type": "demo_sync",
             },
         )
         assert resp.status_code == status.HTTP_404_NOT_FOUND
         assert resp.json()["detail"]["error"] == "NotFound"
 
-    def test_missing_semantic_type_returns_422(
+    @pytest.mark.spec("TRIG-03-002")
+    def test_a_caller_supplied_semantic_type_is_ignored(
+        self, client_demo: TestClient, dl, actor, managed_case
+    ):
+        """The entry carries the registry's label, never the caller's (#4724)."""
+        resp = client_demo.post(
+            f"/actors/{actor.id_}/demo/sync-log-entry",
+            json={
+                "case_id": managed_case.id_,
+                "object_id": managed_case.id_,
+                "semantic_type": "a_label_of_my_own",
+            },
+        )
+        assert resp.status_code == status.HTTP_202_ACCEPTED, resp.text
+        entry = dl.read(resp.json()["log_entry_id"])
+        assert entry is not None
+        assert entry.semantic_type == "announce_vulnerability_case"
+
+    def test_missing_object_id_returns_422(
         self, client_demo: TestClient, actor, managed_case
     ):
         resp = client_demo.post(
             f"/actors/{actor.id_}/demo/sync-log-entry",
-            json={"case_id": managed_case.id_, "object_id": managed_case.id_},
+            json={"case_id": managed_case.id_},
         )
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
@@ -497,7 +584,6 @@ class TestDemoSyncLogEntry:
                 json={
                     "case_id": case.id_,
                     "object_id": case.id_,
-                    "semantic_type": "single_server",
                 },
             )
 
@@ -537,7 +623,6 @@ class TestDemoSyncLogEntry:
             json={
                 "case_id": case.id_,
                 "object_id": case.id_,
-                "semantic_type": "foreign",
             },
         )
         assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -596,7 +681,9 @@ class TestDemoGetCaseLedger:
             as_VulnerabilityCase,
         )
 
-        other_case = as_VulnerabilityCase(name="OTHER-CASE")
+        other_case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="OTHER-CASE"
+        )
         dl.create(other_case)
         _make_log_entry(dl, case_with_actor.id_, log_index=0)
         _make_log_entry(dl, other_case.id_, log_index=0)
@@ -658,7 +745,9 @@ class TestDemoGetCaseLedger:
     ):
         """Resolves HTTP URL case IDs through their surrogate key."""
         http_case_id = "https://example.org/cases/demo/123"
-        case = as_VulnerabilityCase(id_=http_case_id, name="HTTP Case")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=http_case_id, name="HTTP Case"
+        )
         dl.create(case)
         _make_log_entry(dl, http_case_id, log_index=0)
         _make_log_entry(dl, http_case_id, log_index=1)
@@ -723,7 +812,9 @@ class TestDemoGetCaseLedgerEntry:
     ):
         """Resolves HTTP URL case IDs through their surrogate key."""
         http_case_id = "https://example.org/cases/demo/456"
-        case = as_VulnerabilityCase(id_=http_case_id, name="HTTP Case")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=http_case_id, name="HTTP Case"
+        )
         dl.create(case)
         _make_log_entry(dl, http_case_id, log_index=0)
 
@@ -807,7 +898,9 @@ class TestDemoStreamCaseLedger:
     def test_only_streams_the_requested_case(
         self, client_demo: TestClient, actor, case_with_actor, dl
     ):
-        other = as_VulnerabilityCase(name="OTHER-STREAM-CASE")
+        other = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="OTHER-STREAM-CASE"
+        )
         dl.create(other)
         _make_log_entry(dl, case_with_actor.id_, log_index=0)
         _make_log_entry(dl, other.id_, log_index=0)
@@ -861,7 +954,11 @@ class TestDemoStreamCaseLedger:
         self, client_demo: TestClient, actor, dl
     ):
         http_case_id = "https://example.org/cases/demo/stream"
-        dl.create(as_VulnerabilityCase(id_=http_case_id, name="HTTP Case"))
+        dl.create(
+            as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=http_case_id, name="HTTP Case"
+            )
+        )
         _make_log_entry(dl, http_case_id, log_index=0)
         events = parse_sse_body(
             client_demo.get(self._url(actor, http_case_id)).text

@@ -49,6 +49,7 @@ from vultron.core.models.case_ledger import (
     compute_genesis_hash,
     ledger_entry_hash_intact,
 )
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
 
 # ---------------------------------------------------------------------------
@@ -338,6 +339,7 @@ class TestCaseLedgerEntry:
 
 
 class TestCaseLedgerAppend:
+    @pytest.mark.spec("CLP-08-004")
     def test_empty_log_tail_hash_is_genesis(self, empty_log: CaseLedger):
         assert empty_log.tail_hash == CASE_GENESIS_HASH
 
@@ -787,3 +789,24 @@ class TestLedgerEntryRoundTrip:
         unhashed = entry.model_copy(update={"entry_hash": ""})
 
         assert not ledger_entry_hash_intact(unhashed)
+
+
+@pytest.mark.spec("CLP-04-007", "CLP-02-004")
+@pytest.mark.parametrize(
+    "key", ["disposition", "reasonCode", "reasonDetail", "reason_code"]
+)
+def test_entry_carries_no_disposition_fields(key: str) -> None:
+    """The ledger holds only admitted entries, so an entry has no verdict."""
+    assert not {"disposition", "reason_code", "reason_detail"} & set(
+        CaseLedgerEntry.model_fields
+    )
+    with pytest.raises(ValueError, match=key):
+        CaseLedgerEntry.model_validate(
+            {
+                "caseId": CASE_ID,
+                "logIndex": 0,
+                "logObjectId": OBJECT_ID,
+                "semanticType": "invite_actor_to_case",
+                key: "refused",
+            }
+        )

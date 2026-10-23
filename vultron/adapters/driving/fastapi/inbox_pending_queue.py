@@ -108,7 +108,7 @@ def _expire_pending_case_activities(
     activity — a stub Invite's trust anchor alone — has nothing to expire.
     When expired:
 
-    1. Logs a WARNING for each dropped activity ID (CBT-03-003).
+    1. Logs a WARNING for each dropped activity ID (CBT-03-006).
     2. Deletes the record holding each activity for its replay, and the
        queue record — unless a stub Invite anchored it (``invite_anchored``,
        PCR-03-004 path b), in which case only its queue is emptied: the
@@ -157,7 +157,7 @@ def _expire_pending_case_activities(
         logger.warning(
             "Dropping expired pre-bootstrap activity '%s' for case '%s' "
             "(age %.0fs > timeout %ds) — resend required after bootstrap "
-            "(CBT-03-003)",
+            "(CBT-03-006)",
             activity_id,
             case_id,
             age_seconds,

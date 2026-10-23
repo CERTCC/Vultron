@@ -158,6 +158,18 @@ OUTSIDE_THE_RELAY: dict[str, str] = {
     MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE.value: (
         "no receiver-side state change; commits nothing"
     ),
+    MessageSemantics.CREATE_EMBARGO_EVENT.value: (
+        "an embargo the case's creation wrote, stored by the CreatedEmbargo"
+        " slot (test_rebuild_from_ledger.py)"
+    ),
+    MessageSemantics.CREATE_EMBARGO_CONSENT.value: (
+        "a consent row, replayed by the consent-row slot"
+        " (test_ledger_semantic_types_are_replayed.py)"
+    ),
+    MessageSemantics.UPDATE_EMBARGO_CONSENT.value: (
+        "a consent row, replayed by the consent-row slot"
+        " (test_ledger_semantic_types_are_replayed.py)"
+    ),
 }
 
 

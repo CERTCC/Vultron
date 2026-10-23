@@ -74,6 +74,7 @@ from vultron.wire.as2.factories.embargo import (
     activate_embargo_activity,
     announce_embargo_activity,
     create_embargo_consent_activity,
+    create_embargo_event_activity,
     em_accept_embargo_activity,
     em_propose_embargo_activity,
     em_reject_embargo_activity,
@@ -99,6 +100,7 @@ from vultron.wire.as2.factories.report import (
 )
 from vultron.wire.as2.factories.sync import (
     announce_log_entry_activity,
+    genesis_replay_reject_activity,
     reject_log_entry_activity,
 )
 
@@ -155,6 +157,7 @@ __all__ = [
     "activate_embargo_activity",
     "announce_embargo_activity",
     "create_embargo_consent_activity",
+    "create_embargo_event_activity",
     "em_accept_embargo_activity",
     "em_propose_embargo_activity",
     "em_reject_embargo_activity",
@@ -174,5 +177,6 @@ __all__ = [
     "rm_validate_report_activity",
     # sync
     "announce_log_entry_activity",
+    "genesis_replay_reject_activity",
     "reject_log_entry_activity",
 ]

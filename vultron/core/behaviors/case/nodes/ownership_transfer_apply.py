@@ -33,7 +33,6 @@ from py_trees.common import Status
 from vultron.core.behaviors.helpers import DataLayerActionWithPorts
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
 from vultron.core.behaviors.sync.commit_tree import commit_emitted_activity
-from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.participant_semantic_types import (
@@ -180,7 +179,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
         if case is None:
             return Status.FAILURE
 
-        current_owner_id = _as_id(case.attributed_to)
+        current_owner_id = case.attributed_to
         if current_owner_id == new_owner_id:
             self.logger.info(
                 "%s: case '%s' already owned by '%s' — skipping (idempotent)",

@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test.support.case_manager import add_case_manager_participant
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import (
     RecordingInboxReplay,
     deliver_replayed,
@@ -270,6 +271,7 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         )
 
     @pytest.mark.spec("SYNC-03-001")
+    @pytest.mark.spec("SYNC-03-004")
     def test_mismatch_reject_carries_tail_hash(self, dl, first_entry):
         """The queued Reject carries the local tail hash as context (SYNC-03-001)."""
         dl.save(first_entry)
@@ -894,7 +896,9 @@ class TestAnnounceLedgerEntryDisposition:
             case_roles=[CVDRole.CASE_MANAGER],
         )
         dl.create(manager)
-        case = as_VulnerabilityCase(id_=CASE_URI, name="Disposition Case")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_URI, name="Disposition Case"
+        )
         case.case_participants.append(manager.id_)
         case.actor_participant_index[manager_id] = manager.id_
         dl.create(case)

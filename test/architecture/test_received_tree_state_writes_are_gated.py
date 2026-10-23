@@ -118,6 +118,12 @@ _SEED = (
     " replica holds the case, so no role gate can pass yet (CM-14-011,"
     " SYNC-15-002)"
 )
+_CASE_COPY = (
+    "seeds a replica from the CASE_MANAGER's own case copy, or replaces its"
+    " case with one: the sender guard admits only the CASE_MANAGER and the"
+    " copy is judged by its ledger position first (PCR-02-003, PCR-02-004,"
+    " SYNC-16-006)"
+)
 _MINT = (
     "the receiver mints the case and becomes its first manager, so no"
     " CASE_MANAGER exists to gate on yet (CP-04, CM-02-008)"
@@ -168,6 +174,7 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyEmbargoAbandonmentFromLedgerNode",
             "ApplyEmbargoAcceptanceFromLedgerNode",
             "ApplyEmbargoActivationFromLedgerNode",
+            "ApplyCreatedEmbargoFromLedgerNode",
             "ApplyEmbargoConsentFromLedgerNode",
             "ApplyEmbargoInviteFromLedgerNode",
             "ApplyEmbargoProposalFromLedgerNode",
@@ -185,13 +192,14 @@ REPLICA_STATE_WRITES: dict[_Write, str] = {
             "ApplyReinstateCaseParticipantFromLedgerNode",
             "ApplyRemoveCaseParticipantFromLedgerNode",
             "ApplyRemoveNoteFromLedgerNode",
+            "StoreRecordsReflectedEntryCarriesNode",
         )
     },
     (
         f"{_C}/announce_case_received_tree.py",
         "create_announce_vulnerability_case_received_tree",
         "SeedAnnouncedCaseNode",
-    ): _SEED,
+    ): _CASE_COPY,
     **{
         (
             f"{_C}/create_case_received_tree.py",

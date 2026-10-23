@@ -225,9 +225,6 @@ groups:
     - prototype
     stories:
     - story_2022_014
-    relationships:
-    - rel_type: constrains
-      spec_id: CP-01-009
     note: >-
       Until an implementation supports dereference, every refusal that stands in for it
       is conditional on that gap and lapses once dereference exists: the bare-URI `actor`

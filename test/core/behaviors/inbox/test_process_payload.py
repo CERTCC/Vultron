@@ -26,6 +26,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.inbox import (
     InboxOutcome,
@@ -165,6 +166,7 @@ def report_activity():
 @pytest.fixture()
 def case_activity():
     case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         id_=CASE_ID,
         name="CASE-IO",
     )
@@ -799,7 +801,9 @@ class TestInboundRsvpWindows:
             "object_": as_EmbargoEvent(
                 context=CASE_ID, end_time=published + timedelta(days=90)
             ),
-            "context": as_VulnerabilityCase(id_=CASE_ID),
+            "context": as_VulnerabilityCase(
+                attributed_to=CASE_OWNER_ID, id_=CASE_ID
+            ),
             "actor": SENDER_ID,
             "published": published,
         }

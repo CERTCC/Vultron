@@ -504,8 +504,7 @@ The owner's decision and each participant's consent are different messages
 - **Triggers pick the activity by ownership.** The case owner's
   `accept-embargo`/`reject-embargo` send `Accept`/`Reject(EmbargoEvent,
   target=Case)`; a non-owner's send `Accept`/`Reject(Invite(EmbargoEvent))`,
-  which move only its own row. A case with no owner (`attributed_to is None`)
-  has no owner decision, so every trigger sends consent.
+  which move only its own row.
 - **A repeated answer changes nothing.** A repeat of the same answer from the
   same participant (Accept after Accept, Reject after Reject, under any activity
   id) changes nothing. It logs no invalid-transition warning, and the

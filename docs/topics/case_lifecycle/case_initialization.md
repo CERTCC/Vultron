@@ -40,20 +40,23 @@ If it does, it creates the case and sends `Create(VulnerabilityCase)` with itsel
 A case comes into existence in one of two ways.
 The CASE_MANAGER accepts a proposal and creates the case, or an actor creates a case for itself and is then both its Case Owner and its CASE_MANAGER.
 Either way, the CASE_MANAGER commits the same ledger entries, in the same order, from the case file it has just written.
-These are the entries [CLP-07-013](../../reference/specs/protocol.md#clp-07-013) requires for a new case, in the `Add` shapes the table shows.
+These are the entries [CLP-07-013](../../reference/specs/protocol.md#clp-07-013) requires for a new case, in the shapes the table shows.
 
 | Order | Entry (`semanticType`) | What it carries |
 |---|---|---|
-| 1 | `create_case` | The genesis entry: `Create(VulnerabilityCase)` with the case in full; it is the root of the case's hash chain |
-| 2 | `add_report_to_case`, once per linked report | `Add(VulnerabilityReport)` with the report in full, and the report's `Offer` provenance when it is known |
-| 3 | `add_participant_status_to_participant`, once per participant status | `Add(ParticipantStatus)`, targeting the participant record in full |
-| 4 | `add_case_status_to_case`, once per case status | `Add(CaseStatus)` with the status in full |
+| 1 | `create_case` | The genesis entry: the `Create(VulnerabilityCase)` the CASE_MANAGER sends, with the case's participants, reports and active embargo inline; it is the root of the case's hash chain |
+| 2 | `create_embargo_event`, once per embargo the case's creation writes | `Create(EmbargoEvent)` with the embargo in full, its start and end times included |
+| 3 | `add_report_to_case`, once per linked report | `Add(VulnerabilityReport)` with the report in full, and the report's `Offer` provenance when it is known |
+| 4 | `create_case_participant`, once per participant record | `Create(CaseParticipant)` with the record in full as it was created, its first status included |
+| 5 | `add_participant_status_to_participant`, once per later participant status | `Add(ParticipantStatus)`, targeting the participant record in full |
+| 6 | `add_case_status_to_case`, once per case status | `Add(CaseStatus)` with the status in full |
 
-A case with no linked report has no `add_report_to_case` entry.
+A case with no embargo has no `create_embargo_event` entry, and a case with no linked report has no `add_report_to_case` entry.
 Participants are taken in roster order, so a case created from a proposal has entries for the CASE_MANAGER, the Case Owner and the reporter, and a case an actor creates for itself has one, for the creator.
 
 Each commit fans its entry out to the case's other participants, and a participant must hold the case before the first entry about it arrives ([CP-09-009](../../reference/specs/protocol.md#cp-09-009)).
 The entries are committed after the `Create(VulnerabilityCase)` is queued, on both creation paths.
+That queued `Create` is the genesis entry itself, so the activity the case's first participant receives is the one every ledger records ([CLP-07-011](../../reference/specs/protocol.md#clp-07-011)).
 A ledger entry records a completed act, and a message is sent once it is in the sender's outbox ([SYNC-09-002](../../reference/specs/protocol.md#sync-09-002)).
 When an actor creates a case for itself, it is the case's only participant, so the entries go to nobody.
 

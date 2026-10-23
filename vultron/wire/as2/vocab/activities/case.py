@@ -139,10 +139,10 @@ class _AddNoteToCaseActivity(as_Add):
 class _UpdateCaseActivity(as_Update):
     """Update a VulnerabilityCase.
 
-    Reserved as the snapshot shape of a CASE_MANAGER-authored case-field ledger
-    entry (CLP-07-013). It is not a message any actor sends: it has no
-    ``ActivityPattern`` and no ``MessageSemantics``, so an inbox refuses a
-    received one as unrecognized (#4443). Do not add a received route.
+    The CASE_MANAGER's own act naming a new Case Owner, committed as its
+    ``update_case_owner`` ledger entry (CM-21-002, CLP-07-013).  The registry
+    recognizes it, but no received use case handles it, so an inbox reports
+    a received one as "no use case found" (ADR-0140).
 
     object_: as_VulnerabilityCase
     """
@@ -579,8 +579,17 @@ class _AnnounceVulnerabilityCaseActivity(as_Announce):
     recipient can seed their local DataLayer.
 
     ``object_``: :class:`VulnerabilityCase` — the complete case object.
+
+    Declares ``object_`` in :attr:`inline_required_refs` (DL-08-001): the
+    copy is the message, not a reference to the case the receiver already
+    holds.  Collapsed to an id, the receiver's rebuild of the activity read
+    back its own stored case instead of the copy, so a replica holding the
+    case could never be updated by one, and the copy's ledger position was
+    lost (SYNC-16-005, SYNC-16-006).
     """
 
     object_: as_VulnerabilityCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
+
+    inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})

@@ -51,13 +51,16 @@ from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.actor_recommendation_record import (
     ActorRecommendationRecord,
 )
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.enums.roles import CVDRole
 
 #: Ledger ``semantic_type`` of the forwarded ``Offer(CaseParticipant)``, and the
 #: kind label of its derived id.
-OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE = "offer_case_participant"
+OFFER_CASE_PARTICIPANT_SEMANTIC_TYPE = (
+    MessageSemantics.OFFER_CASE_PARTICIPANT.value
+)
 
 
 def _resolve_owner_recipient(
@@ -85,16 +88,13 @@ def _resolve_owner_recipient(
     # a missing case flows to the None return, letting the caller fail loudly
     # (ARCH-15-001). Conformance allowlist: module-resolver category.
     case_obj = dl.read_case(case_id)
-    if case_obj is not None:
-        owner_id = resolve_case_owner_id(case_obj, dl)
-        if owner_id:
-            return owner_id
-
-    raw_owner = getattr(case_obj, "attributed_to", None)
-    fallback = getattr(raw_owner, "id_", raw_owner) or None
-    if fallback and fallback != emitting_actor_id:
-        return cast(str, fallback)
-    return None
+    if case_obj is None:
+        return None
+    owner_id = resolve_case_owner_id(case_obj, dl)
+    if owner_id:
+        return owner_id
+    fallback = case_obj.attributed_to
+    return fallback if fallback != emitting_actor_id else None
 
 
 class RecordRecommendationRecommenderNode(DataLayerActionWithPorts):

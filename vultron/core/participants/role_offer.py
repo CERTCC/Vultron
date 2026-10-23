@@ -28,13 +28,14 @@ A case may hold several role Offers open at once, to different targets or
 of different roles, so an Offer is closed only by an answer *to it*: an
 ``accept_case_participant_role`` or ``reject_case_participant_role`` entry
 whose snapshot carries this Offer or its forward as ``object``, read through
-``find_protocol_pair(answering=...)`` (CLP-11-001).
+``find_protocol_pair(answering=...)`` (CLP-11-001, CLP-11-005).
 """
 
 from dataclasses import dataclass
 
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.protocol_pair import (
     CASE_PARTICIPANT_ROLE_OFFER_REPLY_TYPES,
     ProtocolPair,
@@ -50,7 +51,9 @@ from vultron.enums.roles import CVDRole
 from vultron.errors import VultronNotFoundError
 
 #: The ``semantic_type`` of the entry that records an admitted role Offer.
-OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE = "offer_case_participant_role"
+OFFER_CASE_PARTICIPANT_ROLE_SEMANTIC_TYPE = (
+    MessageSemantics.OFFER_CASE_PARTICIPANT_ROLE.value
+)
 
 
 def recorded_role_offer_entries(

@@ -36,6 +36,7 @@ class MessageSemantics(StrEnum):
     ENGAGE_CASE = auto()
     DEFER_CASE = auto()
     ADD_REPORT_TO_CASE = auto()
+    UPDATE_CASE_OWNER = auto()
 
     OFFER_ACTOR_TO_CASE = auto()
     OFFER_CASE_PARTICIPANT = auto()
@@ -71,6 +72,9 @@ class MessageSemantics(StrEnum):
     ACTIVATE_EMBARGO_ON_CASE = auto()
     REJECT_EMBARGO_PROPOSAL_ON_CASE = auto()
     WITHDRAW_FROM_EMBARGO_ON_CASE = auto()
+    CREATE_EMBARGO_EVENT = auto()
+    CREATE_EMBARGO_CONSENT = auto()
+    UPDATE_EMBARGO_CONSENT = auto()
 
     CLOSE_CASE = auto()
 
@@ -79,6 +83,8 @@ class MessageSemantics(StrEnum):
 
     ADD_CASE_PARTICIPANT_TO_CASE = auto()
     REMOVE_CASE_PARTICIPANT_FROM_CASE = auto()
+    CREATE_CASE_PARTICIPANT = auto()
+    UPDATE_CASE_PARTICIPANT = auto()
 
     ADD_NOTE_TO_CASE = auto()
     REMOVE_NOTE_FROM_CASE = auto()

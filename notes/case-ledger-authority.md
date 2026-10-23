@@ -101,25 +101,27 @@ Replicas need the asserted content to rebuild state, so the hash chain is
 computed over entries that each include the payload snapshot, never over pointers
 to prior assertions.
 
-**Planned: `semantic_type` is the registry's label for the payload (ADR-0140,
-proposed).** Every payload is a valid AS2 activity, and an entry's `semantic_type`
-must equal the semantic type the registry assigns to its `payload_snapshot`,
-including for the CASE_MANAGER's own acts. Today each write path stamps
-`semantic_type` from its own string constant. The equality test is #4724.
+**`semantic_type` is the registry's label for the payload (ADR-0140).** Every
+payload is a valid AS2 activity, and an entry's `semantic_type` must equal the
+semantic type the registry assigns to its `payload_snapshot`, including for the
+CASE_MANAGER's own acts, which are registry entries with no received use case.
+Name the type through `MessageSemantics`, never a string literal: the demo and
+per-actor-store harnesses check every written entry against the matcher
+(`test/support/ledger_labels.py`), and a ratchet refuses a literal in
+`vultron/core/behaviors/` (#4724).
 
-**Planned: one shape, one semantic type, and observations are not ledgered
-(ADR-0152, proposed).** A pattern never sees the sender, so a CASE_MANAGER act
-with a participant's verb and object carries the participant's semantic type; a
+**One shape, one semantic type, and observations are not ledgered (ADR-0152,
+proposed).** A pattern never sees the sender, so a CASE_MANAGER act with a
+participant's verb and object carries the participant's semantic type; a
 replica that must act differently tells them apart after routing, by `actor` and
 `attributedTo`. A fact any replica can derive (a passed `Offer` `endTime`, a
-completed closure) gets no entry, only the case-file change it causes. The code
-still writes the old per-occasion types until #5037, #5038 and #5039 land.
+completed closure) gets no entry, only the case-file change it causes.
 
 **The field is `semantic_type`, wire key `semanticType` (CLP-02-014).** The
 glossary names "event type" as a term to avoid for it. The hash chain hashes
 the field under its own name, as `object_id` already is. An entry still
-carrying the retired `eventType` key is refused, never aliased: a stored row
-means the store must be reset, a received one that its sender is out of date
+carrying the retired `eventType` key is refused, never aliased (CLP-02-015): a
+stored row means the store must be reset, a received one that its sender is out of date
 (`notes/datalayer-design.md`).
 
 ## Refusals Go to the Process Log
@@ -370,16 +372,24 @@ trigger composes the same node (`create_case_trigger_tree.py`), its creator bein
 owner and CASE_MANAGER, so both creation paths commit one sequence; do not add a
 second copy (CLP-07-013). Order:
 
-1. `create_case` — `Create(VulnerabilityCase)`, actor CASE_MANAGER
-2. `add_report_to_case` — actor CASE_MANAGER
-3. per seated record, `create_case_participant` — `Create(CaseParticipant)`
+1. `create_case` — the `Create(VulnerabilityCase)` the creation queued, its
+   sealed body verbatim: one activity, delivered and ledgered (CLP-07-011,
+   ADR-0157), actor CASE_MANAGER
+2. `create_embargo_event` — `Create(EmbargoEvent)` in full, once per embargo
+   the register names (the default embargo, and a contested creation's losing
+   terms), actor CASE_MANAGER. The genesis carries only the active embargo
+   inline, and a replica copies each record from its own entry (ADR-0124), so
+   without it a replica rebuilt from the ledger lacks the end time (#5122,
+   VAM-05-016)
+3. `add_report_to_case` — actor CASE_MANAGER
+4. per seated record, `create_case_participant` — `Create(CaseParticipant)`
    carrying the record as created (roles, consent rows, its first status), then
    `add_participant_status_to_participant` for each later status (the
    CASE_MANAGER's VALID, ACCEPTED; CM-23-007) — actor CASE_MANAGER
-4. `add_case_status_to_case` — actor **vendor URI**
+5. `add_case_status_to_case` — actor **vendor URI**
 
-Each snapshot is the CASE_MANAGER's factory-built activity, sealed and committed
-verbatim: the `record_*` methods of `TriggerActivityPort`
+Each later snapshot is the CASE_MANAGER's factory-built activity, sealed and
+committed verbatim: the `record_*` methods of `TriggerActivityPort`
 (`trigger_activity_adapter/ledger.py`). Core builds no snapshot dict itself
 (VM-08-003; `test/architecture/test_no_hand_built_payload_snapshots.py`).
 A record is sealed, not stored as an activity (`_seal_record`): it is no

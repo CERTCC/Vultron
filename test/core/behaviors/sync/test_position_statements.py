@@ -11,7 +11,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Participant position statements: a participant says how far it has got.
+"""Participant position statements: a participant's ``Read(CaseLedgerEntry)``.
 
 Every test here is a strict ``xfail`` for unbuilt behaviour (ADR-0155). Each
 implementation issue removes the ``xfail`` from the tests it makes pass and
@@ -20,7 +20,7 @@ replaces each name probe with a full behaviour test.
 
 import pytest
 
-from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.events.base import MessageSemantics
 
 
 @pytest.mark.xfail(
@@ -36,19 +36,3 @@ from vultron.core.models.events.base import MessageSemantics, VultronEvent
 def test_read_case_ledger_entry_is_a_message_semantic() -> None:
     """A participant's ``Read(CaseLedgerEntry)`` has its own semantic type."""
     assert "READ_CASE_LEDGER_ENTRY" in MessageSemantics.__members__
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-03-004: received events carry no ledgerTail yet. Tracked by #5109.",
-)
-@pytest.mark.spec("SYNC-03-004")
-@pytest.mark.spec("SYNC-17-008")
-def test_received_event_carries_the_senders_stated_position() -> None:
-    """A received event promotes the sender's stated ``ledgerTail``.
-
-    The probe names ``stated_position``, not ``ledger_tail``: the extractor
-    already parses a ``ledger_tail`` field from ``content`` for the full-case
-    Invite events, so reusing that name would refuse every other activity.
-    """
-    assert "stated_position" in VultronEvent.model_fields

@@ -40,7 +40,7 @@ class LedgerPosition(ValidatedAssignmentMixin, BaseModel):
     """The tail of a case ledger: ``log_index`` and ``entry_hash`` of its last entry.
 
     On the wire it is an object with ``logIndex`` and ``entryHash`` members.
-    It is a value, not a record of its own: every owned case stores one as
+    It is a value, not a record of its own: every case stores one as
     ``VulnerabilityCase.ledger_position``, the entry its case file reflects
     (SYNC-16-005), and the full-case Invite carries one as its ``content``
     (VAM-04-011).

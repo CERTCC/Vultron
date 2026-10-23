@@ -159,6 +159,11 @@ class TestCoerceUnknownEnumNames(unittest.TestCase):
         with pytest.raises(ValidationError):
             as_CaseStatus(pxa="BOGUS_PXA")  # type: ignore[arg-type]
 
+    def test_em_state_unknown_raises_validation_error(self):
+        """as_CaseStatus with bogus em raises ValidationError."""
+        with pytest.raises(ValidationError):
+            as_CaseStatus(em="BOGUS_EM")  # type: ignore[arg-type]
+
     def test_rm_state_unknown_raises_validation_error(self):
         """as_ParticipantStatus with bogus rm raises ValidationError."""
         with pytest.raises(ValidationError):

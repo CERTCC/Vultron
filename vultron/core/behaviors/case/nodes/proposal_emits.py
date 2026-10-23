@@ -173,7 +173,10 @@ class EmitAcceptCaseProposalNode(_EmitSingleActivityBase):
 class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
     """Build Create(VulnerabilityCase) for the report receiver and queue it.
 
-    Reads ``case_id`` and ``accept_activity_id`` from the blackboard.  The
+    Reads ``case_id`` and ``accept_activity_id`` from the blackboard, and
+    writes ``create_case_activity_id``: ``CommitNativeLedgerEntriesNode``
+    commits this activity as the case's genesis entry, so the case's
+    creation is one activity, delivered and ledgered (CLP-07-011).  The
     activity carries the full inline case (participants, active embargo and
     reports materialised, ADR-0041 AC-5), ``context`` = the case URI and
     ``in_reply_to`` = the ``Accept`` URI (CP-05-003, ADR-0045).  Its id is
@@ -209,11 +212,18 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
         "accept_activity_id": PortInformation(data_type=str, required=False),
     }
 
+    OUTPUT_PORTS: dict[str, PortInformation] = {
+        "create_case_activity_id": PortInformation(
+            data_type=str, required=True
+        ),
+    }
+
     @classmethod
     def _domain_port_remappings(cls) -> dict[str, str]:
         return {
             "case_id": "/case_id",
             "accept_activity_id": "/accept_activity_id",
+            "create_case_activity_id": "/create_case_activity_id",
         }
 
     def initialise(self) -> None:
@@ -298,6 +308,13 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             return Status.FAILURE
         if announced is None:
             return None
+        # Already built under the derived id: that Create is still the one
+        # the genesis entry records, should it not be committed yet
+        # (CLP-07-011).
+        self._set_output(
+            "create_case_activity_id",
+            create_case_activity_id(self._proposal_id),
+        )
         logger.info(
             "%s: Create(VulnerabilityCase) of case '%s' for proposal '%s' was"
             " already queued — not announcing the case again (CP-05-005)",
@@ -403,6 +420,8 @@ class EmitCreateVulnerabilityCaseNode(_EmitSingleActivityBase):
             logger.warning("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE
 
+        # The genesis entry records this same activity (CLP-07-011).
+        self._set_output("create_case_activity_id", activity_id)
         logger.info(
             "%s: Queued Create(VulnerabilityCase) '%s' from proposal '%s'",
             self.name,

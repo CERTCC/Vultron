@@ -165,6 +165,16 @@ groups:
     statement: '`StatementSpec` MUST have fields: `id` (`SpecIdStr`), `priority` (`RFC2119Priority`), `kind` (`SpecKind`,
       required), `statement` (non-empty str), `rationale` (non-empty str), and optional fields: `testable`, `scope`, `tags`,
       `relationships`, `adr`, `lint_suppress`.'
+    rationale: >-
+      These are the fields every consumer of the corpus reads, from spec-lint to
+      `spec-dump`, so the schema is what guarantees each requirement has them. A
+      required `rationale` keeps the reason for each rule next to the rule
+      (MS-10-012).
+    note: >-
+      During the phased rationale backfill the schema still types `rationale` as
+      optional, and the requirement is held by the MS-10-014 growth guard instead:
+      no pull request may add a requirement without one. The last backfill task
+      makes the field required in `StatementSpec` and removes this note.
   - id: SR-02-010
     priority: MUST
     kind: project
@@ -1324,5 +1334,309 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SR-12-006
+    tags:
+    - tooling
+
+- id: SR-13
+  title: Relationship Type Semantics and Direction
+  description: >-
+    What each `rel_type` asserts, which end of a relationship is upstream, which end
+    records it, and the spec-lint checks that keep the requirements graph free of
+    loops so that "what does a change to this requirement affect?" has one answer.
+  specs:
+  - id: SR-13-001
+    priority: MUST
+    kind: process
+    statement: >-
+      An `implements` relationship recorded on A naming B MUST mean that A states
+      the concrete mechanism by which B is met; B is the more general requirement.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `implements` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-002
+    priority: MUST
+    kind: process
+    statement: >-
+      A `supersedes` relationship recorded on A naming B MUST mean that A replaces
+      B, wholly or in a case A names, so that where A applies B no longer binds; B
+      is the earlier, upstream requirement.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `supersedes` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-003
+    priority: MUST
+    kind: process
+    statement: >-
+      An `extends` relationship recorded on A naming B MUST mean that A adds
+      obligations to B without narrowing or changing what B already requires; B is
+      the more general requirement.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `extends` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-004
+    priority: MUST
+    kind: process
+    statement: >-
+      A `depends_on` relationship recorded on A naming B MUST mean that A cannot
+      be met unless B is also met; B is the upstream requirement.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `depends_on` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-005
+    priority: MUST
+    kind: process
+    statement: >-
+      A `conflicts` relationship recorded on A naming B MUST mean that A and B
+      cannot both be met as written; neither end is upstream.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `conflicts` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-006
+    priority: MUST
+    kind: process
+    statement: >-
+      A `refines` relationship recorded on A naming B MUST mean that A restates B
+      for a narrower case or with more precision, so that meeting A in that case
+      meets B; B is the more general requirement.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `refines` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-007
+    priority: MUST
+    kind: process
+    statement: >-
+      A `derives_from` relationship recorded on A naming B MUST mean that A states
+      a consequence that follows from B without being a narrower case of B; B is
+      the upstream requirement.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `derives_from` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-008
+    priority: MUST
+    kind: process
+    statement: >-
+      A `verifies` relationship recorded on A naming B MUST mean that A states a
+      check that confirms B is met; B is the upstream requirement.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `verifies` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-009
+    priority: MUST
+    kind: process
+    statement: >-
+      A `part_of` relationship recorded on A naming B MUST mean that A is one
+      component of B, which is met only when all of its parts are met; B is the
+      more general requirement.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `part_of` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-010
+    priority: MUST
+    kind: process
+    statement: >-
+      A `constrains` relationship recorded on A naming B MUST mean that A bounds
+      how B may be met without B being a narrower case of A; A is the more general
+      requirement.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `constrains` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-011
+    priority: MUST
+    kind: process
+    statement: >-
+      A `satisfies` relationship recorded on A naming B MUST mean that meeting A
+      is sufficient to meet B; B is the upstream requirement.
+    rationale: >-
+      Eleven type names with no stated meaning let two authors record one fact with
+      opposite verbs, which puts loops into the graph. A definition that names the
+      upstream end gives every edge one direction to point.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `satisfies` differ.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-012
+    priority: MUST
+    kind: process
+    statement: >-
+      A relationship MUST be recorded in only one of the two requirements it links:
+      in the downstream requirement for every type but `constrains` and `conflicts`,
+      in the constraining requirement for `constrains`, and in either one for
+      `conflicts`. Neither requirement may then name the other under any type.
+    rationale: >-
+      A link recorded at both ends is one fact kept twice, and the two copies drift:
+      authors wrote the second copy with an opposite verb, which closed a loop. The
+      links that name a requirement can be found by filtering
+      `relation_graph.recorded_relationships()` on their target, so a second copy adds
+      nothing.
+    verification: >-
+      `test/metadata/specs/test_lint.py::test_lint_fails_on_a_link_recorded_at_both_ends`
+      fails when two requirements that each name the other pass spec-lint.
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-013
+    priority: MUST
+    kind: process
+    statement: >-
+      Where a requirement is a narrower case of another, the link MUST be recorded as
+      `refines` on the narrower requirement, and the more general one MUST NOT record
+      `constrains` naming it.
+    rationale: >-
+      `refines` and `constrains` are mirror images: "A refines B" and "B constrains A"
+      state one fact from opposite ends. Naming one of them for that fact keeps the
+      corpus from holding both. `constrains` stays for a general rule that bounds a
+      requirement which is not a case of it.
+    verification: >-
+      `test/metadata/specs/test_relation_graph.py::test_mirror_image_double_recording_is_reported`
+      fails when `A refines B` and `B constrains A` pass spec-lint together.
+    relationships:
+    - rel_type: refines
+      spec_id: SR-13-012
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-014
+    priority: MUST
+    kind: project
+    statement: >-
+      spec-lint MUST report as a hard error each loop in the requirements graph whose
+      arcs run from each relationship's downstream end to its upstream end, that is
+      each strongly connected component of more than one requirement and each
+      requirement whose relationships name itself, and the error MUST name every
+      requirement in the loop.
+    rationale: >-
+      "What does a change to this requirement affect?" walks the graph against its
+      arrows, and a loop makes every member upstream of every other. Orienting by
+      upstream end, not by which end recorded the link, also catches a `constrains`
+      recorded backwards, which the recorded edges alone hide.
+    verification: >-
+      `test/metadata/specs/test_lint.py::test_lint_fails_on_a_relationship_loop` asserts
+      spec-lint exits 1 naming the loop, and `test/metadata/specs/test_relation_graph.py`
+      asserts that a two-node loop, a three-node loop and a self-loop each produce one
+      error naming every member, that a `constrains` recorded the wrong way closes a
+      loop, and that `test_real_specs_have_no_relationship_loops` finds none in `specs/`.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SR-13-012
+    - rel_type: refines
+      spec_id: SR-04-002
+    tags:
+    - tooling
+  - id: SR-13-015
+    priority: MUST
+    kind: project
+    statement: >-
+      spec-lint MUST report as a hard error each pair of requirements whose
+      relationships name each other, naming both requirements and every relationship
+      between them.
+    rationale: >-
+      A pair recorded at both ends is not always a loop: `A refines B` with
+      `B constrains A` points both arcs the same way. The pair check enforces
+      SR-13-012 directly.
+    verification: >-
+      `test/metadata/specs/test_lint.py::test_lint_fails_on_a_link_recorded_at_both_ends`
+      asserts spec-lint exits 1 naming both requirements, and
+      `test/metadata/specs/test_relation_graph.py::test_mirror_image_double_recording_is_reported`,
+      `test_both_ends_recorded_is_reported` and `test_real_specs_record_each_link_once`
+      assert the error text and that `specs/` has no such pair.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SR-13-012
+    - rel_type: refines
+      spec_id: SR-04-002
+    tags:
+    - tooling
+  - id: SR-13-016
+    priority: MUST
+    kind: project
+    statement: >-
+      The `RelationType` docstring MUST list each member's definition from one table
+      in `vultron/metadata/specs/schema.py` that also records each member's upstream
+      end, and a test MUST fail when that table and SR-13-001 through SR-13-011
+      differ.
+    rationale: >-
+      The definitions are needed both by readers of the specs and by the code that
+      orients the graph. One table checked against the requirements keeps the two
+      from drifting, where a second prose copy would not.
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` and
+      `test_relation_type_docstring_lists_every_definition` fail on a missing,
+      extra or reworded definition, and `test_upstream_end_matches_the_end_sr_13_names`
+      fails when a table entry's upstream end is not the end its statement names.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SR-02-004
     tags:
     - tooling

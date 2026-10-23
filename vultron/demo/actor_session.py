@@ -138,8 +138,10 @@ class ActorSession:
     Args:
         client: Client connected to the container that hosts *actor*.
         actor: The actor on whose behalf triggers are posted.
-        case: The case trigger verbs operate on.  ``None`` at construction;
-            set a copy with :meth:`with_case` once the case exists.
+        case_id: The ID of the case trigger verbs operate on.  ``None`` at
+            construction; set a copy with :meth:`with_case` once the case
+            exists.  Only the ID is kept: a trigger names its case by ID, so a
+            caller holding just the ID need not build a case to bind it.
         narrate: When ``True`` (default), each verb logs an INFO banner naming
             the action and actor.  :meth:`quiet` returns a silent copy for calls
             that already sit inside a scenario ``demo_step`` banner.
@@ -147,7 +149,7 @@ class ActorSession:
 
     client: DataLayerClient
     actor: as_Actor
-    case: as_VulnerabilityCase | None = None
+    case_id: str | None = None
     narrate: bool = True
 
     def __post_init__(self) -> None:
@@ -161,7 +163,12 @@ class ActorSession:
         mismatched session unconstructible rather than a per-call guard that
         silently passes wherever neither side is a real absolute URI
         (DEMOMA-26-002).
+
+        Also refuses a blank ``case_id``: a bound case ID is non-empty
+        (CS-08-002), or the trigger URL would name no case.
         """
+        if self.case_id is not None and not self.case_id.strip():
+            raise ValueError("case_id must be a non-empty case ID when bound")
         actor_id = self.actor.id_
         base_url = str(getattr(self.client, "base_url", "") or "")
         if not isinstance(actor_id, str) or not _is_absolute_uri(actor_id):
@@ -176,9 +183,13 @@ class ActorSession:
 
     # -- immutable copies -------------------------------------------------
 
-    def with_case(self, case: as_VulnerabilityCase) -> "ActorSession":
-        """Return a new session bound to *case*; does not modify the receiver."""
-        return replace(self, case=case)
+    def with_case(self, case: as_VulnerabilityCase | str) -> "ActorSession":
+        """Return a new session bound to *case* (a case or its ID).
+
+        Does not modify the receiver.
+        """
+        case_id = case if isinstance(case, str) else case.id_
+        return replace(self, case_id=case_id)
 
     def quiet(self) -> "ActorSession":
         """Return a new session that does not log per-verb banners."""
@@ -188,12 +199,12 @@ class ActorSession:
 
     def _require_case_id(self) -> str:
         """Return the bound case's URI, or raise if no case is bound."""
-        if self.case is None:
+        if self.case_id is None:
             raise ValueError(
                 "this trigger is case-scoped; bind a case with"
                 " ActorSession.with_case(case) before calling it"
             )
-        return cast(str, self.case.id_)
+        return self.case_id
 
     def _post(
         self,
@@ -552,10 +563,13 @@ class ActorSession:
         """Send Leave(VulnerabilityCase) for the bound case (leave-case, TRIG-13-001)."""
         return self._post("leave-case", {"case_id": self._require_case_id()})
 
-    def sync_log_entry(
-        self, *, object_id: str, semantic_type: str
-    ) -> WireSyncLogEntryResult:
-        """Commit and fan out a canonical ledger entry (sync-log-entry)."""
+    def sync_log_entry(self, *, object_id: str) -> WireSyncLogEntryResult:
+        """Commit and fan out a canonical ledger entry (sync-log-entry).
+
+        The entry's semantic type is the registry's label for its
+        ``Announce(VulnerabilityCase)`` payload (ADR-0140), never the
+        caller's.
+        """
         return cast(
             WireSyncLogEntryResult,
             self._post(
@@ -563,7 +577,6 @@ class ActorSession:
                 {
                     "case_id": self._require_case_id(),
                     "object_id": object_id,
-                    "semantic_type": semantic_type,
                 },
                 path_prefix="demo",
                 result_cls=WireSyncLogEntryResult,

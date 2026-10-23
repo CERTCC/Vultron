@@ -40,6 +40,7 @@ from unittest.mock import patch
 import py_trees
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register, terminate
 from test.support.ledger import fail_commits
 from test.support.received import received_event
@@ -207,6 +208,24 @@ def _queued_create(dl: SqliteDataLayer) -> dict[str, Any]:
 
 
 @pytest.mark.spec("CP-05-005")
+class _RecordGenesisCreateId(py_trees.behaviour.Behaviour):
+    """Record ``/create_case_activity_id`` while the tree still ticks.
+
+    The bridge restores the key when the execution ends, so the value the
+    emit node published is observable only mid-tree.
+    """
+
+    def __init__(self, observed: dict[str, object]) -> None:
+        super().__init__(name="RecordGenesisCreateId")
+        self._observed = observed
+
+    def update(self) -> py_trees.common.Status:
+        self._observed["id"] = py_trees.blackboard.Blackboard.storage.get(
+            "/create_case_activity_id"
+        )
+        return py_trees.common.Status.SUCCESS
+
+
 class TestEmitCreateVulnerabilityCaseNode:
     """Unit tests for EmitCreateVulnerabilityCaseNode."""
 
@@ -221,15 +240,23 @@ class TestEmitCreateVulnerabilityCaseNode:
         accept_id: str | None = "https://example.org/activities/a-001",
         seed: bool = True,
         with_factory: bool = True,
+        observed: dict[str, object] | None = None,
     ) -> py_trees.common.Status:
-        """Execute EmitCreateVulnerabilityCaseNode via BTBridge."""
+        """Execute EmitCreateVulnerabilityCaseNode via BTBridge.
+
+        With *observed*, also record the ``create_case_activity_id`` the node
+        published.
+        """
         if seed and case_id is not None:
             self._seed_case(dl, case_id)
         node = EmitCreateVulnerabilityCaseNode(
             proposal_id=_PROPOSAL_URI, owner_uri=_VENDOR_URI
         )
+        children: list[py_trees.behaviour.Behaviour] = [node]
+        if observed is not None:
+            children.append(_RecordGenesisCreateId(observed))
         tree = py_trees.composites.Sequence(
-            name="TestSeq", memory=False, children=[node]
+            name="TestSeq", memory=False, children=children
         )
         # Pre-populate the blackboard keys the node reads.
         client = py_trees.blackboard.Client(name="TestSetup")
@@ -279,6 +306,25 @@ class TestEmitCreateVulnerabilityCaseNode:
         _store_announced_create(dl)
         assert self._run_node(dl) == py_trees.common.Status.SUCCESS
         assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CLP-07-011")
+    @pytest.mark.parametrize(
+        "already_stored", [False, True], ids=["built-now", "already-stored"]
+    )
+    def test_publishes_the_create_the_genesis_entry_records(
+        self, already_stored
+    ):
+        """The node names its Create for the genesis commit, whether it built
+        it now or found it already stored under the derived id."""
+        dl = self._dl()
+        if already_stored:
+            _store_announced_create(dl)
+        observed: dict[str, object] = {}
+        assert (
+            self._run_node(dl, observed=observed)
+            == py_trees.common.Status.SUCCESS
+        )
+        assert observed["id"] == _CREATE_ID
 
     def test_a_create_announcing_another_case_fails_loudly(self, caplog):
         """A sender that reuses a proposal id for a new case finds the old
@@ -705,6 +751,7 @@ def _owner_roles(dl: SqliteDataLayer) -> list:
 @pytest.mark.spec("CP-09-001")
 @pytest.mark.spec("CP-09-002")
 @pytest.mark.spec("CM-14-009")
+@pytest.mark.spec("CBT-01-003")
 class TestADR0041OwnerParticipant:
     """ADR-0041 AC-1: report receiver added as CASE_OWNER at RM.RECEIVED.
 
@@ -1701,7 +1748,7 @@ class TestCM14005ReporterSignatory:
             actor_id=_CASE_ACTOR_URI,
         )
         # Build a minimal case with no active embargo and a reporter participant
-        case = VulnerabilityCase(id_=_CASE_URI)
+        case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_URI)
         reporter_participant = CaseParticipant(
             id_="https://example.org/participants/reporter",
             attributed_to=_REPORTER_URI,
@@ -1798,7 +1845,8 @@ class TestADR0041LedgerEntries:
         """The proposal path's entries follow the one creation rule (#4440).
 
         ``creation_entry_sequence`` reads the sequence off the resulting case
-        file: genesis, each report, then per seated record one
+        file: genesis, each embargo the register names, each report, then
+        per seated record one
         ``create_case_participant`` followed by an entry per later status,
         then each case status (CLP-07-013).  The create-case trigger is
         pinned to the same rule in ``test_create.py``, so a case created
@@ -2371,6 +2419,7 @@ class TestADR0041GenesisCommitFailure:
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
         node._case_id_bb = case.id_
+        node._create_activity_id_bb = _CREATE_ID
 
         assert node.update() == Status.FAILURE, (
             "genesis create_case commit failure must propagate as FAILURE,"
@@ -2379,6 +2428,57 @@ class TestADR0041GenesisCommitFailure:
         assert "genesis create_case ledger commit failed" in (
             node.feedback_message
         )
+
+    @pytest.mark.spec("CLP-07-011")
+    @pytest.mark.parametrize(
+        ("create_id", "reason"),
+        [
+            pytest.param(
+                None,
+                "no Create(VulnerabilityCase) was built",
+                id="no-create-built",
+            ),
+            pytest.param(
+                f"{_CREATE_ID}-never-sealed",
+                "is not sealed",
+                id="create-not-sealed",
+            ),
+        ],
+    )
+    def test_a_genesis_with_no_sealed_create_fails(
+        self, make_payload, monkeypatch, create_id, reason
+    ):
+        """No genesis entry is committed from a Create that is not there.
+
+        The genesis entry is the built ``Create(VulnerabilityCase)`` itself
+        (CLP-07-011), so a creation that built none, or whose id names no
+        sealed body, fails with its cause and commits nothing.
+        """
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.nodes import (
+            CommitNativeLedgerEntriesNode,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        case = self._case_with_no_entries(make_payload, dl, monkeypatch)
+
+        node = CommitNativeLedgerEntriesNode(
+            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
+        )
+        node.datalayer = dl
+        node.actor_id = _CASE_ACTOR_URI
+        node.trigger_activity_factory = TriggerActivityAdapter(dl)
+        node._case_id_bb = case.id_
+        node._create_activity_id_bb = create_id
+
+        assert node.update() == Status.FAILURE
+        assert "genesis create_case ledger commit failed" in (
+            node.feedback_message
+        )
+        assert reason in node.feedback_message
+        assert dl.list_objects("CaseLedgerEntry") == []
 
     @pytest.mark.spec("CLP-07-013")
     def test_a_failed_later_entry_fails_and_stops_the_sequence(
@@ -2535,10 +2635,54 @@ class TestADR0041GenesisCommitFailure:
         node.actor_id = _CASE_ACTOR_URI
         node.trigger_activity_factory = TriggerActivityAdapter(dl)
         node._case_id_bb = case.id_
+        node._create_activity_id_bb = _CREATE_ID
 
         assert node.update() == Status.FAILURE
         assert missing in node.feedback_message
         assert "create_case_participant" not in attempted
+
+    @pytest.mark.spec("CLP-07-013")
+    def test_an_embargo_missing_from_the_store_stops_the_sequence(
+        self, make_payload, monkeypatch
+    ):
+        """An embargo the register names but the store lacks has no entry.
+
+        No replica could read its times, so the creation entries stop at its
+        ``create_embargo_event`` and the node fails (#5122).
+        """
+        from py_trees.common import Status
+
+        from vultron.core.behaviors.case.nodes import (
+            CommitNativeLedgerEntriesNode,
+            proposal_ledger,
+        )
+
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
+        _seed_report(dl)
+        case = self._case_with_no_entries(make_payload, dl, monkeypatch)
+        missing = case.embargo_register[0].embargo_id
+        dl.delete("EmbargoEvent", missing)
+        attempted: list[str] = []
+
+        def _accept(*_args, **kwargs):
+            attempted.append(kwargs["semantic_type"])
+            return py_trees.behaviours.Success(name="AcceptedCommit")
+
+        monkeypatch.setattr(
+            proposal_ledger, "create_commit_log_entry_tree", _accept
+        )
+        node = CommitNativeLedgerEntriesNode(
+            owner_uri=_VENDOR_URI, report_id=_REPORT_URI
+        )
+        node.datalayer = dl
+        node.actor_id = _CASE_ACTOR_URI
+        node.trigger_activity_factory = TriggerActivityAdapter(dl)
+        node._case_id_bb = case.id_
+        node._create_activity_id_bb = _CREATE_ID
+
+        assert node.update() == Status.FAILURE
+        assert missing in node.feedback_message
+        assert attempted == ["create_case"]
 
     def test_case_not_found_is_best_effort_success(self, make_payload):
         """case-not-found in the ledger node is best-effort SUCCESS."""
@@ -3110,6 +3254,7 @@ def test_store_proposal_report_falls_back_to_the_wire_dict(caplog):
 
 @pytest.mark.spec("CM-02-001")
 @pytest.mark.spec("CM-02-010")
+@pytest.mark.spec("CBT-01-003")
 class TestCaseActorIsOneParticipantDistinctFromTheOwner:
     """The proposal flow's snapshot names exactly one CaseActor, and it is not the owner.
 

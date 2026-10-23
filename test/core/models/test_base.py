@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.activity import (
     VultronAccept,
     VultronActivity,
@@ -39,6 +40,7 @@ _FUTURE_DT = datetime(2030, 1, 1, tzinfo=UTC)
 
 REQUIRED_KWARGS: dict[type, dict] = {
     VultronNote: {"content": "test content"},
+    VulnerabilityCase: {"attributed_to": CASE_OWNER_ID},
     CaseParticipant: {
         "context": "urn:uuid:case-123",
     },
@@ -132,7 +134,10 @@ def test_domain_object_as_id_unique():
 
 def test_domain_object_expected_as_types():
     assert VulnerabilityReport().type_ == "VulnerabilityReport"
-    assert VulnerabilityCase().type_ == "VulnerabilityCase"
+    assert (
+        VulnerabilityCase(attributed_to=CASE_OWNER_ID).type_
+        == "VulnerabilityCase"
+    )
     assert VultronNote(content="test").type_ == "Note"
     assert (
         CaseParticipant(context="urn:uuid:c", attributed_to="urn:uuid:a").type_
@@ -206,9 +211,6 @@ def test_vultron_embargo_event_required_fields():
 
 
 def test_vultron_case_init_case_statuses():
-    case_no_actor = VulnerabilityCase()
-    assert case_no_actor.case_statuses == []
-
     case_with_actor = VulnerabilityCase(attributed_to="urn:uuid:actor-123")
     assert len(case_with_actor.case_statuses) == 1
     assert isinstance(case_with_actor.case_statuses[0], CaseStatus)
@@ -237,6 +239,7 @@ def test_vultron_case_init_case_statuses():
 def test_vultron_case_rewrites_status_context_to_case_id():
     """An inline status belongs to the case holding it (``set_cs_context``)."""
     case = VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID,
         case_statuses=[
             CaseStatus(context="urn:uuid:other", attributed_to="urn:uuid:a")
         ],

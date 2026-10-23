@@ -23,6 +23,7 @@ Verifies:
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.models.protocol_pair import (
     OFFER_CASE_PARTICIPANT_REPLY_TYPES,
@@ -97,7 +98,9 @@ def dl():
         "sqlite:///:memory:",
         actor_id="https://test.example/api/v2/actors/test-actor",
     )
-    case = as_VulnerabilityCase(id_=CASE_ID, name="CLP11Test")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="CLP11Test"
+    )
     layer.create(case)
     return layer
 
@@ -385,6 +388,7 @@ def _seed_reply(dl, reply_id: str, answered: object) -> None:
 
 
 @pytest.mark.spec("CLP-11-001")
+@pytest.mark.spec("CLP-11-005")
 @pytest.mark.spec("CM-33-005")
 class TestFindProtocolPairAnswering:
     """With ``answering``, only a reply to one of those ids closes the pair."""

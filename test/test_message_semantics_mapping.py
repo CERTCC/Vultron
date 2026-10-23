@@ -28,7 +28,7 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
     PEC_Trigger,
 )
-from vultron.semantic_registry import SEMANTIC_REGISTRY
+from vultron.semantic_registry import SEMANTIC_REGISTRY, lookup_entry
 from vultron.semantic_registry._occasion import FieldValue, ProtocolShorthand
 from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import ActivityPattern
@@ -270,7 +270,10 @@ def test_no_semantics_or_registry_entry_is_named_for_a_pec_transition():
     Every consent transition rides on an EM wire activity or is a lazy timer
     event, so no ``MessageSemantics`` member names a PEC trigger or state.
     ``INVITE`` is left out: the EM Invite (``INVITE_TO_EMBARGO_ON_CASE``) is the
-    wire activity that applies it (MSM-07-002), not a PEC-only value.
+    wire activity that applies it (MSM-07-002), not a PEC-only value.  So are
+    the CASE_MANAGER's consent-row records, ``Create(EmbargoConsent)`` and
+    ``Update(EmbargoConsent)``: each names a record change it ledgers, which
+    the registry labels (ADR-0140), and no receiver dispatches on it.
     """
     pec_tokens = tuple(
         sorted(
@@ -279,10 +282,19 @@ def test_no_semantics_or_registry_entry_is_named_for_a_pec_transition():
             | {"CONSENT", "PEC"}
         )
     )
-    assert _members_matching(pec_tokens) == frozenset()
+    consent_records = frozenset(
+        {
+            MessageSemantics.CREATE_EMBARGO_CONSENT,
+            MessageSemantics.UPDATE_EMBARGO_CONSENT,
+        }
+    )
+    assert _members_matching(pec_tokens) == {m.name for m in consent_records}
+    assert all(not lookup_entry(m).handled for m in consent_records)
     # No registry entry is named for a PEC transition either: no entry's
     # semantics, event class or use-case class carries a PEC token.
     for entry in SEMANTIC_REGISTRY:
+        if entry.semantics in consent_records:
+            continue
         names = (
             entry.semantics.name,
             getattr(entry.event_class, "__name__", ""),

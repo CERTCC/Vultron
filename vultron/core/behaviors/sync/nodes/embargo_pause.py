@@ -63,22 +63,12 @@ from vultron.core.participants.recipients import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+
+# Re-exported: replay, post-close and the pending-request reader import it here.
+from vultron.core.sync_helpers import sorted_case_ledger_entries
 from vultron.errors import VultronError
 
 logger = logging.getLogger(__name__)
-
-
-def sorted_case_ledger_entries(
-    datalayer: CasePersistence, case_id: str
-) -> list[CaseLedgerEntry]:
-    """Return the case's canonical ledger entries, ascending by ``log_index``."""
-    entries = [
-        obj
-        for obj in datalayer.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
-    ]
-    entries.sort(key=lambda log_entry: log_entry.log_index)
-    return entries
 
 
 def send_ledger_suffix(

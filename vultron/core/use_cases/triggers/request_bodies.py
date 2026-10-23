@@ -618,13 +618,14 @@ class SyncLogEntryRequest(CaseTriggerRequest):
 
     Commits a canonical case ledger entry and fans it out to all participants
     via Announce(CaseLedgerEntry). Uses Announce(VulnerabilityCase) as the
-    canonical payload type (case-actor-authored).
+    canonical payload type (case-actor-authored), and the entry's semantic
+    type is the registry's label for it (ADR-0140), so the caller names none.
 
-    TRIG-03-002: Unknown fields are silently ignored.
+    TRIG-03-002: Unknown fields are silently ignored, so a client that still
+    sends ``semantic_type`` has it ignored.
     """
 
     object_id: UriString
-    semantic_type: NonEmptyString
 
 
 class SetStubSummaryRequest(CaseTriggerRequest):

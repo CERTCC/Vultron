@@ -260,26 +260,27 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
 - **Spec:** [Participant Removal](../vultron-spec/interactions.md#114-participant-removal-n).
 - **Example artifact:** [remove_participant_from_case.json](../examples/remove_participant_from_case.json).
 
-## Update Case { #update-case }
+{% include-markdown "./_occasions/sections/update-case-owner.md" %}
 
-`Update(VulnerabilityCase)` is not an occasion: it is not a message any actor sends.
-
-- **Protocol role:** it is reserved as the snapshot shape of a ledger entry.
-  Every change the CASE_MANAGER makes to the case file must be its own ledger entry ([CLP-07-013](../specs/protocol.md#clp-07-013)), and an `Update` carrying the case in full is the shape such an entry takes for a change to a case field.
+- **Protocol role:** every change the CASE_MANAGER makes to the case file is its own ledger entry ([CLP-07-013](../specs/protocol.md#clp-07-013)), and an `Update` carrying the case in full is the shape such an entry takes for a change to a case field.
   The prototype commits one such entry, `update_case_owner`, when an ownership transfer changes the case owner ([CM-21-002](../specs/protocol.md#cm-21-002)), and replicas copy it from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
   A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to the CASE_MANAGER or to its peers.
-- **On receipt:** an inbox refuses a direct `Update(VulnerabilityCase)` as an unrecognized activity and changes nothing.
+- **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing.
 - **Triggering transition:** none — metadata change, not a state transition.
-- **Example artifact:** [update_case.json](../examples/update_case.json), the snapshot shape as the case actor would author it.
 
-## Create Case Participant { #create-case-participant }
+{% include-markdown "./_occasions/sections/create-case-participant.md" %}
 
-`Create(CaseParticipant)` is not an occasion: a received `Create(CaseParticipant)` is not a protocol message, because a participant record comes into existence only as the CASE_MANAGER's consequence of an act it records ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-011).
-
-- **Protocol role:** it is the snapshot shape of the CASE_MANAGER's `create_case_participant` ledger entry.
+- **Protocol role:** a participant record comes into existence only as the CASE_MANAGER's consequence of an act it records ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-011).
   The CASE_MANAGER creates the invitee's participant record when it sends a stub Invite, and commits that creation as its own entry, carrying the record in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
   Replicas copy the record from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
   An actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
-- **On receipt:** an inbox refuses a direct `Create(CaseParticipant)` as an unrecognized activity and changes nothing (VAM-01-010).
+- **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing (VAM-01-010).
 - **Triggering transition:** none — object construction.
-- **Example artifact:** [create_participant.json](../examples/create_participant.json), the snapshot shape as the case actor authors it.
+
+{% include-markdown "./_occasions/sections/update-case-participant.md" %}
+
+- **Protocol role:** the CASE_MANAGER commits each participant record it changes as its own entry, after the act that caused the change ([CLP-07-013](../specs/protocol.md#clp-07-013)).
+  An ownership transfer moves the `CASE_OWNER` role this way, one entry for each record that changed ([CM-21-002](../specs/protocol.md#cm-21-002)).
+  Replicas store the record as the CASE_MANAGER stored it.
+- **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing.
+- **Triggering transition:** none — the record changes as the act's consequence.

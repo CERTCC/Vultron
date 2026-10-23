@@ -19,6 +19,10 @@ caching behaviour.
 
 import pytest
 
+from test.support.case_owner import (
+    CASE_OWNER_ID,
+    STORED_CASE_OWNERSHIP,
+)
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     get_all_actor_datalayers,
@@ -31,7 +35,11 @@ from vultron.core.ports.datalayer import StorableRecord
 
 def _record(id_: str, type_: str = "Note") -> StorableRecord:
     """Helper to build a minimal StorableRecord for testing."""
-    return StorableRecord(id_=id_, type_=type_, data_={"id_": id_})
+    data: dict[str, object] = {"id_": id_}
+    if type_ == "VulnerabilityCase":
+        # Every case has an owner, so a genesis hash and a ledger position.
+        data.update(STORED_CASE_OWNERSHIP)
+    return StorableRecord(id_=id_, type_=type_, data_=data)
 
 
 def _record_obj(
@@ -43,7 +51,9 @@ def _record_obj(
     cross-actor tests need a real core object rather than ``_record``.
     """
     assert type_ == "VulnerabilityCase", f"unsupported test type {type_!r}"
-    return VulnerabilityCase(id_=id_, summary=summary)
+    return VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=id_, summary=summary
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -195,7 +205,11 @@ class TestCrossActorReplicaIsolation:
             StorableRecord(
                 id_=self.CASE_ID,
                 type_="VulnerabilityCase",
-                data_={"id_": self.CASE_ID, "summary": "A's view"},
+                data_={
+                    "id_": self.CASE_ID,
+                    **STORED_CASE_OWNERSHIP,
+                    "summary": "A's view",
+                },
             )
         )
         before = dl_a.read(self.CASE_ID)

@@ -18,6 +18,7 @@ from typing import cast
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, write_consent_rows
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -101,7 +102,9 @@ def _build_case(
     report_id: str,
 ) -> as_VulnerabilityCase:
     """Build a VulnerabilityCase with full participant setup and linked report."""
-    case = as_VulnerabilityCase(name="Chain Integration Case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, name="Chain Integration Case"
+    )
     case.vulnerability_reports.append(report_id)
     # DUR-07-004: an embargo must be established before RM.VALID.  This used to
     # be satisfiable by accident — TransitionRMtoValid wrote its latch before

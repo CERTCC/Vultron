@@ -51,6 +51,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_participant,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import activate, propose
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
@@ -458,8 +459,10 @@ class TestCheckCaseStatusAcceptableNode:
         self, bridge, dl
     ):
         """A case holding no status yet has no P/X/A to regress from."""
-        case = as_VulnerabilityCase(id_=CASE_ID, name="No Status Yet")
-        assert case.case_statuses == []
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="No Status Yet"
+        )
+        case.case_statuses = []  # drop the status the owner seeded
         asserted = as_CaseStatus(
             id_=STATUS_ID,
             context=CASE_ID,
@@ -474,8 +477,10 @@ class TestCheckCaseStatusAcceptableNode:
         self, bridge, dl
     ):
         """The EM rule needs no prior status: the register derives it."""
-        case = as_VulnerabilityCase(id_=CASE_ID, name="No Status Yet")
-        assert case.case_statuses == []
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="No Status Yet"
+        )
+        case.case_statuses = []  # drop the status the owner seeded
         assert case.em_state == EM.NONE
         asserted = as_CaseStatus(
             id_=STATUS_ID, context=CASE_ID, em=EmDimension(state=EM.ACTIVE)
@@ -1100,7 +1105,9 @@ class TestThreatTerminationBranchNode:
 
     def test_skips_when_no_active_embargo(self, dl):
         """CS.P set but no active embargo → skip teardown → SUCCESS."""
-        case = as_VulnerabilityCase(id_=CASE_ID, name="No Embargo")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="No Embargo"
+        )
         status_obj = self._make_status_with_pxa(CS_pxa.Pxa)
         dl.create(case)
         dl.create(status_obj)
@@ -1783,7 +1790,9 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
             received_event(
                 add_status_to_case_activity(
                     status_obj,
-                    target=as_VulnerabilityCase(id_=DIAG_CASE_ID),
+                    target=as_VulnerabilityCase(
+                        attributed_to=CASE_OWNER_ID, id_=DIAG_CASE_ID
+                    ),
                     actor=sender,
                     to=[REPLICA_ID],
                 )

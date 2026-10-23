@@ -10,6 +10,7 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
 from vultron.core.behaviors.embargo.nodes import (
+    ApplyCreatedEmbargoFromLedgerNode,
     ApplyEmbargoAbandonmentFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoActivationFromLedgerNode,
@@ -39,14 +40,17 @@ from vultron.core.behaviors.sync.nodes import (
     ApplyRemoveCaseParticipantFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
     BufferPreGenesisEntryNode,
+    CheckEntryAgreesWithCasePositionNode,
     CheckEntryHashIntactNode,
     CheckHashOrRejectOnMismatchNode,
     CheckLedgerEntryAlreadyStoredNode,
+    EntryReflectedByCaseCopyNode,
     IsAcceptCaseParticipantRoleEventNode,
     IsAcceptEmbargoInviteEventNode,
     IsAddCaseStatusEventNode,
     IsAddNoteEventNode,
     IsCreateCaseParticipantEventNode,
+    IsCreateEmbargoEventNode,
     IsEmbargoAbandonmentEventNode,
     IsEmbargoInviteRelayEventNode,
     IsEmbargoProposalEventNode,
@@ -68,6 +72,9 @@ from vultron.core.behaviors.sync.nodes import (
     ReconstructChainTailNode,
     ReplayHeldSuccessorNode,
     SendRejectLogEntryNode,
+)
+from vultron.core.behaviors.sync.nodes.case_copy_effect import (
+    StoreRecordsReflectedEntryCarriesNode,
 )
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoConsentFromLedgerNode,
@@ -112,8 +119,9 @@ def _event_effect_slot(
 def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
     """The embargo negotiation's replay slots (EP-09-007, RSH-08-004, ADR-0113).
 
-    The proposal the CASE_MANAGER received, each Invite it relayed (a
-    re-invite among them, EMB-17-003), each participant's ``Accept`` or
+    An embargo the case's creation wrote (#5122), the proposal the
+    CASE_MANAGER received, each Invite it relayed (a re-invite among them,
+    EMB-17-003), each participant's ``Accept`` or
     ``Reject`` of an Invite — the sender's own consent, an honoured late
     ``Accept`` included (EMB-17-002) — a signatory's withdrawal from the
     embargo in force (MSM-07-010), the manager's abandonment of an open
@@ -121,6 +129,11 @@ def _embargo_relay_effect_slots() -> list[py_trees.behaviour.Behaviour]:
     (EMB-16-001, ADR-0152), and the manager's own consent-row entries.
     """
     return [
+        _event_effect_slot(
+            "CreatedEmbargo",
+            IsCreateEmbargoEventNode,
+            ApplyCreatedEmbargoFromLedgerNode,
+        ),
         _event_effect_slot(
             "EmbargoProposal",
             IsEmbargoProposalEventNode,
@@ -389,7 +402,52 @@ def create_announce_log_entry_tree(
             CheckHashOrRejectOnMismatchNode(
                 name="CheckHashOrRejectOnMismatch"
             ),
-            log_entry_event_effects,
+            # An entry at the case's position with another hash is from a
+            # different chain than the copy that set it: refused at ERROR,
+            # never stored as a no-op (SYNC-16-007).
+            CheckEntryAgreesWithCasePositionNode(
+                name="CheckEntryAgreesWithCasePosition"
+            ),
+            # An entry the case copy that replaced this replica's case
+            # already reflects is stored without its effects, an idempotent
+            # no-op: applying it again over the copy could move the case
+            # backwards, or refuse an entry the copy is past.  Only the
+            # records it carries that the copy names by id are copied
+            # (SYNC-16-007, CM-23-016).
+            py_trees.composites.Selector(
+                name="ApplyEffectsUnlessReflected",
+                memory=False,
+                children=[
+                    py_trees.composites.Sequence(
+                        name="StoreReflectedEntry",
+                        memory=False,
+                        children=[
+                            EntryReflectedByCaseCopyNode(
+                                name="EntryReflectedByCaseCopy"
+                            ),
+                            StoreRecordsReflectedEntryCarriesNode(
+                                name="StoreRecordsReflectedEntryCarries"
+                            ),
+                        ],
+                    ),
+                    # A reflected entry whose records fail to store must not
+                    # fall through to its effects: the guard is repeated so
+                    # that branch admits only an entry the copy lacks.
+                    py_trees.composites.Sequence(
+                        name="ApplyUnreflectedEntry",
+                        memory=False,
+                        children=[
+                            py_trees.decorators.Inverter(
+                                name="EntryNotReflectedByCaseCopy",
+                                child=EntryReflectedByCaseCopyNode(
+                                    name="CheckEntryReflectedByCaseCopy"
+                                ),
+                            ),
+                            log_entry_event_effects,
+                        ],
+                    ),
+                ],
+            ),
             PersistReceivedLogEntryNode(name="PersistReceivedLogEntry"),
         ],
     )

@@ -9,6 +9,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
@@ -78,7 +79,9 @@ def _seed_case(datalayer, *, extra_participants: tuple[str, ...] = ()):
         case_roles=[CVDRole.CASE_MANAGER],
     )
     datalayer.create(participant)
-    case = as_VulnerabilityCase(id_=CASE_ID, name="Sync Case")
+    case = as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Sync Case"
+    )
     case.case_participants.append(participant.id_)
     case.actor_participant_index[OWNER_ACTOR_ID] = participant.id_
     # The Reject's sender is a joined participant, so the replay and the

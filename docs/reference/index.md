@@ -30,7 +30,7 @@ protocol with other related standards and protocols, including:
 - [Documentation Conventions](conventions.md) — The call-out boxes this documentation uses, and how to tell a normative page from an informative one.
 - [Versioning](versioning.md) — The release versioning scheme for the Vultron repository.
 - [User Stories](user_stories/index.md) — Requirements captured as user stories.
-- [Standards Crosswalks](iso_crosswalks/index.md) — Crosswalks of the Vultron Protocol against the ISO/IEC standards on vulnerability handling and disclosure and against SSVC, each clause routed to the explanation that covers it and to the specification section that governs it.
+- [Standards Crosswalks](iso_crosswalks/index.md) — Crosswalks of the Vultron Protocol against the ISO/IEC standards on vulnerability handling and disclosure, against SSVC, and against the CSAF 2.1 draft, each routed to the explanation that covers it and to the specification section that governs it.
 - [Concept Taxonomy](vultron-taxonomy.md) — Reference definitions for the distinct concepts that together constitute Vultron. Use this document to understand what each named concept covers, what it excludes, and how the concepts relate to each other.
 - [Vultron AS Objects](activitypub/objects.md) — The Vultron ActivityStreams objects that extend the ActivityStreams vocabulary.
 - [rv Demo Protocol](rv-demo-protocol.md) — The message-level protocol trace of the Reporter + Vendor (rv) demo: every ActivityStreams activity exchanged, the trigger that causes it, and the case ledger entries it produces.

@@ -51,6 +51,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import vultron.demo.utils as demo_utils
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.dimensions import (
     RmDimension,
     VfDimension,
@@ -151,6 +152,7 @@ def test_all_fetchable_participants_rm_closed_empty_is_false():
     convergence that could not detect the #2233 defect.
     """
     case_data = {
+        "attributedTo": CASE_OWNER_ID,
         "id": _CASE_ID,
         "type": "VulnerabilityCase",
         "actorParticipantIndex": {
@@ -195,6 +197,7 @@ def test_wait_for_case_participants_does_not_count_id_strings():
     An empty index never satisfies any non-empty ``expected_actor_ids`` set.
     """
     case_payload = {
+        "attributedTo": CASE_OWNER_ID,
         "id": _CASE_ID,
         "type": "VulnerabilityCase",
         # Two bare string IDs — no real CaseParticipant objects

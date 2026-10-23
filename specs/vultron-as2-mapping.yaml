@@ -106,16 +106,22 @@ groups:
       single `Add` that attaches it (VAM-08-002, VAM-08-004), MUST send a `Note`
       inline on the single `Add(Note)` that attaches it (VAM-07-002), and MUST send a
       proposed `EmbargoEvent` inline on the `Invite` that proposes it (VAM-05-005). An
-      inbox MUST refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)`,
-      `Create(Event)`, `Create(CaseParticipant)` or `Create(Note)` as an unrecognized
-      activity.
+      inbox MUST refuse a received `Create(CaseStatus)`, `Create(ParticipantStatus)` or
+      `Create(Note)` as an unrecognized activity, and MUST report a received
+      `Create(CaseParticipant)` or `Create(EmbargoEvent)`, each the CASE_MANAGER's own
+      record of a creation (VAM-05-016), as "no use case found" (SE-05-002, ADR-0140).
+      Only a `Create` whose object is an `EmbargoEvent` is recognized: a `Create` of
+      any other `Event` is refused as an unrecognized activity.
     rationale: >-
       VAM-01-011 makes the single message the only protocol form and leaves how a
       receiver handles a stray `Create` to the receiver; this item is this codebase's
       answer. The removed `Create` routes stored their object with no ledger entry,
       which CLP-07-013 rules out (#4598), and the removed `Create(Note)` route made a
-      second form for attaching a note (#4707). The inline rule binds what this codebase
-      sends: a received `Invite` may still name its terms by URI (ADR-0123).
+      second form for attaching a note (#4707). `Create(EmbargoEvent)` came back as
+      the CASE_MANAGER's ledger record of an embargo its case's creation wrote (#5122),
+      which a replica copies from the ledger and no inbox handles. The inline rule
+      binds what this codebase sends: a received `Invite` may still name its terms by
+      URI (ADR-0123).
     verification: >-
       In `test/wire/as2/vocab/test_actvitities/test_object_types.py`, the
       `test_rejects_string` and `test_rejects_link` tests of
@@ -140,6 +146,11 @@ groups:
       of the received `Create` activities, including `Create(Note)` with and without a
       case `context`, resolves to `UNKNOWN` and is refused, and that the case, the
       ledger and the outbox stay unchanged.
+      `test_a_received_case_manager_act_is_recognized_and_unhandled` in the same file
+      confirms that a received `Create(CaseParticipant)` or `Create(EmbargoEvent)` is
+      recognized, reported unhandled, and changes nothing, and
+      `test_received_create_of_a_case_record_is_refused_case_unchanged` confirms that
+      a received `Create` of a plain `Event` is refused as unrecognized.
     relationships:
     - rel_type: refines
       spec_id: VAM-01-011
@@ -227,10 +238,8 @@ groups:
       is registered as `Offer(VulnerabilityReport)`; integration tests in `test/demo/` exercise the full
       report-submission flow end-to-end. `test/wire/as2/test_report_offer_proposed_embargo.py` confirms
       the optional `proposedEmbargo` survives the inbound parse and is surfaced by extraction.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-001
-      note: RS shorthand → SUBMIT_REPORT → this wire form
+      `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
+      asserts that the `submit_report` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_012
   - id: VAM-02-003
@@ -240,10 +249,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `AckReportPattern`
       is registered as `Read(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise the
       full acknowledgement flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-008
-      note: RK shorthand → ACK_REPORT → this wire form
     stories:
     - story_2022_016
     - story_2022_002
@@ -257,10 +262,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `ValidateReportPattern`
       is registered as `Accept(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise the
       full report-validation flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-003
-      note: RV shorthand → VALIDATE_REPORT → this wire form
     adr:
     - ADR-0121
     stories:
@@ -276,10 +277,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `InvalidateReportPattern`
       is registered as `TentativeReject(Offer(VulnerabilityReport))`; integration tests in `test/demo/` exercise
       the full report-invalidation flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-002
-      note: RI shorthand → INVALIDATE_REPORT → this wire form
     adr:
     - ADR-0121
     stories:
@@ -297,10 +294,6 @@ groups:
       `CloseReportPattern` is registered as `Reject(Offer(VulnerabilityReport))`;
       `test/wire/as2/factories/test_report_factories.py` builds that wire form, and
       `test/core/use_cases/received/test_close_report_on_case.py` receives it.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-006
-      note: RC shorthand → CLOSE_REPORT → this wire form
     adr:
     - ADR-0121
     stories:
@@ -325,10 +318,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `EngageCasePattern`
       is registered as `Join(VulnerabilityCase)`; integration tests in `test/demo/` exercise the
       engage-case flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-005
-      note: RA shorthand → ENGAGE_CASE → this wire form
     stories:
     - story_2022_006
     - story_2022_013
@@ -339,10 +328,6 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that `DeferCasePattern`
       is registered as `Ignore(VulnerabilityCase)`; integration tests in `test/demo/` exercise the
       defer-case flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-01-004
-      note: RD shorthand → DEFER_CASE → this wire form
     stories:
     - story_2022_006
     - story_2022_086
@@ -366,6 +351,28 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+  - id: VAM-03-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `UPDATE_CASE_OWNER` MUST be represented as `Update(VulnerabilityCase)`, carrying
+      the case with its new owner in `attributedTo`. Only the CASE_MANAGER sends it,
+      as its own act on an accepted ownership transfer (CM-21-002), and no received
+      use case handles it (SE-05-002, ADR-0140).
+    rationale: >-
+      An entry's semantic type is the registry's label for its payload (ADR-0140), so
+      the CASE_MANAGER's own case-field change needs a registry entry of its own.
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the `update_case`
+      example maps to `UPDATE_CASE_OWNER`.
+    relationships:
+    - rel_type: satisfies
+      spec_id: CM-21-002
+    adr:
+    - ADR-0140
+    stories:
+    - story_2022_050
 - id: VAM-04
   title: Actor Suggestion and Invitation Messages
   specs:
@@ -688,10 +695,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `RemoveEmbargoEventFromCasePattern` uses `TAtype.REMOVE` and `AOtype.EVENT` with no target constraint;
       integration tests in `test/demo/test_manage_embargo_demo.py` exercise this flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-02-007
-      note: ET shorthand → REMOVE_EMBARGO_EVENT_FROM_CASE → this wire form
+      `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
+      asserts that the `remove_embargo` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_014
     - story_2022_023
@@ -713,13 +718,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `InviteToEmbargoOnCasePattern` uses `TAtype.INVITE`, `AOtype.EVENT`, and `context_=VULNERABILITY_CASE`;
       integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-02-001
-      note: EP shorthand → INVITE_TO_EMBARGO_ON_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-02-003
-      note: EV shorthand (revision) → same wire form as EP
+      `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
+      asserts that the `propose_embargo` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_014
     - story_2022_023
@@ -730,13 +730,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AcceptInviteToEmbargoOnCasePattern` wraps `InviteToEmbargoOnCasePattern` inside an `Accept` outer
       pattern; integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-02-002
-      note: EA shorthand → ACCEPT_INVITE_TO_EMBARGO_ON_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-02-005
-      note: EC shorthand (revision accepted) → same wire form as EA
+      `test/test_semantic_activity_patterns.py::test_owner_embargo_decisions_are_distinct_from_invite_answers`
+      asserts that the `accept_embargo` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_014
   - id: VAM-05-007
@@ -746,13 +741,8 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `RejectInviteToEmbargoOnCasePattern` wraps `InviteToEmbargoOnCasePattern` inside a `Reject` outer
       pattern; integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-02-006
-      note: ER shorthand → REJECT_INVITE_TO_EMBARGO_ON_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-02-004
-      note: EJ shorthand (revision rejected) → same wire form as ER
+      `test/test_semantic_activity_patterns.py::test_owner_embargo_decisions_are_distinct_from_invite_answers`
+      asserts that the `reject_embargo` vocabulary example extracts as this semantic type.
     stories:
     - story_2022_014
   - id: VAM-05-008
@@ -770,9 +760,6 @@ groups:
       `Accept(EmbargoEvent, target=VulnerabilityCase)` maps to `ACTIVATE_EMBARGO_ON_CASE` and no
       other semantics, and inspection of `_instances.py` confirms `ActivateEmbargoOnCasePattern`
       uses `TAtype.ACCEPT`, `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-07-008
     adr:
     - ADR-0122
     stories:
@@ -792,9 +779,6 @@ groups:
       `REJECT_EMBARGO_PROPOSAL_ON_CASE` and no other semantics, and inspection of
       `_instances.py` confirms `RejectEmbargoProposalOnCasePattern` uses `TAtype.REJECT`,
       `AOtype.EVENT`, and `target_=VULNERABILITY_CASE`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-07-009
     adr:
     - ADR-0122
     stories:
@@ -842,9 +826,6 @@ groups:
       `CLOSE_CASE`, and inspection of `_instances.py` confirms
       `WithdrawFromEmbargoOnCasePattern` uses `TAtype.LEAVE`, `AOtype.EVENT`, and
       `context_=VULNERABILITY_CASE`.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-07-010
     adr:
     - ADR-0122
     stories:
@@ -899,6 +880,87 @@ groups:
     stories:
     - story_2022_014
     - story_2022_080
+  - id: VAM-05-014
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `CREATE_EMBARGO_CONSENT` MUST be represented as `Create(EmbargoConsent)`,
+      carrying the new consent row in full. Only the CASE_MANAGER sends it, as its own
+      act when it brings a consent row into existence (ADR-0122, CLP-07-013), and no
+      received use case handles it (SE-05-002, ADR-0140).
+    rationale: >-
+      An entry's semantic type is the registry's label for its payload (ADR-0140). The
+      record is a case-file change, not a PEC transition (MSM-07-001).
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `create_embargo_consent` example maps to `CREATE_EMBARGO_CONSENT`.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-07-001
+    adr:
+    - ADR-0140
+    stories:
+    - story_2022_014
+    - story_2022_080
+  - id: VAM-05-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `UPDATE_EMBARGO_CONSENT` MUST be represented as `Update(EmbargoConsent)`,
+      carrying the changed consent row in full. Only the CASE_MANAGER sends it, as its
+      own act when it changes a consent row, its own consent included (MSM-07-004,
+      CLP-07-013), and no received use case handles it (SE-05-002, ADR-0140).
+    rationale: >-
+      An entry's semantic type is the registry's label for its payload (ADR-0140).
+      An expired invitation is this `Update` carrying the invitee's `TIMED_OUT` row
+      (ADR-0140 item 4).
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `update_embargo_consent` example maps to `UPDATE_EMBARGO_CONSENT`.
+    relationships:
+    - rel_type: refines
+      spec_id: MSM-07-004
+    adr:
+    - ADR-0140
+    stories:
+    - story_2022_014
+    - story_2022_080
+  - id: VAM-05-016
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `CREATE_EMBARGO_EVENT` MUST be represented as `Create(EmbargoEvent)`, carrying
+      the embargo in full, its start and end times included. Only the CASE_MANAGER
+      commits it, as a ledger entry and never as a sent message, once for each
+      embargo a case's creation writes, such as the default embargo (EP-04-002),
+      right after the case's genesis entry and before the case's other creation
+      entries (CLP-07-013). No received use case handles it
+      (SE-05-002, ADR-0140): a replica stores the embargo from the entry.
+    rationale: >-
+      The genesis entry carries only the case's active embargo inline, and a replica
+      copies each record from its own entry (ADR-0124); no other entry carries a
+      creation-time embargo until it is removed, so a replica built from the ledger
+      alone could not read the end time its embargo decisions need (#5122). An
+      entry's semantic type is the registry's label for its payload (ADR-0140).
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `create_embargo_event` example maps to `CREATE_EMBARGO_EVENT`.
+      `test_the_default_embargo_follows_the_genesis_entry_in_full` and
+      `test_the_default_embargo_rebuilds_from_the_ledger_alone` in
+      `test/core/use_cases/received/test_rebuild_from_ledger.py` confirm the entry
+      follows the genesis entry and a replica built from the ledger holds the embargo
+      whole.
+    relationships:
+    - rel_type: refines
+      spec_id: CLP-07-013
+    adr:
+    - ADR-0140
+    stories:
+    - story_2022_014
+    - story_2022_080
 - id: VAM-06
   title: Case Participant Management Messages
   specs:
@@ -932,6 +994,52 @@ groups:
     stories:
     - story_2022_066
     - story_2022_067
+  - id: VAM-06-004
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `CREATE_CASE_PARTICIPANT` MUST be represented as `Create(CaseParticipant)`,
+      carrying the record in full. Only the CASE_MANAGER sends it, as its own act
+      when it brings a participant record into existence (ADR-0114, CLP-07-013), and
+      no received use case handles it (SE-05-002, ADR-0140).
+    rationale: >-
+      An entry's semantic type is the registry's label for its payload (ADR-0140).
+      A received `Create(CaseParticipant)` is still not a protocol message
+      (VAM-01-011): it is recognized only so that it is reported, not acted on.
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `create_participant` example maps to `CREATE_CASE_PARTICIPANT`.
+    relationships:
+    - rel_type: refines
+      spec_id: VAM-01-011
+    adr:
+    - ADR-0140
+    stories:
+    - story_2022_013
+  - id: VAM-06-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      `UPDATE_CASE_PARTICIPANT` MUST be represented as `Update(CaseParticipant)`,
+      carrying the changed record in full. Only the CASE_MANAGER sends it, as its own
+      act when it changes a participant record, such as moving the `CASE_OWNER` role
+      (CM-21-002, CLP-07-013), and no received use case handles it (SE-05-002,
+      ADR-0140).
+    rationale: >-
+      An entry's semantic type is the registry's label for its payload (ADR-0140), so
+      each participant-record change the CASE_MANAGER commits needs a registry entry.
+    verification: >-
+      `test_case_manager_acts_map_to_their_semantics` in
+      `test/test_semantic_activity_patterns.py` confirms that the
+      `update_participant` example maps to `UPDATE_CASE_PARTICIPANT`.
+    relationships:
+    - rel_type: satisfies
+      spec_id: CM-21-002
+    adr:
+    - ADR-0140
+    stories:
+    - story_2022_050
 - id: VAM-07
   title: Note Management Messages
   specs:
@@ -964,25 +1072,9 @@ groups:
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AddCaseStatusToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_STATUS`, and `target_=VULNERABILITY_CASE`;
       integration tests in `test/demo/test_status_updates_demo.py` exercise this flow.
-    relationships:
-    - rel_type: satisfies
-      spec_id: MSM-03-001
-      note: CV shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-002
-      note: CF shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-003
-      note: CD shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-004
-      note: CP shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-005
-      note: CX shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
-    - rel_type: satisfies
-      spec_id: MSM-03-006
-      note: CA shorthand → ADD_CASE_STATUS_TO_CASE → this wire form
+      `test/test_semantic_activity_patterns.py::test_wire_form_examples_map_to_their_semantics`
+      asserts that the `add_status_to_case` vocabulary example extracts as this
+      semantic type.
     stories:
     - story_2022_062
     - story_2022_081

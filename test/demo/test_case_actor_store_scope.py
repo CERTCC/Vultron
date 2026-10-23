@@ -33,6 +33,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.states.rm import RM
 from vultron.demo.helpers.polling import (
     resolve_case_actor_store_id,
@@ -59,6 +60,7 @@ def _case_payload(case_actor_id: str | None = _CASE_ACTOR_ID) -> dict:
     if case_actor_id is not None:
         index[case_actor_id] = "urn:uuid:p-case-actor-scope"
     return {
+        "attributedTo": CASE_OWNER_ID,
         "id": _CASE_ID,
         "type": "VulnerabilityCase",
         "actorParticipantIndex": index,

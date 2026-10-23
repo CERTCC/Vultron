@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -173,7 +174,7 @@ def _make_close_case_event(
         id_=activity_id,
         type_="Leave",
         actor=sender_actor_id,
-        object_=as_VulnerabilityCase(id_=case_id),
+        object_=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id),
         to=[receiving_actor_id],
     )
     return with_evidence(

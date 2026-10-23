@@ -100,3 +100,25 @@ class CloseCaseReceivedEvent(VultronEvent):
     @property
     def case(self) -> "VulnerabilityCase | None":
         return cast("VulnerabilityCase | None", self.object_)
+
+
+class UpdateCaseOwnerReceivedEvent(VultronEvent):
+    """The CASE_MANAGER named a new Case Owner on the case (CM-21-002).
+
+    ``Update(VulnerabilityCase)``: the CASE_MANAGER's own act on an ownership
+    transfer, carrying the case with its new ``attributed_to``, committed as
+    its ``update_case_owner`` ledger entry.  No received use case handles it
+    (ADR-0140 item 5).
+    """
+
+    semantic_type: Literal[MessageSemantics.UPDATE_CASE_OWNER] = (
+        MessageSemantics.UPDATE_CASE_OWNER
+    )
+
+    @property
+    def case_id(self) -> str | None:
+        return self.object_id
+
+    @property
+    def case(self) -> "VulnerabilityCase | None":
+        return cast("VulnerabilityCase | None", self.object_)

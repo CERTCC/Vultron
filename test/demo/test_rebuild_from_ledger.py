@@ -24,11 +24,13 @@ their in-process equivalents are the per-actor-store scenarios under
 """
 
 import logging
+from types import SimpleNamespace
 
 import pytest
 
 import test.demo._helpers as helpers
 from test.demo._helpers import route_exchange_demo_at_testclient
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.case import VulnerabilityCase
 from vultron.demo.exchange import (
     establish_embargo_demo as demo,
@@ -59,6 +61,52 @@ def test_an_embargo_demo_case_is_rebuilt_from_its_ledger(demo_env):
     assert "create_embargo_consent" in semantic_types
     assert "update_embargo_consent" in semantic_types
     assert helpers.REBUILD_FAILURES == []
+    # The label check read every entry the rebuilt case holds, and more
+    # (#4724 AC-3): it reads every hosted store, replicas included.
+    assert sum(helpers.LABELLED_ENTRIES) >= len(semantic_types)
+
+
+@pytest.mark.spec("SE-02-001")
+def test_a_mislabelled_entry_is_recorded_not_raised(monkeypatch):
+    """An entry whose stored type is not its registry label fails the test.
+
+    The CASE_MANAGER's ``Create(EmbargoConsent)`` stored under another name
+    is recorded with the rebuild failures (ADR-0140, #4724 AC-3).
+    """
+    from vultron.wire.as2.vocab.examples.embargo import (
+        create_embargo_consent,
+    )
+
+    snapshot = create_embargo_consent().model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    entries = [
+        SimpleNamespace(
+            case_id="c",
+            log_index=0,
+            semantic_type="create_embargo_consent",
+            payload_snapshot=snapshot,
+        ),
+        SimpleNamespace(
+            case_id="c",
+            log_index=1,
+            semantic_type="consent_row_written",
+            payload_snapshot=snapshot,
+        ),
+    ]
+    monkeypatch.setattr(helpers, "_hosted_ledger_entries", lambda: entries)
+    monkeypatch.setattr(helpers, "_managed_cases", lambda: iter([]))
+    monkeypatch.setattr(helpers, "_multi_party_cases", set)
+
+    helpers.check_cases_rebuild_from_their_ledgers()
+
+    failures = list(helpers.REBUILD_FAILURES)
+    helpers.REBUILD_FAILURES.clear()
+    assert helpers.LABELLED_ENTRIES == [2]
+    assert len(failures) == 1
+    assert "entry 1" in failures[0]
+    assert "'consent_row_written'" in failures[0]
+    assert "'create_embargo_consent'" in failures[0]
 
 
 @pytest.mark.parametrize(
@@ -111,7 +159,7 @@ class _Store:
 
 
 def _seating(case_id, *actors):
-    case = VulnerabilityCase(id_=case_id)
+    case = VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=case_id)
     for n, actor in enumerate(actors):
         case.actor_participant_index[actor] = f"{case_id}/participants/{n}"
     return case

@@ -23,6 +23,7 @@ import py_trees
 import pytest
 from py_trees.common import Status
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.embargo_register import register
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -499,7 +500,16 @@ class TestTransferRecordsEachChange:
 
 @pytest.fixture
 def case():
-    return as_VulnerabilityCase(id_=CASE_ID2, name="Seed Announce Test")
+    return as_VulnerabilityCase(
+        attributed_to=CASE_OWNER_ID, id_=CASE_ID2, name="Seed Announce Test"
+    )
+
+
+def _owned(case: as_VulnerabilityCase) -> as_VulnerabilityCase:
+    """*case* with an owner, so it names a ledger position (SYNC-16-005)."""
+    return as_VulnerabilityCase(
+        id_=case.id_, name=case.name, attributed_to=ACTOR_ID
+    )
 
 
 def _announce_event_for(
@@ -541,29 +551,42 @@ class TestSeedAnnouncedCaseNode:
         assert result.status == Status.SUCCESS
         assert dl.read(CASE_ID2) is not None
 
-    def test_idempotent_when_case_exists(
+    @pytest.mark.spec("PCR-02-004")
+    def test_replaces_a_case_already_present(
         self, bridge, dl, case, announce_event
     ) -> None:
-        """MV-10-004: SUCCESS without overwrite when case already present."""
-        dl.create(case)
+        """PCR-02-004: a copy the guard admitted replaces the held case."""
+        copy = _owned(case)
+        dl.create(copy.model_copy(update={"name": "held case"}))
         tree = SeedAnnouncedCaseNode(
-            case_id=CASE_ID2, case_obj=case, request=announce_event
+            case_id=CASE_ID2,
+            case_obj=copy,
+            request=announce_event,
         )
         result = bridge.execute_with_setup(
             tree=tree, actor_id=ACTOR_ID, activity=announce_event
         )
         assert result.status == Status.SUCCESS
-        assert dl.read(CASE_ID2) is not None
+        assert cast(as_VulnerabilityCase, dl.read(CASE_ID2)).name == (
+            "Seed Announce Test"
+        )
 
-    def test_idempotent_skip_line_is_debug(
+    def test_replacing_a_held_case_logs_at_info(
         self, bridge, dl, case, announce_event, caplog
     ) -> None:
-        """The routine idempotency skip is DEBUG, not INFO (SL-04-007)."""
+        """Replacing a held case is a state change, so INFO (SL-04-007).
+
+        The guard ahead of the node has judged the copy current by its
+        ledger position (SYNC-16-006); the node replaces the case (PCR-02-004).
+        """
         import logging
 
-        dl.create(case)
+        copy = _owned(case)
+        dl.create(copy)
         tree = SeedAnnouncedCaseNode(
-            case_id=CASE_ID2, case_obj=case, request=announce_event
+            case_id=CASE_ID2,
+            case_obj=copy,
+            request=announce_event,
         )
 
         with caplog.at_level(logging.DEBUG):
@@ -571,13 +594,11 @@ class TestSeedAnnouncedCaseNode:
                 tree=tree, actor_id=ACTOR_ID, activity=announce_event
             )
 
-        skip_records = [
-            r
-            for r in caplog.records
-            if "already exists locally" in r.getMessage()
+        replace_records = [
+            r for r in caplog.records if "replacing case" in r.getMessage()
         ]
-        assert skip_records, "Expected the idempotent-skip log entry"
-        assert all(r.levelno == logging.DEBUG for r in skip_records)
+        assert replace_records, "Expected the replacement log entry"
+        assert all(r.levelno == logging.INFO for r in replace_records)
 
     def test_persisted_case_has_no_inline_participants(
         self, bridge, dl, announce_event
@@ -602,7 +623,9 @@ class TestSeedAnnouncedCaseNode:
             context=CASE_ID2,
         )
         case_with_inline = as_VulnerabilityCase(
-            id_=CASE_ID2, name="Inline Participant Write-Path Test"
+            attributed_to=CASE_OWNER_ID,
+            id_=CASE_ID2,
+            name="Inline Participant Write-Path Test",
         )
         case_with_inline.actor_participant_index[actor_id] = participant_id
         case_with_inline.case_participants.append(inline_participant)  # type: ignore[arg-type]
@@ -640,6 +663,7 @@ class TestSeedAnnouncedCaseNode:
             end_time=days_from_now_utc(45),
         )
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID2,
             name="Inline Embargo",
             embargo_register=register(active=embargo),
@@ -659,6 +683,7 @@ class TestSeedAnnouncedCaseNode:
     def test_refuses_a_case_naming_an_unheld_embargo(self, bridge, dl) -> None:
         """A bare embargo id this store cannot read is refused, not seeded."""
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID2,
             name="Unheld Embargo",
             embargo_register=register(
@@ -683,6 +708,7 @@ class TestSeedAnnouncedCaseNode:
         dl.create(case)
         participant_id = f"{CASE_ID2}/participants/reannounced"
         reannounced = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=CASE_ID2,
             name="Re-announced",
             embargo_register=register(

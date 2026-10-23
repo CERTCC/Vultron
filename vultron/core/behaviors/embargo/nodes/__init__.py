@@ -130,6 +130,7 @@ from vultron.core.behaviors.embargo.nodes.relay import (
     case_manager_admits_proposal_guard,
 )
 from vultron.core.behaviors.embargo.nodes.relay_effect import (
+    ApplyCreatedEmbargoFromLedgerNode,
     ApplyEmbargoAcceptanceFromLedgerNode,
     ApplyEmbargoInviteFromLedgerNode,
     ApplyEmbargoProposalFromLedgerNode,
@@ -228,6 +229,7 @@ __all__ = [
     "EmbargoActivityBuilder",
     # Relay ledger replay (EP-09-007)
     "ApplyEmbargoProposalFromLedgerNode",
+    "ApplyCreatedEmbargoFromLedgerNode",
     "ApplyEmbargoInviteFromLedgerNode",
     "ApplyEmbargoAcceptanceFromLedgerNode",
     "ApplyEmbargoRejectionFromLedgerNode",

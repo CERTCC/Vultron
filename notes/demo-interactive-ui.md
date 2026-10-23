@@ -128,7 +128,7 @@ exporters to the files they write.
 | Seam | Producer | Consumer | Guard | Status |
 |---|---|---|---|---|
 | State machines (`ui/src/data/protocol_states.json`) | `uv run export-demo-states` | `ui/src/protocol.ts` | drift test in `test/metadata/demo_scenarios/` | built (EM read from the EM transition table since #4427) |
-| Semantic registry table | registry exporter (#4725) | ledger parser and mapper | drift test | planned |
+| Semantic registry table (`ui/src/data/semantic_registry.json`) | `uv run export-demo-semantics` | `ui/src/semanticRegistry.ts` (ledger parser and mapper) | drift test in `test/metadata/demo_scenarios/` | built (#4725) |
 | Recordings | deterministic in-process scenario runner (#3901) | Log Replay, offline mode | byte-identical drift test; `CaseLedgerEntry` validation | planned |
 | Scenario-tree index | branch-point table and `@scenario` path declarations (#4727; design in `demo-scenario-tree.md`) | offline mode, live branch points | drift test; isomorphic shared-prefix check | planned |
 | Live ledger stream | `GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream` | live mode (#3642) | stream integration tests | server built (#3641); client planned |

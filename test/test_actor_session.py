@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from vultron.demo.actor_session import (
     ActorSession,
     WireActivityResult,
@@ -47,7 +48,7 @@ def _session(base_url: str = _BASE, actor_id: str = _ACTOR_ID) -> ActorSession:
 
 
 def _case() -> as_VulnerabilityCase:
-    return as_VulnerabilityCase(id_=_CASE_ID)
+    return as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=_CASE_ID)
 
 
 # -- construction / authority (DEMOMA-26-002) ----------------------------
@@ -86,8 +87,21 @@ def test_with_case_returns_new_instance_and_leaves_receiver_unchanged():
     case = _case()
     bound = session.with_case(case)
     assert bound is not session
-    assert session.case is None
-    assert bound.case is case
+    assert session.case_id is None
+    assert bound.case_id == case.id_
+
+
+def test_with_case_accepts_a_bare_case_id():
+    """A caller holding only the case ID binds it without building a case."""
+    case_id = _case().id_
+    assert _session().with_case(case_id).case_id == case_id
+
+
+@pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
+def test_with_case_refuses_a_blank_case_id(blank: str):
+    """A bound case ID is non-empty, so no trigger URL names no case."""
+    with pytest.raises(ValueError, match="case_id"):
+        _session().with_case(blank)
 
 
 def test_quiet_returns_new_silent_instance():
@@ -155,9 +169,7 @@ def test_sync_log_entry_returns_entry_hash():
     ).with_case(_case())
     raw = {"entry_hash": "abcd1234", "log_index": 3}
     with patch("vultron.demo.actor_session.post_to_trigger", return_value=raw):
-        result = session.quiet().sync_log_entry(
-            object_id=_CASE_ID, semantic_type="close_case"
-        )
+        result = session.quiet().sync_log_entry(object_id=_CASE_ID)
     assert isinstance(result, WireSyncLogEntryResult)
     assert result.entry_hash == "abcd1234"
     assert result.log_index == 3

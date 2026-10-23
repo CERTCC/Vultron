@@ -57,7 +57,7 @@ NODES: dict[str, Callable[[], py_trees.behaviour.Behaviour]] = {
         case_id=_CASE, semantic_type="accept_embargo", builder=_unreachable
     ),
     "demo log entry": lambda: CommitDemoLogEntryNode(
-        case_id=_CASE, object_id=_CASE, semantic_type="demo_event"
+        case_id=_CASE, object_id=_CASE
     ),
     "case status snapshot": lambda: EmitCaseStatusUpdateNode(case_id=_CASE),
     "case creation entries": lambda: CommitNativeLedgerEntriesNode(

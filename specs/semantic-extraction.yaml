@@ -253,8 +253,6 @@ groups:
       was found, one INFO record carrying the activity and actor IDs, no traceback and an
       empty outbox.
     relationships:
-    - rel_type: derives_from
-      spec_id: DR-02-002
     - rel_type: refines
       spec_id: UCORG-05-012
     adr:

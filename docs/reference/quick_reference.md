@@ -52,51 +52,24 @@ PEC is specified in [§9 Participant Embargo Consent (PEC) State Machine](vultro
 
 ## Message Types at a Glance
 
-The complete message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$ (28 types), each defined in [§4 Semantic Layer — Message Meanings in the specification](vultron-spec/layers.md#4-semantic-layer-message-meanings-n).
-Every message is emitted by the Participant whose state changed; the "Response Expected" column shows what the recipient is expected to send back.
+### Occasion table
 
-| Type | Name | Model | Trigger (emit when) | Response Expected |
-| :---: | --- | :---: | --- | --- |
-| `RS` | Report Submission | RM | Sender $\in$ Accepted (`A`) sends report to a new Participant | `RK` (+ `CV` if recipient is a Vendor) |
-| `RI` | Report Invalid | RM | `R` $\xrightarrow{i}$ `I` | `RK` |
-| `RV` | Report Valid | RM | `{R,I}` $\xrightarrow{v}$ `V` | `RK` |
-| `RD` | Report/Case Deferred | RM | `{V,A}` $\xrightarrow{d}$ `D` | `RK` |
-| `RA` | Report/Case Accepted | RM | `{V,D}` $\xrightarrow{a}$ `A` | `RK` |
-| `RC` | Report Closed | RM | `{R,I,D,A}` $\xrightarrow{c}$ `C` | `RK` |
-| `RK` | Report Acknowledgment | RM | Any valid RM message received | — |
-| `RE` | Report Error | RM | Any unexpected RM message received | `RK` + `GI` |
-| `EP` | Embargo Proposal | EM | `{N,P}` $\xrightarrow{p}$ `P` | `EK` (or `ER` if embargo not viable) |
-| `ER` | Embargo Proposal Rejection | EM | `P` $\xrightarrow{r}$ `N` | `EK` |
-| `EA` | Embargo Proposal Acceptance | EM | `P` $\xrightarrow{a}$ `A` | `EK` |
-| `EV` | Embargo Revision Proposal | EM | `A` $\xrightarrow{p}$ `R` | `EK` (or `ET` if embargo not viable) |
-| `EJ` | Embargo Revision Rejection | EM | `R` $\xrightarrow{r}$ `A` | `EK` |
-| `EC` | Embargo Revision Acceptance | EM | `R` $\xrightarrow{a}$ `A` | `EK` |
-| `ET` | Embargo Termination | EM | `{A,R}` $\xrightarrow{t}$ `X` | `EK` |
-| `EK` | Embargo Acknowledgment | EM | Any valid EM message received | — |
-| `EE` | Embargo Error | EM | Any unexpected EM message received | `EK` + `GI` |
-| `CV` | Vendor Awareness | CS | $vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$ | `CK` |
-| `CF` | Fix Readiness | CS | $Vfd\cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd\cdot\cdot\cdot$ | `CK` |
-| `CD` | Fix Deployed | CS | $VFd\cdot\cdot\cdot \xrightarrow{\mathbf{D}} VFD\cdot\cdot\cdot$ | `CK` |
-| `CP` | Public Awareness | CS | $\cdot\cdot\cdot p\cdot\cdot \xrightarrow{\mathbf{P}} \cdot\cdot\cdot P\cdot\cdot$ | `CK` |
-| `CX` | Exploit Public | CS | $\cdot\cdot\cdot\cdot x\cdot \xrightarrow{\mathbf{X}} \cdot\cdot\cdot\cdot X\cdot$ | `CK` |
-| `CA` | Attacks Observed | CS | $\cdot\cdot\cdot\cdot\cdot a \xrightarrow{\mathbf{A}} \cdot\cdot\cdot\cdot\cdot A$ | `CK` |
-| `CK` | CS Acknowledgment | CS | Any valid CS message received | — |
-| `CE` | CS Error | CS | Any unexpected CS message received | `CK` + `GI` |
-| `GI` | General Inquiry | General | Any time (non-state-change information) | `GK` |
-| `GK` | General Acknowledgment | General | Any valid GI message received | — |
-| `GE` | General Error | General | Any unexpected GI message received | `GI` |
+Each row of the [occasion table](messages/index.md) is a situation in a case, with the ActivityStreams 2.0 (AS2) activity that conveys it, whom to send it to, who may send it, and the section that documents it.
+The table is generated from the semantic registry, the list of patterns that [semantic extraction](glossary.md#activity-wire-format) matches each inbound activity against.
 
-The table above is keyed by formal message.
-Vultron narrows the `RK` responses (VP-03-009, VP-03-011): `RK` acknowledges only `RS`, sent to the reporter, and once a case exists the CASE_MANAGER's ledger entry is the acknowledgment of every other `R*` message, including `RE`.
-The [occasion table](messages/index.md) on Message Types reads the other way: from a situation in a case to the ActivityStreams 2.0 (AS2) activity that conveys it, whom to send it to, who may send it, and the section that documents it.
+{% include-markdown "./messages/_occasions/lookup.md" heading-offset=2 %}
 
-!!! note "AS2 wire-format collapse"
+### Formal message set
 
-    The [ActivityStreams 2.0](../howto/activitypub/activities/index.md)
-    wire format collapses the revision-negotiation messages: `EV` is
-    sent as `EP`, `EC` is sent as `EA`, and `EJ` is sent as `ER`. The
-    formal 28-type set above remains normative for protocol semantics;
-    the collapse is an implementation detail of the current prototype.
+The formal message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$, each defined in [§4 Semantic Layer — Message Meanings in the specification](vultron-spec/layers.md#4-semantic-layer-message-meanings-n).
+The table below lists each type with the wire activities that carry it, and is generated from the same registry as the occasion table.
+The state transition that emits each type is on [Messages](formal_protocol/messages.md), and the response the formal protocol expects from a recipient is on [Transitions](formal_protocol/transitions.md).
+
+{% include-markdown "./messages/_occasions/shorthands.md" %}
+
+The formal set and the wire vocabulary are many-to-many ([Mapping status](messages/index.md#mapping-status)).
+Several types share one wire activity, as `EP` and `EV` share `Invite(Event)`, and the occasion's section states what tells them apart.
+A type whose row reads "none" has no wire activity of its own: [Faults and Acknowledgments](messages/faults_and_acknowledgements.md) describes the fault reporting and the cumulative hash-chain acknowledgment that replace such types.
 
 ## State Transition Summary
 

@@ -25,6 +25,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_participant,
     seed_store_owner_as_case_manager,
 )
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
@@ -216,6 +217,7 @@ class TestStatusUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_em_guard",
             name="EM Guard Test Case",
         )
@@ -279,6 +281,7 @@ class TestStatusUseCases:
             actor_id=receiver_id,
         )
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_fault_cs",
             name="Fault Test Case",
         )
@@ -330,6 +333,7 @@ class TestStatusUseCases:
             actor_id=receiver_id,
         )
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_fault_cs2",
             name="Fault No-Trigger Case",
         )
@@ -403,6 +407,7 @@ class TestStatusUseCases:
         dl.create(pstatus)
 
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=case_id,
             name="PS Fault Test Case",
         )
@@ -475,6 +480,7 @@ class TestStatusUseCases:
         dl.create(pstatus)
 
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_=case_id,
             name="AC-2 Rejection Test Case",
         )
@@ -526,6 +532,7 @@ class TestStatusUseCases:
             actor_id="https://test.example/api/v2/actors/test-actor",
         )
         case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
             id_="https://example.org/cases/case_em_valid",
             name="EM Valid Transition Case",
         )

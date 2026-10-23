@@ -29,6 +29,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.inbox_replay import hold_activity
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import (
@@ -72,7 +73,11 @@ def clear_actor_locks():
 def dl() -> SqliteDataLayer:
     """The receiver's store, holding the case so a replay is not deferred."""
     store = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
-    store.save(as_VulnerabilityCase(id_=_CASE, name="Replica"))
+    store.save(
+        as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, id_=_CASE, name="Replica"
+        )
+    )
     return store
 
 

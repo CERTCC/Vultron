@@ -21,10 +21,12 @@ verifying state mutation, outbox effect, and error handling.
 Spec: specs/triggerable-behaviors.yaml TRIG-09.
 """
 
+import json
 import re
 
 import pytest
 
+from test.support.case_owner import CASE_OWNER_ID
 from test.support.ledger import (
     assert_case_at_chain_tail,
     case_snapshot_position_violations,
@@ -32,6 +34,7 @@ from test.support.ledger import (
     fail_commits,
     ledger_entries,
 )
+from test.support.ledger_rebuild import case_naming_its_records
 from test.support.received import received_event
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -43,6 +46,7 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
@@ -275,7 +279,9 @@ class TestSvcCreateCaseUseCase:
         """SvcCreateCaseUseCase raises VultronValidationError when report_id is
         not a VulnerabilityReport."""
         # Create a wrong type object (as_VulnerabilityCase instead)
-        case = as_VulnerabilityCase(name="Not a Report")
+        case = as_VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID, name="Not a Report"
+        )
         self.dl.create(case)
 
         request = CreateCaseTriggerRequest(
@@ -505,6 +511,10 @@ def _rebuild_case_file(
     for entry in entries:
         key, cls = _CARRIED[entry.semantic_type]
         record = cls.model_validate(entry.payload_snapshot[key])
+        if isinstance(record, VulnerabilityCase):
+            # The genesis Create carries its records inline; each is copied
+            # from its own entry (ADR-0157).
+            record = case_naming_its_records(record)
         records[record.id_] = record
         case = records.get(entry.case_id)
         if isinstance(case, VulnerabilityCase):
@@ -612,6 +622,25 @@ class TestCreateCaseTriggerLedger:
             assert isinstance(status, CaseStatus)
             assert rebuilt[status.id_] == status
 
+    @pytest.mark.spec("CLP-07-011")
+    @pytest.mark.spec("CLP-02-013")
+    def test_the_sent_create_is_the_genesis_entry(self):
+        """One activity, delivered and ledgered (ADR-0157): the ``Create`` the
+        outbox delivers is the genesis entry's snapshot, key order included."""
+        case = self._create(to=[_RECIPIENT])
+
+        genesis = ledger_entries(self.dl, case.id_)[0]
+        (sent,) = [
+            item
+            for item in self.dl.outbox_list()
+            if getattr(self.dl.read(item), "type_", None) == "Create"
+        ]
+        body = read_sealed_body_dict(self.dl, sent)
+        assert genesis.semantic_type == "create_case"
+        assert body == genesis.payload_snapshot
+        # Key order too, at every depth: the snapshot is the body sent.
+        assert json.dumps(body) == json.dumps(genesis.payload_snapshot)
+
     @pytest.mark.spec("SYNC-16-005")
     def test_the_case_names_the_tail_its_creation_entries_left(self):
         """After the creation commits, the stored case names its chain tail."""
@@ -640,8 +669,10 @@ class TestCreateCaseTriggerLedger:
             "logIndex": -1,
             "entryHash": case.genesis_hash,
         }
-        assert case.ledger_position is not None
-        assert case.ledger_position.log_index == entries[-1].log_index
+        assert case.ledger_position == LedgerPosition(
+            log_index=entries[-1].log_index,
+            entry_hash=entries[-1].entry_hash,
+        )
         assert all(ledger_entry_hash_intact(e) for e in entries)
         assert case_snapshot_position_violations(entries, self.actor.id_) == []
 

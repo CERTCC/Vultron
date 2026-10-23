@@ -140,9 +140,9 @@ groups:
       The tests that verify SL-02-001 and SL-02-002 assert on record attributes,
       never on substrings of `record.getMessage()`.
     relationships:
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: SL-02-001
-    - rel_type: constrains
+    - rel_type: refines
       spec_id: SL-02-002
 - id: SL-03
   title: Log Level Semantics

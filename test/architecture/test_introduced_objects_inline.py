@@ -62,6 +62,7 @@ from vultron.wire.as2.factories import (
     announce_vulnerability_case_activity,
     create_case_activity,
     create_embargo_consent_activity,
+    create_embargo_event_activity,
     create_participant_activity,
     create_processing_fault_activity,
     em_propose_embargo_activity,
@@ -114,6 +115,10 @@ INTRODUCES: dict[
     "create_embargo_consent_activity": (
         lambda o: create_embargo_consent_activity(o, actor=_ACTOR),
         _consent_row,
+    ),
+    "create_embargo_event_activity": (
+        lambda o: create_embargo_event_activity(o, actor=_ACTOR),
+        _example_object("create_embargo_event"),
     ),
     "rm_create_report_activity": (
         lambda o: rm_create_report_activity(o, actor=_ACTOR),
@@ -267,6 +272,11 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "rm_close_report_activity": _answers("offer"),
     # The entry it refuses is one the CASE_MANAGER holds.
     "reject_log_entry_activity": _held("entry"),
+    # Names no entry at all, only the case the CASE_MANAGER holds, as the
+    # target of a request for a replay from genesis (SYNC-16-007).
+    "genesis_replay_reject_activity": NoIntroduction(
+        "names no object, only the case the receiver holds as its target"
+    ),
     "refusal_notice_activity": _answers("refused"),
     "update_case_activity": _held("case"),
     "update_participant_activity": _held("participant"),
