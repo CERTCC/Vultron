@@ -22,7 +22,7 @@ states that decision moves through and the transitions between them.
       participants' states. Where a transition rule applies to one and not the
       other, this is stated explicitly ([§8.4 Receiving CS Messages: Own State vs. Model of Others](tracking-models.md#84-receiving-cs-messages-own-state-vs-model-of-others)).
     - Transitions listed without a named trigger are driven by the corresponding
-      protocol message from [§4 Semantic Layer — Message Meanings](layers.md#4-semantic-layer-message-meanings-n).
+      protocol message from [§4 Messages](layers.md#4-messages-n).
 
 ### 6.1 States
 

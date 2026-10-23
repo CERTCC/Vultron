@@ -100,7 +100,7 @@ participants' states to be. Different events update each one.
   the **sender's** VFD state. The receiver's own VFD state does not change. No
   acknowledgment is sent: a participant confirms it has the case history by the
   fact that its ledger replica is unbroken, not by acknowledging each entry
-  ([§4.6 Error and Acknowledgment Messages](layers.md#46-error-and-acknowledgment-messages)).
+  ([§4.11 Faults and Acknowledgments](layers.md#411-faults-and-acknowledgments)).
 - **Driving one's own VFD transition** happens locally, subject to the role
   requirements of
   [§13.4.1 Participant-Specific CS Transitions (VFD)](conformance.md#1341-participant-specific-cs-transitions-vfd), and is then

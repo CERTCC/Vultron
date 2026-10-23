@@ -34,7 +34,7 @@ protocol with other related standards and protocols, including:
 - [Concept Taxonomy](vultron-taxonomy.md) — Reference definitions for the distinct concepts that together constitute Vultron. Use this document to understand what each named concept covers, what it excludes, and how the concepts relate to each other.
 - [Vultron AS Objects](activitypub/objects.md) — The Vultron ActivityStreams objects that extend the ActivityStreams vocabulary.
 - [rv Demo Protocol](rv-demo-protocol.md) — The message-level protocol trace of the Reporter + Vendor (rv) demo: every ActivityStreams activity exchanged, the trigger that causes it, and the case ledger entries it produces.
-- [Protocol Specification](vultron-spec/index.md) — The Vultron Protocol specification: its semantic and syntactic layers and the state machines participants use to track a shared case.
+- [Protocol Specification](vultron-spec/index.md) — The Vultron Protocol specification: its messages, their encoding and transport, and the state machines participants use to track a shared case.
 - [Protocol Quick Reference](quick_reference.md) — A single-page summary of the protocol's state machines, message types, and how they interact.
 - [Conformance Matrix](conformance_matrix.md) — Which capability sets each Vultron role requires, which transitions each role may drive, and the named configurations a conformance claim can use, as tables checked against the specification.
 - [Trigger API](trigger-api.md) — The `POST /actors/{actor_id}/trigger/{behavior}` endpoints, each of which starts a protocol behavior on an actor's behalf.

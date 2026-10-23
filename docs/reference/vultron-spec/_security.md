@@ -21,8 +21,8 @@ A late joiner trusts the CASE_MANAGER's delivery because it trusts the invitatio
 This chain is the minimal trust model; cryptographic ledger integrity (hash-chaining) provides tamper detection.
 
 !!! info "See also"
-    - [§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics) (trust and bootstrap semantics)
-    - [§5.4 Addressing and Channels](layers.md#54-addressing-and-channels) (addressing and channels)
+    - [§4.1 Rules Under Any Coordination Model](layers.md#41-rules-under-any-coordination-model) (messages that arrive before their case)
+    - [§5.3 Transport](layers.md#53-transport-ni) (addressing and channels)
 
 ### 15.2 Embargo Integrity
 

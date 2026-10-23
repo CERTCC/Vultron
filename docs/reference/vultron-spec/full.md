@@ -23,9 +23,9 @@ The [parts and annexes](index.md#parts) publish the same text one part per page,
 
 {% include-markdown "./_protocol-overview.md" %}
 
-{% include-markdown "./_semantic-layer.md" %}
+{% include-markdown "./_messages.md" %}
 
-{% include-markdown "./_syntactic-layer.md" %}
+{% include-markdown "./_encoding-transport.md" %}
 
 {% include-markdown "./_rm-state-machine.md" %}
 

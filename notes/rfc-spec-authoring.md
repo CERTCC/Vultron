@@ -59,7 +59,7 @@ arrive with their host fragment.
 |---|---|---|---|
 | `index.md` | Protocol Specification | Landing page | `_full-page-tip.md` |
 | `introduction.md` | Introduction and Overview | Abstract, §1–§3 | `_full-page-tip.md`, `_abstract.md`, `_introduction.md`, `_terminology.md`, `_protocol-overview.md` |
-| `layers.md` | Protocol Layers | §4–§5 | `_full-page-tip.md`, `_semantic-layer.md`, `_syntactic-layer.md` |
+| `layers.md` | Messages and Encoding | §4–§5 | `_full-page-tip.md`, `_messages.md`, `_encoding-transport.md` |
 | `tracking-models.md` | Case Tracking Models | §6–§9 | `_full-page-tip.md`, `_rm-state-machine.md`, `_em-state-machine.md`, `_cs-dimensions.md`, `_pec-state-machine.md` |
 | `interactions.md` | Coordination, Interactions, and Lifecycle | §10–§12 | `_full-page-tip.md`, `_case-coordination.md`, `_model-interactions.md`, `_participant-lifecycle.md` |
 | `conformance.md` | Conformance | §13 Conformance | `_full-page-tip.md`, `_conformance/_intro.md`, `_conformance/_capability-sets.md`, `_conformance/_role-taxonomy.md`, `_conformance/_role-requirements.md`, `_conformance/_conformance-testing.md` |
@@ -207,8 +207,8 @@ and in link text alike. The document spans pages, and a bare number does not say
 which page to go to. The heading's `[N]`/`[I]` tag is not part of the name. An
 annex is cited by letter and name: "Annex A Worked Example: Single-Vendor CVD".
 The "—" after the annex letter in the heading is a separator and is dropped from
-the citation; a "—" inside a section name is kept ("§4 Semantic Layer — Message
-Meanings"). The docs style guide states the rule and a test under
+the citation; a "—" inside a section name is kept ("§8.1 VFD — Vendor Aware,
+Fix Ready, Fix Deployed"). The docs style guide states the rule and a test under
 `test/metadata/docs/` enforces it for `docs/` (#4062).
 
 A link to a section targets the page that owns the section, with the heading
@@ -259,8 +259,8 @@ because only include directives need updating.
 
 Keep the current order; each alternative was measured and is worse:
 
-- Swapping §4 Semantic Layer — Message Meanings and §5 Syntactic Layer — Wire
-  Format increases unresolved forward references rather than reducing them.
+- Swapping §4 Messages and §5 Encoding and Transport increases unresolved
+  forward references rather than reducing them.
 - Moving §9 Participant Embargo Consent (PEC) State Machine ahead of §7 Embargo
   Management (EM) State Machine creates a definitional cycle, because PEC's
   states are defined by EM triggers.

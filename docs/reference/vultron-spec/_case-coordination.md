@@ -45,7 +45,7 @@ Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) �
 - The CASE_MANAGER MUST record a case-scoped message in the case ledger before sending it on to the other participants ([PCR-08-003](../specs/protocol.md#pcr-08-003)).
 - `Announce` of a `CaseLedgerEntry` is the **only** mechanism by which a participant learns of an admitted change to shared case state ([PCR-08-002](../specs/protocol.md#pcr-08-002)).
 
-There are exactly **two** exceptions, both confined to case bootstrap, both occurring before the reporter has been introduced to the CASE_MANAGER, so the reporter has none to route through ([§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics)):
+There are exactly **two** exceptions, both confined to case bootstrap, both occurring before the reporter has been introduced to the CASE_MANAGER, so the reporter has none to route through ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)):
 
 1. **Pre-case report submission** — the reporter sends the report directly to the vendor.
    No case exists, and therefore no participant holds the `CASE_MANAGER` role.
@@ -75,7 +75,7 @@ It answers the reporter's original report offer, outside the case, so it goes to
 
 ### 10.3 Case Bootstrap and the Trust Root
 
-A case's trust is established at its bootstrap, the step from the pre-case exchange to a case with a CASE_MANAGER ([§4.5 Trust and Bootstrap Semantics](layers.md#45-trust-and-bootstrap-semantics)).
+A case's trust is established at its bootstrap, the step from the pre-case exchange to a case with a CASE_MANAGER.
 
 **The case-creation message is the trust root.**
 When a case is created for a report, the receiving party sends the reporter a case-creation message as itself: the actor the reporter chose ([CBT-01-001](../specs/protocol.md#cbt-01-001)).
@@ -100,17 +100,17 @@ The CASE_MANAGER keeps every participant's replica in step with the case through
 | Ledger replication | Sends each committed ledger entry to every participant, as `Announce(CaseLedgerEntry)`. This is the only way a participant learns of an admitted change to shared case state ([PCR-08-003](../specs/protocol.md#pcr-08-003)) |
 | Case delivery | Sends a participant the full case, once that participant is admitted and its embargo consent is resolved ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)), then the ledger entries committed before it joined, oldest first ([CM-17-004](../specs/protocol.md#cm-17-004), [§11.1 Admitting a Participant](interactions.md#111-admitting-a-participant)) |
 
-Their wire forms are given at [§5.3 Activity Types and Canonical Message Forms](layers.md#53-activity-types-and-canonical-message-forms).
+Their wire activities are given at [§4.12 Ledger Replication Messages](layers.md#412-ledger-replication-messages) and [§4.7 Case and Participant Messages](layers.md#47-case-and-participant-messages).
 
 **A ledger entry records the asserted activity as it was sent.**
 Its payload snapshot is the received body of an activity the CASE_MANAGER received, or the body it delivered for one it sent itself ([CLP-07-011](../specs/protocol.md#clp-07-011)).
 Each nested object stays as the asserting activity carried it: inline where its sender inlined it, by reference where its sender named an object every replica already holds ([CLP-07-006](../specs/protocol.md#clp-07-006)).
 The CASE_MANAGER never fills a reference in, because the entry hash covers the snapshot and nothing outside it, so a filled-in snapshot would record the CASE_MANAGER's reconstruction rather than what was sent.
-How a message carries an object inline or by reference is specified at [§5.5 Serialization](layers.md#55-serialization).
+How a message carries an object inline or by reference is specified at [§5.2 Serialization](layers.md#52-serialization).
 
 ### 10.5 Claims and Canonical Status
 
-Two status records carry the case's state, and they are the most easily confused types in the protocol ([§5.2 Object Types](layers.md#52-object-types)).
+Two status records carry the case's state, and they are the most easily confused types in the protocol ([§4.3 Object Types](layers.md#43-object-types)).
 The difference between them is one of authority rather than content.
 
 - A `ParticipantStatus` is a **claim**.
@@ -124,7 +124,7 @@ A claim becomes canonical only when the CASE_MANAGER adopts it, and adoption is 
 An implementation MUST NOT substitute one type for the other: a participant that emits `CaseStatus` is asserting authority it does not hold, and a CASE_MANAGER that treats an inbound `ParticipantStatus` as canonical has skipped the decision.
 
 **The status messages depend on who is sending.**
-The six case state shorthands ([§4.3 Case State Messages](layers.md#43-case-state-messages)) do not have one wire form; they have two, and the sender's authority decides which applies:
+The six case state shorthands ([§4.9 Case State Messages](layers.md#49-case-state-messages)) do not have one wire form; they have two, and the sender's authority decides which applies:
 
 - A **participant** reporting its own VFD progress, or an observation about the world, sends `Add` of a **`ParticipantStatus`**.
   This is a claim.
@@ -133,6 +133,6 @@ The six case state shorthands ([§4.3 Case State Messages](layers.md#43-case-sta
 
 A participant MUST NOT send `Add` of a `CaseStatus`.
 An implementation that maps all six shorthands to `CaseStatus` regardless of sender will have participants asserting authority they do not hold.
-The rest of the shorthand mapping is at [§5.7 Shorthand to Wire Form Mapping](layers.md#57-shorthand-to-wire-form-mapping).
+The rest of the shorthand mapping is at [§4.13 Formal Message Set](layers.md#413-formal-message-set).
 
 ---

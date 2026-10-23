@@ -134,7 +134,7 @@ That activity is not part of the protocol, and the receiver has no obligation to
 
 ### Two exceptions, both before the case exists
 
-The rule has two exceptions, and both happen before there is a CASE_MANAGER to route through ([§4.5 Trust and Bootstrap Semantics](../../reference/vultron-spec/layers.md#45-trust-and-bootstrap-semantics)).
+The rule has two exceptions, and both happen before there is a CASE_MANAGER to route through ([§10.2 Routing Topology](../../reference/vultron-spec/interactions.md#102-routing-topology)).
 
 1. The reporter sends its report directly to the actor it chose to tell, because no case exists yet.
 2. The case-creation message, `Create(VulnerabilityCase)`, which the report receiver sends the reporter, introduces the CASE_MANAGER to the reporter.
