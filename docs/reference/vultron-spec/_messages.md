@@ -24,9 +24,10 @@ It tells the recipient that the sender has made one, or that the sender has obse
 A proposal, such as an embargo invitation, asks for a decision, and its answer reports the decision once it is made.
 
 **A message that arrives before its case is held, not applied.**
-A case-scoped message may reach a participant before the case it refers to has.
-A participant MUST NOT apply such a message to a case it has not yet received ([CBT-03-002](../specs/protocol.md#cbt-03-002)).
-It holds the message for a bounded interval until the case arrives, and discards it if the case never does ([CBT-03-001](../specs/protocol.md#cbt-03-001)).
+A message from the CASE_MANAGER may reach a participant before the bootstrap message that establishes the case and its trust ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
+Such a message MUST NOT update the participant's case state before that bootstrap message has been validated ([CBT-03-002](../specs/protocol.md#cbt-03-002)).
+The participant SHOULD hold it only for a short, bounded interval ([CBT-03-001](../specs/protocol.md#cbt-03-001)).
+When the interval expires, the participant MUST drop the message, and the CASE_MANAGER sends it again after the bootstrap ([CBT-03-003](../specs/protocol.md#cbt-03-003)).
 Applying it early would create case state from a message whose context was never established.
 
 Messages are addressed according to the routing rules of [§10 Case Coordination](interactions.md#10-case-coordination-n).
@@ -76,7 +77,8 @@ classDiagram
     VulnerabilityCase "1" *-- "0..*" Note
     CaseParticipant "1" *-- "0..*" ParticipantStatus
     CaseParticipant "1" o-- "0..*" CaseParticipantRole
-    EmbargoEvent "1" *-- "0..*" EmbargoConsent
+    CaseParticipant "1" *-- "0..*" EmbargoConsent
+    EmbargoConsent ..> EmbargoEvent : consents to
     CaseProposal ..> VulnerabilityCase : requests creation of
 ```
 
@@ -88,7 +90,7 @@ classDiagram
 | `CaseParticipant` | An actor's membership in a case, carrying the roles it holds and the state it owns |
 | `CaseParticipantRole` | A role offered to an actor in the context of a case. It is a distinct type so that offering a role is structurally different from offering ownership of the case |
 | `EmbargoEvent` | An embargo's terms: its start and end times. It is a Vultron extension of the AS2 `Event` type, which is why embargo messages are invitations to an event rather than an embargo-specific verb |
-| `EmbargoConsent` | One participant's consent to one embargo ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)) |
+| `EmbargoConsent` | One participant's consent to one embargo, held on that participant's record ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)) |
 | `CaseLedgerEntry` | One entry in the canonical case ledger ([§2.3 Protocol Objects and Messages](introduction.md#23-protocol-objects-and-messages)) |
 | `CaseProposal` | A request that some actor create and manage a case. The requesting actor does not intend to manage the case itself, and the actor that accepts becomes the case's creator |
 | `CaseStatus` / `ParticipantStatus` | Status records: a `ParticipantStatus` is one participant's claim, and a `CaseStatus` is the case's canonical status, which only the CASE_MANAGER writes ([§10.5 Claims and Canonical Status](interactions.md#105-claims-and-canonical-status)) |
@@ -98,10 +100,6 @@ classDiagram
 **An embargo is sent as `type: EmbargoEvent`.**
 A sender MUST give an embargo the `type` value `EmbargoEvent`, never the plain AS2 `Event` it extends ([Wire Activity Notation](annex-c-notation.md#wire-activity-notation)).
 A receiver that expects an embargo does not treat a plain `Event` as one.
-
-!!! note "Informative: which types have core models"
-    `CaseProposal` and `ProcessingFault` exist in the reference implementation only as wire types, with no separate internal model.
-    Every other Vultron type above has both.
 
 ### 4.4 Message Tables
 
@@ -149,7 +147,8 @@ This exchange happens before the case exists, so its messages go to an actor out
 ### 4.7 Case and Participant Messages
 
 These messages create a case and manage who is in it.
-They have no protocol shorthands of their own, because they concern the case as an object rather than any state machine's state.
+Most have no protocol shorthand, because they concern the case as an object rather than any state machine's state.
+The exception is the answer to the full-case `Invite`, which realizes `RV`, `RI` or `RC`, as described below.
 How a participant joins, changes role and leaves is specified at [§12 Participant Lifecycle Within a Case](interactions.md#12-participant-lifecycle-within-a-case-n).
 
 {% include-markdown "../messages/_occasions/lookup-case_management.md" %}
@@ -157,8 +156,11 @@ How a participant joins, changes role and leaves is specified at [§12 Participa
 **The two ways an actor joins a case are different messages.**
 Conflating them loses a round trip in which the Case Owner decides:
 
-- `Invite(Actor)[target=VulnerabilityCaseStub]` is the CASE_MANAGER inviting an actor to join on the Case Owner's behalf. It is answered with `Accept` or `Reject`.
-- `Offer(Actor)[target=VulnerabilityCase]` is a participant *recommending* an actor ([§4.10 General Messages](layers.md#410-general-messages)). The Case Owner decides on it, and its approval may cause an `Invite` to be sent. An implementation MUST NOT treat it as an invitation to the recommended actor.
+- `Invite(Actor)[target=VulnerabilityCaseStub]` is the CASE_MANAGER inviting an actor to join on the Case Owner's behalf.
+  It is answered with `Accept` or `Reject`.
+- `Offer(Actor)[target=VulnerabilityCase]` is a participant *recommending* an actor ([§4.10 General Messages](layers.md#410-general-messages)).
+  The Case Owner decides on it, and its approval may cause an `Invite` to be sent.
+  An implementation MUST NOT treat it as an invitation to the recommended actor.
 
 Both paths end in an `Accept` of the stub `Invite` ([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)).
 That `Accept` joins the case; it is not `RV`.

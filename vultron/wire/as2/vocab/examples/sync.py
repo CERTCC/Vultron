@@ -34,8 +34,9 @@ _CASE_URI = case().id_ or "https://vultron.example/cases/00000000"
 _ACTIVITY_URI = (
     "https://vultron.example/activities/00000000-0000-0000-0000-000000000001"
 )
-# All-zeros genesis hash for the first entry.
-_GENESIS_HASH = "0" * 64
+# The first entry's predecessor is the example case's own genesis hash, never a
+# shared constant (CLP-08-001, CLP-08-002).
+_GENESIS_HASH = case().genesis_hash
 _RECEIVED_AT = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
 
 

@@ -109,7 +109,8 @@ This version does not specify participant discovery.
 
 The exchanges below show occasions of [§4 Messages](layers.md#4-messages-n) as they appear on the wire.
 Each one is given first in Wire Activity notation and then as the JSON a sender delivers.
-The identifiers and hashes are illustrative, and optional fields such as `name` and `updated` are left out where the exchange does not need them.
+The identifiers, timestamps and hashes are illustrative, and optional fields such as `name` and `updated` are left out.
+Every activity carries the `published` timestamp its sender stamps on it ([CLP-15-006](../specs/protocol.md#clp-15-006)).
 
 #### Submitting a report
 
@@ -130,6 +131,7 @@ No case exists yet, so both messages go directly between the two actors.
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Offer",
       "id": "https://vultron.example/users/finndervul/activities/offer-1",
+      "published": "2026-05-30T10:00:00+00:00",
       "actor": "https://vultron.example/users/finndervul",
       "to": ["https://vultron.example/organizations/vendorco"],
       "object": {
@@ -146,12 +148,14 @@ No case exists yet, so both messages go directly between the two actors.
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Read",
       "id": "https://vultron.example/organizations/vendorco/activities/read-1",
+      "published": "2026-05-30T11:00:00+00:00",
       "actor": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/users/finndervul"],
-      "content": "We've read the report. We'll get back to you soon.",
+      "content": "We have received the report. We will get back to you soon.",
       "object": {
         "type": "Offer",
         "id": "https://vultron.example/users/finndervul/activities/offer-1",
+        "published": "2026-05-30T10:00:00+00:00",
         "actor": "https://vultron.example/users/finndervul",
         "to": ["https://vultron.example/organizations/vendorco"],
         "object": {
@@ -185,6 +189,7 @@ A Coordinator agrees, Embargo Proposal Acceptance (`EA`), by accepting the `Invi
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Invite",
       "id": "https://vultron.example/cases/1/embargo_proposals/1",
+      "published": "2026-06-01T18:00:00+00:00",
       "actor": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/case-actors/vendorco-case-actor"],
       "context": "https://vultron.example/cases/1",
@@ -226,6 +231,7 @@ A Coordinator agrees, Embargo Proposal Acceptance (`EA`), by accepting the `Invi
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Accept",
       "id": "https://vultron.example/organizations/coordinator/activities/accept-1",
+      "published": "2026-06-02T09:00:00+00:00",
       "actor": "https://vultron.example/organizations/coordinator",
       "to": ["https://vultron.example/case-actors/vendorco-case-actor"],
       "context": "https://vultron.example/cases/1",
@@ -267,6 +273,7 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Add",
       "id": "https://vultron.example/organizations/vendorco/activities/add-status-3",
+      "published": "2026-07-15T14:00:00+00:00",
       "actor": "https://vultron.example/organizations/vendorco",
       "to": ["https://vultron.example/case-actors/vendorco-case-actor"],
       "target": "https://vultron.example/cases/1/participants/vendorco",
@@ -287,7 +294,8 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
 
 The CASE_MANAGER has committed a case event to the case ledger and sends the entry to every participant.
 Each participant checks that the entry's `prevLogHash` matches the `entryHash` of the last entry it holds ([§4.12 Ledger Replication Messages](layers.md#412-ledger-replication-messages)).
-The entry shown is the first in its case's ledger, so its `prevLogHash` is the all-zero genesis hash.
+The entry shown is the first in its case's ledger, so its `prevLogHash` is the case's own genesis hash ([CLP-08-001](../specs/protocol.md#clp-08-001)).
+Its `published` is the CASE_MANAGER's commit stamp ([CLP-14-002](../specs/protocol.md#clp-14-002)).
 
 === "Notation"
 
@@ -302,19 +310,21 @@ The entry shown is the first in its case's ledger, so its `prevLogHash` is the a
       "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
       "type": "Announce",
       "id": "https://vultron.example/case-actors/vendorco-case-actor/activities/announce-0",
+      "published": "2026-05-31T12:00:01+00:00",
       "actor": "https://vultron.example/case-actors/vendorco-case-actor",
       "to": ["https://vultron.example/organizations/coordinator"],
       "object": {
         "type": "CaseLedgerEntry",
         "id": "https://vultron.example/cases/1/log/0",
+        "published": "2026-05-31T12:00:00+00:00",
         "caseId": "https://vultron.example/cases/1",
         "logIndex": 0,
         "logObjectId": "https://vultron.example/activities/00000000-0000-0000-0000-000000000001",
         "semanticType": "create_case",
         "payloadSnapshot": {},
-        "prevLogHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "prevLogHash": "17334082900cbfad3b45787a0ef507390580bdf1508d78e3597435d79339ab3d",
         "entryHash": "0dabc4e69c51c1fa7e30595ff3357fdcb1fbe4581aed3534bec1e92c30e84549",
-        "receivedAt": "2024-01-01T12:00:00Z"
+        "receivedAt": "2026-05-31T12:00:00Z"
       }
     }
     ```

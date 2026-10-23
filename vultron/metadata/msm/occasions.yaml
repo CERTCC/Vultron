@@ -38,7 +38,7 @@ groups:
     example: submit_report
   - anchor: report-acknowledgment
     heading: Report Acknowledgment (RK)
-    when: a report receiver has read a submitted report
+    when: a report receiver has received a submitted report
     send: Read(Offer(VulnerabilityReport))
     send_to: an actor outside any case
     sent_by: 'the addressee of the vulnerability report offer (usually: vendor, coordinator)'

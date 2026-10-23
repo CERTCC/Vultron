@@ -206,8 +206,8 @@ Keep protocol text free of implementation accidents and drafting artifacts.
   number does not say which page the section is on. An annex is cited as
   "Annex A Worked Example: Single-Vendor CVD": the "—" after the annex letter in
   the heading is dropped, while a "—" inside a section name is kept ("§8.1 VFD —
-  Vendor Aware, Fix Ready, Fix Deployed"). Link text is mechanized (see "Mechanized"); check
-  citations in prose by hand.
+  Vendor Aware, Fix Ready, Fix Deployed"). Link text is mechanized (see
+  "Mechanized"); check citations in prose by hand.
 - `[M]` Every reference to a Python source file is a clickable Markdown link
   pointing to a canonical GitHub URL — not a bare file path. The RFC must be
   usable as a standalone PDF.
@@ -284,9 +284,10 @@ Check after any structural reorganization or addition of new sections.
 - `[J]` Every structural concept used in normative prose in §3 Protocol
   Overview or §4 Messages is either defined in §2 Terminology or accompanied by
   a one-sentence gloss at first use. §4 Messages is on a different page from §2
-  Terminology, so a concept it takes from there is also linked to it. A bare forward reference
-  `(§N.M)` is not sufficient for foundational concepts (`CaseLedgerEntry`, the
-  case manager, PEC state names, RM state names at point of gating use).
+  Terminology, so a concept it takes from there is also linked to it. A bare
+  forward reference `(§N.M)` is not sufficient for foundational concepts
+  (`CaseLedgerEntry`, the case manager, PEC state names, RM state names at point
+  of gating use).
 - `[J]` When a state machine's state names are used normatively in a section
   more than one major section after the defining section, a compact reminder
   (a small table or admonition listing the state names with one-word glosses)
@@ -369,7 +370,7 @@ Check when roles, object types, or message patterns are added or redefined.
   direct state machine obligations, that fact is stated explicitly rather than
   left implied by absence.
 - `[J]` Every object type defined in §4.3 Object Types (`CaseProposal`,
-  `CaseLedgerEntry`, `VulnerabilityCase`, `ParticipantRecord`) has a
+  `CaseLedgerEntry`, `VulnerabilityCase`, `CaseParticipant`) has a
   corresponding lifecycle description — at minimum: when it is created, what
   state transitions it records or triggers, and when it is retired or
   superseded. Object types that appear only in §4.3 Object Types and one or two
