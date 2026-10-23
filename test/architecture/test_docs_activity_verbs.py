@@ -178,10 +178,16 @@ _FORM_ALIASES = MappingProxyType({"ActivateEmbargo": "AddEmbargoToCase"})
 _EXPECTED_QUALIFIER = MappingProxyType(
     {
         # The case owner's decisions name the case they decide for (ADR-0122).
-        "ActivateEmbargo": "target: VulnerabilityCase",
-        "RejectEmbargoProposal": "target: VulnerabilityCase",
+        "ActivateEmbargo": "target=VulnerabilityCase",
+        "RejectEmbargoProposal": "target=VulnerabilityCase",
     }
 )
+
+#: A wire line's trailing bracketed qualifier, ``Accept(EmbargoEvent)`` then
+#: ``[target=VulnerabilityCase]`` (Wire Activity notation, Annex C).  Only the
+#: group after the last ``)`` is a qualifier, so ``_render_as2_form``'s bare
+#: form is what the first group holds.
+_TRAILING_QUALIFIER = re.compile(r"(.*\))\[([^\[\]]*)\]")
 
 #: Wire forms the guides state deliberately even though no pattern produces
 #: them, each because the page's subject *is* that mismatch.  Every entry needs
@@ -191,12 +197,10 @@ _UNREGISTERED_FORMS_BY_DESIGN = MappingProxyType(
         # acknowledge.md: named as the form that matches nothing, to warn an
         # implementer off sending the bare report instead of its Offer.
         "Read(VulnerabilityReport)": "counter-example (MSM-01-008)",
-        # establish_embargo.md, manage_participants.md, status_updates.md:
-        # named as forms that are not protocol messages, to warn an
-        # implementer off sending a separate Create ahead of the Invite or Add
-        # that carries the object (VAM-01-011, ADR-0137; deferred-forms open
-        # question #4550).
-        "Create(Event)": "not a protocol message (VAM-01-011)",
+        # manage_participants.md, status_updates.md: named as forms that are
+        # not protocol messages, to warn an implementer off sending a separate
+        # Create ahead of the Add that carries the object (VAM-01-011,
+        # ADR-0137; deferred-forms open question #4550).
         "Create(CaseStatus)": "not a protocol message (VAM-01-011)",
         "Create(ParticipantStatus)": "not a protocol message (VAM-01-011)",
         # status_updates.md: named as the form a change to a posted note
@@ -411,7 +415,7 @@ def test_mermaid_labels_are_the_canonical_as2_form():
     the formal protocol never names it comes from the reference tree's own heading,
     so asserting it here would only re-state a hand-maintained list.
 
-    The wire line may carry a trailing ``, <qualifier>`` naming a field the
+    The wire line may carry a trailing ``[<qualifier>]`` naming a field the
     reader needs to tell an activity apart, such as the case ``target`` of the
     case owner's ``Accept``/``Reject(EmbargoEvent)``. The qualifier is *checked*
     against ``_EXPECTED_QUALIFIER`` rather than stripped: when two activities
@@ -432,7 +436,10 @@ def test_mermaid_labels_are_the_canonical_as2_form():
             unmapped.append(f"  {page}: {node_id}")
             continue
         wire_line = label.split("<br/>")[-1].strip()
-        actual, _, qualifier = (x.strip() for x in wire_line.partition(","))
+        bracketed = _TRAILING_QUALIFIER.fullmatch(wire_line)
+        actual, qualifier = (
+            bracketed.groups() if bracketed else (wire_line, "")
+        )
         want_qualifier = _EXPECTED_QUALIFIER.get(node_id, "")
         if actual != expected:
             wrong.append(

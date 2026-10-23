@@ -232,7 +232,7 @@ See [Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md) for why
 
 This demo exercises embargo negotiation.
 A coordinator proposes embargo terms with an Embargo Proposal (EP), `Invite(EmbargoEvent)`.
-The vendor either **accepts** with an Embargo Proposal Acceptance (EA), `Accept(Invite(EmbargoEvent))`, then activates the embargo on the case with `Add(EmbargoEvent)` and announces it with `Announce(EmbargoEvent)`, so the Embargo Management (EM) state becomes `ACTIVE`; or **rejects** with an Embargo Proposal Rejection (ER), `Reject(Invite(EmbargoEvent))`, and the EM state does not change.
+The vendor either **accepts** with an Embargo Proposal Acceptance (EA), `Accept(Invite(EmbargoEvent))`, then activates the embargo on the case with `Accept(EmbargoEvent)[target=VulnerabilityCase]` and announces it with `Announce(EmbargoEvent)`, so the Embargo Management (EM) state becomes `ACTIVE`; or **rejects** with an Embargo Proposal Rejection (ER), `Reject(Invite(EmbargoEvent))`, and the EM state does not change.
 
 ```mermaid
 ---
@@ -245,7 +245,7 @@ sequenceDiagram
     C->>V: Embargo Proposal (EP)<br/>Invite(EmbargoEvent)
     alt Vendor accepts
         V-->>C: Embargo Proposal Acceptance (EA)<br/>Accept(Invite(EmbargoEvent))
-        V->>V: Activate the embargo<br/>Add(EmbargoEvent)
+        V->>V: Activate the embargo<br/>Accept(EmbargoEvent)[target=VulnerabilityCase]
         V->>C: Announce(EmbargoEvent)
         Note over C,V: EM state = ACTIVE
     else Vendor rejects
@@ -322,7 +322,7 @@ sequenceDiagram
     alt Path 1 — Activate then terminate
         C->>V: Embargo Proposal (EP)<br/>Invite(EmbargoEvent)
         V-->>C: Embargo Proposal Acceptance (EA)<br/>Accept(Invite(EmbargoEvent))
-        V->>V: Add(EmbargoEvent), then Announce(EmbargoEvent)
+        V->>V: Accept(EmbargoEvent)[target=VulnerabilityCase],<br/>then Announce(EmbargoEvent)
         Note over C,V: EM state = ACTIVE
         V->>C: Embargo Termination (ET)<br/>Remove(EmbargoEvent)
         Note over C,V: EM state = EXITED
@@ -333,7 +333,7 @@ sequenceDiagram
         V-->>C: Embargo Proposal Rejection (ER)<br/>Reject(Invite(EmbargoEvent))
         C->>V: Embargo Proposal (EP), 90 days<br/>Invite(EmbargoEvent)
         V-->>C: Embargo Proposal Acceptance (EA)<br/>Accept(Invite(EmbargoEvent))
-        V->>V: Add(EmbargoEvent)
+        V->>V: Accept(EmbargoEvent)[target=VulnerabilityCase]
         Note over C,V: EM state = ACTIVE
     end
 ```

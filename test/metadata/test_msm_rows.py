@@ -127,7 +127,7 @@ def test_expansion_gi_appears_in_multiple_rows():
 
 
 def test_ep_maps_only_to_invite_embargo():
-    """EP is Invite(EmbargoEvent) and nothing else (MSM-02-001) — not an expansion."""
+    """EP is Invite(EmbargoEvent) only (MSM-02-001), not an expansion."""
     ep_rows = [row for row in ROW_SPECS if "EP" in row.shorthands]
     assert [row.semantics for row in ep_rows] == [
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE

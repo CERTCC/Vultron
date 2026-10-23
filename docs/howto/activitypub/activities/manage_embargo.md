@@ -47,8 +47,8 @@ flowchart TB
         EmRejectEmbargo["Embargo Proposal Rejection (ER) / Embargo Revision Rejection (EJ)<br/>Reject(Invite(EmbargoEvent))"]
     end
     subgraph Case Owner decides
-        ActivateEmbargo["Activate the revision<br/>Accept(EmbargoEvent), target: VulnerabilityCase"]
-        RejectEmbargoProposal["Keep the current terms<br/>Reject(EmbargoEvent), target: VulnerabilityCase"]
+        ActivateEmbargo["Activate the revision<br/>Accept(EmbargoEvent)[target=VulnerabilityCase]"]
+        RejectEmbargoProposal["Keep the current terms<br/>Reject(EmbargoEvent)[target=VulnerabilityCase]"]
     end
     subgraph as:Remove
         RemoveEmbargoFromCase["Embargo Termination (ET)<br/>Remove(EmbargoEvent)"]

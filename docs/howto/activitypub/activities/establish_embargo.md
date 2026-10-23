@@ -47,8 +47,8 @@ flowchart TB
         EmRejectEmbargo["Embargo Proposal Rejection (ER) / Embargo Revision Rejection (EJ)<br/>Reject(Invite(EmbargoEvent))"]
     end
     subgraph Case Owner decides
-        ActivateEmbargo["Activate the embargo<br/>Accept(EmbargoEvent), target: VulnerabilityCase"]
-        RejectEmbargoProposal["Reject the proposal<br/>Reject(EmbargoEvent), target: VulnerabilityCase"]
+        ActivateEmbargo["Activate the embargo<br/>Accept(EmbargoEvent)[target=VulnerabilityCase]"]
+        RejectEmbargoProposal["Reject the proposal<br/>Reject(EmbargoEvent)[target=VulnerabilityCase]"]
     end
     subgraph as:Announce
         AnnounceEmbargo["Announce the embargo terms<br/>Announce(EmbargoEvent)"]
@@ -72,7 +72,7 @@ The same activity carries a revision, Embargo Revision Proposal (EV); a receiver
 
 1. Send `Invite(EmbargoEvent)` with the proposed `EmbargoEvent` inline as its `object` and the case as its `context`.
    The case moves to `EM.PROPOSED`.
-   The protocol names `Invite(EmbargoEvent)` as the one form; a received `Create(Event)` is not a protocol message (VAM-01-011), and this implementation's inbox does not process it (VAM-01-010).
+   The protocol names `Invite(EmbargoEvent)` as the one form; a received `Create(EmbargoEvent)` is not a protocol message (VAM-01-011), and this implementation's inbox does not process it (VAM-01-010).
    A `Create` of an `EmbargoEvent` is the Case Manager's own ledger record of a creation-time embargo, so the inbox reports it as "no use case found"; a `Create` of any other `Event` is refused as an unrecognized activity.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal.md" %}
