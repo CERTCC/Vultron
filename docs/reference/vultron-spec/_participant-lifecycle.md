@@ -66,7 +66,7 @@ Full content follows only after the invitee accepts.
 
 Two paths bring an actor into a case, and they differ in who initiates:
 
-- **Direct invitation.** The CASE_MANAGER sends `Invite(Actor, target=VulnerabilityCaseStub)` to the actor.
+- **Direct invitation.** The CASE_MANAGER sends `Invite(Actor)[target=VulnerabilityCaseStub]` to the actor.
   At the same time, it records the invitee in the case as an *inert* participant at RM Received ([CM-11-006](../specs/protocol.md#cm-11-006)).
   The CASE_MANAGER commits the record's creation to the case ledger, and a replica applying that entry creates the same inert record.
   The record is not yet an active participant: it does not receive case content and is not included in embargo fan-out until the actor accepts ([CM-10-004](../specs/protocol.md#cm-10-004)).
@@ -116,7 +116,7 @@ The participant's record, its status history, and the ledger entries it authored
 A removed participant is inert: it receives no case content, and it has no authority to act on the case.
 
 Only the Case Owner requests a removal.
-It sends `Remove(CaseParticipant, target=VulnerabilityCase)` to the CASE_MANAGER, which applies it ([CM-31-004](../specs/protocol.md#cm-31-004)).
+It sends `Remove(CaseParticipant)[target=VulnerabilityCase]` to the CASE_MANAGER, which applies it ([CM-31-004](../specs/protocol.md#cm-31-004)).
 The CASE_MANAGER MUST refuse the request when the sender does not hold the Case Owner role, when it names the CASE_MANAGER's or the Case Owner's participant, or when it names no participant of the case.
 A second removal of an already-removed participant is a no-op, and the CASE_MANAGER reports it as skipped.
 The CASE_MANAGER MUST NOT remove a participant on its own initiative.
@@ -137,7 +137,7 @@ A removed signatory stays bound by the embargo it accepted.
 A removed participant receives no Invite of any kind: not a stub Invite, not a full-case Invite, and not an embargo Invite ([CM-31-013](../specs/protocol.md#cm-31-013)).
 
 Removal is reversible.
-The Case Owner reinstates a removed participant by sending `Add(CaseParticipant, target=VulnerabilityCase)` to the CASE_MANAGER ([CM-31-011](../specs/protocol.md#cm-31-011)).
+The Case Owner reinstates a removed participant by sending `Add(CaseParticipant)[target=VulnerabilityCase]` to the CASE_MANAGER ([CM-31-011](../specs/protocol.md#cm-31-011)).
 The request follows the removal pipeline: only the Case Owner may send it, the received `Add` is the one ledger entry, the CASE_MANAGER sends the participant a direct `Add(CaseParticipant)` notice naming it, and every replica applies the reinstatement from the ledger entry.
 Reinstatement clears the removal fact.
 The participant does not accept again, because it never withdrew.

@@ -208,7 +208,7 @@ An implementation MUST NOT record adherence as a value that can be set separatel
 
 A change of consent MUST be made either by applying a consent trigger through the transitions of [§9.2 Transitions and Guards](tracking-models.md#92-transitions-and-guards), or by copying the row a ledger entry carries after checking its starting state, through the one apply function the CASE_MANAGER and every replica share, so that every change is a valid one and is recorded as such (CM-18-005).
 The CASE_MANAGER commits every consent row it changes as its own `Update(EmbargoConsent)` ledger entry, or `Create(EmbargoConsent)` for a row it brings into existence, after the entry of the act that caused it (CLP-07-013, EP-09-007).
-Where the act's own activity states the row, such as a participant's `Accept(Invite(EmbargoEvent))` or, for the case owner's own row, its `Accept(EmbargoEvent, target=Case)` activating an embargo, that entry is the row's entry.
+Where the act's own activity states the row, such as a participant's `Accept(Invite(Event)[context=VulnerabilityCase])` or, for the case owner's own row, its `Accept(Event)[target=VulnerabilityCase]` activating an embargo, that entry is the row's entry.
 
 !!! note "Informative: how the reference implementation does this"
     The reference implementation exposes adherence as a computed lookup over the stored consent rows and the register, so there is no separate field to fall out of step.

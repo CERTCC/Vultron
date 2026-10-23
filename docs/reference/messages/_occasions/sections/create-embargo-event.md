@@ -7,7 +7,7 @@ Carries the new embargo in full, its start and end times included. It follows th
 - **When…** the Case Manager has created a case and, with it, an embargo such as the default embargo
 - **Send:** `Create(EmbargoEvent)`
 - **Send to:** a participant
-- **Sent by:** not handled
+- **Sent by:** internal to the case manager
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 Each participant learns of it from the case ledger, so it is addressed to nobody.

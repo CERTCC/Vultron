@@ -598,12 +598,13 @@ def test_fix_readiness_row_reads_as_specified(table):
 @pytest.mark.spec("MSM-06-001")
 @pytest.mark.spec("MSM-08-005")
 @pytest.mark.spec("SE-05-002")
-def test_an_unhandled_entry_renders_not_handled_on_its_page():
+def test_an_unhandled_entry_renders_internal_to_the_case_manager():
     """The generator renders an entry no received use case handles.
 
     The fix-readiness entry stands in for a recognized type with no use
     case: its rows still render, through the YAML, with "Sent by" stating
-    that it is not handled rather than failing on a missing sender rule.
+    that the act is internal to the case manager rather than failing on a
+    missing sender rule.
     """
     semantics = MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
     registry = [
@@ -620,9 +621,12 @@ def test_an_unhandled_entry_renders_not_handled_on_its_page():
         for line in contents[f"{gen.FRAGMENT_DIR}/lookup-cs.md"].splitlines()
         if "fix-readiness" in line
     )
-    assert " | not handled (usually: vendor) | " in row
+    assert " | internal to the case manager (usually: vendor) | " in row
     section = contents[f"{gen.FRAGMENT_DIR}/sections/fix-readiness.md"]
-    assert "- **Sent by:** not handled (usually: vendor)" in section
+    assert (
+        "- **Sent by:** internal to the case manager (usually: vendor)"
+        in section
+    )
 
 
 def test_whole_table_is_every_slice_under_its_group_title(table):

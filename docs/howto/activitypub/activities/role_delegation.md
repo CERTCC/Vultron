@@ -41,9 +41,9 @@ sequenceDiagram
     actor O as Case Owner
     participant M as Case Manager
     actor T as Target Participant
-    O ->> M: Offer(CaseParticipantRole, target=T, context=Case)
+    O ->> M: Offer(CaseParticipantRole)[target=T, context=VulnerabilityCase]
     note over M: Check sender, role and target<br/>Record the offer in the ledger
-    M ->> T: Offer(CaseParticipantRole), inReplyTo=the recorded offer
+    M ->> T: Offer(CaseParticipantRole)[context=VulnerabilityCase, inReplyTo=recorded offer]
     note over T: Consider role offer
     alt Accept
         T -->> M: Accept(Offer(CaseParticipantRole))

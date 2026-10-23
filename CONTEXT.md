@@ -126,8 +126,10 @@ also defines **Message Type** and **Protocol Shorthand** for the formal message 
 **Wire activity**:
 An ActivityStreams 2.0 (AS2) activity of a given shape, such as
 `Offer(VulnerabilityReport)`, written with the literal AS2 type names a sender puts on
-the wire.
-*Avoid*: message type (that is the formal message set)
+the wire. Parentheses hold an activity's object; brackets after it name other fields
+that tell occasions apart — `Accept(Invite(Event)[context=VulnerabilityCase])`.
+*Avoid*: message type (that is the formal message set); AS2 shorthand (a protocol
+shorthand is the two-letter code)
 
 **Semantic type**:
 What a wire activity means, judged from its shape alone — the same label whether the

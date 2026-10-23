@@ -7,7 +7,7 @@
     - **When…** the Case Manager abandons an open embargo proposal once the case is public, an exploit is public or attacks are observed
     - **Send:** `Undo(Invite(Event)[context=VulnerabilityCase])`
     - **Send to:** a participant
-    - **Sent by:** not handled
+    - **Sent by:** internal to the case manager
     - **Reference:** [Withdraw an embargo invitation](../../em.md#withdraw-embargo-invite)
 
     ??? example "Example activity"

@@ -41,19 +41,19 @@ sequenceDiagram
     actor B as Case Owner
     actor D as Invitee
     Note over A: Recognize that Actor should be invited
-    A ->> CA: Offer(object=Actor, target=Case)
+    A ->> CA: Offer(Actor)[target=VulnerabilityCase]
     activate CA
     Note over CA: Record in ledger, assign default roles
-    CA ->> B: Offer(object=CaseParticipant{actor,roles}, target=Case, origin=Offer.id)
+    CA ->> B: Offer(CaseParticipant)[target=VulnerabilityCase, origin=Offer]
     activate B
     alt Accept Suggestion
-        B ->> CA: Accept(object=Offer(CaseParticipant))
+        B ->> CA: Accept(Offer(CaseParticipant)[target=VulnerabilityCase])
         CA ->> A: AcceptActorRecommendation
         CA ->>+ D: Invite(CaseStub + embargo + roles)
         note over D: Respond to invitation (not shown)
         deactivate D
     else Reject Suggestion
-        B ->> CA: Reject(object=Offer(CaseParticipant))
+        B ->> CA: Reject(Offer(CaseParticipant)[target=VulnerabilityCase])
         CA ->> A: RejectActorRecommendation
     end
     deactivate B

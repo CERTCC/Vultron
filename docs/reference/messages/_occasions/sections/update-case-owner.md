@@ -7,7 +7,7 @@ Carries the case with its new owner in attributedTo. The Case Manager commits it
 - **When…** the Case Manager records the new Case Owner once a case ownership transfer is accepted
 - **Send:** `Update(VulnerabilityCase)`
 - **Send to:** a participant
-- **Sent by:** not handled
+- **Sent by:** internal to the case manager
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 Each participant learns of it from the case ledger, so it is addressed to nobody.

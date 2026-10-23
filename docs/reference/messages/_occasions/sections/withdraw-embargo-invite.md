@@ -7,7 +7,7 @@ Withdraws an Invite the Case Manager sent for the abandoned proposal. The Case M
 - **When…** the Case Manager abandons an open embargo proposal once the case is public, an exploit is public or attacks are observed
 - **Send:** `Undo(Invite(Event)[context=VulnerabilityCase])`
 - **Send to:** a participant
-- **Sent by:** not handled
+- **Sent by:** internal to the case manager
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 Each participant learns of it from the case ledger, so it is addressed to nobody.

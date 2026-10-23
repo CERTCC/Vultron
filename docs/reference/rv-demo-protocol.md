@@ -72,10 +72,10 @@ sequenceDiagram
     note over F,CA: ✓ M2 — Reporter replica matches the Vendor replica
 
     note over F,CA: Phase 3 — Notes exchange
-    F->>CA: Add(Note, target=VulnerabilityCase) — General Inquiry (GI)
+    F->>CA: Add(Note)[target=VulnerabilityCase] — General Inquiry (GI)
     CA-->>V: Announce(CaseLedgerEntry)
     CA-->>F: Announce(CaseLedgerEntry)
-    V->>CA: Add(Note, target=VulnerabilityCase) — reply
+    V->>CA: Add(Note)[target=VulnerabilityCase] — reply
     CA-->>V: Announce(CaseLedgerEntry)
     CA-->>F: Announce(CaseLedgerEntry)
     note over F,CA: ✅ M3 — Vendor holds the authoritative final case state

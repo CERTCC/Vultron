@@ -135,8 +135,8 @@ sequenceDiagram
     participant V as Vendor (Case Owner)
     participant C as Coordinator
 
-    R->>CA: Suggest an actor<br/>Offer(Actor, target=Case)
-    CA->>V: Offer Case Participant Role<br/>Offer(CaseParticipant, target=Case)
+    R->>CA: Suggest an actor<br/>Offer(Actor)[target=VulnerabilityCase]
+    CA->>V: Offer Case Participant Role<br/>Offer(CaseParticipant)[target=VulnerabilityCase]
     alt Vendor accepts suggestion
         V->>CA: Accept(Offer(CaseParticipant))
         CA->>C: Invite Actor to Case<br/>Invite(Actor)

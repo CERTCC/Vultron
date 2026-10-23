@@ -7,7 +7,7 @@
     - **When…** the Case Manager records the new Case Owner once a case ownership transfer is accepted
     - **Send:** `Update(VulnerabilityCase)`
     - **Send to:** a participant
-    - **Sent by:** not handled
+    - **Sent by:** internal to the case manager
     - **Reference:** [Update case owner](../../case_management.md#update-case-owner)
 
     ??? example "Example activity"

@@ -157,9 +157,12 @@ NOT_YET_CHECKED = "not yet checked"
 #: permanent exemption, ``no_sender_check``).
 NO_SENDER_CHECK = "any actor (no sender check applies)"
 
-#: The "Sent by" wording for an entry no received use case handles: with no
-#: use case there is no sender rule to word (ADR-0140 item 5, SE-05-002).
-NOT_HANDLED = "not handled"
+#: The "Sent by" wording for an entry no received use case handles.  Such an
+#: act is internal to the case manager -- the CASE_MANAGER role, whichever
+#: actor holds it -- so no receiver applies a sender rule to it, though the
+#: case manager may still commit it to the case ledger as a ledgered activity
+#: (ADR-0140 item 5, SE-05-002).
+CASE_MANAGER_INTERNAL = "internal to the case manager"
 
 
 def _words(type_name: str) -> str:
@@ -271,8 +274,8 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     received use case declares that matches the occasion's addressee
     (:func:`rule_wording`), :data:`NOT_YET_CHECKED` for an exemption that
     names the issue owning its rule, :data:`NO_SENDER_CHECK` for a
-    permanent one, or :data:`NOT_HANDLED` for an entry no received use case
-    handles.
+    permanent one, or :data:`CASE_MANAGER_INTERNAL` for an entry no
+    received use case handles.
     The occasion's usual sender roles, when it has any, follow in
     parentheses: "an active participant (usually: vendor)".
 
@@ -281,7 +284,7 @@ def sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     """
     use_case = entry.use_case_class
     wording = (
-        NOT_HANDLED
+        CASE_MANAGER_INTERNAL
         if use_case is None
         else _entitlement_wording(use_case, entry, occasion.addressee)
     )

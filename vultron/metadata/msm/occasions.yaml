@@ -204,7 +204,7 @@ groups:
     when: the Case Manager records the new Case Owner once a case ownership transfer is accepted
     send: Update(VulnerabilityCase)
     send_to: a participant
-    sent_by: not handled
+    sent_by: internal to the case manager
     semantics: update_case_owner
     status: none
     description: Carries the case with its new owner in attributedTo. The Case Manager commits
@@ -479,7 +479,7 @@ groups:
       invitee of a stub Invite
     send: Create(CaseParticipant)
     send_to: a participant
-    sent_by: not handled
+    sent_by: internal to the case manager
     semantics: create_case_participant
     status: none
     description: 'Carries the new participant record in full: its roles, statuses, joined
@@ -493,7 +493,7 @@ groups:
       on an ownership transfer
     send: Update(CaseParticipant)
     send_to: a participant
-    sent_by: not handled
+    sent_by: internal to the case manager
     semantics: update_case_participant
     status: none
     description: Carries the changed participant record in full, as the Case Manager stored
@@ -693,7 +693,7 @@ groups:
       is public or attacks are observed
     send: Undo(Invite(Event)[context=VulnerabilityCase])
     send_to: a participant
-    sent_by: not handled
+    sent_by: internal to the case manager
     semantics: undo_invite_to_embargo_on_case
     status: none
     description: Withdraws an Invite the Case Manager sent for the abandoned proposal. The
@@ -755,7 +755,7 @@ groups:
       embargo
     send: Create(EmbargoEvent)
     send_to: a participant
-    sent_by: not handled
+    sent_by: internal to the case manager
     semantics: create_embargo_event
     status: none
     description: Carries the new embargo in full, its start and end times included. It follows
@@ -769,7 +769,7 @@ groups:
       UNINVITED row a proposal writes
     send: Create(EmbargoConsent)
     send_to: a participant
-    sent_by: not handled
+    sent_by: internal to the case manager
     semantics: create_embargo_consent
     status: none
     description: 'Carries the new consent row in full: the embargo it answers, the participant
@@ -783,7 +783,7 @@ groups:
       out, the rows carried over at activation or a change of its own consent
     send: Update(EmbargoConsent)
     send_to: a participant
-    sent_by: not handled
+    sent_by: internal to the case manager
     semantics: update_embargo_consent
     status: none
     description: Carries the changed consent row in full. A Case Manager with an embargo stake
