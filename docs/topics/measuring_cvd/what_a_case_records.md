@@ -3,27 +3,44 @@ stakeholder_type: [process-researcher]
 level: 400
 page_type: explanation
 description: >
-  The events a Vultron case records, whether each belongs to the case or to one participant, the two clocks on each record, and the gaps.
+  The events that a Vultron case records, which events belong to the case or to one participant, the two times on each entry, and the data gaps.
 ---
 
 # What a Case Records
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-This page describes the record a Vultron case keeps, which is the data every measure in this section works from.
-It covers which events the case records, whether each belongs to the case or to one participant, which clocks stamp them, where the record has gaps, and who can see which parts of it.
-It is for people who want to measure Coordinated Vulnerability Disclosure (CVD) from cases, and who need to know what the data can and cannot say before they compute anything.
+This page describes the record that a Vultron case keeps.
+Every measure in the Measuring CVD section uses this record as its data.
+The page tells which events the case records, and whether each event belongs to the case or to one participant.
+The page also tells which times the case puts on each event, where the record has gaps, and which participants can see which events.
+The page is for people who measure Coordinated Vulnerability Disclosure (CVD) from cases.
+These people need to know the limits of the data before they calculate.
 
 Vultron models Multi-Party CVD (MPCVD) as the general case.
-A two-party case, with one reporter and one vendor, is a special case of the same record, not a separate one, and the [last section](#in-a-two-party-case) says what changes in it.
+A two-party case has one reporter and one vendor.
+A two-party case is a special case of the same record, not a different record.
+The [last section](#in-a-two-party-case) tells what changes in a two-party case.
 
 ---
 
 ## Per-case and per-participant state
 
-A case holds two kinds of state.
-**Participant-agnostic state** belongs to the case as a whole and is the same for every participant.
-**Participant-specific state** belongs to one participant, and each participant holds its own copy independently of the others ([Glossary](../../reference/glossary.md#state-machines-and-status)).
+The state of a case is the set of facts that the case tracks, for example whether the vul is public.
+An event is a change in one of these facts, for example the change from "not public" to "public".
+The table below gives the events that the Measuring CVD pages use, with the symbol for each event.
+
+{% include-markdown "./_case_events.md" %}
+
+Each participant in a case has one or more [roles](../../reference/glossary.md#cvd-roles-and-participants), such as reporter, vendor, deployer, or coordinator.
+
+A case holds two kinds of state:
+
+- **Participant-agnostic state** belongs to the case. The case has one copy, and that copy is the same for every participant.
+- **Participant-specific state** belongs to one participant. Each participant has its own copy, and one participant's copy does not change when another participant's copy changes.
+
+The [Glossary](../../reference/glossary.md#state-machines-and-status) defines both terms.
+The table below shows which kind each part of the case state is.
 
 | State | Belongs to | Held by |
 |---|---|---|
@@ -34,163 +51,269 @@ A case holds two kinds of state.
 | Fix deployment (D) | Each deployer | Every participant with the Deployer role (SDO-03-002) |
 | Participant Embargo Consent (PEC) | Each participant, per embargo | One row for every entry in the embargo register (CM-18-001) |
 
-A participant that is both a vendor and a deployer holds both a fix path and a deployment state.
-A reporter, a coordinator, or an observer holds only its RM state and its consent rows.
+!!! note "Embargo register and consent rows"
 
-The split matters for measurement because it decides how often an event can happen.
-A participant-agnostic event, such as public awareness $\mathbf{P}$, happens once per case.
-A participant-specific event, such as fix readiness $\mathbf{F}$, happens once per vendor, so a case with ten vendors has ten of them.
-The [Foundations](foundations/index.md) model treats a case as six events that each happen once, which is exact only for the participant-agnostic three.
+    The embargo register is the list of every embargo that anyone proposed for the case.
+    Each entry in the register has a status, such as proposed, active, or ended.
+    The case derives its EM state from the statuses in the register.
+    A consent row records the answer of one participant to one embargo in the register.
+    The answer is one of `UNINVITED`, `INVITED`, `AGREED`, `DECLINED`, or `TIMED_OUT` (CM-18-001).
+    A participant with an `AGREED` row for the active embargo is a signatory of that embargo.
 
-The case does not pair a deployer with a vendor.
-A deployer that is not also a vendor may record deployment once any vendor in the case has a fix ready (CSB-15-004), and nothing records whose fix it deployed.
+A participant that is both a vendor and a deployer holds a fix path and a deployment state.
+A reporter, a coordinator, or an observer holds only an RM state and consent rows.
+
+The kind of state controls how many times an event can occur in one case.
+Public awareness ($\mathbf{P}$) is participant-agnostic, so public awareness ($\mathbf{P}$) occurs at most once in a case.
+Fix readiness ($\mathbf{F}$) is participant-specific, so fix readiness ($\mathbf{F}$) can occur once for each vendor.
+A case with ten vendors can have ten fix readiness ($\mathbf{F}$) events.
+
+The [Foundations](foundations/index.md) model gives each case six events, and each event occurs once.
+That assumption is correct for the participant-agnostic events public awareness ($\mathbf{P}$), a public exploit ($\mathbf{X}$), and observed attacks ($\mathbf{A}$).
+That assumption is not correct for the participant-specific events vendor awareness ($\mathbf{V}$), fix readiness ($\mathbf{F}$), and fix deployment ($\mathbf{D}$).
+These events can occur more than once in a case with more than one vendor or deployer.
+
+The case does not link a deployer to a vendor.
+A deployer that is not also a vendor can record a deployment after any vendor in the case has a fix ready (CSB-15-004).
+The case does not record which vendor made the fix that the deployer deployed.
 
 ---
 
 ## Events a case records
 
-The [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) is the participant that holds the case's canonical record.
-It writes one case ledger entry for each change it admits to the case, in the order it admits them (CLP-07-013).
-A decision that changes nothing, such as noticing that a deadline has passed, is not an entry.
+The [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) is the participant that holds the canonical record of the case.
+This record is the case ledger.
+Participants send their changes to the CASE_MANAGER as protocol messages.
+The CASE_MANAGER checks each change, and admits the change to the case only if the change is valid.
+For each admitted change, the CASE_MANAGER writes one case ledger entry (CLP-07-013).
+The CASE_MANAGER writes the entries in the order that it admits the changes.
+The CASE_MANAGER then sends a copy of each entry to the other participants.
+The copy of the ledger that a participant holds is its replica.
+A decision that changes nothing is not an entry.
+For example, the CASE_MANAGER does not write an entry when it sees that a deadline has passed and nothing else changes.
+
+The table below names each entry by its protocol message.
+A protocol message has the form of an ActivityStreams activity: a verb and the object of the verb.
+For example, `Add(ParticipantStatus)` adds a new status to a participant.
+The [message reference](../../reference/messages/index.md) describes each message.
+The case owner is the participant that created the case, or that later received ownership of the case.
 
 | Event | Belongs to | Recorded as |
 |---|---|---|
-| Case creation | The case | The genesis entry, the CASE_MANAGER's `Create(VulnerabilityCase)` |
-| A participant joins | The participant | Its acceptance of the invitation to the case, and the CASE_MANAGER's record of the new participant |
-| Report received, valid, accepted, deferred, closed | The participant | Its status update, `Add(ParticipantStatus)`, or the act that moves its RM state, such as joining, validating, deferring, or leaving the case |
-| Vendor awareness, fix ready | The vendor | Its status update, `Add(ParticipantStatus)`, with a new fix-path state |
-| Fix deployed | The deployer | A status update with a new deployment state, sent by the deployer or on its behalf by the CASE_MANAGER or the case owner |
-| Public awareness, public exploit, attacks observed | The case | The CASE_MANAGER's own `Add(CaseStatus)`, when it adopts what a participant reported |
-| Embargo proposed, accepted, rejected, ended | The case | The proposal's `Invite(EmbargoEvent)`, its answers, and the termination's `Remove(EmbargoEvent)` |
-| Consent given, refused, or timed out | The participant, per embargo | Its `Accept` or `Reject` of the embargo Invite, or the CASE_MANAGER's `Update(EmbargoConsent)` |
-| A note added or removed | The case | The note's `Add` or `Remove` |
-| Case ownership transferred | The case | The transfer's offer, its answer, and the CASE_MANAGER's `Update(VulnerabilityCase)` naming the new owner |
+| Case creation | The case | The first entry of the ledger (the genesis entry), the CASE_MANAGER's `Create(VulnerabilityCase)` |
+| A participant joins | The participant | The participant's acceptance of the invitation to the case, and the CASE_MANAGER's record of the new participant |
+| Report received, valid, accepted, deferred, closed | The participant | The participant's status update, `Add(ParticipantStatus)`, or the act that changes the participant's RM state: joining, validating, deferring, or leaving the case |
+| Vendor awareness, fix ready | The vendor | The vendor's status update, `Add(ParticipantStatus)`, with a new fix-path state |
+| Fix deployed | The deployer | A status update with a new deployment state, sent by the deployer, or by the CASE_MANAGER or the case owner for the deployer |
+| Public awareness, public exploit, attacks observed | The case | The CASE_MANAGER's own `Add(CaseStatus)`, written when the CASE_MANAGER accepts a participant's report as the state of the case (adoption) |
+| Embargo proposed, accepted, rejected, ended | The case | The proposal's `Invite(EmbargoEvent)`, the answers to the proposal, and the termination's `Remove(EmbargoEvent)` |
+| Consent given, refused, or timed out | The participant, per embargo | The participant's `Accept` or `Reject` of the embargo Invite, or the CASE_MANAGER's `Update(EmbargoConsent)` |
+| A note added or removed | The case | The `Add` or `Remove` of the note |
+| Case ownership transferred | The case | The transfer offer, the answer to the offer, and the CASE_MANAGER's `Update(VulnerabilityCase)` that names the new owner |
 
-The ledger is therefore a time-ordered history of the case, covering every report, embargo, consent, participant, and case status change.
-Its order is the log index, each entry's position in the hash chain, which is the authoritative order of admission (CLP-14-001).
+The ledger is thus a history of the case in time order.
+The ledger records every change to report status, embargo, consent, participants, and case status.
+
+The ledger is a hash chain: each entry includes the hash of the entry before it.
+Thus no one can change an earlier entry without detection.
+Each entry has a log index, which is the position of the entry in the hash chain.
+The log index gives the authoritative order in which the CASE_MANAGER admitted the changes (CLP-14-001).
 
 ---
 
 ## Two clocks
 
-Each entry carries two times.
+Each ledger entry carries two times.
 
 | Time | Where it is | What it means |
 |---|---|---|
-| Commit stamp | The entry's own `published`, equal to its `receivedAt` | The CASE_MANAGER's clock when it committed the entry (CLP-14-002); non-decreasing in log order (CLP-14-003) |
-| Claimed time | The `published` of the activity the entry carries | The time the sender put on its activity, which every activity must carry (CLP-15-006) |
+| Commit stamp | The `published` field of the entry, equal to its `receivedAt` | The time on the CASE_MANAGER's clock when the CASE_MANAGER committed the entry (CLP-14-002); the commit stamp never decreases in log order (CLP-14-003) |
+| Claimed time | The `published` field of the activity in the entry | The time that the sender put on its activity; every activity must carry a claimed time (CLP-15-006) |
 
-The commit stamp comes from one clock, so the interval between any two entries is comparable.
-It records when the CASE_MANAGER learned of an event, which can be later than when the event happened.
+All commit stamps in a case come from one clock, the CASE_MANAGER's clock.
+Thus the interval between any two commit stamps in a case is a valid comparison.
+A commit stamp tells you when the CASE_MANAGER learned of an event.
+The CASE_MANAGER can learn of an event after the event occurred.
 
-The claimed time is the sender's own clock.
-A participant should set it to when the event happened, not when it sent or retried the message (CLP-15-004).
-It must be monotonic only across one participant's causally related activities (CLP-15-003), so two participants' claimed times can disagree.
-The CASE_MANAGER records it as received, without correcting it, because the ledger is what the CASE_MANAGER observed, not a reconstruction of each participant's order (CLP-15-005).
+A claimed time comes from the clock of the sender.
+The sender should use the time that the event occurred, not the time that the sender sent or sent again the message (CLP-15-004).
+The claimed times of one participant must not decrease across activities that depend on each other (CLP-15-003).
+The claimed times of two different participants come from two different clocks, so these claimed times can disagree.
 
-For an entry the CASE_MANAGER writes itself, such as an adopted case status or an embargo it ends, both times come from the CASE_MANAGER's clock.
+The CASE_MANAGER records each claimed time as received, and does not correct it.
+The reason is that the ledger records what the CASE_MANAGER observed (CLP-15-005).
+The ledger does not try to rebuild the order of events at each participant.
+
+Some entries are written by the CASE_MANAGER itself, for example an adopted case status or an embargo termination.
+For these entries, the commit stamp and the claimed time both come from the CASE_MANAGER's clock.
 
 ---
 
 ## Data gaps
 
-Most measures can be computed from the case ledger as it is.
-The gaps below limit some of them.
+Most measures need only the case ledger.
+The gaps in this section limit some measures.
 
 ### Statuses seated at case creation
 
-The case owner creates the case on receiving the report, and the creation sequence seats it at RM Received (CM-14-009) and the reporter at RM Accepted (CM-14-012).
-Those statuses are committed in the creation sequence, so their commit stamps carry the creation time, not the time of the event.
-The case owner's $\mathbf{R}$ is the creation time, and the report's own received time lives with the case owner, outside the case ledger.
-The reporter's $\mathbf{Ac}$ is not a decision at all, so it has no interval to measure.
-The case owner's later validation and acceptance are entries of their own, so its time to validate and time to accept are measurable from the creation time.
+The case owner creates the case when it receives the report.
+The [RM model](../process_models/rm/index.md) gives each participant a report state, such as Received, Valid, Accepted, Deferred, or Closed.
+The creation sequence puts the case owner at RM Received (CM-14-009), and puts the reporter at RM Accepted (CM-14-012).
+The CASE_MANAGER commits these two statuses during the creation sequence.
+Thus the commit stamps of these two statuses show the creation time, not the time of each event.
+
+For the case owner, the time of report receipt ($\mathbf{R}$) is the creation time.
+The time that the case owner actually received the report stays with the case owner, outside the case ledger.
+For the reporter, report acceptance ($\mathbf{Ac}$) is not a decision, so report acceptance ($\mathbf{Ac}$) has no interval to measure.
+The later validation and acceptance by the case owner are separate entries.
+Thus the time from case creation to the validation and acceptance by the case owner is measurable.
 
 ### Clock decisions are stamped when the CASE_MANAGER next acts
 
-Two kinds of change happen because a deadline passes: an embargo reaching its end time, and an embargo Invite reaching its RSVP deadline with no answer.
-Neither runs on a timer.
-The CASE_MANAGER ends an embargo at its end time when it next handles the case, or when something outside asks it to, such as a monitor of embargo timers (EMB-13-003).
-It times out an unanswered Invite when it next processes an embargo activity for the case (CM-28-015).
+Two kinds of change occur because a deadline passes:
 
-Both changes are stamped when the CASE_MANAGER makes them, which can be well after the deadline.
-The termination's claimed time is also the handling time, not the end time.
-The deadline itself is on the record: the embargo carries its end time, and the Invite carries its RSVP deadline.
-A measure of when an embargo actually ended should read the end time from the embargo for an `END_TIME_REACHED` termination, and treat the stamp as an upper bound.
+- An embargo reaches its end time.
+- An embargo Invite reaches its RSVP deadline, and the invitee has not answered. The RSVP deadline is the time by which the invited participant must answer.
+
+A timer does not start these changes.
+The CASE_MANAGER ends an embargo at the end time in one of two conditions (EMB-13-003):
+
+- The CASE_MANAGER next handles the case.
+- An outside service, such as a monitor of embargo timers, tells the CASE_MANAGER to end the embargo.
+
+The CASE_MANAGER times out an unanswered Invite when it next processes an embargo activity for the case (CM-28-015).
+
+The CASE_MANAGER stamps each of these changes when it makes the change.
+This time can be much later than the deadline.
+The claimed time of the termination is also the time that the CASE_MANAGER handled the case, not the end time.
+
+The record keeps each deadline.
+The embargo carries its end time, and the Invite carries its RSVP deadline.
+Each termination records its reason, and `END_TIME_REACHED` is the reason for an embargo that ended because its end time passed.
+For an `END_TIME_REACHED` termination, the end time on the embargo is the actual end of the embargo.
+The commit stamp of the termination is only the latest possible end.
 
 ### An ownership-transfer expiry is not ledgered
 
 An offer to transfer case ownership carries an end time.
-When it passes, the CASE_MANAGER treats the offer as closed, but it records no entry, because no participant's record changes (CM-21-017, ADR-0152).
-The expiry time is the offer's end time, read from the ledgered offer, and a measure of transfer latency has to derive it.
+When the end time passes, the CASE_MANAGER treats the offer as closed.
+The CASE_MANAGER does not record an entry for the expiry, because no participant's record changes (CM-21-017, ADR-0152).
+A measure of the time from an offer to its expiry must get the expiry time from the end time on the ledgered offer.
 
 ### The case's public state is stamped when it is adopted
 
-A participant that learns of public awareness, a public exploit, or attacks reports it in its own status update, which is ledgered with that participant's claimed time.
-The case's own PXA state changes only when the CASE_MANAGER adopts the report and commits its own `Add(CaseStatus)`.
-That entry's times are both the CASE_MANAGER's clock at adoption.
-The case-level time of $\mathbf{P}$, $\mathbf{X}$, or $\mathbf{A}$ is therefore when the CASE_MANAGER adopted it, not when a participant first reported it.
-The earliest report is recoverable from the participants' own status entries, which come first in the ledger.
+A participant can learn of public awareness, a public exploit, or attacks.
+The participant then reports this information in its own status update.
+The CASE_MANAGER ledgers the status update with the claimed time of the participant.
+
+The PXA state of the case changes only when the CASE_MANAGER adopts the report.
+To adopt the report, the CASE_MANAGER commits its own `Add(CaseStatus)`.
+Both times on the `Add(CaseStatus)` entry come from the CASE_MANAGER's clock at adoption.
+
+Thus the case-level time of public awareness ($\mathbf{P}$), a public exploit ($\mathbf{X}$), or observed attacks ($\mathbf{A}$) is the time that the CASE_MANAGER adopted the report.
+The case-level time is not the time that a participant first reported the event.
+The first report is in the status entries of the participants.
+These status entries come before the `Add(CaseStatus)` entry in the ledger.
 
 ### Events outside the protocol are stamped when reported
 
-For protocol acts, such as an acceptance, an embargo step, or a join, the event and its commit are close in time.
-For $\mathbf{X}$ and $\mathbf{A}$, which happen outside the protocol, the lag between occurrence and a participant's report of it can be long, and nothing measures it.
+Some events are protocol acts, for example an acceptance, an embargo step, or a join.
+For a protocol act, the event and its commit occur at almost the same time.
+
+A public exploit ($\mathbf{X}$) and attacks ($\mathbf{A}$) occur outside the protocol.
+A participant can report a public exploit ($\mathbf{X}$) or observed attacks ($\mathbf{A}$) a long time after the event.
+The record does not show the length of this delay.
 
 ### Refusals and replays are not on the ledger
 
-A refusal notice and a replica's request for a replay are about the ledger, not about the case, so neither is ledgered (CLP-02-012, CLP-02-013).
-A count of refusals or replays needs the CASE_MANAGER's own logs or its outbox, not the case ledger.
+When the CASE_MANAGER does not admit a change, it sends a refusal notice to the participant that sent the change (CLP-05-001).
+A refusal notice is about the ledger, not about the case.
+A replica that misses entries can ask the CASE_MANAGER to send the entries again, which is a replay.
+A request for a replay is also about the ledger, not about the case.
+Thus the CASE_MANAGER does not ledger refusal notices or replay requests (CLP-02-012, CLP-02-013).
+A count of refusals or replays must use the CASE_MANAGER's own logs or its outbox.
 
 ### Embargo records carry no times of their own
 
-An entry in the embargo register and a participant's consent row hold a status, and no time of the step that set it.
-They do carry times about the embargo: an embargo's end time, and an Invite's RSVP deadline.
-Their timing comes only from the ledger entries that recorded each step.
-Every embargo measure therefore needs a join from the register and the consent rows back to the ledger.
+An entry in the embargo register holds a status.
+A participant's consent row also holds a status.
+Neither record holds the time of the step that set the status.
+
+These records do hold two deadlines: the end time of an embargo, and the RSVP deadline of an Invite.
+The time of each step is only in the ledger entry that recorded the step.
+Thus every embargo measure must connect the embargo register and the consent rows to the ledger entries.
 
 ---
 
 ## Who observes what
 
 The CASE_MANAGER holds the complete ledger.
-Every other participant holds a replica, which receives the ledger's entries while the participant is active in the case (CM-10-004).
-While an embargo is active, a participant that has not agreed to it receives nothing until it agrees or the embargo ends, and then receives every entry it missed, in order (CM-10-005, CM-10-006).
-A participant whose report is closed stops receiving entries after those that record its closure (CM-23-004).
-So a participant's replica is the CASE_MANAGER's ledger, or a part of it, and only the CASE_MANAGER's copy is complete.
+Every other participant holds a replica of the ledger.
+A participant's replica receives ledger entries while the participant is active in the case (CM-10-004).
+A participant is active after it joins the case, until it is removed.
+While an embargo is active, a participant is also active only if it agreed to that embargo.
 
-What enters the ledger is only as good as what participants report.
+These conditions stop or pause the flow of entries to a participant:
 
-- Report handling, embargo steps, consent, and joining are protocol acts, so the ledger records them as they happen.
-- Fix readiness is the vendor's own report.
-- Deployment is the deployer's own report, or one made on its behalf, and is the event least likely to be reported at all.
-- A public exploit and observed attacks happen outside the protocol, and reach the case only when a participant reports them.
+- An embargo is active, and the participant has not agreed to it. The participant receives no entries until it agrees or the embargo ends. Then the participant receives every entry that it did not get, in order (CM-10-005, CM-10-006).
+- The participant's report is closed. The participant receives no entries after the entries that record its closure (CM-23-004).
 
-Parties outside the case see only what its participants publish.
-[Observing Skill](observing_skill.md) shows what can be inferred from that public record alone.
+Thus a participant's replica holds all or part of the CASE_MANAGER's ledger.
+Only the CASE_MANAGER's ledger is complete.
+
+The ledger can only be as accurate as the reports of the participants.
+The table below shows the source of each kind of event.
+
+| Event | Source |
+|---|---|
+| Report handling, embargo steps, consent, joining | Protocol acts. The ledger records each act when it occurs. |
+| Fix readiness | The vendor's own report |
+| Deployment | The deployer's own report, or a report for the deployer by the CASE_MANAGER or the case owner. Deployment is the event that participants report least often. |
+| Public exploit, attacks observed | Events outside the protocol. The case learns of them only when a participant reports them. |
+
+Parties outside the case see only what the participants publish.
+[Observing Skill](observing_skill.md) shows what the public record alone can tell.
 
 ---
 
 ## In a two-party case
 
 A two-party case has one reporter and one vendor.
-Its participant-agnostic state is the same as in any case: one PXA state and one EM state.
-Its participant-specific state is two copies: the reporter's RM state and consent rows, and the vendor's RM state, fix path, and consent rows.
-Every participant-specific event happens at most once for the vendor, so the six-event model of the [Foundations](foundations/index.md) fits it closely.
-Deployment is the exception: the case records it only if the vendor also holds the Deployer role, or if a deployer joins and the case stops being two-party.
+The participant-agnostic state of a two-party case is the same as in any case: one PXA state and one EM state.
+
+The participant-specific state of a two-party case has two copies:
+
+- The reporter holds an RM state and consent rows.
+- The vendor holds an RM state, a fix path, and consent rows.
+
+In a two-party case, vendor awareness ($\mathbf{V}$) and fix readiness ($\mathbf{F}$) each occur at most once, because the case has one vendor.
+Thus the six-event model of the [Foundations](foundations/index.md) is almost correct for a two-party case.
+
+Deployment ($\mathbf{D}$) is the exception.
+The case records fix deployment ($\mathbf{D}$) only in one of two conditions:
+
+- The vendor also has the Deployer role.
+- A deployer joins the case. The case then has three participants and is no longer a two-party case.
+
+---
 
 ## Reading the record
 
-A measure reads the case's ledger, merges what replicas hold where it has no CASE_MANAGER copy, and joins the embargo register and consent rows back to the entries that set them.
+A measure starts with the CASE_MANAGER's ledger.
+If the CASE_MANAGER's ledger is not available, the measure merges the replicas of the participants.
+For embargo times, the measure connects the embargo register and the consent rows to the ledger entries that set them.
 
 !!! info "In the reference implementation"
 
-    The demo scenarios write each actor's copy of the ledger as JavaScript Object Notation (JSON) Lines, one file per actor and case, under `devlogs/<demo>/<actor>/` (`vultron/demo/helpers/ledger_dump.py`).
-    `vultron-demo-report` (`vultron/demo/report.py`) reads those files, merges the replicas into one timeline per case in log order, and shows which actors' replicas hold each entry (DRPT-02).
-    Each timeline event carries its actor, semantic type, target, commit stamp, and the state changes it records.
+    The demo scenarios write each actor's copy of the ledger as JavaScript Object Notation (JSON) Lines files, under `devlogs/<demo>/<actor>/` (`vultron/demo/helpers/ledger_dump.py`).
+    Each file holds one actor's copy of the ledger for one case.
+    `vultron-demo-report` (`vultron/demo/report.py`) reads these files and merges the replicas into one timeline for each case, in log order (DRPT-02).
+    The report also shows which actors' replicas hold each entry.
+    Each timeline event shows the actor, the semantic type, the target, the commit stamp, and the state changes that the entry records.
 
 ## Further reading
 
-- [The CASE_MANAGER and the Case Ledger](../case_lifecycle/case_manager_and_ledger.md) — the ledger that supplies every entry and timestamp on this page.
-- [Desiderata from the Process Models](process_model_desiderata.md) — the orderings over these events that a case should achieve.
+- [The CASE_MANAGER and the Case Ledger](../case_lifecycle/case_manager_and_ledger.md) — the ledger that supplies every entry and every time on this page.
+- [Desiderata from the Process Models](process_model_desiderata.md) — the orders of these events that a case should achieve.
 - [Timing Metrics Within a Case](timing_metrics.md) — the intervals between these events that the two clocks make measurable.
-- [Open Questions](open_questions.md) — what measuring CVD still leaves open.
+- [Open Questions](open_questions.md) — the questions about measuring CVD that are still open.

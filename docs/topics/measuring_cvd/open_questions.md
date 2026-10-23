@@ -10,191 +10,266 @@ description: >
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-This page lists the questions about measuring Coordinated Vulnerability Disclosure (CVD) that remain open.
-They began as the limitations named in the original research, and some have since been partly answered by what a Vultron case records.
-For each partly answered question, the open part comes first, followed by what is now settled and where it is described.
-The page is for people who study the CVD process and want to know where the research could go next.
+This page lists the open questions about measuring Coordinated Vulnerability Disclosure (CVD).
+The original research named these questions as limitations of its model.
+Since then, the record that a Vultron case keeps has partly answered some of these questions.
+For each partly answered question, the page gives the open part first, and then the settled part with a link.
+The page is for people who study the CVD process and want to know where the research can go next.
 
-The questions use the six Case State (CS) events of the [Foundations](foundations/index.md): vendor awareness $\mathbf{V}$, fix ready $\mathbf{F}$, fix deployed $\mathbf{D}$, public awareness $\mathbf{P}$, exploit public $\mathbf{X}$, and attacks observed $\mathbf{A}$.
-[What a Case Records](what_a_case_records.md) describes how a Vultron case records each of them.
+The questions use the six Case State (CS) events of the [Foundations](foundations/index.md):
+
+| Event | Meaning |
+|---|---|
+| $\mathbf{V}$ | The vendor is aware of the vul |
+| $\mathbf{F}$ | The fix is ready |
+| $\mathbf{D}$ | The fix is deployed |
+| $\mathbf{P}$ | The public is aware of the vul |
+| $\mathbf{X}$ | An exploit is public |
+| $\mathbf{A}$ | Attacks are observed |
+
+[What a Case Records](what_a_case_records.md) describes how a Vultron case records each of these six events.
+
+The questions also use these terms from the Foundations:
+
+| Term | Meaning |
+|---|---|
+| History | The order in which the six events occur in one case |
+| Desideratum | An order of two events that a case should achieve, for example a fix that is ready before the vul is public; $a \prec b$ means that event $a$ occurs before event $b$ |
+| Baseline | How often a desideratum holds by chance |
+| Skill coefficient | A score that compares how often a desideratum holds in observed cases with its baseline |
 
 ---
 
 ## When is a fix deployed?
 
-The model treats each event as a single point in time.
-Fix deployed $\mathbf{D}$ is better described as a diffusion: every vulnerable instance has its own state, and the fix reaches them over time.
-To apply the model to real observations, a deployer needs a threshold at which it counts $\mathbf{D}$ as having happened.
+The Foundations model treats each event as one point in time.
+Fix deployment ($\mathbf{D}$) is not one point in time.
+Each vulnerable system has its own deployment state, and the fix reaches the systems over a period of time.
+Thus a deployer needs a threshold at which it counts fix deployment ($\mathbf{D}$) as complete.
 
-This is a question vulnerability management practice already faces: deciding when a fix counts as deployed across an enterprise.
-Many organizations use a fixed quantile as a Service Level Expectation (SLE), such as 80% of known vulnerable systems patched within a set time.
-Others track deployment by risk group, such as end-user systems, servers, and network infrastructure, and mark $\mathbf{D}$ when each group reaches its threshold.
-Nothing in the model precludes such roll-up functions, and the model does not choose one.
+Vulnerability management practice already has this question: when is a fix deployed across an enterprise?
+Many organizations use a fixed percentage as a Service Level Expectation (SLE).
+For example, an SLE can require a fix on 80% of known vulnerable systems within a set time.
+Other organizations set a threshold for each risk group, such as end-user systems, servers, and network infrastructure.
+These organizations then mark fix deployment ($\mathbf{D}$) when each risk group reaches its threshold.
+The Foundations model permits each of these thresholds, and does not choose one.
 
-Settled: in a Vultron case $\mathbf{D}$ belongs to each deployer, so a case records each deployer's deployment separately ([What a Case Records](what_a_case_records.md#per-case-and-per-participant-state)).
+Settled: in a Vultron case, each deployer has its own fix deployment ($\mathbf{D}$), so the case records the deployment of each deployer separately ([What a Case Records](what_a_case_records.md#per-case-and-per-participant-state)).
 
 ---
 
 ## How likely is each transition?
 
-The [random walk](random_walk.md) baseline makes each allowed transition equally likely.
-It is a reasonable criticism that some transitions become more or less likely given the history so far.
+A transition is the occurrence of the next event in a history.
+The Foundations get their baseline from a [random walk](random_walk.md), which gives the same probability to each permitted transition.
+A reasonable objection is that the probability of a transition can depend on the events that occurred before it.
 
-Many people believe, for example, that publishing an exploit makes attacks more likely.
-The model turns that belief into a testable hypothesis: is $p(\mathbf{A} \mid q \in \mathcal{Q}_X) > p(\mathbf{A} \mid q \in \mathcal{Q}_x)$ over some set of cases?
-Other beliefs take the same form.
-Does making a vul public before a fix is ready increase attacks?
+For example, many people think that a public exploit makes attacks more likely.
+The Foundations model lets you test this belief.
+The test asks whether attacks are more probable in cases where an exploit is public than in cases where no exploit is public.
+In the notation of the Foundations, $\mathcal{Q}_X$ is the set of case states with a public exploit, and $\mathcal{Q}_x$ is the set without one.
+The test is whether $p(\mathbf{A} \mid q \in \mathcal{Q}_X) > p(\mathbf{A} \mid q \in \mathcal{Q}_x)$ is true over a set of cases.
 
-$$p(\mathbf{A} \mid q \in fP) > p(\mathbf{A} \mid q \in FP)?$$
+Other beliefs have the same form.
+One belief is that attacks increase when the vul is public before the fix is ready.
+In the formula below, $fP$ is the set of states where the fix is not ready and the vul is public.
+$FP$ is the set of states where the fix is ready and the vul is public:
 
-Does notifying vendors before the vul is public make it more likely that fixes are deployed before attacks are observed?
+$$p(\mathbf{A} \mid q \in fP) > p(\mathbf{A} \mid q \in FP)$$
 
-$$p(\mathbf{D} \prec \mathbf{A} \mid \mathbf{V} \prec \mathbf{P}) > p(\mathbf{D} \prec \mathbf{A} \mid \mathbf{P} \prec \mathbf{V})?$$
+Another belief is that vendor notification before public awareness makes deployment before attacks more likely:
 
-These questions could be asked before.
-What the model adds is a concise statement of each in terms of the six events, which shows what data a CVD practice would need to collect to answer it.
+$$p(\mathbf{D} \prec \mathbf{A} \mid \mathbf{V} \prec \mathbf{P}) > p(\mathbf{D} \prec \mathbf{A} \mid \mathbf{P} \prec \mathbf{V})$$
 
-The same question applies to the extended desiderata on [Desiderata from the Process Models](process_model_desiderata.md), whose baselines need a walk over the coupled report, embargo, consent, and case state space.
-Task [#5072](https://github.com/CERTCC/Vultron/issues/5072){:target="_blank"} records that computation.
+Researchers could ask these questions before the Foundations model existed.
+The model adds a short statement of each question in terms of the six events.
+Each statement shows which data a CVD practice must collect to answer the question.
+
+The same question applies to the extended desiderata on [Desiderata from the Process Models](process_model_desiderata.md).
+The baselines for the extended desiderata need a random walk over the combined report, embargo, consent, and case state space.
+Task [#5072](https://github.com/CERTCC/Vultron/issues/5072){:target="_blank"} records this calculation.
 
 ---
 
 ## Which desiderata matter more?
 
-[Reasoning Over Histories](reasoning_over_histories.md) leaves some preferences between desiderata unresolved.
-Until they are resolved, the desiderata induce only a partial order over histories, not a total order.
-The open choices are whether it is better
+[Reasoning Over Histories](reasoning_over_histories.md) does not decide some preferences between desiderata.
+Until someone decides these preferences, the desiderata give only a partial order over histories, not a total order.
+A total order ranks every history above or below every other history.
+A partial order leaves some pairs of histories without a rank.
+The open preferences are these three pairs:
 
-- that Fix Ready precede Exploit Publication ($\mathbf{F} \prec \mathbf{X}$), or that Vendor Awareness precede Public Awareness ($\mathbf{V} \prec \mathbf{P}$);
-- that Public Awareness precede Exploit Publication ($\mathbf{P} \prec \mathbf{X}$), or that Exploit Publication precede Attacks ($\mathbf{X} \prec \mathbf{A}$);
-- that Public Awareness precede Attacks ($\mathbf{P} \prec \mathbf{A}$), or that Vendor Awareness precede Exploit Publication ($\mathbf{V} \prec \mathbf{X}$).
+| Is it better that… | …or that… |
+|---|---|
+| The fix is ready before an exploit is public ($\mathbf{F} \prec \mathbf{X}$) | The vendor is aware before the public is aware ($\mathbf{V} \prec \mathbf{P}$) |
+| The public is aware before an exploit is public ($\mathbf{P} \prec \mathbf{X}$) | An exploit is public before attacks are observed ($\mathbf{X} \prec \mathbf{A}$) |
+| The public is aware before attacks are observed ($\mathbf{P} \prec \mathbf{A}$) | The vendor is aware before an exploit is public ($\mathbf{V} \prec \mathbf{X}$) |
 
-We look forward to the "would you rather" discussions these invite.
+We look forward to the "would you rather" discussions that these pairs start.
 
 ---
 
 ## What timing should a case meet?
 
-The CS model has a sense of order and no sense of time.
-Two cases with $\mathbf{F} \prec \mathbf{A}$ are very different if one had a week between the events and the other had three months.
-Organizations may want timing expectations as well as orderings: SLEs for $\mathbf{V}$ to $\mathbf{F}$, $\mathbf{F}$ to $\mathbf{D}$, $\mathbf{F}$ to $\mathbf{A}$, and so on.
-Which SLEs a program should hold itself to, and at what values, is open.
+The CS model records the order of events, and does not record time.
+Consider two cases where fix readiness ($\mathbf{F}$) occurs before observed attacks ($\mathbf{A}$).
+In one case, the interval from fix readiness ($\mathbf{F}$) to observed attacks ($\mathbf{A}$) is one week.
+In the other case, the interval is three months.
+These two cases are very different, but the CS model gives them the same score.
 
-In the long run, the time from $\mathbf{F}$ to $\mathbf{A}$ sets the response time that a deployer's vulnerability management must meet.
-Neither deployers nor vendors choose when attacks happen, so that time is largely random.
-A deployer that cannot usually make the time from $\mathbf{F}$ to $\mathbf{D}$ shorter than the time from $\mathbf{F}$ to $\mathbf{A}$, which is achieving $\mathbf{D} \prec \mathbf{A}$, has an ineffective program by any reasonable standard.
+Organizations can set time limits as well as orders.
+For example, an organization can set an SLE for each of these intervals:
 
-Timing data has gaps of its own.
-Some events are stamped when the CASE_MANAGER next handles the case rather than when they happened, and some are not recorded at all ([What a Case Records](what_a_case_records.md#data-gaps)).
-A timing measure has to decide how to treat them.
+- vendor awareness ($\mathbf{V}$) to fix readiness ($\mathbf{F}$)
+- fix readiness ($\mathbf{F}$) to fix deployment ($\mathbf{D}$)
+- fix readiness ($\mathbf{F}$) to observed attacks ($\mathbf{A}$)
 
-Settled: a Vultron case stamps every change it records, so the intervals are measurable, and [Timing Metrics Within a Case](timing_metrics.md) proposes them.
+Which SLEs a program should use, and at what values, is an open question.
+
+Over many cases, the interval from fix readiness ($\mathbf{F}$) to observed attacks ($\mathbf{A}$) sets the response time that a deployer must meet.
+Deployers and vendors do not choose when attacks occur, so the interval from fix readiness ($\mathbf{F}$) to observed attacks ($\mathbf{A}$) is largely random.
+Consider a deployer that usually takes longer to deploy a fix than attackers take to attack.
+In other words, its interval from fix readiness ($\mathbf{F}$) to fix deployment ($\mathbf{D}$) is usually longer than the interval from fix readiness ($\mathbf{F}$) to observed attacks ($\mathbf{A}$).
+That deployer usually fails to achieve fix deployment before observed attacks ($\mathbf{D} \prec \mathbf{A}$), and its vulnerability management is not effective.
+
+Timing data has its own gaps.
+The CASE_MANAGER stamps some events when it next handles the case, not when the events occurred.
+The CASE_MANAGER does not record some other events at all ([What a Case Records](what_a_case_records.md#data-gaps)).
+Each timing measure must decide how to treat these gaps.
+
+Settled: a Vultron case stamps every change that it records, so intervals are measurable, and [Timing Metrics Within a Case](timing_metrics.md) proposes interval measures.
 
 ---
 
 ## Are attacks random?
 
-The model treats attacks as random events.
-Attacks are not random: at the level of one attacker, an intelligent adversary follows its own objectives.
+The Foundations model treats attacks as random events.
+Attacks are not random.
+Each attacker is an intelligent adversary with its own objectives.
 
-Modeling individual attackers is beyond the scope of this model.
-We keep the stochastic treatment as a modeling stance, because it is a reasonable view of adversaries from the position of a vendor or a deployer.
-If attacks were easy to predict, this would be a very different conversation.
+A model of each attacker is outside the scope of the Foundations model.
+We keep the random treatment of attacks as a modeling choice.
+For a vendor or a deployer, a random treatment is a reasonable view of adversaries.
+If attacks were easy to predict, the problem would be very different.
 
 ---
 
 ## How do participants' strategies interact?
 
-An agent-based model could examine how participants' strategies interact in Multi-Party CVD (MPCVD).
-Many of the mechanisms behind the events in this model are hidden from it, and would be hard to observe even if they were included.
-The model trades causal detail for generality: it measures outcomes independently of the mechanisms that produce them.
-An agent-based model of MPCVD would be better placed to study the mechanisms, and none exists yet.
+An agent-based model could show how the strategies of participants interact in Multi-Party CVD (MPCVD).
+The Foundations model does not show the causes of its events.
+Many of these causes are also difficult to observe.
+The Foundations model gives up causal detail to get a general model: it measures outcomes, not the causes of the outcomes.
+An agent-based model of MPCVD would be better for the study of causes, but no such model exists yet.
 
-Settled: in Vultron each participant is an actor with its own store that coordinates only through protocol messages, and the reference implementation's [demo scenarios](../../tutorials/container_demos.md) run several such actors through complete cases, without modeling their strategy.
+Settled: in Vultron, each participant is an actor with its own store, and actors coordinate only through protocol messages.
+The [demo scenarios](../../tutorials/container_demos.md) of the reference implementation run several actors through complete cases, but the demo scenarios do not model strategy.
 
 ---
 
 ## Where does the data come from?
 
-[Benchmarking CVD](benchmarking.md) discusses how different baselines change the result of a skill assessment.
-It proposes using the observed performance of a team or teams as the baseline against which other CVD practitioners are compared.
-Such data could also support causal reasoning about event orderings and help find effective interventions.
-For example, might forcing $\mathbf{X} \prec \mathbf{F}$ improve the chances of $\mathbf{D} \prec \mathbf{A}$ when a vendor is slow to produce a fix?
-Whether to compare a team against chance or against other teams remains open.
+[Benchmarking CVD](benchmarking.md) discusses how the choice of baseline changes the result of a skill assessment.
+Benchmarking CVD proposes a baseline from the observed performance of one or more teams.
+Other CVD practitioners are then compared against that baseline.
 
-Answering such questions needs a large body of event timings, across many kinds of participants and vuls.
-That body of data does not exist.
-The model does not depend on the uniformity assumption holding: it measures deviation from a stated baseline, whether chance or past observation.
+Data of this kind could also support causal research on the order of events, and help to find effective interventions.
+For example, consider a vendor that is slow to make a fix.
+In that case, a public exploit before the fix ($\mathbf{X} \prec \mathbf{F}$) can perhaps make deployment before attacks ($\mathbf{D} \prec \mathbf{A}$) more likely.
+It is an open question whether to compare a team against chance or against other teams.
 
-Collecting event records across many organizations' cases is the open part.
+To answer these questions, researchers need event times from many cases, many kinds of participants, and many vuls.
+This collection of data does not exist.
+The Foundations model does not need the assumption that all transitions are equally likely.
+The model measures the difference from a stated baseline, and that baseline can be chance or past observations.
 
-Settled: a Vultron case's ledger timestamps every change, so each case run on Vultron produces its event orders and intervals as a side effect of coordinating ([What a Case Records](what_a_case_records.md)).
+The open part is the collection of event records from the cases of many organizations.
+
+Settled: the ledger of a Vultron case stamps every change ([What a Case Records](what_a_case_records.md)).
+Thus each Vultron case gives the order and the intervals of its events as part of normal coordination.
 
 ---
 
 ## Who can observe what?
 
-Not every event, and so not every desideratum, is observable by every interested party.
-In many cases at least some are, and those can bound the others, as [Observing Skill](observing_skill.md) shows.
-Which events each party can see, and how well a measure holds up when some are missing, is open beyond that one example.
+Not every party can observe every event.
+Thus not every party can measure every desideratum.
+In many cases, a party can observe some of the events, and these events can set limits on the events that it cannot observe.
+[Observing Skill](observing_skill.md) shows one example of this method.
+Which events each party can see, and how well a measure works when events are missing, is open beyond that one example.
 
-Settled: for a Vultron case, [What a Case Records](what_a_case_records.md#who-observes-what) describes which events reach which participants and which happen outside the protocol.
+Settled: for a Vultron case, [What a Case Records](what_a_case_records.md#who-observes-what) describes which events reach which participants, and which events occur outside the protocol.
 
 ---
 
 ## Is the multi-party measure fair?
 
-The criteria proposed on [Benchmarking MPCVD](benchmarking_mpcvd.md) do not account for user populations or their relative importance.
-Suppose an MPCVD case has 15 vendors: 5 vendors with 95% of the users reach good outcomes, and 10 vendors with the other 5% reach poor ones.
-The proposed criterion, a high median skill score with low variance, would likely fail, even though most users were protected.
+The criteria on [Benchmarking MPCVD](benchmarking_mpcvd.md) do not include the number of users of each vendor, or the importance of those users.
 
-A small set of vendor and product pairs can also hold a large share of the risk a vul poses.
-Aggregating over all pairs can mislead.
-Concentrated risk may even call for strategies that look inequitable among vendors and achieve more equitable outcomes across users.
+Consider an MPCVD case with 15 vendors:
+
+- 5 vendors have 95% of the users, and these 5 vendors get good outcomes.
+- 10 vendors have the other 5% of the users, and these 10 vendors get bad outcomes.
+
+The proposed criterion is a high median skill coefficient across the vendors, with a low variance.
+This case probably fails that criterion, but the case protected most users.
+
+A small set of vendor and product pairs can also hold a large part of the risk from a vul.
+Thus an aggregate over all vendor and product pairs can give a wrong result.
+When risk is concentrated, a good strategy can look unfair to some vendors but give fairer outcomes to users.
 
 !!! ssvc "Thinking about Risk"
 
-    User concentration is one way to think about risk, but it is not the only way.
-    [Value density](https://certcc.github.io/SSVC/reference/decision_points/value_density/){:target="_blank"}, as defined in [SSVC](https://certcc.github.io/SSVC/){:target="_blank"}, is another.
+    The number of users is one way to think about risk, but it is not the only way.
+    [Value density](https://certcc.github.io/SSVC/reference/decision_points/value_density/){:target="_blank"}, as defined in [SSVC](https://certcc.github.io/SSVC/){:target="_blank"}, is another way.
 
-The underlying problem is that there is no utility function mapping an observed case history to harm reduction.
-Such a function might aggregate across vendors, across users, or both.
-It might weight each history in an MPCVD case by a proxy for the risk to its users.
-It might first avoid catastrophic outcomes for everyone, then apply a weighted sum over the impact on the remaining users.
-Criteria other than a high median and low variance may also apply.
+A utility function gives a number for how good an outcome is.
+The root problem is that no utility function connects an observed case history to a reduction in harm.
+A utility function of this kind can aggregate across vendors, across users, or both.
+The utility function can weight each history in an MPCVD case by an estimate of the risk to the users of that history.
+The utility function can also first prevent catastrophic outcomes for all users, and then apply a weighted sum over the effect on the remaining users.
+Criteria other than a high median and a low variance can also apply.
 
 !!! question "Is Utilitarianism the Best Approach?"
 
-    We have not considered whether utilitarianism is the best way to approach these problems, or, if it is, which variety suits them best.
-    Those questions are interesting and relevant, and too far from the main topic to treat properly here.
+    We have not considered whether utilitarianism is the best approach to these problems.
+    If utilitarianism is the best approach, we have not considered which type of utilitarianism is best.
+    These questions are interesting and relevant, but they are too far from the main topic of this page.
     [The History of Utilitarianism](https://plato.stanford.edu/entries/utilitarianism-history/){:target="_blank"} is an introduction to the general topic.
 
-Accurate estimates of such parameters are likely to stay hard to obtain.
-Equity in MPCVD may interest groups such as the [FIRST Ethics SIG](https://www.first.org/global/sigs/ethics/){:target="_blank"}.
+Accurate values for these weights and estimates will probably stay difficult to get.
+Equity in MPCVD can be a topic for groups such as the [FIRST Ethics SIG](https://www.first.org/global/sigs/ethics/){:target="_blank"}.
 
 ---
 
 ## In a two-party case
 
-A two-party case, with one reporter and one vendor, is the special case of the same model, and most of these questions stand in it unchanged.
-The fairness question disappears, because there is only one vendor to aggregate over.
-The question of how participants' strategies interact shrinks to two participants, and the deployment threshold applies only if the vendor also deploys or a deployer joins.
+A two-party case has one reporter and one vendor.
+A two-party case is a special case of the same model, and most questions on this page apply to it without change.
+These questions change:
+
+| Question | In a two-party case |
+|---|---|
+| Is the multi-party measure fair? | The question does not apply, because the case has only one vendor. |
+| How do participants' strategies interact? | The question has only two participants. |
+| When is a fix deployed? | The question applies only if the vendor is also a deployer, or a deployer joins the case. |
 
 ---
 
 ## MPCVD is still hard
 
-[CVD is a wicked problem](https://certcc.github.io/CERT-Guide-to-CVD/topics/principles/wicked_problem){:target="_blank"}, and MPCVD more so.
-The model gives structure to a problem space that had little of it before.
+[CVD is a wicked problem](https://certcc.github.io/CERT-Guide-to-CVD/topics/principles/wicked_problem){:target="_blank"}, and MPCVD is more difficult than CVD.
+The Foundations model gives structure to a problem that had almost no structure before.
 
-A model does not make coordination much less complex.
-Coordinating many organizations, many of them competitors, to bring about a delicate social good against many incentives to do otherwise stays hard.
-The social, business, and geopolitical interests that shape cybersecurity policy remain at the heart of vulnerability disclosure for most participants.
-Our hope is that the model helps clarify the decisions, communication, and policies that each have a part in improving MPCVD.
+But a model does not make coordination much easier.
+Coordination of many organizations is difficult, especially when many of them are competitors.
+The organizations must work together for a public good, against many incentives to do otherwise.
+Social, business, and geopolitical interests shape cybersecurity policy, and these interests stay at the center of vulnerability disclosure.
+We hope that the model makes the decisions, communication, and policies that improve MPCVD clearer.
 
 ## Further reading
 
-- [What a Case Records](what_a_case_records.md) — the events, clocks, and data gaps that today's measures work from.
+- [What a Case Records](what_a_case_records.md) — the events, clocks, and data gaps that current measures use.
 - [Timing Metrics Within a Case](timing_metrics.md) — the intervals that answer part of the timing question.
-- [Benchmarking MPCVD](benchmarking_mpcvd.md) — the multi-party measure whose fairness the last question examines.
-- [Recommended Action Rules for CVD](../other_uses/action_rules.md) — the action rules, and why they are a source of checklists rather than an algorithm.
+- [Benchmarking MPCVD](benchmarking_mpcvd.md) — the multi-party measure that the fairness question examines.
+- [Recommended Action Rules for CVD](../other_uses/action_rules.md) — the action rules, and why they are a source of checklists, not an algorithm.

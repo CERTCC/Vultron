@@ -11,12 +11,16 @@ The [States](../../reference/formal_protocol/states.md) reference page defines e
 This page asks a different question: how many of those states can a participant actually occupy, and how large does the state space of a whole Multi-Party Coordinated Vulnerability Disclosure (MPCVD) case become?
 The answers explain why a protocol that coordinates participants matters: left uncoordinated, even a modest case has more possible states than anyone could reason about.
 
-The triple is the formal model's picture of one participant.
-In the protocol today, part of it belongs to the case instead.
-The EM state and the public part of the CS state (PXA) are participant-agnostic: the case holds each once, and the EM state is derived from the case's embargo register (ADR-0122).
-The RM state, the vendor fix path (VF), and the deployment state (D) are participant-specific: each participant holds its own (SDO-03-002, ADR-0075).
-Each participant also holds a Participant Embargo Consent (PEC) row for every embargo in the register, which the triple leaves out (CM-18-001).
-The per-participant counts below follow the formal model, and [A Lower Bound on the MPCVD State Space](#a-lower-bound-on-the-mpcvd-state-space) applies the split.
+The triple $(q^{rm}, q^{em}, q^{cs})$ is how the formal model describes one participant.
+In the protocol today, some parts of the triple belong to the case, not to the participant:
+
+- The EM state and the public part of the CS state (PXA) are participant-agnostic. The case holds one copy of each. The case derives its EM state from its embargo register (ADR-0122).
+- The RM state, the vendor fix path (VF), and the deployment state (D) are participant-specific. Each participant holds its own copy (SDO-03-002, ADR-0075).
+
+Each participant also holds one Participant Embargo Consent (PEC) row for every embargo in the register (CM-18-001).
+The triple does not include PEC.
+The counts for each participant role below use the formal model.
+[A Lower Bound on the MPCVD State Space](#a-lower-bound-on-the-mpcvd-state-space) uses the difference between case state and participant state.
 
 ## Counting every combination
 
@@ -50,7 +54,8 @@ Once those combinations are removed, each participant must be in one of 352 poss
     \end{split}$$
 
 The role a participant plays narrows this further, as the following sections show.
-The roles below are the protocol's roles, listed in the [Vultron specification](../../reference/vultron-spec/introduction.md#22-roles); whoever discovered the vulnerability takes part as a Reporter (ADR-0078).
+The roles below are the roles of the protocol, and the [Vultron specification](../../reference/vultron-spec/introduction.md#22-roles) lists them.
+The person or organization that discovered the vulnerability takes part as a Reporter (ADR-0078).
 
 ## Vendors (Fix Suppliers)
 
@@ -61,7 +66,8 @@ As a Vendor has a report in $Received$, it is, by definition, at least in the $V
 
 Vendors create fixes only when they are in the $Accepted$ RM state.
 Because the $Received$, $Invalid$, and $Valid$ states come strictly *before* the $Accepted$ state in the RM DFA, there is no way for the Vendor to be in either $VFd$ or $VFD$ while in any of those states.
-The protocol now also admits fix readiness from $Deferred$ or $Closed$ (CSB-18-001); the counts on this page keep the original assumption.
+The protocol now also permits fix readiness from $Deferred$ or $Closed$ (CSB-18-001).
+The counts on this page keep the original assumption.
 
 ???+ note "Vendor CS States When RM is in *Received*, *Invalid*, or *Valid*"
 
@@ -510,9 +516,10 @@ Non-Vendor Non-Deployer CVD Participants (Reporters, Coordinators, and others) w
 
 ### Reporters
 
-As discussed in [RM Interactions](../process_models/rm/rm_interactions.md#the-secret-lives-of-finders), whoever discovers a vulnerability goes through RM states that other CVD Participants cannot see, unless it chooses to report.
-Therefore, for a CVD protocol, a Reporter's states matter only once it has reached RM $Accepted$.
-That is also where the protocol seats the Reporter when the case is created (CM-14-012).
+[RM Interactions](../process_models/rm/rm_interactions.md#the-secret-lives-of-finders) describes the RM states of the discoverer of a vulnerability before the discoverer reports it.
+Other CVD Participants cannot see these RM states, unless the discoverer reports the vulnerability.
+Thus, for a CVD protocol, the states of a Reporter matter only after the Reporter reaches RM $Accepted$.
+The protocol puts the Reporter at RM $Accepted$ when the case is created (CM-14-012).
 
 !!! note "Reporter State Space"
 
@@ -612,14 +619,16 @@ Generically, the state space for $N$ Participants takes the form given at right.
 The upper bound on the MPCVD state space is $352^N \approx 10^{2.55N}$.
 However, because of the Role-specific limits just described, this overcounts the possible states significantly.
 A tighter bound is possible.
-Counting the state that the case holds once, rather than once for each Participant, drastically reduces the state space for an MPCVD case.
-Two parts of the state belong to the case rather than to any Participant:
+Some state belongs to the case, and the case holds one copy of that state.
+If the count includes that state once, not once for each Participant, the state space of an MPCVD case becomes much smaller.
+Two parts of the state belong to the case, not to a Participant:
 
 1. Because they represent facts about the outside world, the eight $\cdot\cdot\cdot pxa \rightarrow \cdot\cdot\cdot PXA$ CS substates are participant-agnostic.
-    The case holds one PXA state, which only the CASE_MANAGER writes, adopting it from what Participants report (RSH-04-001, RSH-04-003).
+    The case holds one PXA state.
+    Only the CASE_MANAGER writes the PXA state of the case, when it adopts a report from a Participant (RSH-04-001, RSH-04-003).
 
 2. The five EM states are also participant-agnostic.
-    The case's EM state is derived from its embargo register, once for the case (ADR-0122).
+    The case derives one EM state from its embargo register (ADR-0122).
 
 Those Participant-agnostic terms can therefore be pulled out of the state calculations for individual Participants,
 
@@ -645,9 +654,11 @@ which leaves
             Others = 2 + 5  = 7 \\
         \end{cases}$$
 
-These counts leave out embargo consent.
-Each Participant holds one PEC row for every entry in the case's embargo register, each in one of five states (CM-18-001).
-A case whose register holds $e$ embargoes can multiply each Participant's state space by up to $5^e$, a factor this lower bound does not include.
+These counts do not include embargo consent.
+Each Participant holds one PEC row for every entry in the embargo register of the case.
+Each PEC row is in one of five states (CM-18-001).
+If the register holds $e$ embargoes, the PEC rows can multiply the state space of each Participant by up to $5^e$.
+This lower bound does not include that factor.
 
 So the state space looks like
 

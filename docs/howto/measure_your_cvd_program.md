@@ -52,7 +52,8 @@ The table below lists the twelve preferences and the records each one needs.
 If you are a Vendor, start with **F** $\prec$ **P** and **F** $\prec$ **A**.
 Those two are what the [published proof of concept](../topics/measuring_cvd/observing_skill.md) measured for Microsoft, so you have a comparison.
 If you are a Coordinator, add the three **V** preferences, because notifying Vendors is the event you cause.
-Leave out any preference involving **D** unless your program deploys fixes itself or your cases include Deployers that report it, because the date a Deployer applied a fix is rarely known to anyone else.
+If your program does not deploy fixes, and no Deployer in your cases reports deployment, leave out the preferences with **D**.
+The reason is that only the Deployer usually knows the date of a deployment.
 
 ---
 
@@ -69,10 +70,12 @@ Apply two rules when you record:
 
 !!! info "If your cases run on Vultron"
 
-    A Vultron case already records these dates.
-    The case ledger stamps every change to the case, including each participant's fix and deployment and the case's public awareness, exploit, and attack status ([What a Case Records](../topics/measuring_cvd/what_a_case_records.md)).
-    Read each event's date from its ledger entry rather than from a separate record.
-    The same page lists the events whose stamp is later than the event, which you should treat as approximate.
+    A Vultron case already records the dates of these events.
+    The case ledger stamps every change to the case ([What a Case Records](../topics/measuring_cvd/what_a_case_records.md)).
+    These changes include the fix and deployment of each participant, and the public awareness, exploit, and attack status of the case.
+    Read the date of each event from its ledger entry, not from a separate record.
+    For some events, the ledger stamp is later than the event, and What a Case Records lists these events.
+    Treat the dates of these events as approximate.
 
 Re-score a case when a later event arrives.
 A case that satisfied **F** $\prec$ **A** when it closed stops satisfying it if an attack is observed later, so the score of a program is a moving figure and not a closing report.
@@ -154,9 +157,12 @@ For a case still in progress, the [Recommended Action Rules for CVD](../topics/o
 A case with more than one affected Vendor is a Multi-Party Coordinated Vulnerability Disclosure (MPCVD) case.
 Score the **V** and **F** preferences once for each affected Vendor, because each Vendor has its own fix path.
 Score the **D** preferences once for each Deployer, because each Deployer has its own deployment.
-Compare each against the case's one **P**, **X**, and **A**, which every participant in the case shares.
-Do not pair a Deployer with one Vendor unless your records say whose fix it deployed; a Vultron case does not record that link.
-Then report the median $\alpha_d$ across the Vendors, and across the Deployers, together with each spread.
+Compare each Vendor score and each Deployer score against the one **P**, **X**, and **A** of the case.
+All participants in the case share the same **P**, **X**, and **A**.
+Do not link a Deployer to one Vendor, unless your records show which fix the Deployer deployed.
+A Vultron case does not record this link.
+Then report the median $\alpha_d$ across the Vendors and the spread of the Vendor scores.
+Also report the median $\alpha_d$ across the Deployers and the spread of the Deployer scores.
 A high median with a low spread means most Vendors in your cases reached acceptable outcomes.
 A high median with a wide spread means a few Vendors are being left behind, which is the fairness problem [Measuring and Benchmarking MPCVD](../topics/measuring_cvd/benchmarking_mpcvd.md) discusses.
 
@@ -179,8 +185,9 @@ A high median with a wide spread means a few Vendors are being left behind, whic
 !!! tip "Going further"
 
     The score in this guide uses the six events and twelve preferences of the original research.
-    [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md) proposes further preferences over report handling, embargoes, and joining, and [Timing Metrics Within a Case](../topics/measuring_cvd/timing_metrics.md) proposes intervals between events.
-    Both are draft research, with no published baseline to compare against yet.
+    [Desiderata from the Process Models](../topics/measuring_cvd/process_model_desiderata.md) proposes more preferences, about report handling, embargoes, and joining.
+    [Timing Metrics Within a Case](../topics/measuring_cvd/timing_metrics.md) proposes measures of the intervals between events.
+    Both pages are draft research, and neither page has a published baseline yet.
 
 - [Measuring CVD Foundations](../topics/measuring_cvd/foundations/index.md) — the derivation behind every number in this guide.
 - [Discriminating Skill and Luck in Observations](../topics/measuring_cvd/discriminating_skill_and_luck.md) — the skill coefficient and the model that yields it.

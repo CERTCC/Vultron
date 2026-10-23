@@ -10,167 +10,213 @@ description: >
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-This page proposes desired event orderings that go beyond the twelve in [Desirable Histories](./desirable_histories.md).
-The twelve come from the six-event Case State (CS) model of the original research.
-The protocol has since modeled Report Management (RM), Embargo Management (EM), Participant Embargo Consent (PEC), and multi-party participation in much more detail.
-Those models imply further preferences about what should happen before what.
-The page is a draft research proposal for people who study the Coordinated Vulnerability Disclosure (CVD) process; none of it is normative, and its candidates have not been validated against case data.
+This page proposes new desiderata for Coordinated Vulnerability Disclosure (CVD) cases.
+A desideratum is an order of two events that a case should achieve, for example a fix that is ready before the vul is public.
+The original research gives twelve desiderata over six events of the Case State (CS) model.
+Since then, the protocol has added detailed models of Report Management (RM), Embargo Management (EM), Participant Embargo Consent (PEC), and multi-party participation.
+These models give more preferences about which events should occur before which other events.
+The page is a draft research proposal for people who study the CVD process.
+No part of the page is normative, and no one has tested the new desiderata against case data.
 
-The page assumes the set of desiderata $\mathbb{D}$ and the notation $\sigma_1 \prec \sigma_2$ from [Desirable Histories](./desirable_histories.md).
-It assumes the skill coefficient $\alpha_d$ from [Discriminating Skill and Luck](./discriminating_skill_and_luck.md), and the per-vendor case state of Multi-Party CVD (MPCVD) from [Benchmarking MPCVD](./benchmarking_mpcvd.md).
-The process models it draws on are [RM](../process_models/rm/index.md), [EM](../process_models/em/index.md), and their [interactions with CS](../process_models/model_interactions/index.md).
+The page uses the events and symbols of [What a Case Records](./what_a_case_records.md), which also tells how the case ledger records each event.
+The table below repeats these events:
 
-Each desideratum relates events of two kinds.
-Some events belong to the case and happen once in it: public awareness, a public exploit, observed attacks, and the embargo's start and end.
-Others belong to one participant and can happen once for each: its report handling, its fix or deployment, its joining, and its consent to an embargo.
-[What a Case Records](./what_a_case_records.md) sets out that split and how the case ledger records each event.
+{% include-markdown "./_case_events.md" %}
+
+The page also uses the skill coefficient ($\alpha_d$) of [Discriminating Skill and Luck](./discriminating_skill_and_luck.md).
+The skill coefficient compares how often a desideratum $d$ holds in observed cases with how often $d$ holds by chance.
+The process models that the page uses are [RM](../process_models/rm/index.md), [EM](../process_models/em/index.md), and their [interactions with CS](../process_models/model_interactions/index.md).
+
+---
+
+## The twelve original desiderata
+
+The original research orders six events.
+The six events are vendor awareness (**V**), fix readiness (**F**), fix deployment (**D**), public awareness (**P**), a public exploit (**X**), and observed attacks (**A**).
+The table below gives its twelve desiderata, from the most desirable to the least desirable.
+[Desirable Histories](./desirable_histories.md) calls this set of twelve desiderata $\mathbb{D}$, and [What Does *Success* Mean in CVD?](../background/cvd_success.md) explains each desideratum.
+
+{% include-markdown "../../includes/twelve_desiderata.md" %}
+
+The twelve desiderata treat each event as one event for the whole case.
+In a case with more than one vendor or deployer, vendor awareness, fix readiness, and fix deployment occur once for each vendor or deployer.
+The new desiderata below use the subscripts of the event table to name each vendor and each deployer.
 
 ---
 
 ## A desideratum is useful only if a case can fail it
 
 A desideratum is useful as a measure of skill only if a case can fail it.
-The skill coefficient compares how often an ordering holds with how often it would hold by chance.
-An ordering that the protocol enforces holds in every conforming case, so its observed frequency is 1 and its $\alpha_d$ says nothing about skill.
+The skill coefficient compares how often an order holds with how often the order holds by chance.
+A conforming case is a case in which every participant follows the protocol.
+If the protocol enforces an order, the order holds in every conforming case.
+Then the observed frequency of the order is 1, and its skill coefficient tells nothing about skill.
 
-The process models contain both kinds of rule.
-A MUST that the implementation enforces is a **conformance ordering**: a history that breaks it is a broken implementation, not an unskilled case.
-A SHOULD, or a preference the models state without a requirement, can be broken by a conforming case, and is a candidate desideratum.
-The candidates below come from the second kind.
-The first kind is listed at the end of the page, because it is still worth checking.
+The process models contain rules of two kinds:
+
+- A MUST is a requirement that the implementation enforces. An order that a MUST sets is a **conformance ordering**. A history that breaks a conformance ordering shows a broken implementation, not a case without skill.
+- A SHOULD, or a preference that a model states without a requirement, is not enforced. A conforming case can break it, so it is a candidate desideratum.
+
+The candidates below come from the second kind of rule.
+The end of the page lists the conformance orderings, because a check of these orderings can still find defects.
 
 ---
 
 ## Events beyond the six
 
-The six CS events are vendor awareness $\mathbf{V}$, fix ready $\mathbf{F}$, fix deployed $\mathbf{D}$, public awareness $\mathbf{P}$, exploit public $\mathbf{X}$, and attacks observed $\mathbf{A}$.
-The process models add the following events.
-Each is recorded by the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) as an entry in the case ledger, though the statuses seated when the case is created carry the creation time, not the time of the decision ([What a Case Records](./what_a_case_records.md#statuses-seated-at-case-creation)).
+The process models add the events below to the six original events.
+The table gives the step of the process model at which each event occurs.
 
-| Event | Meaning | Process model |
-|---|---|---|
-| $\mathbf{R}_i$ | Participant $i$ receives the report | RM Start → Received |
-| $\mathbf{Va}_i$ | Participant $i$ validates the report | RM → Valid |
-| $\mathbf{Ac}_i$ | Participant $i$ accepts the report for work | RM → Accepted |
-| $\mathbf{C}_i$ | Participant $i$ closes the report | RM → Closed |
-| $\mathbf{E}$ | An embargo first comes into force on the case | EM → Active |
-| $\mathbf{E_x}$ | The embargo ends | EM → eXited |
-| $\mathbf{J}_i$ | Participant $i$ joins the case | Accepting its Stub Invite (CM-11-001) |
-| $\mathbf{S}_i$ | Participant $i$ agrees to the active embargo | PEC → `AGREED` |
+| Event | Process model step |
+|---|---|
+| Report receipt ($\mathbf{R}_i$) | RM Start → Received |
+| Report validation ($\mathbf{Va}_i$) | RM → Valid |
+| Report acceptance ($\mathbf{Ac}_i$) | RM → Accepted |
+| Report closure ($\mathbf{C}_i$) | RM → Closed |
+| Embargo start ($\mathbf{E}$) | EM → Active, the first time on the case |
+| Embargo exit ($\mathbf{E_x}$) | EM → eXited |
+| Joining ($\mathbf{J}_i$) | Acceptance of the Stub Invite to the case (CM-11-001) |
+| Embargo agreement ($\mathbf{S}_i$) | PEC → `AGREED` |
 
-The subscript $i$ marks a per-participant event.
-The original six already mix scopes: $\mathbf{V}$ and $\mathbf{F}$ are per vendor, $\mathbf{D}$ is per deployer, and $\mathbf{P}$, $\mathbf{X}$, and $\mathbf{A}$ belong to the whole case.
-This page writes $\mathbf{V}_i$ and $\mathbf{F}_i$ for vendor $i$ and $\mathbf{D}_k$ for deployer $k$.
-$\mathbf{E}$ and $\mathbf{E_x}$ also belong to the whole case, because a case has at most one active embargo.
-Under an active embargo, $\mathbf{J}_i$ and $\mathbf{S}_i$ are one event: accepting the Stub Invite both joins the case and agrees to the embargo (CM-11-001).
-They separate only for a participant that joins with no active embargo, or that answers a later embargo.
+The [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) records each of these events as an entry in the case ledger.
+One exception is the statuses that the case gets when it is created.
+These statuses show the creation time, not the time of the decision ([What a Case Records](./what_a_case_records.md#statuses-seated-at-case-creation)).
+
+The embargo start ($\mathbf{E}$) and the embargo exit ($\mathbf{E_x}$) belong to the whole case, because a case has at most one active embargo.
+When an embargo is active, joining ($\mathbf{J}_i$) and embargo agreement ($\mathbf{S}_i$) are one event.
+The reason is that acceptance of the Stub Invite both joins the case and agrees to the embargo (CM-11-001).
+Joining and embargo agreement are separate events only for a participant that joins when no embargo is active, or that answers a later embargo.
 
 ### Splitting events by cause
 
-Two events need to be split by what caused them, because the same state change can be a success or a failure.
+The same change of state can be a success or a failure, depending on its cause.
+Thus two events need to be split by cause: the embargo exit, and public awareness.
 
 | Split | Meaning |
 |---|---|
-| $\mathbf{E_x^\ast}$ | The embargo ends on its own terms: its end time is reached, or it ends early because fixes are ready or deployed |
-| $\mathbf{E_x^!}$ | The embargo ends because of a threat signal: public awareness, a public exploit, or observed attacks |
-| $\mathbf{P_u}$ | Public awareness comes from a participant's coordinated publication |
-| $\mathbf{P_\ell}$ | Public awareness comes from outside the case, such as a leak or an independent disclosure |
+| Embargo exit on its own terms ($\mathbf{E_x^\ast}$) | The embargo ends because its end time is reached, or ends early because fixes are ready or deployed |
+| Embargo exit on a threat signal ($\mathbf{E_x^!}$) | The embargo ends because of public awareness, a public exploit, or observed attacks |
+| Participant publication ($\mathbf{P_u}$) | Public awareness comes from a coordinated publication by a participant |
+| Outside public awareness ($\mathbf{P_\ell}$) | Public awareness comes from outside the case, such as a leak or an independent disclosure |
 
-The protocol records most of the first split.
-A terminated embargo carries what ended it, `END_TIME_REACHED` or `EARLY`, and, when known, a structured cause of `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED`, or `OTHER` (EMB-13-004).
-`END_TIME_REACHED`, `FIX_READY`, and `FIX_DEPLOYED` are $\mathbf{E_x^\ast}$, and `THREAT_SIGNAL` is $\mathbf{E_x^!}$.
-An early end with the cause `OTHER`, or with no cause recorded, is neither, and a measure has to either set it aside or classify it from the case's other events.
-The second split is not recorded as such.
-A publication by a participant is a protocol action, so it can be told apart from a $\mathbf{P}$ that arrives from outside, but nothing labels the case's $\mathbf{P}$ with its source.
+The protocol records most of the split of the embargo exit.
+A terminated embargo records its end: `END_TIME_REACHED` or `EARLY`.
+When the cause is known, the terminated embargo also records a structured cause: `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED`, or `OTHER` (EMB-13-004).
+`END_TIME_REACHED`, `FIX_READY`, and `FIX_DEPLOYED` are an embargo exit on its own terms ($\mathbf{E_x^\ast}$).
+`THREAT_SIGNAL` is an embargo exit on a threat signal ($\mathbf{E_x^!}$).
+An early end with the cause `OTHER`, or with no recorded cause, is neither kind of embargo exit.
+A measure must set such an embargo exit aside, or classify it from the other events of the case.
+
+The protocol does not record the split of public awareness.
+A publication by a participant is a protocol action, so a measure can find participant publications ($\mathbf{P_u}$).
+But nothing labels the public awareness ($\mathbf{P}$) of the case with its source.
 
 ---
 
 ## Embargo desiderata
 
 An embargo is a means, not an end.
-It exists to give vendors time to make $\mathbf{F}$ and $\mathbf{D}$ precede $\mathbf{P}$, $\mathbf{X}$, and $\mathbf{A}$.
-The embargo desiderata therefore rank below the fix desiderata of $\mathbb{D}$, and a case that achieves $\mathbf{F} \prec \mathbf{P}$ without an embargo is not a worse case.
+An embargo exists to give vendors time for fix readiness ($\mathbf{F}$) and fix deployment ($\mathbf{D}$).
+The embargo lets these events occur before public awareness ($\mathbf{P}$), a public exploit ($\mathbf{X}$), and observed attacks ($\mathbf{A}$).
+Thus the embargo desiderata rank below the fix desiderata of the twelve original desiderata.
+A case that achieves fix readiness before public awareness ($\mathbf{F} \prec \mathbf{P}$) without an embargo is not a worse case.
 
 | Ordering preference | Meaning | Source |
 |---|---|---|
-| $\mathbf{E} \prec \mathbf{P}$, $\mathbf{E} \prec \mathbf{X}$, $\mathbf{E} \prec \mathbf{A}$ | An embargo is active before the vul is public, exploited, or attacked | A case starts in EM Active at creation, under a published default or the protocol default ([Default Embargoes](../process_models/em/defaults.md)) |
-| $\mathbf{E_x^\ast} \prec \mathbf{P}$, $\mathbf{E_x^\ast} \prec \mathbf{X}$, $\mathbf{E_x^\ast} \prec \mathbf{A}$ | The embargo ends on its own terms, not because a threat signal ended it | An embargo ends early at $\mathbf{P}$, $\mathbf{X}$, or $\mathbf{A}$ ([CVD Case State Interactions with the RM and EM Process Models](../process_models/model_interactions/rm_em_cs.md)) |
-| $\mathbf{E_x} \prec \mathbf{P_u}$ | Participants publish only after the embargo ends | VP-05-006, VP-05-014 |
-| $\mathbf{E_x} \prec \mathbf{X}$ for an exploit a participant publishes | Exploit publishers wait for the embargo to end | VP-14-012 |
-| $\mathbf{F}_i \prec \mathbf{E_x^\ast}$ for every vendor $i$ | Every vendor's fix is ready before the embargo ends | VP-14-009 asks participants to extend for trailing vendors; VP-09-007 permits ending at a quorum |
-| $\mathbf{E_x} \prec \mathbf{C}_i$ | A participant does not close its report while an embargo is active or under revision, unless it first tells the others it is closing and what its embargo stance is | RMB-14-003 |
+| The embargo start before public awareness ($\mathbf{E} \prec \mathbf{P}$), the embargo start before a public exploit ($\mathbf{E} \prec \mathbf{X}$), the embargo start before observed attacks ($\mathbf{E} \prec \mathbf{A}$) | An embargo is active before the vul is public, exploited, or attacked | A case starts in EM Active at creation, under a published default or the protocol default ([Default Embargoes](../process_models/em/defaults.md)) |
+| An embargo exit on its own terms before public awareness ($\mathbf{E_x^\ast} \prec \mathbf{P}$), an embargo exit on its own terms before a public exploit ($\mathbf{E_x^\ast} \prec \mathbf{X}$), an embargo exit on its own terms before observed attacks ($\mathbf{E_x^\ast} \prec \mathbf{A}$) | The embargo ends on its own terms, not because a threat signal ended it | An embargo ends early at public awareness ($\mathbf{P}$), a public exploit ($\mathbf{X}$), or observed attacks ($\mathbf{A}$) ([CVD Case State Interactions with the RM and EM Process Models](../process_models/model_interactions/rm_em_cs.md)) |
+| The embargo exit before a participant publication ($\mathbf{E_x} \prec \mathbf{P_u}$) | Participants publish only after the embargo ends | VP-05-006, VP-05-014 |
+| The embargo exit before a public exploit ($\mathbf{E_x} \prec \mathbf{X}$) for an exploit a participant publishes | Exploit publishers wait for the embargo to end | VP-14-012 |
+| Fix readiness of vendor $i$ before an embargo exit on its own terms ($\mathbf{F}_i \prec \mathbf{E_x^\ast}$) for every vendor $i$ | Every vendor's fix is ready before the embargo ends | VP-14-009 asks participants to extend for trailing vendors; VP-09-007 permits ending at a quorum |
+| The embargo exit before report closure by participant $i$ ($\mathbf{E_x} \prec \mathbf{C}_i$) | A participant does not close its report while an embargo is active or under revision, unless it first tells the others it is closing and what its embargo stance is | RMB-14-003 |
 
-The first row is close to a conformance ordering.
-A case is created in EM Active unless $\mathbf{P}$, $\mathbf{X}$, or $\mathbf{A}$ already holds, in which case it stays in EM None (EP-04-005, EP-04-008).
-So $\mathbf{E} \prec \mathbf{P}$ fails only when the report arrives, or the case is created, after the vul is already public, and it measures when the case formed more than how it was run.
+The desideratum of an embargo start before public awareness, a public exploit, and observed attacks is close to a conformance ordering.
+A new case starts in EM Active, unless public awareness ($\mathbf{P}$), a public exploit ($\mathbf{X}$), or observed attacks ($\mathbf{A}$) already occurred.
+In that condition, the case stays in EM None (EP-04-005, EP-04-008).
+Thus an embargo start before public awareness ($\mathbf{E} \prec \mathbf{P}$) fails only when the report arrives, or the case is created, after the vul is already public.
+This desideratum measures when the case started more than how the participants ran the case.
 
-The second row is the sharpest of these.
-Any $\mathbf{E_x}$ that follows $\mathbf{P}$ or $\mathbf{X}$ is an $\mathbf{E_x^!}$, because public awareness or a public exploit ends an active embargo (VP-09-001).
-Observed attacks SHOULD end it too (VP-09-003), so an $\mathbf{E_x}$ after $\mathbf{A}$ is usually, but not always, an $\mathbf{E_x^!}$.
-So $\mathbf{E_x^\ast} \prec \mathbf{P}$ says that the case reached the end of its embargo before the race with disclosure was lost.
+The desideratum of an embargo exit on its own terms before public awareness, a public exploit, and observed attacks is the most useful of these.
+Public awareness and a public exploit each end an active embargo (VP-09-001).
+Thus any embargo exit ($\mathbf{E_x}$) after public awareness ($\mathbf{P}$) or a public exploit ($\mathbf{X}$) is an embargo exit on a threat signal ($\mathbf{E_x^!}$).
+Observed attacks SHOULD also end an active embargo (VP-09-003).
+Thus an embargo exit ($\mathbf{E_x}$) after observed attacks ($\mathbf{A}$) is usually, but not always, an embargo exit on a threat signal ($\mathbf{E_x^!}$).
+An embargo exit on its own terms before public awareness ($\mathbf{E_x^\ast} \prec \mathbf{P}$) shows that the embargo ended as planned.
+Disclosure did not force the end of the embargo.
 
-The fifth row is stronger than the protocol requires.
-VP-09-007 lets an embargo end when a quorum of vendors is ready, even if some are not.
-The desideratum names the ideal, every vendor ready; the quorum is what the protocol tolerates.
-A case that ends at a quorum fails the desideratum for each trailing vendor, which is the outcome the measure should count.
+The desideratum of fix readiness of every vendor before an embargo exit on its own terms ($\mathbf{F}_i \prec \mathbf{E_x^\ast}$) is stronger than the protocol requires.
+A quorum is a sufficient number of vendors, as the case decides.
+VP-09-007 lets an embargo end when a quorum of vendors has a fix ready, even if some vendors do not.
+A vendor without a fix ready at that time is a trailing vendor.
+The desideratum gives the ideal, a fix ready from every vendor, and the quorum is the minimum that the protocol permits.
+A case that ends its embargo at a quorum fails the desideratum once for each trailing vendor.
+The measure should count each of these failures.
 
 ---
 
 ## Report-handling desiderata
 
-$\mathbb{D}$ treats vendor awareness as the first good event.
+The twelve original desiderata treat vendor awareness as the first good event.
 The RM model separates awareness from engagement: a vendor can know of a report and still not validate it, accept it, or work on it.
 
 | Ordering preference | Meaning | Source |
 |---|---|---|
-| $\mathbf{Ac}_i \prec \mathbf{P}$, $\mathbf{Ac}_i \prec \mathbf{X}$, $\mathbf{Ac}_i \prec \mathbf{A}$ for every affected vendor $i$ | The vendor has committed to work on the report before the vul is public, exploited, or attacked | [Reward Functions](./reward_functions.md) prefers RM paths that pass through Accepted |
-| $\mathbf{Va}_i \prec \mathbf{P}$ for every affected vendor $i$ | The vendor has judged the report valid before the vul is public | Validation is the first RM decision |
-| $\mathbf{Ac}_i \prec \mathbf{F}_i$ for every vendor $i$ | The vendor accepts the report before its fix is ready, rather than deferring or closing it first | CSB-18-001 also permits a fix from Deferred or Closed |
+| Report acceptance by vendor $i$ before public awareness ($\mathbf{Ac}_i \prec \mathbf{P}$), report acceptance by vendor $i$ before a public exploit ($\mathbf{Ac}_i \prec \mathbf{X}$), report acceptance by vendor $i$ before observed attacks ($\mathbf{Ac}_i \prec \mathbf{A}$) for every affected vendor $i$ | The vendor has committed to work on the report before the vul is public, exploited, or attacked | [Reward Functions](./reward_functions.md) prefers RM paths that pass through Accepted |
+| Report validation by vendor $i$ before public awareness ($\mathbf{Va}_i \prec \mathbf{P}$) for every affected vendor $i$ | The vendor has judged the report valid before the vul is public | Validation is the first RM decision |
+| Report acceptance by vendor $i$ before fix readiness of vendor $i$ ($\mathbf{Ac}_i \prec \mathbf{F}_i$) for every vendor $i$ | The vendor accepts the report before its fix is ready, rather than deferring or closing it first | CSB-18-001 also permits a fix from Deferred or Closed |
 
-$\mathbf{Ac}_i \prec \mathbf{P}$ implies $\mathbf{V}_i \prec \mathbf{P}$, because a vendor cannot accept a report it has not received.
-It is the stronger claim: it rewards a vendor that engages, not one that only knows.
-It also covers the gap between $\mathbf{V}$ and $\mathbf{F}$, where $\mathbb{D}$ has nothing to say.
+Report acceptance by vendor $i$ before public awareness ($\mathbf{Ac}_i \prec \mathbf{P}$) implies awareness of vendor $i$ before public awareness ($\mathbf{V}_i \prec \mathbf{P}$).
+The reason is that a vendor cannot accept a report that it has not received.
+Thus report acceptance before public awareness is the stronger desideratum.
+It rewards a vendor that does work on the report, not a vendor that only knows of the report.
+Report acceptance also measures the period between vendor awareness ($\mathbf{V}$) and fix readiness ($\mathbf{F}$), where the twelve original desiderata have nothing to measure.
 
-$\mathbf{Ac}_i \prec \mathbf{F}_i$ is only partly enforced.
-Fix readiness can be asserted only once the vendor's RM state is Accepted, Deferred, or Closed (CSB-18-001), and RM reaches Deferred from Valid and Closed from Received without passing through Accepted.
-A vendor that defers a report and then ships a fix anyway satisfies the protocol and fails the desideratum, which is the case the measure should count.
+Report acceptance by vendor $i$ before fix readiness of vendor $i$ ($\mathbf{Ac}_i \prec \mathbf{F}_i$) is only partly enforced.
+A vendor can report fix readiness only when its RM state is Accepted, Deferred, or Closed (CSB-18-001).
+But the RM state can go from Valid to Deferred, or from Received to Closed, without Accepted.
+A vendor that defers a report and then releases a fix follows the protocol, but fails the desideratum.
+The measure should count this failure.
 
 ---
 
 ## Multi-party desiderata
 
-[Benchmarking MPCVD](./benchmarking_mpcvd.md) applies $\mathbb{D}$ to each vendor separately and then aggregates.
-The orderings below relate one participant's events to another's, so a per-vendor history cannot express them.
+[Benchmarking MPCVD](./benchmarking_mpcvd.md) applies the twelve original desiderata to each vendor separately, and then combines the results.
+The desiderata below relate the events of one participant to the events of a different participant.
+Thus a history of one vendor cannot express these desiderata.
 
 | Ordering preference | Meaning | Source |
 |---|---|---|
-| $\mathbf{V}_i \prec \mathbf{F}_j$ for all affected vendors $i, j$ | Every affected vendor learns of the vul before any vendor's fix is ready | Keeps the trailing vendor's time to fix from starting late |
-| $\mathbf{J}_k \prec \mathbf{F}_i$ for every deployer $k$ and every vendor $i$ | A deployer is in the case before any vendor's fix is ready | Without it, $\mathbf{D}_k \prec \mathbf{P}$ is out of reach for a deployer that is not also a vendor |
-| $\mathbf{S}_k \prec$ the first case content sent to $k$ | A participant agrees to the embargo before it receives the case | VP-08-006, EMB-11-001 |
-| $\mathbf{F}_i \prec \mathbf{P}$ for every vendor $i$ | Every vendor's fix is ready before the vul is public | $\mathbf{F} \prec \mathbf{P}$ from $\mathbb{D}$, quantified over vendors |
+| Awareness of vendor $i$ before fix readiness of vendor $j$ ($\mathbf{V}_i \prec \mathbf{F}_j$) for all affected vendors $i, j$ | Every affected vendor learns of the vul before any vendor's fix is ready | Keeps the trailing vendor's time to fix from starting late |
+| Joining by deployer $k$ before fix readiness of vendor $i$ ($\mathbf{J}_k \prec \mathbf{F}_i$) for every deployer $k$ and every vendor $i$ | A deployer is in the case before any vendor's fix is ready | Without it, fix deployment by deployer $k$ before public awareness ($\mathbf{D}_k \prec \mathbf{P}$) is out of reach for a deployer that is not also a vendor |
+| Embargo agreement by participant $k$ ($\mathbf{S}_k$) before the first case content sent to $k$ | A participant agrees to the embargo before it receives the case | VP-08-006, EMB-11-001 |
+| Fix readiness of vendor $i$ before public awareness ($\mathbf{F}_i \prec \mathbf{P}$) for every vendor $i$ | Every vendor's fix is ready before the vul is public | Fix readiness before public awareness ($\mathbf{F} \prec \mathbf{P}$) from $\mathbb{D}$, quantified over vendors |
 
-The deployer row deserves attention.
-It is stated against every vendor because the case does not pair a deployer with a vendor.
-A deployer that is not also a vendor may deploy once any vendor in the case has a fix ready (CSB-15-004), and the case records no link from a deployment to the fix it applied.
-The protocol requires no deployer to be invited at all.
-In the original single-vendor model, $\mathbf{D}$ is the vendor's deployment or an aggregate over its users.
-In a multi-party case, a deployer that joins only after $\mathbf{P}$ cannot achieve $\mathbf{D} \prec \mathbf{P}$, however quickly it acts.
+The desideratum of joining by each deployer before fix readiness of any vendor ($\mathbf{J}_k \prec \mathbf{F}_i$) needs attention.
+This desideratum compares each deployer with every vendor, because the case does not link a deployer to a vendor.
+A deployer that is not also a vendor can deploy after any vendor in the case has a fix ready (CSB-15-004).
+The case does not record which fix a deployer deployed.
+The protocol does not require the case to invite a deployer.
+In the original single-vendor model, fix deployment ($\mathbf{D}$) is the vendor's deployment or an aggregate over its users.
+In a multi-party case, a deployer that joins only after public awareness ($\mathbf{P}$) cannot achieve fix deployment before public awareness ($\mathbf{D} \prec \mathbf{P}$), however quickly it acts.
 
-The consent row is partly enforced.
-While an embargo is active, the CASE_MANAGER shares no case content with a participant that has not agreed to it: no case ledger entry, case announcement, status broadcast, or embargo announcement (CM-10-004, CM-10-005).
-The SHOULDs in VP-08-006 and EMB-11-001 also cover sharing by other routes, which the protocol cannot see.
-For case content the row is a conformance ordering, and for everything else it is a desideratum that can only be observed indirectly.
+The desideratum of embargo agreement before the first case content ($\mathbf{S}_k \prec$ first content) is partly enforced.
+While an embargo is active, the CASE_MANAGER sends no case content to a participant that has not agreed to the embargo (CM-10-004, CM-10-005).
+Case content includes case ledger entries, case announcements, status broadcasts, and embargo announcements.
+The SHOULDs in VP-08-006 and EMB-11-001 also cover information that participants share by other routes, which the protocol cannot see.
+Thus, for case content, this desideratum is a conformance ordering.
+For information shared by other routes, this desideratum is a real desideratum, but a measure can observe it only indirectly.
 
-The last row makes one aggregation choice explicit.
-Benchmarking MPCVD leaves open how per-vendor outcomes combine, and lists majority and risk-weighted rules as options.
-"Every vendor" is the strictest rule, and it is the one the embargo desiderata above already assume.
+The desideratum of fix readiness of every vendor before public awareness ($\mathbf{F}_i \prec \mathbf{P}$) states one choice for how to combine the results of the vendors.
+Benchmarking MPCVD does not choose how to combine these results, and gives a majority rule and a risk-weighted rule as options.
+The rule "every vendor" is the strictest rule, and the embargo desiderata above already use this rule.
 
 ---
 
 ## Preferences about the path
 
 Some preferences are not orderings of two events.
-They are about the shape of a history: how many steps it takes, or how a decision was reached.
+These preferences are about the shape of a history: how many steps the history has, or how the participants reached a decision.
 
 | Preference | Process model |
 |---|---|
@@ -179,69 +225,93 @@ They are about the shape of a history: how many steps it takes, or how a decisio
 | An embargo is as short as the fixes allow | [EM Principles](../process_models/em/principles.md) |
 | A report is judged correctly: a real vul is Valid and a bogus report is Invalid | RM: validation accuracy |
 
-[Reward Functions](./reward_functions.md) already treats these as criteria for reward functions over RM and EM histories.
-They are listed here for completeness, not as new proposals.
-Ordering desiderata and path preferences need different measures: the first fits the frequency-based $\alpha_d$, and the second needs a score over the whole history.
+[Reward Functions](./reward_functions.md) already uses these preferences as criteria for reward functions over RM and EM histories.
+This page lists these preferences to make the list complete, not as new proposals.
+Order desiderata and path preferences need different measures.
+An order desideratum fits the skill coefficient ($\alpha_d$), which counts how often the order holds.
+A path preference needs a score over the whole history.
 
 ---
 
 ## Conformance orderings
 
 The orderings below are enforced by the protocol.
-They are not desiderata, because a conforming case cannot fail them.
-They are still worth checking against case data, because a history that breaks one shows a defect in an implementation.
+Conformance orderings are not desiderata, because a conforming case cannot fail them.
+But a check of case data against the conformance orderings is still useful.
+A history that breaks a conformance ordering shows a defect in an implementation.
 
 | Ordering | Requirement |
 |---|---|
-| $\mathbf{V}_i \prec \mathbf{F}_i$ for every vendor $i$ | The vendor fix path ([History Constraints](./possible_histories.md)) |
-| $\mathbf{F}_i \prec \mathbf{D}_k$ for some vendor $i$, for every deployer $k$ that is not also a vendor | CSB-15-004 |
-| $\mathbf{F}_i$ only once participant $i$'s RM state is Accepted, Deferred, or Closed | CSB-18-001 |
+| Awareness of vendor $i$ before fix readiness of vendor $i$ ($\mathbf{V}_i \prec \mathbf{F}_i$) for every vendor $i$ | The vendor fix path ([History Constraints](./possible_histories.md)) |
+| Fix readiness of vendor $i$ before fix deployment by deployer $k$ ($\mathbf{F}_i \prec \mathbf{D}_k$) for some vendor $i$, for every deployer $k$ that is not also a vendor | CSB-15-004 |
+| Fix readiness of vendor $i$ ($\mathbf{F}_i$) only once participant $i$'s RM state is Accepted, Deferred, or Closed | CSB-18-001 |
 | A report is never closed from Valid | VP-02-004, RMB-14-004 |
 | The case is initialized before anyone else is invited and before any embargo change | CM-14-007 |
 | An embargo end time is set before the case reaches RM Valid | DUR-07-004 |
-| $\mathbf{S}_k \prec$ any case content sent to $k$, while an embargo is active | CM-10-004, CM-10-005 |
+| Embargo agreement by participant $k$ ($\mathbf{S}_k$) before any case content sent to $k$, while an embargo is active | CM-10-004, CM-10-005 |
 
 ---
 
 ## Open problems
 
-The candidates above are proposals.
-Three problems stand between them and a measure like the one in [Discriminating Skill and Luck](./discriminating_skill_and_luck.md).
+The desiderata on this page are proposals.
+Three problems must be solved before these desiderata can have a measure like the skill coefficient of [Discriminating Skill and Luck](./discriminating_skill_and_luck.md).
 
 ### The baseline needs a new walk
 
-The skill coefficient needs the frequency $f_d$ with which each ordering holds by chance.
-For $\mathbb{D}$, that frequency comes from a uniform [random walk](./random_walk.md) over the six-event CS model.
-The new events live in a joint space of RM, EM, PEC, and CS states, so their baselines need a walk over that joint space.
+The skill coefficient needs a baseline: the frequency ($f_d$) with which each desideratum holds by chance.
+For the twelve original desiderata, the baseline comes from a [random walk](./random_walk.md) over the six-event CS model.
+In that random walk, each permitted next event has the same probability.
+The new events are in a combined state space of RM, EM, PEC, and CS states.
+Thus the baselines of the new desiderata need a random walk over that combined state space.
 
-The coupling rules between the models change the frequencies, and the change can be large.
-Public awareness ends an active embargo, so $\mathbf{P}$ and $\mathbf{E_x^!}$ arrive together, and fix readiness requires an RM state of Accepted, Deferred, or Closed, so $\mathbf{F}$ can never precede the first of those.
-A walk that ignores these couplings gives baselines for histories that cannot occur.
-How large each $f_d$ is under the coupled walk has not been computed.
+The rules that connect the models change the baselines, and the change can be large.
+For example, public awareness ends an active embargo.
+Thus public awareness ($\mathbf{P}$) and an embargo exit on a threat signal ($\mathbf{E_x^!}$) occur together.
+Also, fix readiness requires an RM state of Accepted, Deferred, or Closed.
+Thus fix readiness ($\mathbf{F}$) can never occur before the vendor reaches one of these RM states.
+A random walk that ignores these rules gives baselines for histories that cannot occur.
+No one has calculated the baseline of each new desideratum under the connected random walk.
 
 ### The desiderata are not independent
 
-$\mathbf{Ac}_i \prec \mathbf{P}$ implies $\mathbf{V}_i \prec \mathbf{P}$.
-$\mathbf{F}_i \prec \mathbf{E_x^\ast}$ for every vendor, combined with $\mathbf{E_x^\ast} \prec \mathbf{P}$, implies $\mathbf{F}_i \prec \mathbf{P}$ for every vendor.
-The skill score in [Reasoning Over Histories](./reasoning_over_histories.md) sums over desiderata, so correlated desiderata count the same skill more than once.
-The extended set needs either a weighting or a smaller basis.
+Some desiderata imply other desiderata:
 
-### The new events are more observable than the old
+- Report acceptance by vendor $i$ before public awareness ($\mathbf{Ac}_i \prec \mathbf{P}$) implies awareness of vendor $i$ before public awareness ($\mathbf{V}_i \prec \mathbf{P}$).
+- Suppose that every vendor has a fix ready before an embargo exit on its own terms ($\mathbf{F}_i \prec \mathbf{E_x^\ast}$). Suppose also that the embargo exit on its own terms occurs before public awareness ($\mathbf{E_x^\ast} \prec \mathbf{P}$). Then every vendor has a fix ready before public awareness ($\mathbf{F}_i \prec \mathbf{P}$).
 
-[What a Case Records](./what_a_case_records.md#who-observes-what) notes that $\mathbf{X}$ and $\mathbf{A}$ happen outside the protocol, and [Open Questions](./open_questions.md#when-is-a-fix-deployed) that $\mathbf{D}$ needs a threshold to be observed at all.
-Most of the new events are protocol acts: the CASE_MANAGER writes $\mathbf{Ac}_i$, $\mathbf{E}$, $\mathbf{E_x}$, $\mathbf{J}_i$, and $\mathbf{S}_i$ to the case ledger when it admits them, except for the statuses seated at case creation, which carry the creation time.
-A desideratum between two protocol acts can be measured from the ledger alone.
-A desideratum that involves $\mathbf{X}$ or $\mathbf{A}$ inherits their observation problems, as the originals do.
+The skill score in [Reasoning Over Histories](./reasoning_over_histories.md) adds the results of all desiderata.
+Thus two desiderata that depend on each other count the same skill two times.
+The larger set of desiderata needs weights, or a smaller set of independent desiderata.
+
+### The new events are easier to observe than the original events
+
+[What a Case Records](./what_a_case_records.md#who-observes-what) tells that a public exploit ($\mathbf{X}$) and observed attacks ($\mathbf{A}$) occur outside the protocol.
+[Open Questions](./open_questions.md#when-is-a-fix-deployed) tells that fix deployment ($\mathbf{D}$) needs a threshold before anyone can observe it.
+
+Most of the new events are protocol acts.
+The CASE_MANAGER writes each of these protocol acts to the case ledger when it admits the act.
+These acts include report acceptance ($\mathbf{Ac}_i$), the embargo start ($\mathbf{E}$), the embargo exit ($\mathbf{E_x}$), joining ($\mathbf{J}_i$), and embargo agreement ($\mathbf{S}_i$).
+The exception is the statuses that the case gets when it is created, which show the creation time.
+Thus a measure can get a desideratum between two protocol acts from the ledger alone.
+A desideratum that uses a public exploit ($\mathbf{X}$) or observed attacks ($\mathbf{A}$) has the same observation problems as the original desiderata.
 
 ---
 
 ## In a two-party case
 
-A two-party case, with one reporter and one vendor, is the special case of the same model, not a separate one.
-The embargo and report-handling desiderata carry over unchanged, with $i$ ranging over the one vendor.
-Of the multi-party desiderata, $\mathbf{V}_i \prec \mathbf{F}_j$ collapses to $\mathbf{V} \prec \mathbf{F}$, which the vendor fix path already enforces, and "every vendor's fix" becomes the one vendor's fix.
-The deployer row disappears unless some participant holds the deployer role.
-The consent row holds trivially for the reporter, which the case seeds as a signatory of any active embargo when it is created (CM-14-012).
+A two-party case has one reporter and one vendor.
+A two-party case is a special case of the same model, not a different model.
+The table below shows how each group of desiderata changes in a two-party case.
+
+| Desiderata | In a two-party case |
+|---|---|
+| Embargo desiderata | No change. Vendor $i$ is always the one vendor. |
+| Report-handling desiderata | No change. Vendor $i$ is always the one vendor. |
+| Awareness of vendor $i$ before fix readiness of vendor $j$ ($\mathbf{V}_i \prec \mathbf{F}_j$) | Becomes vendor awareness before fix readiness ($\mathbf{V} \prec \mathbf{F}$), which the vendor fix path already enforces |
+| Fix readiness of vendor $i$ before public awareness ($\mathbf{F}_i \prec \mathbf{P}$) for every vendor | Becomes fix readiness before public awareness ($\mathbf{F} \prec \mathbf{P}$) for the one vendor |
+| Joining by deployer $k$ before fix readiness of vendor $i$ ($\mathbf{J}_k \prec \mathbf{F}_i$) for deployers | Does not apply, unless a participant has the Deployer role |
+| Embargo agreement by participant $k$ ($\mathbf{S}_k$) before the first case content to $k$ | Always true for the reporter. The case makes the reporter a signatory of any active embargo when the case is created (CM-14-012). |
 
 ---
 
@@ -249,15 +319,15 @@ The consent row holds trivially for the reporter, which the case seeds as a sign
 
 | Group | Desiderata |
 |---|---|
-| Embargo | $\mathbf{E} \prec \mathbf{P}, \mathbf{X}, \mathbf{A}$; $\mathbf{E_x^\ast} \prec \mathbf{P}, \mathbf{X}, \mathbf{A}$; $\mathbf{E_x} \prec \mathbf{P_u}$; $\mathbf{E_x} \prec$ a participant's $\mathbf{X}$; $\mathbf{F}_i \prec \mathbf{E_x^\ast}$; $\mathbf{E_x} \prec \mathbf{C}_i$ |
-| Report handling | $\mathbf{Ac}_i \prec \mathbf{P}, \mathbf{X}, \mathbf{A}$; $\mathbf{Va}_i \prec \mathbf{P}$; $\mathbf{Ac}_i \prec \mathbf{F}_i$ |
-| Multi-party | $\mathbf{V}_i \prec \mathbf{F}_j$; $\mathbf{J}_k \prec \mathbf{F}_i$ for every deployer and vendor; $\mathbf{S}_k \prec$ first content to $k$; $\mathbf{F}_i \prec \mathbf{P}$ for every vendor |
+| Embargo | The embargo start before public awareness, a public exploit, and observed attacks ($\mathbf{E} \prec \mathbf{P}, \mathbf{X}, \mathbf{A}$); an embargo exit on its own terms before public awareness, a public exploit, and observed attacks ($\mathbf{E_x^\ast} \prec \mathbf{P}, \mathbf{X}, \mathbf{A}$); the embargo exit before a participant publication ($\mathbf{E_x} \prec \mathbf{P_u}$); the embargo exit ($\mathbf{E_x}$) before a participant's a public exploit ($\mathbf{X}$); fix readiness of vendor $i$ before an embargo exit on its own terms ($\mathbf{F}_i \prec \mathbf{E_x^\ast}$); the embargo exit before report closure by participant $i$ ($\mathbf{E_x} \prec \mathbf{C}_i$) |
+| Report handling | Report acceptance by vendor $i$ before public awareness, a public exploit, and observed attacks ($\mathbf{Ac}_i \prec \mathbf{P}, \mathbf{X}, \mathbf{A}$); report validation by vendor $i$ before public awareness ($\mathbf{Va}_i \prec \mathbf{P}$); report acceptance by vendor $i$ before fix readiness of vendor $i$ ($\mathbf{Ac}_i \prec \mathbf{F}_i$) |
+| Multi-party | Awareness of vendor $i$ before fix readiness of vendor $j$ ($\mathbf{V}_i \prec \mathbf{F}_j$); joining by deployer $k$ before fix readiness of vendor $i$ ($\mathbf{J}_k \prec \mathbf{F}_i$) for every deployer and vendor; embargo agreement by participant $k$ ($\mathbf{S}_k$) before first content to $k$; fix readiness of vendor $i$ before public awareness ($\mathbf{F}_i \prec \mathbf{P}$) for every vendor |
 | Path shape | Answered invitations, few revisions, short embargoes, accurate validation |
 
 ## Further reading
 
 - [Desirable Histories](./desirable_histories.md) — the twelve original desiderata and the partial order they induce.
-- [What a Case Records](./what_a_case_records.md) — how the case ledger records these events, and the gaps in what it records.
+- [What a Case Records](./what_a_case_records.md) — how the case ledger records these events, and the gaps in the ledger.
 - [Timing Metrics Within a Case](./timing_metrics.md) — measuring the intervals between these events, not only their order.
 - [Benchmarking MPCVD](./benchmarking_mpcvd.md) — per-vendor histories and how they might aggregate.
 - [CVD Case State Interactions with the RM and EM Process Models](../process_models/model_interactions/rm_em_cs.md) — the couplings between the models that these desiderata draw on.
