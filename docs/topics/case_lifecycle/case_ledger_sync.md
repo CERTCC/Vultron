@@ -340,6 +340,43 @@ So the replica refuses it as a conflict and does not store it ([SYNC-16-007](../
 
 ---
 
+## Eventual consistency is the guarantee
+
+Eventual consistency is the ordering guarantee the protocol makes, and the only one ([SYNC-19-002](../../reference/specs/protocol.md#sync-19-002), [ADR-0161](../../adr/0161-eventual-consistency-is-the-protocols-ordering-guarantee.md)).
+The rule that goes with it is that no decision may depend on the order messages arrive in, except the order the CASE_MANAGER observes, which the ledger records ([SYNC-19-001](../../reference/specs/protocol.md#sync-19-001)).
+
+The rule covers more than ledger entries.
+The CASE_MANAGER also sends some messages directly, outside the ledger.
+A participant can receive one of these before, between, or after the ledger entries it relates to.
+Whatever the order, the participant must end with the same case file and give the same answer ([SYNC-19-001](../../reference/specs/protocol.md#sync-19-001)).
+
+The CASE_MANAGER cannot see the order in which one participant sent two messages either.
+So a decision must not depend on that order ([SYNC-19-001](../../reference/specs/protocol.md#sync-19-001)).
+
+A sender may deliver its messages to each recipient in order, and this implementation does ([OX-01-005](../../reference/specs/project.md#ox-01-005)).
+That is an optimization, not a guarantee another implementation must give, and no participant may rely on it ([SYNC-19-003](../../reference/specs/protocol.md#sync-19-003)).
+
+### Messages the CASE_MANAGER sends outside the ledger
+
+Most direct messages are only stored, and the participant takes their effect from the ledger entry, so their order cannot matter.
+The table lists each one and what makes its arrival order safe.
+Where the implementation still breaks the rule, the table names the open issue.
+
+| Message | Related ledger entries | What makes the order safe |
+|---|---|---|
+| Relayed embargo `Invite(EmbargoEvent)` | The proposal entry, the consent rows, and the entry that records the Invite's emission | The participant stores the Invite and the embargo it carries, and its answer needs only the case and the embargo. Exceptions: the owner's automatic answer to a first proposal ([#5199](https://github.com/CERTCC/Vultron/issues/5199)), and an Invite that arrives after its proposal is decided ([#5200](https://github.com/CERTCC/Vultron/issues/5200)). |
+| Embargo Invite relayed to a joiner, or to a reinstated participant | The joiner's copy of the case and the entries replayed to it | An Invite that arrives before the copy waits for it, for a bounded time. |
+| Copy of the case, `Announce(VulnerabilityCase)` | Every entry at or before the ledger position the copy names | The replica judges the copy by that position, and stores without effect each entry the copy already reflects. |
+| Full-case `Invite(Actor)` | Its own entry | The participant stores it, and its reply waits until its replica reaches the Invite's ledger position. |
+| Stub `Invite(Actor)` | The invitee's participant entry | The CASE_MANAGER refuses an answer to an Invite that a later one replaced. |
+| Refusal notice `Reject(activity)`, embargo refusal, and refusal of a `Leave` | None | It only closes the participant's pending assertion. |
+| Removal and reinstatement notices | The removal or reinstatement entry | The participant stores the notice and applies the entry. |
+| Embargo ending notices to a participant the ledger no longer reaches | The termination or shorter-revision entry | Not yet safe: two notices about one revision diverge when they arrive reversed ([#5201](https://github.com/CERTCC/Vultron/issues/5201)). |
+| Forwarded offers: a recommended participant, a role, an ownership transfer | The offer's own entry | The receiver stores the offer and answers it by trigger, and the CASE_MANAGER judges the answer against the ledger. |
+| Answers to a case proposal, and the `Create(VulnerabilityCase)` that starts a case | The case's first entries | Entries that arrive before the case are held until it arrives. |
+
+---
+
 ## Further reading
 
 - [The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md) — the single writer, admitted entries, and fan-out
@@ -352,4 +389,5 @@ So the replica refuses it as a conflict and does not store it ([SYNC-16-007](../
 - [ADR-0037](../../adr/0037-buffer-out-of-order-ledger-entries.md) — hold out-of-order entries instead of discarding them
 - [ADR-0059](../../adr/0059-buffer-pre-genesis-ledger-entries.md) — hold entries that arrive before the case
 - [Federation](../future_work/federation.md#the-case-ledger-and-the-delivery-log) and [Convergence of the replicas](../future_work/federation.md#convergence-of-the-replicas) — future work on the ledger when each organization runs its own service
-- [Open questions: history and delivery](../future_work/open_questions.md#history-and-delivery) — unresolved questions about a distributed ledger and fan-out ordering
+- [ADR-0161](../../adr/0161-eventual-consistency-is-the-protocols-ordering-guarantee.md) — eventual consistency is the protocol's ordering guarantee
+- [Open questions: history and delivery](../future_work/open_questions.md#history-and-delivery) — unresolved questions about a distributed ledger

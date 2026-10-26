@@ -37,6 +37,13 @@ from test.support.ledger import (
     fail_commits,
     is_consent_row_update,
 )
+from test.support.relayed_invite import (
+    COORD as _COORD,
+    INVITEE as _INVITEE,
+    answers_in_outbox,
+    deliver_relayed_invite,
+    seed_invitee_case,
+)
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -98,24 +105,7 @@ _PAST = _NOW - timedelta(days=1)
 # within the floor; use a rolling offset instead.
 _FUTURE = datetime.now(tz=UTC) + timedelta(days=7)
 
-_COORD = "https://example.org/actors/coordinator"
-_INVITEE = "https://example.org/actors/invitee"
 _OTHER = "https://example.org/actors/other-vendor"
-
-
-def _answers_in_outbox(dl: SqliteDataLayer, actor_id: str) -> list[str]:
-    """Types of the Accept/Reject answers *actor_id* queued to the manager."""
-    answers = []
-    for activity_id in dl.outbox_list():
-        activity = dl.read(activity_id)
-        type_ = getattr(activity, "type_", None)
-        if (
-            type_ in ("Accept", "Reject")
-            and getattr(activity, "actor", None) == actor_id
-        ):
-            assert getattr(activity, "to", None) == [_COORD]
-            answers.append(str(type_))
-    return answers
 
 
 def _case_entries(dl: SqliteDataLayer, case_id: str) -> list[str]:
@@ -718,7 +708,7 @@ class TestInviteeIsTheAddressee:
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.consent_for(embargo_id) == EmbargoConsentState.UNINVITED
         assert all(r.rsvp_deadline is None for r in invitee.embargo_consents)
-        assert _answers_in_outbox(dl, _INVITEE) == []
+        assert answers_in_outbox(dl, _INVITEE) == []
 
     def test_reject_declines_the_rejecting_actor_not_the_receiver(
         self, make_payload
@@ -810,7 +800,7 @@ class TestInviteeIsTheAddressee:
         assert result.disposition is HandlerDisposition.REFUSED
         assert "names 2 'to' recipients" in (result.reason or "")
         assert dl.read(invite.id_) is None
-        assert _answers_in_outbox(dl, _INVITEE) == []
+        assert answers_in_outbox(dl, _INVITEE) == []
         for participant_id in (invitee_p_id, other_p_id, coord_p_id):
             participant = self._read_participant(dl, participant_id)
             assert (
@@ -856,7 +846,7 @@ class TestInviteeIsTheAddressee:
         assert invitee.consent_for(embargo_id) == EmbargoConsentState.UNINVITED
         # Receipt stores no deadline (CM-28-013).
         assert all(r.rsvp_deadline is None for r in invitee.embargo_consents)
-        assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
+        assert answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
     @pytest.mark.spec("EP-09-010")
     @pytest.mark.spec("PCR-08-001")
@@ -997,7 +987,7 @@ class TestInviteeIsTheAddressee:
         )
         # Nothing is written to any participant, and nothing answers.
         assert dl.read(invite.id_) is None
-        assert _answers_in_outbox(dl, _OTHER) == []
+        assert answers_in_outbox(dl, _OTHER) == []
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.consent_for(embargo_id) == EmbargoConsentState.UNINVITED
         assert all(r.rsvp_deadline is None for r in invitee.embargo_consents)
@@ -1443,7 +1433,7 @@ class TestInviteeIsTheAddressee:
         assert result.disposition is HandlerDisposition.APPLIED
         invitee = self._read_participant(dl, invitee_p_id)
         assert invitee.consent_for(embargo_id) == EmbargoConsentState.INVITED
-        assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
+        assert answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
         again = InviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -1453,7 +1443,7 @@ class TestInviteeIsTheAddressee:
         ).execute()
 
         assert again.disposition is HandlerDisposition.SKIPPED
-        assert _answers_in_outbox(dl, _INVITEE) == ["Accept"]
+        assert answers_in_outbox(dl, _INVITEE) == ["Accept"]
 
 
 @pytest.mark.spec("CLP-10-015")
@@ -2976,92 +2966,6 @@ class TestOwnerAnswerToRelayedInvite:
     the answer.  A non-owner participant's default accept is unchanged.
     """
 
-    def _seed(
-        self,
-        dl,
-        case_id: str,
-        *,
-        em_state: EM,
-        roles: list[CVDRole],
-        proposal_days: int,
-        policy_days: int | None,
-    ):
-        from vultron.core.models.actor import VultronOrganization
-        from vultron.core.models.embargo_policy import EmbargoPolicy
-
-        case = VulnerabilityCase(
-            id_=case_id, name="Owner Answer", attributed_to=_COORD
-        )
-        embargo = as_EmbargoEvent(
-            id_=f"{case_id}/embargos/e1",
-            context=case_id,
-            end_time=days_from_now_utc(proposal_days),
-        )
-        dl.create(embargo)
-        # ACTIVE: a prior embargo is in force, so e1 is a revision.  REVISE:
-        # another revision of it is already open as well.
-        if em_state in (EM.ACTIVE, EM.REVISE):
-            prior = as_EmbargoEvent(
-                id_=f"{case_id}/embargos/e0",
-                context=case_id,
-                end_time=days_from_now_utc(30),
-            )
-            dl.create(prior)
-            activate(case, prior.id_)
-        if em_state == EM.REVISE:
-            other = as_EmbargoEvent(
-                id_=f"{case_id}/embargos/e-other",
-                context=case_id,
-                end_time=days_from_now_utc(20),
-            )
-            dl.create(other)
-            propose(case, other.id_)
-        assert case.em_state == em_state
-        coord_cp = WireCP(
-            attributed_to=_COORD,
-            context=case_id,
-            case_roles=[CVDRole.CASE_MANAGER],
-        )
-        invitee_cp = WireCP(
-            attributed_to=_INVITEE,
-            context=case_id,
-            case_roles=roles,
-        )
-        dl.create(coord_cp)
-        dl.create(invitee_cp)
-        case.actor_participant_index[_COORD] = coord_cp.id_
-        case.actor_participant_index[_INVITEE] = invitee_cp.id_
-        dl.create(case)
-        profile = VultronOrganization(
-            id_=_INVITEE,
-            embargo_policy=(
-                None
-                if policy_days is None
-                else EmbargoPolicy(
-                    actor_id=_INVITEE,
-                    inbox=f"{_INVITEE}/inbox",
-                    preferred_duration=timedelta(days=policy_days),
-                )
-            ),
-        )
-        dl.create(profile)
-        return case, embargo
-
-    def _deliver(self, dl, case, embargo, make_payload):
-        invite = em_propose_embargo_activity(
-            embargo=embargo,
-            context=case.id_,
-            actor=_COORD,
-            to=[_INVITEE],
-        )
-        return InviteToEmbargoOnCaseReceivedUseCase(
-            dl,
-            make_payload(invite, receiving_actor_id=_INVITEE),
-            trigger_activity=TriggerActivityAdapter(dl),
-            wire_render_port=As2WireRenderAdapter(),
-            sync_port=SyncActivityAdapter(dl),
-        ).execute()
-
     @pytest.mark.parametrize(
         ("em_state", "roles", "proposal_days", "policy_days", "answers"),
         [
@@ -3098,7 +3002,7 @@ class TestOwnerAnswerToRelayedInvite:
         answers,
     ):
         dl = _make_dl(actor_id=_INVITEE)
-        case, embargo = self._seed(
+        case, embargo = seed_invitee_case(
             dl,
             "https://example.org/cases/owner-answer",
             em_state=em_state,
@@ -3107,10 +3011,10 @@ class TestOwnerAnswerToRelayedInvite:
             policy_days=policy_days,
         )
 
-        result = self._deliver(dl, case, embargo, make_payload)
+        result = deliver_relayed_invite(dl, case, embargo, make_payload)
 
         assert result.disposition is HandlerDisposition.APPLIED
-        assert _answers_in_outbox(dl, _INVITEE) == answers
+        assert answers_in_outbox(dl, _INVITEE) == answers
 
     @pytest.mark.parametrize(
         ("roles", "object_type", "has_target"),
@@ -3133,7 +3037,7 @@ class TestOwnerAnswerToRelayedInvite:
         from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 
         dl = _make_dl(actor_id=_INVITEE)
-        case, embargo = self._seed(
+        case, embargo = seed_invitee_case(
             dl,
             "https://example.org/cases/owner-answer-shape",
             em_state=EM.NONE,
@@ -3142,7 +3046,7 @@ class TestOwnerAnswerToRelayedInvite:
             policy_days=30,
         )
 
-        result = self._deliver(dl, case, embargo, make_payload)
+        result = deliver_relayed_invite(dl, case, embargo, make_payload)
 
         assert result.disposition is HandlerDisposition.APPLIED
         (answer_id,) = [
