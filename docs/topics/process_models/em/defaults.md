@@ -39,7 +39,7 @@ This section explains why.
 Embargo Management (EM) begins when the case is created.
 There is no embargo phase before a case exists ([ADR-0096: A Protocol Default Embargo Replaces the Pre-Case Phase](../../../adr/0096-protocol-default-embargo.md)).
 A Reporter who wants particular terms attaches a proposed embargo to the report they submit.
-The Recipient weighs those terms and its own published default together when it creates the case.
+Those terms, and the Recipient's published default, are weighed together when the Recipient creates the case.
 
 When a Report Recipient has published a default embargo period (see [Declaring Defaults](#declaring-defaults)), that default acts as a **standing proposal**.
 A Reporter who submits a report without proposing different terms has **tacitly accepted** the standing proposal, by not objecting.
@@ -80,7 +80,7 @@ The Case Owner creates the active embargo, so it would be incoherent to treat th
 PEC keeps one consent row per Participant for each embargo.
 The row of the Case Owner for the default embargo is seeded `AGREED`.
 The row of a Reporter whose submission accepted the terms is also seeded `AGREED`.
-Neither party receives an invitation first.
+Neither party receives an invitation.
 Each of these parties is therefore a signatory.
 Signatory is not a state of its own, but a read of the row of that party for the embargo in force.
 [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explains how the two scopes fit together.

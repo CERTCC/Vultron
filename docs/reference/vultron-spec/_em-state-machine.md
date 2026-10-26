@@ -18,9 +18,9 @@ The five states below describe the case's collective position, not any one parti
 
 *None* here means no embargo is in effect **for the case**.
 A participant's consent row for an embargo has a separate start state, `UNINVITED`, meaning the participant has not been asked about that embargo ([§9.1 States](tracking-models.md#91-states)).
-The case state and a consent row can disagree.
+The case state and a consent row can legitimately disagree.
 A case at Active may hold a participant whose row for the embargo in force is `INVITED` or `DECLINED`.
-The row is `INVITED` when the participant has been invited to the case and has not yet accepted.
+In that example, the row is `INVITED` because the participant has been invited to the case and has not yet accepted.
 
 #### 7.1.1 The Embargo Register
 

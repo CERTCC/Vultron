@@ -80,7 +80,7 @@ The case manager ends it with the reason `END_TIME_REACHED` the next time it han
 That handling can be for an incoming message or for one of its own triggers, so no scheduler is needed.
 The end-time check runs as part of the message or trigger handling.
 It runs after the case manager confirms that the sender may send the message or trigger, so a sender with no standing in the case cannot end the embargo.
-A request to end the embargo early that arrives after its end time is also recorded as `END_TIME_REACHED`.
+A request to end the embargo early made after its end time is also recorded as `END_TIME_REACHED`.
 See [When the End Time Passes](../../process_models/em/early_termination.md#when-the-end-time-passes).
 
 ---
@@ -372,7 +372,7 @@ In that case, it does not check for overdue invitations, and the next embargo ac
 
 A late `Accept` is never refused merely for being late (EMB-17-001).
 Instead, the case manager asks whether the accepted embargo is still the case's current one.
-The three possible answers lead to three different actions:
+The three possible answers are all different:
 
 | What the late Accept refers to | What the case manager does |
 |---|---|
@@ -391,15 +391,15 @@ Embargo messages route through the case manager like every other case-scoped mes
 A Participant does not announce its embargo stance to the other Participants itself.
 
 Teardown is the exception worth naming, because its addressing is prescribed.
-After a teardown that the Case Owner asked for, the actor holding `CVDRole.CASE_MANAGER` must author the `Announce(EmbargoEvent)` (EMB-19-001).
-That announcement must go to every active Participant *except* the announcing actor, and never to the case manager itself (EMB-19-001).
+The `Announce(EmbargoEvent)` that follows a teardown the Case Owner asked for must be authored by the actor holding `CVDRole.CASE_MANAGER`.
+It must be addressed to every active Participant *except* the announcing actor, and never to the case manager itself (EMB-19-001).
 A Closed Participant is left out, as it is from all case content (CM-23-004).
 A teardown the case manager starts itself, including one at the embargo's end time, sends no announcement.
 When the case manager is the only Participant, the announcement is skipped rather than sent with an empty recipient list (EMB-19-002).
 
 On entering `EM.EXITED`, no Participant is bound by an embargo any more, and no later invitation can bind one (EMB-13-001, MSM-07-006).
 No consent row is written for this: the register holds no `ACTIVE` entry, and the register is the fact.
-The embargo is over for everyone at once, which is the one thing about the EM scope that is global.
+The embargo is over for everyone at once, which is the one thing about the EM scope that is genuinely global.
 
 ### The case status EM copy is read-only
 

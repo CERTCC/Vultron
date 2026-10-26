@@ -200,9 +200,7 @@ The CASE_MANAGER enforces it lazily.
 When the CASE_MANAGER next handles the case, it compares each deadline against its own clock.
 No scheduler or timer service is required (CM-28-007, CM-28-008).
 
-The CASE_MANAGER expires every `INVITED` row whose deadline has passed and whose embargo is an open proposal or the embargo in force (CM-28-015).
-It runs this sweep before it commits the case owner's decision on a proposal.
-It also runs the sweep whenever it processes any other received embargo activity for the case, and whenever it runs an embargo trigger of its own.
+Before it commits the case owner's decision on a proposal, whenever it processes any other received embargo activity for the case, and whenever it runs an embargo trigger of its own, it expires every `INVITED` row whose deadline has passed and whose embargo is an open proposal or the embargo in force (CM-28-015).
 A row of a replaced, rejected, canceled or ended embargo is frozen, so the sweep skips it.
 The sweep runs after the activity's sender has been admitted and before the activity's own refusals.
 An expiry is therefore recorded even when the activity is then refused.
@@ -216,8 +214,7 @@ A too-short deadline is the proposer's error, and a refusal of the invitation wo
 
 **A deadline may not outlive its embargo.**
 The CASE_MANAGER MUST NOT let a respond-by deadline fall after the end of the embargo it concerns (CM-28-011).
-If a computed deadline would fall after that end, the CASE_MANAGER MUST clamp the deadline down to the embargo's end.
-This rule applies whether the deadline came from the invitation's explicit `endTime` or from the policy window.
+If a computed deadline, whether from the invitation's explicit `endTime` or from the policy window, would fall after that end, the CASE_MANAGER MUST clamp the deadline down to the embargo's end.
 
 An invitee must be able to answer while there is still something to answer about.
 For example, a participant is invited to a 24-hour embargo with no explicit `endTime`, and the policy window is 7 days.
