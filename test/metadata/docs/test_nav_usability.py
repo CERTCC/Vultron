@@ -450,3 +450,48 @@ class TestCli:
                 ["tally", "--baseline", str(base), "--proposed", str(prop)]
             )
         assert "FAIL" in capsys.readouterr().out
+
+
+class TestWalkPrompt:
+    def test_names_each_tasks_own_session_and_the_rules(self, tmp_path):
+        prompt = nu.walk_prompt(
+            _suite(tmp_path), "p1", Path("/site"), Path("/s"), ["T2"]
+        )
+        assert "--session /s/T2.json" in prompt
+        assert "There is no search" in prompt and "8 clicks" in prompt
+        assert "T2: Find the embargo page." in prompt
+        assert "T1:" not in prompt
+
+    def test_unknown_task_fails(self, tmp_path):
+        with pytest.raises(KeyError, match="no task"):
+            nu.walk_prompt(
+                _suite(tmp_path), "p1", Path("/s"), Path("/s"), ["T9"]
+            )
+
+    def test_score_walks_records_stage_2_and_refuses_unfinished(
+        self, tmp_path, capsys
+    ):
+        suite = _suite_file(tmp_path)
+        results = tmp_path / "r.yaml"
+        nu.save_results(results, _results("b", {"T2": [F]}))
+        sessions = tmp_path / "walks"
+        sessions.mkdir()
+        walk = nu.Walk(sessions / "T2.json")
+        walk.start(_site(tmp_path))
+        argv = [
+            "score-walks",
+            "--suite", str(suite),
+            "--sessions", str(sessions),
+            "--results", str(results),
+        ]  # fmt: skip
+        with pytest.raises(SystemExit, match="unfinished"):
+            nu.main(argv)
+        walk.finish("gave-up")
+        nu.main(argv)
+        nu.main(argv)
+        saved = nu.load_results(results)
+        assert [(r.stage, r.outcome) for r in saved.results] == [
+            (1, F),
+            (2, nu.Outcome.GAVE_UP),
+        ]
+        assert "T2 gave-up in 0 click(s)" in capsys.readouterr().out

@@ -34,7 +34,9 @@ CLI (``uv run nav-usability``):
     tree     print a config's nav hash and label tree
     prompt   print the Stage 1 briefing for one persona
     score    score a persona's Stage 1 answers into a results file
+    walk-prompt  print the Stage 2 briefing for one persona
     walk     take one Stage 2 step in a session
+    score-walks  score finished Stage 2 sessions into a results file
     tally    compare two results files and print the verdict
 """
 
@@ -755,6 +757,69 @@ def score_walk(
     )
 
 
+_WALK_INSTRUCTIONS = """\
+You are taking part in a usability test of a documentation website. Stay in
+character as the reader described below. You browse the site ONLY through the
+command shown for each task, which prints a page's text and its numbered
+links. There is no search. Do not read, list or search any file, and do not
+use any other command or tool: judge only from what the pages show, as this
+reader would.
+
+For each task, in order:
+
+1. Start: {command} --start {site}
+2. Follow links: {command} --go <link number>
+   You have {budget} clicks. Going back is not possible; choose carefully.
+3. When the page you are on finishes the task, record it:
+   {command} --found
+   If you cannot find it, or run out of clicks, give up:
+   {command} --give-up
+
+Each task has its own session file, named below; pass it to every command
+for that task. When every task is recorded, reply with just "done".
+"""
+
+
+def walk_prompt(
+    suite: Suite,
+    persona_id: str,
+    site: Path,
+    sessions: Path,
+    task_ids: list[str],
+    budget: int = DEFAULT_CLICK_BUDGET,
+) -> str:
+    """The Stage 2 briefing for one persona on one built site.
+
+    Raises:
+        KeyError: If a task id is not one of the persona's tasks.
+    """
+    persona = suite.persona(persona_id)
+    tasks = {t.id: t for t in suite.tasks_for(persona_id)}
+    missing = [t for t in task_ids if t not in tasks]
+    if missing:
+        raise KeyError(f"{persona_id} has no task(s) {', '.join(missing)}")
+    unknowns = "\n".join(f"- {u}" for u in persona.does_not_know)
+    lines = []
+    for task_id in task_ids:
+        command = (
+            "uv run nav-usability walk --session "
+            f"{sessions / f'{task_id}.json'}"
+        )
+        lines.append(
+            f"- {task_id}: {' '.join(tasks[task_id].prompt.split())}\n"
+            f"  Command: {command}"
+        )
+    head = _WALK_INSTRUCTIONS.format(
+        command="<the task's command>", site=site, budget=budget
+    )
+    return (
+        f"{head}\n"
+        f"## Who you are: {persona.name}\n\n{' '.join(persona.brief.split())}\n\n"
+        f"What you do not know:\n{unknowns}\n\n"
+        "## Your tasks\n\n" + "\n".join(lines) + "\n"
+    )
+
+
 # --------------------------------------------------------------------------
 # Tally and verdict
 # --------------------------------------------------------------------------
@@ -893,6 +958,42 @@ def _cmd_walk(args: argparse.Namespace) -> None:
         raise SystemExit("walk needs one of --start, --go, --found, --give-up")
 
 
+def _cmd_walk_prompt(args: argparse.Namespace) -> None:
+    suite = load_suite(args.suite)
+    print(
+        walk_prompt(
+            suite,
+            args.persona,
+            args.site,
+            args.sessions,
+            args.tasks.split(","),
+            args.budget,
+        )
+    )
+
+
+def _cmd_score_walks(args: argparse.Namespace) -> None:
+    suite = load_suite(args.suite)
+    results = load_results(args.results)
+    scored: list[TaskResult] = []
+    for session in sorted(args.sessions.glob("*.json")):
+        state = Walk(session).state()
+        if state.finished is None:
+            raise SystemExit(
+                f"{session} is unfinished; the walk has no outcome"
+            )
+        scored.append(score_walk(suite, session.stem, state, args.run))
+    keys = {(r.task, r.run) for r in scored}
+    results.results = [
+        r
+        for r in results.results
+        if not (r.stage == 2 and (r.task, r.run) in keys)
+    ] + scored
+    save_results(args.results, results)
+    for r in scored:
+        print(f"{r.task} {r.outcome.value} in {r.clicks} click(s): {r.answer}")
+
+
 def _cmd_tally(args: argparse.Namespace) -> None:
     verdict = tally(
         load_results(args.baseline), load_results(args.proposed), args.stage
@@ -952,6 +1053,28 @@ def main(argv: list[str] | None = None) -> None:
     walk.add_argument("--found", action="store_true")
     walk.add_argument("--give-up", action="store_true")
     walk.set_defaults(func=_cmd_walk)
+
+    walk_prompt_p = sub.add_parser(
+        "walk-prompt", help="print a persona's Stage 2 briefing"
+    )
+    walk_prompt_p.add_argument("--suite", type=Path, default=SUITE_PATH)
+    walk_prompt_p.add_argument("--persona", required=True)
+    walk_prompt_p.add_argument("--site", type=Path, required=True)
+    walk_prompt_p.add_argument("--sessions", type=Path, required=True)
+    walk_prompt_p.add_argument("--tasks", required=True, help="T01,T02,...")
+    walk_prompt_p.add_argument(
+        "--budget", type=int, default=DEFAULT_CLICK_BUDGET
+    )
+    walk_prompt_p.set_defaults(func=_cmd_walk_prompt)
+
+    score_walks = sub.add_parser(
+        "score-walks", help="score finished Stage 2 sessions into results"
+    )
+    score_walks.add_argument("--suite", type=Path, default=SUITE_PATH)
+    score_walks.add_argument("--sessions", type=Path, required=True)
+    score_walks.add_argument("--results", type=Path, required=True)
+    score_walks.add_argument("--run", type=int, default=1)
+    score_walks.set_defaults(func=_cmd_score_walks)
 
     tally_p = sub.add_parser("tally", help="compare two navs' results")
     tally_p.add_argument("--baseline", type=Path, required=True)
