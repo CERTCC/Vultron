@@ -1,6 +1,6 @@
-"""Generate and check the committed docs-site artifacts (DF-11-005/008/011/014).
+"""Generate and check the committed docs-site artifacts (DF-11-005/008/011/014/023).
 
-Four kinds of artifact are generated and committed:
+Five kinds of artifact are generated and committed:
 
 - each section **landing page** under ``docs/`` whose index declares
   ``contents: generated`` — only the contents listing between the markers, so
@@ -10,6 +10,10 @@ Four kinds of artifact are generated and committed:
   between its markers, rendered from the page's ``thread:`` frontmatter
   (:mod:`~vultron.metadata.docs.threads`, DF-11-014); whether each thread's
   members are reader-facing pages is the separate ``docs-threads`` check;
+- each **reading-path box** under ``docs/start/_paths/<thread>/`` — whole
+  file, one per thread and member, rendered from the same ``thread:``
+  frontmatter (DF-11-023); a fragment for a page no longer on its thread is
+  stale, and ``--write`` deletes it;
 - ``docs/includes/stakeholder_types.md`` — whole file, from the schema
   (:mod:`~vultron.metadata.docs.stakeholder_fragment`);
 - ``notes/site-coverage-matrix.md`` — whole file, from page frontmatter
@@ -54,8 +58,10 @@ from vultron.metadata.docs.stakeholder_fragment import (
     render_fragment,
 )
 from vultron.metadata.docs.threads import (
+    BOX_DIR,
     load_threads,
     page_titles,
+    render_boxes,
     splice_thread_listing,
 )
 from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
@@ -111,16 +117,33 @@ def desired_contents(root: Path) -> dict[str, str]:
         contents[path] = splice_thread_listing(
             _read(root / path), thread, titles
         )
+    for fragment, box in render_boxes(threads, titles).items():
+        contents[f"docs/{fragment}"] = box
     return contents
 
 
-def _out_of_date(root: Path) -> list[tuple[Path, str, str]]:
-    """Return ``(target, path, desired)`` for each artifact whose contents differ."""
-    stale: list[tuple[Path, str, str]] = []
-    for path, desired in desired_contents(root).items():
+def _committed_boxes(root: Path) -> set[str]:
+    """Repo-relative paths of every committed box fragment (DF-11-023)."""
+    base = root / "docs" / BOX_DIR
+    if not base.is_dir():
+        return set()
+    return {p.relative_to(root).as_posix() for p in base.rglob("*.md")}
+
+
+def _out_of_date(root: Path) -> list[tuple[Path, str, str | None]]:
+    """Return ``(target, path, desired)`` for each artifact whose contents differ.
+
+    ``desired`` is ``None`` for a committed box fragment that no thread
+    implies any more: it is stale, and writing deletes it (DF-11-023).
+    """
+    stale: list[tuple[Path, str, str | None]] = []
+    desired_by_path = desired_contents(root)
+    for path, desired in desired_by_path.items():
         target = root / path
         if _read(target) != desired:
             stale.append((target, path, desired))
+    for path in sorted(_committed_boxes(root) - desired_by_path.keys()):
+        stale.append((root / path, path, None))
     return stale
 
 
@@ -132,12 +155,17 @@ def stale_artifacts(root: Path | None = None) -> list[str]:
 def write_artifacts(root: Path | None = None) -> list[str]:
     """Rewrite every stale artifact in place; return the paths written.
 
-    One pass is enough: writing a page rewrites only the text between its
+    A box fragment no thread implies is deleted, and its path is returned
+    too. One pass is enough: writing a page rewrites only the text between its
     markers, never its frontmatter, so it never changes what the coverage
     matrix counts.
     """
     written: list[str] = []
     for target, path, desired in _out_of_date(root or repo_root()):
+        if desired is None:
+            target.unlink()
+            written.append(path)
+            continue
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(desired, encoding="utf-8")
         written.append(path)
@@ -164,7 +192,8 @@ def main(argv: list[str] | None = None) -> None:
         if args.write:
             written = write_artifacts(root)
             for path in written:
-                print(f"Wrote {path}")
+                verb = "Wrote" if (root / path).is_file() else "Deleted"
+                print(f"{verb} {path}")
             if not written:
                 print("Docs-site artifacts already in sync.")
             return
@@ -176,7 +205,7 @@ def main(argv: list[str] | None = None) -> None:
         for path in stale:
             print(
                 f"[ERROR] {path} is stale — run '{WRITE_COMMAND}' "
-                "(DF-11-005, DF-11-014).",
+                "(DF-11-005, DF-11-014, DF-11-023).",
                 file=sys.stderr,
             )
         sys.exit(1)

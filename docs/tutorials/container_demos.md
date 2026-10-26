@@ -220,3 +220,5 @@ We have:
 - **Explore the single-container demos** — see [Run the Receive-Report Demo](receive_report_demo.md) and [Running the Other Demos](other_demos.md) to step through individual protocol exchanges.
 - **Read the scenario source** — the scripts are in `vultron/demo/scenario/`; the shared helpers are in `vultron/demo/helpers/`.
 - **Consult the Docker README** — `docker/README.md` documents port mappings, environment variable overrides, and manual seed commands for debugging individual containers.
+
+{% include-markdown "../start/_paths/contribute/tutorials__container_demos.md" %}

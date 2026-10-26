@@ -118,10 +118,10 @@ repos:
         pass_filenames: false
 
       - id: docs-site-sync
-        name: Docs-site landing pages, stakeholder fragment and coverage matrix in sync
+        name: Docs-site landing pages, reading-path boxes, stakeholder fragment and coverage matrix in sync
         entry: uv run docs-site --check
         language: system
-        # Every input that can make an artifact stale (DF-11-005/008/011): any
+        # Every input that can make an artifact stale (DF-11-005/008/011/023): any
         # docs page (its description:, level or stakeholder_type), the nav, the
         # schema and generators, and the artifacts themselves so a hand-edit is
         # caught. test_committed_site_artifacts_are_in_sync is the CI backstop,

@@ -231,3 +231,7 @@ We have:
   maps each RM message to its ActivityStreams wire form.
 - **Run all demos at once** — inside the demo container, run
   `vultron-demo all` to execute every demo in sequence.
+
+{% include-markdown "../start/_paths/contribute/tutorials__receive_report_demo.md" %}
+
+{% include-markdown "../start/_paths/coordinate-cases/tutorials__receive_report_demo.md" %}

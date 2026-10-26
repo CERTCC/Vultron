@@ -61,3 +61,5 @@ A CVD program owner can measure their own cases without the derivation.
 ## Where to start
 
 Start with [What a Case Records](what_a_case_records.md), which describes the record that every main page in this section uses.
+
+{% include-markdown "../../start/_paths/study-the-process/topics__measuring_cvd__index.md" %}

@@ -928,8 +928,7 @@ groups:
       title taken from the start page's situation, no `stakeholder_type` or `level`
       value, no script element, and no link carrying a query string. That every
       member page and start page shows its boxes is checked over the built site by
-      DF-11-023. Not yet written; owned by #5170.
-    tracking_issue: '#5170'
+      DF-11-023. Covered by `test/metadata/docs/test_thread_boxes.py::TestBoxTable`.
   - id: DF-11-016
     priority: MUST
     kind: process
@@ -947,21 +946,6 @@ groups:
       Unit tests cover each failure — a missing page, a working-record page, a duplicate
       member, and an empty set of threads — and the check runs as a pre-commit hook and
       in CI.
-  - id: DF-11-017
-    priority: MUST_NOT
-    kind: process
-    adr:
-      - ADR-0150
-    statement: >-
-      A page that is a member of a thread MUST NOT show the theme's navigation-order
-      previous and next footer.
-    rationale: >-
-      The footer follows navigation order, not the thread, so on a member page it would
-      offer a second "next" link that can disagree with the thread's own directions
-      (DF-11-015).
-    verification: >-
-      The DF-11-015 fixture test confirms the rendered member page carries no
-      navigation-order footer, and that a page on no thread still carries it.
   - id: DF-11-018
     priority: MUST
     kind: process
@@ -1079,9 +1063,9 @@ groups:
     verification: >-
       A test renders a section member's box and confirms the section wording, and
       that a whole-page member's box keeps the page wording. The DF-11-023 built-site
-      check fails when a section member's box is not inside its section. Not yet
-      written; owned by #5170.
-    tracking_issue: '#5170'
+      check fails when a section member's box is not inside its section. Covered by
+      `test/metadata/docs/test_thread_boxes.py::TestSectionWording` and
+      `test/metadata/docs/test_path_boxes.py::TestBuiltSiteCheck::test_a_section_box_outside_its_section_fails`.
     relationships:
     - rel_type: refines
       spec_id: DF-11-015
@@ -1121,8 +1105,10 @@ groups:
       source, which is how a box added by the build shows; the check fails when it
       resolves no targets (DF-09-009). The check runs in CI beside the other
       built-site checks, not as a pre-commit hook, since it needs a full site build.
-      Not yet written; owned by #5170.
-    tracking_issue: '#5170'
+      Covered by `test/metadata/docs/test_thread_boxes.py::TestFragments` (generation,
+      check mode, stale-fragment deletion and `exclude_docs`) and
+      `test/metadata/docs/test_path_boxes.py` (`TestBuiltSiteCheck`, one test per
+      failure, and `test_the_check_runs_in_ci_beside_the_built_site_checks`).
     lint_suppress:
     - phantom_path_ref
   - id: DF-11-024

@@ -12,10 +12,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The built ``site/`` tree, shared by the checks that read the build product.
 
-``docs-withheld``, ``docs-links`` and ``docs-legacy-urls`` judge what
-``mkdocs build`` produced rather than the ``docs/`` sources. Each must refuse an
-absent or empty ``site/``: an unbuilt site evidences nothing, so a check that ran against one and
-reported success would pass while checking nothing (DF-09-009).
+``docs-withheld``, ``docs-links``, ``docs-legacy-urls`` and ``docs-path-boxes``
+judge what ``mkdocs build`` produced rather than the ``docs/`` sources. Each
+must refuse an absent or empty ``site/``: an unbuilt site evidences nothing, so
+a check that ran against one and reported success would pass while checking nothing (DF-09-009).
 """
 
 from __future__ import annotations

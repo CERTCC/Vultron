@@ -109,3 +109,5 @@ Read the object before the verb.
 - :material-table: [**Message Types**](../../reference/messages/index.md) — the full mapping from formal message names to wire activities
 
 </div>
+
+{% include-markdown "../../start/_paths/connect-your-tracker/howto__activitypub__index.md" %}
