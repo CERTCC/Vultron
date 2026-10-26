@@ -335,7 +335,11 @@ Rules for the narrative around them:
   enforces; each reconcile task adds its page's fragments (DF-12-004). A page's
   fragments include the `includes/` files they pull in, since an unlisted
   include carries keywords onto the page unchecked. A shared include must read
-  correctly on every page that includes it (DF-09-008).
+  correctly on every page that includes it (DF-09-008). The check sees only
+  upper-case keywords, so a reconcile also checks by hand the rules written
+  without one ("only", "never", "cannot", "require") against the YAML: #4896
+  found an overview paragraph whose keyword-free content gate contradicted
+  CM-10-004.
 - **A message rule is stated on its occasion**: a situation in a case that a
   sender conveys with a particular wire activity. A two-letter protocol
   shorthand is a cross-reference tag and the vocabulary of the state machine
