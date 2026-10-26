@@ -87,6 +87,9 @@ stakeholder_type: [project-contributor]
   - `docs-threads` → `vultron.metadata.docs.threads:main`.
     It fails when a start page declares no thread, a thread lists a page twice or a page that is missing, working record, or not a page, or no thread resolves at all (DF-11-016).
   - `docs-withheld` → `vultron.metadata.docs.withheld:main` (a withheld artifact produces no `site/` files), `docs-links` → `vultron.metadata.docs.links:main` (every internal reference in the built `site/` resolves), `docs-legacy-urls` → `vultron.metadata.docs.legacy_urls:main` (a URL the site once published still answers)
+  - `docs-duplicates` → `vultron.metadata.docs.duplicates:main`.
+    It lists paragraphs repeated across `docs/` pages, as exact copies or as drifted copies that share most of their sentences, for `lint-docs` to report as SG-43 findings.
+    It is advisory and exits 0 whatever it finds, except that it fails when it resolves no target pages (DF-09-009).
   - `demo-scenarios` → `vultron.metadata.demo_scenarios.sync:main`.
     `--write` regenerates the artifacts derived from the demo scenario registry.
     `--check` verifies those, and also the consumers that are checked rather than generated: the `mkdocs.yml` nav, the `notes/` scenario tables (including their semantic-type columns, resolved from the invariant-harness constants), the `DEMOCI-06-002`/`-003` spec enumerations, and the register of scenarios that are specified but not yet built.

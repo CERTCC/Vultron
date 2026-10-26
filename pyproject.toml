@@ -93,6 +93,7 @@ wire-context="vultron.metadata.wire_context.sync:main"
 docs-withheld="vultron.metadata.docs.withheld:main"
 docs-links="vultron.metadata.docs.links:main"
 docs-legacy-urls="vultron.metadata.docs.legacy_urls:main"
+docs-duplicates="vultron.metadata.docs.duplicates:main"
 nav-usability="vultron.metadata.docs.nav_usability:main"
 pr-size="vultron.metadata.planning.size_bands:main"
 pr-body-lint="vultron.metadata.planning.pr_body_lint:cli"
@@ -279,6 +280,9 @@ combine-as-imports = true
 # import-outside-top-level: mkdocs execs this script outside the package, so
 # its vultron import has to wait for the sys.path entry its module body adds.
 "docs/_scripts/render_trigger_api.py" = ["PLC0415"]
+# import-outside-top-level: textstat is not a project dependency (uvx supplies
+# it), so only score() imports it and the text parsing stays testable without it.
+".agents/skills/readability-audit/readability_audit.py" = ["PLC0415"]
 
 [tool.ruff.format]
 # ruff formats Python fenced inside Markdown; black never did. Excluding it
