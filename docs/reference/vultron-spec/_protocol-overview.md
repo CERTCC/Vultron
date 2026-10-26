@@ -127,13 +127,11 @@ The four dimensions are coupled. A transition in one creates obligations in
 others. This subsection summarizes the couplings;
 [§11 Model Interactions and Cascade Rules](interactions.md#11-model-interactions-and-cascade-rules-n) specifies them.
 
-**Being on the roster is not receiving the case.** An invited actor is a
-participant from the invitation onward, at RM state Received, but the
-CASE_MANAGER sends case content only to an **active** participant: one that was
-seated when the case was created or has accepted the case invitation, has not
-been removed, and, while an embargo is active, has agreed to that embargo. Once
-a participant's closure is recorded (RM state Closed), it receives no further
-case content ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
+**Being on the roster is not receiving the case.**
+An invited actor is a participant from the invitation onward, at RM state Received.
+The CASE_MANAGER sends case content only to an **active** participant.
+A participant is active when it was seated at case creation or has accepted the case invitation, has not been removed, and, while an embargo is active, has agreed to that embargo.
+Once a participant's closure is recorded (RM state Closed), it receives no further case content ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
 
 **EM gates disclosure.** While an embargo is in force, participants defer
 publication. An embargo ends by **teardown**: the CASE_MANAGER terminates it and

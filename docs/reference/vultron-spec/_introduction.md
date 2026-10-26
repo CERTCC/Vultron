@@ -72,10 +72,10 @@ and what is publicly known — has a single writer, the participant holding the
 Case Manager role, so that concurrent claims resolve to one answer
 ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
-**Coordination is scoped to a case, not to a system.** The Case Manager role is
-held per case, and different cases may be managed by different actors. Nothing
-in the protocol routes every case through one shared service. Within a case,
-though, shared state has one writer.
+**Coordination is scoped to a case, not to a system.**
+The Case Manager role is held per case, and different cases may be managed by different actors.
+Nothing in the protocol routes every case through one shared service.
+Within a case, though, shared state has one writer.
 
 !!! note "Informative: how centralized is this?"
     Two readings should both be avoided.
