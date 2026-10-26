@@ -253,6 +253,13 @@ class TestDuplicateReport:
         )
         assert duplicate_report(root).clusters == ()
 
+    def test_frontmatter_of_a_bodiless_page_is_not_read(self, tmp_path):
+        described = f"---\ndescription: >\n  {SHARED}\n---\n"
+        root = make_repo(
+            tmp_path, {"topics/a.md": described, "topics/b.md": described}
+        )
+        assert duplicate_report(root).clusters == ()
+
     def test_html_comment_is_not_read(self, tmp_path):
         comment = f"<!--\n{SHARED}\n-->"
         root = make_repo(
@@ -299,6 +306,21 @@ class TestParagraphs:
 
     def test_heading_ends_the_paragraph_before_it(self):
         text = page(f"{SHARED}\n## Section\n{DRIFTED_A}")
+        assert [p.text for p in paragraphs(text, "a.md")] == [
+            SHARED,
+            DRIFTED_A,
+        ]
+
+    @pytest.mark.parametrize("underline", ["=====", "-----"])
+    def test_setext_heading_ends_the_paragraph_before_it(self, underline):
+        text = page(f"{SHARED}\n\nSection title\n{underline}\n{DRIFTED_A}")
+        assert [p.text for p in paragraphs(text, "a.md")] == [
+            SHARED,
+            DRIFTED_A,
+        ]
+
+    def test_thematic_break_ends_the_paragraph_before_it(self):
+        text = page(f"{SHARED}\n\n---\n{DRIFTED_A}")
         assert [p.text for p in paragraphs(text, "a.md")] == [
             SHARED,
             DRIFTED_A,
@@ -420,15 +442,15 @@ def test_main_fails_distinctly_on_an_empty_target_set(
     assert "docs-duplicates resolved no target page" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("value", ["0", "1.5", "-0.2"])
+@pytest.mark.parametrize("value", ["0", "1.5", "-0.2", "half"])
 def test_threshold_outside_unit_interval_is_refused(value):
     with pytest.raises(SystemExit) as info:
         duplicates.main(["--threshold", value])
     assert info.value.code == 2
 
 
-@pytest.mark.parametrize("value", ["0", "-5"])
-def test_min_chars_below_one_is_refused(value):
+@pytest.mark.parametrize("value", ["0", "-5", "1.5", "many"])
+def test_min_chars_below_one_or_not_an_integer_is_refused(value):
     with pytest.raises(SystemExit) as info:
         duplicates.main(["--min-chars", value])
     assert info.value.code == 2

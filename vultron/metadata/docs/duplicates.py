@@ -21,9 +21,10 @@ carrying :data:`GENERATED_FILE_MARKER`), ``_``-prefixed files, and the
 generated sections inside hand-written pages. Project history lives under
 ``plan/history/``, outside ``docs/``, so the target set never holds it.
 
-A paragraph is a run of non-blank lines, ended by a blank line or a heading,
-with frontmatter, fenced code, HTML comments and ``{% %}`` directives removed.
-Fences are removed first, so a ``<!--`` or ``{%`` inside one is code. One shorter than :data:`MIN_CHARS` is too short to
+A paragraph is a run of non-blank lines, ended by a blank line or a heading
+(``#`` or a setext underline), with frontmatter, fenced code, HTML comments
+and ``{% %}`` directives removed. Fences are removed first, so a ``<!--`` or
+``{%`` inside one is code. One shorter than :data:`MIN_CHARS` is too short to
 say anything worth sourcing once, and a heading alone is not a paragraph.
 
 * **Exact copies.** Each paragraph is keyed by its text with whitespace
@@ -102,6 +103,9 @@ _GENERATED_SECTION_RE = re.compile(
 )
 _NON_PROSE_RE = re.compile(r"<!--.*?-->|\{%.*?%\}", re.DOTALL)
 _HEADING_RE = re.compile(r"\A#{1,6}\s")
+# A setext underline turns the lines above it into a heading; a ``---`` with
+# nothing above it is a thematic break. Either way it ends a paragraph.
+_SETEXT_UNDERLINE_RE = re.compile(r"\A {0,3}(=+|-+)\s*\Z")
 _SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
@@ -186,14 +190,18 @@ def paragraphs(
 ) -> Iterator[Paragraph]:
     """Yield each paragraph of a page's source long enough to report."""
     fenced = fenced_lines(text)
-    unfenced = "\n".join(
-        "" if number in fenced else line
-        for number, line in enumerate(text.splitlines(), start=1)
+    # ``keepends`` keeps the final newline the frontmatter pattern needs.
+    unfenced = "".join(
+        "\n" if number in fenced else line
+        for number, line in enumerate(text.splitlines(keepends=True), start=1)
     )
     lines = _blank_non_prose(unfenced).splitlines()
     block: list[str] = []
     start = 0
     for number, line in enumerate([*lines, ""], start=1):
+        if _SETEXT_UNDERLINE_RE.match(line):
+            block = []
+            continue
         if not line.strip() or _HEADING_RE.match(line.lstrip()):
             if block:
                 collapsed = " ".join(" ".join(block).split())
