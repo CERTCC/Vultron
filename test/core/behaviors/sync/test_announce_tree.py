@@ -21,7 +21,10 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
-from vultron.adapters.outbox_sealed_body import dump_outbound_body
+from vultron.adapters.outbox_sealed_body import (
+    dump_outbound_body,
+    read_sealed_body_dict,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.addressee import (
     ActivityAddressedToReceiverNode,
@@ -2063,6 +2066,17 @@ class TestAnnounceTreeEmitImpossibleStateFault:
             context=CASE_ID,
         )
         datalayer.create(participant)
+        # The fault goes to the case's CASE_MANAGER, the announcing actor.
+        manager = CaseParticipant(
+            id_=f"{CASE_ID}/participants/case-manager",
+            attributed_to=case_actor.id_,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        datalayer.create(manager)
+        case_obj.actor_participant_index[case_actor.id_] = manager.id_
+        case_obj.case_participants.append(manager.id_)
+        datalayer.save(case_obj)
 
         status_id = "https://example.org/statuses/impossible-rm-valid-vf"
         entry = _make_participant_status_entry_with_states(
@@ -2093,3 +2107,60 @@ class TestAnnounceTreeEmitImpossibleStateFault:
             == VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE
         )
         assert case_actor.id_ in call_kwargs["to"]
+
+    @pytest.mark.spec("RSH-09-006")
+    @pytest.mark.spec("SYNC-16-002")
+    def test_the_use_case_queues_the_impossible_state_fault(
+        self, datalayer, case_actor, case_obj
+    ):
+        """The received use case builds the fault through its own port.
+
+        The inbox composes the use case with a trigger-activity port, and the
+        use case hands it to the tree, so the fault reaches the replica's
+        outbox addressed to the CASE_MANAGER, and nothing is ledgered.
+        """
+        participant = CaseParticipant(
+            id_=PARTICIPANT_ID,
+            attributed_to=PARTICIPANT_ACTOR_ID,
+            context=CASE_ID,
+        )
+        datalayer.create(participant)
+        manager = CaseParticipant(
+            id_=f"{CASE_ID}/participants/case-manager",
+            attributed_to=case_actor.id_,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        datalayer.create(manager)
+        case_obj.actor_participant_index[case_actor.id_] = manager.id_
+        case_obj.case_participants.append(manager.id_)
+        datalayer.save(case_obj)
+        entry = _make_participant_status_entry_with_states(
+            log_index=0,
+            prev_hash=case_obj.genesis_hash,
+            status_id="https://example.org/statuses/impossible-via-use-case",
+            participant_id=PARTICIPANT_ID,
+            rm_state="VALID",
+            vf_state="VF",
+        )
+        event = _make_event(entry, actor_id=case_actor.id_).model_copy(
+            update={"receiving_actor_id": PARTICIPANT_ACTOR_ID}
+        )
+
+        AnnounceLedgerEntryReceivedUseCase(
+            datalayer,
+            event,
+            sync_port=MagicMock(spec=SyncActivityPort),
+            trigger_activity=TriggerActivityAdapter(datalayer),
+        ).execute()
+
+        (fault_id,) = datalayer.outbox_list()
+        body = read_sealed_body_dict(datalayer, fault_id)
+        assert body is not None
+        assert body["to"] == [case_actor.id_]
+        assert body["object"]["failureClass"].endswith(
+            "StatusAssertionRefused/ImpossibleState"
+        )
+        assert body["object"]["inReplyTo"] == event.activity_id
+        assert datalayer.read(entry.id_) is None
+        assert list(datalayer.list_objects("CaseLedgerEntry")) == []

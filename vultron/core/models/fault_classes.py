@@ -36,6 +36,25 @@ VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE = (
     f"{VULTRON_FAILURE_STATUS_ASSERTION_REFUSED}/ImpossibleState"
 )
 
+# SYNC-16-002: the parent class of the faults a replica sends the CASE_MANAGER
+# when it refuses a received CaseLedgerEntry.  Each is replication signalling,
+# like Reject(CaseLedgerEntry), and is never committed to a case ledger.
+VULTRON_FAILURE_LEDGER_ENTRY_REFUSED = (
+    f"{_VULTRON_NS}/errors/LedgerEntryRefused"
+)
+
+# SYNC-16-001: the entry extends the replica's chain, but its starting state
+# does not match the replica's case file, which is not already past it.
+VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED = (
+    f"{VULTRON_FAILURE_LEDGER_ENTRY_REFUSED}/CaseDiverged"
+)
+
+# SYNC-03-007: the entry states no entry_hash, or its content does not
+# reproduce it (SYNC-03-006).
+VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH = (
+    f"{VULTRON_FAILURE_LEDGER_ENTRY_REFUSED}/HashMismatch"
+)
+
 # EP-09-010, MSM-05-001: an Invite(EmbargoEvent) whose shape the protocol
 # does not allow — no `to` recipient or several — was received but not
 # understood.

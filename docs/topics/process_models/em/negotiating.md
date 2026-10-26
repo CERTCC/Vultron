@@ -10,21 +10,34 @@ description: >
 
 {% include-markdown "../../../includes/specification_governs.md" %}
 
-A new embargo can only be negotiated while there is still something for it to protect.
-That window, the embargo "habitable zone", is open until the vulnerability, an exploit for it, or attacks using it become public knowledge.
-It narrows once a fix is ready, and has mostly closed once the fix is deployed.
+Participants can negotiate a new embargo only while there is still something for it to protect.
+This window is the embargo "habitable zone".
+It is open until the vulnerability, an exploit for it, or attacks that use it become public knowledge.
+The window becomes narrower when a fix is ready, and it is mostly closed when the fix is deployed.
 
 In plain terms:
 
-- **Never** propose or accept a new embargo once the vulnerability is public, an exploit is public, or attacks have been observed.
+- **Never** propose or accept a new embargo after the vulnerability is public, an exploit is public, or someone has observed attacks.
   An embargo cannot hide what is already known.
-- **Usually don't** once the fix has been deployed, unless there is a specific reason, such as those listed below.
-- **Only briefly** once a fix is ready but neither published nor deployed, to let Participants prepare for publication or deployment.
+- **Usually do not** after the fix has been deployed, unless there is a specific reason, such as the reasons listed below.
+- **Only briefly** after a fix is ready but is neither published nor deployed.
+  This short embargo lets Participants prepare for publication or deployment.
 - **Otherwise, freely.**
 
 The rules below state the same thing normatively.
-Each condition is given in the notation of the [CVD Case State model](../cs/cs_model.md), where each of six letters records whether an event has happened: the Vendor is aware (*V*), a fix is ready (*F*), the fix is deployed (*D*), the vulnerability is public (*P*), an exploit is public (*X*), and attacks have been observed (*A*).
-A capital letter means the event has happened, a lowercase letter that it has not, and a dot ($\cdot$) that either will do.
+Each condition uses the notation of the [CVD Case State model](../cs/cs_model.md).
+In this notation, each of six letters records whether an event has occurred:
+
+- the Vendor is aware (*V*)
+- a fix is ready (*F*)
+- the fix is deployed (*D*)
+- the vulnerability is public (*P*)
+- an exploit is public (*X*)
+- attacks have been observed (*A*)
+
+A capital letter means that the event has occurred.
+A lowercase letter means that it has not occurred.
+A dot ($\cdot$) means that either value is correct.
 
 !!! note ""
 
@@ -42,8 +55,8 @@ A capital letter means the event has happened, a lowercase letter that it has no
 
 Counterexamples include
 
-- when an embargo is desired to allow for a downstream Vendor to synchronize their fix delivery or deployment
-- when a Vendor has deployed a fix but wants to complete their root cause analysis prior to releasing information about the vulnerability.
+- when an embargo is desired to let a downstream Vendor synchronize their fix delivery or deployment
+- when a Vendor has deployed a fix but wants to complete their root cause analysis before they release information about the vulnerability.
 
 !!! note ""
 
@@ -56,9 +69,11 @@ Counterexamples include
 
 ## Asymmetry in Embargo Negotiation
 
-Asymmetry is inherent in the CVD process because those who currently have the vulnerability information get to decide with whom they will share it.
-This asymmetry puts Reporters at somewhat of an advantage when it comes to the initial report submission to another Participant.
-[Default Embargoes](defaults.md) describes some ways to reduce, though not remove, this asymmetry; for now it is enough to acknowledge that it exists.
+Asymmetry is inherent in the CVD process.
+The parties that currently have the vulnerability information decide with whom they will share it.
+This asymmetry gives Reporters a small advantage when they first submit a report to another Participant.
+[Default Embargoes](defaults.md) describes some ways to reduce this asymmetry, but these ways do not remove it.
+For now, it is sufficient to know that the asymmetry exists.
 
 !!! note ""
 
@@ -86,7 +101,9 @@ Explicit acceptance is expected.
     Participants SHOULD explicitly *accept* or *reject* embargo proposals in a timely manner.
     Outside the two default paths described in [Default Embargoes](defaults.md#embargoes-are-active-at-case-creation), embargo agreement or rejection SHOULD NOT be tacit.
 
-The two default paths are the exception because nothing is left open on them: a Reporter who submits a report without proposing other terms accepts the Recipient's published default, and where nobody has proposed or published anything, the protocol default applies.
+The two default paths are the exception, because they leave nothing open.
+On the first path, a Reporter who submits a report without proposing other terms accepts the published default of the Recipient.
+On the second path, nobody has proposed or published anything, so the protocol default applies.
 
 !!! note ""
     Participants MAY interpret another Participant's failure to respond to an embargo proposal in a timely manner as a *reject*ion of that proposal.
@@ -95,11 +112,13 @@ The two default paths are the exception because nothing is left open on them: a 
     In the absence of an explicit *accept* or *reject* response from a Receiver in a timely manner, the Sender MAY proceed as though the proposal had been rejected: for a revision ($q^{em} \in R \xrightarrow{r} A$, in the [EM shorthand](formal_model.md#em-states)), the terms of the *Active* embargo stay in force.
 
 The protocol reads silence the same way when a Participant is invited to an existing embargo.
-A Participant who neither accepts nor declines before the invitation's deadline is recorded as timed out rather than declined, the [*pocket veto*](../../behavior_logic/use-cases/embargo-lifecycle.md#inaction-is-an-answer) ([§9.4 Deadlines and the Pocket Veto in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#94-deadlines-and-the-pocket-veto)).
+Sometimes an invited Participant does not accept or decline before the deadline of the invitation.
+The protocol then records that Participant as timed out, not as declined.
+This result is the [*pocket veto*](../../behavior_logic/use-cases/embargo-lifecycle.md#inaction-is-an-answer) ([§9.4 Deadlines and the Pocket Veto in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#94-deadlines-and-the-pocket-veto)).
 
 ## No Embargo means No Embargo
 
-Once an embargo negotiation has failed the first time, Participants have no further obligations.
+After an embargo negotiation fails the first time, Participants have no further obligations.
 
 !!! note ""
 
@@ -107,14 +126,18 @@ Once an embargo negotiation has failed the first time, Participants have no furt
 
 !!! tip "Incentives Matter"
 
-    The clauses "explicitly or tacitly rejected" and "may take any action" above are deliberate: they give Participants a reason to be declarative and to negotiate in good faith.
-    Were a rejected embargo proposal to carry _any_ implied obligation to refrain from publication, Participants might be motivated to use delayed or ambiguous responses to impose that obligation on others.
-    The aim is to avoid a Participant ignoring an embargo proposal while expecting the other Participants to stay bound by the proposed-but-inactive terms.
+    The clauses "explicitly or tacitly rejected" and "may take any action" above are deliberate.
+    They give Participants a reason to be declarative and to negotiate in good faith.
+
+    Suppose that a rejected embargo proposal carried _any_ implied obligation not to publish.
+    Then Participants might have a reason to use delayed or ambiguous responses to put that obligation on others.
+    The aim is to prevent this situation: a Participant ignores an embargo proposal but expects the other Participants to stay bound by the proposed-but-inactive terms.
     _Only_ active embargoes impose obligations on Participants.
 
-## Don't Give Up Too Soon
+## Do Not Give Up Too Soon
 
-The above notwithstanding, Participants are encouraged to try again, especially when no explicit rejection has been communicated (i.e., in the *tacitly rejected* scenario described above).
+Even so, the protocol encourages Participants to try again.
+This is especially true when no Participant has communicated an explicit rejection, as in the *tacitly rejected* scenario described above.
 
 !!! note ""
 
@@ -123,17 +146,20 @@ The above notwithstanding, Participants are encouraged to try again, especially 
 ## Proposing Terms with a Report
 
 There is no embargo negotiation before a case exists.
-A Reporter who wants particular terms attaches a proposed embargo to the report they submit, and those terms are weighed against the Recipient's published default when the Recipient creates the case ([ADR-0096: A Protocol Default Embargo Replaces the Pre-Case Phase](../../../adr/0096-protocol-default-embargo.md)).
-The shorter of the two takes effect at once, and the longer becomes a proposed revision; [Default Embargoes](defaults.md#using-defaults) walks through each combination.
+A Reporter who wants particular terms attaches a proposed embargo to the report they submit.
+When the Recipient creates the case, those terms are weighed against the published default of the Recipient ([ADR-0096: A Protocol Default Embargo Replaces the Pre-Case Phase](../../../adr/0096-protocol-default-embargo.md)).
+The shorter of the two takes effect immediately, and the longer becomes a proposed revision.
+[Default Embargoes](defaults.md#using-defaults) gives each combination step by step.
 
-Submitting the report is itself a statement of the Reporter's position.
+The submission of the report is itself a statement of the position of the Reporter.
 
 !!! note ""
 
     A Sender who submits a report without proposing embargo terms SHALL be construed as accepting the Receiver's published default embargo, where one exists.
 
-A Reporter who cannot accept a Recipient's published default can say so by proposing shorter terms with the report.
-They can also hold the report back.
+Sometimes a Reporter cannot accept the published default of a Recipient.
+That Reporter can say so by proposing shorter terms with the report.
+The Reporter can also choose not to submit the report yet.
 
 !!! note ""
 
@@ -141,9 +167,11 @@ They can also hold the report back.
 
 ## Addressing Validation Uncertainty
 
-Participants might prefer to delay accepting or rejecting a proposed embargo until after they have had an opportunity to review the report through the validation and (possibly) prioritization processes.
-However, other Participants are under no obligation to withhold publication of cases not covered by an active embargo.
-A short embargo is therefore recommended until validation concludes, at which point it can be extended with a revision.
+Participants might prefer to wait before they accept or reject a proposed embargo.
+They might want to review the report first, through the validation and (possibly) prioritization processes.
+However, other Participants have no obligation to withhold publication of cases that no active embargo covers.
+For this reason, we recommend a short embargo until validation is complete.
+Participants can then extend the embargo with a revision.
 
 !!! note ""
 

@@ -31,6 +31,9 @@ from test.support.inbox_replay import (
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger import (
     HashChainLedgerRecord,
@@ -855,13 +858,18 @@ class TestPreGenesisAnnounceBuffering:
         )
 
         result = AnnounceLedgerEntryReceivedUseCase(
-            dl, _announce_event(entry), sync_port=SyncActivityAdapter(dl)
+            dl,
+            _announce_event(entry),
+            sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
         ).execute()
 
         assert result.disposition == HandlerDisposition.REFUSED
         assert dl.read(entry.id_) is None
         assert held_depth(dl, CASE_URI) == 0
-        # Refused without a Reject (SYNC-03-006).
+        # Refused without a Reject (SYNC-03-006), and without a fault: this
+        # store knows no CASE_MANAGER to verify the sender against
+        # (SYNC-03-007, ASK-07-002).
         assert dl.outbox_list() == []
 
 
@@ -908,6 +916,7 @@ class TestAnnounceLedgerEntryDisposition:
             dl,
             event,
             sync_port=SyncActivityAdapter(dl),
+            trigger_activity=TriggerActivityAdapter(dl),
             inbox_replay=replay,
         ).execute()
 

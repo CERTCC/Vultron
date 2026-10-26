@@ -31,7 +31,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
-from vultron.core.behaviors.sync.nodes.replay import rejected_case_id
+from vultron.core.behaviors.sync.nodes.replay import replay_case_id
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -179,12 +179,12 @@ class UpdateReplicationStateNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         activity = self.activity
-        case_id = rejected_case_id(activity, self.name)
+        case_id = replay_case_id(activity, self.name)
 
         peer_id = activity.actor_id
         if not peer_id:
             raise VultronError(
-                f"{self.name}: Reject(CaseLedgerEntry) missing peer actor_id"
+                f"{self.name}: replication position missing peer actor_id"
             )
 
         state = VultronReplicationState(

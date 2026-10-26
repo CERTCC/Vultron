@@ -569,6 +569,23 @@ async def _run_serialised(
         await outbox_handler(actor_id, actor_dl, emitter=emitter)
 
 
+async def run_serialised_actor_work(
+    actor_dl: DataLayer,
+    actor_id: str,
+    emitter: ActivityEmitter | None,
+    work: Callable[[], None],
+) -> None:
+    """Run *work* as this actor's deliveries run: serialised, then drained.
+
+    For actor-initiated work that is not a delivery, such as the ledger
+    position statements a participant sends after a restart (SYNC-17-007).
+    It takes the actor's inbox lock, so it never interleaves with a delivery
+    being processed, runs off the event loop, and drains the outbox after
+    (see :func:`_run_serialised`).
+    """
+    await _run_serialised(actor_dl, actor_id, emitter, work)
+
+
 async def run_inbox_pipeline(
     payload: dict[str, Any] | bytes | str | Any,
     actor_dl: DataLayer,

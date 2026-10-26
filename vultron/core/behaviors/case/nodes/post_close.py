@@ -58,7 +58,8 @@ class PostCloseExemption(StrEnum):
     """Why a received tree does not carry the post-close guard.
 
     - ``LEDGER_RESYNC`` — the tree replays entries the ledger already holds to
-      a replica that asked for them (``Reject(CaseLedgerEntry)``).  It appends
+      a replica that asked for them (``Reject(CaseLedgerEntry)``) or stated a
+      position behind them (``Read(CaseLedgerEntry)``, SYNC-17-004).  It appends
       nothing, and the CASE_MANAGER MAY keep serving resync after close
       (ADR-0085, CM-23-013).
     - ``ENCLOSING_TREE_GUARDS`` — the tree is a subtree of a received tree that

@@ -14,7 +14,8 @@
 """Received use cases for LedgerFanout/LedgerReconciliation: accept or reject inbound log-entry
 announcements, and handle hash-chain rejection replies.
 
-Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-04-001, SYNC-04-002.
+Spec: SYNC-02-003, SYNC-03-001 through SYNC-03-003, SYNC-04-001, SYNC-04-002,
+SYNC-17-002 through SYNC-17-006.
 """
 
 import logging
@@ -46,12 +47,17 @@ from vultron.core.behaviors.sync.nodes import (
 from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoChangeFromLedgerNode,
 )
+from vultron.core.behaviors.sync.nodes.position_statement import (
+    CheckStatedPositionInLedgerNode,
+)
+from vultron.core.behaviors.sync.read_tree import create_read_log_entry_tree
 from vultron.core.behaviors.sync.reject_tree import (
     create_reject_log_entry_tree,
 )
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
+    ReadLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
 from vultron.core.models.pending_assertion import (
@@ -71,6 +77,7 @@ from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     case_manager_verdict,
     door_refusal,
+    find_node,
     named_node_status,
     node_failed,
     node_succeeded,
@@ -87,19 +94,22 @@ def _run_announce_bt(
     sync_port: SyncActivityPort | None,
     wire_render_port: WireRenderPort | None,
     inbox_replay: InboxReplayPort | None,
+    trigger_activity: TriggerActivityPort | None,
 ) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
     """Run the announce receive BT for *request*.
 
     The tree replays a held successor's ``Announce`` through the inbox via
-    *inbox_replay* rather than running it here (SYNC-14-009).  Returns the
-    tree along with the result so the caller can tell which branch decided
-    the outcome (#2255).
+    *inbox_replay* rather than running it here (SYNC-14-009).  It builds the
+    replica's fault about a refused entry through *trigger_activity*
+    (RSH-09-006, SYNC-03-007, SYNC-16-001).  Returns the tree along with the
+    result so the caller can tell which branch decided the outcome (#2255).
     """
     tree = create_announce_log_entry_tree(
         sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
     )
     result = BTBridge(
         datalayer=dl,
+        trigger_activity=trigger_activity,
         wire_render_port=wire_render_port,
         sync_port=sync_port,
     ).execute_with_setup(
@@ -204,11 +214,14 @@ class AnnounceLedgerEntryReceivedUseCase:
     """Process a received ``Announce(CaseLedgerEntry)`` activity.
 
     Refuses an entry whose content does not reproduce its own hash
-    (SYNC-03-006), then validates the incoming entry against the local
-    hash-chain tail and persists it if the chain is consistent.  On
-    mismatch, sends a
+    (SYNC-03-006) and reports it to the CASE_MANAGER with a
+    ``LedgerEntryRefused/HashMismatch`` fault (SYNC-03-007), then validates
+    the incoming entry against the local hash-chain tail and persists it if
+    the chain is consistent.  On mismatch, sends a
     ``Reject(CaseLedgerEntry)`` back to the CaseActor carrying the local
-    tail hash (SYNC-03-001).
+    tail hash (SYNC-03-001).  An entry that extends the chain but does not
+    apply to this replica's case is held and reported with a
+    ``LedgerEntryRefused/CaseDiverged`` fault (SYNC-16-001).
 
     When *pending_assertions* is provided (or resolved from the per-actor
     registry), clears the matching pending assertion on receipt so that
@@ -247,9 +260,9 @@ class AnnounceLedgerEntryReceivedUseCase:
     ) -> None:
         self._dl = dl
         self._inbox_replay = inbox_replay
-        # The received baseline supplies the trigger port to every use case;
-        # this one runs no tree that builds an activity, so it is unused.
-        del trigger_activity
+        # Builds the replica's fault about an entry it refuses (RSH-09-006,
+        # SYNC-03-007, SYNC-16-001).
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port
@@ -287,6 +300,7 @@ class AnnounceLedgerEntryReceivedUseCase:
             self._sync_port,
             self._wire_render_port,
             self._inbox_replay,
+            self._trigger_activity,
         )
 
         # A copy the door guards refused (an unaddressed one, HP-01-005, or a
@@ -329,7 +343,63 @@ class AnnounceLedgerEntryReceivedUseCase:
         return verdict
 
 
-class RejectLedgerEntryReceivedUseCase:
+class _LedgerReplayRequestUseCase:
+    """What the ``Reject`` and ``Read`` of a ``CaseLedgerEntry`` share.
+
+    Both ask the CASE_MANAGER, in their own words, for the entries a peer
+    lacks, and both are answered by one tree run against the receiver's own
+    store (CLP-10-005); this holds the ports and the run.
+    """
+
+    def __init__(
+        self,
+        dl: CaseOutboxPersistence,
+        sync_port: SyncActivityPort | None,
+        trigger_activity: TriggerActivityPort | None,
+        wire_render_port: "WireRenderPort | None",
+    ) -> None:
+        self._dl = dl
+        self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
+        self._wire_render_port = wire_render_port
+
+    def _run(
+        self,
+        tree: py_trees.behaviour.Behaviour,
+        request: RejectLogEntryReceivedEvent | ReadLogEntryReceivedEvent,
+    ) -> BTExecutionResult:
+        """Run *tree* once for *request*, as the receiving actor."""
+        return BTBridge(
+            datalayer=self._dl,
+            sync_port=self._sync_port,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
+            activity=request,
+        )
+
+    @staticmethod
+    def _reported(
+        verdict: HandlerResult,
+        request: RejectLogEntryReceivedEvent | ReadLogEntryReceivedEvent,
+        label: str,
+    ) -> HandlerResult:
+        """*verdict*, logged at WARNING when it is a refusal."""
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "sync: could not act on %s '%s': %s",
+                label,
+                request.activity_id,
+                verdict.reason,
+            )
+        return verdict
+
+
+class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     """CaseActor handles a participant's rejection of a log entry announcement.
 
     When a participant rejects an ``Announce(CaseLedgerEntry)`` because the
@@ -365,11 +435,8 @@ class RejectLedgerEntryReceivedUseCase:
         trigger_activity: TriggerActivityPort | None = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
-        self._dl = dl
-        self._wire_render_port = wire_render_port
+        super().__init__(dl, sync_port, trigger_activity, wire_render_port)
         self._request = request
-        self._sync_port = sync_port
-        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -398,28 +465,111 @@ class RejectLedgerEntryReceivedUseCase:
         tree = create_reject_log_entry_tree(
             case_id, sender_rule=self.sender_entitlement
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            sync_port=self._sync_port,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
-        )
+        result = self._run(tree, request)
         verdict = verdict_from_bt(
             tree, result, label="RejectLogEntryReceivedBT"
         )
         # Only the CASE_MANAGER answers a rejection; a replica that
         # receives one was misaddressed (SYNC-03-005, HP-01-005).
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.REFUSED:
+        return self._reported(
+            case_manager_verdict(tree, verdict, self._dl, case_id),
+            request,
+            "Reject(CaseLedgerEntry)",
+        )
+
+
+class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
+    """The CASE_MANAGER answers a participant's stated ledger position.
+
+    A ``Read(CaseLedgerEntry)`` names the last canonical entry its sender has
+    applied for the case (SYNC-17-001, ADR-0155).  The read tree
+    (``create_read_log_entry_tree``) checks the position is one the
+    CASE_MANAGER's ledger holds, records the entry's hash as the sender's
+    acknowledged position, and replays every entry after it under the replay
+    rate bound and the outbox de-duplication (SYNC-17-003, SYNC-17-004).
+
+    Only an active participant's statement is acted on (SYNC-17-002): the
+    sender standing is ``ACTIVE_PARTICIPANT``, which also refuses a closed
+    participant (CM-23-018, CM-23-020).  Any other sender, and any receiver
+    that is not the case's CASE_MANAGER, is ``REFUSED`` with nothing recorded
+    or sent (HP-01-005, HP-01-006).  A position the ledger does not hold is
+    logged at WARNING and ``REFUSED``, with nothing recorded or sent
+    (SYNC-17-005).  No ledger entry is committed either way (SYNC-17-006).
+
+    Spec: SYNC-17-002 through SYNC-17-006, SYNC-04-001, SYNC-15-003,
+    SYNC-15-012, SYNC-15-013.
+    """
+
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.in_case(
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    )
+
+    def __init__(
+        self,
+        dl: CaseOutboxPersistence,
+        request: ReadLogEntryReceivedEvent,
+        sync_port: SyncActivityPort | None = None,
+        trigger_activity: TriggerActivityPort | None = None,
+        wire_render_port: "WireRenderPort | None" = None,
+    ) -> None:
+        super().__init__(dl, sync_port, trigger_activity, wire_render_port)
+        self._request = request
+
+    def execute(self) -> HandlerResult:
+        request = self._request
+        case_id = request.replay_case_id
+        if case_id is None:
             logger.warning(
-                "sync: could not act on Reject(CaseLedgerEntry) '%s': %s",
+                "sync: received READ_CASE_LEDGER_ENTRY '%s' from '%s' naming"
+                " no case in its context — refusing",
                 request.activity_id,
-                verdict.reason,
+                request.actor_id,
             )
-        return verdict
+            return HandlerResult.refused(
+                "Read(CaseLedgerEntry) names no case in its context"
+            )
+
+        position = request.ledger_position
+        logger.info(
+            "sync: received Read(CaseLedgerEntry) '%s' from peer '%s' for"
+            " case '%s', stated position log_index=%d entry_hash=%.16s…",
+            request.activity_id,
+            request.actor_id,
+            case_id,
+            position.log_index,
+            position.entry_hash,
+        )
+        tree = create_read_log_entry_tree(
+            case_id,
+            sender_id=request.actor_id,
+            sender_rule=self.sender_entitlement,
+        )
+        result = self._run(tree, request)
+        return self._reported(
+            _read_verdict(tree, result, self._dl, case_id),
+            request,
+            "Read(CaseLedgerEntry)",
+        )
+
+
+def _read_verdict(
+    tree: py_trees.behaviour.Behaviour,
+    result: BTExecutionResult,
+    dl: CaseOutboxPersistence,
+    case_id: str,
+) -> HandlerResult:
+    """Classify a finished ``ReadLogEntryReceivedBT`` run (HP-01-003).
+
+    A position the ledger does not hold fails the position check, which
+    already logged it at WARNING (SYNC-17-005); it is refused with that
+    reason.  Only the CASE_MANAGER answers a ``Read``; a replica that
+    receives one was misaddressed (HP-01-005).
+    """
+    if node_failed(tree, CheckStatedPositionInLedgerNode):
+        check = find_node(tree, CheckStatedPositionInLedgerNode)
+        assert check is not None  # it ran: node_failed found it
+        return HandlerResult.refused(
+            f"{check.feedback_message}; nothing recorded or sent (SYNC-17-005)"
+        )
+    verdict = verdict_from_bt(tree, result, label="ReadLogEntryReceivedBT")
+    return case_manager_verdict(tree, verdict, dl, case_id)

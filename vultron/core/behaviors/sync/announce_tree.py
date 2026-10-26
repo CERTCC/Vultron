@@ -80,8 +80,14 @@ from vultron.core.behaviors.sync.nodes.embargo_copy_effect import (
     ApplyEmbargoConsentFromLedgerNode,
     IsEmbargoConsentEventNode,
 )
+from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
+    EmitLedgerEntryFaultNode,
+)
 from vultron.core.behaviors.sync.nodes.participant_status_effect import (
     EmitImpossibleStateFaultNode,
+)
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH,
 )
 
 
@@ -471,8 +477,20 @@ def create_announce_log_entry_tree(
             ),
             # An entry that fails its own hash is refused before it can be
             # buffered, applied or stored, and before the already-stored
-            # shortcut could skip it unlogged (SYNC-03-006).
-            CheckEntryHashIntactNode(name="CheckEntryHashIntact"),
+            # shortcut could skip it unlogged (SYNC-03-006).  The refusal is
+            # reported to the CASE_MANAGER with its own fault, and the
+            # Selector still fails (SYNC-03-007).
+            py_trees.composites.Selector(
+                name="HashIntactOrFault",
+                memory=False,
+                children=[
+                    CheckEntryHashIntactNode(name="CheckEntryHashIntact"),
+                    EmitLedgerEntryFaultNode(
+                        VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH,
+                        name="EmitHashMismatchFault",
+                    ),
+                ],
+            ),
             entry_processing,
             # The entry this delivery stored (or found stored) may be the
             # predecessor a held Announce waits on.  That Announce, as it was

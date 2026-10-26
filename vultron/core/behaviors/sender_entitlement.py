@@ -166,7 +166,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerConditionWithPorts,
     FindParticipantByActorIdNode,
 )
-from vultron.core.behaviors.sync.nodes.replay import rejected_case_id
+from vultron.core.behaviors.sync.nodes.replay import replay_case_id
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
@@ -879,7 +879,7 @@ class SenderIsActiveLedgerParticipantNode(SenderEntitlementConditionNode):
         # The rejected entry's case, or the case the objectless genesis
         # Reject names as its target (SYNC-16-007).
         try:
-            case_id = rejected_case_id(self.activity, self.name)
+            case_id = replay_case_id(self.activity, self.name)
         except VultronError as exc:
             self.logger.warning("%s: %s", self.name, exc)
             return Status.FAILURE

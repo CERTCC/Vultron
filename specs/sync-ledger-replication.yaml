@@ -1564,9 +1564,10 @@ groups:
     adr:
     - ADR-0142
     verification: >-
-      `test/core/behaviors/sync/test_divergence_recovery.py` drives a refused copy entry
-      that extends the chain and asserts the replica queues the fault to the
-      CASE_MANAGER.
+      `test/core/use_cases/received/test_embargo_consent_copy.py` drives a refused copy
+      entry that extends the chain and asserts the replica queues the fault to the
+      CASE_MANAGER alone and keeps holding the entry;
+      `test/core/behaviors/sync/test_divergence_recovery.py` pins the failure class.
     stories:
     - story_2022_045
     - story_2022_088
@@ -1590,7 +1591,8 @@ groups:
     adr:
     - ADR-0142
     verification: >-
-      `test/core/behaviors/sync/test_divergence_recovery.py` asserts no case ledger
+      `test/core/use_cases/received/test_embargo_consent_copy.py` and
+      `test/core/behaviors/sync/test_hash_mismatch_fault.py` assert no case ledger
       gains an entry when the fault is sent or received.
     stories:
     - story_2022_045

@@ -45,6 +45,9 @@ from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
+from vultron.core.use_cases.triggers.sync import (
+    state_ledger_positions_trigger,
+)
 from vultron.enums.roles import CVDRole
 from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import (
@@ -486,3 +489,112 @@ def test_sync_duplicate_delivery_idempotency(
 
     # AC-4 guard: each actor app must use its own isolated DataLayer.
     assert case_actor_dl is not peer_dl
+
+
+@pytest.mark.spec("SYNC-17-004")
+@pytest.mark.spec("SYNC-17-003")
+@pytest.mark.spec("SYNC-00-008")
+def test_lost_last_entry_is_recovered_by_a_position_statement(
+    two_app_setup,
+) -> None:
+    """A dropped last Announce is recovered by the participant's own Read.
+
+    The CASE_MANAGER holds three entries; the peer's replica received only
+    the first two, and nothing further is committed, so no later entry
+    arrives with a gap and the peer sends no ``Reject``.  Its
+    ``Read(CaseLedgerEntry)``, delivered through the CASE_MANAGER's inbox,
+    records its position and replays the lost entry, so the peer's tail
+    reaches the CASE_MANAGER's (ADR-0155).
+    """
+    case_actor_iso, peer_iso, case_actor_tc, peer_tc = two_app_setup
+
+    case_actor_id = _create_actor(
+        case_actor_tc,
+        f"{case_actor_iso.base_url}/api/v2",
+        "case-actor-sync-917",
+        "Service",
+    )
+    peer_actor_id = _create_actor(
+        peer_tc, f"{peer_iso.base_url}/api/v2", "peer-sync-917", "Organization"
+    )
+    case_actor_dl = case_actor_iso.store_for(case_actor_id)
+    peer_dl = peer_iso.store_for(peer_actor_id)
+    _register_peer(
+        case_actor_tc, "case-actor-sync-917", peer_actor_id, "peer-sync-917"
+    )
+
+    case = as_VulnerabilityCase(
+        name="SYNC-17 lost last entry case", attributed_to=_OWNER_ID
+    )
+    case_actor_participant = as_CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    peer_participant = as_CaseParticipant(
+        attributed_to=peer_actor_id, context=case.id_
+    )
+    case.case_participants.append(case_actor_participant.id_)
+    case.case_participants.append(peer_participant.id_)
+    case.actor_participant_index[case_actor_id] = case_actor_participant.id_
+    case.actor_participant_index[peer_actor_id] = peer_participant.id_
+    for store in (case_actor_dl, peer_dl):
+        store.save(case_actor_participant)
+        store.save(peer_participant)
+    case_actor_dl.save(case)
+
+    entry0 = _make_log_entry(case.id_, 0, case.genesis_hash, "sync_917_a")
+    entry1 = _make_log_entry(case.id_, 1, entry0.entry_hash, "sync_917_b")
+    entry2 = _make_log_entry(case.id_, 2, entry1.entry_hash, "sync_917_c")
+    for entry in (entry0, entry1, entry2):
+        case_actor_dl.save(entry)
+    # The peer's replica: the Announce of entry2 was lost (SYNC-16-005).
+    peer_dl.save(
+        case.model_copy(
+            update={
+                "ledger_position": LedgerPosition(
+                    log_index=1, entry_hash=entry1.entry_hash
+                )
+            }
+        )
+    )
+    peer_dl.save(entry0)
+    peer_dl.save(entry1)
+
+    sent = state_ledger_positions_trigger(
+        peer_dl, peer_actor_id, SyncActivityAdapter(peer_dl)
+    )
+    assert sent == 1
+    reads = peer_dl.list_objects("Read")
+    assert len(reads) == 1
+    assert peer_dl.list_objects("Reject") == []
+
+    handle_inbox_item(
+        actor_id=case_actor_id,
+        obj=delivered(reads[0]),
+        dl=case_actor_dl,
+        dispatcher=case_actor_iso.app.state.dispatcher,
+    )
+    anyio.run(
+        functools.partial(
+            outbox_handler,
+            case_actor_id,
+            case_actor_dl,
+            emitter=getattr(case_actor_iso.app.state, "emitter", None),
+        )
+    )
+
+    state = case_actor_dl.read(
+        VultronReplicationState(case_id=case.id_, peer_id=peer_actor_id).id_
+    )
+    assert state is not None
+    assert state.last_acknowledged_hash == entry1.entry_hash
+    peer_tail = max(
+        (
+            e
+            for e in peer_dl.list_objects("CaseLedgerEntry")
+            if getattr(e, "case_id", None) == case.id_
+        ),
+        key=lambda e: e.log_index,
+    )
+    assert peer_tail.entry_hash == entry2.entry_hash

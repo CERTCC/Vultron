@@ -16,15 +16,19 @@
 Provides :class:`_AnnounceLogEntryActivity` used by the CaseActor to fan
 out canonical log entries to participant actors, and
 :class:`_RejectLogEntryActivity` used by participants to report hash-chain
-mismatches back to the CaseActor.
+mismatches back to the CaseActor, and :class:`_ReadLogEntryActivity` used by
+participants to state their ledger position (SYNC-17-001).
 """
 
 from typing import Any
 
 from pydantic import Field
 
+from vultron.core.models.ledger_position import LedgerPosition
+from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
+    as_Read,
     as_Reject,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
@@ -79,4 +83,37 @@ class _RejectLogEntryActivity(as_Reject):
     # inherited from as_Object as ``context: Any | None = None``.
     context: Any = Field(  # type: ignore[assignment]
         default=None,
+    )
+
+
+class _ReadLogEntryActivity(as_Read):
+    """Participant states its ledger position: ``Read(CaseLedgerEntry)``.
+
+    Sent by a participant to the case's CASE_MANAGER to state that it has
+    applied the case's ledger up to the entry it names (SYNC-17-001,
+    ADR-0155).  ``Read`` states a fact and asks for nothing; the
+    CASE_MANAGER answers a lag with a replay (SYNC-17-004).
+
+    object_: the id of the last canonical entry the participant has applied,
+        by reference.
+    context: the case the entry belongs to.
+    ledger_position: the entry's ``logIndex`` and ``entryHash``, so the
+        CASE_MANAGER can tell a lag from a position its ledger does not hold
+        (SYNC-17-005).
+
+    Spec: SYNC-17-001.
+    """
+
+    object_: NonEmptyString = Field(  # type: ignore[assignment]
+        default=...,
+        validation_alias="object",
+        serialization_alias="object",
+    )
+    context: NonEmptyString = Field(  # type: ignore[assignment]
+        default=...,
+    )
+    ledger_position: LedgerPosition = Field(  # type: ignore[assignment]
+        default=...,
+        validation_alias="ledgerPosition",
+        serialization_alias="ledgerPosition",
     )
