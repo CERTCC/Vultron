@@ -2,17 +2,17 @@
 !!! info "CVD Embargoes Are Not NDAs"
 
     CVD embargoes are *not* Non-Disclosure Agreements (NDAs).
-    An NDA (also known as a Confidentiality agreement) is a legally binding contract between parties, often accompanied
-    by a reward for compliance and/or some penalty in the event of unauthorized disclosure.
-    NDAs do, on occasion, have a place in CVD processes, but the relatively rapid pace and scale of most MPCVD embargoes
-    makes per-case NDAs prohibitively difficult.
-    As a result, we are intentionally setting aside NDA negotiation as beyond the scope of this proposal.
+    An NDA (also known as a Confidentiality agreement) is a legally binding contract between parties.
+    An NDA often includes a reward for compliance, a penalty for unauthorized disclosure, or both.
 
-    On the surface, many bug bounty programs may appear to fall outside our scope because they are often structured as 
-    NDAs in which compliance is rewarded.
-    For some bounty programs, the penalty for non-compliance or early disclosure is limited to the loss of the reward.
-    For others, non-compliance can lead to the forfeiture of a promise of amnesty from the pursuit of civil or criminal
-    charges that might otherwise apply because of security or acceptable-use policy violations.
-    Nevertheless, we are optimistic that the bulk of this protocol (i.e., the parts that do not interfere with the
-    contractual provisions of bounty-associated NDAs) will be found to be compatible with the full variety of 
-    bounty-oriented CVD programs existing now and in the future.
+    NDAs sometimes have a place in CVD processes.
+    But most MPCVD embargoes move relatively quickly and at a large scale, and this makes per-case NDAs prohibitively difficult.
+    As a result, we intentionally set aside NDA negotiation as beyond the scope of this proposal.
+
+    At first look, many bug bounty programs can appear to be outside our scope, because they are often structured as NDAs that reward compliance.
+    For some bounty programs, the only penalty for non-compliance or early disclosure is the loss of the reward.
+    For other programs, non-compliance can cause the loss of a promise of amnesty.
+    That promise gives protection from civil or criminal charges that security or acceptable-use policy violations might otherwise bring.
+
+    Nevertheless, we are optimistic that the bulk of this protocol will be found compatible with the full variety of bounty-oriented CVD programs, now and in the future.
+    This bulk consists of the parts of the protocol that do not interfere with the contractual provisions of bounty-associated NDAs.
