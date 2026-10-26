@@ -9,9 +9,9 @@ description: >
 # Report Management Interactions Between CVD Participants
 
 Each Participant in a Coordinated Vulnerability Disclosure (CVD) case has their own instance of the [Report Management (RM) state model](index.md).
-Participants can change their local state independent of the state of other Participants.
-Events within a CVD case may trigger a state transition in one Participant while no transition occurs in another.
-For example, [participants interact from the accepted state](index.md#participants-interact-from-the-accepted-state) shows that even though the *sender* is the one taking the action, it is the *recipient*'s state that changes.
+Participants can change their local state independently of the state of other Participants.
+An event in a CVD case can cause a state transition in one Participant and no transition in another.
+For example, [participants interact from the accepted state](index.md#participants-interact-from-the-accepted-state) shows that the *sender* does the action, but the state of the *recipient* changes.
 The table below lists role-based actions.
 
 | Finder/Reporter  |      Vendor      |   Coordinator    | Action                                  |                                         RM Transition                                          |
@@ -32,14 +32,17 @@ A few examples of this model applied to common CVD and multi-party CVD case scen
 
 ## The Secret Lives of Finders
 
-The Finder's *Received*, *Valid*, and *Invalid* states are useful for modeling and simulation, but they are less useful as part of a CVD protocol.
-For anyone else to know about the vulnerability, and for CVD to happen at all, the Finder must already have validated the report and prioritized it as worth the effort of coordinating its disclosure.
-In other words, CVD only starts *after* the Finder has reached the *Accepted* state for the vulnerability being reported.
+The *Received*, *Valid*, and *Invalid* states of the Finder help in modeling and simulation, but they are less useful as part of a CVD protocol.
+Other Participants can know about the vulnerability only after the Finder validates the report.
+The Finder must also decide that the report is worth the effort to coordinate its disclosure.
+Thus, CVD starts only *after* the Finder has reached the *Accepted* state for the vulnerability being reported.
 That is also the point at which a *Finder* becomes a *Reporter*.
-The model keeps these states for completeness.
-The formal protocol's [starting states](../../../reference/formal_protocol/states.md#starting-states) build on this: a Finder/Reporter is presumed to enter a case already in *Accepted*.
 
-The diagram below separates the Finder's hidden states from the ones other Participants can observe.
+The model keeps these states for completeness.
+The [starting states](../../../reference/formal_protocol/states.md#starting-states) of the formal protocol use this fact.
+They assume that a Finder/Reporter enters a case already in *Accepted*.
+
+The diagram below separates the hidden states of the Finder from the states that other Participants can observe.
 
 ```mermaid
 ---
@@ -81,9 +84,9 @@ stateDiagram-v2
 
 ## Finder-Vendor CVD
 
-A simple Finder-Vendor CVD scenario is shown below.
-As explained [above](#the-secret-lives-of-finders), most of the Finder's states are hidden from view until they reach the *Accepted* ($A_f$) state.
-The *receive* action $A_f \xrightarrow{r} R_v$ that bridges the two Participants is an instance of [participants interacting from the accepted state](index.md#participants-interact-from-the-accepted-state).
+The diagram below shows a simple Finder-Vendor CVD scenario.
+As explained [above](#the-secret-lives-of-finders), other Participants cannot see most states of the Finder until the Finder reaches the *Accepted* ($A_f$) state.
+The *receive* action $A_f \xrightarrow{r} R_v$ connects the two Participants, and it is an instance of [participants interacting from the accepted state](index.md#participants-interact-from-the-accepted-state).
 Each Participant then continues through their own copy of the [RM state machine](index.md#rm-states), shown here as "…".
 
 ```mermaid
@@ -109,10 +112,11 @@ stateDiagram-v2
 
 ## Finder-Coordinator-Vendor CVD
 
-A slightly more complicated scenario in which a Finder engages a Coordinator after failing to engage a Vendor is shown in the next diagram.
+The next diagram shows a slightly more complex scenario.
+In it, a Finder fails to engage a Vendor and then engages a Coordinator.
 This scenario is very common in the experience of the CERT Coordination Center (CERT/CC).
 That is no surprise, because as a Coordinator the CERT/CC does not take part in cases like the previous example.
-Here there are three notification actions, each an instance of [participants interacting from the accepted state](index.md#participants-interact-from-the-accepted-state):
+This scenario has three notification actions, and each one is an instance of [participants interacting from the accepted state](index.md#participants-interact-from-the-accepted-state):
 
 - First, $A_f \xrightarrow{r_0} R_v$ represents the Finder's initial attempt to reach the Vendor.
 - Next, $A_f \xrightarrow{r_1} R_c$ is the Finder's subsequent attempt to engage with the Coordinator.
@@ -151,9 +155,10 @@ stateDiagram-v2
 
 ## MPCVD with a Coordinator and Multiple Vendors
 
-A small Multi-Party Coordinated Vulnerability Disclosure (MPCVD) scenario is shown below.
-As with the other examples, each notification shown is an instance of [participants interacting from the accepted state](index.md#participants-interact-from-the-accepted-state).
-Unlike the previous example, this scenario starts with the Finder contacting a Coordinator, perhaps because they recognize the increased complexity of coordinating multiple Vendors' responses.
+The diagram below shows a small Multi-Party Coordinated Vulnerability Disclosure (MPCVD) scenario.
+As in the other examples, each notification is an instance of [participants interacting from the accepted state](index.md#participants-interact-from-the-accepted-state).
+Unlike the previous example, this scenario starts when the Finder contacts a Coordinator.
+One possible reason is that the Finder knows that coordination of many Vendors is more complex.
 
 - First, $A_f \xrightarrow{r_0} R_c$ represents the Finder's initial report to the Coordinator.
 - Next, $A_c \xrightarrow{r_1} R_{v_1}$ shows the Coordinator contacting the first Vendor.
@@ -198,10 +203,11 @@ stateDiagram-v2
 
 ## A Menagerie of MPCVD Scenarios
 
-Other MPCVD RM interaction configurations are possible, and the following figures show a few of them.
-This time each node represents a Participant's entire RM model, and each edge is a notification from one Participant's *Accepted* state to another's *Received* state.
+Other configurations of MPCVD RM interactions are possible, and the figures below show some of them.
+In these figures, each node is the full RM model of one Participant.
+Each edge is a notification from the *Accepted* state of one Participant to the *Received* state of another.
 The CERT/CC has observed all of the following interactions.
-The RM model is meant to be composable enough to accommodate all such permutations.
+The RM model is composable, so that it can include all such permutations.
 
 ### Finder coordinates MPCVD with Multiple Vendors
 
@@ -253,7 +259,9 @@ stateDiagram-v2
 
 ### Supply-chain oriented MPCVD
 
-Supply-chain oriented MPCVD often has two or more tiers of Vendors, each notified by the upstream Vendors whose components they use, with or without one or more Coordinators' involvement.
+Supply-chain oriented MPCVD often has two or more tiers of Vendors.
+The upstream Vendors notify the Vendors that use their components.
+One or more Coordinators can also take part.
 
 ```mermaid
 ---

@@ -9,12 +9,19 @@ description: >
 # RM Formal Model
 
 This page defines the Report Management (RM) process as a deterministic finite automaton (DFA).
-It is for readers who want the formal model behind the [RM process model](index.md), which describes each state and transition in practitioner terms.
+It is for readers who want the formal model behind the [RM process model](index.md).
+The RM process model describes each state and transition in practitioner terms.
 The [formal protocol](../../../reference/formal_protocol/index.md) builds on the definitions given here.
 
 The normative RM states and transitions are specified in [§6 Report Management (RM) State Machine in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#6-report-management-rm-state-machine-n).
 The states table in [§6.1 States](../../../reference/vultron-spec/tracking-models.md#61-states) and the transitions table in [§6.2 Transitions and Guards](../../../reference/vultron-spec/tracking-models.md#62-transitions-and-guards) are the authority.
-This page restates them in DFA notation and adds what the specification does not carry: the symbol set, a right-linear grammar, the shortest possible histories, and a set of named state subsets that other process-model pages use.
+This page restates them in DFA notation.
+It also adds four items that the specification does not have:
+
+- the symbol set
+- a right-linear grammar
+- the shortest possible histories
+- a set of named state subsets that other process-model pages use
 
 ---
 
@@ -58,7 +65,8 @@ The [RM process model](index.md#rm-states) describes what each state means for a
     $$\mathcal{F}^{rm} = \{Closed\}$$
 
 *Start* is a placeholder for a report the Participant has not yet received.
-It is useful when modeling coordination across several Participants, where one Participant already holds a report that another has not yet seen.
+It helps to model coordination among several Participants.
+In such coordination, one Participant already holds a report that another Participant has not yet seen.
 
 ## RM symbols
 
@@ -75,7 +83,16 @@ It is useful when modeling coordination across several Participants, where one P
 
 The actions a Participant performs in the RM process are the symbols of the DFA.
 There are six, shown at right, each abbreviated by its underlined lowercase letter.
-They are the triggers of the specification's transitions table, and each one corresponds to an RM protocol message: receipt of a Report Submission (RS), Report Validated (RV), Report Invalidated (RI), Report/Case Accepted (RA), Report/Case Deferred (RD), and Report Closed (RC).
+They are the triggers of the transitions table in the specification.
+Each symbol corresponds to an RM protocol message:
+
+- receipt of a Report Submission (RS)
+- Report Validated (RV)
+- Report Invalidated (RI)
+- Report/Case Accepted (RA)
+- Report/Case Deferred (RD)
+- Report Closed (RC)
+
 The [formal protocol messages](../../../reference/formal_protocol/messages.md) page defines those messages.
 
 ## RM transition function
@@ -96,9 +113,10 @@ The [formal protocol messages](../../../reference/formal_protocol/messages.md) p
 The transition function is written at right as a right-linear grammar.
 Each production reads as "from this state, this symbol leads to that state".
 For example, $R \to vV~|~iI~|~cC$ says that a *Received* report moves to *Valid* on *validate*, to *Invalid* on *invalidate*, and to *Closed* on *close*.
-A report closes from *Received*, *Invalid*, *Accepted*, or *Deferred*, but never from *Valid*: a Participant that has judged a report valid either accepts or defers it before closing it.
+A report closes from *Received*, *Invalid*, *Accepted*, or *Deferred*, but never from *Valid*.
+When a Participant decides that a report is valid, it accepts or defers the report before it closes it.
 
-The grammar has one production alternative for each of the twelve transitions in the specification's transitions table, and no others.
+The grammar has one production alternative for each of the twelve transitions in the transitions table of the specification, and no others.
 The [RM state machine diagram](index.md#rm-state-transitions) shows the same transitions.
 
 ## Possible RM histories
@@ -108,7 +126,8 @@ There are 16 such strings of length seven or less: *rc*, *ric*, *rvac*, *rvdc*, 
 
 Longer strings only add *defer*–*accept* (*da*) or *accept*–*defer* (*ad*) cycles before closure (*c*).
 RM processes are usually short, and Participants tend to avoid frequent starts and stops.
-We therefore expect most reports to follow one of the strings above, with the rest falling into marginal extensions of them.
+We therefore expect most reports to follow one of the strings above.
+We expect the remaining reports to follow small extensions of them.
 
 !!! tip "See also"
 

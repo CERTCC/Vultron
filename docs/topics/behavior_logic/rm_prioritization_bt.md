@@ -6,32 +6,29 @@ stakeholder_type: [project-contributor]
 
 ## Requirements
 
-The behavioral requirements for this tree are specified in the
-[Protocol Specifications](../../reference/specs/protocol.md):
+The [Protocol Specifications](../../reference/specs/protocol.md) give the behavioral requirements for this tree:
 
 - [RMB-12](../../reference/specs/protocol.md#rmb-12) — Enter RM Deferred
 - [RMB-13](../../reference/specs/protocol.md#rmb-13) — Enter RM Accepted
 
 !!! note "Implementation approach"
 
-    The behavior tree diagram below illustrates one conformant implementation of these requirements.
-    Implementations are not required to use behavior trees — any approach that satisfies the
-    requirements above is conformant.
+    The behavior tree diagram below shows one conformant implementation of these requirements.
+    Implementations do not have to use behavior trees.
+    Any approach that satisfies the requirements above is conformant.
 
 !!! note "Legacy design diagram"
 
-    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
-    match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for
-    auto-generated documentation from the current implementation.
+    The diagram on this page shows the simulator-era design from `vultron/bt/`.
+    It may not match the current implementation in `vultron/core/behaviors/`.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation generated from the current implementation.
 
-The Report Prioritization Behavior Tree is shown in the figure below.
-It bears some structural similarity to the Report Validation Behavior Tree just described: An initial
-post-condition check (A) falls back to the main process (B) leading toward
-$accept$, which, in turn, falls back to the deferral process (C).
+The figure below shows the Report Prioritization Behavior Tree.
+Its structure is similar to the Report Validation Behavior Tree.
+An initial postcondition check (A) falls back to the main process (B), which leads toward $accept$.
+The main process in turn falls back to the deferral process (C).
 
-In more detail, (A) if the report is already in either the *Accepted* or *Deferred* states and no
-new information is available to prompt a change, the behavior ends.
+In more detail, (A) the behavior ends if the report is already in the *Accepted* or *Deferred* state and no new information prompts a change.
 
 ```mermaid
 ---
@@ -83,23 +80,20 @@ flowchart LR
     defer_seq --> defer_to_d
 ```
 
-Failing that, we enter the main prioritization sequence (B). The
-preconditions of the main sequence are that either the report has not
-yet been prioritized out of the *Valid* state ($q^{rm} \in V$) or new
-information has been made available to a report in either
-$q^{rm} \in \{ D, A \}$ to trigger a reevaluation.
+If check (A) fails, we enter the main prioritization sequence (B).
+This sequence has two alternative preconditions.
+Either the report has not yet left the *Valid* state through prioritization ($q^{rm} \in V$).
+Or new information is available for a report in $q^{rm} \in \{ D, A \}$, and this information triggers a new evaluation.
 
-Assuming the preconditions are met, the report priority is evaluated.
-For example, a Participant using [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} could insert
-that process here. The evaluation task is expected to always set the
-report priority. The subsequent check returns *Failure* on a defer
-priority or *Success* on any non-deferral priority. On *Success*, an
-*accept* task is included as a placeholder for any intake process that a
-Participant might have for *Accepted* reports. Assuming that it
-succeeds, the report is explicitly moved to the *Accepted*
-($q^{rm} \xrightarrow{a} A$) state, and an $RA$ message is emitted.
+If the preconditions are met, the Participant evaluates the report priority.
+For example, a Participant that uses [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} could put that process here.
+The evaluation task always sets the report priority.
+The next check returns *Failure* on a defer priority or *Success* on any other priority.
 
-(C) Should any item in the main sequence fail, the case is deferred, its
-state set to $q^{rm} \xrightarrow{d} D$, and an $RD$ message is emitted
-accordingly. Similarly, a *defer* task is included as a callback
-placeholder.
+On *Success*, the tree runs an *accept* task.
+This task is a placeholder for any intake process that a Participant has for *Accepted* reports.
+If the task succeeds, the tree moves the report to the *Accepted* state ($q^{rm} \xrightarrow{a} A$) and emits an $RA$ message.
+
+(C) If any item in the main sequence fails, the tree defers the case.
+It sets the state with $q^{rm} \xrightarrow{d} D$ and emits an $RD$ message.
+A *defer* task is also present as a callback placeholder.

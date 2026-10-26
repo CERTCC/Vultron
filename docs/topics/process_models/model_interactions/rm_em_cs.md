@@ -12,10 +12,15 @@ description: >
 
 The [Report Management (RM)](../rm/index.md) and [Embargo Management (EM)](../em/index.md) models interact with the [Case State (CS) model](../cs/index.md) of a Coordinated Vulnerability Disclosure (CVD) case.
 This page reviews the constraints that arise when each CS transition event occurs.
-It is organized by CS event, and each section covers how that event interacts with the RM and EM models.
-Formulas use $q^{rm}$ for a Participant's RM state, $q^{em}$ for the case's EM state, and $q^{cs}$ for the case state.
-The [RM process model](../rm/index.md#rm-states) introduces the RM state abbreviations, and the [EM formal model](../em/formal_model.md#em-states) defines the EM ones.
-[CS States](../cs/cs_model.md#cs-model-states) defines the case-state strings such as $VFdpxa$, and the dot ($\cdot$) that stands for any value of one substate, as in $VF\cdot pxa$.
+The page has one section for each CS event.
+Each section tells how that event interacts with the RM and EM models.
+
+Formulas use $q^{rm}$ for the RM state of a Participant, $q^{em}$ for the EM state of the case, and $q^{cs}$ for the case state.
+The [RM process model](../rm/index.md#rm-states) introduces the RM state abbreviations.
+The [EM formal model](../em/formal_model.md#em-states) defines the EM state abbreviations.
+
+[CS States](../cs/cs_model.md#cs-model-states) defines the case-state strings such as $VFdpxa$.
+It also defines the dot ($\cdot$), which stands for any value of one substate, as in $VF\cdot pxa$.
 
 ???+ note inline end "CS Transition Symbols Defined"
 
@@ -27,7 +32,9 @@ They stand for Vendor awareness (**V**), fix ready (**F**), fix deployed (**D**)
 ## Global vs. Participant-Specific Aspects of the CS Model
 
 The CS model has both Participant-specific and Participant-agnostic parts.
-The Vendor fix path substates are specific to each Vendor Participant in a case: Vendor unaware (*vfd*), Vendor aware (*Vfd*), fix ready (*VFd*), and fix deployed (*VFD*).
+The Vendor fix path substates are specific to each Vendor Participant in a case.
+These substates are Vendor unaware (*vfd*), Vendor aware (*Vfd*), fix ready (*VFd*), and fix deployed (*VFD*).
+
 The remaining substates are Participant-agnostic facts about the case: public awareness (*p,P*), exploit public (*x,X*), and attacks observed (*a,A*).
 So the **V**, **F**, and **D** events below happen once per Vendor, while **P**, **X**, and **A** happen once per case.
 This distinction matters in the [Formal Protocol](../../../reference/formal_protocol/index.md) definition.
@@ -44,11 +51,13 @@ The diagram below shows the two parts of the CS model side by side.
 
     $$q^{cs} \in vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$$
 
-Vendor Awareness (**V**) occurs when a Participant (typically a Finder, Coordinator, or another Vendor) is in RM *Accepted* and notifies the Vendor.
-In turn, the Vendor starts in $q^{rm} = Received$ and proceeds to follow their validation and prioritization routines.
+Vendor Awareness (**V**) occurs when a Participant in RM *Accepted* notifies the Vendor.
+This Participant is typically a Finder, a Coordinator, or another Vendor.
+The Vendor then starts in $q^{rm} = Received$ and follows its validation and prioritization routines.
 [RM Interactions Between CVD Participants](../rm/rm_interactions.md) describes this in more detail.
 
-The diagram below shows how the notifying Participant's RM state enables the Vendor's RM transition, which in turn implies the CS Vendor Awareness event.
+The diagram below shows how the RM state of the notifying Participant enables the RM transition of the Vendor.
+That RM transition implies the CS Vendor Awareness event.
 
 ```mermaid
 ---
@@ -82,17 +91,21 @@ stateDiagram-v2
 ---
 
 The EM process begins when the case is created, not when a Vendor is notified ([ADR-0096: A Protocol Default Embargo Replaces the Pre-Case Phase](../../../adr/0096-protocol-default-embargo.md)).
-An embargo-eligible case begins with an *Active* embargo at case creation, from the recipient's published default, the sender's proposed terms, or the protocol default ([Vultron Protocol Specification §7.2 Transitions and Guards](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards)).
-When a Vendor is notified, the embargo's state therefore depends on who created the case:
+An embargo-eligible case begins with an *Active* embargo at case creation.
+The terms come from the published default of the recipient, the proposed terms of the sender, or the protocol default ([Vultron Protocol Specification §7.2 Transitions and Guards](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards)).
+When a Vendor gets the notification, the state of the embargo therefore depends on who created the case:
 
 - If the Vendor is the first recipient of the report, the case and its embargo begin with this notification.
-- If a Coordinator or other Vendors created the case earlier, the embargo is already *Active* or being revised, and the newly notified Vendor is invited to consent to its terms through [Participant Embargo Consent](../../behavior_logic/use-cases/embargo-lifecycle.md) ([Vultron Protocol Specification §9 Participant Embargo Consent (PEC) State Machine](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
+- If a Coordinator or other Vendors created the case earlier, the embargo is already *Active* or in revision.
+  The newly notified Vendor then gets an invitation to consent to the embargo terms through [Participant Embargo Consent](../../behavior_logic/use-cases/embargo-lifecycle.md) ([Vultron Protocol Specification §9 Participant Embargo Consent (PEC) State Machine](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
 
 For example, a Reporter and Coordinator might have already agreed to a disclosure timeline.
-Or, in a multi-party CVD case, other Vendors may have already been coordinating the case under an embargo and only recently realized the need to engage with a new Vendor.
-The latter example is consistent with [public narratives](https://www.techtarget.com/searchsecurity/news/252446638/Meltdown-and-Spectre-disclosure-suffered-extraordinary-miscommunication){:target="_blank"} about the Meltdown/Spectre vulnerabilities.
+In a multi-party CVD case, other Vendors can already coordinate the case under an embargo.
+They can then find, late in the case, that they must engage a new Vendor.
+This second example is consistent with [public narratives](https://www.techtarget.com/searchsecurity/news/252446638/Meltdown-and-Spectre-disclosure-suffered-extraordinary-miscommunication){:target="_blank"} about the Meltdown/Spectre vulnerabilities.
 
-An embargo may also have ended early, before a later Vendor is notified, so *Exited* is possible too.
+An embargo can also end early, before a later Vendor gets the notification.
+So *Exited* is also possible.
 A case that was not embargo-eligible when it was created stays in EM *None*.
 
 !!! note ""
@@ -139,11 +152,12 @@ stateDiagram-v2
 ## Fix Ready
 
 Fix Readiness (**F**) can occur only when a Vendor is in the RM *Accepted* state.
-In multi-party cases, each affected Vendor has their own [RM](../rm/index.md) state, so this constraint applies to each Vendor individually.
+In multi-party cases, each affected Vendor has its own [RM](../rm/index.md) state.
+This constraint applies to each Vendor individually.
 
 ---
 
-With respect to [EM](../em/index.md), when the case state is $q^{cs} \in VF\cdot pxa$, it's usually too late to start a new embargo.
+With respect to [EM](../em/index.md), when the case state is $q^{cs} \in VF\cdot pxa$, it is usually too late to start a new embargo.
 
 !!! note ""
 
@@ -203,7 +217,7 @@ stateDiagram-v2
 
 For vulnerabilities in systems where the Vendor controls deployment, the Fix Deployment (**D**) event can only occur if the Vendor is in $q^{rm} = Accepted$.
 
-The diagram below shows the Vendor's RM *Accepted* state enabling deployment.
+The diagram below shows how the RM *Accepted* state of the Vendor enables deployment.
 
 ```mermaid
 ---
@@ -223,8 +237,10 @@ stateDiagram-v2
     RM --> CS: enables
 ```
 
-For vulnerabilities in systems whose software delivery model dictates that Public Awareness must precede Deployment ($\mathbf{P} \prec \mathbf{D}$), the Vendor status at the time of deployment might be irrelevant.
-This assumes the Vendor at least passed through $q^{rm} = Accepted$ at some point, as is required for Fix Ready (**F**), which, in turn, is a prerequisite for deployment (**D**).
+In some systems, the software delivery model puts Public Awareness before Deployment ($\mathbf{P} \prec \mathbf{D}$).
+For vulnerabilities in these systems, the Vendor status at the time of deployment might be irrelevant.
+This statement assumes that the Vendor passed through $q^{rm} = Accepted$ at some point.
+Fix Ready (**F**) requires that state, and Fix Ready is a prerequisite for deployment (**D**).
 
 ---
 
@@ -274,19 +290,22 @@ stateDiagram-v2
         \end{cases}$$
 
 As with the *Fix Ready* scenario above, multi-party cases may have Vendors in varying states of *Fix Deployment*.
-Therefore the embargo extension caveats from that section apply to the *Fix Deployed* state as well.
+Therefore the embargo extension caveats from that section also apply to the *Fix Deployed* state.
 
 ## Public Awareness
 
-Within the context of a coordinated publication process, (**P**) requires at least one Participant to be in the $q^{rm} = Accepted$ state, because Participants are presumed to publish only on cases they have accepted.
-Ideally, the Vendor is among those Participants, but as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}, that is not strictly necessary.
+In a coordinated publication process, (**P**) requires at least one Participant in the $q^{rm} = Accepted$ state.
+The reason is that Participants are presumed to publish only on cases that they have accepted.
+Ideally, the Vendor is one of those Participants.
+But as the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"} explains, the Vendor is not strictly necessary.
 
 That said, the publishing party might be outside of *any* existing coordination process.
-For example, this is the situation when a report is already in the midst of a CVD process and a party outside the CVD case reveals the vulnerability publicly (e.g., parallel discovery, embargo leaks).
+For example, a report can already be in a CVD process when a party outside the CVD case makes the vulnerability public.
+Parallel discovery and embargo leaks are two causes of this situation.
 
 ---
 
-As for [EM](../em/index.md), the whole point of an embargo is to prevent **P** from occurring until other objectives (e.g., $q^{cs} \in VF\cdot px \cdot$) have been met.
+As for [EM](../em/index.md), the purpose of an embargo is to prevent **P** until the Participants meet other objectives, such as $q^{cs} \in VF\cdot px \cdot$.
 Therefore,
 
 !!! note ""
@@ -343,7 +362,8 @@ That said,
 
     Exploit Publishers who *are* Participants in pre-public CVD cases ($q^{cs} \in \cdot\cdot\cdot p \cdot\cdot$) SHOULD comply with the protocol described here, especially when they also fulfill other roles (e.g., Reporter, Coordinator, Vendor) in the process.
 
-For example, as described in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"}, the preference for $\mathbf{P} \prec \mathbf{X}$ dictates that
+For example, [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"} describes a preference for $\mathbf{P} \prec \mathbf{X}$.
+This preference dictates that
 
 !!! note ""
 
@@ -424,10 +444,10 @@ Nothing in this or any other CVD process model should be interpreted as constrai
 
     Participants MUST treat attacks as an event that could occur at any time and adapt their process as needed in light of the available information.
 
-As [Early Termination](../em/early_termination.md) explains, when attacks are occurring, embargoes can often be of more benefit to adversaries than defenders.
-However, the [CS transitions](../cs/transitions.md#attacks-do-not-necessarily-cause-public-awareness) also note that narrowly scoped attacks need not imply widespread adversary knowledge of the vulnerability.
-In such scenarios, early embargo termination, leading to publication, might be of more assistance to other adversaries than it is to defenders.
-The protocol therefore leaves room for Participant judgment based on their case-specific situation awareness.
+As [Early Termination](../em/early_termination.md) explains, an embargo during attacks often helps adversaries more than defenders.
+But the [CS transitions](../cs/transitions.md#attacks-do-not-necessarily-cause-public-awareness) also note that narrowly scoped attacks do not always mean that many adversaries know about the vulnerability.
+In such scenarios, early embargo termination leads to publication, which can help other adversaries more than defenders.
+The protocol therefore lets Participants use their judgment, based on their situation awareness for the case.
 Formally,
 
 !!! note ""
