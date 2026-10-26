@@ -73,9 +73,9 @@ Case Manager role, so that concurrent claims resolve to one answer
 ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
 **Coordination is scoped to a case, not to a system.** The Case Manager role is
-held per case, and different cases may be managed by different actors. The
-protocol does not require every case to pass through one shared service. It does
-require, within a case, that shared state have one writer.
+held per case, and different cases may be managed by different actors. Nothing
+in the protocol routes every case through one shared service. Within a case,
+though, shared state has one writer.
 
 !!! note "Informative: how centralized is this?"
     Two readings should both be avoided.
@@ -116,12 +116,12 @@ integrated with the wider ActivityPub ecosystem.
 vocabulary as its wire format, and ActivityPub HTTP delivery is the anticipated
 transport.
 
-This version requires the vocabulary but not full ActivityPub server behavior:
+This version builds on the vocabulary but not on full ActivityPub server behavior:
 inbox and outbox HTTP delivery, WebFinger discovery and HTTP Signatures are not
 conformance requirements here. A future version is expected to raise the floor to
 full ActivityPub for all participants, at which point the vocabulary-only profile
 may become a compatibility profile. An implementation built against this version
-should expect to be re-evaluated against that one. This paragraph is the
+can expect to be re-evaluated against that one. This paragraph is the
 specification's single statement of that roadmap; other sections cite it.
 
 **ISO/IEC 29147 and 30111.** International Organization for Standardization (ISO) 29147 specifies vulnerability disclosure

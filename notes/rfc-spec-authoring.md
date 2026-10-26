@@ -332,7 +332,10 @@ Rules for the narrative around them:
   on each.
 - **The keyword check grows with reconciliation.** `RECONCILED_FRAGMENTS` in
   `vultron/metadata/docs/rfc2119_keywords.py` lists the fragments the check
-  enforces; each reconcile task adds its page's fragments (DF-12-004).
+  enforces; each reconcile task adds its page's fragments (DF-12-004). A page's
+  fragments include the `includes/` files they pull in, since an unlisted
+  include carries keywords onto the page unchecked. A shared include must read
+  correctly on every page that includes it (DF-09-008).
 - **A message rule is stated on its occasion**: a situation in a case that a
   sender conveys with a particular wire activity. A two-letter protocol
   shorthand is a cross-reference tag and the vocabulary of the state machine
