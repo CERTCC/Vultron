@@ -263,6 +263,7 @@ def test_answers_the_embargo_in_force_by_invite_id(
 
 
 @pytest.mark.spec("EP-09-012")
+@pytest.mark.spec("EP-09-015")
 @pytest.mark.parametrize(
     "row",
     [
@@ -301,6 +302,7 @@ def test_a_row_with_nothing_to_answer_is_not_found(
 
 
 @pytest.mark.spec("EP-09-012")
+@pytest.mark.spec("EP-09-015")
 @pytest.mark.parametrize("answer", _ANSWER_ONLY)
 def test_an_invite_the_actor_does_not_hold_is_not_found(
     in_force: _InForce,
@@ -524,6 +526,7 @@ def test_an_invite_to_an_embargo_not_in_force_is_not_found(
 
 
 @pytest.mark.spec("EP-09-012", "EP-08-002")
+@pytest.mark.spec("EP-09-015")
 @pytest.mark.parametrize("answer", _ANSWER_ONLY)
 def test_a_call_naming_no_invite_never_falls_back_to_the_embargo_in_force(
     in_force: _InForce,

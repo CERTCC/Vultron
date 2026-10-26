@@ -367,6 +367,7 @@ class TestCounterArm:
 
 class TestRejectArm:
     @pytest.mark.spec("EMB-15-004")
+    @pytest.mark.spec("EMB-15-008")
     def test_reject_arm_is_last_child_without_counter(self):
         """Flow B: reject arm is child[1] (last, index 1)."""
         tree = _make_tree(counter=False)
@@ -660,6 +661,7 @@ class TestBTBridgeIntegration:
         )
 
     @pytest.mark.spec("EMB-15-004")
+    @pytest.mark.spec("EMB-15-008")
     def test_flow_a_reject_delegation_when_all_arms_fail(self):
         """Flow A: accept + counter arms fail → reject_bt is ticked (EMB-15-004).
 

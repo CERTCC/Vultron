@@ -138,7 +138,7 @@ groups:
   specs:
   - id: DUR-05-001
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: >-
       Duration fields SHOULD use `datetime.timedelta` as the internal Python representation
   - id: DUR-05-002
@@ -214,17 +214,34 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      When a default embargo duration is applied at case creation, this application MUST be
-      logged at INFO level to ensure visibility in logs. The resulting `CaseStatus.em.state`
-      MUST be `EM.ACTIVE` (not `EM.PROPOSED`); see `specs/embargo-policy.yaml` EP-04-001.
+      When a default embargo duration is applied at case creation, the case's resulting
+      EM state MUST be `EM.ACTIVE`, not `EM.PROPOSED` (EP-04-001).
     verification: >-
-      Integration tests in `test/demo/` confirm that applying a default embargo
-      duration at case creation produces an INFO-level log entry and sets
-      `CaseStatus.em.state` to `EM.ACTIVE`.
+      `test/core/services/embargo_lifecycle/test_creation.py`
+      (`test_none_to_active_in_one_commit`) confirms that initializing the creation-time
+      embargo leaves the case at `EM.ACTIVE` and never hands `EM.PROPOSED` to the store.
     stories:
     - story_2022_010
     - story_2022_014
     - story_2022_074
+  - id: DUR-07-005
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST log at INFO level each application of a default embargo
+      duration at case creation (DUR-07-003).
+    rationale: >-
+      How this codebase makes the creation-time default visible to an operator; split
+      from DUR-07-003 so that item states only the EM state other participants observe
+      (MS-12-010). No other participant reads the log.
+    verification: >-
+      `test/core/services/embargo_lifecycle/test_creation.py`
+      (`test_initialization_is_logged_at_info`) confirms that initializing the
+      creation-time embargo, the path that applies the default duration, logs the
+      creation service's INFO record naming the embargo and the case.
+    relationships:
+    - rel_type: implements
+      spec_id: DUR-07-003
   - id: DUR-07-004
     priority: MUST
     kind: protocol

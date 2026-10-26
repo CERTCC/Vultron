@@ -201,7 +201,7 @@ once (CLP-11-001). It is the interim per-request read; the ask-kind registry
 **The pending-assertion store has a second client.** Embargo triggers that do
 not hold the CASE_MANAGER role emit their proposal, answer or termination to the
 manager, write no EM state (EP-09-008), and record it in the pending-assertion
-store. Every asker records through `record_pending_assertion()` and checks
+store (EP-09-014). Every asker records through `record_pending_assertion()` and checks
 repeats through `suppressed_repeat_reason()`
 (`vultron/core/models/pending_assertion.py`, ASK-04-008), including the P/X/A
 cascade's teardown ask. An embargo repeat carries a fresh activity id, so its

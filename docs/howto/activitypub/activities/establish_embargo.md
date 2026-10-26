@@ -151,7 +151,7 @@ An Accept sent after the reply deadline is honored, because the terms you agree 
 The trigger reports not found when you hold no such Invite, or when your row is already `AGREED` or `DECLINED`.
 
 Name the Invite.
-A call without `proposal_id` answers only an open proposal and never the embargo in force (EP-09-012), so it reports not found when no proposal is open.
+A call without `proposal_id` answers only an open proposal and never the embargo in force (EP-09-015), so it reports not found when no proposal is open.
 
 ---
 

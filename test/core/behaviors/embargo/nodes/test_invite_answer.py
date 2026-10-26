@@ -151,6 +151,7 @@ class TestCanAnswerEmbargoInviteNode:
 class TestSendEmbargoInviteAnswerNode:
     @pytest.mark.spec("EP-09-003")
     @pytest.mark.spec("PCR-08-001")
+    @pytest.mark.spec("EMB-15-004")
     @pytest.mark.parametrize(
         ("accept", "type_"), [(True, "Accept"), (False, "Reject")]
     )

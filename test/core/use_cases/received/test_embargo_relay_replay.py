@@ -920,6 +920,7 @@ def _refused_invite(net: _Network, suffix: str) -> dict[str, Any]:
 @pytest.mark.spec("ID-04-005")
 @pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("HP-01-003")
+@pytest.mark.spec("EMB-01-006")
 def test_a_refusal_whose_queue_write_failed_is_queued_on_redelivery(
     monkeypatch,
 ):

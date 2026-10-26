@@ -330,6 +330,7 @@ class TestRoleDimensionInvariant:
         assert status.vf is None
         assert status.d is None
 
+    @pytest.mark.spec("CSB-15-005")
     def test_stray_vf_on_non_vendor_is_not_rejected_by_the_model(self):
         """A non-VENDOR status carrying vf constructs — the model does not raise.
 
@@ -345,6 +346,7 @@ class TestRoleDimensionInvariant:
         assert status.vf is not None
         assert status.vf.state is CS_vf.VF
 
+    @pytest.mark.spec("CSB-15-006")
     def test_stray_d_on_non_deployer_is_not_rejected_by_the_model(self):
         status = ParticipantStatus(
             context=_CONTEXT,

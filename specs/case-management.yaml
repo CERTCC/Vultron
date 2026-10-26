@@ -2786,15 +2786,16 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The `INVITED → TIMED_OUT` transition MAY be driven by a timer expiry (pocket veto) rather than
-      requiring an explicit participant action. The timer period SHOULD be a configurable policy
-      window (default: 7 days). The pocket veto materialises when the timer fires without a prior
-      answer; the system applies the `TIME_OUT` trigger to the row of the invitation whose deadline
-      passed and records `TIMED_OUT`, never `DECLINED`, which only an explicit refusal reaches. A
-      lapse is NOT timer-based and is not a stored transition: it is what the rows say once the case
-      owner activates a revised embargo that ends later than the one the participant agreed to and
-      the participant has not agreed to the revised terms (CM-18-001, EP-05-001). A lapsed
-      participant is re-invited (an `INVITED` row for the embargo in force), and the deadline
+      The `INVITED → TIMED_OUT` transition MAY be driven by a timer expiry (pocket veto)
+      rather than requiring an explicit participant action. The timer period SHOULD be a
+      policy window of 7 days. The pocket veto materialises when the timer fires without
+      a prior answer; the system applies the `TIME_OUT` trigger to the row of the
+      invitation whose deadline passed and records `TIMED_OUT`, never `DECLINED`, which
+      only an explicit refusal reaches. A lapse is NOT timer-based and is not a stored
+      transition: it is what the rows say once the case owner activates a revised
+      embargo that ends later than the one the participant agreed to and the participant
+      has not agreed to the revised terms (CM-18-001, EP-05-001). A lapsed participant
+      is re-invited (an `INVITED` row for the embargo in force), and the deadline
       attaches to that invitation.
     note: >-
       The policy window is the FALLBACK, not the primary mechanism. When the

@@ -127,6 +127,7 @@ class TestRemoveEmbargoFromCaseTreeAnnounce:
 
     @pytest.mark.spec("EMB-07-001")
     @pytest.mark.spec("EMB-13-001")
+    @pytest.mark.spec("EMB-19-001")
     def test_emits_announce_when_active_embargo_removed(self):
         """ActiveTeardown path emits Announce(EmbargoEvent) to outbox."""
         case, _, dl = make_case_with_manager("atrt1", em_state=EM.ACTIVE)

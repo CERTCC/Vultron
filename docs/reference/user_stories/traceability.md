@@ -243,7 +243,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">An Actor profile MAY include an `embargo_policy` field — machine-readable policy on actor profile.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[EP-02-001](../specs/protocol.md#ep-02-001)</td>
+<td markdown="span">[EP-02-001](../specs/project.md#ep-02-001)</td>
 <td markdown="span">Each Actor SHOULD expose its embargo policy at a well-known endpoint (`PROD_ONLY`) — policy endpoint.</td>
 </tr>
 <tr markdown="1">
@@ -257,7 +257,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">The embargo policy record SHOULD include additional fields — richer parseable structure.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[EP-01-004](../specs/protocol.md#ep-01-004)</td>
+<td markdown="span">[EP-01-004](../specs/project.md#ep-01-004)</td>
 <td markdown="span">The embargo policy record MUST be serializable as a Pydantic model — programmatic parsing support.</td>
 </tr>
 <tr markdown="1">
@@ -351,7 +351,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">An Actor profile MAY include an `embargo_policy` field — machine-readable policy on profile.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[EP-02-001](../specs/protocol.md#ep-02-001)</td>
+<td markdown="span">[EP-02-001](../specs/project.md#ep-02-001)</td>
 <td markdown="span">Each Actor SHOULD expose its embargo policy at a well-known endpoint (`PROD_ONLY`) — policy endpoint.</td>
 </tr>
 <tr markdown="1">

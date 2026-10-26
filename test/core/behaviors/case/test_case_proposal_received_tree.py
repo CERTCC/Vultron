@@ -1423,6 +1423,7 @@ class TestADR0041EmbargoInit:
 
     @pytest.mark.spec("CP-01-009")
     @pytest.mark.spec("CP-01-010")
+    @pytest.mark.spec("EP-04-001")
     def test_inline_actor_profile_policy_is_the_actor_default(
         self, make_payload
     ):
@@ -1467,6 +1468,9 @@ class TestADR0041EmbargoInit:
 
         case = next(iter(dl.list_objects("VulnerabilityCase")))
         assert isinstance(case, VulnerabilityCase)
+        # The actor default applies with no sender proposal: ACTIVE, never
+        # PROPOSED (EP-04-001).
+        assert case.em_state == EM.ACTIVE
         assert case.active_embargo_id is not None
         embargo = dl.read(case.active_embargo_id)
         assert isinstance(embargo, EmbargoEvent)
