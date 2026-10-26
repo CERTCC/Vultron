@@ -110,7 +110,7 @@ These are sanity checks, not proof of honesty.
 A participant with a badly wrong clock can still produce a well-formed but misleading assertion.
 
 A retry of an assertion the ledger already holds gets the entry recorded for it as its answer, however old its timestamp.
-The retry records nothing new ([OX-06-002](../../reference/specs/project.md#ox-06-002)).
+That is because the retry records nothing new ([OX-06-002](../../reference/specs/project.md#ox-06-002)).
 
 ### Two timestamps, two different rules
 
@@ -124,8 +124,8 @@ An entry carries two timestamps, and the rules above do not all apply to the sam
 The distinction matters most for the "never move backwards" rule.
 Across the CASE_MANAGER's own commit timestamps, the rule holds because one writer stamps every entry from one clock.
 Applied to *participants'* timestamps, the rule would be wrong, because two participants' clocks are not synchronized.
+An assertion that one participant records later can legitimately claim an earlier time than an assertion that the other records earlier.
 
-An assertion that one participant records later can correctly claim an earlier time than an assertion that the other records earlier.
 So the CASE_MANAGER compares a participant's claimed timestamp only against that same participant's previous assertion.
 It allows a small tolerance when it compares the timestamp against the case's creation time.
 
@@ -159,8 +159,8 @@ They show when the causal links a scenario declares are compared against the ord
 The conformance suite checks them there.
 
 The CASE_MANAGER does refuse one thing outright: an activity that arrives with no `published` time at all.
-The field is optional in ActivityStreams.
-A receiver that filled in the blank with its own clock could no longer tell what the sender claimed from what it invented.
+Because the field is optional in ActivityStreams, a receiver could fill in the blank with its own clock.
+That receiver could no longer tell what the sender claimed from what it invented.
 Every check above would then compare the CASE_MANAGER's clock against itself.
 So the CASE_MANAGER refuses a message without a claimed time at the door ([CLP-15-006](../../reference/specs/protocol.md#clp-15-006)).
 
@@ -221,9 +221,9 @@ A reject from a position that *has* advanced always triggers a replay, so a peer
 The holding area should also be bounded, so that a hostile or broken peer streaming far-future entries cannot exhaust the replica's storage.
 When it is full, the replica discards the held `Announce` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/project.md#sync-14-006)).
 Discarding is safe because the replica already sent the reject for that gap.
-
 But the eviction itself sends nothing.
-So recovery waits on the replay that reject triggers, or on the next entry that fails to match the tail.
+
+Recovery therefore waits on the replay that reject triggers, or on the next entry that fails to match the tail.
 The cooldown above may delay either.
 
 The holding area is deliberately **not** the ledger ([SYNC-14-005](../../reference/specs/project.md#sync-14-005)).

@@ -78,8 +78,7 @@ Each cascade below starts from a step on the case's embargo register ([§7.1.1 T
   EM returns to `Active`, or stays at `Revised` while another revision is open (EMB-18-005).
   The owner's row for the revision becomes `AGREED` unless it already is.
   If the revision ends no later than the embargo it replaces, the CASE_MANAGER applies `CARRY_OVER` (EP-05-001, MSM-07-005).
-  It applies it to the revision's row of every participant whose row for the replaced embargo is `AGREED`.
-  This applies also when that participant's row for the revision is `DECLINED`.
+  That transition goes to the revision's row of every participant whose row for the replaced embargo is `AGREED`, a `DECLINED` revision row included.
   If the revision ends later, no row is written.
   In that case, a signatory to the replaced terms whose row for the revision is not `AGREED` has lapsed.
   That lapse is read from its rows and the register ([§9.3 Signatory and Lapsed](tracking-models.md#93-signatory-and-lapsed)).
@@ -151,9 +150,8 @@ whether to adopt it as canonical:
 - The component that records the claim MUST NOT execute side-effects.
 
 !!! warning "The default is Case Owner authorization, not automatic adoption"
-    With a permissive default, any admitted participant could force a canonical PXA change with no Case Owner confirmation.
-    Through that change, it could also force an embargo teardown.
-    This includes a hostile or malfunctioning participant admitted as an external monitor.
+    With a permissive default, any admitted participant could force a canonical PXA change, and through it an embargo teardown, with no Case Owner confirmation.
+    That includes a hostile or malfunctioning participant admitted as an external monitor.
     A conservative default makes that a protocol guarantee rather than a deployment posture.
 
 #### Seam 2 — Side-effects

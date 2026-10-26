@@ -77,7 +77,7 @@ sequenceDiagram
     {% include-markdown "../../../reference/messages/_occasions/embeds/invite-actor-to-case.md" %}
 
 3. Set the reply deadline on the activity's `end_time`.
-   When that value is present, it takes precedence over the invitee's local policy window.
+   When that value is present, it takes precedence over the invitee's local policy window (CM-28-002, ADR-0065).
    When it is absent, the policy window applies instead (CM-28-002, ADR-0065).
    In both cases, the effective deadline is clamped down to the embargo's own `end_time` (EP-07-006).
    An `end_time` that outlives the embargo does not give the invitee extra time.
@@ -138,7 +138,7 @@ That `Accept` is a duplicate, and the CASE_MANAGER records and sends nothing (CM
 Use `as:Invite` for an actor that was absent when the case was created.
 Seat the Case Owner and any already-known participants, such as the Reporter, inline on the `as:Create` for the case instead — see [How to Initialize a Case](initialize_case.md).
 
-If you are not the Case Owner but you know an actor belongs on the case, suggest it instead of an invitation.
+If you are not the Case Owner but you know an actor belongs on the case, suggest the actor instead of inviting it.
 See [How to Suggest an Actor for a Case](suggest_actor.md).
 
 ---

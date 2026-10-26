@@ -29,8 +29,7 @@ In the reference implementation, this happens in the `create_case` trigger path.
 The actor records a local case, publishes the case actor identity it will address, and emits the proposal.
 
 The proposal carries the report inline.
-The reference implementation does not permit a URI reference here.
-The receiving service cannot yet fetch an object from the proposer's store (CP-01-004, AKM-03-003).
+The reference implementation does not permit a URI reference here, because the receiving service cannot yet fetch an object from the proposer's store (CP-01-004, AKM-03-003).
 The proposal also carries the provenance of the report: which `Offer(VulnerabilityReport)` delivered it, and from whom.
 The accepting service cannot reconstruct that provenance, and it needs it for the first ledger entry (CP-01-007).
 
@@ -50,7 +49,7 @@ The proposal would then meet a permanent 404, and the round-trip would never sta
 The service URL comes from the actor's configuration, not from the server's own base URL.
 In a container deployment, that configuration is `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`.
 The server's own base URL happens to work when both actors share a container.
-When they do not share a container, it sends the proposal back to the proposer.
+When they do not share a container, a proposal sent to that URL goes back to the proposer.
 
 !!! note "Why creation is delegated rather than done locally"
 
@@ -90,8 +89,7 @@ A commit placed ahead of the `Create` therefore gives every Participant ledger e
 Each such entry takes the pre-genesis recovery path — buffer, `Reject`, replay from genesis — while the replica waits behind the whole fan-out (CP-09-009).
 When the service emits the case first, that recovery path is what it was designed to be: a backstop for transport reordering, not the normal route.
 
-The revision relay comes after the ledger commits.
-No modification of the case may start before its initialization is complete (CM-14-007).
+The revision relay comes after the ledger commits, because no modification of the case may start before its initialization is complete (CM-14-007).
 
 Case creation is one act.
 Every step from the case to the revision relay is written in one storage transaction.
@@ -191,9 +189,9 @@ The service reads a policy backend that is merely unreachable as a refusal, and 
 
 An already-answered proposal is never re-adjudicated.
 A duplicate delivery of the *same* proposal reuses the existing case and does not decide again.
-A later "decline" would contradict an `Accept` already sent.
+The reason is that a later "decline" would contradict an `Accept` already sent.
 CP-05-006 goes further: the stored `Accept` must be re-sent unchanged, with its original identifier.
-Then a proposer whose copy was lost converges instead of waiting forever.
+So a proposer whose copy was lost converges instead of waiting forever.
 
 The reference implementation does this.
 The `Accept` takes an id derived from the proposal.

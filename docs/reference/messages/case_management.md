@@ -23,9 +23,9 @@ It mints and updates the `VulnerabilityCase` object, records every case-scoped m
 The CASE_MANAGER acts for the Case Owner.
 The same actor often holds both roles, but it need not.
 
-Sometimes the CASE_MANAGER refuses one of these messages because a precondition does not hold.
-Then it answers the sender with the [refusal notice](faults_and_acknowledgements.md#refusal-notice): a `Reject` of the refused message, with the reason in `summary` ([CLP-02-005](../specs/protocol.md#clp-02-005), [CLP-05-001](../specs/protocol.md#clp-05-001)).
-It records nothing of the refused message in the ledger.
+If the CASE_MANAGER refuses one of these messages because a precondition does not hold, it answers the sender with the [refusal notice](faults_and_acknowledgements.md#refusal-notice).
+That notice is a `Reject` of the refused message, with the reason in `summary` ([CLP-02-005](../specs/protocol.md#clp-02-005), [CLP-05-001](../specs/protocol.md#clp-05-001)).
+The CASE_MANAGER records nothing of the refused message in the ledger.
 It sends no answer when the sender may not send the message at all, or when the message repeats one whose effect is already in place.
 
 A refused `Offer` or `Invite` is answered with a `Reject` of it, which the sender reads as the decline of its request.

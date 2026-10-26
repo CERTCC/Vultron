@@ -142,8 +142,7 @@ Vultron records that answer per participant as [embargo consent](../behavior_log
 The reason is that a participant that joined late or declined is in the case without being bound ([§9 Participant Embargo Consent (PEC) State Machine](../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
 
 An embargo invitation reaches you in one of two ways.
-You may be invited to a case that already has an embargo.
-Then the invitation states the terms you would agree to.
+If you are invited to a case that already has an embargo, the invitation states the terms you would agree to.
 When you accept it, you join the case and your consent is recorded ([§12.2 Invitation and Acceptance](../../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
 If you are already in a case and a participant proposes an embargo or a change to one, you receive the proposed terms and are asked to answer.
 

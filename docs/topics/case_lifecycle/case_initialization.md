@@ -57,7 +57,7 @@ These are the entries [CLP-07-013](../../reference/specs/protocol.md#clp-07-013)
 A case with no embargo has no `create_embargo_event` entry, and a case with no linked report has no `add_report_to_case` entry.
 Participants are taken in roster order.
 So a case created from a proposal has entries for the CASE_MANAGER, the Case Owner and the reporter.
-A case that an actor creates for itself has one entry, for the creator.
+A case that an actor creates for itself has one participant entry, for the creator.
 
 Each commit sends its entry to the case's other participants, and a participant must hold the case before the first entry about it arrives ([CP-09-009](../../reference/specs/protocol.md#cp-09-009)).
 The entries are committed after the `Create(VulnerabilityCase)` is queued, on both creation paths.

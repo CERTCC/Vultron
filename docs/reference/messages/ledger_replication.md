@@ -9,7 +9,7 @@ description: >
 # Ledger Replication Messages
 
 The Vultron SYNC substrate copies the case event log to all active participants.
-So each participant's local DataLayer stays consistent with the canonical log that the CASE_MANAGER holds.
+This keeps each participant's local DataLayer consistent with the canonical log that the CASE_MANAGER holds.
 [ADR-0077](../../adr/0077-ledger-replication-companion-spec.md) describes the mechanism.
 
 These messages are **infrastructure**, not protocol messages in the 28-shorthand sense.
@@ -30,7 +30,7 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
 A participant's replica of the case is the replay of its ledger.
 It is the case as it stood when the replica was seeded, plus every ledger entry since, applied in ledger order ([ADR-0124](../../adr/0124-case-is-a-projection-of-its-ledger.md), CM-23-016).
 A replica applies an entry by copying the objects it carries.
-Applying an entry makes no new id, reads no clock or local policy, and runs no lifecycle logic.
+Applying an entry mints no id, reads no clock or local policy, and runs no lifecycle logic.
 So two replicas at the same ledger position hold identical case files.
 
 Each entry records one activity with its object.
@@ -82,8 +82,7 @@ It replays that `Announce` when the predecessor arrives (ADR-0037, SYNC-14-009).
 - **Example artifact:** [reject_case_ledger_entry.json](../examples/reject_case_ledger_entry.json).
 
 A participant that holds no entry has none to reject.
-Its case can be replaced by a copy ahead of its chain.
-It then sends a `Reject` with no `object`, an empty `context` and the case as its `target`.
+If its case is replaced by a copy ahead of its chain, it sends a `Reject` with no `object`, an empty `context` and the case as its `target`.
 That `Reject` asks for a replay from genesis (SYNC-16-007).
 A `Reject` with no `object` and a non-empty `context` is refused when it is parsed.
 
