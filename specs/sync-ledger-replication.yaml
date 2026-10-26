@@ -2245,6 +2245,10 @@ groups:
     - ADR-0112
     verification: >-
       `test/core/use_cases/received/test_arrival_order.py` delivers the CASE_MANAGER's
-      messages for one revision in orders other than the one its outbox sends.
+      messages for one revision in orders other than the one its outbox sends, and
+      asserts that each order is realized and every order ends the same. A receiver
+      that relied on per-recipient order, or a sender whose messages are correct only
+      when delivered in its own order, fails that test, so the one check covers both
+      clauses.
     stories:
     - story_2022_045

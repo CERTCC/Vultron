@@ -46,6 +46,7 @@ from vultron.adapters.outbox_sealed_body import (
 )
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.services.held_ledger_announces import held_ledger_announces
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.enums.roles import CVDRole
@@ -113,6 +114,14 @@ def _stored_hashes(net: LedgerNetwork, actor: str) -> set[str]:
     }
 
 
+def _held_hashes(net: LedgerNetwork, actor: str) -> set[str]:
+    """The hashes of the entries *actor*'s replica holds out of order."""
+    return {
+        h.entry_hash
+        for h in held_ledger_announces(net.stores[actor], net.case_id)
+    }
+
+
 class TestRevisionInvitePermutations:
     """The revision Invite races its own ledger entries (EP-09-002, SYNC-19).
 
@@ -121,9 +130,12 @@ class TestRevisionInvitePermutations:
     relayed ``Invite(EmbargoEvent)``; and the rest of the act's entries in
     chain order, which end with the entry recording the Invite's emission to
     that participant.  Each of the six orders of the three is delivered, and
-    the test first checks that the order really happened: when the Invite
-    arrives, the replica holds the proposal entry only if the proposal came
-    first, and the emission entry only if both entry units did.  Every order
+    the test first checks that the order really happened.  When the entries
+    arrive, the replica holds them out of order if the proposal has not come
+    yet, and stores them if it has.  When the Invite arrives, the replica
+    has stored the proposal entry only if the proposal came first, has stored
+    the emission entry only if both entry units did, and holds it only if the
+    entries came first and the proposal last.  Every order
     must leave the participant with the CASE_MANAGER's case file, the relayed
     Invite indexed as the proposal it answers, and one answer.
     """
@@ -163,21 +175,35 @@ class TestRevisionInvitePermutations:
             [invites[0]],
         )
 
+        emission_hash = _entry(emission)["entryHash"]
         stored_at_invite: set[str] = set()
+        held_at_invite: set[str] = set()
+        emission_held_on_arrival = False
         for unit in order:
             if unit == 2:
                 stored_at_invite = _stored_hashes(net, BYSTANDER)
+                held_at_invite = _held_hashes(net, BYSTANDER)
             for body in units[unit]:
                 net.receive(BYSTANDER, body)
+            if unit == 1:
+                emission_held_on_arrival = emission_hash in _held_hashes(
+                    net, BYSTANDER
+                )
 
-        # The order was realized, not undone by holding (SYNC-14).
-        proposal_first = order.index(0) < order.index(2)
-        entries_first = proposal_first and order.index(1) < order.index(2)
+        # The order was realized, not undone by holding (SYNC-14): these
+        # observations differ for each of the six orders.
+        proposal_before_invite = order.index(0) < order.index(2)
+        entries_before_invite = order.index(1) < order.index(2)
+        entries_before_proposal = order.index(1) < order.index(0)
+        assert emission_held_on_arrival is entries_before_proposal
         assert (_entry(proposal)["entryHash"] in stored_at_invite) is (
-            proposal_first
+            proposal_before_invite
         )
-        assert (_entry(emission)["entryHash"] in stored_at_invite) is (
-            entries_first
+        assert (emission_hash in stored_at_invite) is (
+            proposal_before_invite and entries_before_invite
+        )
+        assert (emission_hash in held_at_invite) is (
+            entries_before_invite and not proposal_before_invite
         )
         assert (
             case_file_differences(
@@ -229,6 +255,8 @@ def test_owner_answer_to_first_proposal_does_not_depend_on_its_entry(
         # One in-memory store per actor id: close it before the next order.
         dl.close()
 
+    # Which answer is right is not decided yet (#5199), so only agreement
+    # is asserted; the fix must also pin the decided answer here.
     assert answers[False] == answers[True]
 
 
@@ -278,6 +306,8 @@ def test_late_relayed_invite_leaves_the_same_proposal_index(
         indexes[invite_first] = dict(final.pending_embargo_proposal_index)
         dl.close()
 
+    # A decided proposal is not pending (EP-08-003), in either order.
+    assert indexes[True] == {}
     assert indexes[True] == indexes[False]
 
 
@@ -291,6 +321,7 @@ def test_late_relayed_invite_leaves_the_same_proposal_index(
     ),
 )
 @pytest.mark.spec("SYNC-19-001")
+@pytest.mark.spec("SYNC-19-002")
 def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
     """``Announce(R1)`` then ``Remove(R1)`` ends the same in either order."""
     outcomes = {}
@@ -326,6 +357,8 @@ def test_paused_signatory_ending_notices_converge_in_either_order() -> None:
         )
         replica.dl.close()
 
+    # The Remove ends the revision, in either order.
+    assert outcomes[True] == (EM.EXITED, None)
     assert outcomes[True] == outcomes[False]
 
 
@@ -366,6 +399,8 @@ def test_same_sender_answers_record_one_consent_in_either_order() -> None:
             net.receive(MANAGER, body)
         consents[send_order] = _consent(net, BYSTANDER, embargo_id)
 
+    # Which answer should stand is not decided yet (#5202), so only agreement
+    # is asserted; the fix must also pin the decided consent here.
     assert consents[True] == consents[False]
 
 
@@ -380,9 +415,9 @@ def test_same_sender_answers_record_one_consent_in_either_order() -> None:
 @pytest.mark.spec("SYNC-19-001")
 def test_note_sent_before_leave_is_kept_in_either_order() -> None:
     """``Add(Note)`` then ``Leave(Case)`` keep the note in either order."""
-    notes = {}
+    kept = {}
     # One case per order; the note's id carries its case, so neither order's
-    # note is a repeat of the other's.
+    # note is a repeat of the other's, and each order checks its own note.
     for send_order in (True, False):
         net = LedgerNetwork(
             f"https://example.org/cases/note-leave-{send_order}"
@@ -401,6 +436,9 @@ def test_note_sent_before_leave_is_kept_in_either_order() -> None:
         for activity in (add, leave) if send_order else (leave, add):
             body = json.loads(dump_outbound_body(activity))
             net.receive(MANAGER, body)
-        notes[send_order] = [str(n) for n in net.case(MANAGER).notes]
+        notes = [str(n) for n in net.case(MANAGER).notes]
+        kept[send_order] = notes == [note.id_]
 
-    assert notes[True] == notes[False]
+    # The note was sent while its sender was a participant, so it is kept.
+    assert kept[True]
+    assert kept[True] == kept[False]
