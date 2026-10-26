@@ -55,6 +55,12 @@ An entry whose content does not reproduce its hash is refused and logged as an e
 The replica sends no `Reject(CaseLedgerEntry)` for it, because a replay would resend the same entry.
 It sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead, naming the refused `Announce(CaseLedgerEntry)` ([SYNC-03-007](../../reference/specs/protocol.md#sync-03-007)).
 
+The CASE_MANAGER makes the same check before it sends an entry, whether it is sending a new entry to every participant or resending entries a participant is missing ([SYNC-03-009](../../reference/specs/protocol.md#sync-03-009)).
+An entry that fails the check is not sent and is logged as an error.
+No later entry of that send goes out either, because the replica could hold those only as a gap.
+So a broken entry in the CASE_MANAGER's own store is found where it starts.
+The replica's check still catches a fault in rendering or parsing the wire form, which only shows up after the entry is sent.
+
 ---
 
 ## Log index is the causal order
