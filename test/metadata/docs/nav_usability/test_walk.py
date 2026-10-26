@@ -27,6 +27,7 @@ from test.metadata.docs.nav_usability._fixtures import (
 )
 from vultron.metadata.docs import nav_usability as nu
 from vultron.metadata.docs.nav_usability.walk import _resolve_href
+from vultron.metadata.file_loading import MetadataLoadError
 
 
 class TestWalk:
@@ -167,3 +168,9 @@ class TestWalkPrompt:
 )
 def test_resolve_href(current, href, target):
     assert _resolve_href(current, href) == target
+
+
+def test_score_walk_refuses_an_unknown_task(tmp_path):
+    state = nu.WalkState(site="site", history=["index.html"], finished="found")
+    with pytest.raises(MetadataLoadError, match="does not have"):
+        nu.score_walk(_suite(tmp_path), "T9", state)

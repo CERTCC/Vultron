@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from vultron.metadata.docs.nav_usability.results import Outcome, TaskResult
 from vultron.metadata.docs.nav_usability.suite import Suite
 from vultron.metadata.docs.nav_usability.tree import _INDEX_NAME, _is_url
+from vultron.metadata.file_loading import MetadataLoadError
 
 DEFAULT_CLICK_BUDGET = 8
 
@@ -250,8 +251,18 @@ def site_page(docs_path: str) -> str:
 def score_walk(
     suite: Suite, task_id: str, state: WalkState, run: int = 1
 ) -> TaskResult:
-    """Score a finished Stage 2 session for *task_id*."""
-    task = next(t for t in suite.tasks if t.id == task_id)
+    """Score a finished Stage 2 session for *task_id*.
+
+    Raises:
+        MetadataLoadError: If the suite has no task *task_id*, as when a
+            session file is named for no task.
+    """
+    task = next((t for t in suite.tasks if t.id == task_id), None)
+    if task is None:
+        raise MetadataLoadError(
+            f"names task {task_id!r}, which the suite does not have",
+            path=f"{task_id}.json",
+        )
     wanted = {site_page(p) for p in suite.destinations(task)}
     final = state.history[-1] if state.history else None
     if state.finished == "found" and final in wanted:
