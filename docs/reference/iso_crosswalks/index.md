@@ -38,3 +38,5 @@ The CSAF 2.1 crosswalk maps concepts instead of clauses, because CSAF is a docum
 <!-- END GENERATED SECTION CONTENTS -->
 
 The specification's own account of how it relates to these standards is [§1.3 Relationship to Existing Standards](../vultron-spec/introduction.md#13-relationship-to-existing-standards).
+
+{% include-markdown "../../start/_paths/coordinate-cases/reference__iso_crosswalks__index.md" %}

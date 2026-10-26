@@ -414,3 +414,7 @@ unchanged.
 - **`vultron/demo/fuzzer/`** — probabilistic fuzzer nodes (one per call-out point) and `STOCHASTIC` bundle singletons
 - **ADR-0024** — capability shape taxonomy
 - **ADR-0025** — call-out point abstraction layer and factory-injection pattern
+
+{% include-markdown "../start/_paths/connect-your-tracker/howto__wire_capability.md" %}
+
+{% include-markdown "../start/_paths/contribute/howto__wire_capability.md" %}

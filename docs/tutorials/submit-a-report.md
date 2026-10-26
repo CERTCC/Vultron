@@ -247,3 +247,5 @@ We have:
   come from `vultron/wire/as2/vocab/examples/submit_report_tutorial.py`, and the
   flow is verified end-to-end in
   `test/demo/test_submit_report_tutorial.py`.
+
+{% include-markdown "../start/_paths/connect-your-tracker/tutorials__submit-a-report.md" %}

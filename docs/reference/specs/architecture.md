@@ -23,3 +23,5 @@ from vultron.metadata.specs.docs_render import render_for_kind
 registry = load_registry(_repo / "specs")
 print(render_for_kind("architecture", registry))
 ```
+
+{% include-markdown "../../start/_paths/contribute/reference__specs__architecture.md" %}

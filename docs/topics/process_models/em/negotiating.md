@@ -185,3 +185,5 @@ Participants can then extend the embargo with a revision.
 
 - [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — propose an embargo, and accept or reject a proposal.
 - [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — propose a change to an active embargo, and accept or reject it.
+
+{% include-markdown "../../../start/_paths/coordinate-cases/topics__process_models__em__negotiating.md" %}

@@ -61,6 +61,8 @@ The normative role definitions are in [§2.2 Roles in the specification](vultron
 | **Case Actor** | The concrete actor the **prototype/demo implements** to hold `CVDRole.CASE_MANAGER` — an automated software actor spawned to enact the role and automate its duties (emitting activities, maintaining the canonical ledger). It is a specific **identity/label** (`case-actor`, `.../actors/case-actor`) with **no protocol meaning**. It is **not** a synonym for the authority and **not** an identity to match on: authority, recognition, and routing derive from the **`CASE_MANAGER` role**, never from this actor's name or URL, and code MUST NOT compare `actor_id` against a computed `case_actor_id` to decide authority (ADR-0088, refining ADR-0041). Name the authority **Case Manager** (the role holder); use **Case Actor** only for the prototype actor that happens to hold it. | Case service actor, case coordinator, "the CaseActor authority" |
 | **Case Actor Service** | The provisioning endpoint (configured as `case_actor_service_url`) that receives `CaseProposal`s and spawns the `case-actor` identities that enact `CASE_MANAGER`. A hosting/provisioning concern — distinct from the authority (the **role**) and from any one **Case Actor** identity it spawns. Hosting location and URL shape carry no authority signal (ADR-0088). | Case actor URL, provisioning service |
 
+{% include-markdown "../start/_paths/coordinate-cases/reference__glossary--cvd-roles-and-participants.md" %}
+
 ---
 
 ## Documentation Audience
@@ -620,3 +622,5 @@ The [Concept Taxonomy](vultron-taxonomy.md) explains the boundary: `vultron/core
 - [*A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure*](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"} (CMU/SEI-2021-SR-021) — the source of the Case State model
 - [*Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure*](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198){:target="_blank"} — the source of the formal protocol
 - [*The CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"} — the source of the CVD role names
+
+{% include-markdown "../start/_paths/how-vultron-works/reference__glossary.md" %}

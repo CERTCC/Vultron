@@ -306,3 +306,5 @@ We have:
 - **Understand the message-level protocol** — the [`rv` Demo Protocol Reference](../reference/rv-demo-protocol.md) documents every ActivityStreams activity exchanged during this demo and the ledger entries it produces.
 - **Read the scenario source** — the demo script is at `vultron/demo/scenario/rv_demo.py`; shared helpers are in `vultron/demo/helpers/`.
 - **Explore the single-container demos** — see [Run the Receive-Report Demo](receive_report_demo.md) and [Running the Other Demos](other_demos.md) to step through individual protocol activities.
+
+{% include-markdown "../start/_paths/coordinate-cases/tutorials__rv-demo.md" %}

@@ -167,3 +167,5 @@ Finder is not a protocol role: an actor that discovers a vulnerability and repor
   protocol tuple pulled together.
 - **[Protocol Specification](specs/protocol.md)** — the normative
   RMB/EMB/CSB requirements referenced throughout the transition tables.
+
+{% include-markdown "../start/_paths/connect-your-tracker/reference__quick_reference.md" %}

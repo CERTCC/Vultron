@@ -45,3 +45,14 @@ runs:
       shell: bash
       run: |
         PYTHONPATH='' uv run docs-links
+
+    # DF-11-023: every page on a reading-path thread, and every start page,
+    # renders one box per thread it is on, placed by hand with
+    # include-markdown; a section member's box sits in its section, and no
+    # page renders a box its source does not include. It reads the built HTML,
+    # so it needs the full build and is not a pre-commit hook.
+    - name: Check reading-path boxes
+      if: ${{ !cancelled() }}
+      shell: bash
+      run: |
+        PYTHONPATH='' uv run docs-path-boxes

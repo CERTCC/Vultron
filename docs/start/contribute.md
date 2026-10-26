@@ -51,6 +51,8 @@ Each section builds on the ones before it; read a numbered list in order and a b
 [Run the demos](../tutorials/container_demos.md){ .md-button .md-button--primary }
 [Read the architecture](../topics/reference_architecture.md){ .md-button }
 
+{% include-markdown "./_paths/contribute/start__contribute.md" %}
+
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
 
 ## Run it

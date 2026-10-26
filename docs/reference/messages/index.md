@@ -78,3 +78,5 @@ Faults are conveyed by `Create(ProcessingFault)`, `as:Reject`, or `Add(Note)`, p
 Acknowledgment of ledger-replicated state is cumulative and implicit through hash-chain continuity.
 `RK` survives as a real wire activity because report submission is not ledger-replicated.
 [Faults and Acknowledgments](faults_and_acknowledgements.md) describes both mechanisms, and [ADR-0083](../../adr/0083-formal-message-set-and-as2-vocabulary-are-different-shapes.md) records the decision.
+
+{% include-markdown "../../start/_paths/connect-your-tracker/reference__messages__index.md" %}

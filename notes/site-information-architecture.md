@@ -492,15 +492,16 @@ at some points and not at others (ADR-0150).
 - **A box is a committed fragment, placed by hand.** `docs-site --write`
   generates one per thread and member (a section's anchor in its name) under
   `docs/start/_paths/<thread>/`; the page's author adds the `include-markdown`
-  line where directions onward belong, and a built-site check in CI fails when
-  a box is missing (DF-11-023). The
-  build never adds one, because no pass finds the right spot: the Markdown pass
-  would have to copy the toc extension's ids and cannot see headings printed by
-  exec blocks, and the HTML pass is past MkDocs' link rewriting and checks. A
-  section member's box says "section" and goes at that section's end
-  (DF-11-022). The built site has the section's anchor as an id, so the same
-  check fails when the box is not between that heading and the next one of the
-  same or a higher level. With no box at the page end, the theme's footer stays.
+  line where directions onward belong, and `uv run docs-path-boxes`, run in CI
+  after the build, fails when a box is missing, naming the line to add
+  (DF-11-023). The build never adds one, because no pass finds the right
+  spot: the Markdown pass would have to copy the toc extension's ids and cannot
+  see headings printed by exec blocks, and the HTML pass is past MkDocs' link
+  rewriting and checks. A section member's box says "section" and goes at that
+  section's end (DF-11-022). The built site has the section's anchor as an id,
+  so the same check fails when the box is not between that heading and the next
+  one of the same or a higher level. With no box at the page end, the theme's
+  footer stays.
 - **Not a level sort.** The level rule forbids depending upward; it does not
   require a thread to climb in level. Order a thread by what the reader needs
   first.

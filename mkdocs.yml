@@ -290,15 +290,15 @@ hooks:
   # exec block links from the right page (in-page on full.md). See the
   # module docstring.
   - vultron/metadata/docs/exec_page.py
-  # Adds each reading-path thread's before/after box to the pages on it and
-  # hides their nav-order footer (DF-11-015, DF-11-017). See the docstring.
-  - vultron/metadata/docs/thread_box.py
-# Not processed at all. The generated occasion fragments (ADR-0128) are pulled
-# into their host pages by include-markdown, which reads them from disk, and
-# their links are checked there. Built on their own they would be checked
-# against the wrong page and each publish a URL (vultron/metadata/msm/occasions.py).
+# Not processed at all. The generated occasion fragments (ADR-0128) and the
+# reading-path boxes (DF-11-023) are pulled into their host pages by
+# include-markdown, which reads them from disk, and their links are checked
+# there. Built on their own they would be checked against the wrong page and
+# each publish a URL (vultron/metadata/msm/occasions.py,
+# vultron/metadata/docs/threads.py).
 exclude_docs: |
   reference/messages/_occasions/
+  start/_paths/
 draft_docs: |
   draft-*.md
   # Patterns are relative to docs_dir; `docs/developer/` was mis-anchored
