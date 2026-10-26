@@ -140,23 +140,7 @@ def extract_intent(
     extra_kwargs.update(_content_kwargs(activity, event_class))
 
     if "proposer_profile" in event_class.model_fields:
-        # Create(CaseProposal)'s actor is the proposer's inline profile, or
-        # the proposer's id, which the inbox dereferences before dispatch
-        # (CP-01-009, CP-01-010).  The parse edge refuses any other shape; an
-        # activity that reached here some other way is refused the same way,
-        # so core always receives one of the two (ADR-0032).
-        actor = getattr(activity, "actor", None)
-        if isinstance(actor, str) and actor:
-            extra_kwargs["proposer_profile"] = normalise_actor_id(actor)
-        elif isinstance(actor, CoreActor):
-            extra_kwargs["proposer_profile"] = actor
-        else:
-            raise VultronParseValidationError(
-                f"Create(CaseProposal) {activity.id_!r} carries neither an"
-                " inline actor profile nor the proposer's id (got"
-                f" {type(actor).__name__}); the proposer's profile is the"
-                " only source of the CASE_OWNER's actor default (CP-01-010)"
-            )
+        extra_kwargs["proposer_profile"] = _proposer_profile(activity)
 
     if "proposer_case_roles" in event_class.model_fields:
         # The proposer's own roles ride on the proposal (CP-01-011, ADR-0133):
@@ -202,6 +186,31 @@ def extract_intent(
             received_evidence=activity.received_evidence_json,
             **extra_kwargs,
         ),
+    )
+
+
+def _proposer_profile(activity: as_Activity) -> CoreActor | str:
+    """The proposer's profile a ``Create(CaseProposal)`` carries, or its id.
+
+    The ``actor`` is the proposer's inline profile, or the proposer's id,
+    which the inbox dereferences before dispatch (CP-01-009, CP-01-010).  The
+    parse edge refuses any other shape; an activity that reached here some
+    other way is refused the same way, so core always receives one of the
+    two (ADR-0032).
+
+    Raises:
+        VultronParseValidationError: When the ``actor`` is neither.
+    """
+    actor = getattr(activity, "actor", None)
+    if isinstance(actor, str) and actor:
+        return normalise_actor_id(actor)
+    if isinstance(actor, CoreActor):
+        return actor
+    raise VultronParseValidationError(
+        f"Create(CaseProposal) {activity.id_!r} carries neither an"
+        " inline actor profile nor the proposer's id (got"
+        f" {type(actor).__name__}); the proposer's profile is the"
+        " only source of the CASE_OWNER's actor default (CP-01-010)"
     )
 
 
