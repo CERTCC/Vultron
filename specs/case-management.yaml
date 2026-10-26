@@ -3343,7 +3343,6 @@ groups:
     - ADR-0053
     - ADR-0114
     - ADR-0148
-    - ADR-0160
     stories:
     - story_2022_050
   - id: CM-21-006
@@ -3785,7 +3784,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-10-004
     adr:
-    - ADR-0160
+    - ADR-0148
     stories:
     - story_2022_050
 - id: CM-22

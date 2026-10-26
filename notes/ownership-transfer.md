@@ -9,7 +9,7 @@ description: >
   routes through the CASE_MANAGER so every participant receives the
   CaseLedgerEntry broadcast; what each component must preserve, including that
   the transferee answers only the Offer it received and must be an active
-  participant (ADR-0160); and the demo preconditions.
+  participant (ADR-0148 revision 2); and the demo preconditions.
 related_specs:
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
@@ -37,9 +37,9 @@ relevant_packages:
 # Ownership Transfer Protocol — Routing and Cascade Model
 
 Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053, partially superseded by
-ADR-0148 (proposed), whose transferee check ADR-0160 (proposed) narrows to an
-active participant: the Offer carries the case inline, so only an actor entitled
-to case content may be offered it. The participant-facing
+ADR-0148 (proposed), whose revision 2 narrows the transferee check to an active
+participant: the Offer carries the case inline, so only an actor entitled to
+case content may be offered it. The participant-facing
 description is `docs/topics/case_lifecycle/ownership_transfer.md`. The close paths
 without an answer (withdrawal and the binding deadline, both built) are in
 [ownership-transfer-close-paths](ownership-transfer-close-paths.md). A
@@ -72,7 +72,7 @@ CASE_MANAGER inbox receives the proposal
       clock decision: expire an overdue Offer ← CM-21-017
       guards: no open Offer; inner Offer names this case and a transferee
               that is neither the CASE_MANAGER nor the proposer, and is an
-              active participant (CM-21-021, ADR-0160; not built, #5189)
+              active participant (CM-21-021, ADR-0148; not built, #5189)
       1. Commits CaseLedgerEntry (propose_case_ownership_transfer).
       2. MakeOwnershipTransferOfferNode (CASE_MANAGER gate):
          Offer(VulnerabilityCase) id=ownership_offer_id(cm, case, proposal, owner),
