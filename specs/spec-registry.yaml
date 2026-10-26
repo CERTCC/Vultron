@@ -1652,12 +1652,12 @@ groups:
       CM-10-004 says active is, so a change to CM-10-004 changes it. No other type
       says that: A can often be met without B being met, so `depends_on` does not
       hold. The #5118 pilot found this the most common relation the earlier types
-      could not express (ADR-0161).
+      could not express (ADR-0160).
     verification: >-
       `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
       this statement and the `RELATION_DEFINITIONS` entry for `uses_definition` differ.
     adr:
-    - ADR-0161
+    - ADR-0160
     tags:
     - documentation
     - tooling
@@ -1675,6 +1675,6 @@ groups:
       #5118 pilot found most wrong links were `refines` or `depends_on` recorded
       between siblings or unrelated requirements as a loose "related to".
     adr:
-    - ADR-0161
+    - ADR-0160
     tags:
     - documentation

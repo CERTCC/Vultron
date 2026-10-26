@@ -215,7 +215,7 @@ narrower requirement, never `constrains` on the general one (SR-13-013).
 no link (SR-13-018): do not fall back to `depends_on`, which then becomes the new
 catch-all. A false link gives the impact walk a wrong answer; a missing one costs
 at most a missed answer, and the statement's prose still cites the other
-requirement (ADR-0161). Pick the type by its definition, not by habit:
+requirement (ADR-0160). Pick the type by its definition, not by habit:
 
 - `refines` only when meeting A in A's case meets B. A sibling in the same group
   that adds a duty is `extends`; one that states how B is met is `implements`.
