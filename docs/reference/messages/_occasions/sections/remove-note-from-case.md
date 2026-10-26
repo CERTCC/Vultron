@@ -4,19 +4,23 @@
 
 Removes the note from the case named by the target.
 
-- **When…** a note's author or the Case Owner withdraws a note from the case
-- **Send:** `Remove(Note)[target=VulnerabilityCase]`
-- **Send to:** the case manager
-- **Sent by:** the case owner or the note's author
-- **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
-- **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
-- **Mapping status:** [expansion](../../index.md#mapping-status)
+=== "Details"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    remove_note_from_case,
-    json2md,
-)
+    - **When…** a note's author or the Case Owner withdraws a note from the case
+    - **Send:** `Remove(Note)[target=VulnerabilityCase]`
+    - **Send to:** the case manager
+    - **Sent by:** the case owner or the note's author
+    - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
+    - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
+    - **Mapping status:** [expansion](../../index.md#mapping-status)
 
-print(json2md(remove_note_from_case()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        remove_note_from_case,
+        json2md,
+    )
+
+    print(json2md(remove_note_from_case()))
+    ```

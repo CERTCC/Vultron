@@ -27,7 +27,8 @@ artifacts, and ``--check`` fails on any difference (MSM-06-001):
   set, each shorthand with the wire activities that carry it, for the
   Protocol Quick Reference (MSM-06-004).
 - ``docs/reference/messages/_occasions/sections/<anchor>.md`` — one section
-  per occasion, anchored by the occasion's ID.
+  per occasion, anchored by the occasion's ID: its heading and description,
+  then two content tabs, the reference facts and the example JSON.
 - ``docs/reference/messages/_occasions/embeds/<anchor>.md`` — one embed per
   occasion: what a page outside the reference includes at the step that sends
   the occasion.  It is a box with no heading, holding the facts a sender acts
@@ -141,6 +142,13 @@ FRAGMENT_DIR = "docs/reference/messages/_occasions"
 #: Repository-relative directory holding each occasion's embed, the variant
 #: a page outside the reference includes where it sends the occasion.
 EMBED_DIR = f"{FRAGMENT_DIR}/embeds"
+
+# Labels of the two content tabs every section renders.  Every section on a
+# page uses the same two, so the theme's linked tabs (``content.tabs.link``)
+# switch them together; the embed reuses the example label for its collapsed
+# box.
+DETAILS_TAB = "Details"
+EXAMPLE_TAB = "Example activity"
 
 #: The first line of every fragment.  An HTML comment, so it renders nowhere.
 FRAGMENT_MARKER = (
@@ -627,20 +635,35 @@ def render_section(row: OccasionRow) -> str:
             f"- **Formal definition:** {formal_link(row.shorthand, to_reference)}"
         )
     facts.append(f"- **Mapping status:** {status_link(row.status, to_pages)}")
-    blocks = [
-        f"## {row.heading} {{ #{row.anchor} }}",
-        row.description,
-        "\n".join(facts),
-    ]
+    details = ["\n".join(facts)]
     if row.notes is not None:
-        blocks.append(row.notes)
-    blocks.append(_example_block(row))
-    return "\n\n".join(blocks)
+        details.append(row.notes)
+    tabs = [
+        _tab(DETAILS_TAB, "\n\n".join(details)),
+        _tab(EXAMPLE_TAB, _example_block(row)),
+    ]
+    return "\n\n".join(
+        [
+            f"## {row.heading} {{ #{row.anchor} }}",
+            row.description,
+            *tabs,
+        ]
+    )
 
 
 def _indent(text: str) -> str:
-    """Indent *text* one admonition level; blank lines stay empty."""
+    """Indent *text* one block level; blank lines stay empty."""
     return textwrap.indent(text, "    ")
+
+
+def _tab(label: str, body: str) -> str:
+    """Render *body* as one content tab labelled *label*.
+
+    Adjacent tabs form one tab set.  The heading and description stay outside
+    the set, so the occasion's anchor and its table-of-contents entry do not
+    depend on which tab is open (MSM-08-004).
+    """
+    return f'=== "{label}"\n\n' + _indent(body)
 
 
 def render_embed(group: OccasionGroup, row: OccasionRow) -> str:
@@ -657,9 +680,7 @@ def render_embed(group: OccasionGroup, row: OccasionRow) -> str:
     to_pages = "../../"
     facts = _send_facts(row)
     facts.append(f"- **Reference:** {details_link(group, row, to_pages)}")
-    example = '??? example "Example activity"\n\n' + _indent(
-        _example_block(row)
-    )
+    example = f'??? example "{EXAMPLE_TAB}"\n\n' + _indent(_example_block(row))
     body = "\n\n".join([row.description, "\n".join(facts), example])
     return f'!!! info "{row.heading}"\n\n' + _indent(body)
 

@@ -9,6 +9,8 @@ contents: generated
 
 ## Available tutorials
 
+<div class="grid cards" markdown>
+
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
 - [Submit a Report to a Vultron Actor](submit-a-report.md) — Start the reference implementation, construct a `Create(VulnerabilityReport)` message by hand, post it to an actor's inbox, and confirm the actor received it.
@@ -19,6 +21,8 @@ contents: generated
 - [Run the RVV Demo](../howto/demos/rvv-demo.md) — Run the three-actor Reporter, Vendor, Vendor (RVV) demo, in which two vendors each advance an independent fix path with no coordinator.
 
 <!-- END GENERATED SECTION CONTENTS -->
+
+</div>
 
 ## Further reading
 

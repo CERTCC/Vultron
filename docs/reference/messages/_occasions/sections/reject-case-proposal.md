@@ -4,17 +4,21 @@
 
 Rejects the case proposal. No case is opened.
 
-- **When…** a Case Actor Service declines to open the proposed case
-- **Send:** `Reject(CaseProposal)`
-- **Send to:** an actor outside any case
-- **Sent by:** the addressee of the case proposal
-- **Mapping status:** [none](../../index.md#mapping-status)
+=== "Details"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    reject_case_proposal,
-    json2md,
-)
+    - **When…** a Case Actor Service declines to open the proposed case
+    - **Send:** `Reject(CaseProposal)`
+    - **Send to:** an actor outside any case
+    - **Sent by:** the addressee of the case proposal
+    - **Mapping status:** [none](../../index.md#mapping-status)
 
-print(json2md(reject_case_proposal()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        reject_case_proposal,
+        json2md,
+    )
+
+    print(json2md(reject_case_proposal()))
+    ```

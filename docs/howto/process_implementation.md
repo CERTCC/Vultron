@@ -63,7 +63,7 @@ Most participants publish at their own pace shortly after the embargo ends, and 
 
 - If your system tracks an embargo end date, emit the proposal, acceptance, and termination messages from that record — see [How to Establish an Embargo](activitypub/activities/establish_embargo.md) and [How to Revise or Terminate an Embargo](activitypub/activities/manage_embargo.md).
 - If your system labels sensitive information with the [Traffic Light Protocol (TLP)](https://www.first.org/tlp){:target="_blank"}, keep doing so.
-  An embargo declaration can carry the label: "This case is <span style="color:#FFC000;background-color:#000000">**TLP:AMBER**</span> until 2024-03-31 23:59:59 UTC, at which time it becomes <span style="color:#FFFFFF;background-color:#000000">**TLP:CLEAR**</span>."
+  An embargo declaration can carry the label: "This case is **TLP:AMBER** until 2024-03-31 23:59:59 UTC, at which time it becomes **TLP:CLEAR**."
   The [CERT Guide to Coordinated Vulnerability Disclosure (CVD)](https://certcc.github.io/CERT-Guide-to-CVD/howto/operation/opsec/){:target="_blank"} covers TLP in CVD in more detail.
 
 ---

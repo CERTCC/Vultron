@@ -91,7 +91,8 @@ against them (DF-09-007, ADR-0092):
   located in the assembled page is one a maintainer cannot act on, so findings
   always cite the fragment.
 - **Page-scoped rules are never evaluated against a fragment**: SG-07, SG-09,
-  SG-10, SG-11, SG-12, SG-21, SG-32, SG-33, SG-39, SG-41, SG-44. Applied to a fragment
+  SG-10, SG-11, SG-12, SG-21, SG-32, SG-33, SG-39, SG-41, SG-44, SG-48, SG-50.
+  Applied to a fragment
   they yield artifacts of the split, not prose defects — twelve expansions of
   "VFD" on one rendered specification page, or a missing H1 that
   `heading-offset` demotes on purpose. `.markdownlint-cli2.yaml` set the
@@ -236,6 +237,14 @@ recommendation, never applied:
 - **Register** (SG-21–SG-23, SG-26, SG-27) — non-declarative opening, inflated
   `warning` admonitions, emphasis sprawl.
 - **Grandfathered ASCII diagrams** (SG-36) — low priority; never auto-convert.
+- **Visual components** (SG-45–SG-51) — a component outside the closed set,
+  an inline `style=` attribute, or a component used where its rule does not
+  fit: tabs holding sequential steps or a single tab, an annotation carrying a
+  fact the reader needs, cards on a content page other than one closing set of
+  next destinations, more than two buttons or buttons below the orientation
+  paragraph, a hand-written page-type badge. Card and button placement depend
+  on the host page, so judge them on the rendered page. Recommend the
+  plain-prose or table alternative.
 - **Verbatim-copied block** (SG-43, DF-10-001, DF-10-002) — if a paragraph,
   table, or diagram on this page appears verbatim (or near-verbatim) on another
   `docs/` page, flag it as a judgment finding. Recommend one of two resolutions:

@@ -4,19 +4,23 @@
 
 Carries the changed consent row in full. A Case Manager with an embargo stake of its own records a change of its own consent this way, never as a Reject of the Invite.
 
-- **When…** the Case Manager changes a participant's consent row, such as an invitation timing out, the rows carried over at activation or a change of its own consent
-- **Send:** `Update(EmbargoConsent)`
-- **Send to:** a participant
-- **Sent by:** internal to the case manager
-- **Mapping status:** [none](../../index.md#mapping-status)
+=== "Details"
 
-Each participant learns of it from the case ledger, so it is addressed to nobody.
+    - **When…** the Case Manager changes a participant's consent row, such as an invitation timing out, the rows carried over at activation or a change of its own consent
+    - **Send:** `Update(EmbargoConsent)`
+    - **Send to:** a participant
+    - **Sent by:** internal to the case manager
+    - **Mapping status:** [none](../../index.md#mapping-status)
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    update_embargo_consent,
-    json2md,
-)
+    Each participant learns of it from the case ledger, so it is addressed to nobody.
 
-print(json2md(update_embargo_consent()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        update_embargo_consent,
+        json2md,
+    )
+
+    print(json2md(update_embargo_consent()))
+    ```

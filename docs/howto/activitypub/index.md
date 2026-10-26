@@ -58,15 +58,18 @@ It was produced by the reference implementation; the identifiers and timestamps 
   "to": ["https://vendor.example/actors/psirt"],
   "actor": "https://reporter.example/actors/finder",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld", // (1)!
     "type": "VulnerabilityReport",
     "id": "https://reporter.example/reports/CVE-2026-0001",
     "name": "Buffer overflow in example-server",
     "content": "Details of the finding.",
-    "attributedTo": "https://reporter.example/actors/finder"
+    "attributedTo": "https://reporter.example/actors/finder" // (2)!
   }
 }
 ```
+
+1. The object cites the Vultron JSON-LD context, which declares `VulnerabilityReport` and the other Vultron types.
+2. The report's author is the finder who sends it, so `attributedTo` matches the activity's `actor` here.
 
 Read it field by field.
 
@@ -91,7 +94,7 @@ The verbs are all standard AS2: `Offer`, `Accept`, `Reject`, `TentativeReject`, 
 Vultron adds no verbs.
 
 The objects are where Vultron extends AS2.
-`VulnerabilityReport`, `VulnerabilityCase`, `CaseParticipant`, `CaseParticipantRole`, `CaseStatus`, `ParticipantStatus`, `EmbargoEvent`, `CaseLedgerEntry`, and `ProcessingFault` are Vultron types, declared in the Vultron JSON-LD context that each object cites in its own `@context`.
+`VulnerabilityReport`, `VulnerabilityCase`, `CaseParticipant`, `CaseParticipantRole`, `CaseStatus`, `ParticipantStatus`, `EmbargoEvent`, `CaseLedgerEntry`, and `ProcessingFault` are Vultron types, declared in the Vultron JavaScript Object Notation for Linked Data (JSON-LD) context that each object cites in its own `@context`.
 Standard AS2 objects appear too: a case note is an `as:Note`, and the actor invited to a case is an `as:Actor`.
 An embargo is not one of them: it is sent with the Vultron `type` `EmbargoEvent`, never a plain `as:Event`.
 
