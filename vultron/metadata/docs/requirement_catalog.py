@@ -67,7 +67,11 @@ FULL_PAGE = "reference/vultron-spec/full.md"
 """The single-page edition, which includes the catalog in document order."""
 
 _CATALOG_PAGE = "reference/vultron-spec/requirements-{key}.md"
-_KIND_PAGE = "reference/specs/{kind}.md"
+
+
+def kind_page(kind: SpecKind) -> str:
+    """Return the ``docs/``-relative source of *kind*'s requirements page."""
+    return f"reference/specs/{kind.value}.md"
 
 
 @dataclass(frozen=True)
@@ -376,7 +380,7 @@ def requirement_linker(
                 if page == FULL_PAGE:
                     return f"#{anchor}"
                 return site_href(page, target.path, anchor)
-        return site_href(page, _KIND_PAGE.format(kind=kind.value), anchor)
+        return site_href(page, kind_page(kind), anchor)
 
     return href
 
@@ -391,6 +395,7 @@ __all__ = [
     "NotInCatalogError",
     "catalog_location",
     "current_page",
+    "kind_page",
     "placement_faults",
     "requirement_anchor",
     "requirement_linker",

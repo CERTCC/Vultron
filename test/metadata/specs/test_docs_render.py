@@ -6,6 +6,7 @@ for a kind no spec carries yet,
 and SpecTag.BEHAVIORAL detection.
 """
 
+import ast
 import posixpath
 import re
 from pathlib import Path
@@ -1083,29 +1084,98 @@ def test_callout_refuses_a_repeated_id(catalog_registry):
 
 
 _DOCS = Path(__file__).resolve().parents[3] / "docs"
-_CALLOUT_CALL_RE = re.compile(r"requirement_callout\(([^)]*)\)")
+_CALLOUT_LINE_RE = re.compile(
+    r"^\s*.*\brequirement_callout\(.*$", re.MULTILINE
+)
+_INCLUDE_RE = re.compile(r'\{%\s*include-markdown\s+"([^"]+)"')
 _CALLOUT_LINK_RE = re.compile(r"\]\((?P<href>[^)\s]+)\)")
+
+
+def _callout_ids(line: str) -> list[list[str]]:
+    """Return the positional ID arguments of each callout call on *line*."""
+    calls = [
+        node
+        for node in ast.walk(ast.parse(line.strip()))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "requirement_callout"
+    ]
+    assert calls, line
+    found: list[list[str]] = []
+    for call in calls:
+        ids = [a.value for a in call.args if isinstance(a, ast.Constant)]
+        assert len(ids) == len(call.args), f"non-literal callout ID in {line}"
+        found.append([str(i) for i in ids])
+    return found
+
+
+def _hosts() -> dict[str, set[str]]:
+    """Map each ``docs/`` file to the pages that render it.
+
+    A page renders itself and, transitively, every file it includes. A
+    fragment's exec block runs once per page that includes it, so its links
+    are relative to each of those pages, not to the fragment's own path.
+    """
+    includes: dict[str, set[str]] = {}
+    for source in _DOCS.rglob("*.md"):
+        path = source.relative_to(_DOCS).as_posix()
+        includes[path] = {
+            posixpath.normpath(posixpath.join(posixpath.dirname(path), target))
+            for target in _INCLUDE_RE.findall(
+                source.read_text(encoding="utf-8")
+            )
+        }
+    hosts: dict[str, set[str]] = {}
+    for page in includes:
+        if posixpath.basename(page).startswith("_"):
+            continue
+        seen: set[str] = set()
+        todo = [page]
+        while todo:
+            current = todo.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            todo.extend(includes.get(current, ()))
+        for rendered in seen:
+            hosts.setdefault(rendered, set()).add(page)
+    return hosts
+
+
+def _dangling_links(
+    md: str, page: str, target_ids: dict[str, frozenset[str]]
+) -> list[str]:
+    """Return each link in *md*, printed on *page*, whose id is missing."""
+    dangling = []
+    for match in _CALLOUT_LINK_RE.finditer(md):
+        href = match.group("href")
+        link, _, fragment = href.partition("#")
+        target = posixpath.normpath(posixpath.join(url_path(page), link))
+        if fragment not in target_ids.get(f"{target}.md", frozenset()):
+            dangling.append(href)
+    return dangling
 
 
 def test_docs_callouts_link_existing_rows():
     """Every requirement callout in ``docs/`` renders, and every link it
-    prints lands on an id its target page defines.
+    prints lands on an id its target page defines, on every page that
+    renders the callout.
 
     MkDocs never sees a link an exec block prints, so this is the check that
     the callouts link real rows (``anchor_ids.py``). Each callout is
-    rendered for the page that holds it, and each link is resolved against
-    the rendered ids of the per-kind and catalog pages, so the test holds
-    before and after the catalog publishes. Zero callouts is a failure
-    (DF-09-009).
+    rendered for each page that includes its fragment, and each link is
+    resolved against the rendered ids of the per-kind and catalog pages, so
+    the test holds before and after the catalog publishes. Zero callouts is
+    a failure (DF-09-009).
     """
     registry = load_registry()
-    kind_ids = {
+    target_ids = {
         f"reference/specs/{kind.value}.md": anchor_ids_in(
             render_for_kind(kind.value, registry)
         )
         for kind in SpecKind
     }
-    kind_ids.update(
+    target_ids.update(
         {
             page.path: anchor_ids_in(
                 render_catalog_page(page.key, registry, page=page.path)
@@ -1113,29 +1183,53 @@ def test_docs_callouts_link_existing_rows():
             for page in CATALOG_PAGES
         }
     )
-    callouts = 0
+    hosts = _hosts()
+    rendered = 0
     dangling: list[str] = []
     for source in sorted(_DOCS.rglob("*.md")):
-        page = source.relative_to(_DOCS).as_posix()
-        for call in _CALLOUT_CALL_RE.finditer(
-            source.read_text(encoding="utf-8")
-        ):
-            ids = re.findall(r'"([^"]+)"', call.group(1))
-            if not ids:
-                continue
-            callouts += 1
-            md = requirement_callout(*ids, registry=registry, page=page)
-            for match in _CALLOUT_LINK_RE.finditer(md):
-                href = match.group("href")
-                path, _, fragment = href.partition("#")
-                target = posixpath.normpath(
-                    posixpath.join(url_path(page), path)
-                )
-                target_page = f"{target}.md"
-                if fragment not in kind_ids.get(target_page, frozenset()):
-                    dangling.append(f"docs/{page}: {href}")
-    assert callouts > 0, "no requirement_callout found under docs/"
+        path = source.relative_to(_DOCS).as_posix()
+        text = source.read_text(encoding="utf-8")
+        for line in _CALLOUT_LINE_RE.findall(text):
+            if "import requirement_callout" not in line:
+                continue  # prose that names the helper, not a callout
+            assert hosts.get(path), (
+                f"docs/{path}: no page renders this callout"
+            )
+            for ids in _callout_ids(line):
+                for page in sorted(hosts[path]):
+                    rendered += 1
+                    dangling.extend(
+                        f"docs/{path} on {page}: {href}"
+                        for href in _dangling_links(
+                            requirement_callout(
+                                *ids, registry=registry, page=page
+                            ),
+                            page,
+                            target_ids,
+                        )
+                    )
+    assert rendered > 0, "no requirement_callout found under docs/"
     assert not dangling, "\n".join(dangling)
+
+
+def test_callout_hosts_follow_includes():
+    """The include walk finds a fragment's pages, nested includes too."""
+    hosts = _hosts()
+    assert hosts["reference/vultron-spec/_iana.md"] == {
+        "reference/vultron-spec/considerations.md",
+        "reference/vultron-spec/full.md",
+    }
+    oq = hosts["reference/vultron-spec/_oq-embargo-termination-authority.md"]
+    assert "reference/vultron-spec/open-questions.md" in oq
+    assert "topics/future_work/open_questions.md" in oq
+
+
+def test_callout_ids_reads_positional_literals_only():
+    line = (
+        "from vultron.metadata.specs.docs_render import requirement_callout; "
+        'print(requirement_callout("VM-10-001", "ID-01-001", title="Context"))'
+    )
+    assert _callout_ids(line) == [["VM-10-001", "ID-01-001"]]
 
 
 def test_renderers_default_to_the_repository_registry(monkeypatch):
@@ -1151,3 +1245,33 @@ def test_renderers_default_to_the_repository_registry(monkeypatch):
     assert docs_render._docs_registry() is cached
     page = render_catalog_page("foundation")
     assert '<a id="id-01-001"></a>' in page
+
+
+def test_repository_registry_reloads_when_specs_change(tmp_path, monkeypatch):
+    """An edited requirement file reaches the next ``mkdocs serve`` rebuild."""
+    import os
+
+    from vultron.metadata.specs import docs_render
+
+    specs = tmp_path / "specs"
+    specs.mkdir()
+    spec_file = specs / "gen.yaml"
+    spec_file.write_text(yaml.dump(GENERAL_YAML))
+    monkeypatch.setattr(docs_render, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(docs_render, "_registry_cache", {})
+    first = docs_render._docs_registry()
+    assert docs_render._docs_registry() is first
+    stat = spec_file.stat()
+    os.utime(spec_file, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+    second = docs_render._docs_registry()
+    assert second is not first
+    assert len(docs_render._registry_cache) == 1
+
+
+def test_dangling_links_flags_a_missing_id():
+    """Guard the link test above against passing vacuously."""
+    ids = {"reference/specs/protocol.md": frozenset({"vm-10-001"})}
+    md = "[a](../../specs/protocol/#vm-10-001) [b](../../specs/protocol/#nope)"
+    assert _dangling_links(md, "reference/vultron-spec/x.md", ids) == [
+        "../../specs/protocol/#nope"
+    ]

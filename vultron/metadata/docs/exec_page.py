@@ -19,7 +19,8 @@ rendered, and ``markdown-exec`` gives a block no page: a fragment included by
 several pages runs the same code on each.
 
 This ``on_pre_page`` hook records the page's ``docs/``-relative source path in
-the :data:`EXEC_PAGE_ENV` environment variable before the page is read.
+the :data:`EXEC_PAGE_ENV` environment variable before the page is read, and
+the build's end, successful or not, removes it.
 MkDocs reads, converts and post-processes one page before it starts the next
 (``mkdocs.commands.build._populate_page``), and exec blocks run during the
 conversion, so the variable names the page whose blocks are running. The
@@ -58,4 +59,13 @@ def on_post_build(*, config: MkDocsConfig) -> None:
     os.environ.pop(EXEC_PAGE_ENV, None)
 
 
-__all__ = ["EXEC_PAGE_ENV", "on_post_build", "on_pre_page"]
+def on_build_error(*, error: Exception) -> None:
+    """Forget the last page when a build fails, which skips ``on_post_build``.
+
+    Under ``mkdocs serve`` the process outlives the failed build, and the
+    next build must not start with the failed one's page recorded.
+    """
+    os.environ.pop(EXEC_PAGE_ENV, None)
+
+
+__all__ = ["EXEC_PAGE_ENV", "on_build_error", "on_post_build", "on_pre_page"]

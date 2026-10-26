@@ -25,8 +25,11 @@ What it reads, and what it skips:
   (DF-09-007). A source page an annex pulls in through ``include-markdown`` is
   not a specification fragment and is not read.
 * **Rendered blocks are skipped.** A callout is printed by a fenced
-  ``markdown-exec`` block, so every fenced line is skipped, as is an inline
-  code span, which shows a keyword rather than using it.
+  ``markdown-exec`` block, so its lines are skipped. Every other fenced block
+  is skipped too, as is an inline code span: code shows a keyword (a wire
+  example, a quoted requirement) rather than using one, so it states no rule
+  of the specification's own. Telling an exec fence apart would only add
+  ways for the check to misread a fence.
 * **The §1.4 Document Conventions paragraph** in :data:`CONVENTIONS_FRAGMENT`,
   the one that names RFC 2119 and lists the keywords, is the one exception.
 

@@ -64,8 +64,7 @@ number of shapes, and a conformance claim does not state which
 ([§13.6 Capability Shapes](../conformance.md#136-capability-shapes)).
 
 A capability of a shape is one that satisfies the contract defined above.
-The technology used to fulfill the contract is not specified: a shape
-may be fulfilled by a human, an automated script, a Large Language Model (LLM), or any other mechanism.
+The technology used to fulfill the contract is not specified: a shape may be fulfilled by a human, an automated script, a Large Language Model (LLM), or any other mechanism.
 
 #### G.3 Relationship to the Reference Implementation
 

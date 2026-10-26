@@ -43,6 +43,7 @@ from vultron.metadata.docs.requirement_catalog import (
     NotInCatalogError,
     catalog_location,
     current_page,
+    kind_page,
     requirement_anchor,
     requirement_linker,
 )
@@ -101,10 +102,6 @@ _TABLE_HEADER = (
     "| ID | Priority | Requirement | Related |",
     "|---|---|---|---|",
 )
-
-
-def _kind_page(kind: SpecKind) -> str:
-    return f"reference/specs/{kind.value}.md"
 
 
 def _render_relationships_cell(spec: Spec, href: RequirementHref) -> str:
@@ -270,26 +267,29 @@ def _render_file(
     spec_file: SpecFile,
     href: RequirementHref,
     current_kind: SpecKind,
-    is_behavioral_section: bool,
+    *,
+    heading: str,
+    anchor_prefix: str = "",
+    show_file_id: bool = True,
 ) -> None:
     """Render *spec_file* groups that have at least one item matching
     *current_kind* (SR-09-001, SR-09-002).
 
     Groups appear here only when they contain at least one item whose
     ``kind`` matches *current_kind*; non-matching items are suppressed.
+    *heading* is the file's heading level, and a group's is one below it.
+    *anchor_prefix* goes before each heading id, so a page that renders the
+    same file for two kinds (``full.md`` holds both catalog tiers) defines no
+    id twice.
     """
-    anchor = spec_file.id.lower()
-    if is_behavioral_section:
-        lines.append(f"### {spec_file.title} {{#{anchor}}}")
-        group_heading = "####"
-    else:
-        lines.append(f"## {spec_file.title} {{#{anchor}}}")
-        group_heading = "###"
+    anchor = anchor_prefix + requirement_anchor(spec_file.id)
+    lines.append(f"{heading} {spec_file.title} {{#{anchor}}}")
     lines.append("")
     lines.append(spec_file.description)
     lines.append("")
-    lines.append(f"*File ID*: `{spec_file.id}`")
-    lines.append("")
+    if show_file_id:
+        lines.append(f"*File ID*: `{spec_file.id}`")
+        lines.append("")
     for group in spec_file.groups:
         # Collect items whose effective kind matches current_kind.
         matching_specs = [
@@ -301,8 +301,9 @@ def _render_file(
             lines,
             group,
             href,
-            heading=group_heading,
+            heading=heading + "#",
             specs=matching_specs,
+            anchor=anchor_prefix + requirement_anchor(group.id),
         )
 
 
@@ -356,7 +357,7 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
         return _EMPTY_KIND_NOTICE.format(kind=target_kind.value)
 
     lines: list[str] = []
-    href = requirement_linker(registry, _kind_page(target_kind))
+    href = requirement_linker(registry, kind_page(target_kind))
 
     # Separate behavioral files (tagged or containing BehavioralSpec items)
     regular: list[SpecFile] = []
@@ -368,7 +369,7 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
             regular.append(sf)
 
     for sf in regular:
-        _render_file(lines, sf, href, target_kind, is_behavioral_section=False)
+        _render_file(lines, sf, href, target_kind, heading="##")
 
     if behavioral:
         lines.append("## Behavioral Specifications")
@@ -380,9 +381,7 @@ def render_for_kind(kind: str, registry: SpecRegistry) -> str:
         )
         lines.append("")
         for sf in behavioral:
-            _render_file(
-                lines, sf, href, target_kind, is_behavioral_section=True
-            )
+            _render_file(lines, sf, href, target_kind, heading="###")
 
     return "\n".join(lines)
 
@@ -458,7 +457,6 @@ def render_catalog_page(
         published=published,
     )
     files = {spec_file.id: spec_file for spec_file in registry.files}
-    tier = catalog.tier.value
     lines: list[str] = []
     for file_id in catalog.files:
         if file_id not in files:
@@ -466,26 +464,15 @@ def render_catalog_page(
                 f"catalog page {key!r} places {file_id}, which names no "
                 "requirement file"
             )
-        spec_file = files[file_id]
-        lines.append(
-            f"{heading} {spec_file.title} "
-            f"{{#{tier}-{requirement_anchor(spec_file.id)}}}"
+        _render_file(
+            lines,
+            files[file_id],
+            href,
+            catalog.tier,
+            heading=heading,
+            anchor_prefix=f"{catalog.tier.value}-",
+            show_file_id=False,
         )
-        lines.append("")
-        lines.append(spec_file.description)
-        lines.append("")
-        for group in spec_file.groups:
-            matching = [s for s in group.specs if s.kind == catalog.tier]
-            if not matching:
-                continue
-            _render_group(
-                lines,
-                group,
-                href,
-                heading=heading + "#",
-                specs=matching,
-                anchor=f"{tier}-{requirement_anchor(group.id)}",
-            )
     return "\n".join(lines)
 
 

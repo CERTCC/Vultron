@@ -179,3 +179,8 @@ def test_conventions_section_without_rfc_2119_paragraph_exempts_nothing() -> (
 ):
     text = "### 1.4 Document Conventions\n\nIt MUST hold.\n"
     assert _keywords(text, CONVENTIONS_FRAGMENT) == [(3, "MUST")]
+
+
+def test_conventions_fragment_without_its_heading_exempts_nothing() -> None:
+    text = "Key words of RFC 2119: MUST.\n"
+    assert _keywords(text, CONVENTIONS_FRAGMENT) == [(1, "MUST")]

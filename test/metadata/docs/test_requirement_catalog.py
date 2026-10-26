@@ -404,3 +404,11 @@ def test_published_tier_file_without_a_page_links_its_per_kind_row(
         registry, _SPEC_PAGE, pages=PAGES[1:], published=True
     )
     assert href(_rid("AAA", 1)) == "../../specs/protocol/#aaa-01-001"
+
+
+def test_exec_page_hook_forgets_the_page_after_a_failed_build(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(exec_page.EXEC_PAGE_ENV, FULL_PAGE)
+    exec_page.on_build_error(error=RuntimeError("build failed"))
+    assert exec_page.EXEC_PAGE_ENV not in os.environ
