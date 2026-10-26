@@ -199,17 +199,23 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         queues the same fault, under the same id, which the CASE_MANAGER
         drops as a repeat; the replay rate bound limits how often
         (SYNC-15-003).
+
+        The hold and the fault share one transaction (ADR-0146): when the
+        fault cannot be queued, the hold is rolled back with it, so the
+        replica keeps nothing of the act (ASK-07-010) and no ``Announce``
+        stays held without its fault.
         """
         assert self.datalayer is not None
-        buffered = hold_received_announce(
-            self.name, self.datalayer, self.activity, self.actor_id
-        )
+        with self.datalayer.transaction():
+            buffered = hold_received_announce(
+                self.name, self.datalayer, self.activity, self.actor_id
+            )
+            emit_ledger_entry_fault(
+                self,
+                self.activity,
+                VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
+            )
         self.refused_into_gap = buffered
-        emit_ledger_entry_fault(
-            self,
-            self.activity,
-            VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
-        )
         self.feedback_message = (
             f"{self.name}: entry '{entry.id_}' (log_index={entry.log_index})"
             f" does not apply to case '{entry.case_id}': {exc};"

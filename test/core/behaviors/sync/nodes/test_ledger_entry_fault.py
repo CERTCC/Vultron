@@ -139,11 +139,33 @@ def test_a_sender_that_is_not_the_case_manager_is_not_answered(
 
 
 @pytest.mark.spec("SYNC-03-007")
-def test_without_a_trigger_port_the_wiring_fault_is_raised(managed):
+@pytest.mark.parametrize(
+    "missing", ["datalayer", "actor_id", "trigger_activity_factory"]
+)
+def test_a_missing_injection_is_a_wiring_fault(managed, missing):
+    trigger = MagicMock(spec=TriggerActivityPort)
+    node = _node(managed, trigger)
+    setattr(node, missing, None)
     event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER)
 
     with pytest.raises(VultronWiringError):
-        emit_ledger_entry_fault(_node(managed, None), event, _CLASS)
+        emit_ledger_entry_fault(node, event, _CLASS)
+
+    trigger.emit_processing_fault.assert_not_called()
+
+
+@pytest.mark.spec("SYNC-03-007")
+def test_the_node_without_a_trigger_port_is_an_internal_error(managed):
+    """The bridge reports the wiring fault as internal, not a refusal."""
+    event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER)
+
+    result = BTBridge(datalayer=managed).execute_with_setup(
+        tree=EmitLedgerEntryFaultNode(_CLASS, name="EmitFault"),
+        actor_id=PARTICIPANT_ACTOR_ID,
+        activity=event,
+    )
+
+    assert result.internal_error is True
 
 
 @pytest.mark.spec("SYNC-03-007")

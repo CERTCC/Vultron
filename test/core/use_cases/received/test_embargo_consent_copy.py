@@ -56,7 +56,11 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.errors import VultronBTInternalError, VultronEntryRefusedError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronEntryRefusedError,
+    VultronValidationError,
+)
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
@@ -426,9 +430,9 @@ class TestReplicaCopies:
     def test_a_divergence_without_a_trigger_port_is_a_wiring_fault(self):
         """No port is a composition fault, raised, never a silent hold.
 
-        In the inbox the act's transaction then rolls back, the held
-        ``Announce`` with it, so a redelivery to a correctly wired replica
-        runs it again.
+        The hold shares the fault's transaction, so it is rolled back with
+        it: no ``Announce`` stays held without its fault (ASK-07-010), and
+        a redelivery to a correctly wired replica runs the act again.
         """
         net = _net("cc-diverged-no-port")
         body = _diverged_announcement(net)
@@ -439,6 +443,42 @@ class TestReplicaCopies:
             )
 
         assert _faults(net) == []
+        assert held_depth(net.stores[BYSTANDER], net.case_id) == 0
+
+    @pytest.mark.spec("SYNC-16-001")
+    @pytest.mark.spec("ASK-07-010")
+    def test_a_fault_that_cannot_be_queued_rolls_back_the_hold(
+        self, monkeypatch
+    ):
+        """A port that fails to queue the fault is an internal error.
+
+        The refusal is not reported as handled with its fault lost: the use
+        case raises, and the held ``Announce`` is rolled back with the
+        failed fault.  A redelivery once the port works holds it and
+        reports it.
+        """
+
+        def _fail(*args: Any, **kwargs: Any) -> None:
+            raise VultronValidationError("the outbox refused the fault")
+
+        net = _net("cc-diverged-port-fails")
+        body = _diverged_announcement(net)
+        with monkeypatch.context() as patched:
+            patched.setattr(
+                TriggerActivityAdapter, "emit_processing_fault", _fail
+            )
+            with pytest.raises(VultronBTInternalError):
+                net.receive(BYSTANDER, body)
+
+        assert _faults(net) == []
+        assert held_depth(net.stores[BYSTANDER], net.case_id) == 0
+
+        verdict = net.receive(BYSTANDER, body)
+
+        assert verdict.disposition is HandlerDisposition.DEFERRED
+        assert held_depth(net.stores[BYSTANDER], net.case_id) == 1
+        (fault,) = _faults(net)
+        assert fault["object"]["failureClass"] == _CASE_DIVERGED
 
     @pytest.mark.spec("SYNC-16-002")
     @pytest.mark.spec("CLP-04-007")
@@ -457,7 +497,8 @@ class TestReplicaCopies:
         net.receive(BYSTANDER, body)
         verdicts = net.deliver(BYSTANDER, to=MANAGER, type_="Create")
 
-        assert len(verdicts) == 1
+        ((_, verdict),) = verdicts
+        assert verdict.disposition is HandlerDisposition.SKIPPED
         assert (
             committed_semantic_types(net.stores[MANAGER], net.case_id)
             == manager_before
