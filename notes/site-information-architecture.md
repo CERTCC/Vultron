@@ -470,22 +470,22 @@ at some points and not at others (ADR-0150).
   because a member page carries the thread's box (DF-11-016). Put such a link
   in its stage's `framing:`, which renders under the stage heading; that is
   how `contribute.md` keeps its decision-record and developer-docs links.
-- **Member pages.** A build hook adds a box per thread the page is on: the
-  pages before it and after it, both as sets, and a link back to the start
-  page (DF-11-015). The sets are the adjacent ones: the neighbor in a chain,
-  or else the whole neighboring set stage (or the near end of a neighboring
-  chain). It is titled by situation, never by `stakeholder_type`, and is the
-  same for every reader, so no query parameter or referrer is needed. The
-  theme's nav-order footer is suppressed on member pages so two "next" links
-  never disagree (DF-11-017).
+- **Member pages.** A build hook adds a box per thread the page is on, at the
+  page end or at a marker (see below): the pages before it and after it, both
+  as sets, and a link back to the start page (DF-11-015). The sets are the
+  adjacent ones: the neighbor in a chain, or else the whole neighboring set
+  stage (or the near end of a neighboring chain). It is titled by situation,
+  never by `stakeholder_type`, and is the same for every reader, so no query
+  parameter or referrer is needed. The theme's nav-order footer is suppressed
+  on member pages so two "next" links never disagree (DF-11-017).
 - **A section member's box goes where its page's author puts it.** A member
   that names a section (`page.md#anchor`) needs a marker for that thread at the
   end of that section; the build swaps the marker for the box, and the thread
   check fails without one (DF-11-022). Placement is manual because no build pass
   finds a section's end reliably: the Markdown pass would have to copy the toc
   extension's ids and cannot see headings printed by exec blocks, and the HTML
-  pass is past MkDocs' link checks. The check cannot tell whether the marker is
-  inside the right section, so review that by eye.
+  pass is past MkDocs' link rewriting and checks. The check cannot tell whether
+  the marker is inside the right section, so review that by eye.
 - **Not a level sort.** The level rule forbids depending upward; it does not
   require a thread to climb in level. Order a thread by what the reader needs
   first.

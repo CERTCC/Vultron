@@ -1074,10 +1074,12 @@ groups:
     verification: >-
       A fixture test renders a page with a section member and confirms the box
       replaces the marker, carries the section wording, and is absent from the page
-      end. Unit tests cover each check failure: a section member with no marker, a
-      marker for a thread the page is not on, and two markers for one thread. The
-      check does not confirm that the marker sits inside the named section; that is
-      left to the author and the reviewer.
+      end. Fixture tests render a whole-page member with a marker (box at the
+      marker, page wording) and without one (box at the page end). Unit tests cover
+      each check failure: a section member with no marker, a marker for a thread the
+      page is not on, and two markers for one thread. The check does not confirm
+      that the marker sits inside the named section; that is left to the author and
+      the reviewer. Not yet written; owned by #5170.
     tracking_issue: '#5170'
     relationships:
     - rel_type: refines
