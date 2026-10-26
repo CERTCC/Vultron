@@ -92,7 +92,7 @@ The suggested-actor path adds one round-trip, because the Case Owner's decision 
 
 ### 12.3 Case Ownership Transfer [N]
 
-The Case Owner MAY transfer ownership to another actor via
+The Case Owner MAY transfer ownership to another participant via
 `Offer(VulnerabilityCase)` / `Accept` handshake routed through the CASE_MANAGER
 (ADR-0053).
 The Case Owner proposes the transfer to the CASE_MANAGER as `Offer(Offer(VulnerabilityCase))`, and the CASE_MANAGER makes the one `Offer(VulnerabilityCase)` the receiving actor answers ([CM-21-005](../specs/protocol.md#cm-21-005), ADR-0148).

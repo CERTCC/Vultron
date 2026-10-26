@@ -144,9 +144,9 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
         why = why_may_not_act_on_case(case, self.datalayer, transferee)
         if why is not None:
             return self._refuse(
-                f"the transferee '{transferee}' {why}, so it is not an active"
-                f" participant of case '{self._case_id}' and may not be"
-                " offered it; the owner invites it first",
+                f"the transferee '{transferee}' {why}, so it may not be"
+                f" offered case '{self._case_id}', which only an active"
+                " participant is sent; the owner invites it first",
                 "CM-21-021, CM-10-004",
             )
         return Status.SUCCESS

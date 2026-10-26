@@ -517,9 +517,9 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
         )
         if inactive is not None:
             raise VultronValidationError(
-                f"transferee_id '{request.transferee_id}' {inactive}, so it"
-                f" is not an active participant of case '{self._case.id_}';"
-                " invite it to the case before offering it ownership"
+                f"transferee_id '{request.transferee_id}' {inactive}, so"
+                f" case '{self._case.id_}' may not be offered to it; only an"
+                " active participant may be, so invite it to the case first"
                 " (CM-21-021)"
             )
 

@@ -67,8 +67,9 @@ It refuses a proposal from anyone else before it writes or sends anything ([CM-2
 The CASE_MANAGER checks the inner offer and does not copy it.
 The inner offer must name the proposal's case.
 Its `target` must be an actor the CASE_MANAGER can address, and must be neither the CASE_MANAGER nor the owner.
-The `target` must also be an active participant of the case ([CM-21-021](../../reference/specs/protocol.md#cm-21-021)).
-An active participant has joined the case, has not been removed or left it, and has agreed to the active embargo while one is in force ([CM-10-004](../../reference/specs/protocol.md#cm-10-004)).
+The `target` must also be an [active participant](../../reference/glossary.md#cvd-roles-and-participants) of the case ([CM-21-021](../../reference/specs/protocol.md#cm-21-021)).
+An active participant has joined the case, has not been removed, and has agreed to the active embargo while one is in force ([CM-10-004](../../reference/specs/protocol.md#cm-10-004)).
+A participant whose closure is recorded is refused too, because it receives no further case content ([CM-23-004](../../reference/specs/protocol.md#cm-23-004)).
 The offer carries the case in full, with its embargo and participant records, so the CASE_MANAGER offers it only to an actor that may already see that content.
 So an owner that wants to hand the case to an actor that is not an active participant invites that actor first, and proposes the transfer once the actor has joined.
 The owner's `offer-case-ownership-transfer` trigger makes the same check on the owner's own copy of the case, and refuses such a transferee before it sends anything.

@@ -305,9 +305,9 @@ class OwnershipTransfereeActiveNode(DataLayerConditionWithPorts):
             return Status.SUCCESS
         self.feedback_message = (
             f"the transferee '{offer.transferee_id}' of ownership-transfer"
-            f" Offer '{offer.offer_id}' {why}, so it is no longer an active"
-            f" participant of case '{self._case_id}' and may not take"
-            " ownership — REFUSED (CM-21-021, CM-10-004)"
+            f" Offer '{offer.offer_id}' {why}, so it may no longer act on"
+            f" case '{self._case_id}' and may not take ownership"
+            " — REFUSED (CM-21-021, CM-10-004)"
         )
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE

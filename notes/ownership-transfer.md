@@ -121,15 +121,18 @@ before the Offer's state is read (#4437).
   guard sets `is_redelivery` and the run reports `SKIPPED` (HP-01-003).
 - **The transferee's standing is one predicate at all three checks.** The trigger,
   the proposal guard and the Accept guard all ask `may_act_on_case()`
-  (`core/participants/recipients.py`), so a closed participant counts as
-  inactive too: the Offer is case content (CM-23-004). The Accept's check is a
-  precondition guard after the open-Offer guard, not part of the sender check:
+  (`core/participants/recipients.py`), so a participant whose closure is
+  recorded is refused too: the Offer is case content (CM-23-004). The Accept's
+  check is a precondition guard after the open-Offer guard, not part of the
+  sender check:
   a redelivered Accept stays `SKIPPED` after the new owner lapses (HP-01-003).
   The Reject moves nothing, so it is not checked: CM-21-021 names the Accept.
 - **A new owner with no participant record raises** in
-  `_TransferCaseOwnershipNode`, before anything changes: stripping the old owner
-  with no record to grant would leave no `CASE_OWNER` (CM-21-001). The guards
-  make it unreachable, so it is an internal error, never a skip.
+  `_TransferCaseOwnershipNode`, before the role move changes anything (the
+  Accept entry is already committed): stripping the old owner
+  with no record to grant would leave no `CASE_OWNER` (CM-21-001). It reads the
+  record through `listed_participant_record()`, the lookup the guard admitted it
+  by, so the guards make it unreachable: an internal error, never a skip.
 - **At any other replica** the sender must be the CASE_MANAGER, and a case the
   replica does not hold refuses (`SenderCheckContext.case_manager_required`,
   PCR-03-001).
