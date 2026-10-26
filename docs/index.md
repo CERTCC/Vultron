@@ -53,50 +53,18 @@ The site is written for four kinds of reader, and every page declares which of t
 
 ## How this documentation is organized
 
-The documentation follows the [Diátaxis Framework](https://diataxis.fr/){:target="_blank"}, which sorts pages into four kinds by what the reader is trying to do.
-Each page shows its kind as a badge above its title.
+The site is organized by what you came to do.
+Each tab across the top opens on a page that says what is on it and gives a reading path through it:
+
+- **How Vultron Works**: what a case is, the process models that drive it, and the vocabulary the rest of the site uses.
+- **Coordinate Cases**: adopting Vultron in a disclosure program, and how it maps onto the standards you already follow.
+- **Implement the Protocol**: the [Vultron Protocol Specification](reference/vultron-spec/index.md), its messages and requirements, and how to put them on the wire.
+- **Reference Implementation**: CERT/CC's open-source implementation, its demos, and how it is built.
+- **Research**: measuring disclosure across many cases, and other uses of the case state model.
+- **Project**: versioning, what is new, open questions, and how to propose a change.
+
+Each page shows what kind of page it is (a tutorial, a how-to guide, an explanation or a reference page) as a badge above its title.
 Pages that only give directions, like this one, carry no badge.
-
-<div class="grid cards" markdown>
-
-- :material-school:{ .lg .middle } **Tutorials**
-
-    ---
-
-    Step-by-step guided lessons for getting started with Vultron.
-    Run the demos and see the protocol in action.
-
-    [:octicons-arrow-right-24: Tutorials](tutorials/index.md)
-
-- :fontawesome-solid-book-open:{ .lg .middle } **Explanation**
-
-    ---
-
-    Background, concepts, process models, and behavior logic.
-    Builds understanding of how and why Vultron works.
-
-    [:octicons-arrow-right-24: Explanation](topics/index.md)
-
-- :fontawesome-solid-wrench:{ .lg .middle } **How-to Guides**
-
-    ---
-
-    Goal-oriented guidance for implementers.
-    ActivityPub integration, wiring capabilities, and protocol implementation advice.
-
-    [:octicons-arrow-right-24: How-to Guides](howto/index.md)
-
-- :material-bookshelf:{ .lg .middle } **Reference**
-
-    ---
-
-    The protocol specification, message types, the formal protocol, and International Organization for Standardization (ISO) crosswalks.
-
-    [:octicons-arrow-right-24: Reference](reference/index.md)
-
-</div>
-
-Research material sits outside those four, in its own [Research](research/index.md) section: measuring CVD across many cases, and other uses of the case state model.
 The project's decision records, requirements, and generated code references are reached from [Working on This Implementation](about/project_record.md).
 
 ## Background

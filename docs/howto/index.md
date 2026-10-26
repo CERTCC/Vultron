@@ -1,63 +1,32 @@
 ---
+description: >
+  Where the how-to guides that used to be listed here now sit.
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
 page_type: routing
-contents: generated
 ---
 
 # How-to Guides
 
-{% include-markdown "../includes/not_normative.md" %}
+!!! note "This section has moved"
 
-This section collects guidance for potential implementations of Vultron, and for the programs preparing to coordinate through it.
+    The site is now organized by what you came to do, in tabs across the top, rather than by kind of page.
 
-A complete protocol implementation specification remains a work in progress; a few additional
-suggestions for potential implementers follow.
+The how-to guides now sit on the tab of the reader they serve.
+Each still has its own page, at the same address as before.
 
-<!-- hr to force spacing -->
-<br/>
-<br/>
----
+On **Coordinate Cases**:
 
-!!! tip inline end "Prerequisites"
+- [Adopt Vultron in Your CVD Program](adopt_vultron.md)
+- [Measuring Your CVD Program](measure_your_cvd_program.md)
 
-    The [How-to Guides](index.md) section assumes that you have:
-    
-    - an interest in implementing the Vultron Protocol
-    - basic familiarity with the Vultron Protocol
-    - familiarity with the Coordinated Vulnerability Disclosure (CVD) process in general
+On **Implement the Protocol**, under *Put Vultron on the Wire*:
 
-    If you are unfamiliar with the Vultron Protocol, start with [Explanation](../topics/index.md).
-    For technical reference, see [Reference](../reference/index.md).
-    If you're just trying to understand the CVD process, start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
+- [Vultron and ActivityPub](activitypub/index.md)
+- [Vultron AS Activity Guides](activitypub/activities/index.md)
+- [Process Implementation](process_implementation.md)
 
-In this section, you will find:
+On **Reference Implementation**:
 
-<div class="grid cards" markdown>
-
-<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
-
-- [Adopt Vultron in Your CVD Program](adopt_vultron.md) — Take a Coordinated Vulnerability Disclosure program from its current practice to one that can coordinate cases through Vultron: name your roles, choose a conformance claim, map your intake to the report states, publish your embargo defaults, and decide which judgment calls stay yours.
-- [Measuring Your CVD Program](measure_your_cvd_program.md) — Score your own program's closed cases against the chance baseline from the Measuring CVD research, and read the result as a skill indicator you can act on.
-- [Process Implementation](process_implementation.md) — Where an existing ticketing, embargo, or threat-monitoring workflow emits Vultron messages, milestone by milestone.
-- [Vultron ActivityPub](activitypub/index.md) — The shape of a Vultron activity on the wire: ActivityStreams 2.0 verbs, Vultron objects, and the fields a receiver reads to tell activities apart.
-- [Wiring a Capability](wire_capability.md) — Wire a capability into the reference implementation, replacing a call-out stub with real backend logic.
-
-<!-- END GENERATED SECTION CONTENTS -->
-
-</div>
-
-This section will expand over time to include:
-
-- Basic data model examples
-- Behavior logic implementation examples
-- Simulation examples
-- Communication protocol implementation examples
-- Other implementation notes as needed
-
-!!! info "The Vultron Protocol is an interoperability protocol"
-
-    The protocol and data structures outlined in this documentation are intended to facilitate interoperability among individual 
-    organizations' workflow management systems.
-    As such, they are focused on the exchange of information and data necessary for the Multi-Party CVD (MPCVD) process to function and will 
-    not likely be sufficient to fully address any individual organization's vulnerability response process.
+- [Wiring a Capability](wire_capability.md)
+- [Run the RVV Demo](demos/rvv-demo.md)

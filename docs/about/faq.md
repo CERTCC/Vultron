@@ -22,7 +22,7 @@ See [What Is Vultron?](../topics/background/what-is-vultron.md).
 
 The protocol is a specification: the [Vultron Protocol Specification](../reference/vultron-spec/index.md) is the normative document, and any system can implement it.
 This site also documents a reference implementation, written in Python, that exists to demonstrate and test the specification.
-You can run it as a test peer for your own system, or start from it and replace the components your organization already has; the [tutorials](../tutorials/index.md) show how.
+You can run it as a test peer for your own system, or start from it and replace the components your organization already has; [Submit a Report to a Vultron Actor](../tutorials/submit-a-report.md) and the [multi-actor demos](../tutorials/container_demos.md) show how.
 Vultron itself is not a product: it is a feature set that products implement.
 
 ## Would it help my organization?
@@ -52,7 +52,7 @@ The [ISO crosswalks](../reference/iso_crosswalks/index.md) map each standard's c
 
 Twenty-eight formal message types, grouped by the state machine they belong to: Report Management, Embargo Management, Case State, and general messages.
 On the wire they are ActivityStreams 2.0 activities delivered over ActivityPub.
-See [Message Types](../reference/formal_protocol/messages.md) for the formal set and [Message Types](../reference/messages/index.md) in the reference section for the wire mapping.
+See [Message Types](../reference/formal_protocol/messages.md) for the formal set and [Message Types](../reference/messages/index.md) on Implement the Protocol for the wire mapping.
 
 ## Is the protocol finished?
 

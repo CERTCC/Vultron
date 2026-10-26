@@ -9,9 +9,9 @@ thread:
   - title: Run it
     kind: chain
     members:
-      - page: tutorials/index.md
+      - page: tutorials/receive_report_demo.md
         blurb: >-
-          the guided demos, and what each one shows.
+          the demo environment, and one actor working an incoming report.
       - page: tutorials/container_demos.md
         blurb: >-
           several actors coordinating a case on your machine.
@@ -23,9 +23,12 @@ thread:
       - page: topics/reference_architecture.md
         blurb: >-
           the layers, the ports and adapters, and the behavior trees that drive them.
-      - page: reference/specs/index.md
+      - page: reference/specs/architecture.md
         blurb: >-
-          the machine-readable requirements the code is tested against.
+          the requirements on how this implementation is built, which other implementations need not follow.
+      - page: howto/wire_capability.md
+        blurb: >-
+          replacing a stub decision with your own service.
   - title: Start contributing
     kind: set
     framing: |-
@@ -40,17 +43,19 @@ thread:
 # You want to work on the Vultron reference implementation
 
 You want to run, change, or extend the Python code in this repository.
+This tab holds CERT/CC's reference implementation of the protocol: its demos, its architecture, and the requirements on how it is built.
+What every implementation must do is on [Implement the Protocol](connect-your-tracker.md); this tab is about one implementation of it.
 This page is a reading path from running the demos to understanding why the codebase is built the way it is.
 Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
 
-[Run the demos](../tutorials/index.md){ .md-button .md-button--primary }
+[Run the demos](../tutorials/container_demos.md){ .md-button .md-button--primary }
 [Read the architecture](../topics/reference_architecture.md){ .md-button }
 
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
 
 ## Run it
 
-1. [Vultron Protocol Tutorials](../tutorials/index.md) — the guided demos, and what each one shows.
+1. [Tutorial: Run the Receive-Report Demo](../tutorials/receive_report_demo.md) — the demo environment, and one actor working an incoming report.
 2. [Tutorial: Running the Multi-Actor Container Demos](../tutorials/container_demos.md) — several actors coordinating a case on your machine.
 
 ## Understand how it is built
@@ -58,7 +63,8 @@ Each section builds on the ones before it; read a numbered list in order and a b
 [Decisions](../adr/index.md) holds the architecture decision records behind the design.
 
 1. [Reference Implementation Architecture](../topics/reference_architecture.md) — the layers, the ports and adapters, and the behavior trees that drive them.
-2. [Specifications](../reference/specs/index.md) — the machine-readable requirements the code is tested against.
+2. [Architecture Specifications](../reference/specs/architecture.md) — the requirements on how this implementation is built, which other implementations need not follow.
+3. [Wiring a Capability into the Reference Implementation](../howto/wire_capability.md) — replacing a stub decision with your own service.
 
 ## Start contributing
 

@@ -12,13 +12,12 @@ contents: generated
 
 !!! tip inline end "Prerequisites"
 
-    The [Explanation](../index.md) section assumes that you have:
-    
+    These pages assume that you have:
+
     - an interest in learning about the Vultron Protocol
     - familiarity with the Coordinated Vulnerability Disclosure (CVD) process in general
 
-    If you are already familiar with the Vultron Protocol, and are looking for implementation advice, see [How-to Guides](../../howto/index.md).
-    For technical reference, see [Reference](../../reference/index.md).
+    If you are already familiar with the Vultron Protocol and want to implement it, start on [Implement the Protocol](../../start/connect-your-tracker.md).
     If you're trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
 !!! tip "New to Vultron?"

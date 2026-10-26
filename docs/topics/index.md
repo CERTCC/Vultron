@@ -1,46 +1,43 @@
 ---
+description: >
+  Where the explanation pages that used to be listed here now sit.
 stakeholder_type: ALL
 level: 200
 page_type: routing
-contents: generated
 ---
 
 # Explanation
 
-!!! tip inline end "Prerequisites"
+!!! note "This section has moved"
 
-    The [Explanation](index.md) section assumes that you have:
-    
-    - an interest in learning about the Vultron Protocol
-    - familiarity with the Coordinated Vulnerability Disclosure (CVD) process in general
+    The site is now organized by what you came to do, in tabs across the top, rather than by kind of page.
 
-    If you are already familiar with the Vultron Protocol, and are looking for implementation advice, 
-    see [How-to Guides](../howto/index.md).
-    For technical reference, see [Reference](../reference/index.md).
-    If you're trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
+The pages that explain Vultron now sit on the tab of the reader they serve.
+Each still has its own page, at the same address as before.
 
-This section provides an overview of the Vultron Protocol, including:
+On **How Vultron Works**:
 
-<div class="grid cards" markdown>
-
-<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
-
-- [Background](background/index.md) — What Vultron is, the coordination problem it addresses, and the outcomes a Coordinated Vulnerability Disclosure case is trying to reach.
+- [Background](background/index.md)
 - [Case Lifecycle](case_lifecycle/index.md)
 - [Process Models](process_models/index.md)
-- [Capability Model](capability_model/index.md) — The answer to "Vultron doesn't do X": every decision the protocol leaves to your organization is a call-out point where your own system plugs in.
+- [Capability Model](capability_model/index.md)
+
+On **Implement the Protocol**, under *Protocol Design*:
+
 - [Protocol Event Flow](protocol_flow.md)
-- [Worked Example](../tutorials/worked_example.md) — Sequence diagrams of a few usage scenarios, from a finder becoming a reporter through embargo negotiation, coordination, publication, and case closure.
 - [Message Semantics](message_semantics.md)
 - [Actor Knowledge Model](actor-knowledge-model.md)
-- [Behavior Logic](behavior_logic/index.md)
-- [Demo Scenarios](scenarios/index.md)
-- [Future Work](future_work/index.md)
 - [Activity Vocabulary Design](activity_vocabulary_design.md)
+- [Behavior Logic](behavior_logic/index.md)
+- [Worked Example](../tutorials/worked_example.md), under *Learn the Protocol by Example*
+- [Future Work](future_work/index.md)
+
+On **Reference Implementation**:
+
 - [Reference Implementation Architecture](reference_architecture.md)
+- [Demo Scenarios](scenarios/index.md)
 
-<!-- END GENERATED SECTION CONTENTS -->
+On **Research**:
 
-</div>
-
-The [Formal Protocol](../reference/formal_protocol/index.md) and the [User Stories](../reference/user_stories/index.md) are in [Reference](../reference/index.md).
+- [Measuring CVD](measuring_cvd/index.md)
+- [Other Uses of Vultron](other_uses/index.md)

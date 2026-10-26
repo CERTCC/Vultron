@@ -48,12 +48,15 @@ thread:
       - page: howto/wire_capability.md
         blurb: >-
           replacing a stub decision with your own service.
-      - page: howto/index.md
+      - page: reference/quick_reference.md
         blurb: >-
-          the remaining task-oriented guides.
+          the whole protocol on one page, for looking things up while you build.
 ---
 
 # You maintain a vulnerability tracker and want it to talk to your partners
+
+The contract your system implements is the [Vultron Protocol Specification](../reference/vultron-spec/index.md).
+This tab holds it, with its requirements, its messages, and the explanations and examples that help you build against it.
 
 You build or run the system where vulnerability reports and cases live: a tracker, a coordination platform, a disclosure portal, or an internal tool.
 Today your partners reach it through accounts on your system, or you reach theirs through accounts on theirs.
@@ -84,6 +87,6 @@ Each section builds on the ones before it; read a numbered list in order and a b
 - [Message Types](../reference/messages/index.md) — every message, its fields, and when it is sent.
 - [Trigger API Reference](../reference/trigger-api.md) — the endpoints your system calls to act on a case.
 - [Wiring a Capability into the Reference Implementation](../howto/wire_capability.md) — replacing a stub decision with your own service.
-- [How-to Guides](../howto/index.md) — the remaining task-oriented guides.
+- [Protocol Quick Reference](../reference/quick_reference.md) — the whole protocol on one page, for looking things up while you build.
 
 <!-- END GENERATED READING PATH -->

@@ -481,6 +481,7 @@ class TestThreadCheck:
             "start/connect-your-tracker.md",
             "start/study-the-process.md",
             "start/contribute.md",
+            "start/how-vultron-works.md",
         }
 
 
