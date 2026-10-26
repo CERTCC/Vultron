@@ -5,9 +5,7 @@ stakeholder_type: [project-contributor]
 # Hexagonal Architecture
 
 Our reference implementation of the Vultron Protocol is structured according to the principles of a port and adapter architecture, also known as hexagonal architecture.
-This design allows us to separate the core domain
-logic from the infrastructure and external interfaces, making the system
-more modular, testable, and adaptable to different use cases and environments.
+This design allows us to separate the core domain logic from the infrastructure and external interfaces, making the system more modular, testable, and adaptable to different use cases and environments.
 
 ```mermaid
 ---

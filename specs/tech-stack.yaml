@@ -2,7 +2,7 @@ id: IMPLTS
 title: Vultron Project Technology Stack
 description: >-
   This specification defines the normative technology constraints and implementation requirements
-  for the Vultron prototype implementation.
+  for the Vultron reference implementation.
 scope:
 - prototype
 - production
