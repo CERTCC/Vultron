@@ -121,7 +121,9 @@ glossary and the taxonomy are the concept registry; there is no separate
 dependency file to maintain. The page that is a glossary term's canonical
 introduction names the term in its `introduces:` frontmatter, and
 `docs-level-order` fails an unlinked first use of it on a lower-level page
-(DF-11-002). To find a term's introducer, run `grep -rn "introduces:" docs/`.
+(DF-11-002), and `docs-thread-order` on a page earlier than the introducer on
+a reading-path thread (DF-11-024). To find a term's introducer, run
+`grep -rn "introduces:" docs/`.
 If no page introduces the term, link to its glossary entry. Linking out is
 what lets a lower-level page use a higher-level concept without violating the
 level rule; the alternative is to re-level the page, never to leave the use
@@ -316,7 +318,8 @@ for a page that mainly gives directions. A working-record page declares
 `page_type`. An include fragment declares none of them, because it takes its
 hosts' declarations (DF-11-010). A page that is
 the canonical introduction of a glossary term lists it under `introduces:`
-(SG-11). `docs-frontmatter` and `docs-level-order` enforce these. Where `title`
+(SG-11). `docs-frontmatter`, `docs-level-order` and `docs-thread-order`
+enforce these. Where `title`
 and `description` are present, keep them accurate, but do not add other keys
 that nothing reads.
 

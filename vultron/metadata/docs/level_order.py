@@ -48,7 +48,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from vultron.metadata.base import repo_root as _find_repo_root
-from vultron.metadata.docs.baseline_file import apply_baseline, prune_entries
+from vultron.metadata.docs.baseline_file import prune_entries
 from vultron.metadata.docs.concept_registry import (
     INTRODUCES_KEY,
     REGISTRY,
@@ -64,8 +64,8 @@ from vultron.metadata.docs.concept_scan import (
 )
 from vultron.metadata.docs.level_baseline import (
     BASELINE_PATH,
+    LEVEL_BASELINE,
     read_baseline,
-    read_baseline_entries,
     write_baseline,
 )
 from vultron.metadata.docs.page_frontmatter import (
@@ -384,26 +384,21 @@ def check_level_order(
             entry that no longer matches a violation.
     """
     analysis, collector = analyse(repo_root)
-    entries = read_baseline_entries(BASELINE_PATH) if baseline is None else {}
-    allowed = (
-        {key: entry.reason for key, entry in entries.items()}
-        if baseline is None
-        else baseline
-    )
 
-    def stale(key: tuple[str, str]) -> MetadataLoadError:
+    def stale(key: tuple[str, str]) -> str:
         page, term = key
-        return MetadataLoadError(
+        return (
             f"baselines docs/{page} | {term}, which is no longer a "
             f"violation; run `uv run docs-level-order --prune-baseline` "
             f"and drop the key from _BASELINED in "
-            f"test/metadata/docs/test_level_baseline.py",
-            path=BASELINE_PATH.name,
-            line=entries[key].line if entries else None,
+            f"test/metadata/docs/test_level_baseline.py"
         )
 
-    baselined, faults = apply_baseline(
-        {v.key: v.error() for v in analysis.violations}, allowed, stale=stale
+    baselined, faults = LEVEL_BASELINE.check(
+        {v.key: v.error() for v in analysis.violations},
+        baseline,
+        path=BASELINE_PATH,
+        stale_detail=stale,
     )
     collector.failures += faults
     collector.raise_if_any(summary=_summary(collector))

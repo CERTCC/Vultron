@@ -46,13 +46,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vultron.metadata.base import repo_root as _find_repo_root
-from vultron.metadata.docs.baseline_file import (
-    BaselineEntry,
-    apply_baseline,
-    prune_entries,
-    read_keyed_entries,
-    write_keyed_entries,
-)
+from vultron.metadata.docs.baseline_file import KeyedBaseline, prune_entries
+from vultron.metadata.docs.concept_registry import REGISTRY
 from vultron.metadata.docs.concept_scan import Position
 from vultron.metadata.docs.level_order import (
     PageScanner,
@@ -189,7 +184,10 @@ def _candidates(
     that *introducer*, a member after it, introduces.
     """
     for member, later in later_members(thread):
-        subjects = (member.path, *rendered.get(member.path, ()))
+        # The glossary defines every term it lists, so it cannot depend on a
+        # later page for one; level_order exempts it the same way.
+        own = () if member.path == REGISTRY else (member.path,)
+        subjects = (*own, *rendered.get(member.path, ()))
         for introducer in dict.fromkeys(m.path for m in later):
             for term in introduced.get(introducer, ()):
                 for subject in subjects:
@@ -247,41 +245,14 @@ def analyse(
     return threads, analysis.introducers, list(violations.values())
 
 
-def read_baseline_entries(
-    path: Path | None = None,
-) -> dict[ThreadOrderKey, BaselineEntry]:
-    """Return ``{(thread, page, term): entry}`` for every baselined violation.
+#: The thread-order baseline, keyed by ``(thread, page, term)``.
+THREAD_BASELINE = KeyedBaseline[ThreadOrderKey](
+    BASELINE_PATH, _BASELINE_HEADER, ("thread", "page", "term")
+)
 
-    Raises:
-        MetadataLoadErrors: Naming ``path:line`` for every entry that is not
-            four ``|``-separated fields with a non-empty reason, or repeats
-            an earlier entry.
-    """
-    entries = read_keyed_entries(
-        path or BASELINE_PATH, ("thread", "page", "term")
-    )
-    return {
-        (thread, page, term): entry
-        for (thread, page, term), entry in entries.items()
-    }
-
-
-def read_baseline(path: Path | None = None) -> dict[ThreadOrderKey, str]:
-    """Return ``{(thread, page, term): reason}`` for every baselined violation.
-
-    Raises:
-        MetadataLoadErrors: As :func:`read_baseline_entries`.
-    """
-    return {
-        key: entry.reason for key, entry in read_baseline_entries(path).items()
-    }
-
-
-def write_baseline(
-    entries: Mapping[ThreadOrderKey, str], path: Path | None = None
-) -> None:
-    """Write *entries* sorted, under the explanatory header."""
-    write_keyed_entries(path or BASELINE_PATH, _BASELINE_HEADER, entries)
+read_baseline_entries = THREAD_BASELINE.entries
+read_baseline = THREAD_BASELINE.read
+write_baseline = THREAD_BASELINE.write
 
 
 def check_thread_order(
@@ -302,26 +273,21 @@ def check_thread_order(
             matches a violation.
     """
     threads, introducers, violations = analyse(repo_root)
-    entries = read_baseline_entries(BASELINE_PATH) if baseline is None else {}
-    allowed = (
-        {key: entry.reason for key, entry in entries.items()}
-        if baseline is None
-        else baseline
-    )
 
-    def stale(key: ThreadOrderKey) -> MetadataLoadError:
+    def stale(key: ThreadOrderKey) -> str:
         thread, page, term = key
-        return MetadataLoadError(
+        return (
             f"baselines docs/{thread} | docs/{page} | {term}, which is no "
             f"longer a violation; run `uv run docs-thread-order "
             f"--prune-baseline` and drop the key from _BASELINED in "
-            f"test/metadata/docs/test_thread_order.py",
-            path=BASELINE_PATH.name,
-            line=entries[key].line if entries else None,
+            f"test/metadata/docs/test_thread_order.py"
         )
 
-    baselined, faults = apply_baseline(
-        {v.key: v.error() for v in violations}, allowed, stale=stale
+    baselined, faults = THREAD_BASELINE.check(
+        {v.key: v.error() for v in violations},
+        baseline,
+        path=BASELINE_PATH,
+        stale_detail=stale,
     )
     collector = FailureCollector()
     collector.failures += faults

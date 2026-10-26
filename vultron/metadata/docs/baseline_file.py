@@ -14,8 +14,9 @@ listed page paths, reached zero and was retired (#3528).
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Iterator, Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, cast
 
 from vultron.metadata.file_loading import FailureCollector, MetadataLoadError
 
@@ -150,3 +151,72 @@ def prune_entries[K: EntryKey](
         for key, reason in current.items()
         if key in found_keys or f"docs/{page_of(key)}" in unread_paths
     }
+
+
+@dataclass(frozen=True, slots=True)
+class KeyedBaseline[K: EntryKey]:
+    """A shrink-only baseline file of ``<key fields> | reason`` entries.
+
+    Attributes:
+        path: The committed baseline.
+        header: The explanatory header written above the entries.
+        key_fields: The names of the key's fields, in order.
+    """
+
+    path: Path
+    header: str
+    key_fields: tuple[str, ...]
+
+    def entries(self, path: Path | None = None) -> dict[K, BaselineEntry]:
+        """Return ``{key: entry}`` for every baselined violation.
+
+        Raises:
+            MetadataLoadErrors: As :func:`read_keyed_entries`.
+        """
+        read = read_keyed_entries(path or self.path, self.key_fields)
+        # read_keyed_entries refuses an entry whose key does not have exactly
+        # len(key_fields) fields, so every key it returns is a K.
+        return cast("dict[K, BaselineEntry]", read)
+
+    def read(self, path: Path | None = None) -> dict[K, str]:
+        """Return ``{key: reason}`` for every baselined violation.
+
+        Raises:
+            MetadataLoadErrors: As :func:`read_keyed_entries`.
+        """
+        return {key: entry.reason for key, entry in self.entries(path).items()}
+
+    def write(
+        self, entries: Mapping[K, str], path: Path | None = None
+    ) -> None:
+        """Write *entries* sorted, under the explanatory header."""
+        write_keyed_entries(path or self.path, self.header, entries)
+
+    def check(
+        self,
+        found: Mapping[K, MetadataLoadError],
+        override: Mapping[K, str] | None,
+        *,
+        path: Path,
+        stale_detail: Callable[[K], str],
+    ) -> tuple[list[K], list[MetadataLoadError]]:
+        """Split *found* by the baseline at *path*, or by *override*.
+
+        A stale entry is located at its line in the file; an *override* (a
+        test's in-memory baseline) has no lines to name.
+
+        Returns:
+            As :func:`apply_baseline`.
+        """
+        entries = self.entries(path) if override is None else {}
+        allowed: Mapping[K, object] = entries if override is None else override
+
+        def stale(key: K) -> MetadataLoadError:
+            entry = entries.get(key)
+            return MetadataLoadError(
+                stale_detail(key),
+                path=path.name,
+                line=entry.line if entry else None,
+            )
+
+        return apply_baseline(found, allowed, stale=stale)

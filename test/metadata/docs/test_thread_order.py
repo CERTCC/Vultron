@@ -212,6 +212,14 @@ class TestRule:
         assert failure.location == "docs/howto/_frag.md:1:6"
         assert "renders on docs/howto/a.md" in str(failure)
 
+    def test_the_glossary_as_an_earlier_member_is_not_checked(self, tmp_path):
+        """It defines every term it lists, as the level check also holds."""
+        root = _repo(
+            tmp_path, [_chain("reference/glossary.md", "topics/ledger.md")]
+        )
+
+        assert check_thread_order(root, baseline={}).baselined == []
+
     def test_no_threads_fails(self, tmp_path):
         """DF-09-009: resolving no thread is a failure (AC-3)."""
         root = make_repo(tmp_path, {"howto/a.md": leveled_page(400, _USE)})
@@ -321,9 +329,14 @@ class TestBaseline:
         assert body == ["s.md | a.md | T | a", "s.md | b.md | T | b"]
 
     def test_prune_only_removes(self, tmp_path):
-        root = _repo(tmp_path, [_chain("howto/a.md", "topics/ledger.md")])
+        """An unlisted violation stays a finding: prune never admits it."""
+        root = _repo(
+            tmp_path,
+            [_chain("howto/a.md", "howto/b.md", "topics/ledger.md")],
+            {"howto/b.md": leveled_page(400, _USE)},
+        )
         path = tmp_path / "baseline.txt"
-        gone = ("start/s.md", "howto/b.md", _TERM)
+        gone = ("start/s.md", "howto/gone.md", _TERM)
         write_baseline({_KEY: "still open", gone: "fixed"}, path)
 
         assert prune_baseline(root, baseline_path=path) == 1
@@ -362,6 +375,33 @@ def test_cli_reports_failures_without_a_traceback(
     err = capsys.readouterr().err
     assert err.startswith("[ERROR] 1 docs thread-order finding(s)")
     assert "docs/howto/a.md:7:6" in err
+
+
+@pytest.mark.spec("DF-11-024")
+def test_cli_reports_a_pass(tmp_path, monkeypatch, capsys):
+    root = _repo(tmp_path, [_chain("topics/ledger.md", "howto/a.md")])
+    monkeypatch.setattr(thread_order, "_find_repo_root", lambda: root)
+    monkeypatch.setattr(thread_order, "BASELINE_PATH", tmp_path / "none.txt")
+
+    main([])
+
+    out = capsys.readouterr().out
+    assert out.startswith("Checked 1 thread(s) against 1 introduced concept")
+    assert "0 baselined violation(s) remain" in out
+
+
+@pytest.mark.spec("DF-11-024")
+def test_cli_prunes_the_committed_baseline(tmp_path, monkeypatch, capsys):
+    root = _repo(tmp_path, [_chain("topics/ledger.md", "howto/a.md")])
+    path = tmp_path / "baseline.txt"
+    write_baseline({_KEY: "fixed"}, path)
+    monkeypatch.setattr(thread_order, "_find_repo_root", lambda: root)
+    monkeypatch.setattr(thread_order, "BASELINE_PATH", path)
+
+    main(["--prune-baseline"])
+
+    assert "Removed 1 entry(ies) from baseline.txt." in capsys.readouterr().out
+    assert read_baseline(path) == {}
 
 
 @pytest.mark.spec("DF-11-024")

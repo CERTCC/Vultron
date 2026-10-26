@@ -10,11 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vultron.metadata.docs.baseline_file import (
-    BaselineEntry,
-    read_keyed_entries,
-    write_keyed_entries,
-)
+from vultron.metadata.docs.baseline_file import KeyedBaseline
 
 #: Upward dependencies that predate the check, one per line as
 #: ``page | term | reason``. Kept outside ``docs/`` so it is never published.
@@ -32,33 +28,11 @@ _BASELINE_HEADER = """\
 """
 
 
-def read_baseline_entries(
-    path: Path | None = None,
-) -> dict[tuple[str, str], BaselineEntry]:
-    """Return ``{(page, term): entry}`` for every baselined violation.
+#: The level-order baseline, keyed by ``(page, term)``.
+LEVEL_BASELINE = KeyedBaseline[tuple[str, str]](
+    BASELINE_PATH, _BASELINE_HEADER, ("page", "term")
+)
 
-    Raises:
-        MetadataLoadErrors: Naming ``path:line`` for every entry that is not
-            three ``|``-separated fields with a non-empty reason, or repeats
-            an earlier entry.
-    """
-    entries = read_keyed_entries(path or BASELINE_PATH, ("page", "term"))
-    return {(page, term): entry for (page, term), entry in entries.items()}
-
-
-def read_baseline(path: Path | None = None) -> dict[tuple[str, str], str]:
-    """Return ``{(page, term): reason}`` for every baselined violation.
-
-    Raises:
-        MetadataLoadErrors: As :func:`read_baseline_entries`.
-    """
-    return {
-        key: entry.reason for key, entry in read_baseline_entries(path).items()
-    }
-
-
-def write_baseline(
-    entries: dict[tuple[str, str], str], path: Path | None = None
-) -> None:
-    """Write *entries* sorted, under the explanatory header."""
-    write_keyed_entries(path or BASELINE_PATH, _BASELINE_HEADER, entries)
+read_baseline_entries = LEVEL_BASELINE.entries
+read_baseline = LEVEL_BASELINE.read
+write_baseline = LEVEL_BASELINE.write
