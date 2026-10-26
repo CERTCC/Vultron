@@ -247,6 +247,7 @@ def test_the_first_round_waits_for_the_startup_replay(
     async def _run() -> None:
         replay = asyncio.create_task(_replay())
         statements = lps.start_ledger_position_statements(None, after=replay)
+        await statements.task
         await lps.finish_ledger_position_statements(statements)
 
     asyncio.run(_run())
@@ -255,9 +256,38 @@ def test_the_first_round_waits_for_the_startup_replay(
 
 
 @pytest.mark.spec("SYNC-17-007")
-def test_a_round_that_raises_neither_ends_the_loop_nor_the_shutdown(
-    monkeypatch: pytest.MonkeyPatch, caplog
+def test_a_shutdown_during_the_startup_replay_states_nothing(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A server told to stop while its queue replays sends no statements."""
+    order: list[str] = []
+
+    async def _round(emitter: object = None) -> int:
+        order.append("statements")
+        return 0
+
+    monkeypatch.setattr(lps, "state_hosted_ledger_positions", _round)
+
+    async def _replay() -> int:
+        await asyncio.sleep(0.05)
+        order.append("replay")
+        return 0
+
+    async def _run() -> None:
+        replay = asyncio.create_task(_replay())
+        statements = lps.start_ledger_position_statements(None, after=replay)
+        await lps.finish_ledger_position_statements(statements)
+
+    asyncio.run(_run())
+
+    assert order == ["replay"]
+
+
+@pytest.mark.spec("SYNC-17-007")
+def test_a_round_that_raises_neither_ends_the_loop_nor_the_shutdown(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failing round is logged; the next round runs and shutdown returns."""
     rounds: list[int] = []
     second = asyncio.Event()
 

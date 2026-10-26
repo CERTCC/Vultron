@@ -439,6 +439,12 @@ before a quiet period leaves the replica behind with no signal on either side.
   can predate entries already in flight, so only the rate bound limits the
   redundant replays.
 - **Never ledgered** (SYNC-17-006): a `Read` is an observation (ADR-0152).
+- **A fresh id per statement**, unlike a rebuildable send (SYNC-09-002): a repeat
+  is a new observation the CASE_MANAGER must answer, and a derived id would be
+  skipped as a redelivery (`SyncActivityAdapter.send_read_ledger_entry`).
+- **The restart round waits for the startup inbox replay** (IE-06-006), so the
+  stated tail includes every entry the queue held; a shutdown during that wait
+  states nothing (`ledger_position_statements.py`).
 
 ## Document Boundary: Internal Spec vs. External Companion
 

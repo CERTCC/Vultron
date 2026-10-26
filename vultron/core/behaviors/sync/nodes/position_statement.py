@@ -162,7 +162,10 @@ class StateLedgerPositionsNode(DataLayerActionWithPorts):
     signatory, still states its position.  Its replica learns that it is
     inert from ledger entries, and the entry that made it active again may be
     the one it lost; the CASE_MANAGER refuses the statement of a participant
-    that is still inert (SYNC-17-002).
+    that is still inert (SYNC-17-002).  An unlisted actor is different: a
+    participant's replica is seeded from a copy that already lists it, so a
+    case whose roster lacks the actor is not a replica it participates in,
+    and the CASE_MANAGER would refuse its statement (SYNC-17-002).
 
     ``sent`` counts the statements queued, for the caller's log.
     """

@@ -66,6 +66,9 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 #: A third participant, removed from the case (CM-31-001).
 REMOVED_ID = "https://example.org/actors/removed"
 
+#: An actor the case roster does not list at all.
+UNLISTED_ID = "https://example.org/actors/unlisted"
+
 
 @pytest.fixture
 def dl() -> SqliteDataLayer:
@@ -533,12 +536,12 @@ def test_stating_positions_without_a_sync_port_is_a_wiring_fault() -> None:
 
 @pytest.mark.spec("SYNC-17-007")
 def test_actor_the_roster_does_not_list_states_no_position() -> None:
-    store = SqliteDataLayer("sqlite:///:memory:", actor_id=REMOVED_ID)
+    store = SqliteDataLayer("sqlite:///:memory:", actor_id=UNLISTED_ID)
     seed_case(store, embargo_active=False)
     seed_ledger(store, 2)
     port = MagicMock(spec=SyncActivityPort)
 
-    assert state_ledger_positions_trigger(store, REMOVED_ID, port) == 0
+    assert state_ledger_positions_trigger(store, UNLISTED_ID, port) == 0
     port.send_read_ledger_entry.assert_not_called()
 
 

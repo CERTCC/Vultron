@@ -31,7 +31,6 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from functools import partial
-from typing import Any
 
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer import get_datalayer
@@ -128,16 +127,20 @@ async def _state_positions_then_repeat(
     emitter: ActivityEmitter | None,
     interval_seconds: int | None,
     stop: asyncio.Event,
-    after: "asyncio.Task[Any] | None",
+    after: "asyncio.Task[int] | None",
 ) -> None:
     """State positions after the restart, then on the interval, if set.
 
     The first round waits for *after*, the startup inbox replay, so the
     position a participant states includes every entry its queue held
-    (IE-06-006); a replay that failed is the replay's to report.
+    (IE-06-006); a replay that failed is the replay's to report.  A shutdown
+    signalled while it waits ends the task with no round: a server told to
+    stop starts no new statements or outbox drains.
     """
     if after is not None:
         await asyncio.wait({after})
+        if stop.is_set():
+            return
     await _one_round(emitter)
     if interval_seconds is None:
         return
@@ -150,7 +153,7 @@ async def _state_positions_then_repeat(
 
 def start_ledger_position_statements(
     emitter: ActivityEmitter | None,
-    after: "asyncio.Task[Any] | None" = None,
+    after: "asyncio.Task[int] | None" = None,
 ) -> PositionStatements:
     """Start the position statements as a task beside the server.
 
