@@ -38,16 +38,16 @@ sequenceDiagram
     participant CA as CASE_MANAGER
     actor A as Actor
     activate O
-    O ->> CA: Offer(actor=CaseOwner, object=Actor, target=Case, suggestedRoles)
+    O ->> CA: Offer(Actor)[target=VulnerabilityCase]
     activate CA
-    CA ->>+ A: Invite(actor=CASE_MANAGER, object=Actor, target=CaseStub, attributedTo=CaseOwner)
+    CA ->>+ A: Invite(Actor)[target=VulnerabilityCaseStub]
     note over CA: Records inert CaseParticipant (RM Received)
     note over A: Consider invitation
     alt Accept Invitation
-        A -->> CA: Accept(object=Invite)
+        A -->> CA: Accept(Invite(Actor)[target=VulnerabilityCaseStub])
         note over CA: Participant becomes active (RM stays Received)<br/>then sends case, ledger replay and full-case Invite
     else Reject Invitation
-        A -->> CA: Reject(object=Invite)
+        A -->> CA: Reject(Invite(Actor)[target=VulnerabilityCaseStub])
         note over CA: Closes inert record (RM Closed); kept as history
     end
     deactivate A

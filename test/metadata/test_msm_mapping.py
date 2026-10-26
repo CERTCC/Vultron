@@ -39,8 +39,8 @@ from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.enums.roles import CVDRole
 from vultron.metadata.msm._mapping import (
+    CASE_MANAGER_INTERNAL,
     NO_SENDER_CHECK,
-    NOT_HANDLED,
     NOT_YET_CHECKED,
     ROW_SPECS,
     MappingStatus,
@@ -477,13 +477,18 @@ def _unhandled(*occasions: Occasion) -> SemanticEntry:
 @pytest.mark.spec("MSM-08-005")
 @pytest.mark.spec("SE-05-002")
 @pytest.mark.parametrize("addressee", list(AddresseeSide), ids=str)
-def test_an_unhandled_entry_reads_not_handled(addressee: AddresseeSide):
-    """With no use case there is no sender rule to word, and no failure."""
+def test_an_unhandled_entry_reads_internal_to_the_case_manager(
+    addressee: AddresseeSide,
+):
+    """With no use case there is no sender rule to word, and no failure.
+
+    The act is the case manager's own, which no receiver handles.
+    """
     occasion = _occasion(addressee=addressee)
     assert (
         sent_by(_unhandled(occasion), occasion)
-        == NOT_HANDLED
-        == ("not handled")
+        == CASE_MANAGER_INTERNAL
+        == "internal to the case manager"
     )
 
 
@@ -492,7 +497,7 @@ def test_an_unhandled_entry_still_adds_the_usual_senders():
     occasion = _occasion(usual_senders=(CVDRole.CASE_OWNER,))
     assert (
         sent_by(_unhandled(occasion), occasion)
-        == "not handled (usually: case owner)"
+        == "internal to the case manager (usually: case owner)"
     )
 
 
@@ -548,7 +553,7 @@ def _expected_sent_by(entry: SemanticEntry, occasion: Occasion) -> str:
     """
     declared = getattr(entry.use_case_class, "sender_entitlement", None)
     if entry.use_case_class is None:
-        base = NOT_HANDLED
+        base = CASE_MANAGER_INTERNAL
     elif isinstance(declared, SenderExemption):
         base = NO_SENDER_CHECK if declared.permanent else NOT_YET_CHECKED
     else:

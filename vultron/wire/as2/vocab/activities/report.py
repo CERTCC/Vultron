@@ -55,7 +55,7 @@ class _RmSubmitReportActivity(as_Offer):
 
 
 class _RmReadReportActivity(as_Read):
-    """The actor has read a report (RK acknowledgement).
+    """The actor acknowledges receipt of a submitted report (RK).
     This corresponds to the Vultron Message Type RK when no case exists.
     Wire form: Read(Offer(VulnerabilityReport)) per MSM-01-008, VAM-02-003.
 

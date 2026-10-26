@@ -1,8 +1,8 @@
 ---
 title: Vultron Protocol Specification
 description: >
-  The Vultron Protocol specification: its semantic and syntactic
-  layers and the state machines participants use to track a shared case.
+  The Vultron Protocol specification: its messages, their encoding and
+  transport, and the state machines participants use to track a shared case.
 stakeholder_type: [platform-developer]
 level: 400
 page_type: routing
@@ -21,11 +21,11 @@ The specification is published one part per page.
 The parts are listed in reading order, and each page holds the sections listed beside it, from the introduction to the Internet Assigned Numbers Authority (IANA) and security considerations.
 
 - [Introduction and Overview](introduction.md): §1 Introduction, §2 Terminology, and §3 Protocol Overview.
-- [Protocol Layers](layers.md): §4 Semantic Layer — Message Meanings and §5 Syntactic Layer — Wire Format.
+- [Messages and Encoding](layers.md): §4 Messages and §5 Encoding and Transport.
 - [Case Tracking Models](tracking-models.md): §6 Report Management (RM) State Machine, §7 Embargo Management (EM) State Machine, §8 Case State (CS) Dimensions, and §9 Participant Embargo Consent (PEC) State Machine.
-- [Interactions and Lifecycle](interactions.md): §10 Model Interactions and Cascade Rules and §11 Participant Lifecycle Within a Case.
-- [Conformance](conformance.md): §12 Conformance.
-- [Considerations and References](considerations.md): §13 IANA and Namespace Considerations, §14 Security Considerations, and §15 References.
+- [Coordination, Interactions, and Lifecycle](interactions.md): §10 Case Coordination, §11 Model Interactions and Cascade Rules, and §12 Participant Lifecycle Within a Case.
+- [Conformance](conformance.md): §13 Conformance.
+- [Considerations and References](considerations.md): §14 IANA and Namespace Considerations, §15 Security Considerations, and §16 References.
 
 ## Annexes
 

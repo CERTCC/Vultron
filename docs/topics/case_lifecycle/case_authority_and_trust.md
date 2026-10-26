@@ -91,7 +91,7 @@ They are the Case Owner's decisions, carried out by the CASE_MANAGER ([CM-02-005
 | Decision | Who decides |
 |---|---|
 | Admitting an actor to the case | The Case Owner approves or rejects each invitation. Another participant may only recommend an actor ([CM-16-019](../../reference/specs/protocol.md#cm-16-019)) |
-| Granting a role | The Case Owner, through a role offer the receiving actor accepts ([§11.1 Role Assignment](../../reference/vultron-spec/interactions.md#111-role-assignment-n)) |
+| Granting a role | The Case Owner, through a role offer the receiving actor accepts ([§12.1 Role Assignment](../../reference/vultron-spec/interactions.md#121-role-assignment-n)) |
 | Removing or reinstating a participant | The Case Owner only ([CM-31-004](../../reference/specs/protocol.md#cm-31-004)) |
 | Transferring ownership | Only the Case Owner may offer ([CM-21-019](../../reference/specs/protocol.md#cm-21-019)). Only the named transferee may accept ([CM-21-011](../../reference/specs/protocol.md#cm-21-011)) |
 | Activating or ending an embargo | The Case Owner ([CM-02-005](../../reference/specs/protocol.md#cm-02-005)) |
@@ -107,7 +107,7 @@ A participant that holds both a Vendor role and the Case Owner role may do every
 Once a case exists, a participant addresses every case-scoped message to the CASE_MANAGER and to nobody else ([PCR-08-001](../../reference/specs/protocol.md#pcr-08-001)).
 That covers notes, status updates, embargo proposals, and every other message about the case.
 The CASE_MANAGER judges it, records the outcome in the ledger, and sends the new ledger entry to every active participant.
-That fan-out is the only way a participant learns of an admitted change ([PCR-08-003](../../reference/specs/protocol.md#pcr-08-003), [§5.4.2 Routing Topology](../../reference/vultron-spec/layers.md#542-routing-topology)).
+That fan-out is the only way a participant learns of an admitted change ([PCR-08-003](../../reference/specs/protocol.md#pcr-08-003), [§10.2 Routing Topology](../../reference/vultron-spec/interactions.md#102-routing-topology)).
 
 ```mermaid
 ---
@@ -134,7 +134,7 @@ That activity is not part of the protocol, and the receiver has no obligation to
 
 ### Two exceptions, both before the case exists
 
-The rule has two exceptions, and both happen before there is a CASE_MANAGER to route through ([§4.5 Trust and Bootstrap Semantics](../../reference/vultron-spec/layers.md#45-trust-and-bootstrap-semantics)).
+The rule has two exceptions, and both happen before there is a CASE_MANAGER to route through ([§10.2 Routing Topology](../../reference/vultron-spec/interactions.md#102-routing-topology)).
 
 1. The reporter sends its report directly to the actor it chose to tell, because no case exists yet.
 2. The case-creation message, `Create(VulnerabilityCase)`, which the report receiver sends the reporter, introduces the CASE_MANAGER to the reporter.
@@ -343,7 +343,7 @@ The invitation path has three rules, because an invitation is itself a message f
 | A second invitation to the same case that names a different CASE_MANAGER is refused, and the first anchor stays | A later message silently replacing the authority |
 
 These rules are structural.
-Whether the named CASE_MANAGER is genuine cannot be proved until actors sign their messages, which is future work ([§14.1 Trust Model](../../reference/vultron-spec/considerations.md#141-trust-model)).
+Whether the named CASE_MANAGER is genuine cannot be proved until actors sign their messages, which is future work ([§15.1 Trust Model](../../reference/vultron-spec/considerations.md#151-trust-model)).
 
 ### Messages for a case the participant does not hold
 
@@ -493,6 +493,6 @@ When that case is to be closed, it closes through the same close path as any oth
 - [Ownership Transfer](ownership_transfer.md) — how the `CASE_OWNER` role moves to another participant
 - [Case Ledger Synchronization](case_ledger_sync.md) — how a replica orders entries and catches up on missed ones
 - [The Case Model](case_model.md) — the objects a case is made of and the roles participants hold
-- [§4.5 Trust and Bootstrap Semantics](../../reference/vultron-spec/layers.md#45-trust-and-bootstrap-semantics) — the normative statement of the trust root
-- [§5.4.2 Routing Topology](../../reference/vultron-spec/layers.md#542-routing-topology) — the normative routing rule and its two exceptions
+- [§10.3 Case Bootstrap and the Trust Root](../../reference/vultron-spec/interactions.md#103-case-bootstrap-and-the-trust-root) — the normative statement of the trust root
+- [§10.2 Routing Topology](../../reference/vultron-spec/interactions.md#102-routing-topology) — the normative routing rule and its two exceptions
 - [Protocol specifications](../../reference/specs/protocol.md) — the requirements behind this page, including CBT, PCR, PRM, and CM-23

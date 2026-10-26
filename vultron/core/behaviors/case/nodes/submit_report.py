@@ -106,12 +106,12 @@ class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
     to the executing actor: the sender addressed the wrong party, which the
     receiver refuses (HP-01-005) rather than reporting a processed no-op.  A
     receiver the sender named only in ``cc`` lands here too, and the WARNING
-    and reason say that ``cc`` addressing is not supported (HP-10-001).  Core
-    does not carry ``cc`` (ADR-0109), so the node cannot tell a ``cc`` copy
-    from any other misaddressed one, and does not need to: both are
-    discarded unprocessed.  :attr:`misaddressed` tells the handler that was
-    the reason, as opposed to a wiring fault (a missing DataLayer or actor),
-    which it raises on.
+    and reason say that ``cc`` addressing is not supported (HP-10-001,
+    HP-10-002).  Core does not carry ``cc`` (ADR-0109), so the node cannot
+    tell a ``cc`` copy from any other misaddressed one, and does not need
+    to: both are discarded unprocessed.  :attr:`misaddressed` tells the
+    handler that was the reason, as opposed to a wiring fault (a missing
+    DataLayer or actor), which it raises on.
     """
 
     def __init__(
@@ -135,7 +135,7 @@ class CheckOfferAddressedToReceiverNode(DataLayerConditionWithPorts):
         self.misaddressed = True
         self.logger.warning(
             "receiving actor '%s' is not in the Offer's to; cc addressing"
-            " not supported (HP-10-001) — discarding activity for %s",
+            " not supported (HP-10-002) — discarding activity for %s",
             self.actor_id,
             f"report '{self._report_id}'"
             if self._report_id

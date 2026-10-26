@@ -88,6 +88,8 @@ def case_with_manager(bt_scenario: BTTestScenario) -> VulnerabilityCase:
 
 
 @pytest.mark.spec("BT-10-004")
+@pytest.mark.spec("BT-10-006")
+@pytest.mark.spec("BT-10-003")
 class TestCaseManagerGate:
     @pytest.mark.executes_as(MANAGER_ACTOR_ID)
     def test_the_case_manager_runs_the_children(

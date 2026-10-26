@@ -106,9 +106,9 @@ nav:
     - Protocol Specification:
       - 'reference/vultron-spec/index.md'
       - Introduction and Overview: 'reference/vultron-spec/introduction.md'
-      - Protocol Layers: 'reference/vultron-spec/layers.md'
+      - Messages and Encoding: 'reference/vultron-spec/layers.md'
       - Case Tracking Models: 'reference/vultron-spec/tracking-models.md'
-      - Interactions and Lifecycle: 'reference/vultron-spec/interactions.md'
+      - Coordination, Interactions, and Lifecycle: 'reference/vultron-spec/interactions.md'
       - Conformance: 'reference/vultron-spec/conformance.md'
       - Considerations and References: 'reference/vultron-spec/considerations.md'
       - Annexes:
@@ -170,19 +170,22 @@ nav:
     - 'research/index.md'
     - Measuring CVD:
       - 'topics/measuring_cvd/index.md'
-      - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
-      - Desirable Histories: 'topics/measuring_cvd/desirable_histories.md'
-      - Random Walks: 'topics/measuring_cvd/random_walk.md'
-      - Reasoning Over Histories: 'topics/measuring_cvd/reasoning_over_histories.md'
-      - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
-      - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
-      - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
-      - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
+      - What a Case Records: 'topics/measuring_cvd/what_a_case_records.md'
       - Desiderata from the Process Models: 'topics/measuring_cvd/process_model_desiderata.md'
       - Timing Metrics Within a Case: 'topics/measuring_cvd/timing_metrics.md'
-      - Reward Functions: 'topics/measuring_cvd/reward_functions.md'
-      - State Space Size: 'topics/measuring_cvd/state_space_size.md'
-      - CS Model Limitations: 'topics/process_models/cs/cs_model_limitations.md'
+      - Open Questions: 'topics/measuring_cvd/open_questions.md'
+      - Foundations:
+        - 'topics/measuring_cvd/foundations/index.md'
+        - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
+        - Desirable Histories: 'topics/measuring_cvd/desirable_histories.md'
+        - Random Walks: 'topics/measuring_cvd/random_walk.md'
+        - Reasoning Over Histories: 'topics/measuring_cvd/reasoning_over_histories.md'
+        - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
+        - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
+        - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
+        - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
+        - State Space Size: 'topics/measuring_cvd/state_space_size.md'
+        - Reward Functions: 'topics/measuring_cvd/reward_functions.md'
     - Other Uses of Vultron:
       - 'topics/other_uses/index.md'
       - Defining Zero Days: 'topics/other_uses/zero_day.md'
@@ -390,6 +393,9 @@ plugins:
         howto/em_icalendar.md: topics/process_models/em/index.md
         howto/general_implementation.md: howto/activitypub/index.md
         reference/fv-demo-protocol.md: reference/rv-demo-protocol.md
+        # The section 4 and 5 fragments were renamed with their sections (#5148).
+        reference/vultron-spec/_semantic-layer.md: reference/vultron-spec/layers.md#4-messages-n
+        reference/vultron-spec/_syntactic-layer.md: reference/vultron-spec/layers.md#5-encoding-and-transport-n
         topics/background/notation.md: reference/notation.md
         topics/background/overview.md: topics/background/what-is-vultron.md
         # Terms and Definitions was merged into the glossary's roles section (#3624).
@@ -398,7 +404,7 @@ plugins:
         topics/background/versioning.md: reference/versioning.md
         topics/formal_protocol/index.md: reference/formal_protocol/index.md
         topics/formal_protocol/worked_example.md: tutorials/worked_example.md
-        topics/future_work/cs_model_limitations.md: topics/process_models/cs/cs_model_limitations.md
+        topics/future_work/cs_model_limitations.md: topics/measuring_cvd/open_questions.md
         topics/future_work/cvd_directory.md: topics/future_work/open_questions.md
         topics/future_work/mod_sim.md: topics/measuring_cvd/reward_functions.md
         # The old page speculated about an OWL ontology; its target now records
@@ -408,6 +414,8 @@ plugins:
         topics/future_work/reward_functions.md: topics/measuring_cvd/reward_functions.md
         topics/measuring_cvd/mod_sim.md: topics/measuring_cvd/reward_functions.md
         topics/other_uses/cvd_directory.md: topics/future_work/open_questions.md
+        # CS Model Limitations became the Measuring CVD section's Open Questions (#5141).
+        topics/process_models/cs/cs_model_limitations.md: topics/measuring_cvd/open_questions.md
         topics/process_models/cs/events.md: topics/process_models/cs/cs_model.md
         topics/process_models/cs/model_definition.md: topics/process_models/cs/transitions.md
         topics/process_models/em/participant-embargo-consent.md: topics/behavior_logic/use-cases/embargo-lifecycle.md

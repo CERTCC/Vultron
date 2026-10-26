@@ -72,7 +72,7 @@ The hash chain is computed over the same entries ([CLP-04-003](../../reference/s
 Each entry names the entry before it as its predecessor, with nothing in between.
 
 Each entry — a **Case Ledger Entry** — is immutable once written ([SYNC-01-001](../../reference/specs/protocol.md#sync-01-001)).
-It carries its position in the case history, the time the CASE_MANAGER recorded it, a copy of the assertion it records, and two hashes: one of its own content and one of the entry before it ([SYNC-01-002, SYNC-01-003](../../reference/specs/protocol.md#sync-01)).
+It carries its position in the case history, the time the CASE_MANAGER recorded it, a copy of the assertion it records, and two hashes: one of its own content and one of the entry before it ([SYNC-01-002](../../reference/specs/protocol.md#sync-01-002), [SYNC-01-003](../../reference/specs/protocol.md#sync-01-003)).
 The hashes link the entries into a chain, so a participant can tell whether a new entry belongs at the end of the history it already holds.
 
 ---
@@ -80,7 +80,7 @@ The hashes link the entries into a chain, so a participant can tell whether a ne
 ## Fan-out: every participant gets every entry
 
 After it appends an entry, the CASE_MANAGER sends that entry to each participant individually ([SYNC-02-003](../../reference/specs/protocol.md#sync-02-003)).
-The message is an `Announce` whose object is the entry itself, carried inline or by reference ([SYNC-02-001, SYNC-02-004](../../reference/specs/protocol.md#sync-02)).
+The message is an `Announce` whose object is the entry itself, carried inline or by reference ([SYNC-02-001](../../reference/specs/protocol.md#sync-02-001), [SYNC-02-004](../../reference/specs/protocol.md#sync-02-004)).
 A participant needs every field of the entry to check it against the chain it already holds.
 The reference implementation cannot yet fetch an object by reference, so it always sends the whole entry inline ([SYNC-02-005](../../reference/specs/project.md#sync-02-005)).
 
@@ -89,7 +89,7 @@ Participants never send ledger entries to each other; every copy comes from the 
 A replica is synchronized when the last entry it holds is the last entry the CASE_MANAGER wrote.
 
 An active embargo is the one exception to sending every entry at once.
-The ledger is case content, so the CASE_MANAGER sends no entry to a participant that has not accepted the active embargo ([CM-10-004, CM-10-005](../../reference/specs/protocol.md#cm-10)).
+The ledger is case content, so the CASE_MANAGER sends no entry to a participant that has not accepted the active embargo ([CM-10-004](../../reference/specs/protocol.md#cm-10-004), [CM-10-005](../../reference/specs/protocol.md#cm-10-005)).
 It also answers that participant's request for missing entries with nothing.
 It records the first entry it held back.
 When the participant accepts the embargo, or the embargo ends, the CASE_MANAGER sends it every entry from that one on, in order ([CM-10-006](../../reference/specs/protocol.md#cm-10-006)).
@@ -97,7 +97,7 @@ Embargo invitations are not ledger entries, so they still reach that participant
 
 A participant checks each entry before it applies it.
 An entry that does not follow on from the participant's last entry is not applied.
-The participant tells the CASE_MANAGER where its history ends, so that the CASE_MANAGER can send what is missing ([SYNC-03-001, SYNC-03-002](../../reference/specs/protocol.md#sync-03)).
+The participant tells the CASE_MANAGER where its history ends, so that the CASE_MANAGER can send what is missing ([SYNC-03-001](../../reference/specs/protocol.md#sync-03-001), [SYNC-03-002](../../reference/specs/protocol.md#sync-03-002)).
 Receiving the same entry twice changes nothing ([SYNC-03-003](../../reference/specs/protocol.md#sync-03-003)).
 
 Messages can still arrive in the wrong order, because the transport makes no promise about order.

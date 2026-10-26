@@ -187,9 +187,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      For Create-style activities that create sub-objects (e.g., `CreateParticipant`), the
-      activity `name` field SHOULD be a descriptive human-readable string identifying the
-      actor, created object ID, and context (case ID)
+      For Create-style activities that create sub-objects (e.g.,
+      `Create(CaseParticipant)`), the activity `name` field SHOULD be a descriptive
+      human-readable string identifying the actor, created object ID, and context (case
+      ID)
   - id: MV-04-003
     priority: MUST_NOT
     kind: project
@@ -376,9 +377,12 @@ groups:
       data completeness
   - id: MV-10-004
     priority: MUST_NOT
-    kind: protocol
-    verification_debt: '#3612'
+    kind: project
     statement: Inbound stubs MUST NOT be used to create new domain records
+    verification: >-
+      `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_a_received_stub_invite_stores_no_case`
+      delivers a stub Invite, asserts it was processed, and asserts no
+      `VulnerabilityCase` record exists afterwards.
   - id: MV-10-005
     priority: MUST
     kind: protocol

@@ -123,7 +123,7 @@ ENTRIES: list[SemanticEntry] = [
         include_activity=True,
         occasions=(
             Occasion(
-                when="a report receiver has read a submitted report",
+                when="a report receiver has received a submitted report",
                 anchor="report-acknowledgment",
                 addressee=AddresseeSide.OUTSIDE_CASE,
                 description=(

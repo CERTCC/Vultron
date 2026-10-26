@@ -59,7 +59,7 @@ def read_report() -> as_Read:
     activity = rm_read_report_activity(
         _offer,
         actor=_VENDOR.id_,
-        content="We've read the report. We'll get back to you soon.",
+        content="We have received the report. We will get back to you soon.",
     )
     return activity
 

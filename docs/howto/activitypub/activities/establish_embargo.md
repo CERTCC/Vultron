@@ -40,18 +40,18 @@ title: Establishing an Embargo
 ---
 flowchart TB
     subgraph as:Invite
-        EmProposeEmbargo["Embargo Proposal (EP) / Embargo Revision Proposal (EV)<br/>Invite(Event)"]
+        EmProposeEmbargo["Embargo Proposal (EP) / Embargo Revision Proposal (EV)<br/>Invite(EmbargoEvent)"]
     end
     subgraph participant answers
-        EmAcceptEmbargo["Embargo Proposal Acceptance (EA) / Embargo Revision Acceptance (EC)<br/>Accept(Invite(Event))"]
-        EmRejectEmbargo["Embargo Proposal Rejection (ER) / Embargo Revision Rejection (EJ)<br/>Reject(Invite(Event))"]
+        EmAcceptEmbargo["Embargo Proposal Acceptance (EA) / Embargo Revision Acceptance (EC)<br/>Accept(Invite(EmbargoEvent))"]
+        EmRejectEmbargo["Embargo Proposal Rejection (ER) / Embargo Revision Rejection (EJ)<br/>Reject(Invite(EmbargoEvent))"]
     end
     subgraph Case Owner decides
-        ActivateEmbargo["Activate the embargo<br/>Accept(Event), target: VulnerabilityCase"]
-        RejectEmbargoProposal["Reject the proposal<br/>Reject(Event), target: VulnerabilityCase"]
+        ActivateEmbargo["Activate the embargo<br/>Accept(EmbargoEvent)[target=VulnerabilityCase]"]
+        RejectEmbargoProposal["Reject the proposal<br/>Reject(EmbargoEvent)[target=VulnerabilityCase]"]
     end
     subgraph as:Announce
-        AnnounceEmbargo["Announce the embargo terms<br/>Announce(Event)"]
+        AnnounceEmbargo["Announce the embargo terms<br/>Announce(EmbargoEvent)"]
     end
     start([Start]) --> EmProposeEmbargo
     EmProposeEmbargo --> EmAcceptEmbargo
@@ -67,46 +67,46 @@ flowchart TB
 
 ## Negotiate the terms
 
-Embargo Proposal (EP) is implemented in ActivityStreams as `Invite(Event)`.
+Embargo Proposal (EP) is implemented in ActivityStreams as `Invite(EmbargoEvent)`.
 The same activity carries a revision, Embargo Revision Proposal (EV); a receiver tells the two apart from the case's EM state rather than from the activity (MSM-02).
 
-1. Send `Invite(Event)` with the proposed `EmbargoEvent` inline as its `object` and the case as its `context`.
+1. Send `Invite(EmbargoEvent)` with the proposed `EmbargoEvent` inline as its `object` and the case as its `context`.
    The case moves to `EM.PROPOSED`.
-   The protocol names `Invite(Event)` as the one form; a received `Create(Event)` is not a protocol message (VAM-01-011), and this implementation's inbox does not process it (VAM-01-010).
+   The protocol names `Invite(EmbargoEvent)` as the one form; a received `Create(EmbargoEvent)` is not a protocol message (VAM-01-011), and this implementation's inbox does not process it (VAM-01-010).
    A `Create` of an `EmbargoEvent` is the Case Manager's own ledger record of a creation-time embargo, so the inbox reports it as "no use case found"; a `Create` of any other `Event` is refused as an unrecognized activity.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal.md" %}
 
-2. The CASE_MANAGER asks each other participant about the terms with an `Invite(Event)` of its own, addressed to that participant and naming the proposer in `attributedTo`.
+2. The CASE_MANAGER asks each other participant about the terms with an `Invite(EmbargoEvent)` of its own, addressed to that participant and naming the proposer in `attributedTo`.
    If you are the CASE_MANAGER, this is the Invite you send; if you are not, it is the Invite you answer.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/relay-embargo-proposal.md" %}
 
-3. Each participant answers with Embargo Proposal Acceptance (EA), `Accept(Invite(Event))`, or Embargo Proposal Rejection (ER), `Reject(Invite(Event))`.
+3. Each participant answers with Embargo Proposal Acceptance (EA), `Accept(Invite(EmbargoEvent))`, or Embargo Proposal Rejection (ER), `Reject(Invite(EmbargoEvent))`.
    Either answer records only that participant's own consent, the Case Owner's included; the case stays at `EM.PROPOSED`.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-acceptance.md" %}
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-proposal-rejection.md" %}
 
-4. As Case Owner, send `Accept(Event)` with the proposed `EmbargoEvent` as its `object` and the case as its `target`, once you judge the proposal has carried.
+4. As Case Owner, send `Accept(EmbargoEvent)` with the proposed `EmbargoEvent` as its `object` and the case as its `target`, once you judge the proposal has carried.
    The case moves to `EM.ACTIVE`, and your own consent to the terms is recorded with it.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/activate-embargo.md" %}
 
-5. Send `Announce(Event)` so every participant has the terms in hand.
+5. Send `Announce(EmbargoEvent)` so every participant has the terms in hand.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/announce-embargo.md" %}
 
-To turn the proposal down, send `Reject(Event)` with the same `object` and `target` as Case Owner instead.
+To turn the proposal down, send `Reject(EmbargoEvent)` with the same `object` and `target` as Case Owner instead.
 The case returns to `EM.NONE` and the negotiation is open again.
-Propose revised terms with another `Invite(Event)`.
+Propose revised terms with another `Invite(EmbargoEvent)`.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/reject-embargo-proposal.md" %}
 
 Propose one set of terms at a time.
 That is how the protocol resolves competing terms, not a workaround: there is no poll across candidate embargoes ([ADR-0100](../../../adr/0100-no-multi-candidate-embargo-poll.md)).
-You may put several sets of terms on the table by sending a separate `Invite(Event)` for each, and each is then accepted or rejected on its own.
+You may put several sets of terms on the table by sending a separate `Invite(EmbargoEvent)` for each, and each is then accepted or rejected on its own.
 When more than one proposal is open, Participants take the one with the earliest end date first and treat the rest as revisions (EP-08).
 See [Default Embargoes](../../../topics/process_models/em/defaults.md).
 
@@ -117,10 +117,10 @@ See [Default Embargoes](../../../topics/process_models/em/defaults.md).
 There is no way to put an embargo on a case except by proposing it: adding an embargo to the case is what proposing does.
 When the terms need no negotiation, propose them as Case Owner and activate them at once, without waiting for any answer.
 
-1. Send `Invite(Event)` as above.
+1. Send `Invite(EmbargoEvent)` as above.
    Proposing the terms records your consent to them.
-2. Send `Accept(Event)` with the case as its `target`.
-3. Send `Announce(Event)`.
+2. Send `Accept(EmbargoEvent)` with the case as its `target`.
+3. Send `Announce(EmbargoEvent)`.
 
 Use this route when the terms need no negotiation:
 
@@ -142,9 +142,9 @@ The other participants still receive the Invite and answer it, and only those th
 The Case Owner can activate an embargo before every participant has answered its Invite.
 Once the embargo is in force it is no longer an open proposal, but a participant that has not answered can still answer it.
 
-1. Find the `Invite(Event)` you received for the embargo in force.
+1. Find the `Invite(EmbargoEvent)` you received for the embargo in force.
 2. Call `accept-embargo` or `reject-embargo` with that Invite's ID as `proposal_id`.
-   You send the same `Accept(Invite(Event))` or `Reject(Invite(Event))` as for an open proposal, addressed to the CASE_MANAGER.
+   You send the same `Accept(Invite(EmbargoEvent))` or `Reject(Invite(EmbargoEvent))` as for an open proposal, addressed to the CASE_MANAGER.
 
 You can answer this way while your consent row for the embargo in force is `INVITED` or `TIMED_OUT`.
 An Accept sent after the reply deadline is honored, because the terms you agree to are the terms in force (EMB-17-002).
@@ -159,11 +159,11 @@ A call without `proposal_id` answers only an open proposal and never the embargo
 
 | What you sent | What to confirm |
 |---|---|
-| `Invite(Event)` | The case `em_state` is `PROPOSED`. |
-| `Accept(Invite(Event))` | Your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) row for the embargo is `AGREED` (you are a signatory), as [§9 Participant Embargo Consent (PEC) State Machine in the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) defines it. |
-| `Accept(Event)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE`, the case names one active embargo, and your consent row for it is `AGREED`. |
-| `Reject(Event)` with the case as `target`, as Case Owner | The case `em_state` is `NONE` and no participant's consent row changed. |
-| `Announce(Event)` | Every participant's replica carries the same active embargo ID. |
+| `Invite(EmbargoEvent)` | The case `em_state` is `PROPOSED`. |
+| `Accept(Invite(EmbargoEvent))` | Your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) row for the embargo is `AGREED` (you are a signatory), as [§9 Participant Embargo Consent (PEC) State Machine in the specification](../../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n) defines it. |
+| `Accept(EmbargoEvent)` with the case as `target`, as Case Owner | The case `em_state` is `ACTIVE`, the case names one active embargo, and your consent row for it is `AGREED`. |
+| `Reject(EmbargoEvent)` with the case as `target`, as Case Owner | The case `em_state` is `NONE` and no participant's consent row changed. |
+| `Announce(EmbargoEvent)` | Every participant's replica carries the same active embargo ID. |
 
 ---
 

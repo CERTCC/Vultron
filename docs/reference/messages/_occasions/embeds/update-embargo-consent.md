@@ -7,7 +7,7 @@
     - **When…** the Case Manager changes a participant's consent row, such as an invitation timing out, the rows carried over at activation or a change of its own consent
     - **Send:** `Update(EmbargoConsent)`
     - **Send to:** a participant
-    - **Sent by:** not handled
+    - **Sent by:** internal to the case manager
     - **Reference:** [Update embargo consent](../../em.md#update-embargo-consent)
 
     ??? example "Example activity"

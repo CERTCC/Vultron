@@ -1,6 +1,6 @@
-### 12.3 Role Taxonomy
+### 13.3 Role Taxonomy
 
-#### 12.3.1 Process Roles
+#### 13.3.1 Process Roles
 
 Process roles define what an actor *does* within a case and which protocol
 transitions it is authorized to drive. An actor may hold multiple process roles.
@@ -12,16 +12,16 @@ transitions it is authorized to drive. An actor may hold multiple process roles.
 | Deployer | Drives its own VFD transition `d→D` (fix deployed, `CD`) |
 | Coordinator | Drives case participant management; coordinates multi-party disclosure |
 | CVE Numbering Authority (CNA) | May assign CVE IDs directly; a participant without the role delegates assignment. Orthogonal to the other roles, and typically co-held with Coordinator or Vendor |
-| Observer | Holds no drive obligations for VFD; may report PXA observations ([§12.4.2 Participant-Agnostic CS Transitions (PXA)](../conformance.md#1242-participant-agnostic-cs-transitions-pxa)) |
+| Observer | Holds no drive obligations for VFD; may report PXA observations ([§13.4.2 Participant-Agnostic CS Transitions (PXA)](../conformance.md#1342-participant-agnostic-cs-transitions-pxa)) |
 
 **Capability prerequisites.** Every case Participant — whatever its roles — MUST
-implement the Case Observer capability set ([§12.2 Capability Sets](../conformance.md#122-capability-sets), [§12.3.3 Roles and Capability Sets Are Independent](../conformance.md#1233-roles-and-capability-sets-are-independent)). Role extension sets add
+implement the Case Observer capability set ([§13.2 Capability Sets](../conformance.md#132-capability-sets), [§13.3.3 Roles and Capability Sets Are Independent](../conformance.md#1333-roles-and-capability-sets-are-independent)). Role extension sets add
 obligations on top of that floor; they do not substitute for it. An implementation
 SHOULD verify that an actor has the capability prerequisites for a role before
-completing a role assignment ([§11.1 Role Assignment](../interactions.md#111-role-assignment-n)).
+completing a role assignment ([§12.1 Role Assignment](../interactions.md#121-role-assignment-n)).
 
 This specification states the per-role obligations in
-[§12.4 Role-Specific Normative Requirements](../conformance.md#124-role-specific-normative-requirements). It does not yet
+[§13.4 Role-Specific Normative Requirements](../conformance.md#134-role-specific-normative-requirements). It does not yet
 state a complete capability prerequisite for every role.
 
 !!! note "Note on Reporter"
@@ -31,7 +31,7 @@ state a complete capability prerequisite for every role.
     or in case Notes, but nothing in the technical protocol hinges on that
     distinction. Reporter is the protocol-salient role from first contact.
 
-#### 12.3.2 Protocol Coordination Roles (protocol authority)
+#### 13.3.2 Protocol Coordination Roles (protocol authority)
 
 These roles confer specific protocol-layer authority and are distinct from
 process roles. They describe what an actor *controls* within the protocol
@@ -40,7 +40,7 @@ machinery, not what it does in the world.
 | Role | Protocol authority |
 |---|---|
 | Case Owner | Authoritative decision-maker for a case; status updates are treated as authoritative without requiring approval; drives shared EM transitions |
-| Case Manager | Holds the case's single-writer authority ([§5.4.1 Single-Writer Authority](../layers.md#541-single-writer-authority)): writes the canonical case ledger, relays case-scoped messages, and manages the roster on the Case Owner's behalf ([§2.2 Roles](../introduction.md#22-roles)). Authority follows the role, not the actor that holds it; the role is commonly co-held with Coordinator but need not be ([§12.3.3 Roles and Capability Sets Are Independent](../conformance.md#1233-roles-and-capability-sets-are-independent)) |
+| Case Manager | Holds the case's single-writer authority ([§10.1 Single-Writer Authority](../interactions.md#101-single-writer-authority)): writes the canonical case ledger, relays case-scoped messages, and manages the roster on the Case Owner's behalf ([§2.2 Roles](../introduction.md#22-roles)). Authority follows the role, not the actor that holds it; the role is commonly co-held with Coordinator but need not be ([§13.3.3 Roles and Capability Sets Are Independent](../conformance.md#1333-roles-and-capability-sets-are-independent)) |
 
 **Delegation scenarios**: Protocol responsibilities may transfer during a case
 lifecycle. For example, a Reporter who initially creates a case may delegate
@@ -53,9 +53,9 @@ the associated protocol responsibilities.
 !!! note "Open architectural question: key handover"
     Moving the `CASE_MANAGER` role to a different actor raises an unresolved
     key-handover question for future case-encryption designs. The question is
-    stated once, at [§11.3 Case Ownership Transfer](../interactions.md#113-case-ownership-transfer-n).
+    stated once, at [§12.3 Case Ownership Transfer](../interactions.md#123-case-ownership-transfer-n).
 
-#### 12.3.3 Roles and Capability Sets Are Independent
+#### 13.3.3 Roles and Capability Sets Are Independent
 
 A role is a position within a case. A capability set is a property of software.
 Mixing them produces contradictions, so the relationship is stated explicitly:
@@ -78,4 +78,4 @@ Mixing them produces contradictions, so the relationship is stated explicitly:
     VFD drive obligations — not by being exempt from state tracking.
 
     Observer role admission follows the standard `Invite` / `Accept(Invite)` path.
-    Role semantics are normative per ADR-0057; see the note at [§12.3.1 Process Roles](../conformance.md#1231-process-roles).
+    Role semantics are normative per ADR-0057; see the note at [§13.3.1 Process Roles](../conformance.md#1331-process-roles).

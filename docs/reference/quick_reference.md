@@ -21,7 +21,7 @@ Where this page and any of those disagree, the specification wins.
 
 ## State Machines at a Glance
 
-Every Participant tracks five state machines ([§12.2 Capability Sets](vultron-spec/conformance.md#122-capability-sets)).
+Every Participant tracks five state machines ([§13.2 Capability Sets](vultron-spec/conformance.md#132-capability-sets)).
 Two of them, the vendor fix path (VFD) and the public state (PXA), together make up the Case State (CS), which the formal protocol pages write as one six-letter string.
 
 | State Machine | Scope | States | Initial | Terminal |
@@ -61,14 +61,14 @@ The table is generated from the semantic registry, the list of patterns that [se
 
 ### Formal message set
 
-The formal message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$, each defined in [§4 Semantic Layer — Message Meanings in the specification](vultron-spec/layers.md#4-semantic-layer-message-meanings-n).
+The formal message set is $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$, the union of the report management, embargo management, case state and general messages ([§4.13 Formal Message Set in the specification](vultron-spec/layers.md#413-formal-message-set)).
 The table below lists each type with the wire activities that carry it, and is generated from the same registry as the occasion table.
 The state transition that emits each type is on [Messages](formal_protocol/messages.md), and the response the formal protocol expects from a recipient is on [Transitions](formal_protocol/transitions.md).
 
 {% include-markdown "./messages/_occasions/shorthands.md" %}
 
 The formal set and the wire vocabulary are many-to-many ([Mapping status](messages/index.md#mapping-status)).
-Several types share one wire activity, as `EP` and `EV` share `Invite(Event)`, and the occasion's section states what tells them apart.
+Several types share one wire activity, as `EP` and `EV` share `Invite(EmbargoEvent)`, and the occasion's section states what tells them apart.
 A type whose row reads "none" has no wire activity of its own: [Faults and Acknowledgments](messages/faults_and_acknowledgements.md) describes the fault reporting and the cumulative hash-chain acknowledgment that replace such types.
 
 ## State Transition Summary

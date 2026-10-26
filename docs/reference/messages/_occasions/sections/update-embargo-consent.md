@@ -7,7 +7,7 @@ Carries the changed consent row in full. A Case Manager with an embargo stake of
 - **When…** the Case Manager changes a participant's consent row, such as an invitation timing out, the rows carried over at activation or a change of its own consent
 - **Send:** `Update(EmbargoConsent)`
 - **Send to:** a participant
-- **Sent by:** not handled
+- **Sent by:** internal to the case manager
 - **Mapping status:** [none](../../index.md#mapping-status)
 
 Each participant learns of it from the case ledger, so it is addressed to nobody.

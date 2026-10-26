@@ -29,27 +29,41 @@ from vultron.wire.as2.factories.sync import (
 from vultron.wire.as2.vocab.examples._base import _CASE_ACTOR, _VENDOR, case
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
 
-# Fixed values keep the example output stable across generator runs.
+# Fixed values keep the example entries' own fields stable across generator
+# runs; the case URI and its genesis hash come from the example case.
 _CASE_URI = case().id_ or "https://vultron.example/cases/00000000"
-_ACTIVITY_URI = (
-    "https://vultron.example/activities/00000000-0000-0000-0000-000000000001"
-)
-# All-zeros genesis hash for the first entry.
-_GENESIS_HASH = "0" * 64
+# The first entry's predecessor is the example case's own genesis hash, never a
+# shared constant (CLP-08-001, CLP-08-002).
+_GENESIS_HASH = case().genesis_hash
 _RECEIVED_AT = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
 
 
-def _example_ledger_entry() -> as_CaseLedgerEntry:
+def _example_record(
+    log_index: int, semantic_type: str, prev_log_hash: str
+) -> HashChainLedgerRecord:
     # Built through the hashed record, so the example's ``entryHash`` is the
     # hash of its own content, as a receiver checks (SYNC-03-006).
     return HashChainLedgerRecord(
         case_id=_CASE_URI,
-        log_index=0,
-        object_id=_ACTIVITY_URI,
-        semantic_type="create_case",
-        prev_log_hash=_GENESIS_HASH,
+        log_index=log_index,
+        object_id=(
+            "https://vultron.example/activities/"
+            f"00000000-0000-0000-0000-{log_index + 1:012d}"
+        ),
+        semantic_type=semantic_type,
+        prev_log_hash=prev_log_hash,
         received_at=_RECEIVED_AT,
-    ).to_ledger_entry()
+    )
+
+
+# The example chain: the case's first three entries.
+_ENTRY_0 = _example_record(0, "create_case", _GENESIS_HASH)
+_ENTRY_1 = _example_record(1, "add_report_to_case", _ENTRY_0.entry_hash)
+_ENTRY_2 = _example_record(2, "engage_case", _ENTRY_1.entry_hash)
+
+
+def _example_ledger_entry() -> as_CaseLedgerEntry:
+    return _ENTRY_0.to_ledger_entry()
 
 
 def announce_case_ledger_entry():
@@ -69,8 +83,12 @@ def reject_case_ledger_entry():
     ``prev_log_hash`` does not match the local ledger tail (SYNC-03-001).
     The ``context`` field carries the last applied entry hash so the
     CaseActor can determine the replay window (SYNC-03-002).
+
+    The example participant holds only the first entry and missed the
+    second, so the third entry's ``prev_log_hash`` does not match its tail,
+    and its ``context`` names the first entry's hash.
     """
-    entry = _example_ledger_entry()
+    entry = _ENTRY_2.to_ledger_entry()
     return reject_log_entry_activity(
-        entry, context=_GENESIS_HASH, actor=_VENDOR.id_
+        entry, context=_ENTRY_0.entry_hash, actor=_VENDOR.id_
     )

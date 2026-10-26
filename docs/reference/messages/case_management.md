@@ -19,7 +19,7 @@ these activities to all participants see
 
 Two authorities appear below, and they are distinct roles rather than one actor.
 The **Case Owner** decides for the case: who is admitted, which roles they hold, and whether an ownership transfer is offered.
-The **CASE_MANAGER** is the case's single-writer authority: it mints and updates the `VulnerabilityCase` object, records every case-scoped message in the ledger, and delivers case snapshots to participants (spec [§5.4.1 Single-Writer Authority](../vultron-spec/layers.md#541-single-writer-authority), [ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
+The **CASE_MANAGER** is the case's single-writer authority: it mints and updates the `VulnerabilityCase` object, records every case-scoped message in the ledger, and delivers case snapshots to participants (spec [§10.1 Single-Writer Authority](../vultron-spec/interactions.md#101-single-writer-authority), [ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
 The CASE_MANAGER acts on the Case Owner's behalf; the two roles are often held by the same actor but need not be.
 
 When the CASE_MANAGER refuses one of these messages because a precondition does not hold, it answers the sender with the [refusal notice](faults_and_acknowledgements.md#refusal-notice): a `Reject` of the refused message, with the reason in `summary` ([CLP-02-005](../specs/protocol.md#clp-02-005), [CLP-05-001](../specs/protocol.md#clp-05-001)).
@@ -36,7 +36,7 @@ The 300-level introduction is [The Case Manager and the Case Ledger](../../topic
 {% include-markdown "./_occasions/sections/create-case.md" %}
 
 - **Recipients:** the CASE_MANAGER sends the completed case to the report receiver (the Case Owner) only ([CBT-01-010](../specs/protocol.md#cbt-01-010), [CM-22-001](../specs/protocol.md#cm-22-001), [CM-22-002](../specs/protocol.md#cm-22-002)).
-  The report receiver then sends the report submitter a `Create(VulnerabilityCase)` as itself, which names the CASE_MANAGER and is the trust bootstrap (spec [§4.5 Trust and Bootstrap Semantics](../vultron-spec/layers.md#45-trust-and-bootstrap-semantics); [CBT-01-001](../specs/protocol.md#cbt-01-001), [ADR-0132](../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
+  The report receiver then sends the report submitter a `Create(VulnerabilityCase)` as itself, which names the CASE_MANAGER and is the trust bootstrap (spec [§10.3 Case Bootstrap and the Trust Root](../vultron-spec/interactions.md#103-case-bootstrap-and-the-trust-root); [CBT-01-001](../specs/protocol.md#cbt-01-001), [ADR-0132](../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
 - **Who is named where:** the `actor` of the `Create` is the CASE_MANAGER that mints the case, and the case's `attributedTo` is the Case Owner ([CP-09-001](../specs/protocol.md#cp-09-001), [CM-02-008](../specs/protocol.md#cm-02-008)).
   The two coincide when the Case Owner creates its own case, as in the example above.
   When a case-actor service creates the case from a [Case Proposal](case_proposal.md), the service is the `actor` and `attributedTo` names the proposing actor, never the service itself.
@@ -62,7 +62,7 @@ The 300-level introduction is [The Case Manager and the Case Ledger](../../topic
   A refused offer is not recorded and not forwarded.
   The CASE_MANAGER answers an offer refused for its role or target with the refusal notice, and an offer from any other sender with nothing.
 - **Object type:** the object type alone identifies the activity as a role offer rather than an ownership-transfer offer (ADR-0039).
-  Roles are granted through the case's authority chain ([§11.1 Role Assignment](../vultron-spec/interactions.md#111-role-assignment-n)).
+  Roles are granted through the case's authority chain ([§12.1 Role Assignment](../vultron-spec/interactions.md#121-role-assignment-n)).
 - **Target:** the participant offered the role; the `context` is the case.
 - **Forward example:** [forward_case_participant_role.json](../examples/forward_case_participant_role.json).
 - **Triggering transition:** none — roster action, not a state-machine event.
@@ -94,7 +94,7 @@ This offer is distinct from `Offer(CaseParticipant)`, which forwards an actor re
 - **Triggering transition:** none — roster action.
 - **Example artifact:** [reject_case_participant_role.json](../examples/reject_case_participant_role.json).
 
-The dedicated object type is preferred over a `target`-field discriminator ([SE-08-003](../specs/protocol.md#se-08-003)), and the earlier wire format `Offer(VulnerabilityCase, target=CaseParticipant)` for offering a role has been removed.
+The dedicated object type is preferred over a `target`-field discriminator ([SE-08-003](../specs/protocol.md#se-08-003)), and the earlier wire format `Offer(VulnerabilityCase)[target=CaseParticipant]` for offering a role has been removed.
 
 {% include-markdown "./_occasions/sections/propose-case-ownership-transfer.md" %}
 
@@ -102,14 +102,14 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   The CASE_MANAGER admits it only from the Case Owner, and only while no offer for the case is open ([CM-21-019](../specs/protocol.md#cm-21-019), [CM-21-014](../specs/protocol.md#cm-21-014)).
   It refuses a proposal whose inner offer names another case, or no actor it can address, and ignores any `id`, `actor` or `to` inside the inner offer.
 - **Context:** the case the proposal is about; the inner offer's object must be that case.
-- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`, which returns the proposal ([TRIG-11-001](../specs/protocol.md#trig-11-001), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/offer-case-ownership-transfer`, which returns the proposal ([TRIG-11-001](../specs/project.md#trig-11-001), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Effect:** the CASE_MANAGER records the proposal in the ledger and makes the offer below itself ([ADR-0148](../../adr/0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md)).
 - **Triggering transition:** none — ownership transfer is a roster operation.
 - **Example artifact:** [propose_case_ownership_transfer.json](../examples/propose_case_ownership_transfer.json).
 
 {% include-markdown "./_occasions/sections/offer-case-ownership-transfer.md" %}
 
-- **Routing:** the CASE_MANAGER makes the offer from the owner's proposal and records it in the ledger ([§11.3 Case Ownership Transfer](../vultron-spec/interactions.md#113-case-ownership-transfer-n), [CM-21-005](../specs/protocol.md#cm-21-005)).
+- **Routing:** the CASE_MANAGER makes the offer from the owner's proposal and records it in the ledger ([§12.3 Case Ownership Transfer](../vultron-spec/interactions.md#123-case-ownership-transfer-n), [CM-21-005](../specs/protocol.md#cm-21-005)).
   It is the one offer of the transfer: its `id` is one the CASE_MANAGER derives from the proposal, and the proposed new owner answers it by that `id`.
   A participant takes it only from the CASE_MANAGER ([CM-21-019](../specs/protocol.md#cm-21-019)).
 - **Target:** the proposed new owner, as a full actor object.
@@ -126,7 +126,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 - **Routing:** the `Reject` is addressed to the CASE_MANAGER, not to the actor that made the offer ([CM-21-010](../specs/protocol.md#cm-21-010)).
   The CASE_MANAGER acts on it only when it comes from the proposed owner of an open offer it recorded ([CM-21-013](../specs/protocol.md#cm-21-013)).
   It records the `Reject` in the ledger and sends the entry to every participant, which closes the offer ([CM-21-012](../specs/protocol.md#cm-21-012)).
-- **Trigger:** the recipient sends it with `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer`, whose body names the `offer_id` it declines ([TRIG-11-005](../specs/protocol.md#trig-11-005), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Trigger:** the recipient sends it with `POST /actors/{actor_id}/trigger/reject-case-ownership-transfer`, whose body names the `offer_id` it declines ([TRIG-11-005](../specs/project.md#trig-11-005), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [reject_case_ownership_transfer.json](../examples/reject_case_ownership_transfer.json).
 
@@ -137,14 +137,14 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   It records the withdrawal in the ledger and sends the entry to every participant, which closes the offer: the proposed owner can no longer accept it, and the case may be offered again ([CM-21-014](../specs/protocol.md#cm-21-014)).
   A withdrawal from anyone else, or of an offer already answered or withdrawn, is refused with nothing recorded.
   The CASE_MANAGER answers a withdrawal of an offer already answered or withdrawn with the refusal notice, and a withdrawal from anyone else with nothing.
-- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer`, whose body names, as `offer_id`, the proposal it withdraws ([TRIG-11-006](../specs/protocol.md#trig-11-006), [Trigger API Reference](../trigger-api.md#actor-participation)).
+- **Trigger:** the Case Owner sends it with `POST /actors/{actor_id}/trigger/withdraw-case-ownership-transfer`, whose body names, as `offer_id`, the proposal it withdraws ([TRIG-11-006](../specs/project.md#trig-11-006), [Trigger API Reference](../trigger-api.md#actor-participation)).
 - **Triggering transition:** none — roster operation.
 - **Example artifact:** [undo_case_ownership_transfer.json](../examples/undo_case_ownership_transfer.json).
 
 {% include-markdown "./_occasions/sections/invite-actor-to-case.md" %}
 
 - **Who decides:** the Case Owner decides whom to invite; a participant that wants a third party brought in sends a recommendation instead ([Suggest actor to case](general.md#suggest-actor-to-case)).
-  See [§11.2 Invitation and Acceptance](../vultron-spec/interactions.md#112-invitation-and-acceptance-n).
+  See [§12.2 Invitation and Acceptance](../vultron-spec/interactions.md#122-invitation-and-acceptance-n).
 - **Triggering transition:** none — roster action.
 - **Object and target:** the `object` is the actor being invited, and the `target` is the case stub, of type `VulnerabilityCaseStub`.
   The stub carries the case identifier in its `caseId` and a required `summary` field: the owner-chosen description the invitee reads before deciding whether to accept ([CM-11-013](../specs/protocol.md#cm-11-013), [CM-17-010](../specs/protocol.md#cm-17-010), [MV-10-001](../specs/protocol.md#mv-10-001)).
@@ -238,7 +238,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   A participant that is not a signatory to the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and the catch-up waits until it accepts.
 - **Notice:** the CASE_MANAGER also sends the reinstated participant a direct `Add(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
   The notice is not ledgered.
-- **Spec:** [Participant Removal](../vultron-spec/interactions.md#114-participant-removal-n).
+- **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
 
 The example above shows a Vendor that holds the Case Owner role reinstating a Coordinator.
 The wire shape is the same whatever roles the participant holds; only `caseRoles` on the attached object differs.
@@ -257,13 +257,13 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
   Every replica applies the removal from that entry, the removed participant's own included.
 - **Notice:** the CASE_MANAGER then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner.
   The notice is not ledgered.
-- **Spec:** [Participant Removal](../vultron-spec/interactions.md#114-participant-removal-n).
+- **Spec:** [Participant Removal](../vultron-spec/interactions.md#124-participant-removal-n).
 - **Example artifact:** [remove_participant_from_case.json](../examples/remove_participant_from_case.json).
 
 {% include-markdown "./_occasions/sections/update-case-owner.md" %}
 
 - **Protocol role:** every change the CASE_MANAGER makes to the case file is its own ledger entry ([CLP-07-013](../specs/protocol.md#clp-07-013)), and an `Update` carrying the case in full is the shape such an entry takes for a change to a case field.
-  The prototype commits one such entry, `update_case_owner`, when an ownership transfer changes the case owner ([CM-21-002](../specs/protocol.md#cm-21-002)), and replicas copy it from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
+  The prototype commits one such entry, `update_case_owner`, when an ownership transfer changes the case owner ([CM-21-002](../specs/protocol.md#cm-21-002)), and replicas copy it from the ledger fan-out ([§10.2 Routing Topology](../vultron-spec/interactions.md#102-routing-topology)).
   A participant that wants a change made asks the CASE_MANAGER; it does not send `Update` to the CASE_MANAGER or to its peers.
 - **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing.
 - **Triggering transition:** none — metadata change, not a state transition.
@@ -272,7 +272,7 @@ The wire shape is the same whatever roles the participant holds; only `caseRoles
 
 - **Protocol role:** a participant record comes into existence only as the CASE_MANAGER's consequence of an act it records ([ADR-0137](../../adr/0137-case-records-are-attached-by-one-message-never-created-first.md), VAM-01-011).
   The CASE_MANAGER creates the invitee's participant record when it sends a stub Invite, and commits that creation as its own entry, carrying the record in full ([CLP-07-013](../specs/protocol.md#clp-07-013)).
-  Replicas copy the record from the ledger fan-out ([§5.4.2 Routing Topology](../vultron-spec/layers.md#542-routing-topology)).
+  Replicas copy the record from the ledger fan-out ([§10.2 Routing Topology](../vultron-spec/interactions.md#102-routing-topology)).
   An actor joins a case by accepting its stub Invite (see [Accept Invite to Case](#accept-invite-to-case)).
 - **On receipt:** the activity is recognized, but no use case handles it, so an inbox reports "no use case found" and changes nothing (VAM-01-010).
 - **Triggering transition:** none — object construction.

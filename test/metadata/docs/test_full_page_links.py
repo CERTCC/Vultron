@@ -68,9 +68,9 @@ class TestRewriteSectionLinks:
         )
 
     def test_link_title_is_kept(self):
-        md = '[x](layers.md#41-report-management-messages "RM messages")'
+        md = '[x](layers.md#45-report-management-messages "RM messages")'
         assert rewrite_section_links(md) == (
-            '[x](#41-report-management-messages "RM messages")'
+            '[x](#45-report-management-messages "RM messages")'
         )
 
     @pytest.mark.parametrize(

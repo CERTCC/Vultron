@@ -140,7 +140,7 @@ These concepts describe what a Vultron implementation or component can do.
 It is a property of *software*, distinct from a role, which is a position an actor holds in a case.
 A capability is one specific thing a system can do within the Vultron protocol.
 
-The capability sets are defined normatively in [§12.2 Capability Sets in the Vultron Protocol Specification](vultron-spec/conformance.md#122-capability-sets).
+The capability sets are defined normatively in [§13.2 Capability Sets in the Vultron Protocol Specification](vultron-spec/conformance.md#132-capability-sets).
 This page names them and says how they relate to the other concepts; it does not restate their obligations.
 
 | Capability set | What it covers | Normative definition |
@@ -149,7 +149,7 @@ This page names them and says how they relate to the other concepts; it does not
 | **Case Decision** | The Case Owner's governance obligations, separable from hosting a case. | [Case Decision capability set](vultron-spec/conformance.md#case-decision-capability-set) |
 | **Case Hosting** | The Case Manager's infrastructure obligations, separable from deciding for a case: host the actor enacting the CASE_MANAGER role and run the canonical ledger. | [Case Hosting capability set](vultron-spec/conformance.md#case-hosting-capability-set) |
 
-Which transitions a Participant may drive on top of the Case Observer floor depends on the roles it holds; [§12.4 Role-Specific Normative Requirements](vultron-spec/conformance.md#124-role-specific-normative-requirements) states those role-specific requirements.
+Which transitions a Participant may drive on top of the Case Observer floor depends on the roles it holds; [§13.4 Role-Specific Normative Requirements](vultron-spec/conformance.md#134-role-specific-normative-requirements) states those role-specific requirements.
 Common combinations of capability sets and roles have names — Hosting Coordinator, Self-coordinating Vendor, Bug Bounty Platform — listed under [Named configurations](vultron-spec/conformance.md#named-configurations) in the specification.
 
 #### Optional domain capability sets
@@ -229,11 +229,11 @@ A capability shape defines the contract. A concrete implementation that satisfie
 Roles are not properties of systems. They are assignments within a case.
 
 **Two categories of roles.**
-Both are defined in [§2.2 Roles in the Vultron Protocol Specification](vultron-spec/introduction.md#22-roles) and developed in [§12.3 Role Taxonomy](vultron-spec/conformance.md#123-role-taxonomy); this page names them and does not restate the definitions.
+Both are defined in [§2.2 Roles in the Vultron Protocol Specification](vultron-spec/introduction.md#22-roles) and developed in [§13.3 Role Taxonomy](vultron-spec/conformance.md#133-role-taxonomy); this page names them and does not restate the definitions.
 
-**Process roles** — Reporter, Vendor, Deployer, Coordinator, CVE Numbering Authority (CNA), and Observer — define what an actor does within a case and which protocol transitions it is authorized to drive ([§12.3.1 Process Roles](vultron-spec/conformance.md#1231-process-roles), [§12.4 Role-Specific Normative Requirements](vultron-spec/conformance.md#124-role-specific-normative-requirements)).
+**Process roles** — Reporter, Vendor, Deployer, Coordinator, CVE Numbering Authority (CNA), and Observer — define what an actor does within a case and which protocol transitions it is authorized to drive ([§13.3.1 Process Roles](vultron-spec/conformance.md#1331-process-roles), [§13.4 Role-Specific Normative Requirements](vultron-spec/conformance.md#134-role-specific-normative-requirements)).
 
-**Protocol authority roles** — Case Owner and Case Manager — define what an actor controls in the protocol machinery ([§12.3.2 Protocol Coordination Roles (protocol authority)](vultron-spec/conformance.md#1232-protocol-coordination-roles-protocol-authority)).
+**Protocol authority roles** — Case Owner and Case Manager — define what an actor controls in the protocol machinery ([§13.3.2 Protocol Coordination Roles (protocol authority)](vultron-spec/conformance.md#1332-protocol-coordination-roles-protocol-authority)).
 The Case Manager is the Participant that writes the canonical case ledger and relays case-scoped messages on the Case Owner's behalf; it is the case's single-writer authority.
 That authority follows the role, never the name, Uniform Resource Identifier (URI), or hosting location of the actor that holds it (ADR-0088).
 

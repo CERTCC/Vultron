@@ -90,6 +90,7 @@ from pathlib import Path
 
 import yaml
 
+from vultron.enums.object_types import VultronObjectType as VOtype
 from vultron.metadata.base import mkdocs_config, repo_root, unbuilt_docs_spec
 from vultron.metadata.docs.page_frontmatter import include_directives
 from vultron.metadata.file_loading import (
@@ -121,6 +122,7 @@ from vultron.semantic_registry._occasion import (
     MessagePage,
     ProtocolShorthand,
 )
+from vultron.wire.as2.enums import as_ObjectType as AOtype
 from vultron.wire.as2.extractor._pattern import ActivityPattern
 
 #: Command that regenerates every artifact, quoted in every failure message.
@@ -188,13 +190,33 @@ TABLE_GROUPS: tuple[TableGroup, ...] = (
 # ---------------------------------------------------------------------------
 
 
+#: Object types a pattern matches on that the sender emits under another
+#: ``type``.  The embargo patterns match AS2 ``Event``, and the matcher accepts
+#: a plain ``as:Event`` as an embargo, which is a defect: the sender always
+#: emits ``EmbargoEvent``, receivers must accept only that, and Wire Activity
+#: notation writes the type the sender puts on the wire (Annex C).  This is a
+#: rendering override only.  #5155 owns fixing the patterns and the matcher,
+#: after which this table should become empty.
+_EMITTED_TYPE: Mapping[str, str] = {
+    str(AOtype.EVENT): str(VOtype.EMBARGO_EVENT),
+}
+
+
+def emitted_type(type_name: object) -> str:
+    """Return the ``type`` a sender emits for the pattern type *type_name*."""
+    name = str(type_name)
+    return _EMITTED_TYPE.get(name, name)
+
+
 def format_pattern(pattern: ActivityPattern) -> str:
     """Render *pattern* as a compact wire-form string.
+
+    Object types are rendered as the sender emits them (:data:`_EMITTED_TYPE`).
 
     Examples::
 
         Offer(VulnerabilityReport)
-        Accept(Invite(Event)[context=VulnerabilityCase])
+        Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])
         Add(CaseStatus)[target=VulnerabilityCase]
     """
     parts: list[str] = []
@@ -202,19 +224,19 @@ def format_pattern(pattern: ActivityPattern) -> str:
         if isinstance(pattern.object_, ActivityPattern):
             parts.append(f"({format_pattern(pattern.object_)})")
         else:
-            parts.append(f"({pattern.object_})")
+            parts.append(f"({emitted_type(pattern.object_)})")
 
     qualifiers: list[str] = []
     if pattern.target_ is not None:
         if isinstance(pattern.target_, ActivityPattern):
             qualifiers.append(f"target={format_pattern(pattern.target_)}")
         else:
-            qualifiers.append(f"target={pattern.target_}")
+            qualifiers.append(f"target={emitted_type(pattern.target_)}")
     if pattern.context_ is not None:
         if isinstance(pattern.context_, ActivityPattern):
             qualifiers.append(f"context={format_pattern(pattern.context_)}")
         else:
-            qualifiers.append(f"context={pattern.context_}")
+            qualifiers.append(f"context={emitted_type(pattern.context_)}")
 
     qualifier_str = "[" + ", ".join(qualifiers) + "]" if qualifiers else ""
     return f"{pattern.activity_}" + "".join(parts) + qualifier_str
@@ -812,6 +834,7 @@ __all__ = [
     "drift",
     "dump_table",
     "embedding_pages",
+    "emitted_type",
     "format_pattern",
     "formal_link",
     "main",

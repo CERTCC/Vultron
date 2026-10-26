@@ -22,7 +22,7 @@ each other; it is one of separate systems needing to stay consistent about a
 shared case. That is the problem Vultron addresses.
 
 Email carries the content of a CVD case but records none of its state. No
-participant can see which vendors have read the report, which have agreed to an
+participant can see which vendors have received the report, which have agreed to an
 embargo, or in what order events occurred. Adding a party mid-case means
 re-sending the history by hand, and nothing detects the gap if that fails. Vultron
 gives each of these an explicit, machine-checkable representation: report status
@@ -30,7 +30,7 @@ per participant ([§6 Report Management (RM) State Machine](tracking-models.md#6
 agreement per participant
 ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)), and an ordered
 case ledger that every participant replicates
-([§5.4 Addressing and Channels](layers.md#54-addressing-and-channels)).
+([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)).
 
 Embargo timing is worth noting early. In practice the first two parties to a case
 establish the initial embargo, and it carries forward as further participants join
@@ -70,7 +70,7 @@ assembled from the messages it has received. A participant is the authority on i
 own report and fix status. What the case as a whole asserts — its embargo state
 and what is publicly known — has a single writer, the participant holding the
 Case Manager role, so that concurrent claims resolve to one answer
-([§5.4.1 Single-Writer Authority](layers.md#541-single-writer-authority)).
+([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
 **Coordination is scoped to a case, not to a system.** The Case Manager role is
 held per case, and different cases may be managed by different actors. The
@@ -82,7 +82,7 @@ require, within a case, that shared state have one writer.
 
     Vultron does **not** require a single central authority holding all cases. Any
     actor able to satisfy the Case Manager role can manage a case, and the role is
-    transferable ([§11.3 Case Ownership Transfer](interactions.md#113-case-ownership-transfer-n)).
+    transferable ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)).
 
     Equally, Vultron as it stands is **not** a fully decentralized design. Within
     a case there is one writer, and its availability bounds how fast the case can
@@ -91,7 +91,7 @@ require, within a case, that shared state have one writer.
 
     The protocol leaves more distributed realizations open — a shared ledger
     among peers, for instance — and this version does not specify one
-    ([§5.4.2 Routing Topology](layers.md#542-routing-topology)).
+    ([§10.2 Routing Topology](interactions.md#102-routing-topology)).
 
 **Asynchronous, message-driven coordination.** Participants announce their own
 transitions rather than being polled, and no exchange requires two parties to be

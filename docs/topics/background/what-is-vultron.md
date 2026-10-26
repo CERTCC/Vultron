@@ -128,7 +128,7 @@ You implement Vultron once, and you can coordinate with every other Vultron-comp
 
 ## What conformance means for your system
 
-A conformance claim names the **capability sets** an implementation provides and the **roles** it takes on, written `CapabilitySet / Role` ([§12.1 Conformance Model Overview](../../reference/vultron-spec/conformance.md#121-conformance-model-overview)).
+A conformance claim names the **capability sets** an implementation provides and the **roles** it takes on, written `CapabilitySet / Role` ([§13.1 Conformance Model Overview](../../reference/vultron-spec/conformance.md#131-conformance-model-overview)).
 Examples are `Case Observer / Vendor` and `Case Observer + Case Decision + Case Hosting / Coordinator + Case Owner`.
 
 | Capability set | What it adds |
@@ -137,9 +137,9 @@ Examples are `Case Observer / Vendor` and `Case Observer + Case Decision + Case 
 | **Case Decision** | Governing a case as its owner: adopting its own status updates without approval, driving shared embargo transitions, and transferring ownership |
 | **Case Hosting** | Running a case for others: holding the canonical case ledger, replicating it to Participants, and managing who participates |
 
-The normative definitions are in [§12.2 Capability Sets](../../reference/vultron-spec/conformance.md#122-capability-sets).
+The normative definitions are in [§13.2 Capability Sets](../../reference/vultron-spec/conformance.md#132-capability-sets).
 
-Conformance *tests* are organized in four layers, and the layers are a separate question from the capability sets ([§12.5 Conformance Testing Approach](../../reference/vultron-spec/conformance.md#125-conformance-testing-approach)).
+Conformance *tests* are organized in four layers, and the layers are a separate question from the capability sets ([§13.5 Conformance Testing Approach](../../reference/vultron-spec/conformance.md#135-conformance-testing-approach)).
 A capability set says what your software provides; a layer says what a test checks.
 
 | Layer | What a test checks |

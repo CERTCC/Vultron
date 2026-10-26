@@ -1,4 +1,4 @@
-## 13. IANA and Namespace Considerations [I]
+## 14. IANA and Namespace Considerations [I]
 
 **Vultron vocabulary namespace.** The Vultron ActivityStreams 2.0 (AS2) vocabulary namespace is
 `https://certcc.github.io/Vultron/ns`. This is the initial, provisional Uniform Resource Identifier (URI),
@@ -8,7 +8,7 @@ See ADR-0069.
 
 **JSON-LD context document.** The normative JavaScript Object Notation for Linked Data (JSON-LD) context is identified by
 `https://certcc.github.io/Vultron/ns/context.jsonld`. Implementations MUST
-use this URI as the `@context` value for all outbound Vultron messages ([§5.5 Serialization](layers.md#55-serialization)).
+use this URI as the `@context` value for all outbound Vultron messages ([§5.2 Serialization](layers.md#52-serialization)).
 
 That URI does not currently dereference.
 The context document is withheld from publication until it is served at the wire-versioned path that ADR-0106 defines.

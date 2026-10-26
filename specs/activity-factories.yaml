@@ -33,7 +33,7 @@ groups:
       domain parameters (not generic dicts or `Any`) for all protocol-significant fields.
   - id: AF-01-004
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Factory functions SHOULD accept `**kwargs` for optional AS2 fields that are not protocol-significant, forwarding
       them to the underlying AS2 constructor
   - id: AF-01-005
@@ -133,7 +133,7 @@ groups:
       internal Vultron subclass and returns it annotated as the plain AS2 base type (e.g., `as_Offer`, `as_Accept`).
   - id: AF-05-003
     priority: SHOULD
-    kind: protocol
+    kind: project
     statement: Internal Vultron activity classes SHOULD be prefixed with `_` or otherwise marked as private once factory functions
       exist for them, to signal that they are implementation details
 - id: AF-06

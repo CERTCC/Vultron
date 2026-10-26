@@ -97,9 +97,9 @@ def test_number_plus_name_passes(tmp_path: Path, text: str) -> None:
 
 
 def test_cited_number_must_match_its_anchor(tmp_path: Path) -> None:
-    target = "../reference/vultron-spec/layers.md#47-knowledge-model"
+    target = "../reference/vultron-spec/layers.md#42-knowledge-model"
     assert _faults_for(tmp_path, "§4.8 Knowledge Model", target) == [
-        "cites §4.8 but links #47-knowledge-model"
+        "cites §4.8 but links #42-knowledge-model"
     ]
 
 
@@ -107,14 +107,14 @@ def test_cited_number_must_match_its_anchor(tmp_path: Path) -> None:
     ("text", "anchor", "reason"),
     [
         (
-            "§1.2 Foo",
-            "12-conformance-n",
-            "cites §1.2 but links #12-conformance-n",
+            "§1.3 Foo",
+            "13-conformance-n",
+            "cites §1.3 but links #13-conformance-n",
         ),
         (
             "Section 4.8 Knowledge Model",
-            "47-knowledge-model",
-            "cites §4.8 but links #47-knowledge-model",
+            "42-knowledge-model",
+            "cites §4.8 but links #42-knowledge-model",
         ),
         (
             "Annex G Capability Shapes",
@@ -138,11 +138,12 @@ def test_cited_section_must_be_the_anchored_one(
 @pytest.mark.parametrize(
     ("text", "anchor"),
     [
-        ("§12 Conformance", "12-conformance-n"),
-        ("§14 Security Considerations", "14-security-considerations-ni"),
+        ("§13 Conformance", "13-conformance-n"),
+        ("§15 Security Considerations", "15-security-considerations-ni"),
+        ("§4 Messages", "4-messages-n"),
         (
-            "§4 Semantic Layer — Message Meanings",
-            "4-semantic-layer-message-meanings-n",
+            "§8.1 VFD — Vendor Aware, Fix Ready, Fix Deployed",
+            "81-vfd-vendor-aware-fix-ready-fix-deployed",
         ),
         (
             "§9.4 Deadlines and the Pocket Veto in the Vultron Protocol "
@@ -168,7 +169,7 @@ def test_unnumbered_anchor_is_not_compared(tmp_path: Path) -> None:
         "../reference/vultron-spec/conformance.md#case-observer-capability-set"
     )
     assert (
-        _faults_for(tmp_path, "§12.2 Case Observer capability set", target)
+        _faults_for(tmp_path, "§13.2 Case Observer capability set", target)
         == []
     )
 

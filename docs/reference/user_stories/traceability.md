@@ -1005,7 +1005,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Every protocol-significant action in Vultron MUST be triggered by an event — decentralized control flow.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[EDF-03-001](../specs/protocol.md#edf-03-001)</td>
+<td markdown="span">[EDF-03-001](../specs/project.md#edf-03-001)</td>
 <td markdown="span">All cascade steps that do not require external input MUST be implemented as BT subtrees — automation within the actor.</td>
 </tr>
 <tr markdown="1">
@@ -1828,7 +1828,7 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Trigger processing MUST NOT block the HTTP response — operator-driven prioritization remains async.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[TRIG-05-001](../specs/protocol.md#trig-05-001)</td>
+<td markdown="span">[TRIG-05-001](../specs/project.md#trig-05-001)</td>
 <td markdown="span">Trigger endpoints SHOULD reuse existing BT trees rather than duplicating behavior logic — trigger wiring for prioritization.</td>
 </tr>
 <tr markdown="1">

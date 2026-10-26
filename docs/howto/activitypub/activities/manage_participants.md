@@ -157,7 +157,7 @@ The removed participant receives no later ledger entries, and no Invite of any k
 The CASE_MANAGER also refuses a recommendation that names the removed participant, and your acceptance of an earlier one; reinstate the participant instead.
 A removed signatory stays bound by the embargo it accepted.
 When that embargo is terminated, or replaced by a revision that ends no later, the CASE_MANAGER sends the removed participant the change directly, outside the ledger (see [Embargo Termination (ET)](../../../reference/messages/em.md#embargo-termination)).
-See [Participant Removal](../../../reference/vultron-spec/interactions.md#114-participant-removal-n).
+See [Participant Removal](../../../reference/vultron-spec/interactions.md#124-participant-removal-n).
 
 Removal is not a closure — a participant that has finished its own work closes with `Leave(VulnerabilityCase)` instead.
 See [How to Advance a Case Through Report Management](manage_case.md).
