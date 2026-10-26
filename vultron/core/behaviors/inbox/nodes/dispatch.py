@@ -86,7 +86,7 @@ class DispatchNode(_InboxNodeWithPorts):
     (IO-01-005). A dispatch that returns anything but a
     ``HandlerResult`` is rejected — no verdict is not a success.  A dispatch
     that raises is rejected too, and its sender is answered with an
-    internal-error ``Create(ProcessingFault)`` (ASK-07-010).
+    internal-error ``Create(ProcessingFault)`` (ASK-07-010, ASK-07-011).
 
     After a bootstrap the handler accepted (``processed``), triggers replay
     of any activities that were deferred pending this case's local replica.

@@ -22,7 +22,7 @@ and StatusAdoptionGate authorization (ADR-0046, RSH-01-001 to RSH-01-004):
   2. AppendParticipantStatusNode               — status appended, RM regression rejected
   StatusAdoptionGate: SenderIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
   StatusAdoptionGate: StatusAdoptionGate                   — Fallback: bypass or call-out (RSH-01-002)
-  StatusAdoptionGate: EmitCaseStatusUpdateNode             — direct ledger write (RSH-01-003, RSH-04-004)
+  StatusAdoptionGate: EmitCaseStatusUpdateNode             — direct ledger write (RSH-01-003, RSH-04-006)
 
 AutoCloseSequence was removed per ADR-0050: canonical RM closure is routed
 through the Leave(VulnerabilityCase) receive path in receive_close_case_tree.
@@ -945,7 +945,7 @@ class TestAddParticipantStatusTree:
         status_ids = [getattr(s, "id_", s) for s in p.participant_statuses]
         assert STATUS_ID in status_ids
 
-        # RSH-01-003, RSH-04-004: EmitCaseStatusUpdateNode appends a new
+        # RSH-01-003, RSH-04-006: EmitCaseStatusUpdateNode appends a new
         # CaseStatus directly to the case (no inbox routing).
         case_after = populated_dl.read(CASE_ID)
         assert isinstance(case_after, CoreCase)
@@ -1198,7 +1198,7 @@ class TestAddParticipantStatusTree:
         make_payload,
     ):
         """EmitCaseStatusUpdateNode and StatusAdoptionGate must be present
-        in the tree (RSH-01-001, RSH-04-004)."""
+        in the tree (RSH-01-001, RSH-04-006)."""
         activity = add_status_to_participant_activity(
             status=as_ParticipantStatus(id_=STATUS_ID, context=CASE_ID),
             target=as_CaseParticipant(
@@ -1227,13 +1227,13 @@ class TestAddParticipantStatusTree:
         node_types = [type(n).__name__ for n in all_nodes]
 
         assert "EmitCaseStatusUpdate" in node_names, (
-            "EmitCaseStatusUpdateNode must be present (RSH-01-001, RSH-04-004)"
+            "EmitCaseStatusUpdateNode must be present (RSH-01-001, RSH-04-006)"
         )
         assert EmitCaseStatusUpdateNode.__name__ in node_types, (
-            "EmitCaseStatusUpdateNode type must appear in tree (RSH-04-004)"
+            "EmitCaseStatusUpdateNode type must appear in tree (RSH-04-006)"
         )
         assert "EmitAddCaseStatusToSelf" not in node_names, (
-            "EmitAddCaseStatusToSelfNode must NOT be in tree (replaced by RSH-04-004)"
+            "EmitAddCaseStatusToSelfNode must NOT be in tree (replaced by RSH-04-006)"
         )
         assert "StatusAdoptionGate" in node_names, (
             "StatusAdoptionGate must be present (RSH-01-001)"
@@ -1901,6 +1901,7 @@ class TestAddParticipantStatusTeardownWiring:
 
     @pytest.mark.spec("RSH-03-001")
     @pytest.mark.spec("RSH-04-004")
+    @pytest.mark.spec("RSH-04-006")
     def test_teardown_after_emit_node(self, make_payload):
         """ThreatTerminationBranchNode must follow EmitCaseStatusUpdateNode in traversal order."""
         activity = add_status_to_participant_activity(
@@ -1935,6 +1936,7 @@ class TestAddParticipantStatusTeardownWiring:
         )
 
     @pytest.mark.spec("RSH-04-004")
+    @pytest.mark.spec("RSH-04-006")
     def test_teardown_wrapped_in_failure_is_success(self, make_payload):
         """TeardownEffectsOrSkip must be a FailureIsSuccess decorator."""
         activity = add_status_to_participant_activity(

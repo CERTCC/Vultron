@@ -13,7 +13,7 @@
 """Factories for the full-case Invite and its replies (VAM-04-011..014, AF-02-003).
 
 The ledger position travels in ``content`` as the ``LedgerPosition`` model's
-own JSON dump, and only the factories produce that string.
+own JSON dump, and only the factories produce that string (VAM-04-019).
 """
 
 import json
