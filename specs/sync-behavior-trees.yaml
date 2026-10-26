@@ -52,11 +52,13 @@ groups:
         kind: project
         verification_debt: '#2574'
         statement: >-
-          Sync BTs MUST be organized as three separate trees, each
-          corresponding to a single message-type use case: (1)
-          AnnounceLogEntryReceivedBT, (2) RejectLogEntryReceivedBT, (3)
-          CommitLogEntryBT. This preserves the one-message-type-per-use-case
-          pattern.
+          Sync BTs MUST be organized as separate trees, each corresponding
+          to a single message-type use case: (1) AnnounceLogEntryReceivedBT,
+          (2) RejectLogEntryReceivedBT, (3) CommitLogEntryBT, (4)
+          ReadLogEntryReceivedBT, the CASE_MANAGER's answer to a position
+          statement (SYNC-17-002), and (5) the participant's
+          StateLedgerPositions tree that sends one (SYNC-17-007). This
+          preserves the one-message-type-per-use-case pattern.
 
       - id: SBT-01-003
         priority: MUST

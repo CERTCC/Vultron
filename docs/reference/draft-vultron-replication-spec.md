@@ -306,6 +306,22 @@ A `Reject` that names no entry but carries a hash is refused when it arrives.
 
 A divergence fault for an entry the last re-seed already reflected means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
 
+### 5.6 Position Statements
+
+The reject-and-replay loop repairs a lost entry only when a later entry arrives with a gap.
+When the last `Announce(CaseLedgerEntry)` before a quiet period is lost, no later entry arrives, so the participant sends no `Reject` and stays behind.
+A participant closes that gap by stating its position.
+
+- A participant MAY send the case's CASE_MANAGER `Read(CaseLedgerEntry)` whose `object` is the last canonical entry it has applied, by reference. A participant that has applied no entry sends none. (SYNC-17-001)
+- The CASE_MANAGER MUST act on a stated position only when the sender is an active participant; from any other sender it MUST record no replication state, send nothing and report `REFUSED`. (SYNC-17-002)
+- When it acts on a position that names an entry in its ledger, it MUST record that entry's hash as the sender's acknowledged position. (SYNC-17-003)
+- When that position is behind its ledger tail, it MUST send the sender every entry after it, in log order, as `Announce(CaseLedgerEntry)`, under the replay rate bound of §5.4 and the outbox de-duplication; at the tail it MUST send nothing. (SYNC-17-004)
+- A position naming an entry its ledger does not hold, or an index at which its entry has a different hash, MUST be logged at WARNING, with no replication state recorded and nothing sent. (SYNC-17-005)
+- The CASE_MANAGER MUST NOT commit a ledger entry for a `Read(CaseLedgerEntry)` or its answer. (SYNC-17-006)
+
+[I] In this implementation, the `Read` names the case as its `context` and carries the named entry's position as its `ledgerPosition`, with `logIndex` and `entryHash` members.
+The reference participant sends one for each case it holds after every restart, and on a configurable interval that is off by default (§10). (SYNC-17-007)
+
 ---
 
 ## 6. Ordering Guarantees and Out-of-Order Delivery [N]
@@ -475,6 +491,9 @@ delivery adapter with a documented default value. The default MUST be set high
 enough to tolerate a recipient that is briefly busy under normal protocol load.
 A value of 5 seconds or less is insufficient under multi-actor load. (SYNC-05-004)
 
+[I] In this implementation, a participant states its ledger position (§5.6) after every restart, and also every `ledger.position_statement_interval_seconds` when that is set.
+The interval defaults to off (`None`), because a periodic check costs traffic a deployment should choose. (SYNC-17-007)
+
 ---
 
 ## 11. Participant-Local Pending Assertion Suppression [N/I]
@@ -596,6 +615,13 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-16-006 | §5.5 | Participant MUST NOT replace its case with a stale or conflicting copy |
 | SYNC-16-007 | §5.5 | After replacement, participant MUST backfill to the copy's position |
 | SYNC-16-008 | §5.5 | CASE_MANAGER SHOULD log divergence after a re-seed as an error |
+| SYNC-17-001 | §5.6 | Participant MAY state its position with `Read(CaseLedgerEntry)` |
+| SYNC-17-002 | §5.6 | CASE_MANAGER MUST act on a stated position only from an active participant |
+| SYNC-17-003 | §5.6 | CASE_MANAGER MUST record a stated position as the acknowledged position |
+| SYNC-17-004 | §5.6 | CASE_MANAGER MUST replay the entries after a lagging position, rate-bounded |
+| SYNC-17-005 | §5.6 | A position the ledger does not hold MUST be logged and answered with nothing |
+| SYNC-17-006 | §5.6 | A `Read(CaseLedgerEntry)` and its answer MUST NOT be ledgered |
+| SYNC-17-007 | §5.6, §10 | Reference participant SHOULD state positions after restart and on an optional interval |
 
 ---
 

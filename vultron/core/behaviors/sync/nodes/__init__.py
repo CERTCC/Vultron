@@ -26,7 +26,9 @@ Submodules:
 - ``replay_held``: Replay the held Announce of a ledger successor (SYNC-14-009)
 - ``chain``: Chain reconstruction and log entry creation action nodes
 - ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
-- ``replay``: Reject-driven replay action nodes for replication
+- ``replay``: Reject- and Read-driven replay action nodes for replication
+- ``position_statement``: the ``Read(CaseLedgerEntry)`` position check and
+  the participant's position statements (SYNC-17)
 - ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-002)
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
 - ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)
@@ -137,6 +139,10 @@ from vultron.core.behaviors.sync.nodes.port_guard import (
     RequireSyncPortNode,
     RequireWireRenderPortNode,
 )
+from vultron.core.behaviors.sync.nodes.position_statement import (
+    CheckStatedPositionInLedgerNode,
+    StateLedgerPositionsNode,
+)
 from vultron.core.behaviors.sync.nodes.receive import (
     BufferOutOfOrderEntryNode,
     BufferPreGenesisEntryNode,
@@ -235,6 +241,9 @@ __all__ = [
     "UpdateReplicationStateNode",
     "CreateLogEntryNode",
     "PersistLogEntryNode",
+    # position_statement (SYNC-17)
+    "CheckStatedPositionInLedgerNode",
+    "StateLedgerPositionsNode",
     # replay
     "AnnounceCaseOnGenesisRejectNode",
     "FindCaseActorNode",

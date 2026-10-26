@@ -1,6 +1,7 @@
 """Find a page's prose uses of glossary terms and the links it makes.
 
-Support for :mod:`vultron.metadata.docs.level_order` (DF-11-002, SG-11). The
+Support for :mod:`vultron.metadata.docs.level_order` (DF-11-002, SG-11) and,
+through it, :mod:`vultron.metadata.docs.thread_order` (DF-11-024). The
 check needs two facts about each page: where a concept is first *used* in prose,
 and where the page *links* to another page. Both are read from a masked copy of
 the page in which everything that is not prose — frontmatter, fenced code,

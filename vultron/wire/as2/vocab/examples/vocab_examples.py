@@ -166,6 +166,7 @@ from vultron.wire.as2.vocab.examples.status import (
 from vultron.wire.as2.vocab.examples.sync import *  # noqa: F403
 from vultron.wire.as2.vocab.examples.sync import (
     announce_case_ledger_entry,
+    read_case_ledger_entry,
     reject_case_ledger_entry,
 )
 
@@ -409,6 +410,12 @@ def main(outdir=None):
     obj_to_file(
         _reject_case_ledger_entry,
         f"{outdir}/reject_case_ledger_entry.json",
+    )
+
+    _read_case_ledger_entry = read_case_ledger_entry()
+    obj_to_file(
+        _read_case_ledger_entry,
+        f"{outdir}/read_case_ledger_entry.json",
     )
 
     # one example per occasion (MSM-08-003, ADR-0128): each collapsed

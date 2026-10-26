@@ -8,7 +8,8 @@ description: >
   CASE_MANAGER, which makes the one Offer the transferee answers, and every step
   routes through the CASE_MANAGER so every participant receives the
   CaseLedgerEntry broadcast; what each component must preserve, including that
-  the transferee answers only the Offer it received; and the demo preconditions.
+  the transferee answers only the Offer it received and must be an active
+  participant (ADR-0148 revision 2); and the demo preconditions.
 related_specs:
   - specs/case-management.yaml
   - specs/case-ledger-processing.yaml
@@ -36,7 +37,9 @@ relevant_packages:
 # Ownership Transfer Protocol — Routing and Cascade Model
 
 Requirements: CM-21, CM-24, TRIG-11. Decision: ADR-0053, partially superseded by
-ADR-0148 (proposed). The participant-facing
+ADR-0148 (proposed), whose revision 2 narrows the transferee check to an active
+participant: the Offer carries the case inline, so only an actor entitled to
+case content may be offered it. The participant-facing
 description is `docs/topics/case_lifecycle/ownership_transfer.md`. The close paths
 without an answer (withdrawal and the binding deadline, both built) are in
 [ownership-transfer-close-paths](ownership-transfer-close-paths.md). A
@@ -68,7 +71,8 @@ CASE_MANAGER inbox receives the proposal
       sender guard: the Case Owner           ← CM-21-019
       clock decision: expire an overdue Offer ← CM-21-017
       guards: no open Offer; inner Offer names this case and a transferee
-              that is neither the CASE_MANAGER nor the proposer
+              that is neither the CASE_MANAGER nor the proposer, and is an
+              active participant (CM-21-021, ADR-0148; not built, #5189)
       1. Commits CaseLedgerEntry (propose_case_ownership_transfer).
       2. MakeOwnershipTransferOfferNode (CASE_MANAGER gate):
          Offer(VulnerabilityCase) id=ownership_offer_id(cm, case, proposal, owner),
@@ -90,6 +94,7 @@ CASE_MANAGER inbox receives Accept
   → AcceptCaseOwnershipTransferReceivedUseCase (guarded commit):
       sender: transferee of an open Offer it recorded      ← CM-21-011
               (anyone else: REFUSED, nothing written or sent)
+              and still an active participant  ← CM-21-021 (not built, #5189)
       1. Commits CaseLedgerEntry (ownership-transferred).  ← CM-21-007
       2. Announce(CaseLedgerEntry) → all participants.
       3. AcceptRecordedOwnershipOfferNode applies role changes (CM-21-001–004)
@@ -285,7 +290,9 @@ CASE_MANAGER inbox receives Reject
 - **The transferee must be known to the CASE_MANAGER**: in its address book
   (`seed_peer(client, local_actor_id=case_actor_id, ...)`) and seated on its replica
   through the stub Invite (`seat_participant_through_stub_invite`), because
-  `Add(CaseParticipant)` never seats a member (CM-31-011). The commit boundary no
+  `Add(CaseParticipant)` never seats a member (CM-31-011). While an embargo is
+  active it must also have agreed to it, since only an active participant may be
+  offered the case (CM-21-021; not built, #5189). The commit boundary no
   longer catches a transferee sent by bare id: a snapshot records `target` as sent
   (CLP-07-006), so the inline `Actor` the factory builds is what every replica
   reads.

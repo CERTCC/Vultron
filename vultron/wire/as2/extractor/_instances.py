@@ -17,6 +17,7 @@ from vultron.wire.as2.extractor._pattern import (
     ActivityPattern,
     InlineActivityObjectPattern,
     LedgerEntryRejectPattern,
+    LedgerPositionReadPattern,
 )
 
 # ---------------------------------------------------------------------------
@@ -467,6 +468,16 @@ RejectLogEntryPattern = LedgerEntryRejectPattern(
         "from genesis, naming the case as its target (SYNC-16-007)."
     ),
     activity_=TAtype.REJECT,
+    object_=VOtype.CASE_LEDGER_ENTRY,
+)
+ReadLogEntryPattern = LedgerPositionReadPattern(
+    description=(
+        "Participant states its ledger position: a Read whose object is the "
+        "last CaseLedgerEntry it has applied, by reference, whose context is "
+        "the case and whose ledgerPosition is the entry's position "
+        "(SYNC-17-001)."
+    ),
+    activity_=TAtype.READ,
     object_=VOtype.CASE_LEDGER_ENTRY,
 )
 RefusalNoticePattern = InlineActivityObjectPattern(

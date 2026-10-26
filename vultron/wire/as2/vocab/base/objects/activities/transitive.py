@@ -18,6 +18,7 @@ from pydantic import Field, field_validator, model_validator
 
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.embargo_termination import TerminationCause
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.enums import as_TransitiveActivityType as TA_type
 from vultron.wire.as2.vocab.base.base import VULTRON_PROPERTY_EXTRA
 from vultron.wire.as2.vocab.base.objects.activities.base import (
@@ -473,6 +474,20 @@ class as_Read(as_TransitiveActivity):
         default=TA_type.READ,
         validation_alias="type",
         serialization_alias="type",
+    )
+    # SYNC-17-001: a participant's ``Read(CaseLedgerEntry)`` states the
+    # position of the entry it names as the Vultron property
+    # ``ledgerPosition``, the term a case copy already uses (SYNC-16-005,
+    # ADR-0156).  Declared on the base for the reason ``as_Remove`` declares
+    # ``terminationCause``: an inbound Read is reconstructed as a bare
+    # as_Read, so without the field here the parse edge would set the
+    # position aside (MV-11-003).  ``LedgerPosition`` validates it, so a
+    # malformed position is refused at the edge.
+    ledger_position: LedgerPosition | None = Field(
+        default=None,
+        validation_alias="ledgerPosition",
+        serialization_alias="ledgerPosition",
+        json_schema_extra=VULTRON_PROPERTY_EXTRA,
     )
 
 

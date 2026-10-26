@@ -46,7 +46,7 @@ groups:
     rationale: Leaving core→wire import violations unfixed undermines the hexagonal boundary and prevents clean unit testing
       of core logic with mock adapters. See tracking issues for the current set of known violations.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: ARCH-01-001
       note: ARCH-01-001 is the general constraint; ARCH-01-004 requires that all violations be systematically remediated via
         driven ports.
@@ -60,9 +60,6 @@ groups:
     rationale: The demo layer contains simplified, non-production implementations of actors and data handling. Importing it
       in production adapters silently pulls in demo behaviour and dummy data, and couples production code to a layer with
       no stability guarantees.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-01-001
   - id: ARCH-01-006
     priority: MUST_NOT
     kind: project
@@ -76,9 +73,6 @@ groups:
       slated for retirement (see `notes/codebase-structure.md` "Module Boundary"). Coupling demo logic to the legacy simulator
       undermines the decoupling `vultron/demo/fuzzer/` was created to achieve. `cli.py` is exempt as a thin aggregator entry
       point — the single documented bridge to the bt-tree demos. Derives from ADR-0009 (hexagonal).'
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-01-001
     adr:
     - ADR-0009
 - id: ARCH-02
@@ -118,8 +112,10 @@ groups:
     kind: project
     statement: >-
       `SyncActivityPort` MUST be defined as a `typing.Protocol` in
-      `vultron/core/ports/sync_activity.py` with two fire-and-forget methods:
-      `send_reject_log_entry(entry, tail_hash, actor_id, to)` and
+      `vultron/core/ports/sync_activity.py` with fire-and-forget methods, one
+      per sync activity it builds: `send_reject_log_entry(entry, tail_hash,
+      actor_id, to)`, `send_genesis_replay_reject(case_id, copy_tail_hash,
+      actor_id, to)`, `send_read_ledger_entry(entry, actor_id, to)` and
       `send_announce_log_entry(entry, actor_id, to)`. `send_announce_log_entry`
       reports whether a row was queued (`bool`; `False` when an identical row was
       already pending, SYNC-15-012); callers MAY ignore the result, and no other
@@ -135,12 +131,14 @@ groups:
       result of `send_announce_log_entry`; `test/core/behaviors/sync/nodes/test_replay.py`
       confirms `SendMissingEntriesNode` reaches the outbox only through the port.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: ARCH-04-001
       note: SyncActivityPort is the specific driven port for sync outbound activities
     - rel_type: implements
       spec_id: ARCH-01-001
       note: Eliminates wire imports from core sync use cases
+    - rel_type: uses_definition
+      spec_id: SYNC-15-012
   - id: ARCH-04-003
     priority: MUST
     kind: project
@@ -152,9 +150,6 @@ groups:
     rationale: >-
       Concentrating the full domain → wire → persist → outbox pipeline in the
       adapter keeps wire concerns out of core and satisfies the baton-pass pattern.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-04-002
   - id: ARCH-04-004
     priority: MUST
     kind: project
@@ -164,7 +159,7 @@ groups:
       Calling only port methods enforces the hexagonal boundary and enables
       testing core logic with mock adapters.
     relationships:
-    - rel_type: refines
+    - rel_type: depends_on
       spec_id: ARCH-04-002
   - id: ARCH-04-005
     priority: MUST_NOT
@@ -179,7 +174,7 @@ groups:
       are handled exclusively by the SyncActivityAdapter.
     relationships:
     - rel_type: refines
-      spec_id: ARCH-04-002
+      spec_id: ARCH-01-001
 - id: ARCH-05
   title: Connector Plugins
   specs:
@@ -230,9 +225,9 @@ groups:
       need to downcast or call `isinstance()` to recover type information that was present on the wire. Deferring promotion
       into the core violates the hexagonal principle that adapters adapt, cores compute.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-08-001
-    - rel_type: implements
+    - rel_type: refines
       spec_id: CS-10-001
 - id: ARCH-12
   title: Core Object Hierarchy
@@ -266,6 +261,9 @@ groups:
       `test/architecture/test_hierarchy_invariants.py` asserts no `VOCABULARY` class has a
       `vultron.core` class in its MRO, and `test_as_base_stands_directly_on_base_model` in
       `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` pins `as_Base.__bases__`.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-25-004
   - id: ARCH-12-002
     priority: MUST
     kind: project
@@ -289,6 +287,11 @@ groups:
       `CoreObject.__bases__ == (CoreRecord,)`, that `CoreRecord` declares only the identity
       fields, that the retired middle-level names are absent, and that both dead-letter records
       are `CoreRecord`s without `@context` or timestamps.
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-25-004
+    - rel_type: refines
+      spec_id: ARCH-25-008
   - id: ARCH-12-003
     priority: MUST
     kind: project
@@ -333,13 +336,13 @@ groups:
       inbound peer's extension property (MV-11-004).
     relationships:
     - rel_type: depends_on
-      spec_id: ARCH-20-001
-      note: ARCH-20 keeps the port as the only renderer, so core code does not dump its own objects
-        with `by_alias=True` even though that dump is now the wire form.
-    - rel_type: depends_on
       spec_id: ARCH-23-005
       note: ARCH-23-005 supplies the round-trip cleanups (computed-field stripping, wire-name keys) without which `extra="forbid"`
         rejects the project's own serialised output.
+    - rel_type: refines
+      spec_id: ARCH-25-002
+    - rel_type: implements
+      spec_id: VM-10-001
     adr:
     - ADR-0063
     - ADR-0082
@@ -372,9 +375,6 @@ groups:
     rationale: >-
       The `VOCABULARY` registry is the wire layer's type-dispatch table; omitting a wire type
       prevents correct AS2 vocabulary lookup and object reconstruction.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-12-004
   - id: ARCH-12-009
     priority: MUST
     kind: project
@@ -385,9 +385,6 @@ groups:
     rationale: >-
       `CORE_VOCABULARY` is used by `_from_row()` in `SqliteDataLayer`; every entry must be a
       `CoreObject` subclass to guarantee correct domain-object reconstruction from stored rows.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-12-004
   - id: ARCH-12-010
     priority: MUST
     kind: project
@@ -403,9 +400,6 @@ groups:
       `CoreObject`s.  Those types need a name-keyed lookup for core-layer and persistence
       callers.  They do not need to answer a wire-branch caller's `type` lookup: a hit there
       is a coincidence of naming, not a wire counterpart.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-12-004
   - id: ARCH-12-011
     priority: MUST_NOT
     kind: project
@@ -417,9 +411,6 @@ groups:
       Contaminating either core registry with wire types would allow wire-shaped objects to be
       reconstructed via `find_in_vocabulary()`, bypassing the `CORE_VOCABULARY` primary path and
       contradicting ARCH-12-003.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-12-004
   - id: ARCH-12-006
     priority: MUST
     kind: project
@@ -483,10 +474,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-09-001
-    - rel_type: depends_on
-      spec_id: ARCH-12-001
-      note: ARCH-12-001 forbids a wire class from inheriting core; the `as_Vultron*` actor names are aliases of the core
-        classes, not subclasses of them.
+    - rel_type: refines
+      spec_id: ARCH-25-003
 - id: ARCH-10
   title: Fail-Fast Domain Objects
   specs:
@@ -514,10 +503,6 @@ groups:
     rationale: 'Status.SUCCESS on a missing required input causes the BT sequence to continue as if the node succeeded, masking
       the failure and producing ledger gaps, dropped broadcasts, and mis-routed activities. See notes/domain-validation.md
       and ADR-0032.'
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-10-001
-      note: Extends construction-time fail-fast to runtime BT node entry points.
     adr:
     - ADR-0032
   - id: ARCH-15-002
@@ -529,10 +514,6 @@ groups:
       caller or the helper itself — never deferred silently to downstream code.'
     rationale: 'Returning None from a helper that conceptually requires a valid ID moves the error from the point of failure
       to the point of use, making stack traces and logs point to the wrong location. See notes/domain-validation.md and ADR-0032.'
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-10-001
-      note: Extends construction-time fail-fast to helper function entry points.
     adr:
     - ADR-0032
   - id: ARCH-15-004
@@ -545,10 +526,6 @@ groups:
     rationale: 'Duplicate helper copies diverge silently over time. Two copies of _as_id() in use_cases/_helpers.py and services/embargo_lifecycle.py
       had already diverged in docstring accuracy. Three copies of the case-manager lookup produced inconsistent None-handling
       behavior across callers. See notes/domain-validation.md and ADR-0032.'
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-10-001
-      note: Canonical-copy discipline is a prerequisite for consistent fail-fast enforcement.
     adr:
     - ADR-0032
 - id: ARCH-11
@@ -588,6 +565,9 @@ groups:
       once the prefix signalled the wire layer. Naming the base class `as_VultronObject` makes it consistent with every subclass.'
     verification: '`vultron/wire/as2/vocab/objects/base.py` exports `as_VultronObject`; no class named `VultronAS2Object`
       exists anywhere in the codebase.'
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-14-001
   - id: ARCH-14-003
     priority: MUST
     kind: project
@@ -617,9 +597,6 @@ groups:
       read under the short id and the activities vanished. That specific mechanism is now unreachable —
       queues are not keyed by an id string — but the requirement still binds, because the canonical URI
       is what *selects the store*, so a short id opens a different and empty one.
-    relationships:
-    - rel_type: refines
-      spec_id: DL-07-006
     verification: >-
       `test/adapters/driving/fastapi/test_deps.py` asserts that `get_actor_dl` resolves a short path
       segment to the canonical URI and that the resulting store can read the outbox entries that
@@ -641,9 +618,6 @@ groups:
       in the same process inherits mutations from the first. This applies to vocabulary registries, DataLayer factories, BT
       bridges, actor caches, and any other mutable global. Discovered as a demo-layer issue (DEMOMA-01-004) but applies equally
       to all application factories.'
-    relationships:
-    - rel_type: implements
-      spec_id: ARCH-04-001
 - id: ARCH-17
   title: ASGIEmitter Base URL
   description: >-
@@ -670,9 +644,6 @@ groups:
       earlier emission). Re-entrant emission MUST raise `EmitterReentrancyError`.'
     rationale: A `threading.Lock` guard would deadlock when the re-entrant call happens on the same thread (common in async/ASGI
       contexts). A `ContextVar` is task-local and correctly tracks reentrancy per async task without thread-lock semantics.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-17-001
 - id: ARCH-18
   title: Architecture Ratchet Discipline
   specs:
@@ -686,9 +657,6 @@ groups:
     rationale: A subset assertion says "we have at most these violations" but allows new ones to be added without failing
       the test. Bidirectional equality says "we have exactly these violations" — any addition fails immediately, and any removal
       must be reflected in the allowlist.
-    relationships:
-    - rel_type: implements
-      spec_id: ARCH-10-001
   - id: ARCH-18-002
     priority: MUST
     kind: process
@@ -699,7 +667,7 @@ groups:
     rationale: Stale entries mask the true state of the architecture boundary. A "fixed" violation that remains in `KNOWN_VIOLATIONS`
       makes the ratchet appear tighter than it is and hides regression when a new violation with the same name is later introduced.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: ARCH-18-001
   - id: ARCH-18-003
     priority: MUST
@@ -718,9 +686,6 @@ groups:
       An offline test in `test/architecture/` scans `test/` for ratchet-named constants (`KNOWN_*`, `*_BASELINE`,
       `MAX_*`, `*_EXEMPTIONS`) and fails when one is non-empty and carries neither marker, or carries a `# permanent:` marker
       that cites nothing. It makes no network call.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-18-002
     lint_suppress:
     - phantom_path_ref
   - id: ARCH-18-004
@@ -740,7 +705,7 @@ groups:
       Inspection of the scheduled workflow confirms it reads issue state through the GitHub API, files or updates
       one tracking issue per run, and exits zero when owners are closed.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-18-003
     lint_suppress:
     - phantom_path_ref
@@ -764,6 +729,10 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-18-003
+    - rel_type: uses_definition
+      spec_id: ARCH-18-001
+    - rel_type: uses_definition
+      spec_id: ARCH-18-002
 - id: ARCH-19
   title: Outbound Delivery Pipeline
   specs:
@@ -785,7 +754,7 @@ groups:
       Treating a transport timeout (stage 2) as a recipient rejection (stage 3) leads to incorrect
       retry logic and protocol-state divergence.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-19-001
   - id: ARCH-19-002
     priority: MUST
@@ -794,7 +763,7 @@ groups:
     statement: 'Emission (stage 1) MUST be idempotent with respect to the outbox: writing the same activity ID twice MUST
       NOT create a duplicate outbox entry.'
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-19-001
   - id: ARCH-19-003
     priority: MUST
@@ -803,7 +772,7 @@ groups:
     statement: Transport delivery (stage 2) MUST be retried on transient network failures. The retry mechanism MUST be implemented
       in the outbox worker, not in the use-case or handler.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-19-001
   - id: ARCH-19-004
     priority: MUST_NOT
@@ -813,7 +782,7 @@ groups:
       Delivery failure means the activity did not reach the recipient; it carries no information about whether the recipient
       would accept or reject the activity.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: ARCH-19-001
   - id: ARCH-19-005
     priority: MUST
@@ -827,7 +796,7 @@ groups:
       assertions; per-actor transport observability goes to the process log. Delivery outcomes (whether a network call succeeded)
       are operational diagnostics, not protocol-significant assertions.'
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-19-001
     adr:
     - ADR-0019
@@ -875,7 +844,7 @@ groups:
       including a wire object's, comes from the port or from the AS2 JSON the trigger-activity
       port returns for an activity it built.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-01-004
     adr:
     - ADR-0063
@@ -902,7 +871,7 @@ groups:
       `test/adapters/driven/test_wire_render_adapter.py`, and the per-entry goldens in
       `test/adapters/driven/test_wire_render_goldens.py`.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-20-001
     adr:
     - ADR-0063
@@ -925,9 +894,6 @@ groups:
     verification: >-
       `test/adapters/driven/test_wire_render_adapter.py` asserts the port raises for a
       `CoreRecord` and renders every `CORE_VOCABULARY` entry.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-15-002
     adr:
     - ADR-0063
     - ADR-0099
@@ -941,7 +907,7 @@ groups:
     rationale: Consistency with `SyncActivityPort` keeps one injection idiom for driven ports. An import-time default would
       reintroduce the core→wire import the port exists to prevent (ARCH-01-001).
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: ARCH-20-001
     adr:
     - ADR-0063
@@ -994,14 +960,12 @@ groups:
       (for example the `get_object` and `get_object_by_key` fallbacks and
       `get_objects` in `routers/datalayer.py`, or the demo ledger routes) serves
       `application/json`, not an AS2 document, and is outside this requirement.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-20-001
-    - rel_type: refines
-      spec_id: ARCH-20-003
     adr:
     - ADR-0063
     - ADR-0099
+    relationships:
+    - rel_type: uses_definition
+      spec_id: ARCH-25-003
   - id: ARCH-20-007
     priority: MUST_NOT
     kind: project
@@ -1014,11 +978,6 @@ groups:
       The received-status filter once relied on the since-retired
       `_migrate_flat_fields` shim (SDO-03-003).'
     verification: No module under `vultron/core/` constructs a core model via `CoreClass.model_validate(wire_obj.model_dump(by_alias=True, ...))`.
-    relationships:
-    - rel_type: depends_on
-      spec_id: ARCH-20-001
-    - rel_type: refines
-      spec_id: SDO-03-005
     adr:
     - ADR-0063
   - id: ARCH-20-008
@@ -1043,11 +1002,10 @@ groups:
       `test/architecture/test_core_no_to_core_duck_typing.py` fails on any line under
       `vultron/core/` that names a `to_core` attribute (`"to_core"` or `.to_core(`).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-20-007
-    - rel_type: depends_on
-      spec_id: VM-06-007
-      note: ID-to-object materialisation is `rehydrate()`'s job, so core never needs a parse port.
+    - rel_type: derives_from
+      spec_id: ARCH-25-003
     adr:
     - ADR-0099
   - id: ARCH-20-009
@@ -1073,9 +1031,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-20-007
-    - rel_type: depends_on
-      spec_id: VM-06-007
-    - rel_type: depends_on
+    - rel_type: uses_definition
       spec_id: DL-05-001
     adr:
     - ADR-0099
@@ -1124,6 +1080,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-12-001
+    - rel_type: refines
+      spec_id: ARCH-21-003
     adr:
     - ADR-0064
     - ADR-0099
@@ -1139,9 +1097,6 @@ groups:
       Inbound wire data is loose by contract. Enforcing strictness on the wire
       types would reject legitimate inbound payloads instead of projecting them
       (ADR-0062, ARCH-12-001).
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-21-002
     adr:
     - ADR-0064
   - id: ARCH-21-004
@@ -1183,6 +1138,13 @@ groups:
       impossible to miss.
     adr:
     - ADR-0064
+    relationships:
+    - rel_type: verifies
+      spec_id: ARCH-21-001
+    - rel_type: verifies
+      spec_id: ARCH-21-003
+    - rel_type: verifies
+      spec_id: ARCH-21-004
 
 - id: ARCH-22
   title: Wire→Core Import Boundary Enforcement
@@ -1216,6 +1178,9 @@ groups:
     adr:
     - ADR-0009
     - ADR-0099
+    relationships:
+    - rel_type: refines
+      spec_id: ARCH-25-006
   - id: ARCH-22-002
     priority: MUST
     kind: project
@@ -1240,6 +1205,9 @@ groups:
     adr:
     - ADR-0009
     - ADR-0099
+    relationships:
+    - rel_type: verifies
+      spec_id: ARCH-22-001
   - id: ARCH-22-003
     priority: SHOULD_NOT
     kind: project
@@ -1285,10 +1253,6 @@ groups:
       population precondition passes vacuously: a bare
       `from vultron.wire.as2.vocab import VOCABULARY` yields an empty dict, so the intersection
       is empty for the wrong reason.
-    relationships:
-    - rel_type: depends_on
-      spec_id: VM-01-005
-      note: Import-time registration is why the verification must force population before comparing the registries.
     adr:
     - ADR-0082
     - ADR-0099
@@ -1398,6 +1362,11 @@ groups:
       `CoreObject` subclass serializes only AS2 property names — no Python snake_case field names reach the wire.
     adr:
     - ADR-0099
+    relationships:
+    - rel_type: depends_on
+      spec_id: ARCH-12-003
+    - rel_type: refines
+      spec_id: ARCH-25-003
   - id: ARCH-23-007
     priority: MUST
     kind: project
@@ -1422,9 +1391,7 @@ groups:
       `test_actor_round_trips_across_a_clock_tick` asserts a stored actor round-trips
       across a clock tick.
     relationships:
-    - rel_type: refines
-      spec_id: ARCH-23-003
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: ARCH-12-006
     adr:
     - ADR-0103
@@ -1465,9 +1432,9 @@ groups:
       The ratchet in ARCH-24-001 additionally asserts no
       `behaviors → use_cases._helpers` role-resolution import.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-24-001
-    - rel_type: implements
+    - rel_type: refines
       spec_id: BTND-04-003
     adr:
     - ADR-0088
@@ -1514,7 +1481,7 @@ groups:
       resolves the authority by scanning `Service` objects for a hosted case
       `context`. Each has a self-test that fires it on a known-bad snippet.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: ARCH-24-001
     adr:
     - ADR-0088
@@ -1539,9 +1506,6 @@ groups:
       `CheckIsCaseManagerNode` via the single resolver (ARCH-24-001). The
       separation is structural rather than ratcheted: the guard reads a store
       name and never a role, so there is no role read to assert the absence of.
-    relationships:
-    - rel_type: depends_on
-      spec_id: ARCH-24-001
     adr:
     - ADR-0088
 - id: ARCH-25
@@ -1753,6 +1717,9 @@ groups:
       an unknown key, with no exemption list.
     adr:
     - ADR-0099
+    relationships:
+    - rel_type: uses_definition
+      spec_id: VM-08-002
   - id: ARCH-25-008
     priority: MUST
     kind: project
@@ -1786,6 +1753,11 @@ groups:
       similarity helper exists under `vultron/wire/as2/`.
     adr:
     - ADR-0099
+    relationships:
+    - rel_type: extends
+      spec_id: ARCH-25-007
+    - rel_type: uses_definition
+      spec_id: MV-11-002
   - id: ARCH-25-009
     priority: MUST
     kind: project

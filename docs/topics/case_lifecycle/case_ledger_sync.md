@@ -320,6 +320,12 @@ Nothing in it is committed, so it never stands in for an applied entry ([SYNC-14
 An entry it does not hold comes back the same way an evicted one does.
 The next entry that does not match the replica's tail produces a `Reject`, and the CASE_MANAGER replays from the position that reject names.
 
+A `Reject` needs a later entry to arrive.
+When the lost entry is the last one before a quiet period, nothing follows it, so the replica has no gap to see and sends no `Reject`.
+The replica closes that gap itself by stating its position: `Read(CaseLedgerEntry)` names the last entry it applied ([SYNC-17-001](../../reference/specs/protocol.md#sync-17-001)).
+The CASE_MANAGER records that position and replays every entry after it, under the same cooldown as a `Reject` replay ([SYNC-17-004](../../reference/specs/protocol.md#sync-17-004)).
+The reference participant sends one for each case it holds after every restart, the moment it is most likely to have missed an entry.
+
 A replica that already holds the case also receives fresh copies of it, as `Announce(VulnerabilityCase)`.
 Each copy names the **ledger position** it reflects, the last entry its case file is a projection of.
 So the replica can tell a current copy from a stale one ([SYNC-16-005](../../reference/specs/protocol.md#sync-16-005)).

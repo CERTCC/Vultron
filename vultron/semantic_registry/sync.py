@@ -22,11 +22,13 @@ from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.events.case import CloseCaseReceivedEvent
 from vultron.core.models.events.sync import (
     AnnounceLogEntryReceivedEvent,
+    ReadLogEntryReceivedEvent,
     RejectLogEntryReceivedEvent,
 )
 from vultron.core.use_cases.received.case import CloseCaseReceivedUseCase
 from vultron.core.use_cases.received.sync import (
     AnnounceLedgerEntryReceivedUseCase,
+    ReadLedgerEntryReceivedUseCase,
     RejectLedgerEntryReceivedUseCase,
 )
 from vultron.semantic_registry._entry import SemanticEntry
@@ -38,11 +40,13 @@ from vultron.semantic_registry._occasion import (
 from vultron.wire.as2.extractor import (
     AnnounceLogEntryPattern,
     CloseCasePattern,
+    ReadLogEntryPattern,
     RejectLogEntryPattern,
 )
 from vultron.wire.as2.vocab.activities.case import _RmCloseCaseActivity
 from vultron.wire.as2.vocab.activities.sync import (
     _AnnounceLogEntryActivity,
+    _ReadLogEntryActivity,
     _RejectLogEntryActivity,
 )
 
@@ -126,6 +130,34 @@ ENTRIES: list[SemanticEntry] = [
                 ),
                 example="reject_case_ledger_entry",
                 evolved=True,
+            ),
+        ),
+        page=MessagePage.LEDGER_REPLICATION,
+    ),
+    SemanticEntry(
+        semantics=MessageSemantics.READ_CASE_LEDGER_ENTRY,
+        pattern=ReadLogEntryPattern,
+        event_class=ReadLogEntryReceivedEvent,
+        use_case_class=ReadLedgerEntryReceivedUseCase,
+        phrase="{actor} stated its ledger position",
+        wire_activity_class=_ReadLogEntryActivity,
+        # Its `to` is what the addressee door guard reads (HP-01-005).
+        include_activity=True,
+        occasions=(
+            Occasion(
+                when=(
+                    "a Participant checks that its ledger is current, such as"
+                    " after a restart"
+                ),
+                anchor="read-case-ledger-entry",
+                addressee=AddresseeSide.CASE_MANAGER,
+                heading="Read case ledger entry",
+                description=(
+                    "States the last ledger entry the sender has applied. The "
+                    "Case Manager records it as the sender's acknowledged "
+                    "position and replays every entry after it."
+                ),
+                example="read_case_ledger_entry",
             ),
         ),
         page=MessagePage.LEDGER_REPLICATION,

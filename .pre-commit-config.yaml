@@ -139,6 +139,18 @@ repos:
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
+      - id: docs-thread-order
+        name: No thread page depends on a term a later member introduces
+        entry: uv run docs-thread-order
+        language: system
+        # Every input that changes the verdict (DF-11-024): any docs page (a
+        # start page's thread, a member's introduces:, prose and links), the
+        # nav, which decides what is an include fragment, and the checker, the
+        # level-order scanner and thread loader it composes, and its baseline.
+        # test_the_committed_threads_pass_the_order_check is the CI backstop.
+        files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/(.*\.py|thread_order_baseline\.txt)|vultron/metadata/(base|file_loading|markdown_tables)\.py)$
+        pass_filenames: false
+
       - id: adr-index-sync
         name: ADR index in sync, and no ADR in the nav
         entry: uv run python -m vultron.metadata.adr.index_gen --check

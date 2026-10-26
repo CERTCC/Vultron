@@ -94,6 +94,7 @@ _LEDGER_REPLICATION_SEAMS = frozenset(
     {
         "send_announce_log_entry",
         "send_reject_log_entry",
+        "send_read_ledger_entry",
         "send_ledger_suffix",
         "backfill_admitted_peers",
         "create_commit_log_entry_tree",
@@ -230,6 +231,12 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
         (
             "vultron.core.behaviors.sync.nodes.fanout",
             "SendLogEntryToEachNode",
+        ),
+        # A participant's Read(CaseLedgerEntry) position statement, sent from
+        # its own trigger tree, never from a received tree (SYNC-17-007).
+        (
+            "vultron.core.behaviors.sync.nodes.position_statement",
+            "StateLedgerPositionsNode",
         ),
         (
             "vultron.core.behaviors.sync.nodes.receive",

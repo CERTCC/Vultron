@@ -1,9 +1,9 @@
 """Vocabulary examples for the ledger-replication message flow.
 
-Demonstrates ``Announce(as_CaseLedgerEntry)`` and
-``Reject(as_CaseLedgerEntry)`` activities as specified in ADR-0077 and
-``specs/sync-ledger-replication.yaml`` SYNC-09-002, SYNC-03-001,
-SYNC-03-002.
+Demonstrates ``Announce(as_CaseLedgerEntry)``,
+``Reject(as_CaseLedgerEntry)`` and ``Read(as_CaseLedgerEntry)`` activities as
+specified in ADR-0077, ADR-0155 and ``specs/sync-ledger-replication.yaml``
+SYNC-09-002, SYNC-03-001, SYNC-03-002, SYNC-17-001.
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.wire.as2.factories.sync import (
     announce_log_entry_activity,
+    read_ledger_entry_activity,
     reject_log_entry_activity,
 )
 from vultron.wire.as2.vocab.examples._base import _CASE_ACTOR, _VENDOR, case
@@ -91,4 +92,18 @@ def reject_case_ledger_entry():
     entry = _ENTRY_2.to_ledger_entry()
     return reject_log_entry_activity(
         entry, context=_ENTRY_0.entry_hash, actor=_VENDOR.id_
+    )
+
+
+def read_case_ledger_entry():
+    """Build ``Read(CaseLedgerEntry)`` — a participant states its position.
+
+    Sent by a participant to the case's CASE_MANAGER to state the last
+    ledger entry it has applied (SYNC-17-001).  The example participant has
+    applied the first two entries, so it names the second by reference,
+    with its position as the ``ledgerPosition``.
+    """
+    entry = _ENTRY_1.to_ledger_entry()
+    return read_ledger_entry_activity(
+        entry, actor=_VENDOR.id_, to=[_CASE_ACTOR.id_]
     )

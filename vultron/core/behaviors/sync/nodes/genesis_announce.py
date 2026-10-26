@@ -31,7 +31,7 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
-from vultron.core.behaviors.sync.nodes.replay import rejected_case_id
+from vultron.core.behaviors.sync.nodes.replay import replay_case_id
 from vultron.core.behaviors.sync.nodes.replay_guard import should_replay
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -101,7 +101,7 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
             )
             return Status.SUCCESS
 
-        case_id = rejected_case_id(activity, self.name)
+        case_id = replay_case_id(activity, self.name)
         peer_id = activity.actor_id
         # CM-10-004: the case object is case content; a withheld peer's replay
         # is withheld too (SendMissingEntriesNode), so seed nothing.
