@@ -119,6 +119,38 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: AKM-02-003
+  - id: AKM-02-006
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      An actor MUST NOT record, or send in an activity, a value for a field of an object
+      it did not author when it does not know that value. A field whose value it does
+      not know MUST stay absent. A `published` or `updated` time read from its own
+      clock, and an `inbox` or `outbox` derived from another actor's id, are such
+      values.
+    rationale: >-
+      A receiver cannot tell an invented value from an asserted one, so it records the
+      invention as the object's own claim, and the case ledger then carries it in its
+      snapshots. A value read from the sender's clock also differs on every build, so a
+      rebuild of one activity under the same id no longer matches the first build
+      (OX-06-002).
+    note: >-
+      Delivery to an inbox address derived from a recipient's id, when no inbox is held,
+      is addressing rather than a recorded or sent value (OX-12-009).
+    verification: >-
+      `test/wire/as2/factories/test_actor_references.py::test_an_actor_given_by_uri_carries_no_invented_field`
+      builds each factory activity that names an actor given by URI, and
+      `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py::test_a_role_delegate_given_by_uri_carries_no_invented_field`
+      seals each role-delegation Offer and answer; both check the actor carries no
+      `published`, `updated`, `inbox` or `outbox`. For records,
+      `test/adapters/driving/fastapi/routers/test_actors.py::TestRegisterPeer::test_peer_record_holds_no_value_the_request_did_not_supply`
+      checks a registered peer and
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestActorDiscoveryCallOut::test_minimal_peer_holds_no_value_nobody_asserted`
+      checks a peer recorded from a URI hold none of those fields.
+    adr:
+    - ADR-0159
+    stories:
+    - story_2022_053
 - id: AKM-03
   title: Outbound Activity Object Integrity
   specs:
@@ -246,3 +278,36 @@ groups:
       spec_id: AKM-05-003
     stories:
     - story_2022_014
+  - id: AKM-05-005
+    priority: MUST
+    kind: protocol
+    statement: >-
+      An actor carried inline in an activity MUST be the sender's held profile of that
+      actor, as held. When the sender holds nothing more than the actor's URI, it MUST
+      carry an actor reference instead: an inline object with exactly the actor's `id`
+      and a `type`. A receiver MUST read the fields an actor reference lacks as unknown,
+      and MUST NOT let an actor reference replace a fuller record of that actor it
+      holds.
+    rationale: >-
+      A sender may name a peer it knows only by URI (AKM-05-001), and a receiver routes
+      `Offer(Actor)` and `Invite(Actor)` by the object's `type`, so the actor must
+      travel inline with a `type` even when nothing else is known. Anything beyond the
+      id and type would be invented (AKM-02-006). A reference says nothing about the
+      fields it lacks, so it cannot erase a value the receiver already holds.
+    verification: >-
+      `test/wire/as2/factories/test_actor_references.py::test_an_actor_given_by_uri_travels_as_an_actor_reference`
+      checks the actor in each such activity is exactly an `id` and a `type`, and
+      `test/wire/as2/factories/test_actor_references.py::test_a_held_actor_profile_travels_as_held`
+      checks a held profile keeps the fields it was given.
+      `test/adapters/driving/fastapi/test_actor_reference_receipt.py::test_a_received_actor_reference_keeps_the_held_profile`
+      delivers an `Offer(Actor)` carrying a reference to a receiver that holds the
+      actor's full profile, and checks the profile is unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-001
+    - rel_type: constrains
+      spec_id: MV-10-001
+    adr:
+    - ADR-0159
+    stories:
+    - story_2022_053

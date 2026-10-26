@@ -244,6 +244,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md) *(provisional)*
 - [ADR-0149 The Received Archive Is the Sealed Received Body, Read Through a Read-Only View Parsed on Load](0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md) *(provisional)* — partially supersedes 0035-core-activity-representation-and-envelope-reconstitution.md
 - [ADR-0152 A Case Manager's Act Shares the Participants' Semantic Type, and an Observation Is Not Ledgered](0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md) *(provisional)* — partially supersedes 0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md
+- [ADR-0159 An Actor Known Only by URI Travels as an Id-and-Type Reference, and No One Invents a Value They Do Not Know](0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md) *(provisional)*
 
 ## Proposed ADRs
 

@@ -6,7 +6,8 @@ description: >
   Rules for enforcing the Actor Knowledge Model: no cross-actor DataLayer
   access, this codebase's full-inline-object rule for outbound activities (a
   prototype shortcut, not a protocol rule), the outbox last-resort guard, and
-  the use-case-level actor-discovery seam (AKM-05).
+  the use-case-level actor-discovery seam, and how an actor known only by URI
+  travels (AKM-05, AKM-02-006).
 related_specs:
   - specs/actor-knowledge-model.yaml
   - specs/testability.yaml
@@ -86,12 +87,24 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   local `CoreActor` record is enrichment, never a precondition: under per-actor
   storage (ADR-0073) the inviter almost never holds the peer's record, so
   requiring one refuses every cross-node invitee.
+- **An actor travels as held, or as an id-and-type actor reference
+  (AKM-05-005, ADR-0159).** Carry the sender's held profile unchanged; with only
+  the URI, carry exactly `id` and `type`. A receiver reads a reference's missing
+  fields as unknown and never lets it replace a fuller record. Not a stub: it is
+  the one other exception MV-10-001 allows. Marker tests:
+  `test/wire/as2/factories/test_actor_references.py`.
+- **Never record or send a value you do not know (AKM-02-006).** A clock-read
+  `published`/`updated` or an `inbox`/`outbox` derived from an id is invented: a
+  receiver cannot tell it from an asserted value, and a rebuild under the same id
+  stops matching (OX-06-002). Leave the field absent. Delivery to a derived
+  `{actor}/inbox/` is addressing, used only when no inbox is held (OX-12-009).
 - **Discovery is an injectable Retriever call-out (AKM-05-002).** With no local
   record, `_record_named_peer` (`vultron/core/use_cases/triggers/actor.py`) asks
-  the injected `ActorDiscoveryCallOutBundle` before minting a minimal
-  `CoreActor`. The default, `ACTOR_DISCOVERY_DETERMINISTIC`, always succeeds and
-  logs at DEBUG. A failing production backend logs a WARNING and still proceeds:
-  discovery never blocks an invite.
+  the injected `ActorDiscoveryCallOutBundle` before recording a minimal
+  `CoreActor`, which must hold only the id (AKM-02-006; it still mints times and
+  endpoints until #5177). The default, `ACTOR_DISCOVERY_DETERMINISTIC`, always
+  succeeds and logs at DEBUG. A failing production backend logs a WARNING and
+  still proceeds: discovery never blocks an invite.
 - **The seam lives in the use case's `_prepare()`, not a BT node.** Recording a
   peer changes no protocol-observable state, so BT-15-001 does not apply, and a
   BT node must not be ticked procedurally outside a tree. Promote it to a BT
