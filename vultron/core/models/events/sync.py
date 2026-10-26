@@ -17,6 +17,7 @@ from typing import Literal, cast
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.ledger_position import LedgerPosition
 
 
 class AnnounceLogEntryReceivedEvent(VultronEvent):
@@ -77,6 +78,16 @@ class RejectLogEntryReceivedEvent(VultronEvent):
         return self.target_id
 
     @property
+    def replay_case_id(self) -> str | None:
+        """The case whose ledger the peer asks to have replayed.
+
+        The name the replay nodes read on every activity that can start a
+        replay (``Reject`` and ``Read`` of a ``CaseLedgerEntry``): here it is
+        :attr:`rejected_case_id`.
+        """
+        return self.rejected_case_id
+
+    @property
     def last_accepted_hash(self) -> str:
         """Return the last applied hash reported by the peer.
 
@@ -89,3 +100,42 @@ class RejectLogEntryReceivedEvent(VultronEvent):
         if ctx:
             return ctx
         return ""
+
+
+class ReadLogEntryReceivedEvent(VultronEvent):
+    """A participant stated its ledger position: ``Read(CaseLedgerEntry)``.
+
+    The ``object`` names, by reference, the last canonical entry the sender
+    has applied for the case; the ``context`` names the case, and
+    ``ledger_position`` carries that entry's ``log_index`` and
+    ``entry_hash``, parsed at the edge (SYNC-17-001, ADR-0032).  The
+    CASE_MANAGER judges the position against its own ledger: it never reads
+    the entry from the activity.
+
+    Spec: SYNC-17-001 through SYNC-17-006.
+    """
+
+    semantic_type: Literal[MessageSemantics.READ_CASE_LEDGER_ENTRY] = (
+        MessageSemantics.READ_CASE_LEDGER_ENTRY
+    )
+
+    ledger_position: LedgerPosition
+
+    @property
+    def stated_entry_id(self) -> str | None:
+        """The id of the entry the sender names as the last it applied."""
+        return self.object_id
+
+    @property
+    def replay_case_id(self) -> str | None:
+        """The case the stated position is in, from the ``context``."""
+        return self.context_id
+
+    @property
+    def last_accepted_hash(self) -> str:
+        """The ``entry_hash`` of the entry the sender states it applied last.
+
+        The name the replay nodes read for the position a replay starts
+        after, as they read it on a ``Reject(CaseLedgerEntry)``.
+        """
+        return self.ledger_position.entry_hash

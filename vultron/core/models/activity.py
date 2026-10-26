@@ -23,6 +23,7 @@ from pydantic import Field
 
 from vultron.core.models.base import CoreObject, NonEmptyString
 from vultron.core.models.embargo_termination import TerminationCause
+from vultron.core.models.ledger_position import LedgerPosition
 
 
 class VultronActivity(CoreObject):
@@ -71,6 +72,9 @@ class VultronActivity(CoreObject):
     # carries it as ``terminationCause``, and the ledger entry that records
     # the Remove carries it with it.
     termination_cause: TerminationCause | None = None
+    # A participant's Read(CaseLedgerEntry) states the position of the entry
+    # it names (SYNC-17-001); the wire dump carries it as ``ledgerPosition``.
+    ledger_position: LedgerPosition | None = None
     # ``Question`` fields (AS2 §4.1); the CBT-03-004 bootstrap-replay Question
     # is delivered through this model.
     any_of: Any | None = None

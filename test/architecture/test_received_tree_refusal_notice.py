@@ -196,6 +196,14 @@ NO_COMMIT_TREES: dict[_Site, str] = {
         "a replica's resync request is ledger mechanics, answered by a replay"
         " of the entries it asks for, never by a refusal (SYNC-03-005)"
     ),
+    (
+        "vultron/core/behaviors/sync/read_tree.py",
+        "create_read_log_entry_tree",
+    ): (
+        "a participant's stated ledger position is ledger mechanics, answered"
+        " by a replay of the entries after it, never by a refusal"
+        " (SYNC-17-002, SYNC-17-006)"
+    ),
 }
 
 

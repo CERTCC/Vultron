@@ -21,20 +21,23 @@ and MUST NOT be imported by callers.
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 Spec: ``specs/sync-ledger-replication.yaml`` SYNC-09-002,
-SYNC-03-001, SYNC-03-002.
+SYNC-03-001, SYNC-03-002, SYNC-17-001.
 """
 
 import logging
 
 from pydantic import ValidationError
 
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.sync import (
     _AnnounceLogEntryActivity,
+    _ReadLogEntryActivity,
     _RejectLogEntryActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Announce,
+    as_Read,
     as_Reject,
 )
 from vultron.wire.as2.vocab.objects.case_ledger_entry import as_CaseLedgerEntry
@@ -128,4 +131,44 @@ def genesis_replay_reject_activity(case_id: str, **kwargs) -> as_Reject:
         )
         raise VultronActivityConstructionError(
             "genesis_replay_reject_activity: invalid arguments"
+        ) from exc
+
+
+def read_ledger_entry_activity(
+    entry: as_CaseLedgerEntry,
+    **kwargs,
+) -> as_Read:
+    """Build a Read(CaseLedgerEntry) — a participant's ledger position statement.
+
+    Sent by a participant to the case's CASE_MANAGER to state that it has
+    applied the case's ledger up to *entry* (SYNC-17-001).  The entry goes by
+    reference: the ``object`` is its id, the ``context`` its case, and the
+    ``ledgerPosition`` its ``log_index`` and ``entry_hash``.
+
+    Args:
+        entry: The last ledger entry the participant has applied.
+        **kwargs: Optional AS2 fields forwarded to the constructor
+            (e.g. ``actor``, ``to``, ``id_``).
+
+    Returns:
+        An ``as_Read`` naming *entry* by reference.
+
+    Raises:
+        VultronActivityConstructionError: If Pydantic validation fails.
+    """
+    try:
+        return _ReadLogEntryActivity(
+            object_=entry.id_,
+            context=entry.case_id,
+            ledger_position=LedgerPosition(
+                log_index=entry.log_index, entry_hash=entry.entry_hash
+            ),
+            **kwargs,
+        )
+    except ValidationError as exc:
+        logger.warning(
+            "read_ledger_entry_activity: invalid arguments: %s", exc
+        )
+        raise VultronActivityConstructionError(
+            "read_ledger_entry_activity: invalid arguments"
         ) from exc

@@ -88,6 +88,28 @@ class SyncActivityPort(Protocol):
         """
         ...
 
+    def send_read_ledger_entry(
+        self,
+        entry: CaseLedgerEntry,
+        actor_id: str,
+        to: list[str],
+    ) -> None:
+        """Build and queue a ``Read(CaseLedgerEntry)`` position statement.
+
+        Called by a participant to state that it has applied the case's
+        ledger up to *entry*, the last entry its replica holds.  The activity
+        names the entry by reference, the case as its ``context`` and the
+        entry's position as its ``ledgerPosition`` (SYNC-17-001).  Each call
+        is a statement of its own, so it queues a new activity even when an
+        earlier one named the same entry.
+
+        Args:
+            entry: The last ledger entry the participant has applied.
+            actor_id: URI of the participant stating its position.
+            to: List of recipient actor URIs (the case's CASE_MANAGER).
+        """
+        ...
+
     def send_announce_log_entry(
         self,
         entry: CaseLedgerEntry,

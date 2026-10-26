@@ -20,6 +20,7 @@ from vultron.core.models.events import (
     MessageSemantics,
     VultronEvent,
 )
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.rsvp_deadline import (
     DEFAULT_MIN_RSVP_WINDOW,
     DEFAULT_RSVP_WINDOW,
@@ -243,6 +244,9 @@ def _content_kwargs(
 ) -> dict[str, object]:
     """The event fields parsed from the activity's ``content`` at the edge.
 
+    Also the ``ledgerPosition`` a ``Read(CaseLedgerEntry)`` states, the one
+    such field the activity carries as a Vultron property (SYNC-17-001).
+
     Core receives the parsed value (ADR-0032); an absent or malformed one is
     refused with a reason (``VultronParseValidationError``).
     """
@@ -251,6 +255,19 @@ def _content_kwargs(
         # The full-case Invite and its replies each carry a ledger position as
         # the JSON dump of a LedgerPosition in ``content`` (VAM-04-019).
         kwargs["ledger_tail"] = ledger_position_from_content(activity)
+    if "ledger_position" in event_class.model_fields:
+        # A Read(CaseLedgerEntry) states its position as the Vultron
+        # property ``ledgerPosition``, which as_Read already parsed as a
+        # LedgerPosition (SYNC-17-001).  The pattern admits only a Read that
+        # carries one, so its absence here is refused, never defaulted.
+        position = getattr(activity, "ledger_position", None)
+        if not isinstance(position, LedgerPosition):
+            raise VultronParseValidationError(
+                f"activity {activity.id_!r} states no ledgerPosition; a"
+                " Read(CaseLedgerEntry) must carry the position of the entry"
+                " it names (SYNC-17-001)"
+            )
+        kwargs["ledger_position"] = position
     if "termination_reason" in event_class.model_fields:
         # A termination Remove carries its what in ``content``: exactly
         # END_TIME_REACHED or EARLY, refused otherwise (ADR-0122); and its

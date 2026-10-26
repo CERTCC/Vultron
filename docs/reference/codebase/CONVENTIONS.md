@@ -16,7 +16,7 @@ stakeholder_type: [project-contributor]
 | Trigger use-case classes | `Svc` + verb + noun + `UseCase` | `SvcLeaveCaseUseCase`, `SvcEngageCaseUseCase` | `vultron/core/use_cases/triggers/` |
 | Received use-case classes | verb/noun + `ReceivedUseCase` suffix | `CreateReportReceivedUseCase` | `vultron/core/use_cases/received/`, `vultron/core/AGENTS.md` |
 | Trigger request models | noun + `TriggerRequest` suffix; HTTP body models without `actor_id` in `request_bodies.py` | `AcceptCaseInviteTriggerRequest` | `vultron/core/use_cases/triggers/requests.py`, `vultron/core/use_cases/triggers/request_bodies.py` |
-| Trigger functions (non-class) | `_trigger` suffix, never an `svc_` prefix | `replay_missing_entries_trigger()` | `vultron/core/use_cases/triggers/sync.py`, `vultron/core/AGENTS.md` |
+| Trigger functions (non-class) | `_trigger` suffix, never an `svc_` prefix | `state_ledger_positions_trigger()` | `vultron/core/use_cases/triggers/sync.py`, `vultron/core/AGENTS.md` |
 | Functions / methods | `snake_case` | `get_config()`, `load_actor_config()` | `vultron/config/app.py` |
 | Constants / env vars | `UPPER_SNAKE_CASE` | `VULTRON_CONFIG`, `DEFAULT_MAX_RETRIES` | `vultron/config/app.py`, `vultron/adapters/driven/http_delivery.py` |
 | Domain abbreviation | `vul` (not `vuln`) for vulnerability | `vul_discovery`, `assign_vul_id` | `AGENTS.md`, `vultron/bt/vul_discovery/` |
