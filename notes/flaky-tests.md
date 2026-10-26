@@ -54,7 +54,9 @@ a merge; see [testing-pitfalls.md](testing-pitfalls.md).
 
 ## Integration-Marker Tests (pytest node IDs)
 
-No open entries.
+| Test node ID | Issue | Last blocked |
+|---|---|---|
+| `test/demo/test_rebuild_from_ledger.py::test_an_embargo_demo_case_is_rebuilt_from_its_ledger` | #5227 | 2026-10-26 |
 
 ## CI / Demo Integration Jobs (job name granularity)
 
