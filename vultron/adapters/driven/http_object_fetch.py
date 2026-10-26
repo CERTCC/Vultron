@@ -41,6 +41,12 @@ from typing import Any, Protocol
 
 import httpx2 as httpx
 
+from vultron.adapters.driven.http_delivery import (
+    DEFAULT_BACKOFF_MULTIPLIER,
+    DEFAULT_DELIVERY_TIMEOUT,
+    DEFAULT_INITIAL_DELAY,
+    DEFAULT_MAX_DELAY,
+)
 from vultron.core.models.object_fetch import ObjectFetchSource, ObjectReference
 
 logger = logging.getLogger(__name__)
@@ -51,17 +57,9 @@ REQUESTER_HEADER = "X-Vultron-Actor"
 #: Default maximum attempts per fetch (AKM-05-008).
 DEFAULT_MAX_ATTEMPTS: int = 3
 
-#: Default delay before the first retry, in seconds.
-DEFAULT_INITIAL_DELAY: float = 0.5
-
-#: Default multiplier applied to the delay after each failed attempt.
-DEFAULT_BACKOFF_MULTIPLIER: float = 2.0
-
-#: Default upper bound on the retry delay, in seconds.
-DEFAULT_MAX_DELAY: float = 30.0
-
-#: Default timeout of one attempt, in seconds (SYNC-05-004).
-DEFAULT_FETCH_TIMEOUT: float = 30.0
+#: Retry delays and the per-attempt timeout are the delivery adapter's
+#: (SYNC-05-002, SYNC-05-004): a fetch is the same kind of call to a peer.
+DEFAULT_FETCH_TIMEOUT: float = DEFAULT_DELIVERY_TIMEOUT
 
 
 @dataclass(frozen=True)

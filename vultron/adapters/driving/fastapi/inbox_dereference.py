@@ -36,6 +36,7 @@ from typing import Any, cast
 from vultron.adapters.driven.http_object_fetch import ObjectFetchResult
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
 from vultron.adapters.inbox_staging import InlineObjectStaging
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.object_fetch import (
@@ -54,6 +55,7 @@ from vultron.errors import (
 )
 from vultron.primitives import same_actor_id
 from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 logger = logging.getLogger(__name__)
@@ -258,6 +260,15 @@ def settle_fetch(
                 fetched = parse_fetched_object(result.body, object_id)
             except VultronError as exc:
                 failure = str(exc)
+        if isinstance(fetched, (as_Activity, VultronActivity)):
+            # A receiver keeps no activity under the id its sender chose: a
+            # record of an activity type stored under its own id is always
+            # one the receiver authored (DL-06-006).
+            failure = (
+                f"the fetched {object_id!r} is an activity, which is never"
+                " kept under its own id (DL-06-006)"
+            )
+            fetched = None
         if fetched is None:
             reason = failure or "the fetch returned nothing"
             logger.warning(

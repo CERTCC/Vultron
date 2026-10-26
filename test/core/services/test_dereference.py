@@ -273,6 +273,34 @@ class TestReferencesToFetch:
 
         assert refs == []
 
+    @pytest.mark.spec("EMB-18-003")
+    def test_an_announced_embargo_that_is_the_active_one_fetches_nothing(
+        self,
+    ):
+        dl = _replica()
+        case = make_case_with_case_manager(dl)
+        active = _embargo(case.id_)
+        activate(case, active.id_)
+        dl.save(case)
+
+        refs = references_to_fetch(_announce(case, active), dl, _PARTICIPANT)
+
+        assert refs == []
+
+    @pytest.mark.spec("AKM-05-007")
+    def test_a_case_naming_no_case_manager_has_no_one_to_fetch_from(self):
+        dl = _replica()
+        case = VulnerabilityCase(
+            attributed_to="https://example.org/actors/owner", name="No CM"
+        )
+        dl.save(case)
+
+        refs = references_to_fetch(
+            _unresolvable(case.id_, "urn:uuid:x"), dl, _PARTICIPANT, case.id_
+        )
+
+        assert refs == []
+
 
 class TestWithFetchedObject:
     _REF = ObjectReference(

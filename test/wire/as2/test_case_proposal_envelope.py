@@ -31,6 +31,7 @@ from vultron.semantic_registry import extract_event
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories.case import create_case_proposal_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 
 _VENDOR = "https://example.org/actors/vendor"
@@ -215,3 +216,14 @@ def test_the_factory_refuses_a_profile_that_is_not_the_proposers():
             proposal=_proposal(),
             to=[_CASE_ACTOR],
         )
+
+
+@pytest.mark.spec("CP-01-010")
+def test_the_extractor_refuses_an_actor_that_is_neither_form():
+    """An activity that reached the extractor without the parse edge's check
+    is refused there too, so core always gets a profile or an id."""
+    activity = parse_activity(_body(_profile(policy_of=_VENDOR)))
+    bypassed = activity.model_copy(update={"actor": as_Link(href=_VENDOR)})
+
+    with pytest.raises(VultronParseValidationError, match="neither"):
+        extract_event(bypassed)

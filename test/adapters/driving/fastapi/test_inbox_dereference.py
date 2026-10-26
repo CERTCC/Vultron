@@ -37,6 +37,7 @@ from vultron.adapters.driving.fastapi import inbox_orchestration as io
 from vultron.adapters.driving.fastapi.inbox_dereference import (
     FastAPIDereferencePort,
     open_fetches,
+    parse_fetched_object,
     settle_fetch,
 )
 from vultron.adapters.inbox_staging import InlineObjectStaging
@@ -54,6 +55,7 @@ from vultron.core.models.object_fetch import (
     PendingObjectFetch,
 )
 from vultron.core.models.use_case_result import HandlerResult
+from vultron.errors import VultronValidationError
 
 _REPLICA = "https://example.org/actors/vendor"
 _CASE_ACTOR = "https://example.org/actors/case-actor"
@@ -485,3 +487,184 @@ def test_a_fetched_object_never_replaces_one_already_held():
     assert isinstance(kept, EmbargoEvent)
     assert kept.summary is None
     assert open_fetches(dl) == []
+
+
+@pytest.mark.spec("DL-06-006")
+@pytest.mark.spec("AKM-05-008")
+def test_a_fetched_activity_is_never_kept_under_its_own_id():
+    """A replica keeps no activity under the id its sender chose."""
+    dl, case = _replica()
+    activity_id = "https://example.org/activities/manager-note"
+    activity = {
+        "type": "Add",
+        "id": activity_id,
+        "published": _PUBLISHED,
+        "actor": CASE_MANAGER_ID,
+        "object": {"type": "Note", "id": "urn:uuid:n-1", "content": "x"},
+        "target": case.id_,
+        "context": case.id_,
+    }
+    reference = ObjectReference(
+        object_id=activity_id,
+        source=ObjectFetchSource.CASE_HOST,
+        host_actor_id=CASE_MANAGER_ID,
+        case_id=case.id_,
+        use=ObjectFetchUse.STORE,
+    )
+    dl.save(PendingObjectFetch.for_reference(reference))
+
+    settle_fetch(
+        dl, _REPLICA, activity_id, ObjectFetchResult(activity, None, 1)
+    )
+
+    (fetch,) = _fetches(dl)
+    assert fetch.state is ObjectFetchState.FAILED
+    assert "DL-06-006" in (fetch.failure_reason or "")
+    assert dl.read(activity_id) is None
+
+
+def _store_reference(case_id: str, object_id: str) -> ObjectReference:
+    return ObjectReference(
+        object_id=object_id,
+        source=ObjectFetchSource.CASE_HOST,
+        host_actor_id=CASE_MANAGER_ID,
+        case_id=case_id,
+        use=ObjectFetchUse.STORE,
+    )
+
+
+@pytest.mark.spec("AKM-05-007")
+@pytest.mark.spec("IE-06-006")
+def test_the_startup_replay_makes_a_fetch_an_earlier_run_left_open():
+    """A fetch recorded before a restart is made by the startup replay."""
+    dl, case, replaced = _replica_missing_its_active_embargo()
+    run = io._InboxRun(dl, _REPLICA, None)
+    payload = _revision(case.id_, _embargo(case.id_))
+    io.process_payload(
+        payload,
+        run.ingress,
+        run.dispatch,
+        run.queue,
+        dereference_port=run.dereference,
+    )
+    fetcher = _FakeFetcher(
+        {replaced.id_: ObjectFetchResult(_body(replaced), None, 1)}
+    )
+    dispatcher = Mock()
+    dispatcher.dispatch.side_effect = lambda *_: HandlerResult.applied()
+
+    asyncio.run(
+        io.replay_inbox_queue(dl, _REPLICA, dispatcher, None, fetcher=fetcher)
+    )
+
+    assert [r.object_id for r, _ in fetcher.asked] == [replaced.id_]
+    assert isinstance(dl.read(replaced.id_), EmbargoEvent)
+    dispatcher.dispatch.assert_called_once()
+    assert _fetches(dl) == []
+
+
+def test_settling_a_fetch_that_is_not_open_changes_nothing():
+    dl, _ = _replica()
+
+    assert (
+        settle_fetch(
+            dl,
+            _REPLICA,
+            "urn:uuid:never-asked",
+            ObjectFetchResult({}, None, 1),
+        )
+        == []
+    )
+    assert _fetches(dl) == []
+
+
+def test_a_waiter_not_held_for_replay_is_logged_and_skipped(
+    caplog: pytest.LogCaptureFixture,
+):
+    dl, case = _replica()
+    reference = _store_reference(case.id_, "urn:uuid:obj")
+    dl.save(
+        PendingObjectFetch.for_reference(reference).model_copy(
+            update={"waiting_activity_ids": ["https://example.org/a/lost"]}
+        )
+    )
+
+    with caplog.at_level(logging.ERROR):
+        queued = settle_fetch(
+            dl, _REPLICA, reference.object_id, ObjectFetchResult(None, "x", 1)
+        )
+
+    assert queued == []
+    assert any("not held" in r.getMessage() for r in caplog.records)
+    (fetch,) = _fetches(dl)
+    assert fetch.state is ObjectFetchState.FAILED
+
+
+def test_release_keeps_a_settled_fetch_others_still_wait_on():
+    dl, case = _replica()
+    port = FastAPIDereferencePort(dl, _REPLICA, InlineObjectStaging(dl))
+    reference = _store_reference(case.id_, "urn:uuid:obj")
+    dl.save(
+        PendingObjectFetch.for_reference(reference).model_copy(
+            update={
+                "state": ObjectFetchState.FAILED,
+                "failure_reason": "unreachable",
+                "waiting_activity_ids": [
+                    "https://example.org/a/1",
+                    "https://example.org/a/2",
+                ],
+            }
+        )
+    )
+
+    port.release(reference.object_id, "https://example.org/a/1")
+
+    (fetch,) = _fetches(dl)
+    assert fetch.waiting_activity_ids == ["https://example.org/a/2"]
+    port.release(reference.object_id, "https://example.org/a/2")
+    assert _fetches(dl) == []
+
+
+@pytest.mark.parametrize(
+    "body, match",
+    [
+        ({"id": "urn:uuid:x"}, "names no type"),
+        ({"type": "NoSuchType", "id": "urn:uuid:x"}, "not a valid"),
+    ],
+    ids=["untyped", "unknown-type"],
+)
+def test_a_fetched_body_the_vocabulary_cannot_type_is_refused(
+    body: dict[str, Any], match: str
+):
+    with pytest.raises(VultronValidationError, match=match):
+        parse_fetched_object(body, "urn:uuid:x")
+
+
+def test_a_hand_off_record_without_its_body_is_unreadable():
+    dl, case = _replica()
+    port = FastAPIDereferencePort(dl, _REPLICA, InlineObjectStaging(dl))
+    record = PendingObjectFetch.for_reference(
+        _store_reference(case.id_, "urn:uuid:obj")
+    )
+
+    with pytest.raises(VultronValidationError, match="no fetched body"):
+        port.fetched_object(record)
+
+
+def test_the_default_fetcher_takes_its_limits_from_the_config(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        io,
+        "get_config",
+        lambda: SimpleNamespace(
+            max_object_fetch_attempts=7, object_fetch_timeout_seconds=1.5
+        ),
+    )
+
+    fetcher = io.default_object_fetcher()
+
+    assert fetcher._max_attempts == 7
+    assert fetcher._timeout == 1.5
