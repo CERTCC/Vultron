@@ -74,7 +74,9 @@ The entry hash covers the snapshot and nothing outside it, which is why the case
 ### What the reference implementation does
 
 The reference implementation dereferences only a few references (AKM-05-007).
-A participant fetches a case object it lacks from the case manager when an activity cannot be classified without it, a replica fetches the embargo an announced revision replaces, and the case manager fetches a proposer's profile named by its URI.
+A participant fetches a case object it lacks from the case manager when an activity cannot be classified without it.
+A replica fetches the embargo that an announced revision replaces.
+The case manager fetches a proposer's profile that the proposal names by its URI.
 It still carries every outbound `object` inline, and a bare URI it cannot fetch is refused where the object is needed (AKM-02-004, AKM-03-003).
 That is a shortcut of the prototype, not a Vultron rule; an implementation that dereferences may send references wherever the protocol allows them.
 
