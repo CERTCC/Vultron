@@ -1,0 +1,53 @@
+{#-
+  Home-page template: extends main.html and injects a hero section from
+  ``hero:`` frontmatter before the page content (docs/index.md uses this
+  template via ``template: home.html`` in its frontmatter).
+
+  The hero renders a title, tagline, optional buttons and an optional image;
+  when the ``hero:`` key is absent nothing extra is rendered, so the template
+  is safe for any page that omits it.  The image field is optional: #4689
+  adds the hand-made illustration; until then the template renders nothing
+  for an absent ``image:`` key.
+
+  Fields read from ``hero:`` frontmatter:
+    title      -- short heading; MUST differ from the page's H1 (DF-11-009)
+    tagline    -- one- or two-sentence pitch below the title
+    image      -- docs/-relative image path (optional; omit until #4689)
+    image_alt  -- alt text for the image (required when image is present)
+    buttons    -- list of {text: ..., url: ...} entries; first button is primary
+-#}
+{%- extends "main.html" -%}
+
+{#- Inject the hero before the page content (which includes the page-type badge
+    inherited from main.html via super()). -#}
+{% block content %}
+  {%- set h = page.meta.get("hero") if page and page.meta else none %}
+  {%- if h %}
+  <div class="vultron-hero">
+    {%- if h.get("title") %}
+    <p class="vultron-hero__title">{{ h["title"] }}</p>
+    {%- endif %}
+    {%- if h.get("tagline") %}
+    <p class="vultron-hero__tagline">{{ h["tagline"] }}</p>
+    {%- endif %}
+    {%- if h.get("image") %}
+    <img
+      class="vultron-hero__image"
+      src="{{ h['image'] }}"
+      alt="{{ h.get('image_alt', '') }}"
+    />
+    {%- endif %}
+    {%- if h.get("buttons") %}
+    <nav class="vultron-hero__actions" aria-label="Quick navigation">
+      {%- for btn in h["buttons"] %}
+      <a
+        href="{{ btn['url'] }}"
+        class="md-button{% if loop.first %} md-button--primary{% endif %}"
+      >{{ btn["text"] }}</a>
+      {%- endfor %}
+    </nav>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {{ super() }}
+{% endblock %}

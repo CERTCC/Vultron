@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 
 import jinja2
+import material  # type: ignore[import-untyped]
 import pytest
 
 from vultron.metadata.base import mkdocs_config, repo_root
@@ -28,6 +29,25 @@ pytestmark = pytest.mark.spec("DF-11-019")
 
 _ROOT = repo_root()
 _OVERRIDES = _ROOT / "overrides"
+# The installed Material theme supplies base.html and the theme's own main.html.
+# The project's overrides/ directory takes precedence (same order as MkDocs).
+_THEME_TEMPLATES = Path(material.__file__).parent / "templates"
+
+
+def _make_jinja_env() -> jinja2.Environment:
+    """Jinja2 environment that mirrors MkDocs' override-then-theme lookup."""
+    return jinja2.Environment(
+        loader=jinja2.ChoiceLoader(
+            [
+                jinja2.FileSystemLoader(str(_OVERRIDES)),
+                jinja2.FileSystemLoader(str(_THEME_TEMPLATES)),
+            ]
+        ),
+        undefined=jinja2.Undefined,
+        autoescape=True,
+    )
+
+
 _STYLESHEETS = _ROOT / "docs" / "stylesheets"
 
 
@@ -144,19 +164,99 @@ def test_the_site_loads_the_override_and_the_stylesheet():
     assert '@import "page_type.css";' in extra_css
 
 
+def _template_inherits_badge(template_name: str) -> bool:
+    """True when the named override template extends main.html.
+
+    A template that extends ``main.html`` inherits the page-type badge via
+    ``super()`` and is safe for reader-facing pages.  A template that does
+    not extend ``main.html`` bypasses the badge's content block.
+    """
+    path = _OVERRIDES / str(template_name)
+    if not path.exists():
+        return False
+    return '{%- extends "main.html" -%}' in path.read_text()
+
+
 def test_no_reader_facing_page_replaces_the_theme_template():
-    """A page with its own ``template:`` would skip the badge's content block."""
+    """A page with its own ``template:`` must extend main.html to keep the badge.
+
+    A template that extends ``main.html`` is safe: it inherits the page-type
+    badge (DF-11-018, ADR-0136) via ``super()``.  A template that bypasses
+    ``main.html`` would silently drop the badge.
+    """
     tree = classify_docs_tree(_ROOT)
     replacing = [
         rel
         for rel in tree.pages
         if not is_working_record(rel)
-        and "template"
-        in load_frontmatter(_ROOT / "docs" / rel, root=_ROOT).metadata
+        and (
+            template := load_frontmatter(
+                _ROOT / "docs" / rel, root=_ROOT
+            ).metadata.get("template")
+        )
+        and not _template_inherits_badge(template)
     ]
 
     assert tree.pages
     assert replacing == []
+
+
+def test_home_template_extends_main_html():
+    """home.html must extend main.html so the page-type badge is inherited."""
+    source = (_OVERRIDES / "home.html").read_text()
+
+    assert '{%- extends "main.html" -%}' in source
+
+
+def test_home_template_renders_hero_when_meta_present():
+    """hero: frontmatter produces a .vultron-hero block.
+
+    Checks that the template source references the expected CSS class and the
+    hero key names used by docs/index.md.  Full rendering is not attempted
+    because MkDocs' Jinja2 filters (``url``, ``script_tag``, …) are not
+    available outside a live build.
+    """
+    source = (_OVERRIDES / "home.html").read_text()
+
+    assert "vultron-hero" in source
+    assert 'h.get("title")' in source or "h['title']" in source
+    assert 'h.get("tagline")' in source or "h['tagline']" in source
+    assert 'h.get("buttons")' in source or "h['buttons']" in source
+
+
+def test_home_template_renders_nothing_extra_when_no_hero():
+    """hero block is guarded so pages without hero: frontmatter stay unchanged."""
+    source = (_OVERRIDES / "home.html").read_text()
+
+    # The hero block must be inside a conditional.
+    hero_block_start = source.find("vultron-hero")
+    assert hero_block_start != -1, "vultron-hero not found in template"
+
+    # The conditional guard `{%- if h %}` must appear before the hero block.
+    guard_marker = "{%- if h %}"
+    guard_pos = source.find(guard_marker)
+    assert guard_pos != -1, (
+        f"{guard_marker!r} not found — hero block is not guarded"
+    )
+    assert guard_pos < hero_block_start, (
+        "hero guard must precede the hero block"
+    )
+
+
+def test_home_template_omits_image_when_absent():
+    """The image element is inside a conditional so it renders only when present."""
+    source = (_OVERRIDES / "home.html").read_text()
+
+    # The <img> tag must be inside an `if` that checks for the image key.
+    img_pos = source.find("<img")
+    assert img_pos != -1, (
+        "<img not found — image element missing from template"
+    )
+
+    image_guard = source.find('h.get("image")', 0, img_pos)
+    assert image_guard != -1, (
+        'h.get("image") guard must appear before the <img> element'
+    )
 
 
 _HAND_BADGE = re.compile(
