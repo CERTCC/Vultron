@@ -68,7 +68,7 @@ It was produced by the reference implementation; the identifiers and timestamps 
 }
 ```
 
-1. The object cites the Vultron JSON-LD context, which declares `VulnerabilityReport` and the other Vultron types.
+1. The object cites the Vultron JavaScript Object Notation for Linked Data (JSON-LD) context, which declares `VulnerabilityReport` and the other Vultron types.
 2. The report's author is the finder who sends it, so `attributedTo` matches the activity's `actor` here.
 
 Read it field by field.
