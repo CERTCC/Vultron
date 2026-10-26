@@ -1049,6 +1049,38 @@ groups:
       from drifting (DF-11-005).
     verification_debt: '#2571'
     tracking_issue: '#5150'
+  - id: DF-11-022
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A thread member whose page path names a section (`page.md#anchor`) MUST have
+      its box (DF-11-015) rendered where a marker naming that thread is placed on its
+      page, and the box MUST say that the section, not the page, is on the thread. A
+      member without a section keeps its box at the end of the page unless its page
+      places such a marker. A thread check MUST fail when a section member's page
+      has no marker for the thread, when a page places a marker for a thread it is
+      not on, or when a page places more than one marker for the same thread.
+    rationale: >-
+      A box at the end of a long page is out of reach for a reader who followed the
+      thread to one section of it. The end of the section is where that reader
+      looks for directions onward, but no build pass can find it reliably: the
+      Markdown pass would have to reproduce the toc extension's ids and cannot see
+      headings printed by exec blocks, and the HTML pass is past MkDocs' link
+      rewriting and validation. The page's author knows where the section ends, so
+      the author places the marker and the build fills it; the check keeps a section
+      member from silently falling back to the page end.
+    verification: >-
+      A fixture test renders a page with a section member and confirms the box
+      replaces the marker, carries the section wording, and is absent from the page
+      end. Unit tests cover each check failure: a section member with no marker, a
+      marker for a thread the page is not on, and two markers for one thread. The
+      check does not confirm that the marker sits inside the named section; that is
+      left to the author and the reviewer.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-11-015
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers
   description: >-
