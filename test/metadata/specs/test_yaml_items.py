@@ -17,6 +17,7 @@ from vultron.metadata.specs.yaml_items import (
     append_list_field,
     iter_blocks,
     remove_lint_suppression,
+    suppression_reason,
 )
 
 
@@ -352,3 +353,45 @@ def test_add_lint_suppression_list_shapes(text, expected):
     assert added
     assert "".join(lines) == expected
     assert yaml.safe_load(expected)[0]["lint_suppress"][-1] == "x_code"
+
+
+class TestSuppressionReason:
+    """Where :func:`suppression_reason` reads a suppression's reason from."""
+
+    @pytest.mark.parametrize(
+        "suppress",
+        [
+            "    lint_suppress:\n    # one choice\n    - compound_statement\n",
+            "    lint_suppress:\n    - compound_statement  # one choice\n",
+            "    lint_suppress:  # one choice\n    - compound_statement\n",
+            "    lint_suppress: [missing_tags, compound_statement]  # one choice\n",
+        ],
+        ids=["comment-before", "same-line", "header", "flow"],
+    )
+    def test_reads_the_reason(self, suppress):
+        (item,) = _items(f"  - id: TST-01-001\n{suppress}    kind: process\n")
+        assert suppression_reason(item, "compound_statement") == "one choice"
+
+    @pytest.mark.parametrize(
+        "suppress",
+        [
+            "    lint_suppress:\n    - compound_statement\n",
+            "    lint_suppress: [compound_statement]\n",
+            "    lint_suppress:\n    - missing_tags  # one choice\n",
+            "    lint_suppress:\n    - compound_statement  #\n",
+        ],
+        ids=["block", "flow", "other-code", "empty-comment"],
+    )
+    def test_no_reason_is_none(self, suppress):
+        (item,) = _items(f"  - id: TST-01-001\n{suppress}    kind: process\n")
+        assert suppression_reason(item, "compound_statement") is None
+
+    def test_a_comment_on_another_entry_is_not_the_reason(self):
+        text = (
+            "  - id: TST-01-001\n"
+            "    lint_suppress:\n"
+            "    - missing_tags  # tags come later\n"
+            "    - compound_statement\n"
+        )
+        (item,) = _items(text)
+        assert suppression_reason(item, "compound_statement") is None

@@ -342,7 +342,11 @@ def requirement_fingerprints(repo_root: Path) -> dict[str, str]:
     The reader behind :func:`changed_requirement_ids`: two trees disagree on
     an ID exactly when some field of that requirement differs.
     """
-    registry = load_registry(repo_root / "specs")
+    return registry_fingerprints(load_registry(repo_root / "specs"))
+
+
+def registry_fingerprints(registry: SpecRegistry) -> dict[str, str]:
+    """:func:`requirement_fingerprints` of an already-loaded *registry*."""
     return {
         spec_id: spec.model_dump_json()
         for spec_id, spec in registry.all_specs.items()
@@ -371,6 +375,7 @@ __all__ = [
     "index_module",
     "marker_problem",
     "named_tests_lack_marker",
+    "registry_fingerprints",
     "requirement_fingerprints",
     "unmarked_named_test_ids",
     "unresolved_test_refs",

@@ -50,6 +50,7 @@ from vultron.metadata.specs.schema import (
     StatementSpec,
     TriggerType,
 )
+from vultron.metadata.specs.statement_style import compound_listing
 from vultron.metadata.specs.verification import (
     VERIFICATION_DEBT_OWNERS,
     check_closing_pr,
@@ -958,21 +959,31 @@ def _report_closed_debt_owners(
     return 1 if errors else 0
 
 
-def _opt_in_errors(
+def _opt_in_checks(
     registry: SpecRegistry,
     repo_root: Path,
     debt_owners: Mapping[SpecKind, frozenset[str]],
     closing_pr: int | None,
     changed_since: str | None,
     index: SuiteIndex,
-) -> list[str]:
-    """Hard errors from the checks a CLI flag turns on."""
+) -> tuple[list[str], list[str]]:
+    """Hard errors and warnings from the checks a CLI flag turns on."""
     errors: list[str] = []
+    warnings: list[str] = []
     if closing_pr is not None:
         errors.extend(check_closing_pr(registry, debt_owners, closing_pr))
     if changed_since is not None:
-        errors.extend(check_branch(registry, repo_root, changed_since, index))
-    return errors
+        branch = check_branch(registry, repo_root, changed_since, index)
+        errors.extend(branch.errors)
+        warnings.extend(branch.warnings)
+    return errors, warnings
+
+
+def _list_compound(registry: SpecRegistry, spec_dir: Path) -> int:
+    """Print every compound requirement by spec file; always exit ``0``."""
+    for line in compound_listing(registry, spec_dir):
+        print(line)
+    return 0
 
 
 def lint(
@@ -985,6 +996,7 @@ def lint(
     check_debt_owners: bool = False,
     closing_pr: int | None = None,
     changed_since: str | None = None,
+    list_compound: bool = False,
 ) -> int:
     """Validate the spec registry in ``spec_dir``.
 
@@ -1020,9 +1032,13 @@ def lint(
             ``--check-closing-pr N`` on the CLI). Needs ``gh`` and a token.
         changed_since: Also run the branch-scoped checks against the merge
             base with this ref (``--changed-since REF`` on the CLI): the
-            MS-10-011 marker check on each requirement the branch changed, and
-            the PD-10-002 limit on each spec YAML line it added. See
-            :mod:`vultron.metadata.specs.branch_checks`.
+            MS-10-011 marker check on each requirement the branch changed,
+            the PD-10-002 limit on each spec YAML line it added, and the
+            MS-03-007 statement check on each requirement whose statement it
+            added or changed. See :mod:`vultron.metadata.specs.branch_checks`.
+        list_compound: Run only the backlog listing: print every compound
+            requirement in the corpus, grouped by spec file, and return ``0``
+            (MS-03-001; ``--list-compound`` on the CLI).
 
     Returns:
         ``0`` if no hard errors, ``1`` if any hard errors found.
@@ -1049,6 +1065,8 @@ def lint(
 
     if check_debt_owners:
         return _report_closed_debt_owners(registry, debt_owners)
+    if list_compound:
+        return _list_compound(registry, spec_dir)
 
     hard_errors.extend(registry.validate_cross_references())
     hard_errors.extend(check_relationship_loops(registry))
@@ -1074,16 +1092,16 @@ def lint(
     hard_errors.extend(verification_errors)
     status_lines.extend(verification_lines)
     status_lines.extend(suppression_status_lines(registry))
-    hard_errors.extend(
-        _opt_in_errors(
-            registry,
-            spec_dir.parent,
-            debt_owners,
-            closing_pr,
-            changed_since,
-            suite_index,
-        )
+    opt_in_errors, opt_in_warnings = _opt_in_checks(
+        registry,
+        spec_dir.parent,
+        debt_owners,
+        closing_pr,
+        changed_since,
+        suite_index,
     )
+    hard_errors.extend(opt_in_errors)
+    warnings.extend(opt_in_warnings)
 
     adr_ref_errors, adr_ref_warnings = _check_adr_references(registry, adr_dir)
     hard_errors.extend(adr_ref_errors)
@@ -1157,8 +1175,20 @@ def main() -> None:
             "Also check what the branch changed since its merge base with "
             "REF: a protocol or foundation requirement it changed whose "
             "verification names test files carries its marker in one "
-            "(MS-10-011), and no spec YAML line it added is over 88 "
-            "characters (PD-10-002). Exit 2 when REF does not resolve"
+            "(MS-10-011), no spec YAML line it added is over 88 "
+            "characters (PD-10-002), and each requirement whose statement it "
+            "added or changed holds one RFC 2119 keyword, with a warning for "
+            "a sentence over 25 words (MS-03-007). Exit 2 when REF does not "
+            "resolve"
+        ),
+    )
+    parser.add_argument(
+        "--list-compound",
+        action="store_true",
+        help=(
+            "Run only the backlog listing: print every requirement whose "
+            "statement holds more than one RFC 2119 keyword, grouped by spec "
+            "file (MS-03-001), and exit 0"
         ),
     )
     args = parser.parse_args()
@@ -1176,6 +1206,7 @@ def main() -> None:
             check_debt_owners=args.check_debt_owners,
             closing_pr=args.check_closing_pr,
             changed_since=args.changed_since,
+            list_compound=args.list_compound,
         )
     except BaseUnavailableError as exc:
         print(f"[FATAL] --changed-since: {exc}", file=sys.stderr)

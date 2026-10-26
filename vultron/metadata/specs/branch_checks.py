@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """``spec-lint --changed-since REF``: checks scoped to what a branch changed.
 
-Two spec rules have a backlog in the corpus, so ``spec-lint`` cannot fail on
+Some spec rules have a backlog in the corpus, so ``spec-lint`` cannot fail on
 them corpus-wide. Scoped to the branch, they hold for everything it touches:
 
 - **MS-10-011** — each requirement the branch adds or changes (any field, see
@@ -21,13 +21,17 @@ them corpus-wide. Scoped to the branch, they hold for everything it touches:
   of them, when its kind is ``protocol`` or ``foundation``.
 - **PD-10-002** — no line the branch adds to ``specs/*.yaml`` is overlong
   (:func:`~vultron.metadata.line_length.is_overlong`).
+- **MS-03-007** — each requirement whose ``statement:`` the branch adds or
+  changes states one obligation, and a sentence over 25 words is a warning
+  (:mod:`~vultron.metadata.specs.statement_style`). A change to another
+  field of the requirement does not count.
 
 ``create-pr`` runs this before a Pull Request's first push (PAD-20-003). The
-same two rules run corpus-wide as growth guards under ``test/architecture/``,
-so CI holds them too. The base is required: a ref that does not resolve is an
-error (exit 2), never a pass.
+first two rules also run corpus-wide as growth guards under
+``test/architecture/``, so CI holds them too. The base is required: a ref that
+does not resolve is an error (exit 2), never a pass.
 
-Requirements: specs/meta-specifications.yaml MS-10-011;
+Requirements: specs/meta-specifications.yaml MS-10-011, MS-03-007;
 specs/project-documentation.yaml PD-10-002;
 specs/parallel-development.yaml PAD-20-003.
 """
@@ -47,13 +51,14 @@ from vultron.metadata.specs.growth_guard import (
     BaseUnavailableError,
     compare_with_base,
 )
-from vultron.metadata.specs.registry import SpecRegistry
+from vultron.metadata.specs.registry import SpecRegistry, load_registry
+from vultron.metadata.specs.statement_style import check_changed_statements
 from vultron.metadata.specs.verification_refs import (
     SuiteIndex,
     changed_requirement_ids,
     marker_problem,
     named_tests_lack_marker,
-    requirement_fingerprints,
+    registry_fingerprints,
 )
 
 _SPEC_PATHS = ("specs",)
@@ -64,12 +69,16 @@ class _SpecTree:
     """What the branch checks read from one tree's ``specs/``."""
 
     fingerprints: dict[str, str]
+    statements: dict[str, str]
     overlong: frozenset[str]
 
     @classmethod
     def read(cls, root: Path) -> _SpecTree:
+        registry = load_registry(root / "specs")
         return cls(
-            requirement_fingerprints(root), overlong_spec_yaml_lines(root)
+            registry_fingerprints(registry),
+            {i: spec.statement for i, spec in registry.all_specs.items()},
+            overlong_spec_yaml_lines(root),
         )
 
 
@@ -80,10 +89,13 @@ class BranchChanges:
     Attributes:
         requirement_ids: Requirements added or changed (any field).
         yaml_lines: Overlong spec YAML lines added; a moved line is not.
+        statement_ids: Requirements whose ``statement:`` was added or
+            changed; a subset of *requirement_ids*.
     """
 
     requirement_ids: frozenset[str]
     yaml_lines: frozenset[str]
+    statement_ids: frozenset[str]
 
 
 def branch_changes(repo_root: Path, base_ref: str) -> BranchChanges:
@@ -106,6 +118,7 @@ def branch_changes(repo_root: Path, base_ref: str) -> BranchChanges:
     return BranchChanges(
         changed_requirement_ids(base.fingerprints, head.fingerprints),
         new_lines(base.overlong, head.overlong),
+        changed_requirement_ids(base.statements, head.statements),
     )
 
 
@@ -163,13 +176,21 @@ def check_added_yaml_lines(repo_root: Path, base_ref: str) -> list[str]:
     return _yaml_line_errors(check.added, base_ref)
 
 
+@dataclass(frozen=True)
+class BranchReport:
+    """What ``--changed-since`` found: hard errors, and advisory warnings."""
+
+    errors: list[str]
+    warnings: list[str]
+
+
 def check_branch(
     registry: SpecRegistry,
     repo_root: Path,
     base_ref: str,
     index: SuiteIndex | None = None,
-) -> list[str]:
-    """Every ``--changed-since`` hard error for the branch against *base_ref*.
+) -> BranchReport:
+    """Every ``--changed-since`` finding for the branch against *base_ref*.
 
     *index* is the test suite of *repo_root*, when the caller built it.
     """
@@ -178,11 +199,16 @@ def check_branch(
         registry, repo_root, changes.requirement_ids, index
     )
     errors.extend(_yaml_line_errors(changes.yaml_lines, base_ref))
-    return errors
+    statements = check_changed_statements(
+        registry, repo_root / "specs", changes.statement_ids
+    )
+    errors.extend(statements.errors)
+    return BranchReport(errors, statements.warnings)
 
 
 __all__ = [
     "BranchChanges",
+    "BranchReport",
     "branch_changes",
     "changed_since",
     "check_added_yaml_lines",

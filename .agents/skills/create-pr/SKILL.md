@@ -269,7 +269,8 @@ opens the PR from that same file.
 ```bash
 # Spec rules scoped to what the branch changed: a protocol requirement whose
 # verification names unmarked tests (MS-10-011), an added spec line over 88
-# characters (PD-10-002). Every PR type.
+# characters (PD-10-002), an added or reworded statement with more than one
+# RFC 2119 keyword (MS-03-007). Every PR type.
 PYTHONPATH= uv run spec-lint --changed-since origin/main
 
 # Implementation PRs: the manifest must resolve against the diff (SR-12-006).

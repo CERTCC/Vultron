@@ -14,7 +14,9 @@ description: >
   fits (SR-13-017, SR-13-018); `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
-  (MS-02-003/004); the `verification_debt` ratchet (MS-10-005..009); guards that
+  (MS-02-003/004); the `verification_debt` ratchet (MS-10-005..009); one
+  obligation per requirement in plain sentences, and how to split a compound
+  one (MS-03); guards that
   state a domain truth (MS-05-005); the rationale rule and its growth guard
   (MS-10-012 to MS-10-015); removed requirements (MS-09); audit passes
   for retiring a name or splitting a requirement; and the CASE_MANAGER-versus-
@@ -384,6 +386,33 @@ as evidence for the reason is fine; an issue cited as the story is not.
 requirements a live ADR names but `adr:` omits; both are advisory worklists with
 false positives (MS-10-015). Until the schema requires the field, MS-10-014's
 growth guard fails a PR that adds a requirement without one.
+
+### One Obligation per Requirement, in Plain Sentences (MS-03)
+
+A `statement:` holds one RFC 2119 keyword (MS-03-001), because two obligations
+under one ID cannot be verified, cited or retired apart. `spec-lint
+--changed-since <ref>` fails each statement the branch adds or rewords that
+holds two outside backticks (MS-03-007); a branch that edits only `rationale:`,
+`relationships:` or another field is not checked. `MUST NOT` is one keyword, and
+a keyword quoted in backticks is a name, not an obligation.
+`uv run spec-lint --list-compound` lists the backlog by spec file.
+
+Split a compound requirement the way MS-12-010 splits a mixed-kind one. The
+**original ID keeps the main obligation**, so its stories, markers and
+citations stay valid. Each other obligation gets a **new ID with its own
+`rationale:`**, linked to the original only by a type whose SR-13 definition
+holds (often `refines` or `depends_on`); when none holds, record no link
+(SR-13-018). Two keywords that state one obligation, and cannot be split
+without losing meaning, may stay: add `lint_suppress: [compound_statement]`
+with the reason in a YAML comment on the entry or the line before it. A
+suppression without a reason still fails.
+
+Write the statement plainly, without losing meaning: at most 25 words per
+sentence (MS-03-003, a `--changed-since` warning), active voice that names the
+actor — the CASE_MANAGER, a participant, `spec-lint`, this codebase (MS-03-004)
+— and the plain verb, "remove" rather than "the removal of" (MS-03-005). Keep
+domain terms and RFC 2119 keywords as written; a simpler word changes the
+requirement (MS-03-006).
 
 ### A Guard States the Truth the Mistake Violates
 
