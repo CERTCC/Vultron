@@ -294,14 +294,22 @@ def test_context_is_supplied_once_and_not_as_a_core_field(adapter):
 
 def test_render_succeeds_for_case_actor(adapter):
     """CaseActor IS the wire counterpart after ARCH-25-003 (ADR-0099, #3487)."""
-    obj = VultronService()
+    obj = VultronService(inbox="urn:x:inbox", outbox="urn:x:outbox")
     result = adapter.render(obj)
     assert isinstance(result, dict)
     assert result.get("type") == "Service"
     assert result.get("@context") == VULTRON_CONTEXT_URI
-    # The internal outbox list is replaced by the AS2 collection URIs.
-    assert result.get("inbox") == f"{obj.id_}/inbox"
-    assert result.get("outbox") == f"{obj.id_}/outbox"
+    # The endpoints render as the AS2 collection URIs the profile states.
+    assert result.get("inbox") == "urn:x:inbox"
+    assert result.get("outbox") == "urn:x:outbox"
+
+
+@pytest.mark.spec("AKM-02-006")
+def test_render_adds_no_endpoint_the_actor_does_not_state(adapter):
+    """An actor whose profile states no endpoints renders none (ADR-0159)."""
+    result = adapter.render(VultronService())
+    assert "inbox" not in result
+    assert "outbox" not in result
 
 
 def test_render_succeeds_for_vultron_person(adapter):

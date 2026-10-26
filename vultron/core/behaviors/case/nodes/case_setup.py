@@ -33,7 +33,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
 )
 from vultron.core.behaviors.store_scope import hosts_actor, store_for_actor
-from vultron.core.models.actor import VultronService
+from vultron.core.models.actor import VultronService, hosted_endpoints
 from vultron.errors import VultronAlreadyExistsError
 
 
@@ -85,11 +85,24 @@ class EnsureCaseActorHostedNode(DataLayerActionWithPorts):
             self.logger.error("%s", self.feedback_message)
             return Status.FAILURE
 
-        case_actor = VultronService(id_=case_actor_id, name="CaseActor")
         own_store = (
             store_for_actor(self.datalayer, case_actor_id)
             if hosts_actor(self.datalayer, case_actor_id)
             else None
+        )
+        # This node states a CaseActor it hosts in full; one hosted elsewhere
+        # is known here by its id alone, with no name, time or endpoint this
+        # node would have to guess (AKM-02-006).
+        case_actor = (
+            VultronService(
+                id_=case_actor_id,
+                name="CaseActor",
+                **hosted_endpoints(case_actor_id),
+            )
+            if own_store is not None
+            else VultronService(
+                id_=case_actor_id, published=None, updated=None
+            )
         )
         stores = (
             ("its own", own_store),

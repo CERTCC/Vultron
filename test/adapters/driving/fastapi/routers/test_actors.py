@@ -815,11 +815,6 @@ class TestRegisterPeer:
         ]
         assert holders == ["Organization"]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="AKM-02-006: the peer record gets clock times and endpoints"
-        " derived from its id. Tracked by #5177.",
-    )
     @pytest.mark.spec("AKM-02-006")
     def test_peer_record_holds_no_value_the_request_did_not_supply(
         self, client_actors

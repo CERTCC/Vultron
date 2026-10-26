@@ -16,6 +16,7 @@
 import functools
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -34,7 +35,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
     reset_datalayer,
 )
-from vultron.adapters.driven.http_delivery import DeliveryError
+from vultron.adapters.driven.http_delivery import DeliveryError, inbox_url_for
 from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.app import create_app
 from vultron.adapters.driving.fastapi.deps import get_actor_dl
@@ -139,17 +140,22 @@ class _TestClientRouter:
         self._failing_hosts.add(base_url.rstrip("/"))
 
     async def emit(
-        self, activity_id: str, json_body: str, recipients: list[str]
+        self,
+        activity_id: str,
+        json_body: str,
+        recipients: list[str],
+        inboxes: Mapping[str, str] | None = None,
     ) -> None:
         """Deliver the sealed *json_body* to each recipient's registered client.
 
         Posts the body exactly as the outbox handler hands it over, as the
         production ``HttpDeliveryAdapter`` does (VM-08-003): a test double
         that re-serialised would mask any divergence between what the ledger
-        recorded and what the wire carried.
+        recorded and what the wire carried.  It posts to the same inbox the
+        production adapter would (OX-12-009).
         """
         for recipient_id in recipients:
-            parsed = urlparse(recipient_id.rstrip("/") + "/inbox/")
+            parsed = urlparse(inbox_url_for(recipient_id, inboxes))
             base = f"{parsed.scheme}://{parsed.netloc}"
             if base in self._failing_hosts:
                 raise DeliveryError([recipient_id], activity_id)

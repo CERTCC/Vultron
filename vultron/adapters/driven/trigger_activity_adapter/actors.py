@@ -29,6 +29,7 @@ from vultron.adapters.received_archive import (
     read_received_as_received,
 )
 from vultron.core.models._helpers import _as_id
+from vultron.core.models.actor import CoreActor
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
@@ -101,6 +102,25 @@ def _active_embargo_of(
     if isinstance(active_embargo, str):
         return dl.read(active_embargo)
     return active_embargo
+
+
+def _held_actor(
+    dl: CaseOutboxPersistence, actor_id: str
+) -> as_Actor | CoreActor | str:
+    """The actor *actor_id* as this sender holds it, else its URI.
+
+    A held profile travels as held, and a URI the factory carries as an actor
+    reference (AKM-05-005, ADR-0159).  A record of the abstract
+    ``CoreActor`` class, the minimal peer recorded when only the URI was known
+    (``_record_named_peer``), states no actor type a receiver could read, so
+    it holds nothing more than the URI and travels as a reference too.
+    """
+    held = dl.read(actor_id)
+    if isinstance(held, as_Actor) or (
+        isinstance(held, CoreActor) and type(held) is not CoreActor
+    ):
+        return held
+    return actor_id
 
 
 def _stored_case_invite(
@@ -190,7 +210,7 @@ class _ActorsMixin:
         )
 
         activity = rm_invite_to_case_activity(
-            invitee=invitee_id,
+            invitee=_held_actor(self._dl, invitee_id),
             target=resolved,
             roles=roles,
             embargo_obj=embargo_obj,
@@ -271,7 +291,7 @@ class _ActorsMixin:
         """Create and persist the full-case ``Invite(Actor)[target=Case]``."""
         extra = _addressing(actor, to, id_)
         activity = rm_invite_to_full_case_activity(
-            invitee=invitee_id,
+            invitee=_held_actor(self._dl, invitee_id),
             case=case_id,
             ledger_tail=LedgerPosition(
                 log_index=ledger_log_index, entry_hash=ledger_entry_hash
@@ -403,7 +423,7 @@ class _ActorsMixin:
         extra = _addressing(actor, to, id_)
         # The factory accepts a string for target (case ID).
         activity = recommend_actor_activity(
-            recommended=recommended_id,
+            recommended=_held_actor(self._dl, recommended_id),
             target=case_id,
             suggested_roles=roles,
             **extra,
@@ -450,6 +470,30 @@ class _ActorsMixin:
                 pass
         return _create_and_seal(self._dl, activity, "offer_actor_to_case")
 
+    def _rebuilt_recommendation(
+        self,
+        recommender_id: str,
+        recommendation_id: str,
+        recommended_id: str,
+        case_id: str,
+    ) -> as_Offer:
+        """The recommender's ``Offer(Actor)``, rebuilt for the answer to embed.
+
+        Built only from what this actor knows: the recommended actor as held
+        (:func:`_held_actor`), and no ``published`` or ``updated``, which the
+        recommender stated and this actor would otherwise read from its own
+        clock (AKM-02-006).  So every rebuild under the same ids produces the
+        same body (OX-06-002).
+        """
+        return recommend_actor_activity(
+            recommended=_held_actor(self._dl, recommended_id),
+            target=case_id,
+            id_=recommendation_id,
+            actor=recommender_id,
+            published=None,
+            updated=None,
+        )
+
     def emit_accept_actor_recommendation(
         self,
         recommender_id: str,
@@ -467,11 +511,8 @@ class _ActorsMixin:
         actor already invited or joined (CM-16-009).  ``inReplyTo`` names
         the recommendation it answers.
         """
-        recommendation = recommend_actor_activity(
-            recommended=recommended_id,
-            target=case_id,
-            id_=recommendation_id,
-            actor=recommender_id,
+        recommendation = self._rebuilt_recommendation(
+            recommender_id, recommendation_id, recommended_id, case_id
         )
         extra = _addressing(actor, to or [recommender_id], id_)
         activity = accept_actor_recommendation_activity(
@@ -500,11 +541,8 @@ class _ActorsMixin:
         the Offer(as_CaseParticipant) (CM-16-007 step 3).  ``inReplyTo``
         names the recommendation it answers.
         """
-        recommendation = recommend_actor_activity(
-            recommended=recommended_id,
-            target=case_id,
-            id_=recommendation_id,
-            actor=recommender_id,
+        recommendation = self._rebuilt_recommendation(
+            recommender_id, recommendation_id, recommended_id, case_id
         )
         extra = _addressing(actor, to or [recommender_id], id_)
         activity = reject_actor_recommendation_activity(
@@ -627,7 +665,7 @@ class _ActorsMixin:
         Returns ``(activity_id, activity_dict)``.
         """
         case = _case_for_wire(self._dl, case_id)
-        target = as_Actor(id_=target_actor_id)
+        target = _held_actor(self._dl, target_actor_id)
         extra: dict[str, Any] = _addressing(actor, to, id_)
         if attributed_to is not None:
             extra["attributed_to"] = attributed_to
@@ -663,7 +701,7 @@ class _ActorsMixin:
         ``_OfferCaseParticipantRoleActivity``, and a caller-supplied ``id_``
         is kept so a retry rebuilds the same answer (OX-06-002).
         """
-        target = as_Actor(id_=target_actor_id)
+        target = _held_actor(self._dl, target_actor_id)
         case = _case_for_wire(self._dl, case_id)
         offer = offer_case_participant_role_activity(
             role=role,
@@ -747,7 +785,10 @@ class _ActorsMixin:
         if content is not None:
             extra["content"] = content
         activity = propose_case_ownership_transfer_activity(
-            case, target=transferee_id, end_time=end_time, **extra
+            case,
+            target=_held_actor(self._dl, transferee_id),
+            end_time=end_time,
+            **extra,
         )
         return _create_and_seal(
             self._dl, activity, "propose_case_ownership_transfer"
@@ -788,7 +829,7 @@ class _ActorsMixin:
         # names its case as ``context`` (CLP-07).
         activity = offer_case_ownership_transfer_activity(
             case=case,
-            target=transferee_id,
+            target=_held_actor(self._dl, transferee_id),
             context=case_id,
             **extra,
         )

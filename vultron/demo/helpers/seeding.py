@@ -32,7 +32,7 @@ from vultron.core.behaviors.case.case_actor_identity import (
 from vultron.core.behaviors.case.nodes.embargo import creation_time_embargo_id
 from vultron.core.behaviors.store_scope import store_for_actor
 from vultron.core.models._helpers import from_now_utc
-from vultron.core.models.actor import VultronService
+from vultron.core.models.actor import VultronService, hosted_endpoints
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
@@ -119,11 +119,52 @@ def _own_actor(client: DataLayerClient, actor: as_Actor) -> as_Actor:
     return actor
 
 
+def seed_case_actor_peers(
+    case_actor_client: DataLayerClient | None, actors: Sequence[as_Actor]
+) -> None:
+    """Register every seeded demo actor in the CaseActor's address book.
+
+    The CaseActor names the participants in the activities it sends (the stub
+    and full-case Invites among them) and carries each as it holds it: a seeded
+    peer as its profile, an actor known only by URI as an id-and-type reference
+    (AKM-05-005, ADR-0159).  The demo reset clears its address book with every
+    other record and :func:`seed_case_actor_identity` re-creates only the
+    identity, so the peers ``docker/seed-configs/seed-case-actor.yaml`` gives it
+    at startup are registered again here.  A ``None`` client (a topology with
+    no dedicated case-actor container) registers nothing.
+
+    Raises:
+        ValueError: When a seeded actor carries no name to register it under.
+    """
+    if case_actor_client is None:
+        return
+    case_actor_id = case_actor_id_on(case_actor_client.base_url)
+    for actor in actors:
+        if not actor.name:
+            raise ValueError(
+                f"seeded actor {actor.id_!r} has no name to register with"
+                " the CaseActor"
+            )
+        actor_type = getattr(actor.type_, "value", actor.type_)
+        seed_peer(
+            client=case_actor_client,
+            local_actor_id=case_actor_id,
+            peer_id=actor.id_,
+            name=actor.name,
+            actor_type=str(actor_type),
+        )
+    logger.info(
+        "%d demo actor(s) registered as peers on the CaseActor container",
+        len(actors),
+    )
+
+
 def seed_containers(
     reporter_client: DataLayerClient,
     vendor_client: DataLayerClient,
     reporter_actor_id: str | None = None,
     vendor_actor_id: str | None = None,
+    case_actor_client: DataLayerClient | None = None,
 ) -> tuple[as_Actor, as_Actor]:
     """Seed both containers: create actor records and register cross-container peers.
 
@@ -142,6 +183,9 @@ def seed_containers(
             When absent the server derives one from ``VULTRON_SERVER__BASE_URL``.
         vendor_actor_id: Optional deterministic URI for the Vendor actor.
             When absent the server derives one from ``VULTRON_SERVER__BASE_URL``.
+        case_actor_client: Client for the dedicated case-actor container,
+            whose address book gets every seeded actor
+            (:func:`seed_case_actor_peers`).
 
     Returns:
         Tuple of ``(reporter, vendor)`` ``as_Actor`` objects as created on their
@@ -193,6 +237,8 @@ def seed_containers(
         "Reporter peer registered on Vendor container: %s", reporter.id_
     )
 
+    seed_case_actor_peers(case_actor_client, [reporter, vendor])
+
     return reporter, vendor
 
 
@@ -203,6 +249,7 @@ def seed_containers_rvv(
     reporter_actor_id: str | None = None,
     vendor_actor_id: str | None = None,
     vendor2_actor_id: str | None = None,
+    case_actor_client: DataLayerClient | None = None,
 ) -> tuple[as_Actor, as_Actor, as_Actor]:
     """Seed three containers for the RVV scenario: Reporter, Vendor1, Vendor2.
 
@@ -221,6 +268,9 @@ def seed_containers_rvv(
         reporter_actor_id: Optional deterministic URI for the Reporter actor.
         vendor_actor_id: Optional deterministic URI for the Vendor1 actor.
         vendor2_actor_id: Optional deterministic URI for the Vendor2 actor.
+        case_actor_client: Client for the dedicated case-actor container,
+            whose address book gets every seeded actor
+            (:func:`seed_case_actor_peers`).
 
     Returns:
         Tuple of ``(reporter, vendor, vendor2)`` ``as_Actor`` objects as
@@ -319,6 +369,8 @@ def seed_containers_rvv(
         "Reporter and Vendor1 registered as peers on Vendor2 container"
     )
 
+    seed_case_actor_peers(case_actor_client, [reporter, vendor, vendor2])
+
     return reporter, vendor, vendor2
 
 
@@ -331,6 +383,7 @@ def seed_containers_rvcv(
     vendor_actor_id: str | None = None,
     coordinator_actor_id: str | None = None,
     vendor2_actor_id: str | None = None,
+    case_actor_client: DataLayerClient | None = None,
 ) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor]:
     """Seed four containers for the RVCV-extension scenario.
 
@@ -353,6 +406,9 @@ def seed_containers_rvcv(
         vendor_actor_id: Optional deterministic URI for the Vendor1 actor.
         coordinator_actor_id: Optional deterministic URI for the Coordinator actor.
         vendor2_actor_id: Optional deterministic URI for the Vendor2 actor.
+        case_actor_client: Client for the dedicated case-actor container,
+            whose address book gets every seeded actor
+            (:func:`seed_case_actor_peers`).
 
     Returns:
         Tuple of ``(reporter, vendor, coordinator, vendor2)`` ``as_Actor`` objects
@@ -509,6 +565,10 @@ def seed_containers_rvcv(
         "Reporter, Vendor1, and Coordinator registered as peers on Vendor2 container"
     )
 
+    seed_case_actor_peers(
+        case_actor_client, [reporter, vendor, coordinator, vendor2]
+    )
+
     return reporter, vendor, coordinator, vendor2
 
 
@@ -521,6 +581,7 @@ def seed_containers_rccv(
     c1_actor_id: str | None = None,
     c2_actor_id: str | None = None,
     vendor_actor_id: str | None = None,
+    case_actor_client: DataLayerClient | None = None,
 ) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor]:
     """Seed four containers for the RCCV-handoff scenario.
 
@@ -545,6 +606,9 @@ def seed_containers_rccv(
         c1_actor_id: Optional deterministic URI for the C1 actor.
         c2_actor_id: Optional deterministic URI for the C2 actor.
         vendor_actor_id: Optional deterministic URI for the Vendor actor.
+        case_actor_client: Client for the dedicated case-actor container,
+            whose address book gets every seeded actor
+            (:func:`seed_case_actor_peers`).
 
     Returns:
         Tuple of ``(reporter, c1, c2, vendor)`` ``as_Actor`` objects as
@@ -693,6 +757,8 @@ def seed_containers_rccv(
     )
     logger.info("Reporter, C1, and C2 registered as peers on Vendor container")
 
+    seed_case_actor_peers(case_actor_client, [reporter, c1, c2, vendor])
+
     return reporter, c1, c2, vendor
 
 
@@ -703,6 +769,7 @@ def seed_containers_rcv(
     reporter_actor_id: str | None = None,
     coordinator_actor_id: str | None = None,
     vendor_actor_id: str | None = None,
+    case_actor_client: DataLayerClient | None = None,
 ) -> tuple[as_Actor, as_Actor, as_Actor]:
     """Seed three containers for the RCV scenario: Reporter, Coordinator, Vendor.
 
@@ -728,6 +795,9 @@ def seed_containers_rcv(
         reporter_actor_id: Optional deterministic URI for the Reporter actor.
         coordinator_actor_id: Optional deterministic URI for the Coordinator actor.
         vendor_actor_id: Optional deterministic URI for the Vendor actor.
+        case_actor_client: Client for the dedicated case-actor container,
+            whose address book gets every seeded actor
+            (:func:`seed_case_actor_peers`).
 
     Returns:
         Tuple of ``(reporter, coordinator, vendor)`` ``as_Actor`` objects as
@@ -826,6 +896,8 @@ def seed_containers_rcv(
         "Reporter and Coordinator registered as peers on Vendor container"
     )
 
+    seed_case_actor_peers(case_actor_client, [reporter, coordinator, vendor])
+
     return reporter, coordinator, vendor
 
 
@@ -838,6 +910,7 @@ def seed_containers_rcvv(
     coordinator_actor_id: str | None = None,
     vendor_actor_id: str | None = None,
     vendor2_actor_id: str | None = None,
+    case_actor_client: DataLayerClient | None = None,
 ) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor]:
     """Seed four containers for the RCVV-embargo scenario.
 
@@ -845,6 +918,9 @@ def seed_containers_rcvv(
     Vendor1 and Vendor2 (Organizations).  Every actor is created on its own
     container, then registered as a peer on each of the other three.  The
     function is idempotent, as the other ``seed_containers_*`` are.
+        case_actor_client: Client for the dedicated case-actor container,
+            whose address book gets every seeded actor
+            (:func:`seed_case_actor_peers`).
 
     Returns:
         Tuple of ``(reporter, coordinator, vendor, vendor2)`` ``as_Actor``
@@ -892,6 +968,10 @@ def seed_containers_rcvv(
     logger.info("Every actor registered as a peer on the other containers")
 
     reporter, coordinator, vendor, vendor2 = actors
+    seed_case_actor_peers(
+        case_actor_client, [reporter, coordinator, vendor, vendor2]
+    )
+
     return reporter, coordinator, vendor, vendor2
 
 
@@ -906,6 +986,7 @@ def seed_containers_rcvcv(
     v1_actor_id: str | None = None,
     c2_actor_id: str | None = None,
     v2_actor_id: str | None = None,
+    case_actor_client: DataLayerClient | None = None,
 ) -> tuple[as_Actor, as_Actor, as_Actor, as_Actor, as_Actor]:
     """Seed five containers for the RCVCV scenario.
 
@@ -932,6 +1013,9 @@ def seed_containers_rcvcv(
         v1_actor_id: Optional deterministic URI for the Vendor1 actor.
         c2_actor_id: Optional deterministic URI for the Coordinator2 actor.
         v2_actor_id: Optional deterministic URI for the VendorDeployer actor.
+        case_actor_client: Client for the dedicated case-actor container,
+            whose address book gets every seeded actor
+            (:func:`seed_case_actor_peers`).
 
     Returns:
         Tuple of ``(reporter, c1, v1, c2, v2)`` ``as_Actor`` objects as
@@ -1149,6 +1233,8 @@ def seed_containers_rcvcv(
         actor_type="Organization",
     )
     logger.info("Reporter, C1, V1, and C2 registered as peers on V2 container")
+
+    seed_case_actor_peers(case_actor_client, [reporter, c1, v1, c2, v2])
 
     return reporter, c1, v1, c2, v2
 
@@ -1377,7 +1463,9 @@ def _seed_case_actor_participant(case_obj, report_id: str | None, dl) -> None:
     # guard would never fire.
     # One actor per container, not per case (ADR-0088): no `context` naming a
     # case and no `attributed_to`.
-    actor_obj = VultronService(id_=case_actor_id, name="CaseActor")
+    actor_obj = VultronService(
+        id_=case_actor_id, name="CaseActor", **hosted_endpoints(case_actor_id)
+    )
     own_store = store_for_actor(dl, case_actor_id)
     try:
         own_store.create(actor_obj)

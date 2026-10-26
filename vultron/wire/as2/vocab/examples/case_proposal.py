@@ -20,7 +20,7 @@ and ``Reject(as_CaseProposal)`` activities as specified in ADR-0023 and
 
 from datetime import timedelta
 
-from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.actor import VultronOrganization, hosted_endpoints
 from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -78,6 +78,7 @@ def vendor_profile() -> VultronOrganization:
             preferred_duration=timedelta(days=45),
             **_example_stamp(),
         ),
+        **hosted_endpoints(_VENDOR.id_),
         **_example_stamp(),
     )
 

@@ -546,3 +546,37 @@ def test_an_invite_after_the_accept_cannot_replace_the_anchor(
     pending = _pending(invitee_dl)
     assert pending.case_actor_id == _CASE_ACTOR_ID
     assert pending.invite_accepted
+
+
+@pytest.mark.spec("AKM-05-005")
+def test_an_actor_reference_does_not_replace_the_receiver_fuller_record(
+    case_actor_dl, invitee_dl
+):
+    """A received actor reference leaves the receiver's own record whole.
+
+    The CASE_MANAGER holds no record of the invitee, so its Invite carries
+    an actor reference.  Nothing on the received path stores an inline actor
+    (staging is thrown away and intake archives the body), so the invitee's
+    profile, fuller than the reference, is what it still holds (ADR-0159).
+    """
+    from vultron.core.models.actor import (
+        VultronOrganization,
+        hosted_endpoints,
+    )
+
+    profile = VultronOrganization(
+        id_=_INVITEE_ID, name="Invitee Co", **hosted_endpoints(_INVITEE_ID)
+    )
+    invitee_dl.create(profile)
+    held_before = invitee_dl.read(_INVITEE_ID)
+    _, body = _stub_invite_body(case_actor_dl)
+    reference = dict(body["object"])
+    reference.pop("@context", None)
+    assert reference == {"id": _INVITEE_ID, "type": "Actor"}
+
+    outcome = _deliver(invitee_dl, body)
+
+    assert outcome.status is InboxOutcomeStatus.PROCESSED, (
+        outcome.failure_reason
+    )
+    assert invitee_dl.read(_INVITEE_ID) == held_before

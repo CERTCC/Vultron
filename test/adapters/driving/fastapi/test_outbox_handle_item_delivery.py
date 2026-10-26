@@ -41,6 +41,7 @@ from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     sealed_body_id,
 )
+from vultron.core.models.actor import VultronOrganization
 from vultron.wire.as2.factories import rm_submit_report_activity
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.base import ACTIVITY_STREAMS_NS
@@ -167,7 +168,31 @@ def test_handle_outbox_item_delivers_the_sealed_body_verbatim():
     _deliver("actor-abc", sealed.activity_id, _dl_with(sealed), mock_emitter)
 
     mock_emitter.emit.assert_called_once_with(
-        sealed.activity_id, sealed.body, [RECIPIENT]
+        sealed.activity_id, sealed.body, [RECIPIENT], inboxes={}
+    )
+
+
+@pytest.mark.spec("OX-12-009")
+def test_handle_outbox_item_hands_over_the_held_inbox():
+    """The inbox the sender's held profile of the recipient names goes along."""
+    sealed = _sealed(
+        "urn:test:act-held-inbox",
+        {"type": "Offer", "actor": SENDER, "to": [RECIPIENT], "object": {}},
+    )
+    held = VultronOrganization(
+        id_=RECIPIENT, name="Alice", inbox="https://boxes.example/alice-in"
+    )
+    dl = MagicMock()
+    dl.read.side_effect = {sealed.id_: sealed, RECIPIENT: held}.get
+    mock_emitter = AsyncMock()
+
+    _deliver("actor-abc", sealed.activity_id, dl, mock_emitter)
+
+    mock_emitter.emit.assert_called_once_with(
+        sealed.activity_id,
+        sealed.body,
+        [RECIPIENT],
+        inboxes={RECIPIENT: "https://boxes.example/alice-in"},
     )
 
 

@@ -27,7 +27,9 @@ from typing import cast
 
 from pydantic import ValidationError
 
+from vultron.core.models.actor import CoreActor
 from vultron.enums.roles import CVDRole
+from vultron.wire.as2.factories._actor import carried_actor
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     with_case_context,
@@ -60,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 
 def recommend_actor_activity(
-    recommended: as_Actor | str,
+    recommended: as_Actor | CoreActor | str,
     target: as_VulnerabilityCaseRef | None = None,
     suggested_roles: list[str] | None = None,
     **kwargs,
@@ -73,7 +75,9 @@ def recommend_actor_activity(
     :func:`reject_actor_recommendation_activity`.
 
     Args:
-        recommended: The ``as_Actor`` being recommended.
+        recommended: The actor being recommended: its profile as the sender
+            holds it, or its URI, which travels as an actor reference
+            (AKM-05-005).
         target: The ``VulnerabilityCase`` (or its URI) for which the
             actor is being recommended.
         **kwargs: Optional AS2 fields forwarded to the constructor
@@ -85,11 +89,9 @@ def recommend_actor_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    if isinstance(recommended, str):
-        recommended = as_Actor(id_=recommended)
     try:
         return _RecommendActorActivity(
-            object_=recommended,
+            object_=carried_actor(recommended),
             target=case_target_ref(target),
             suggested_roles=suggested_roles,
             **with_case_context(kwargs, target),

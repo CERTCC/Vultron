@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, TypedDict
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -34,12 +34,14 @@ class CoreActor(CoreObject):
     actor types inherit from this base and add a concrete ``type_``
     discriminator.
 
-    Note: inbox and outbox are now simple string URIs representing the
+    Note: inbox and outbox are simple string URIs representing the
     actor's ActivityStreams collection endpoints. Queue persistence is
-    delegated to the DataLayer, accessed via DataLayer.  An endpoint that
-    arrives absent or ``None`` is derived from ``id_`` (``{id_}/inbox``),
-    because these classes are also the wire form (ADR-0099) and ActivityPub
-    requires every actor to publish both (ISSUE-3616).
+    delegated to the DataLayer, accessed via DataLayer.  An endpoint is
+    absent unless the profile states it: a record of a peer holds only what
+    the peer's profile supplied, and an address derived from the id would be
+    a value nobody asserted (AKM-02-006, ADR-0159).  A hosted actor states its
+    own endpoints when it is created (:func:`hosted_endpoints`), so the
+    profile it publishes carries both, as ActivityPub requires (ISSUE-3616).
     """
 
     model_config = ConfigDict(
@@ -47,59 +49,38 @@ class CoreActor(CoreObject):
         validate_by_name=True,
     )
 
-    # Never empty once validated: ``""`` only means "not supplied", and
-    # ``_derive_endpoints_from_id`` replaces it.  ActivityPub requires every
-    # actor to publish both endpoints (ISSUE-3616).  Not ``NonEmptyString``:
-    # assigning ``None`` or ``""`` must re-derive the address, and a
-    # field-level constraint would reject it before the model validator runs.
-    # The derived address does not follow a later change to ``id_``.
-    inbox: str = ""
-    outbox: str = ""
+    inbox: NonEmptyString | None = None
+    outbox: NonEmptyString | None = None
 
     @field_validator("inbox", "outbox", mode="before")
     @classmethod
-    def _coerce_collection_to_uri(cls, v: Any) -> str:
+    def _coerce_collection_to_uri(cls, v: Any) -> str | None:
         """Coerce a collection object to its URI string.
 
         When reading back from storage, inbox/outbox may be stored as a full
         collection dict (from wire-layer as_Service/as_Actor) rather than a
         plain string URI. Extract the id_ or id field for backward compat.
-        ``None`` or a collection without an id reads as ``""``, the "not
-        supplied" value ``_derive_endpoints_from_id`` fills.  A collection
-        model whose ``id_`` was never set (the parser expands an inline
-        id-less collection before this runs) counts as having no id: its
-        ``id_`` is a freshly minted ``urn:uuid:`` nobody routes to.
+        ``None``, a blank string or a collection without an id reads as
+        ``None``: none of them names an address.  A collection model whose
+        ``id_`` was never set (the parser expands an inline id-less
+        collection before this runs) counts as having no id: its ``id_`` is a
+        freshly minted ``urn:uuid:`` nobody routes to.
         """
         if v is None:
-            return ""
+            return None
         if isinstance(v, str):
-            return v.strip()
+            return v.strip() or None
         if isinstance(v, dict):
-            return str(v.get("id_") or v.get("id") or "").strip()
+            return str(v.get("id_") or v.get("id") or "").strip() or None
         fields_set = getattr(v, "model_fields_set", None)
         if fields_set is not None and "id_" not in fields_set:
-            return ""
-        return str(
-            getattr(v, "id_", None) or getattr(v, "id", None) or ""
-        ).strip()
-
-    @model_validator(mode="after")
-    def _derive_endpoints_from_id(self) -> Self:
-        """Fill an absent, ``None`` or empty ``inbox``/``outbox`` from ``id_``.
-
-        Mirrors ``as_Actor.set_collections`` so a Vultron actor publishes the
-        same addresses whichever branch built it.  Written with
-        ``object.__setattr__`` so ``validate_assignment`` does not re-enter
-        this validator, and recorded in ``model_fields_set`` so an
-        ``exclude_unset`` dump still carries the derived address.
-        """
-        for field_name in ("inbox", "outbox"):
-            if not getattr(self, field_name).strip():
-                object.__setattr__(
-                    self, field_name, f"{self.id_}/{field_name}"
-                )
-                self.model_fields_set.add(field_name)
-        return self
+            return None
+        return (
+            str(
+                getattr(v, "id_", None) or getattr(v, "id", None) or ""
+            ).strip()
+            or None
+        )
 
     preferred_username: NonEmptyString | None = None
     endpoints: Any | None = None
@@ -225,11 +206,34 @@ class VultronGroup(CoreActor):
     )
 
 
+class HostedEndpoints(TypedDict):
+    """The ``inbox`` and ``outbox`` keyword arguments of a hosted actor."""
+
+    inbox: str
+    outbox: str
+
+
+def hosted_endpoints(actor_id: str) -> HostedEndpoints:
+    """The ``inbox`` and ``outbox`` a hosted actor states in its own profile.
+
+    For the actor this node hosts, and only for it: the node routes
+    ``{actor_id}/inbox`` and ``{actor_id}/outbox``, so they are values the
+    actor knows.  For a peer the same addresses would be guesses
+    (AKM-02-006); delivery falls back to the derived inbox address itself
+    when it holds none (OX-12-009).
+    """
+    return HostedEndpoints(
+        inbox=f"{actor_id}/inbox", outbox=f"{actor_id}/outbox"
+    )
+
+
 __all__ = [
     "CoreActor",
+    "HostedEndpoints",
     "VultronApplication",
     "VultronGroup",
     "VultronOrganization",
     "VultronPerson",
     "VultronService",
+    "hosted_endpoints",
 ]

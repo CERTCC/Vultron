@@ -2364,11 +2364,6 @@ class TestActorDiscoveryCallOut:
         assert recorded is not None
         assert str(recorded.id_) == missing_id
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="AKM-02-006: the minimal peer gets clock times and endpoints"
-        " derived from its id. Tracked by #5177.",
-    )
     @pytest.mark.spec("AKM-02-006")
     def test_minimal_peer_holds_no_value_nobody_asserted(self):
         """A peer known only by URI is recorded with nothing invented."""
