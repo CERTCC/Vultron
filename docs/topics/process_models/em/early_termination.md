@@ -34,7 +34,7 @@ As a result,
 
 ## Reasons to Terminate an Embargo Early
 
-Some reasons to terminate an embargo before the agreed date are as follows:
+Some reasons to terminate an embargo before the agreed date include the following:
 
 !!! note ""
   

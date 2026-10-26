@@ -38,7 +38,7 @@ The worse approach is to wait for a large multi-party negotiation to succeed bef
 
     [ISO/IEC 29147:2018](https://www.iso.org/standard/72311.html){:target="_blank"}
 
-However, when consensus fails, the group can appoint a case lead to resolve conflicts.
+However, when consensus fails, it can help for the group to appoint a case lead to resolve conflicts.
 Such scenarios are often an opportunity to engage a third-party Coordinator.
 
 Therefore,
@@ -135,7 +135,7 @@ To add this Participant, the other Participants can choose from these options:
     Say a Vendor has a seven-day maximum public disclosure policy.
     A case has an existing embargo that ends in three weeks.
     The Participants in that case might choose to notify that Vendor two weeks from now.
-    Then even the default disclosure timeline of the Vendor stays compatible with the extant embargo.
+    This makes sure that even the default disclosure timeline of the Vendor stays compatible with the extant embargo.
 
 !!! note ""
 
@@ -189,7 +189,7 @@ Unfortunately, not all potential CVD Participants are equally trustworthy with v
     We can provide a few examples of potentially untrustworthy Participants:
     
     - A Participant might have sub-par operational security, or even sub-par business practices.
-    As a result, adversaries often find out about vulnerabilities in their products before the end of an embargo period.
+    As a result, adversaries can often find out about vulnerabilities in their products before the end of an embargo period.
     - Participants might be subject to regulatory regimes.
     In these regimes, the law requires them to share known vulnerabilities with government agencies that have oversight responsibilities.
     Depending on the jurisdiction, these agencies might not be bound by the same embargoes as the other Participants in the case.

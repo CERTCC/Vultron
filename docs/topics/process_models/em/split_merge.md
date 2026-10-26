@@ -10,7 +10,7 @@ description: >
 
 {% include-markdown "../../../includes/specification_governs.md" %}
 
-Sometimes Participants must split a case into multiple cases, or merge cases into a single case.
+Sometimes it is necessary to split a case into multiple cases, or to merge cases into a single case.
 A Case Split can occur when a single vulnerability affects multiple products with different fix supply chains.
 A Case Merger can occur when two independent vulnerability reports are about the same vulnerability.
 Below, we discuss how these events affect embargoes.
@@ -43,7 +43,7 @@ Sometimes it is necessary to merge two independent CVD cases into a single case,
 
 ## Impact of Case Splits on Embargoes
 
-It is also possible that Participants must split a single case into multiple cases after they agree to an embargo.
+It can also become necessary to split a single case into multiple cases after the Participants agree to an embargo.
 
 !!! example "Case Split Example"
 
@@ -53,7 +53,7 @@ It is also possible that Participants must split a single case into multiple cas
     But the OT Vendors might need much more time to solve the logistics of delivering deployable fixes to their customers.
 
     In such a case, the case Participants might choose to split the case into one cohort for each supply chain.
-    Each group can then coordinate better.
+    Each group can then coordinate better within itself.
 
 A merge of two cases is relatively simple.
 A split of a case into multiple cases is more complex.

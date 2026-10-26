@@ -130,7 +130,7 @@ After an embargo negotiation fails the first time, Participants have no further 
     They give Participants a reason to be declarative and to negotiate in good faith.
 
     Suppose that a rejected embargo proposal carried _any_ implied obligation not to publish.
-    Then Participants might use delayed or ambiguous responses to put that obligation on others.
+    Then Participants might have a reason to use delayed or ambiguous responses to put that obligation on others.
     The aim is to prevent this situation: a Participant ignores an embargo proposal but expects the other Participants to stay bound by the proposed-but-inactive terms.
     _Only_ active embargoes impose obligations on Participants.
 
@@ -158,8 +158,8 @@ The submission of the report is itself a statement of the position of the Report
     A Sender who submits a report without proposing embargo terms SHALL be construed as accepting the Receiver's published default embargo, where one exists.
 
 Sometimes a Reporter cannot accept the published default of a Recipient.
-That Reporter can say so, and propose shorter terms with the report.
-The Reporter can also keep the report.
+That Reporter can say so by proposing shorter terms with the report.
+The Reporter can also choose not to submit the report yet.
 
 !!! note ""
 
