@@ -29,7 +29,7 @@ gives each of these an explicit, machine-checkable representation: report status
 per participant ([§6 Report Management (RM) State Machine](tracking-models.md#6-report-management-rm-state-machine-n)), embargo
 agreement per participant
 ([§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)), and an ordered
-case ledger that every participant replicates
+case ledger that every active participant replicates
 ([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)).
 
 Embargo timing is worth noting early. In practice the first two parties to a case

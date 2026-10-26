@@ -24,7 +24,7 @@ These four terms are ordered deliberately: each builds on the one before it.
 | **Report** | A document describing a specific vulnerability, submitted to initiate coordination. |
 | **Case** | The coordination context around a specific vulnerability: the participants, the shared state, the messages exchanged, and any embargo agreement. The case is the unit of Vultron protocol activity. |
 | **Actor** | An identity in the protocol, named by a Uniform Resource Identifier (URI). An actor may be an organization, a person, or a service. Actors exist independently of any case. |
-| **Participant** | An actor with a `CaseParticipant` record in a specific case, whether or not it has yet joined. The record associates that actor with the roles it holds and the state it owns. An *active participant* is one that has joined and agreed to the case's current embargo. An actor is a participant *in a case*; the same actor may participate in many. |
+| **Participant** | An actor with a `CaseParticipant` record in a specific case, whether or not it has yet joined. The record associates that actor with the roles it holds and the state it owns. An *active participant* is one that was seated at case creation or has accepted the case invitation, has not been removed, and, while an embargo is active, has agreed to that embargo. An actor is a participant *in a case*; the same actor may participate in many. |
 
 !!! info "Source of the vulnerability definition"
     The definition of *vulnerability* above is taken unchanged from the
@@ -65,7 +65,7 @@ itself:
 
 | Role | Definition |
 |---|---|
-| **Case Owner** | The party whose disclosure decision the case exists to serve. It decides who is admitted, which roles they hold, and whether embargo terms are accepted or torn down. Case ownership is never delegated, though it may be transferred ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)). |
+| **Case Owner** | The party whose disclosure decision the case exists to serve. It decides who is invited, which roles they hold, and whether embargo terms are accepted or torn down. Case ownership is never delegated, though it may be transferred ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)). |
 | **Case Manager** | The participant that writes the canonical case ledger and relays case-scoped messages, acting on the Case Owner's behalf. It is the case's single-writer authority ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)). The Case Owner may delegate this role. |
 
 !!! note "The Observer role and the Case Observer capability set"
@@ -114,7 +114,7 @@ participants.
 | **Occasion** | A situation in a case that a sender conveys with a particular wire activity, such as "a Vendor has a fix ready". The occasion is the unit this specification states message rules about ([§4 Messages](layers.md#4-messages-n)). |
 | **Wire activity** | An Activity of a given shape, written `Verb(Object)[field=Value]` with the `type` values a sender puts on the wire, such as `Offer(VulnerabilityReport)` ([Wire Activity Notation](annex-c-notation.md#wire-activity-notation)). |
 | **Protocol shorthand** | The two-letter code naming a message type by its meaning rather than its wire form — `RS`, `EP`, `CV`, and so on. It is a cross-reference tag for the occasions that realize the message type, and the vocabulary of the transition tables of [§6 Report Management (RM) State Machine](tracking-models.md#6-report-management-rm-state-machine-n) through [§9 Participant Embargo Consent (PEC) State Machine](tracking-models.md#9-participant-embargo-consent-pec-state-machine-n). [§4.13 Formal Message Set](layers.md#413-formal-message-set) lists each with its wire activities. A reader meeting a shorthand before [§4 Messages](layers.md#4-messages-n) may treat it as an opaque label. |
-| **Case stub** | A minimal description of a case, carrying enough for an invited actor to decide whether to join and no vulnerability detail. Sent with an invitation, before the invitee has been admitted ([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)). |
+| **Case stub** | A minimal description of a case, carrying enough for an invited actor to decide whether to join and no vulnerability detail. Sent with an invitation, before the invitee has accepted the invitation ([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)). |
 | **Case ledger** | The case's authoritative, append-only history. The CASE_MANAGER is its only writer, and every participant holds a replica built from what the CASE_MANAGER sends. |
 | **`CaseLedgerEntry`** | One entry in the case ledger. Each entry records one admitted change, carries a timestamp assigned by the CASE_MANAGER, and is hash-chained to its predecessor so a participant can tell whether it holds the entries in order and without gaps. |
 | **`ParticipantStatus`** | A participant's report about its own state, or its observation about the world. A `ParticipantStatus` is a **claim**: any participant may write one, and writing one does not change the case's state ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)). |

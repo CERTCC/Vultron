@@ -24,7 +24,7 @@ specification. **Participant-specific state** belongs to one participant, which
 is the authority on its own value. **Shared case state** has one value for the
 entire case, and only the participant holding the `CASE_MANAGER` role writes it
 ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)); it replicates each admitted
-change to every participant as `Announce(CaseLedgerEntry)`.
+change to every active participant ([§3.4 How the Dimensions Interact](introduction.md#34-how-the-dimensions-interact)) as `Announce(CaseLedgerEntry)`.
 
 {% include-markdown "./includes/_state-ownership-table.md" %}
 
@@ -42,7 +42,7 @@ Each participating organization runs one Vultron service, which exposes an inbox
 a URI. For each case, one participant additionally holds the `CASE_MANAGER` role
 for that case, and every case-scoped message passes through it: a participant
 addresses the message to the CASE_MANAGER, which records it in the case ledger and
-then sends the resulting entry to every participant, including the sender.
+then sends the resulting entry to every active participant, including the sender.
 
 ```mermaid
 ---
@@ -131,7 +131,7 @@ others. This subsection summarizes the couplings;
 An invited actor is a participant from the invitation onward, at RM state Received.
 The CASE_MANAGER sends case content only to an **active** participant.
 A participant is active when it was seated at case creation or has accepted the case invitation, has not been removed, and, while an embargo is active, has agreed to that embargo.
-Once a participant's closure is recorded (RM state Closed), it receives no further case content ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
+Once a participant's closure is recorded (RM state Closed), it receives no case content after the entries that record its own closure ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
 
 **EM gates disclosure.** While an embargo is in force, participants defer
 publication. An embargo ends by **teardown**: the CASE_MANAGER terminates it and
@@ -157,9 +157,9 @@ Cascade rules keep them consistent
 ### 3.5 Participants and Roles
 
 An **actor** is an identity in the protocol — an organization, a person, or a
-service, named by a URI. An actor that joins a case becomes a **participant** in
-that case, and the case's record of that participant associates it with a set of
-roles. Roles determine what a participant is obliged to do and which transitions
+service, named by a URI.
+An actor that is invited to a case, or seated in it when the case is created, becomes a **participant** in that case, and the case's record of that participant associates it with a set of roles.
+Roles determine what a participant is obliged to do and which transitions
 it is authorized to cause.
 
 **Roles are not exclusive.** A participant may hold Reporter, Vendor and
@@ -182,7 +182,7 @@ taxonomy.
 The distinction between the two authority roles matters throughout:
 
 - The **Case Owner** is the party whose disclosure decision the case exists to
-  serve. It decides who is admitted, which roles they hold, and whether embargo
+  serve. It decides who is invited, which roles they hold, and whether embargo
   terms are accepted or torn down. Case ownership is never delegated, though it
   may be transferred ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)).
 - The **Case Manager** is the participant holding the `CASE_MANAGER` role. It
