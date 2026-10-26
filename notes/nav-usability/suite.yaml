@@ -1,0 +1,373 @@
+# Agent usability test suite: personas and tasks (ADR-0136 § Validation).
+# Method, rerun policy and verdicts: notes/nav-usability-test.md.
+# Fixed before any proposed nav is evaluated; drafted by a fresh agent from
+# docs/reference/user_stories/ and docs/about/faq.md, without the ADR or the
+# proposed nav. A thread task's destination is its persona's start_page.
+personas:
+  - id: psirt-lead
+    start_page: start/coordinate-cases.md
+    name: "PSIRT lead"
+    brief: >
+      You run the Product Security Incident Response Team for a mid-sized
+      software vendor.
+      You manage disclosure cases with external researchers, coordinate with
+      national CSIRTs, and set your organization's embargo policies.
+      You have heard that partners are adopting a new coordination protocol,
+      and you want to understand what it would mean for your current workflow
+      before committing to anything.
+      Your background is operational: you know CVD processes well but have no
+      experience with messaging protocols.
+    does_not_know:
+      - "You have never heard of ActivityPub or ActivityStreams."
+      - "You do not know what a state machine is in the software or protocol sense."
+      - "You have not read any CERT/CC research papers behind this protocol."
+      - "You do not know that a reference implementation in Python exists."
+      - "You are not aware that the protocol has a formal specification document."
+
+  - id: tracker-developer
+    start_page: start/connect-your-tracker.md
+    name: "Vulnerability tracker developer"
+    brief: >
+      You are a software engineer who builds and maintains an internal
+      vulnerability tracker used across your company's subsidiaries.
+      Your security team has started coordinating cases with external
+      coordinators and vendors and wants you to integrate the tracker with
+      whatever protocol they decide to adopt.
+      You have a strong programming background and are comfortable reading
+      API documentation and wire-format specifications.
+    does_not_know:
+      - "You do not know that CERT/CC maintains a reference implementation in Python."
+      - "You have never integrated with ActivityPub or ActivityStreams."
+      - "You have not read any academic papers on CVD processes or state machines."
+      - "You do not know how many message types the protocol defines or what they
+        are called."
+      - "You are not aware of what a conformance claim means in this context."
+
+  - id: cvd-researcher
+    start_page: start/study-the-process.md
+    name: "CVD process researcher"
+    brief: >
+      You study how organizations coordinate the disclosure of vulnerabilities,
+      and you are particularly interested in measuring whether coordination is
+      going well or poorly.
+      You read early CERT/CC whitepapers on CVD state models and want to see
+      how those formal models have evolved in the current protocol.
+      You are comfortable with state machines and formal automata.
+    does_not_know:
+      - "You are not familiar with ActivityPub or ActivityStreams as a protocol layer."
+      - "You have not seen the current version of the formal protocol specification."
+      - "You do not know what timing or interval statistics the protocol's case record
+        makes measurable."
+      - "You have not explored how the case event model relates to measuring
+        coordination success."
+      - "You are not aware of any open questions or limitations the project has
+        formally documented."
+
+  - id: national-csirt-coordinator
+    start_page: start/coordinate-cases.md
+    name: "National CSIRT coordinator"
+    brief: >
+      You work for a national CSIRT and are evaluating whether your organization
+      should adopt a new protocol for coordinating multi-party vulnerability
+      disclosure cases.
+      You currently coordinate by email and shared spreadsheets, and you need
+      to understand how this protocol would fit your existing ISO-based processes
+      before presenting a recommendation to senior management.
+      You are technically literate but not a software developer.
+    does_not_know:
+      - "You are not aware of ActivityPub, ActivityStreams, or any message-level
+        protocol details."
+      - "You have not read the reference implementation documentation."
+      - "You are not certain whether this protocol aligns with ISO/IEC 29147 or
+        ISO/IEC 30111."
+      - "You do not know what a conformance claim means or how one would be tested."
+      - "You have not seen a guide to adopting the protocol in a real CVD program."
+
+  - id: oss-contributor
+    start_page: start/contribute.md
+    name: "Open-source code contributor"
+    brief: >
+      You are a software engineer who uses vulnerability coordination day to day
+      and has heard about this open-source implementation.
+      You want to contribute code but have not looked at the repository before.
+      You are comfortable with Python and FastAPI, and you want to understand how
+      the codebase is organized, what the contribution process looks like, and
+      how releases are versioned.
+    does_not_know:
+      - "You have not read any documentation about the project's internal architecture."
+      - "You do not know what the pull request or contribution process requires."
+      - "You are not aware of how the project versions its releases."
+      - "You do not know what tests or linters the project enforces."
+      - "You have not studied CVD formal models or state machines."
+
+tasks:
+  # ── Persona 1: PSIRT lead ────────────────────────────────────────────────
+
+  - id: T01
+    persona: psirt-lead
+    kind: thread
+    prompt: >
+      I handle vulnerability reports and coordinate disclosures with other
+      organizations.
+      I have heard about this protocol but I have no idea where to begin.
+      Is there a recommended reading path for someone in my situation?
+    source: "ADR-0136 § Validation: follow your thread"
+
+  - id: T02
+    persona: psirt-lead
+    kind: lookup
+    prompt: >
+      My organization wants to publish a default embargo period in our
+      vulnerability disclosure policy so that a case is never left without any
+      embargo in force.
+      I need to understand how the protocol handles an embargo that starts
+      automatically when a case opens, before anyone has had a chance to
+      negotiate one.
+    destinations:
+      - topics/process_models/em/defaults.md
+    source: "story_2022_010"
+
+  - id: T03
+    persona: psirt-lead
+    kind: lookup
+    prompt: >
+      As a recipient of vulnerability reports, I want to understand what happens
+      to a report once it arrives — what stages it moves through, what decisions
+      I am expected to make along the way, and how my choices are communicated
+      to the reporter.
+    destinations:
+      - topics/process_models/rm/index.md
+    source: "story_2022_038"
+
+  - id: T04
+    persona: psirt-lead
+    kind: lookup
+    prompt: >
+      When I am managing a live disclosure case I want to keep track of
+      everything that has happened — whether a fix is ready, whether anything
+      has been published yet, whether an exploit has appeared — so I know what
+      options are still open to me.
+      Where does the documentation explain all the things a case tracks at once?
+    destinations:
+      - topics/process_models/cs/index.md
+    source: "story_2022_088"
+
+  # ── Persona 2: Vulnerability tracker developer ───────────────────────────
+
+  - id: T05
+    persona: tracker-developer
+    kind: thread
+    prompt: >
+      I am an engineer building an integration so our internal bug tracker can
+      exchange vulnerability coordination messages with partners.
+      I have never used this protocol before.
+      Where should I start?
+    source: "ADR-0136 § Validation: follow your thread"
+
+  - id: T06
+    persona: tracker-developer
+    kind: lookup
+    prompt: >
+      I need to know every message type the protocol defines and what each one
+      looks like on the wire so I can build a parser and a sender.
+      Where is that documented?
+    destinations:
+      - reference/messages/index.md
+    source: "faq: Which messages does the protocol define?"
+
+  - id: T07
+    persona: tracker-developer
+    kind: lookup
+    prompt: >
+      My product manager asked what it actually means to say our system
+      conforms to this protocol, and how we could prove it to a partner.
+      Where is that defined?
+    destinations:
+      - reference/vultron-spec/conformance.md
+    source: "faq: Is the protocol finished?"
+
+  - id: T08
+    persona: tracker-developer
+    kind: lookup
+    prompt: >
+      I want to run the reference implementation locally with multiple
+      independent participants exchanging messages end to end so I can test my
+      integration against it before going live.
+      Where do I find instructions for that?
+    destinations:
+      - tutorials/container_demos.md
+    source: "faq: Is Vultron software I can install?"
+
+  # ── Persona 3: CVD process researcher ───────────────────────────────────
+
+  - id: T09
+    persona: cvd-researcher
+    kind: thread
+    prompt: >
+      I study how coordinated vulnerability disclosure works and I want to
+      understand the formal models behind this protocol and how to use them in
+      my research.
+      Where is the right place to start?
+    source: "ADR-0136 § Validation: follow your thread"
+
+  - id: T10
+    persona: cvd-researcher
+    kind: lookup
+    prompt: >
+      I want to know what timing measurements a case record makes possible —
+      how long each phase lasted, how quickly each participant responded, what
+      margin there was between the fix being ready and the vulnerability
+      becoming public — so I can evaluate coordination performance.
+    destinations:
+      - topics/measuring_cvd/timing_metrics.md
+    source: "story_2022_075"
+
+  - id: T11
+    persona: cvd-researcher
+    kind: lookup
+    prompt: >
+      I want the normative definition of the protocol in one place — its
+      message types, its state machines, and the rules that govern transitions —
+      rather than scattered explanatory pages, so I can reason about it
+      precisely.
+    destinations:
+      - reference/formal_protocol/index.md
+      - reference/vultron-spec/index.md
+    source: "story_2022_106"
+
+  - id: T12
+    persona: cvd-researcher
+    kind: lookup
+    prompt: >
+      I want to understand the model that tracks which events have occurred in
+      a case — whether each disclosure milestone has been reached and in what
+      order — so I can enumerate possible case histories in my research.
+    destinations:
+      - topics/process_models/cs/cs_model.md
+    source: "story_2022_074"
+
+  # ── Persona 4: National CSIRT coordinator ────────────────────────────────
+
+  - id: T13
+    persona: national-csirt-coordinator
+    kind: thread
+    prompt: >
+      I am from a national CSIRT and I am evaluating this protocol for
+      multi-party coordination cases.
+      I am not sure where to begin.
+      Is there a reading path designed for an organization like mine?
+    source: "ADR-0136 § Validation: follow your thread"
+
+  - id: T14
+    persona: national-csirt-coordinator
+    kind: lookup
+    prompt: >
+      I want a step-by-step guide to preparing our organization's vulnerability
+      coordination program to work with this protocol — what roles to define,
+      what policy changes to make, and what we are committing to operationally.
+    destinations:
+      - howto/adopt_vultron.md
+    source: "story_2022_101"
+
+  - id: T15
+    persona: national-csirt-coordinator
+    kind: lookup
+    prompt: >
+      My organization follows ISO/IEC 29147 and ISO/IEC 30111.
+      Before I recommend adoption I need to check how this protocol's workflow
+      maps onto those standards clause by clause.
+    destinations:
+      - reference/iso_crosswalks/index.md
+    source: "faq: How does Vultron relate to the standards we already follow?"
+
+  - id: T16
+    persona: national-csirt-coordinator
+    kind: lookup
+    prompt: >
+      Before I go to management I need to be clear about what this protocol
+      does not do — the decisions it leaves to our organization — so I can
+      explain why we still need our own triage process, advisory-drafting tools,
+      and escalation procedures.
+    destinations:
+      - topics/background/what-is-vultron.md
+    source: "faq: Vultron does not validate reports, prioritize them, or draft advisories. Why would I want it?"
+
+  # ── Persona 5: Open-source code contributor ──────────────────────────────
+
+  - id: T17
+    persona: oss-contributor
+    kind: thread
+    prompt: >
+      I want to contribute code to this project but I have never looked at the
+      repository before.
+      Where do I start?
+    source: "ADR-0136 § Validation: follow your thread"
+
+  - id: T18
+    persona: oss-contributor
+    kind: lookup
+    prompt: >
+      I want to understand what the process is for submitting a code
+      contribution — how to open a pull request, what standards the project
+      enforces, and what a contribution needs before it can be accepted.
+    destinations:
+      - about/contributing.md
+      - about/project_record.md
+    source: "faq: How do I contribute?"
+
+  - id: T19
+    persona: oss-contributor
+    kind: lookup
+    prompt: >
+      Before I start writing code I want to understand how the codebase is
+      organized — its layers, how the pieces connect, and where the behavior
+      logic lives — so I do not violate the architectural boundaries.
+    destinations:
+      - topics/reference_architecture.md
+      - reference/codebase/ARCHITECTURE.md
+    source: "faq: Is Vultron software I can install?"
+
+  - id: T20
+    persona: oss-contributor
+    kind: lookup
+    prompt: >
+      I noticed a release tag in the repository and I am not sure how to read
+      it or what it promises about compatibility.
+      Where is the project's release versioning scheme explained?
+    destinations:
+      - reference/versioning.md
+    source: "faq: Is the protocol finished?"
+
+  # ── Maintainer questions (chosen by the maintainer, 2026-10-26) ──────────
+
+  - id: T21
+    persona: national-csirt-coordinator
+    kind: lookup
+    prompt: >
+      We already coordinate cases on a shared web platform (VINCE).
+      Would this protocol replace that platform, or would the platform talk to
+      it?
+    destinations:
+      - topics/background/what-is-vultron.md
+    source: "maintainer: Does this replace VINCE, or talk to it?"
+
+  - id: T22
+    persona: psirt-lead
+    kind: lookup
+    prompt: >
+      We already publish our advisories in CSAF.
+      How is this different from CSAF, and would we need both?
+    destinations:
+      - reference/csaf_crosswalk/overview.md
+    source: "maintainer: How is this different from CSAF? Do I need both?"
+
+  - id: T23
+    persona: tracker-developer
+    kind: lookup
+    prompt: >
+      Before I read any more prose, show me what one single message actually
+      looks like, as an example I could copy.
+    destinations:
+      - reference/messages/rm.md
+      - tutorials/submit-a-report.md
+    source: "maintainer: What does a single message actually look like?"
