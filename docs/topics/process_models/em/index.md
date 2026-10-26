@@ -104,7 +104,7 @@ EM *Active* means that the whole case has an embargo in force and no change to i
 Four actions move a case between EM states: *propose*, *accept*, *reject* and *terminate*.
 Each action changes the register.
 The change must move the EM state along one of the transitions drawn below.
-A change that does not move the EM state this way is refused.
+A change that would not move the EM state this way is refused.
 
 {% include-markdown "./em_dfa_diagram.md" %}
 

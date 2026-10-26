@@ -218,7 +218,7 @@ If you read only the symbol, four of these moves are not deterministic:
 
 The register decides which move is taken.
 The case leaves *P* or *R* only when no proposal remains open.
-So the move that stays in the same state is the move made while another proposal is still open.
+The move that stays in the same state is therefore the move made while another proposal is still open.
 
 ```mermaid
 stateDiagram-v2
@@ -249,8 +249,7 @@ Any number of further proposals, acceptances and rejections follow while the emb
 Termination comes last, and it may come while revisions are still open.
 
 The table admits more than the register allows.
-A self-loop on *r* or *a* is legal only while another proposal is open.
-So a history such as *prr*, two rejections after one proposal, matches the expression but cannot happen.
+A self-loop on *r* or *a* is legal only while another proposal is open, so a history such as *prr*, two rejections after one proposal, matches the expression but cannot happen.
 The histories that a case can follow depend on the number of open proposals.
 The register keeps this number, but the four symbols do not.
 
@@ -282,8 +281,7 @@ This section gives the argument formally.
 Suppose one Participant proposes an embargo of $n$ days and another prefers $m$ days.
 Treat the embargo as a series of one-day agreements.
 Represent each Participant as a vector of their willingness to keep the embargo on each day: $1$ if they are willing on that day, $0$ if not.
-We assume that each Participant is willing up to some point and not after.
-So each vector is zero or more $1$s followed by zero or more $0$s.
+We assume that each Participant is willing up to some point and not after, so each vector is zero or more $1$s followed by zero or more $0$s.
 For example, $[1,1,1,1,0,0,0]$ is a willingness to keep a 4-day embargo.
 
 Let $\mathbf{x}$ and $\mathbf{y}$ be the two Participants' vectors, zero-indexed and of length $max(n,m)$:

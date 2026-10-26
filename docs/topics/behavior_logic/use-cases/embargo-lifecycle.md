@@ -106,7 +106,7 @@ Activation of an embargo reads two records: the record it activates and the reco
 If either read fails, the activation refuses before any write.
 A sender carries the embargo record inline with the case.
 A receiver stores that record before the case that names it.
-Thus a receiver refuses, and does not store, a case that names an embargo the receiver lacks.
+A receiver therefore refuses, and does not store, a case that names an embargo the receiver lacks.
 
 A receiver refuses an inline embargo record whose context is neither the case nor one of its reports.
 This check stops a sender from planting one case's embargo under the id of another case.
@@ -172,7 +172,7 @@ A Reject of terms that are neither in force nor still proposed is refused, not r
 Sometimes an Invite asks a Participant about the embargo already in force.
 One example is a Participant that received a relayed proposal that was activated before the Participant answered.
 Another example is a lapsed signatory.
-That Participant answers the Invite by naming the embargo in force (EP-09-012).
+That Participant answers the Invite by naming that Invite (EP-09-012).
 
 A signatory leaves the embargo in force with `Leave(EmbargoEvent)`, not with a Reject.
 The case manager refuses a signatory's Reject of the active embargo (MSM-07-004, MSM-07-010).
@@ -279,7 +279,7 @@ The actor's own state changed, and the obligation follows from that.
 
 The embargo lifecycle is the richest call-out surface in the protocol, because almost every embargo question is a policy question.
 Each point below names its capability shape from the [ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md) taxonomy.
-An injected backend answers each point, not logic inside the tree ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
+An injected backend answers each point, and logic inside the tree does not ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
 Their service contracts are cataloged in the [Capability Model](../../capability_model/index.md#embargo-management).
 
 **Deciding to negotiate.** `WantToProposeEmbargo` (Evaluator) asks whether to propose at all.
@@ -334,7 +334,7 @@ Silence past that instant ends the invitation, which is the **pocket veto**.
 When a Participant with an `INVITED` row does not answer within the window, its row moves to `TIMED_OUT`, not `DECLINED`.
 Silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-004, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
 The deadline belongs to one invitation and is recorded on that invitation's `INVITED` row.
-Thus a Participant can hold several open invitations with different deadlines.
+A Participant can therefore hold several open invitations with different deadlines.
 When one deadline passes, it times out only its own row (CM-28-013).
 
 The window has two forms, but they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
@@ -346,7 +346,7 @@ Every replica copies that row from the entry (CM-28-012, CM-28-013).
 A Participant that receives an invitation derives no deadline of its own.
 
 There is a floor.
-An inviting actor must not send a window shorter than the minimum.
+An inviting actor must not send a window shorter than the minimum (EP-07-002).
 The minimum defaults to 72 hours (EP-07-002) and is configurable (EP-07-008).
 As the actor that stamps the relayed invitation, the case manager clamps a too-short window up to the minimum and logs the clamp.
 It does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).
@@ -391,7 +391,7 @@ Embargo messages route through the case manager like every other case-scoped mes
 A Participant does not announce its embargo stance to the other Participants itself.
 
 Teardown is the exception worth naming, because its addressing is prescribed.
-After a teardown that the Case Owner asked for, the actor holding `CVDRole.CASE_MANAGER` must author the `Announce(EmbargoEvent)`.
+After a teardown that the Case Owner asked for, the actor holding `CVDRole.CASE_MANAGER` must author the `Announce(EmbargoEvent)` (EMB-19-001).
 That announcement must go to every active Participant *except* the announcing actor, and never to the case manager itself (EMB-19-001).
 A Closed Participant is left out, as it is from all case content (CM-23-004).
 A teardown the case manager starts itself, including one at the embargo's end time, sends no announcement.

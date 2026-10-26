@@ -59,7 +59,7 @@ A revision that ends later causes no such notice, because those participants nev
   The `ER` names the Invite by id.
   The receiver therefore sends the `ER` even when the Invite named its terms only by URI.
   A receiver sends one `ER` per Invite and skips a re-delivered Invite.
-- **Malformed Invite:** an `EP` names no `to` recipient, or names several.
+- **Malformed Invite:** an `EP` that names no `to` recipient, or several.
   The receiver does not answer such an `EP` with `ER`.
   The `EP` is received but not understood, so the receiver sends `Create(ProcessingFault)` to the sender.
 

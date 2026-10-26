@@ -84,8 +84,7 @@ A reporter consents by reporting.
 The case history MUST NOT record an invitation that did not happen (ADR-0048).
 
 A repeated answer is not a transition.
-When a participant sends the same answer to the same invitation again, the CASE_MANAGER changes nothing, records nothing in the case ledger and sends nothing (CM-13-005).
-This rule holds whatever activity id the repeat carries (CM-13-005).
+When a participant sends the same answer to the same invitation again, the CASE_MANAGER changes nothing, records nothing in the case ledger and sends nothing, whatever activity id the repeat carries (CM-13-005).
 A different answer is a new answer, and the table above applies to it.
 A participant that declined and then agrees has changed its answer, so its row moves directly to `AGREED`, with no new invitation.
 
@@ -167,7 +166,7 @@ If the owner rejects the revision instead, the old terms stand and nobody's cons
 An embargo invitation does not stay open indefinitely.
 If a participant neither agrees nor declines before the RSVP deadline, its row for that invitation moves to `TIMED_OUT`.
 This move is the **pocket veto** (CM-18-002).
-The protocol does not treat silence as assent, because to proceed on an unanswered invitation would assert an agreement that the participant never gave.
+The protocol does not treat silence as assent, because proceeding on an unanswered invitation would assert an agreement that the participant never gave.
 The protocol also does not record silence as a refusal.
 Only an explicit refusal reaches `DECLINED` (CM-28-004).
 

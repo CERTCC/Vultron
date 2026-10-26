@@ -93,8 +93,7 @@ Nothing in the protocol does that today ([ADR-0096](../../../adr/0096-protocol-d
 The constraints below apply to either kind of proposal.
 The diagrams show the *None* to *Proposed* step.
 Every rule on this page that mentions EM *Proposed* governs only that later step.
-The case-creation traversal never rests in *Proposed*.
-Thus no Participant can observe the case in that state or act on it there (EP-04-002).
+The case-creation traversal never rests in *Proposed*, so no Participant can observe the case in that state or act on it there (EP-04-002).
 
 !!! note ""
 
@@ -393,7 +392,7 @@ The Participant must still communicate this choice to other Participants, so tha
 ### Closing a Case While an Embargo Is Active
 
 The RM process is specific to each Participant, but the EM process is global to the case.
-Thus one Participant's closure leaves the shared embargo in force for everyone else ([VP-13](../../../reference/specs/protocol.md#vp-13)).
+One Participant's closure therefore leaves the shared embargo in force for everyone else ([VP-13](../../../reference/specs/protocol.md#vp-13)).
 
 The [Case Owner](../../../reference/glossary.md#cvd-roles-and-participants) is different, because the Case Owner's departure closes the case for every Participant.
 While the embargo is *Active* or being revised, the [CASE_MANAGER](../../../reference/glossary.md#cvd-roles-and-participants) declines the Case Owner's request to leave.

@@ -97,8 +97,7 @@ An initial proposal, Embargo Proposal (EP), uses the same activity.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/embargo-revision-rejection.md" %}
 
-3. When you judge that the revision has carried, send `Accept(EmbargoEvent)` as Case Owner.
-   Set the revised `EmbargoEvent` as its `object` and the case as its `target`.
+3. When you judge that the revision has carried, send `Accept(EmbargoEvent)` as Case Owner, with the revised `EmbargoEvent` as its `object` and the case as its `target`.
    Then send `Announce(EmbargoEvent)`.
    The revision replaces the active embargo.
    Your own consent to the revision is recorded too.
@@ -131,7 +130,7 @@ The case moves to `EM.EXITED`, with immediate effect.
 Set `content` to the reason that the embargo ends.
 Use `EARLY` to end the embargo before its end time.
 Use `END_TIME_REACHED` after its end time has passed.
-A receiver refuses a `Remove(EmbargoEvent)` that has a different `content` value.
+A receiver refuses a `Remove(EmbargoEvent)` whose `content` has any other value.
 A receiver also refuses an `END_TIME_REACHED` that is sent before the end time.
 If you want a human-readable account, put it in `summary`.
 The protocol does not read `summary`.
@@ -190,8 +189,7 @@ See [Early Termination](../../../topics/process_models/em/early_termination.md).
 
 You do not need to send anything when the end time passes.
 The CASE_MANAGER ends the embargo with `END_TIME_REACHED` the next time it handles the case.
-To end the embargo on time without that wait, have the CASE_MANAGER call the `terminate-embargo` trigger with `reason` set to `END_TIME_REACHED`.
-For example, make the call from a [Sentinel](../../../reference/glossary.md) that watches embargo timers.
+To end the embargo on time without that wait, have the CASE_MANAGER call the `terminate-embargo` trigger with `reason` set to `END_TIME_REACHED`, for example from a [Sentinel](../../../reference/glossary.md) that watches embargo timers.
 If the embargo has already ended, the trigger answers with no activity and commits nothing.
 
 ---
@@ -200,8 +198,7 @@ If the embargo has already ended, the trigger answers with no activity and commi
 
 A participant bound by the active embargo can stop complying with it at any time (VP-13-017).
 Withdrawal is implemented in ActivityStreams as `Leave(EmbargoEvent)`, with the embargo in force as its `object` and the case as its `context` (MSM-07-010).
-A withdrawal is not an answer to an Invite.
-Thus you do not need an `Invite(EmbargoEvent)` to withdraw.
+A withdrawal is not an answer to an Invite, so you do not need an `Invite(EmbargoEvent)` to withdraw.
 A Reporter whose consent was recorded when the case was created can withdraw too.
 
 1. Call `withdraw-embargo` with the case's ID.
@@ -218,7 +215,7 @@ A Reporter whose consent was recorded when the case was created can withdraw too
 
 The embargo stays in force for every other participant, and the case's EM state does not move.
 You are no longer bound by the embargo.
-Thus the CASE_MANAGER stops sending you case content until the embargo ends, or until you are invited to it again and agree (CM-10-005).
+The CASE_MANAGER therefore stops sending you case content until the embargo ends, or until you are invited to it again and agree (CM-10-005).
 
 The trigger refuses the withdrawal in three cases:
 

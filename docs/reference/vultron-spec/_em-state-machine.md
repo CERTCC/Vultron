@@ -26,8 +26,7 @@ The row is `INVITED` when the participant has been invited to the case and has n
 
 A case keeps one **embargo register entry** for every embargo ever proposed on it (ADR-0122).
 An entry names the embargo, holds its status, and, for an activated revision, names the embargo it replaced.
-Entries are appended and never removed.
-So the register is the whole embargo history of the case, including rejected and canceled proposals.
+Entries are appended and never removed, so the register is the whole embargo history of the case, including rejected and canceled proposals.
 
 | Status | Meaning |
 |---|---|
@@ -51,7 +50,7 @@ Six triggers move an entry:
 | `CANCEL` | `PROPOSED` → `CANCELLED`, in the step that terminates the embargo in force, or on a threat signal while no entry is `ACTIVE` |
 
 A **register step** is the whole change that one act causes.
-So a termination and the cancellation of every open proposal happen in one step and are checked together (EP-08-004).
+A termination and the cancellation of every open proposal therefore happen in one step and are checked together (EP-08-004).
 Every step keeps these invariants.
 A step that would break one is refused:
 
@@ -99,10 +98,9 @@ An asserted EM that differs from the derived one is refused.
 
 Because EM aggregates over every entry, the case leaves Proposed or Revised only when no proposal remains open.
 Rejecting one of several open proposals leaves the others open, so EM stays where it was.
-Activating one of several open proposals leaves the rest open as revisions of the embargo now in force.
-So EM moves to Revised rather than Active.
+Activating one of several open proposals leaves the rest open as revisions of the embargo now in force, so EM moves to Revised rather than Active.
 An `ACTIVE` entry leaves that status only when another entry supersedes it or when it is terminated.
-So a case that has had an embargo in force never returns to None or Proposed.
+A case that has had an embargo in force therefore never returns to None or Proposed.
 
 ### 7.2 Transitions and Guards
 
@@ -180,7 +178,7 @@ Where the case is not embargo-eligible (the vulnerability is public, an exploit 
 
 The protocol default is not a proposal.
 It MUST NOT take part in the shortest-wins comparison above.
-Otherwise, a default short enough to be useful would win against every longer proposal and cap every embargo at its own length.
+If it did, a default short enough to be useful would win against every longer proposal and cap every embargo at its own length.
 The protocol default is also not a minimum.
 A party that proposes a shorter duration MUST get the duration it proposed.
 

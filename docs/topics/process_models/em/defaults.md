@@ -42,8 +42,7 @@ A Reporter who wants particular terms attaches a proposed embargo to the report 
 The Recipient weighs those terms and its own published default together when it creates the case.
 
 When a Report Recipient has published a default embargo period (see [Declaring Defaults](#declaring-defaults)), that default acts as a **standing proposal**.
-A Reporter can submit a report without proposing different terms.
-By not objecting, that Reporter has **tacitly accepted** the standing proposal.
+A Reporter who submits a report without proposing different terms has **tacitly accepted** the standing proposal, by not objecting.
 So by the time the case is created, both parties have already stated their positions.
 The Recipient did so by publishing the policy, and the Reporter did so by not contradicting it.
 
@@ -65,8 +64,7 @@ The *Proposed* state represents an embargo that a party has offered but the part
 It is an open question that waits for a decision.
 On the default path there is no open question.
 The published default supplies the *propose* action and the Reporter's silence supplies the *accept* action.
-The protocol applies the two actions together when the case is created.
-So the case never stays in *Proposed*, and nobody ever sees it there.
+The protocol applies the two actions together when the case is created, so the case never stays in *Proposed*, and nobody ever sees it there.
 
 If a newly created case stayed in *Proposed*, it would wrongly show a settled agreement as an unresolved one.
 It would also imply that some party still owes a response.
@@ -77,8 +75,7 @@ It is not a skipped step.
 ### The Case Owner Is a Signatory from the Start
 
 The party who creates the case is its Case Owner.
-The Case Owner creates the active embargo.
-So it would be incoherent to treat the Case Owner as not yet bound by that embargo.
+The Case Owner creates the active embargo, so it would be incoherent to treat the Case Owner as not yet bound by that embargo.
 [Participant Embargo Consent (PEC)](../../behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) tracks the agreement of each Participant to the embargo, separately from the embargo state of the case.
 PEC keeps one consent row per Participant for each embargo.
 The row of the Case Owner for the default embargo is seeded `AGREED`.
@@ -95,7 +92,7 @@ The default path applies only when the Reporter proposes nothing to the contrary
 If the Reporter proposes different terms, the case follows the negotiated path instead.
 See [Sender Proposes an Embargo Longer than the Receiver Default](#sender-proposes-an-embargo-longer-than-the-receiver-default) and [Sender Proposes an Embargo Shorter than the Receiver Default](#sender-proposes-an-embargo-shorter-than-the-receiver-default) below.
 Even then, the shorter proposal is taken as accepted and the longer one as a proposed revision.
-So the case still gets an embargo in force at once, and does not stall in negotiation.
+The case therefore still gets an embargo in force at once, and does not stall in negotiation.
 
 ### A Default Embargo Ends Like Any Other
 
@@ -177,22 +174,20 @@ A generous fallback would remove the reason to publish at all.
     A policy that the Case Manager or any other actor published is never a candidate.
     The policy is a field of the Case Owner's profile.
     The Case Owner sends that profile inline as the `actor` of the case proposal.
-    So the Case Manager reads the default from that profile alone and keeps it for no other case (CP-01-010).
+    The Case Manager therefore reads the default from that profile alone and keeps it for no other case (CP-01-010).
 
 Nor is the protocol default a *minimum*.
 A Participant who proposes terms shorter than the protocol default gets the terms they proposed.
 The range above limits the value of the fallback, not what the parties may agree.
 
 One exception applies.
-An embargo on a vulnerability that is already public protects nothing.
-So no protocol default embargo is created for a case that is no longer embargo-eligible.
+An embargo on a vulnerability that is already public protects nothing, so no protocol default embargo is created for a case that is no longer embargo-eligible.
 Where the vulnerability is already public, exploit code is public, or attacks have been observed, the case stays at *None*.
 
 ### Sender Proposes When Receiver Has No Default Embargo
 
 Here the Sender attaches proposed terms to the report, and the Receiver has published no default embargo.
-The Sender's terms are the only terms proposed.
-So these terms become the *Active* embargo when the case is created.
+The Sender's terms are the only terms proposed, so these terms become the *Active* embargo when the case is created.
 As on the default path, the protocol applies the *propose* and *accept* steps together.
 The case never stays in *Proposed* ([EP-04-002](#why-active-and-not-proposed)).
 A Receiver that wants different terms proposes a revision.
@@ -269,7 +264,7 @@ stateDiagram-v2
 
     If the Sender proposes an embargo *longer* than the Receiver's default embargo, the Receiver's default SHALL be taken as accepted and the Sender's proposal taken as a proposed revision.
     The longer proposal stays open when the shorter one is accepted.
-    So the longer proposal becomes the revision, and the case moves directly to *Revise*.
+    The longer proposal therefore becomes the revision, and the case moves directly to *Revise*.
 
     ???+ note "Formalism"
 
@@ -304,8 +299,7 @@ stateDiagram-v2
 !!! note ""
 
     If the Sender proposes an embargo *shorter* than the Receiver's default embargo, the Sender's proposal SHALL be taken as accepted and the Receiver's default taken as a proposed revision.
-    As in the longer case, the default stays open when the shorter proposal is accepted.
-    So the case moves directly to *Revise*.
+    As in the longer case, the default stays open when the shorter proposal is accepted, so the case moves directly to *Revise*.
 
     ???+ note "Formalism"
 
@@ -332,8 +326,7 @@ The Reporter holds the information until they do.
 [Negotiating Embargoes](negotiating.md) describes this asymmetry.
 If the Receiver rejects a proposal as too short, the Reporter may leave the negotiation and publish when they choose.
 [Negotiating Embargoes](negotiating.md) recommends that Reporters not do that, but a Receiver cannot depend on it.
-When no fix is available, *any* embargo is better than *no* embargo.
-So the Receiver does better if it accepts the short embargo and works to extend it.
+When no fix is available, *any* embargo is better than *no* embargo, so the Receiver does better if it accepts the short embargo and works to extend it.
 
 **The shorter embargo is exactly what both parties already agree on.**
 Think of an embargo as a series of one-day agreements.
