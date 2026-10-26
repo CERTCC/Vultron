@@ -815,6 +815,31 @@ class TestRegisterPeer:
         ]
         assert holders == ["Organization"]
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="AKM-02-006: the peer record gets clock times and endpoints"
+        " derived from its id. Tracked by #5177.",
+    )
+    @pytest.mark.spec("AKM-02-006")
+    def test_peer_record_holds_no_value_the_request_did_not_supply(
+        self, client_actors
+    ):
+        host_id = self._create_host(client_actors)
+        slug = host_id.split("/actors/")[-1]
+        peer_id = "http://elsewhere.test:7999/api/v2/actors/peer-known"
+
+        client_actors.post(
+            f"/actors/{slug}/peers/",
+            json={"id": peer_id, "name": "Peer", "actor_type": "Organization"},
+        )
+        host_dl = get_datalayer(host_id, db_url="sqlite:///:memory:")
+        record = _find_actor_record_by_id(host_dl, peer_id)
+        assert record is not None
+        stored = record.get("data_")
+        assert isinstance(stored, dict)
+        invented = ("published", "updated", "inbox", "outbox")
+        assert [key for key in invented if stored.get(key) is not None] == []
+
     def test_peer_does_not_appear_in_hosted_actors_list(self, client_actors):
         host_id = self._create_host(client_actors)
         slug = host_id.split("/actors/")[-1]

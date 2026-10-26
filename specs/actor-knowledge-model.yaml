@@ -139,8 +139,14 @@ groups:
       is addressing rather than a recorded or sent value (OX-12-009).
     verification: >-
       `test/wire/as2/factories/test_actor_references.py::test_an_actor_given_by_uri_carries_no_invented_field`
-      builds each activity that names an actor given by URI and checks the actor
-      carries no `published`, `updated`, `inbox` or `outbox`.
+      builds each factory activity that names an actor given by URI, and
+      `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py::test_a_role_delegate_given_by_uri_carries_no_invented_field`
+      seals each role-delegation Offer and answer; both check the actor carries no
+      `published`, `updated`, `inbox` or `outbox`. For records,
+      `test/adapters/driving/fastapi/routers/test_actors.py::TestRegisterPeer::test_peer_record_holds_no_value_the_request_did_not_supply`
+      checks a registered peer and
+      `test/core/use_cases/triggers/test_actor_triggers.py::TestActorDiscoveryCallOut::test_minimal_peer_holds_no_value_nobody_asserted`
+      checks a peer recorded from a URI hold none of those fields.
     adr:
     - ADR-0159
     stories:
@@ -293,6 +299,9 @@ groups:
       checks the actor in each such activity is exactly an `id` and a `type`, and
       `test/wire/as2/factories/test_actor_references.py::test_a_held_actor_profile_travels_as_held`
       checks a held profile keeps the fields it was given.
+      `test/adapters/driving/fastapi/test_actor_reference_receipt.py::test_a_received_actor_reference_keeps_the_held_profile`
+      delivers an `Offer(Actor)` carrying a reference to a receiver that holds the
+      actor's full profile, and checks the profile is unchanged.
     relationships:
     - rel_type: refines
       spec_id: AKM-05-001
