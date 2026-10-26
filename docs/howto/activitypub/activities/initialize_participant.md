@@ -7,7 +7,8 @@ page_type: how-to
 # How to Seat a Participant on an Existing Case
 
 Use this guide when an actor must join a case that already exists.
-An actor joins only by accepting the stub Invite the CASE_MANAGER sends it; no other message seats a member.
+An actor joins only when it accepts the stub Invite that the CASE_MANAGER sends it.
+No other message seats a member.
 You finish with the actor on the case roster, holding the roles you assigned, and on every participant's replica.
 
 ---
@@ -25,7 +26,8 @@ You finish with the actor on the case roster, holding the roles you assigned, an
 ## The exchange
 
 The flowchart below shows the two activities that seat the actor.
-The CASE_MANAGER sends the `Invite` at your request; the actor's `Accept` seats it.
+The CASE_MANAGER sends the `Invite` at your request.
+The actor's `Accept` seats it.
 
 ```mermaid
 ---
@@ -56,7 +58,10 @@ flowchart LR
     {% include-markdown "../../../reference/messages/_occasions/embeds/accept-invite-to-case.md" %}
 
 3. The CASE_MANAGER sends the new participant the case and the ledger it missed, then the full-case Invite that asks it to judge the case.
-   The ledger holds the messages exchanged: the CASE_MANAGER's entry for creating the inert record, then the invitee's `Accept(Invite(Actor))` itself, which every other replica applies, and the CASE_MANAGER's entry for a vendor's VF status.
+   The ledger holds the messages exchanged.
+   First is the CASE_MANAGER's entry for creating the inert record.
+   Then comes the invitee's `Accept(Invite(Actor))` itself, which every other replica applies.
+   The ledger also holds the CASE_MANAGER's entry for a vendor's VF status.
 
 If all participants are known when the case is created, seat them inline on the `Create(VulnerabilityCase)` activity instead — see [How to Initialize a Case](initialize_case.md).
 

@@ -64,7 +64,9 @@ sequenceDiagram
 
 ## Recommend the actor
 
-The formal message set does not name this exchange: all three activities fall under the General Inquiry (GI) umbrella, which is a placeholder rather than a description — see [Why `GI` expands](../../../topics/activity_vocabulary_design.md#why-gi-expands-and-why-the-expansion-has-no-end).
+The formal message set does not name this exchange.
+All three activities are in the General Inquiry (GI) umbrella, which is a placeholder, not a description.
+See [Why `GI` expands](../../../topics/activity_vocabulary_design.md#why-gi-expands-and-why-the-expansion-has-no-end).
 
 1. Send `Offer(Actor)` to the CASE_MANAGER with the recommended actor as its `object` and the case as its `target`.
 
@@ -109,7 +111,8 @@ As Case Owner, answer the forwarded offer, addressing the reply to the CASE_MANA
 The CASE_MANAGER acts on a decision only when the Case Owner sent it.
 It refuses a reply from any other sender, invites no one, and tells the recommender nothing.
 The actor it invites is the one named in the `Offer(CaseParticipant)` it forwarded, never the one named in your reply.
-It also refuses an `Accept` for an actor that has already joined or has closed its record, and it commits and sends nothing for it.
+
+The CASE_MANAGER also refuses an `Accept` for an actor that has already joined or has closed its record, and it commits and sends nothing for it.
 The same holds for an actor the case has removed.
 It also refuses a reply that names an `Offer(CaseParticipant)` it never forwarded, or a recommendation it holds no record of, and it commits and sends nothing for it.
 
