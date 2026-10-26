@@ -442,9 +442,11 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
         )
 
     @pytest.mark.spec("MSM-08-003")
+    @pytest.mark.spec("CSB-15-003")
     def test_notify_published_status_is_its_declared_occasion(self):
         """The status the notify-published trigger sends (CSB-15-003)
-        carries the public-awareness occasion's distinguisher (#4569)."""
+        carries the public-awareness occasion's distinguisher (#4569), and
+        claims P only: no vf or d dimension rides along."""
         from vultron.core.models.participant_status import ParticipantStatus
         from vultron.core.use_cases.triggers.case import (
             SvcAddParticipantStatusUseCase,
@@ -485,6 +487,8 @@ class TestSvcAddParticipantStatusExecuteUpdatesSenderRecord:
             status = self.dl.read(status)
         assert isinstance(status, ParticipantStatus)
         assert distinguisher.read(status) is distinguisher.value
+        assert status.vf is None
+        assert status.d is None
 
     @pytest.mark.spec("RSH-08-003")
     @pytest.mark.spec("RSH-08-006")
@@ -1553,6 +1557,7 @@ class TestValidateTriggerTransitions:
         _seed_copied_status(self.dl, self.actor_participant.id_, **dimensions)
 
     @pytest.mark.spec("CM-04-005")
+    @pytest.mark.spec("CSB-16-001")
     @pytest.mark.spec("CSB-16-003")
     def test_ac1_invalid_vf_jump_raises_and_persists_nothing(self):
         """AC-1: vf → VF (skips Vf) raises VultronValidationError; no record written.
@@ -1596,6 +1601,37 @@ class TestValidateTriggerTransitions:
         # Backward step: Pxa → pxa must be rejected.
         with pytest.raises(VultronValidationError):
             self._execute(pxa_state=CS_pxa.pxa)
+        assert self._status_snapshot() == before
+
+    @pytest.mark.spec("CSB-16-001")
+    @pytest.mark.spec("CSB-16-003")
+    def test_backward_d_raises_and_persists_nothing(self):
+        """D → d (backward) on the deployer path raises; no record written.
+
+        The participant holds DEPLOYER so the role gate (CSB-15-002) passes
+        and the d sub-machine's own check is what refuses the move.
+        """
+        from vultron.enums.roles import CVDRole
+        from vultron.errors import VultronValidationError
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            as_CaseParticipant,
+        )
+
+        self.dl.save(
+            as_CaseParticipant(
+                id_=self.actor_participant.id_,
+                attributed_to=self.actor.id_,
+                context=self.case.id_,
+                case_roles=[CVDRole.VENDOR, CVDRole.DEPLOYER],
+            )
+        )
+        self._seed(rm=RM.ACCEPTED, vf=CS_vf.VF, d=CS_d.D)
+        before = self._status_snapshot()
+
+        with pytest.raises(
+            VultronValidationError, match="Invalid D transition"
+        ):
+            self._execute(d_state=CS_d.d)
         assert self._status_snapshot() == before
 
     def test_ac4_same_state_write_succeeds(self):

@@ -201,6 +201,7 @@ def test_local_actor_config_identity_fields_only():
 # ============================================================================
 
 
+@pytest.mark.spec("EP-04-005")
 def test_protocol_default_embargo_duration_defaults_to_72_hours():
     assert ActorConfig().protocol_default_embargo_duration == timedelta(
         hours=72

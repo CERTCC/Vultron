@@ -1826,9 +1826,9 @@ groups:
       disclosure. The P event is participant-agnostic; the D event is valid only for a
       DEPLOYER participant that has separately completed deployment (CSB-15-002).
     verification: >-
-      Integration tests in `test/demo/` confirm that notify-published sets only
-      pxa_state=Pxa in the ParticipantStatus record and leaves the vf and d
-      dimensions unmodified.
+      `test/core/use_cases/triggers/case/test_add_participant_status.py`
+      (`test_notify_published_status_is_its_declared_occasion`) confirms the status a
+      public-awareness report sends records P and carries no vf or d claim.
     testable: true
     preconditions:
     - description: A participant reports that the vulnerability is public
@@ -1899,8 +1899,8 @@ groups:
     - rel_type: refines
       spec_id: CSB-15-002
       note: >-
-        CSB-15-002 gates d→D on CVDRole.DEPLOYER; CSB-15-004 adds the causal
-        precondition requiring at least one VENDOR to have vf.state=VF first
+        CSB-15-002 gates d→D on the DEPLOYER role; CSB-15-004 adds the causal
+        precondition requiring at least one VENDOR participant to be at F first
     tags:
     - state-machine
     - protocol
@@ -1935,8 +1935,9 @@ groups:
       a peer may advance several steps between messages.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
-      (`test_ac1_invalid_vf_jump_raises_and_persists_nothing`) confirms an illegal vf
-      jump is refused with no status recorded, and
+      (`test_ac1_invalid_vf_jump_raises_and_persists_nothing`,
+      `test_backward_d_raises_and_persists_nothing`) confirms an illegal vf jump and a
+      backward d move are each refused with no status recorded, and
       `test/bt/test_case_states/test_transitions.py` exercises the permitted vf and d
       transitions.
     testable: true

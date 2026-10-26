@@ -474,6 +474,12 @@ groups:
     verification: >-
       A unit test asserts that a case created with no `EmbargoPolicy` in the store and no
       sender proposal reaches `EM.ACTIVE` at the protocol default.
+      `test/core/models/test_actor_config.py`
+      (`test_protocol_default_embargo_duration_defaults_to_72_hours`,
+      `test_protocol_default_embargo_duration_accepts_range`,
+      `test_protocol_default_embargo_duration_refuses_out_of_range`) confirms the
+      default lies in [72 hours, 5 days] and that no value outside it can become the
+      default.
     adr:
     - ADR-0096
     stories:
