@@ -13,7 +13,6 @@ import re
 from pathlib import Path
 
 import jinja2
-import material  # type: ignore[import-untyped]
 import pytest
 
 from vultron.metadata.base import mkdocs_config, repo_root
@@ -29,25 +28,6 @@ pytestmark = pytest.mark.spec("DF-11-019")
 
 _ROOT = repo_root()
 _OVERRIDES = _ROOT / "overrides"
-# The installed Material theme supplies base.html and the theme's own main.html.
-# The project's overrides/ directory takes precedence (same order as MkDocs).
-_THEME_TEMPLATES = Path(material.__file__).parent / "templates"
-
-
-def _make_jinja_env() -> jinja2.Environment:
-    """Jinja2 environment that mirrors MkDocs' override-then-theme lookup."""
-    return jinja2.Environment(
-        loader=jinja2.ChoiceLoader(
-            [
-                jinja2.FileSystemLoader(str(_OVERRIDES)),
-                jinja2.FileSystemLoader(str(_THEME_TEMPLATES)),
-            ]
-        ),
-        undefined=jinja2.Undefined,
-        autoescape=True,
-    )
-
-
 _STYLESHEETS = _ROOT / "docs" / "stylesheets"
 
 
