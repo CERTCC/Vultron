@@ -22,7 +22,8 @@ and StatusAdoptionGate authorization (ADR-0046, RSH-01-001 to RSH-01-004):
   2. AppendParticipantStatusNode               — status appended, RM regression rejected
   StatusAdoptionGate: SenderIsCaseOwnerNode                — CASE_OWNER gospel bypass (RSH-01-002)
   StatusAdoptionGate: StatusAdoptionGate                   — Fallback: bypass or call-out (RSH-01-002)
-  StatusAdoptionGate: EmitCaseStatusUpdateNode             — direct ledger write (RSH-01-003, RSH-04-006)
+  StatusAdoptionGate: EmitCaseStatusUpdateNode — direct ledger write
+      (RSH-01-003, RSH-04-006)
 
 AutoCloseSequence was removed per ADR-0050: canonical RM closure is routed
 through the Leave(VulnerabilityCase) receive path in receive_close_case_tree.
