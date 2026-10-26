@@ -15,9 +15,12 @@
 
 The tests of the replica's side of a repair, the ledger position a case
 copy names and how a replica that holds the case judges the copy by it
-(SYNC-16-005 through SYNC-16-007), are behaviour tests.  The others are a
-strict ``xfail`` for unbuilt behaviour (ADR-0142), except one that pins a
-SYNC-16 property that already holds.  Each implementation issue removes the
+(SYNC-16-005 through SYNC-16-007), are behaviour tests.  The divergence
+fault's class and its wire form are pinned here (SYNC-16-001, SYNC-16-002);
+the replica's emission of it is behaviour-tested in
+``test/core/use_cases/received/test_embargo_consent_copy.py``.  The
+CASE_MANAGER's re-seed (SYNC-16-003, SYNC-16-004) is a strict ``xfail`` for
+unbuilt behaviour (ADR-0142).  Each implementation issue removes the
 ``xfail`` from the tests it makes pass, and replaces a probe with a full
 behaviour test where the probe only pins a name.
 """
@@ -34,6 +37,9 @@ from test.support.ledger_rebuild import run_use_case
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
@@ -93,6 +99,7 @@ from vultron.wire.as2.factories import (
     genesis_replay_reject_activity,
 )
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCase,
@@ -106,27 +113,50 @@ _CASE_DIVERGED = "https://certcc.github.io/Vultron/ns/errors/LedgerEntryRefused/
 _PUBLISHED = datetime(2026, 10, 1, tzinfo=UTC)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-16-001: no case-diverged failure class yet. Tracked by #4798.",
-)
 @pytest.mark.spec("SYNC-16-001")
 def test_case_diverged_failure_class_is_defined() -> None:
-    """The replica's fault names the divergence by its own failure class."""
-    # getattr until #4798 defines the name, so the type checkers pass now.
-    constant = getattr(  # noqa: B009
-        fault_classes,
-        "VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED",
-    )
+    """The replica's fault names the divergence by its own failure class.
+
+    It is a sub-path of ``LedgerEntryRefused``, the parent it shares with
+    the hash-mismatch fault (SYNC-03-007).  The replica's emission is
+    behaviour-tested in
+    ``test/core/use_cases/received/test_embargo_consent_copy.py``.
+    """
+    constant = fault_classes.VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED
     assert constant == _CASE_DIVERGED
+    assert constant.startswith(
+        f"{fault_classes.VULTRON_FAILURE_LEDGER_ENTRY_REFUSED}/"
+    )
+
+
+@pytest.mark.spec("SYNC-16-001")
+@pytest.mark.spec("ASK-07-005")
+def test_the_wire_vocabulary_carries_the_case_diverged_class() -> None:
+    """A sealed fault of the class parses back from its wire form unchanged."""
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_REPLICA_ID)
+    fault_id = TriggerActivityAdapter(dl).emit_processing_fault(
+        actor=_REPLICA_ID,
+        failed_activity_id=f"{_CASE_ID}/ledger/entries/7/announce",
+        failure_class=_CASE_DIVERGED,
+        to=[_CASE_ACTOR_ID],
+    )
+    body = read_sealed_body_dict(dl, fault_id)
+    assert body is not None
+
+    fault = cast(
+        as_ProcessingFault, cast(as_Create, parse_activity(body)).object_
+    )
+
+    assert fault.failure_class == _CASE_DIVERGED
 
 
 @pytest.mark.spec("SYNC-16-002")
 def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
     """The CASE_MANAGER commits no ledger entry for a divergence fault.
 
-    Holds already, because the fault use case only logs. #4798 adds the
-    replica side when it builds the fault's emission.
+    Holds because the fault use case only logs.  The replica side, and
+    both sides end to end, are tested in
+    ``test/core/use_cases/received/test_embargo_consent_copy.py``.
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     dl.create(

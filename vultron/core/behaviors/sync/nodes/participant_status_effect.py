@@ -22,8 +22,8 @@ describes an impossible composite state (RSH-09-006).
 
 Provides :class:`EmitImpossibleStateFaultNode`, which emits
 ``Create(ProcessingFault)`` with failure class
-``StatusAssertionRefused/ImpossibleState`` to the CaseActor when the Apply node
-returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree.py``
+``StatusAssertionRefused/ImpossibleState`` to the CASE_MANAGER when the Apply
+node returns FAILURE.  The two nodes are wired in a Selector in ``announce_tree.py``
 to guarantee that either the status is applied successfully or a fault is emitted.
 
 Per specs/multi-actor-demo.yaml DEMOMA-07-003 step 3,
@@ -46,6 +46,9 @@ from vultron.core.behaviors.sync.nodes.conditions import (
     _require_log_entry,
 )
 from vultron.core.behaviors.sync.nodes.effects import _extract_id_from_field
+from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
+    EmitLedgerEntryFaultNode,
+)
 from vultron.core.models._helpers import (
     _as_id,
     project_wire_snapshot_to_core,
@@ -215,76 +218,22 @@ class ApplyParticipantStatusFromLedgerNode(
         return Status.SUCCESS
 
 
-class EmitImpossibleStateFaultNode(DataLayerActionWithPorts):
+class EmitImpossibleStateFaultNode(EmitLedgerEntryFaultNode):
     """Emit ``Create(ProcessingFault)`` when the Apply node fails.
 
     This node is the fallback in the Selector that wraps
     :class:`ApplyParticipantStatusFromLedgerNode`.  The Apply node fails only
     when the entry describes an impossible composite state (RSH-09-006), so
-    this node emits ``StatusAssertionRefused/ImpossibleState``.
+    this node emits ``StatusAssertionRefused/ImpossibleState`` to the
+    CASE_MANAGER through the shared ledger-entry fault emission
+    (:func:`~vultron.core.behaviors.sync.nodes.ledger_entry_fault.emit_ledger_entry_fault`).
 
     After emitting it returns FAILURE, so the Selector's FAILURE propagates up
     to block ``PersistReceivedLogEntry`` (SYNC-12-001, RSH-09-006).
-
-    The fault is omitted gracefully when no ``TriggerActivityPort`` is wired
-    (integration tests, demo runners without a trigger factory), so the tree
-    still fails correctly without raising.
     """
 
-    INPUT_PORTS: dict[str, PortInformation] = {
-        **DataLayerActionWithPorts.INPUT_PORTS,
-        "activity": PortInformation(data_type=object, required=True),
-    }
-
-    @classmethod
-    def _domain_port_remappings(cls) -> dict[str, str]:
-        return {"activity": "/activity"}
-
-    def initialise(self) -> None:
-        super().initialise()
-        self.activity = self.get_input("activity")
-
-    def update(self) -> Status:
-        activity = self.activity
-        if activity is None or self.actor_id is None:
-            self.logger.warning(
-                "%s: missing activity or actor_id — cannot emit ProcessingFault",
-                self.name,
-            )
-            return Status.FAILURE
-
-        failed_id = getattr(activity, "activity_id", None)
-        sender_id = getattr(activity, "actor_id", None)
-        case_id = getattr(activity, "context_id", None)
-
-        if self.trigger_activity_factory is None:
-            self.logger.warning(
-                "%s: no TriggerActivityPort — ProcessingFault not emitted"
-                " for failed activity '%s' (RSH-09-006)",
-                self.name,
-                failed_id,
-            )
-            return Status.FAILURE
-
-        failure_class = (
-            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(
+            VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
+            name=name,
         )
-        if failed_id and sender_id:
-            self.trigger_activity_factory.emit_processing_fault(
-                actor=self.actor_id,
-                failed_activity_id=failed_id,
-                failure_class=failure_class,
-                to=[sender_id],
-                case_id=case_id,
-            )
-            class_label = failure_class.rsplit("/", 1)[-1]
-            self.logger.info(
-                "%s: emitted ProcessingFault/%s to '%s'"
-                " for failed activity '%s'",
-                self.name,
-                class_label,
-                sender_id,
-                failed_id,
-            )
-
-        return Status.FAILURE

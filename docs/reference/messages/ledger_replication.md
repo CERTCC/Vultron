@@ -22,6 +22,7 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
 1. The CASE_MANAGER commits a new log entry and sends it to each participant as `Announce(CaseLedgerEntry)`.
 2. A participant first recomputes the entry's hash from its content.
    An entry that does not reproduce its `entry_hash` is refused and logged, with no `Reject` (SYNC-03-006, CLP-04-008).
+   The participant sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead (SYNC-03-007).
 3. A participant whose local `prev_log_hash` matches the incoming entry's `prev_log_hash` accepts it and sends nothing.
    An unbroken hash chain is the implied positive acknowledgment (MSM-05-002).
 4. A participant whose hashes do not match sends `Reject(CaseLedgerEntry)` with `context` = its last accepted hash.
@@ -52,6 +53,9 @@ A replica copies each of these, ids and times included (CLP-07-013, CM-23-016).
 
 The replica does not patch over an embargo or consent entry whose starting state does not match the replica's case.
 It holds the `Announce` that carried that entry as a `HeldLedgerAnnounce`.
+When that entry extends the replica's chain and the case is not already past it, the replica's case has diverged.
+The replica then sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/CaseDiverged` (SYNC-16-001).
+Neither fault is committed to a case ledger, by the replica or by the CASE_MANAGER (SYNC-16-002).
 
 ## Occasions
 

@@ -563,6 +563,7 @@ def _reseed(net: LedgerNetwork, replica: str) -> None:
 
 
 @pytest.mark.spec("CM-23-016")
+@pytest.mark.spec("SYNC-16-001")
 @pytest.mark.parametrize(
     "history", ["proposal", "answered-revision", "two-revisions"]
 )
@@ -570,7 +571,8 @@ def test_a_replica_seeded_after_the_entries_replays_them_as_no_ops(history):
     """A joiner's seed is ahead of the ledger it replays from genesis.
 
     Each copied entry the seed is already past is a no-op, so the replay
-    reaches the tail and the replica equals the CASE_MANAGER (ADR-0114).
+    reaches the tail and the replica equals the CASE_MANAGER (ADR-0114), and
+    sends no divergence fault (SYNC-16-001).
     """
     net = _net(f"seeded-{history}", owner=MANAGER)
     if history == "answered-revision":
@@ -586,6 +588,9 @@ def test_a_replica_seeded_after_the_entries_replays_them_as_no_ops(history):
     _reseed(net, BYSTANDER)
 
     _assert_replica_copies(net, BYSTANDER)
+    # An entry the case is already past is no divergence, so the replica
+    # reports none (SYNC-16-001).
+    assert net.queued(BYSTANDER, to=MANAGER, type_="Create") == []
 
 
 # ---------------------------------------------------------------------------

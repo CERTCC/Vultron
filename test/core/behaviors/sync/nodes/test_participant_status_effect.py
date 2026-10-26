@@ -368,12 +368,35 @@ class TestEmitImpossibleStateFaultNode:
     def test_emits_fault_with_impossible_state_class(
         self, datalayer, case_actor
     ):
-        """Node emits ProcessingFault with ImpossibleState class and returns FAILURE."""
+        """Node emits ProcessingFault with ImpossibleState class and returns FAILURE.
+
+        The fault goes to the case's CASE_MANAGER, so the replica's case
+        names the announcing actor in that role.
+        """
         from vultron.core.behaviors.bridge import BTBridge
+        from vultron.core.models.case import VulnerabilityCase
+        from vultron.core.models.case_participant import CaseParticipant
         from vultron.core.models.fault_classes import (
             VULTRON_FAILURE_STATUS_ASSERTION_REFUSED_IMPOSSIBLE_STATE,
         )
         from vultron.core.ports.trigger_activity import TriggerActivityPort
+        from vultron.enums.roles import CVDRole
+
+        manager = CaseParticipant(
+            id_=f"{CASE_ID}/participants/case-manager",
+            attributed_to=case_actor.id_,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_MANAGER],
+        )
+        datalayer.create(manager)
+        datalayer.save(
+            VulnerabilityCase(
+                id_=CASE_ID,
+                attributed_to=OWNER_ACTOR_ID,
+                case_participants=[manager.id_],
+                actor_participant_index={case_actor.id_: manager.id_},
+            )
+        )
 
         trigger_activity = MagicMock(spec=TriggerActivityPort)
         trigger_activity.emit_processing_fault.return_value = (

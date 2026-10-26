@@ -94,19 +94,22 @@ def _run_announce_bt(
     sync_port: SyncActivityPort | None,
     wire_render_port: WireRenderPort | None,
     inbox_replay: InboxReplayPort | None,
+    trigger_activity: TriggerActivityPort | None,
 ) -> tuple[py_trees.behaviour.Behaviour, BTExecutionResult]:
     """Run the announce receive BT for *request*.
 
     The tree replays a held successor's ``Announce`` through the inbox via
-    *inbox_replay* rather than running it here (SYNC-14-009).  Returns the
-    tree along with the result so the caller can tell which branch decided
-    the outcome (#2255).
+    *inbox_replay* rather than running it here (SYNC-14-009).  It builds the
+    replica's fault about a refused entry through *trigger_activity*
+    (RSH-09-006, SYNC-03-007, SYNC-16-001).  Returns the tree along with the
+    result so the caller can tell which branch decided the outcome (#2255).
     """
     tree = create_announce_log_entry_tree(
         sender_rule=AnnounceLedgerEntryReceivedUseCase.sender_entitlement
     )
     result = BTBridge(
         datalayer=dl,
+        trigger_activity=trigger_activity,
         wire_render_port=wire_render_port,
         sync_port=sync_port,
     ).execute_with_setup(
@@ -211,11 +214,14 @@ class AnnounceLedgerEntryReceivedUseCase:
     """Process a received ``Announce(CaseLedgerEntry)`` activity.
 
     Refuses an entry whose content does not reproduce its own hash
-    (SYNC-03-006), then validates the incoming entry against the local
-    hash-chain tail and persists it if the chain is consistent.  On
-    mismatch, sends a
+    (SYNC-03-006) and reports it to the CASE_MANAGER with a
+    ``LedgerEntryRefused/HashMismatch`` fault (SYNC-03-007), then validates
+    the incoming entry against the local hash-chain tail and persists it if
+    the chain is consistent.  On mismatch, sends a
     ``Reject(CaseLedgerEntry)`` back to the CaseActor carrying the local
-    tail hash (SYNC-03-001).
+    tail hash (SYNC-03-001).  An entry that extends the chain but does not
+    apply to this replica's case is held and reported with a
+    ``LedgerEntryRefused/CaseDiverged`` fault (SYNC-16-001).
 
     When *pending_assertions* is provided (or resolved from the per-actor
     registry), clears the matching pending assertion on receipt so that
@@ -254,9 +260,9 @@ class AnnounceLedgerEntryReceivedUseCase:
     ) -> None:
         self._dl = dl
         self._inbox_replay = inbox_replay
-        # The received baseline supplies the trigger port to every use case;
-        # this one runs no tree that builds an activity, so it is unused.
-        del trigger_activity
+        # Builds the replica's fault about an entry it refuses (RSH-09-006,
+        # SYNC-03-007, SYNC-16-001).
+        self._trigger_activity = trigger_activity
         self._wire_render_port = wire_render_port
         self._request = request
         self._sync_port = sync_port
@@ -294,6 +300,7 @@ class AnnounceLedgerEntryReceivedUseCase:
             self._sync_port,
             self._wire_render_port,
             self._inbox_replay,
+            self._trigger_activity,
         )
 
         # A copy the door guards refused (an unaddressed one, HP-01-005, or a

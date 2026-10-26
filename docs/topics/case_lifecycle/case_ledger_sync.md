@@ -53,6 +53,7 @@ So a case its owner creates and one the CASE_MANAGER creates from the owner's pr
 Before a replica holds, applies or stores an entry, it recomputes the hash from the entry's fields and compares it with `entryHash` ([SYNC-03-006](../../reference/specs/protocol.md#sync-03-006)).
 An entry whose content does not reproduce its hash is refused and logged as an error.
 The replica sends no `Reject(CaseLedgerEntry)` for it, because a replay would resend the same entry.
+It sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead, naming the refused `Announce(CaseLedgerEntry)` ([SYNC-03-007](../../reference/specs/protocol.md#sync-03-007)).
 
 ---
 

@@ -85,9 +85,11 @@ _OUTBOX_SEAMS = frozenset(
 )
 
 #: Ledger-replication seams: ``SyncActivityPort`` sends and the helpers that
-#: wrap them, plus the commit tree whose fan-out announces a minted entry.
-#: Gated by ledger authority (``DeclineForeignLedgerCommitNode``, ADR-0073),
-#: not by ``EmitCapable``; see ``vultron/core/behaviors/emit_capable.py``.
+#: wrap them, the commit tree whose fan-out announces a minted entry, and the
+#: replica's fault about an entry it refused, sent to the announce's sender.
+#: Gated by ledger authority (``DeclineForeignLedgerCommitNode``, ADR-0073)
+#: or, for the replica's answers, by the announce tree's sender guard, not by
+#: ``EmitCapable``; see ``vultron/core/behaviors/emit_capable.py``.
 _LEDGER_REPLICATION_SEAMS = frozenset(
     {
         "send_announce_log_entry",
@@ -96,6 +98,7 @@ _LEDGER_REPLICATION_SEAMS = frozenset(
         "send_ledger_suffix",
         "backfill_admitted_peers",
         "create_commit_log_entry_tree",
+        "emit_ledger_entry_fault",
     }
 )
 
@@ -238,6 +241,17 @@ LEDGER_REPLICATION_SENDERS: frozenset[tuple[str, str]] = frozenset(
         (
             "vultron.core.behaviors.sync.nodes.receive",
             "SendRejectLogEntryNode",
+        ),
+        # The replica's Create(ProcessingFault) about an entry it refused,
+        # to the CASE_MANAGER that announced it: replication signalling like
+        # the Reject, never ledgered (SYNC-03-007, SYNC-16-001, SYNC-16-002).
+        (
+            "vultron.core.behaviors.sync.nodes.embargo_copy_effect",
+            "ApplyEmbargoChangeFromLedgerNode",
+        ),
+        (
+            "vultron.core.behaviors.sync.nodes.ledger_entry_fault",
+            "EmitLedgerEntryFaultNode",
         ),
         (
             "vultron.core.behaviors.sync.nodes.replay",
