@@ -37,7 +37,7 @@ It builds on decades of vulnerability coordination experience at the CERT Coordi
 
 {% include-markdown "./includes/start_here_cards.md" %}
 
-If you have been here before and want one page in particular, [Look Something Up](lookup.md) lists the reference pages of every tab: the specification, the requirements, the messages, and the glossary.
+{% include-markdown "./includes/lookup_link.md" %}
 
 ## What kind of thing Vultron is
 

@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from vultron.metadata.base import repo_root
+from vultron.metadata.base import mkdocs_config, repo_root, walk_nav
 from vultron.metadata.docs import site_sync
 from vultron.metadata.docs.landing_pages import (
     BEGIN_MARKER as LANDING_BEGIN,
@@ -130,6 +130,24 @@ class TestListing:
     def test_top_level_page_is_its_own_section(self, tmp_path):
         root = _repo(tmp_path, {"a.md": _page("A")}, [{"Alpha": "a.md"}])
         assert _listed(root) == [("Alpha", ["a.md"])]
+
+    def test_unlabelled_top_level_page_takes_its_title(self, tmp_path):
+        root = _repo(tmp_path, {"a.md": _page("Alpha")}, ["a.md"])
+        (section,) = lookup_sections(root)
+        assert (section.label, section.entries[0].target) == ("Alpha", "a.md")
+
+    @pytest.mark.parametrize(
+        "nav",
+        [
+            [{"Tab": ["a.md", 7]}],
+            [7, {"Tab": ["a.md"]}],
+            [["a.md"]],
+        ],
+    )
+    def test_unreadable_nav_item_fails_rather_than_drops(self, tmp_path, nav):
+        root = _repo(tmp_path, {"a.md": _page("A")}, nav)
+        with pytest.raises(MetadataLoadError, match="cannot read"):
+            lookup_sections(root)
 
     def test_external_links_are_not_sections(self, tmp_path):
         root = _repo(
@@ -291,6 +309,20 @@ class TestOmittedPages:
             [{"Tab": [{"Stories": "s/index.md"}, "z.md"]}],
         )
         assert _listed(root) == [("Tab", ["s/one.md", "z.md"])]
+
+    def test_page_placed_by_a_top_level_index_stays_in_its_section(
+        self, tmp_path
+    ):
+        root = _repo(
+            tmp_path,
+            {
+                "s/index.md": _page("Stories", page_type="routing"),
+                "s/one.md": _page("One"),
+                "z.md": _page("Z"),
+            },
+            [{"Stories": "s/index.md"}, {"Tab": ["z.md"]}],
+        )
+        assert _listed(root) == [("Stories", ["s/one.md"]), ("Tab", ["z.md"])]
 
     def test_page_whose_directory_index_is_not_in_the_nav_fails(
         self, tmp_path
@@ -517,18 +549,63 @@ class TestLookupArtifact:
             site_sync.main(["--check"])
         assert exc.value.code == 1
         err = capsys.readouterr().err
-        assert host in err and "lookup page" in err
+        assert host in err and "lookup.md" in err
         with pytest.raises(MetadataLoadErrors):
             site_sync.write_artifacts(site)
+
+
+def _nav_group(root: Path, index: str) -> list[object]:
+    """The committed nav group that *index* opens."""
+
+    def find(items: object) -> list[object] | None:
+        if isinstance(items, dict):
+            return next(
+                (g for v in items.values() if (g := find(v)) is not None),
+                None,
+            )
+        if isinstance(items, list):
+            if items and items[0] == index:
+                return items
+            return next((g for i in items if (g := find(i)) is not None), None)
+        return None
+
+    group = find(mkdocs_config(root).get("nav"))
+    assert group is not None, index
+    return group
+
+
+class TestOneRunReportsEveryFault:
+    def test_placement_and_link_faults_are_reported_together(self, site):
+        """An author fixing by hand sees every finding in one run
+        (EH-07-001), not one batch per check."""
+        (site / "docs/orphan").mkdir()
+        (site / "docs/orphan/old.md").write_text(_page("Old"))
+        start = site / "docs/start/go.md"
+        start.write_text(start.read_text().replace(LOOKUP_LINK, ""))
+        with pytest.raises(MetadataLoadErrors) as exc:
+            site_sync.stale_artifacts(site)
+        assert {str(f.path) for f in exc.value.failures} == {
+            "docs/orphan/old.md",
+            "docs/start/go.md",
+        }
+
+    def test_home_page_routing_to_the_lookup_page_is_reported_once(self, site):
+        home = site / "docs/index.md"
+        home.write_text(home.read_text().replace("[Look](lookup.md)\n", ""))
+        with pytest.raises(MetadataLoadErrors) as exc:
+            site_sync.stale_artifacts(site)
+        assert [str(f.path) for f in exc.value.failures] == ["docs/index.md"]
 
 
 class TestCommittedLookupPage:
     def test_subgroups_are_one_entry_each(self):
         """The specification parts, the message pages, Formal Protocol, the
-        scenario narratives and the crosswalks are one entry each (AC-3)."""
+        scenario narratives and the crosswalks are one entry each (AC-3):
+        each group's index is listed once and none of its members is."""
+        root = repo_root()
         targets = [
             entry.target
-            for section in lookup_sections(repo_root())
+            for section in lookup_sections(root)
             for entry in section.entries
         ]
         for index in (
@@ -538,15 +615,10 @@ class TestCommittedLookupPage:
             "topics/scenarios/index.md",
             "reference/iso_crosswalks/index.md",
         ):
+            members = set(walk_nav(_nav_group(root, index))) - {index}
+            assert members, index
             assert targets.count(index) == 1
-        assert not any(
-            t is not None
-            and t.startswith(
-                ("reference/vultron-spec/", "reference/messages/")
-            )
-            and not t.endswith("index.md")
-            for t in targets
-        )
+            assert not members & set(targets), index
 
     def test_home_and_every_start_page_link_the_lookup_page(self):
         root = repo_root()

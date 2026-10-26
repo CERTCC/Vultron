@@ -22,9 +22,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from vultron.metadata.docs.landing_pages import is_url
 from vultron.metadata.docs.nav_usability.results import Outcome, TaskResult
 from vultron.metadata.docs.nav_usability.suite import Suite
-from vultron.metadata.docs.nav_usability.tree import _INDEX_NAME, _is_url
+from vultron.metadata.docs.nav_usability.tree import _INDEX_NAME
 from vultron.metadata.file_loading import MetadataLoadError
 
 DEFAULT_CLICK_BUDGET = 8
@@ -115,7 +116,7 @@ def _resolve_href(current: str, href: str) -> str | None:
     """
     if not href or href.startswith(("#", "mailto:", "javascript:")):
         return None
-    if _is_url(href):
+    if is_url(href):
         return None
     target = href.split("#", 1)[0].split("?", 1)[0]
     if not target:

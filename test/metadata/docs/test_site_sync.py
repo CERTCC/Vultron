@@ -596,7 +596,7 @@ class TestSectionIndexDecisions:
             site_sync.main(["--write"])
         assert run.value.code == 1
         err = capsys.readouterr().err
-        assert "required link(s) missing" in err
+        assert "finding(s) to fix by hand" in err
         assert "guides/sub/other.md" in err
         assert (root / "docs/guides/sub/index.md").read_text() == _index(
             "routing"

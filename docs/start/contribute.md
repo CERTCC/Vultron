@@ -47,7 +47,8 @@ This tab holds CERT/CC's reference implementation of the protocol: its demos, it
 What every implementation must do is on [Implement the Protocol](connect-your-tracker.md); this tab is about one implementation of it.
 This page is a reading path from running the demos to understanding why the codebase is built the way it is.
 Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
-If you have been here before and want one page in particular, [Look Something Up](../lookup.md) lists the reference pages of every tab.
+
+{% include-markdown "../includes/lookup_link.md" %}
 
 [Run the demos](../tutorials/container_demos.md){ .md-button .md-button--primary }
 [Read the architecture](../topics/reference_architecture.md){ .md-button }

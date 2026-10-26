@@ -63,6 +63,7 @@ from vultron.metadata.docs.landing_pages import (
 from vultron.metadata.docs.lookup_page import (
     HOME_PATH,
     LOOKUP_PATH,
+    LookupSection,
     lookup_link_faults,
     lookup_sections,
     splice_lookup,
@@ -114,17 +115,36 @@ def desired_contents(root: Path) -> dict[str, str]:
         for page in indexes.routing
         for fault in routing_faults(root, page)
     ]
+    # A host that is itself a routing index required to link the lookup page
+    # (the home page, when the lookup page sits in its nav group) is already
+    # checked above; checking it again would report one missing link twice.
+    routed = {
+        page.path for page in indexes.routing if LOOKUP_PATH in page.required
+    }
     faults.extend(
         lookup_link_faults(
-            root, [HOME_PATH, *(thread.path for thread in threads)]
+            root,
+            [
+                host
+                for host in (HOME_PATH, *(t.path for t in threads))
+                if host not in routed
+            ],
         )
     )
+    sections: tuple[LookupSection, ...] = ()
+    try:
+        sections = lookup_sections(root)
+    except MetadataLoadErrors as exc:
+        # Reported with the missing links, so one run names every
+        # hand-fixable fault (EH-07-001).
+        faults.extend(exc.failures)
     if faults:
         raise MetadataLoadErrors(
             faults,
             summary=(
-                f"{len(faults)} required link(s) missing; add each link by "
-                "hand, nothing is generated for a routing page:"
+                f"{len(faults)} finding(s) to fix by hand; nothing is "
+                "generated for a missing link or an unplaceable page "
+                "(DF-11-005, DF-11-021):"
             ),
         )
     for page in indexes.generated:
@@ -134,9 +154,7 @@ def desired_contents(root: Path) -> dict[str, str]:
         path = f"docs/{page.path}"
         contents[path] = splice_listing(_read(root / path), page)
     lookup = f"docs/{LOOKUP_PATH}"
-    contents[lookup] = splice_lookup(
-        _read(root / lookup), lookup_sections(root)
-    )
+    contents[lookup] = splice_lookup(_read(root / lookup), sections)
     titles = page_titles(root, threads)
     for thread in threads:
         path = f"docs/{thread.path}"

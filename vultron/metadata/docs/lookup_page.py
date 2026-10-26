@@ -166,6 +166,13 @@ def _with_placed(
     return out
 
 
+def _unreadable(item: object) -> MetadataLoadError:
+    return MetadataLoadError(
+        f"has a nav item the lookup page cannot read: {item!r}",
+        path="mkdocs.yml",
+    )
+
+
 class _Lookup:
     """One pass over the nav, collecting each section's reference entries."""
 
@@ -186,26 +193,45 @@ class _Lookup:
             if isinstance(value, str):
                 if value in self.reference:
                     found.append(nav_entry(item, self.docs_dir, self.root))
-            elif isinstance(value, list) and self._holds_reference(value):
+            elif isinstance(value, list):
+                if not self._holds_reference(value):
+                    continue
                 if group_landing(value) is not None:
                     found.append(nav_entry(item, self.docs_dir, self.root))
                 else:
                     found.extend(self.entries(value))
+            else:
+                raise _unreadable(item)
         return found
 
-    def section(self, item: object) -> LookupSection | None:
+    def section(
+        self, item: object, placed: dict[str, list[str]]
+    ) -> LookupSection | None:
+        """The section one top-level nav *item* contributes, if any.
+
+        A top-level page is a section of its own, holding the omitted pages
+        its index places, so they stay in its section rather than becoming
+        sections of their own.
+
+        Raises:
+            MetadataLoadError: If the item is a shape mkdocs cannot read.
+        """
         label, value = split_nav_item(item)
-        if isinstance(value, list):
-            entries = self.entries(value)
-        elif isinstance(value, str) and not is_url(value):
-            entries = self.entries([item])
+        if isinstance(value, list) and label is not None:
+            members = _with_placed(value, placed)
+        elif isinstance(value, str):
+            if is_url(value):
+                return None
+            members = [item, *placed.get(value, [])]
         else:
-            return None
+            raise _unreadable(item)
+        entries = self.entries(members)
         if not entries:
             return None
-        if label is None:
-            label = entries[0].label
-        return LookupSection(label=label, entries=tuple(entries))
+        return LookupSection(
+            label=label if label is not None else entries[0].label,
+            entries=tuple(entries),
+        )
 
 
 def _description_faults(
@@ -245,11 +271,13 @@ def lookup_sections(root: Path) -> tuple[LookupSection, ...]:
         (page for page in reference if page not in tree.navved), tree.navved
     )
     nav = mkdocs_config(root).get("nav")
-    items = _with_placed(nav if isinstance(nav, list) else [], placed)
     walk = _Lookup(root, frozenset(reference))
     sections = tuple(
         section
-        for section in (walk.section(item) for item in items)
+        for section in (
+            walk.section(item, placed)
+            for item in (nav if isinstance(nav, list) else [])
+        )
         if section is not None
     )
     faults.extend(_description_faults(sections))
