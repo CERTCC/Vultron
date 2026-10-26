@@ -10,6 +10,8 @@ page_type: tutorial
 
 # Tutorial: Submit a report to a Vultron actor
 
+{% include-markdown "../includes/test_bench.md" %}
+
 In this tutorial, we will submit a vulnerability report to a running Vultron
 actor and confirm that the actor received it.
 We will start the reference implementation, create an actor to play the part of

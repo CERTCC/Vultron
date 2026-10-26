@@ -90,4 +90,34 @@ an open goal (ADR-0102, ADR-0136).
 
 ## Current verdict
 
-<!-- Filled in by the run that gates #4684. -->
+**Pass** for the tabbed nav of #4684 against `main`'s nav at `b817fdc79`
+(results `results-baseline.yaml` and `results-proposed.yaml`; personas run as
+Haiku agents, each in a fresh context with no repository access):
+
+| Stage | Baseline | Proposed | Stalls at home |
+|---|---|---|---|
+| 1, tree test, two runs per persona | 12/23 | 13/23 | none |
+| 2, walkthrough of the 14 tasks that differ or fail | 7/14 | 9/14 | none |
+
+Stage 2 ran one session per task and nav, each persona taking its tasks in
+order. The tree test took three revisions of the proposed nav; the first two
+are kept as `results-proposed-v1.yaml` (9/23, fail) and
+`results-proposed-v2.yaml` (one run). What each revision changed, and the
+task that drove it:
+
+- Each tab's first entry is labelled **Start Here** (T01, T05, T17): with
+  only their situation titles, agents passed over the start pages.
+- How Vultron Works' landing page is labelled **Overview**, not Start Here
+  (T13): a second Start Here drew readers away from their own tab's.
+- The contributor door is labelled **Pull Requests and the Project Record**
+  (T17, T18): "Contributing" in the label drew the "where do I start" task
+  away from Start Here.
+- Reference Implementation Architecture is a tab entry, not inside a group
+  (T19): agents stopped at the group.
+
+Tasks the proposed nav still loses on Stage 2: T06 and T23 (a message's wire
+form; agents went to the formal protocol's Messages and to the activity
+guides). Tasks that fail on both navs at both stages: T16 and T21 (what the
+protocol leaves to an organization, and whether it replaces a coordination
+platform), and T01 (the PSIRT persona takes How Vultron Works for its starting
+path).

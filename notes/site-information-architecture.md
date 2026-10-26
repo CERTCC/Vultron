@@ -17,6 +17,7 @@ related_notes:
   - notes/agents-md-structure.md
   - notes/rfc-spec-authoring.md
   - notes/user-story-catalog.md
+  - notes/nav-usability-test.md
   - notes/rfc-review-rubric.md
 related_specs:
   - specs/diataxis-requirements.yaml
@@ -337,9 +338,12 @@ Groups inside a tab are named by topic, never by Diátaxis type ("Run the
 Demos", not "Tutorials"). Every tab opens on a landing page. Large groups go
 behind a routing page (DF-11-006) rather than nesting deeper.
 
-Every tab's first entry is labelled **Start Here**, whatever its page's
+Every reader tab's first entry is labelled **Start Here**, whatever its page's
 situation title: in the tree test, agents passed over situation-titled first
-entries looking for a place to start, and found "Start Here" (#4687).
+entries looking for a place to start, and found "Start Here". How Vultron
+Works' landing page is labelled **Overview** instead, because a second Start
+Here drew readers away from their own tab's (#4687,
+[nav-usability-test.md](nav-usability-test.md)).
 
 Each reader tab's landing page starts a **thread**: a reading path that may
 cross tabs; lobby signage has a shared thread. The nav is the structure and the

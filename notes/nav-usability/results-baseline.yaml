@@ -562,3 +562,187 @@ results:
   stalled_at_home: false
   why: The 'Versioning' entry under 'Reference' is the explicit place to find the release
     versioning scheme.
+- task: T01
+  persona: psirt-lead
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: start/index.html
+  label_path:
+  - index.html
+  - start/index.html
+  clicks: 1
+  stalled_at_home: false
+- task: T03
+  persona: psirt-lead
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: topics/process_models/index.html
+  label_path:
+  - index.html
+  - tutorials/index.html
+  - topics/index.html
+  - topics/case_lifecycle/a_case_under_vultron/index.html
+  - topics/process_models/index.html
+  clicks: 4
+  stalled_at_home: false
+- task: T04
+  persona: psirt-lead
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: topics/process_models/cs/cs_model/index.html
+  label_path:
+  - index.html
+  - topics/index.html
+  - topics/process_models/cs/index.html
+  - topics/process_models/cs/cs_model/index.html
+  clicks: 3
+  stalled_at_home: false
+- task: T06
+  persona: tracker-developer
+  run: 1
+  stage: 2
+  outcome: success
+  answer: reference/vultron-spec/layers/index.html
+  label_path:
+  - index.html
+  - reference/index.html
+  - reference/vultron-spec/layers/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T07
+  persona: tracker-developer
+  run: 1
+  stage: 2
+  outcome: success
+  answer: reference/vultron-spec/conformance/index.html
+  label_path:
+  - index.html
+  - reference/index.html
+  - reference/vultron-spec/conformance/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T09
+  persona: cvd-researcher
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: topics/measuring_cvd/foundations/index.html
+  label_path:
+  - index.html
+  - research/index.html
+  - topics/process_models/cs/index.html
+  - topics/measuring_cvd/foundations/index.html
+  clicks: 3
+  stalled_at_home: false
+- task: T12
+  persona: cvd-researcher
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: topics/measuring_cvd/possible_histories/index.html
+  label_path:
+  - index.html
+  - topics/index.html
+  - topics/process_models/cs/index.html
+  - topics/process_models/cs/transitions/index.html
+  - topics/measuring_cvd/possible_histories/index.html
+  clicks: 4
+  stalled_at_home: false
+- task: T13
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 2
+  outcome: success
+  answer: start/coordinate-cases/index.html
+  label_path:
+  - index.html
+  - start/index.html
+  - start/coordinate-cases/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T14
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 2
+  outcome: success
+  answer: howto/adopt_vultron/index.html
+  label_path:
+  - index.html
+  - howto/index.html
+  - howto/adopt_vultron/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T16
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: topics/capability_model/index.html
+  label_path:
+  - index.html
+  - topics/background/what-is-vultron/index.html
+  - topics/index.html
+  - topics/capability_model/index.html
+  clicks: 3
+  stalled_at_home: false
+- task: T18
+  persona: oss-contributor
+  run: 1
+  stage: 2
+  outcome: success
+  answer: about/contributing/index.html
+  label_path:
+  - index.html
+  - about/project_record/index.html
+  - about/contributing/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T21
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: howto/process_implementation/index.html
+  label_path:
+  - index.html
+  - topics/background/what-is-vultron/index.html
+  - howto/index.html
+  - howto/process_implementation/index.html
+  clicks: 3
+  stalled_at_home: false
+- task: T22
+  persona: psirt-lead
+  run: 1
+  stage: 2
+  outcome: success
+  answer: reference/csaf_crosswalk/overview/index.html
+  label_path:
+  - index.html
+  - topics/index.html
+  - topics/background/interoperability/index.html
+  - howto/index.html
+  - reference/index.html
+  - reference/csaf_crosswalk/overview/index.html
+  clicks: 5
+  stalled_at_home: false
+- task: T23
+  persona: tracker-developer
+  run: 1
+  stage: 2
+  outcome: success
+  answer: reference/messages/rm/index.html
+  label_path:
+  - index.html
+  - reference/index.html
+  - reference/rv-demo-protocol/index.html
+  - reference/messages/rm/index.html
+  - reference/formal_protocol/messages/index.html
+  - reference/activitypub/objects/index.html
+  - howto/activitypub/activities/index.html
+  - howto/activitypub/activities/report_vulnerability/index.html
+  - reference/messages/rm/index.html
+  clicks: 8
+  stalled_at_home: false

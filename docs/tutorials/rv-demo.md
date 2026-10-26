@@ -10,6 +10,8 @@ page_type: tutorial
 
 # Tutorial: Run the `rv` Demo
 
+{% include-markdown "../includes/test_bench.md" %}
+
 In this tutorial, we will run the **`rv` demo** end to end with Docker Compose.
 The `rv` scenario models a Coordinated Vulnerability Disclosure (CVD) case between a Reporter, who reports the vulnerability, and a Vendor, who maintains the affected software.
 It is the default scenario of the multi-actor stack and the simplest place to see a whole case go by.

@@ -561,3 +561,176 @@ results:
   - Versioning
   stalled_at_home: false
   why: Specifically about the project's release versioning scheme.
+- task: T01
+  persona: psirt-lead
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: start/how-vultron-works/index.html
+  label_path:
+  - index.html
+  - start/how-vultron-works/index.html
+  clicks: 1
+  stalled_at_home: false
+- task: T03
+  persona: psirt-lead
+  run: 1
+  stage: 2
+  outcome: success
+  answer: topics/process_models/rm/index.html
+  label_path:
+  - index.html
+  - start/coordinate-cases/index.html
+  - topics/process_models/index.html
+  - topics/process_models/rm/index.html
+  clicks: 3
+  stalled_at_home: false
+- task: T04
+  persona: psirt-lead
+  run: 1
+  stage: 2
+  outcome: success
+  answer: topics/process_models/cs/index.html
+  label_path:
+  - index.html
+  - start/how-vultron-works/index.html
+  - topics/process_models/cs/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T06
+  persona: tracker-developer
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: reference/formal_protocol/messages/index.html
+  label_path:
+  - index.html
+  - reference/vultron-spec/index.html
+  - reference/formal_protocol/messages/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T07
+  persona: tracker-developer
+  run: 1
+  stage: 2
+  outcome: success
+  answer: reference/vultron-spec/conformance/index.html
+  label_path:
+  - index.html
+  - reference/vultron-spec/index.html
+  - reference/vultron-spec/conformance/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T09
+  persona: cvd-researcher
+  run: 1
+  stage: 2
+  outcome: success
+  answer: start/study-the-process/index.html
+  label_path:
+  - index.html
+  - start/study-the-process/index.html
+  clicks: 1
+  stalled_at_home: false
+- task: T12
+  persona: cvd-researcher
+  run: 1
+  stage: 2
+  outcome: success
+  answer: topics/process_models/cs/cs_model/index.html
+  label_path:
+  - index.html
+  - start/study-the-process/index.html
+  - topics/process_models/cs/cs_model/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T13
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 2
+  outcome: success
+  answer: start/coordinate-cases/index.html
+  label_path:
+  - index.html
+  - start/coordinate-cases/index.html
+  clicks: 1
+  stalled_at_home: false
+- task: T14
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 2
+  outcome: success
+  answer: howto/adopt_vultron/index.html
+  label_path:
+  - index.html
+  - start/coordinate-cases/index.html
+  - howto/adopt_vultron/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T16
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: topics/capability_model/index.html
+  label_path:
+  - index.html
+  - start/coordinate-cases/index.html
+  - topics/background/what-is-vultron/index.html
+  - start/how-vultron-works/index.html
+  - topics/capability_model/index.html
+  clicks: 4
+  stalled_at_home: false
+- task: T18
+  persona: oss-contributor
+  run: 1
+  stage: 2
+  outcome: success
+  answer: about/contributing/index.html
+  label_path:
+  - index.html
+  - about/project_record/index.html
+  - about/contributing/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T21
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: topics/background/interoperability/index.html
+  label_path:
+  - index.html
+  - start/connect-your-tracker/index.html
+  - topics/background/what-is-vultron/index.html
+  - topics/background/interoperability/index.html
+  clicks: 3
+  stalled_at_home: false
+- task: T22
+  persona: psirt-lead
+  run: 1
+  stage: 2
+  outcome: success
+  answer: reference/csaf_crosswalk/overview/index.html
+  label_path:
+  - index.html
+  - start/coordinate-cases/index.html
+  - reference/csaf_crosswalk/overview/index.html
+  clicks: 2
+  stalled_at_home: false
+- task: T23
+  persona: tracker-developer
+  run: 1
+  stage: 2
+  outcome: fail
+  answer: howto/activitypub/activities/report_vulnerability/index.html
+  label_path:
+  - index.html
+  - start/contribute/index.html
+  - reference/rv-demo-protocol/index.html
+  - reference/messages/rm/index.html
+  - reference/activitypub/objects/index.html
+  - howto/activitypub/activities/index.html
+  - howto/activitypub/activities/report_vulnerability/index.html
+  clicks: 6
+  stalled_at_home: false
