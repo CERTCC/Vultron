@@ -284,7 +284,15 @@ and the specification renders them in two forms:
 - **Callouts** in the narrative: an `info` admonition holding a short table of
   the requirements a passage discusses, rendered by ID in the catalog's row
   format. The ID cell links to the catalog row. A callout naming an ID of any
-  other kind fails the build (DF-12-003).
+  other kind fails the build (DF-12-003). Write one as a one-line exec block,
+  `requirement_callout` from `vultron/metadata/specs/docs_render.py`:
+
+  ````markdown
+  ```python exec="true" idprefix=""
+  from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-001"))
+  ```
+  ````
+
 - **The Requirements Catalog**, a body section after §13 Conformance: every
   requirement of the two tiers, once, one subsection per requirement file,
   files grouped onto themed pages, `foundation` rows on a page of their own
@@ -311,9 +319,20 @@ Rules for the narrative around them:
 - **The catalog waits for the kind re-audit.** Publishing makes the two tiers
   the normative text, so the catalog does not publish until every `protocol` and
   `foundation` item's kind is re-checked with the MS-12 tree (ADR-0147, #4888).
-- **Placement is one table on the docs side** (DF-12-005). A new requirement
-  file holding either tier fails the check until it is placed on a catalog
-  page; the requirement files carry no placement field.
+- **Placement is one table on the docs side** (DF-12-005): `CATALOG_PAGES` in
+  `vultron/metadata/docs/requirement_catalog.py`. A new requirement file
+  holding either tier fails `test_real_placement_table_is_sound` until it is
+  placed on a catalog page; the requirement files carry no placement field.
+  `render_catalog_page` in `docs_render.py` renders a page by its key.
+- **Links follow the catalog's publication.** Until the catalog publishes,
+  `CATALOG_PUBLISHED` is `False` and a callout links the row on the per-kind
+  requirements page, which is the row the built site has; publishing flips the
+  constant (#4901). The renderers learn the page they print on from the
+  `exec_page.py` hook, so a fragment shared by several pages links correctly
+  on each.
+- **The keyword check grows with reconciliation.** `RECONCILED_FRAGMENTS` in
+  `vultron/metadata/docs/rfc2119_keywords.py` lists the fragments the check
+  enforces; each reconcile task adds its page's fragments (DF-12-004).
 - **A message rule is stated on its occasion**: a situation in a case that a
   sender conveys with a particular wire activity. A two-letter protocol
   shorthand is a cross-reference tag and the vocabulary of the state machine

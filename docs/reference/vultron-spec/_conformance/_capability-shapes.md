@@ -18,8 +18,8 @@ Vultron-compatible capability of that shape.
 
 Four shapes cover the ways an external capability can be consulted. They differ in
 what they are given, what they return, and whether they change anything outside the
-case. All four are consulted *by* the protocol, and each MUST answer within the
-single tick that consults it.
+case.
+All four are consulted *by* the protocol, and each answers within the single tick that consults it.
 
 | Shape | Contract: accepts | Contract: returns | Notes |
 |---|---|---|---|
@@ -63,9 +63,8 @@ capability set requirements. An implementation at any capability set level may p
 number of shapes, and a conformance claim does not state which
 ([§13.6 Capability Shapes](../conformance.md#136-capability-shapes)).
 
-Where a capability shape is implemented, it MUST satisfy the contract defined
-above. The technology used to fulfill the contract is not specified: a shape
-may be fulfilled by a human, an automated script, a Large Language Model (LLM), or any other mechanism.
+A capability of a shape is one that satisfies the contract defined above.
+The technology used to fulfill the contract is not specified: a shape may be fulfilled by a human, an automated script, a Large Language Model (LLM), or any other mechanism.
 
 #### G.3 Relationship to the Reference Implementation
 

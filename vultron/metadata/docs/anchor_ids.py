@@ -44,8 +44,9 @@ MkDocs never parses those as Markdown links, so they are neither rewritten nor
 checked, and the DOCBW-03-007 ``docs-links`` gate strips fragments by design
 (#3634). A generator that emits ``#fragment`` links needs its own test that
 each fragment exists on its target page; for the spec pages that is
-``test_render_for_kind_cross_links_resolve`` over the ``_cross_link`` "Related"
-column (``test/metadata/specs/test_docs_render.py``).
+``test_render_for_kind_cross_links_resolve`` over the "Related" column, and
+``test_docs_callouts_link_existing_rows`` over the requirement callouts in
+``docs/`` (both in ``test/metadata/specs/test_docs_render.py``).
 
 Registered under ``hooks:`` in ``mkdocs.yml``. MkDocs loads a hook by file
 path, so this module imports only the standard library and MkDocs itself.

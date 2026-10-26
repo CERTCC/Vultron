@@ -7,13 +7,17 @@ hosted on GitHub Pages. A permanent URI registration (for example, via a
 See ADR-0069.
 
 **JSON-LD context document.** The normative JavaScript Object Notation for Linked Data (JSON-LD) context is identified by
-`https://certcc.github.io/Vultron/ns/context.jsonld`. Implementations MUST
-use this URI as the `@context` value for all outbound Vultron messages ([§5.2 Serialization](layers.md#52-serialization)).
+`https://certcc.github.io/Vultron/ns/context.jsonld`.
+Every outbound Vultron message names this URI as its `@context` value ([§5.2 Serialization](layers.md#52-serialization)):
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-001"))
+```
 
 That URI does not currently dereference.
 The context document is withheld from publication until it is served at the wire-versioned path that ADR-0106 defines.
 At this version the namespace is therefore a stable identifier, not a retrievable document.
-An implementation MUST therefore cite the URI without depending on resolving it, and MUST NOT require a successful fetch to process a message.
+An implementation therefore cites the URI as an identifier, and processes a message without fetching it.
 
 **AS2 extension type naming conventions.** Vultron type names follow PascalCase
 without an `as_` prefix in wire output (for example, `"type": "VulnerabilityCase"`

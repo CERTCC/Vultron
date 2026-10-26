@@ -12,8 +12,12 @@ Where Vultron follows ActivityPub conventions:
 Where Vultron adds constraints ActivityPub does not impose:
 
 - Case-scoped messages route through the participant holding the Case Manager role rather than directly between participants ([§10.2 Routing Topology](interactions.md#102-routing-topology)).
-- A case ledger entry's payload snapshot MUST be the asserted activity exactly as it was sent, references included ([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)), because the entry hash covers only what the snapshot carries.
+- A case ledger entry's payload snapshot is the asserted activity exactly as it was sent, references included ([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)), because the entry hash covers only what the snapshot carries.
 - The Vultron vocabulary extends the ActivityStreams vocabulary with the object types of [§4.3 Object Types](layers.md#43-object-types).
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CLP-07-011"))
+```
 
 !!! info "See also"
     - [Vultron ActivityStreams (AS) Activity Guides](../../howto/activitypub/activities/index.md) — how to carry out each protocol flow
