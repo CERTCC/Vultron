@@ -1,6 +1,6 @@
 ---
 description: >
-  Documentation of the Python modules in the Vultron prototype.
+  Documentation of the Python modules in the Vultron reference implementation.
 stakeholder_type: [project-contributor]
 ---
 
