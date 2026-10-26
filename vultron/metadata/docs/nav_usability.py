@@ -372,31 +372,45 @@ def _fold(label: str) -> str:
     return " ".join(label.split()).casefold()
 
 
+def _chains(nodes: list[NavNode], above: list[NavNode]) -> list[list[NavNode]]:
+    """Every root-to-node chain, depth first."""
+    chains: list[list[NavNode]] = []
+    for node in nodes:
+        chain = [*above, node]
+        chains.append(chain)
+        chains.extend(_chains(node.children, chain))
+    return chains
+
+
 def resolve_label_path(
     nodes: list[NavNode], labels: list[str]
 ) -> list[NavNode]:
     """The chain of nodes a label path names, top level first.
 
-    Labels match case- and whitespace-insensitively. Where siblings share a
-    label, the first one wins, as it would for a reader scanning the tree.
+    The last label names the entry; the others locate it. Agents prefix the
+    site name or skip a level, so the earlier labels need only appear among
+    the entry's ancestors, in order: the entry whose ancestors match the most
+    of them wins, and of equals the first in the tree, as a reader scanning
+    it would find. Labels match case- and whitespace-insensitively.
 
     Raises:
-        KeyError: If the path is empty or a label is not under its parent.
+        KeyError: If the path is empty or no entry has its last label.
     """
     if not labels:
         raise KeyError("an empty path names no entry")
-    chain: list[NavNode] = []
-    level = nodes
-    for label in labels:
-        match = next(
-            (n for n in level if _fold(n.label) == _fold(label)), None
-        )
-        if match is None:
-            under = " > ".join(n.label for n in chain) or "the top level"
-            raise KeyError(f"no entry {label!r} under {under}")
-        chain.append(match)
-        level = match.children
-    return chain
+    wanted = [_fold(label) for label in labels]
+    best: list[NavNode] | None = None
+    best_score = -1
+    for chain in _chains(nodes, []):
+        if _fold(chain[-1].label) != wanted[-1]:
+            continue
+        ancestors = iter(_fold(n.label) for n in chain[:-1])
+        score = sum(1 for label in wanted[:-1] if label in ancestors)
+        if score > best_score:
+            best, best_score = chain, score
+    if best is None:
+        raise KeyError(f"no entry is labelled {labels[-1]!r}")
+    return best
 
 
 def _home_pages(nodes: list[NavNode]) -> set[str]:

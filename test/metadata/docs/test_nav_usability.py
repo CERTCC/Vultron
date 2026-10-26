@@ -169,8 +169,19 @@ class TestNavTree:
         nav = {"nav": [{"A": "x.md"}, {"A": [{"B": "y.md"}]}]}
         nodes = nu.nav_tree(yaml.safe_dump(nav), _docs(tmp_path))
         assert nu.resolve_label_path(nodes, ["a"])[0].path == "x.md"
-        with pytest.raises(KeyError, match="no entry 'B' under A"):
-            nu.resolve_label_path(nodes, ["A", "B"])
+        chain = nu.resolve_label_path(nodes, ["A", "B"])
+        assert [n.label for n in chain] == ["A", "B"]
+
+    def test_prefix_and_skipped_levels_still_resolve(self, tmp_path):
+        nodes = _nodes(tmp_path)
+        chain = nu.resolve_label_path(nodes, ["Vultron", "Topics", "Leaf"])
+        assert [n.label for n in chain] == ["Topics", "Deeper", "Leaf"]
+
+    def test_ancestors_pick_between_same_named_entries(self, tmp_path):
+        nav = {"nav": [{"A": [{"X": "a.md"}]}, {"B": [{"X": "b.md"}]}]}
+        nodes = nu.nav_tree(yaml.safe_dump(nav), _docs(tmp_path))
+        assert nu.resolve_label_path(nodes, ["B", "X"])[-1].path == "b.md"
+        assert nu.resolve_label_path(nodes, ["X"])[-1].path == "a.md"
 
     def test_hash_follows_the_nav_only(self):
         base = yaml.safe_dump(_NAV)
@@ -227,7 +238,7 @@ class TestScoreTree:
 
     def test_unknown_label_fails(self, tmp_path):
         with pytest.raises(
-            MetadataLoadError, match="no entry 'Nope' under Topics"
+            MetadataLoadError, match="no entry is labelled 'Nope'"
         ):
             self._score(tmp_path, [{"task": "T2", "path": ["Topics", "Nope"]}])
 
