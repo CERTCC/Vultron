@@ -40,6 +40,40 @@ def test_fault_event_carries_failed_activity_id(make_payload):
     assert event.failed_activity_id == _FAILED_ACTIVITY
 
 
+@pytest.mark.spec("CLP-04-008")
+def test_fault_without_in_reply_to_is_logged_as_unnamed(make_payload, caplog):
+    """A fault that names no failed activity is still logged and skipped.
+
+    ``inReplyTo`` is optional on the wire, so ``failed_activity_id`` stays
+    ``None`` (taken as received) and the WARNING says the activity is not
+    named instead of printing ``None``.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    activity = create_processing_fault_activity(
+        actor=_EMITTER,
+        fault=as_ProcessingFault(failure_class=_CASE_DIVERGED),
+        to=[_RECEIVER],
+    )
+    event = make_payload(activity)
+
+    assert event.failed_activity_id is None
+
+    with caplog.at_level(logging.WARNING, logger="vultron"):
+        result = CreateProcessingFaultReceivedUseCase(dl, event).execute()
+
+    assert result.disposition == HandlerDisposition.SKIPPED
+    warning_messages = [
+        r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING
+    ]
+    assert any(
+        _EMITTER in msg
+        and activity.id_ in msg
+        and "not named: no inReplyTo" in msg
+        and "'None'" not in msg
+        for msg in warning_messages
+    ), caplog.text
+
+
 @pytest.mark.spec("HP-01-003")
 def test_received_fault_is_skipped_until_ask_register_exists(make_payload):
     """Nothing correlates a NACK to its ask yet (#2883), so it is a no-op.

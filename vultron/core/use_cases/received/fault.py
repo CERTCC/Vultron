@@ -110,7 +110,8 @@ class CreateProcessingFaultReceivedUseCase:
             "ProcessingFault received from '%s': failed activity '%s'"
             " (fault: '%s', carried by Create: '%s')",
             request.actor_id,
-            request.failed_activity_id,
+            # A fault may omit inReplyTo; say so rather than print 'None'.
+            request.failed_activity_id or "<not named: no inReplyTo>",
             request.fault_id,
             request.activity_id,
         )
