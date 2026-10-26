@@ -30,9 +30,7 @@ using Docker Compose. By the end of this tutorial, we will have:
 
 We need the following tools installed before we begin:
 
-{% include-markdown "./_docker_prerequisites.md" trailing-newlines=false %}
-
-- Git (to clone the repository)
+{% include-markdown "./_docker_prerequisites.md" %}
 
 We do **not** need Python installed locally; the containers include everything
 required.

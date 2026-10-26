@@ -65,12 +65,11 @@ The Vendor carries out the fix; the Coordinator and Reporter manage communicatio
 
 **Participants:**
 
-{% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
-
+- {% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
 - **Coordinator** — receives the report; validates, engages, and owns the case;
   invites the Vendor.
 - **Vendor** — receives an invitation; develops and ships the fix.
-{% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
+- {% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
 
 ## Protocol narrative
 
@@ -113,7 +112,7 @@ An `accept_invite_actor_to_case` entry is recorded.
 ### 6. Participants exchange notes
 
 The Reporter, Coordinator, and Vendor communicate through case notes.
-Each note is sent as one `Add(Note)` carrying the note inline, and recorded as an `add_note_to_case` entry, which attaches it to the case.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
 
 *Antecedent:* `engage_case` is in the ledger.
 

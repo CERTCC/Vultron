@@ -90,12 +90,11 @@ vendors develop fixes before joint disclosure.
 
 **Participants:**
 
-{% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
-
+- {% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
 - **Vendor1** — receives the report; validates and engages the case; holds initial ownership; transfers ownership to the Coordinator.
 - **Coordinator** — joins via Vendor1's invitation; receives case ownership; invites Vendor2.
 - **Vendor2** — joins via the Coordinator's invitation; develops and ships a fix.
-{% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
+- {% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
   The same Case Actor keeps the role after the ownership handoff.
 
 ## Protocol narrative
@@ -165,7 +164,8 @@ Vendor2 reviews and accepts.  An `accept_invite_actor_to_case` entry is recorded
 
 ### 10. Participants exchange notes
 
-{% include-markdown "./_case_notes.md" %}
+All participants communicate through case notes.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
 
 *Antecedent:* `engage_case` is in the ledger.
 

@@ -13,6 +13,7 @@ related_notes:
   - notes/documentation-strategy.md
   - notes/site-information-architecture.md
   - notes/specs-vs-adrs.md
+  - notes/demo-scenario-registry.md
 related_specs:
   - specs/diataxis-requirements.yaml
   - specs/meta-specifications.yaml

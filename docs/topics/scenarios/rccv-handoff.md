@@ -90,12 +90,11 @@ the Vendor.  All participants eventually disclose and close the case.
 
 **Participants:**
 
-{% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
-
+- {% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
 - **C1 (Coordinator 1)** — receives the report; validates and engages the case; transfers ownership to C2.
 - **C2 (Coordinator 2)** — joins via C1's invitation; receives case ownership; invites the Vendor.
 - **Vendor** — joins via C2's invitation; develops and ships a fix.
-{% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
+- {% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
   The same Case Actor keeps the role after the ownership handoff.
 
 ## Protocol narrative
@@ -163,7 +162,8 @@ recorded.
 
 ### 10. Participants exchange notes
 
-{% include-markdown "./_case_notes.md" %}
+All participants communicate through case notes.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
 
 *Antecedent:* `engage_case` is in the ledger.
 

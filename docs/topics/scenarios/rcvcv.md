@@ -91,13 +91,12 @@ where C2 acts as a broker for V2 rather than C1 inviting V2 directly.
 
 **Participants:**
 
-{% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
-
+- {% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
 - **C1 (Coordinator 1)** — receives the report; validates, engages, and owns the case; invites V1 and C2.
 - **V1 (Vendor 1)** — receives a direct invite from C1; develops a fix (reaches VFd, not VFD).
 - **C2 (Coordinator 2)** — receives a direct invite from C1; suggests V2 to the case.
 - **V2 (Vendor 2 / Deployer)** — joins via the actor-suggestion path; develops and deploys a fix (VFD).
-{% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
+- {% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
 
 ## Protocol narrative
 
@@ -163,7 +162,8 @@ is recorded for V2.
 
 ### 10. Participants exchange notes
 
-{% include-markdown "./_case_notes.md" %}
+All participants communicate through case notes.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
 
 *Antecedent:* `engage_case` is in the ledger.
 

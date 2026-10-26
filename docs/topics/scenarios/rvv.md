@@ -65,11 +65,10 @@ independent fix paths and must each reach the fix-ready state before disclosure.
 
 **Participants:**
 
-{% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
-
+- {% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
 - **Vendor1** — receives the report; validates, engages, and initially owns the case.
 - **Vendor2** — invited by Vendor1; an additional affected party with its own fix path.
-{% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
+- {% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
 
 ## Protocol narrative
 
@@ -112,7 +111,7 @@ acceptance is recorded as an `accept_invite_actor_to_case` entry.
 ### 6. Participants exchange notes
 
 Reporter, Vendor1, and Vendor2 communicate via case notes.
-Each note is sent as one `Add(Note)` carrying the note inline, and recorded as an `add_note_to_case` entry, which attaches it to the case.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
 
 *Antecedent:* `engage_case` is present in the ledger.
 

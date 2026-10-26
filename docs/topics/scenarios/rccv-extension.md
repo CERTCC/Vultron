@@ -90,12 +90,11 @@ and the Case Actor formally invites the Vendor.
 
 **Participants:**
 
-{% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
-
+- {% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
 - **C1 (Coordinator 1)** — receives the report; validates, engages, and owns the case; invites C2.
 - **C2 (Coordinator 2)** — joins via C1's invitation; suggests the Vendor.
 - **Vendor** — joins via the actor-suggestion path; develops and ships a fix.
-{% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
+- {% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
 
 ## Protocol narrative
 
@@ -158,7 +157,8 @@ The Vendor joins the case.  An `accept_invite_actor_to_case` entry is recorded.
 
 ### 10. Participants exchange notes
 
-{% include-markdown "./_case_notes.md" %}
+All participants communicate through case notes.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
 
 *Antecedent:* `engage_case` is in the ledger.
 

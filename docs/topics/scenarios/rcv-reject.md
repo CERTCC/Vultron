@@ -68,11 +68,10 @@ This scenario validates the rejection path of the invite protocol (CLP-13).
 
 **Participants:**
 
-{% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
-
+- {% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
 - **Coordinator** — receives the report; validates, engages, and owns the case.
 - **Vendor** — receives an invitation; **rejects** it and does not join.
-{% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
+- {% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
 
 ## Protocol narrative
 
@@ -114,7 +113,7 @@ The Vendor declines to participate.  The Case Actor records the Vendor's `Reject
 ### 6. Reporter and Coordinator exchange notes
 
 Reporter and Coordinator communicate through case notes.
-Each note is sent as one `Add(Note)` carrying the note inline, and recorded as an `add_note_to_case` entry, which attaches it to the case.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
 
 *Antecedent:* `engage_case` is in the ledger.
 
