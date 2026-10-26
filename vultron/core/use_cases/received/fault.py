@@ -107,11 +107,12 @@ class CreateProcessingFaultReceivedUseCase:
         if verdict.disposition is HandlerDisposition.REFUSED:
             return verdict  # the case is fully closed (CM-23-013)
         logger.warning(
-            "ProcessingFault received from '%s' for activity '%s'"
-            " (fault object: %s)",
+            "ProcessingFault received from '%s': failed activity '%s'"
+            " (fault: '%s', carried by Create: '%s')",
             request.actor_id,
-            request.activity_id,
+            request.failed_activity_id,
             request.fault_id,
+            request.activity_id,
         )
         return HandlerResult.skipped(
             "ask-register correlation not implemented (#2883)"

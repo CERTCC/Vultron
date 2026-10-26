@@ -22,6 +22,7 @@ from typing import Literal
 from pydantic import model_validator
 
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 
@@ -31,13 +32,18 @@ class CreateProcessingFaultReceivedEvent(VultronEvent):
 
     Indicates the receiver could not process the sender's status assertion
     (ADR-0080, ASK-07-001).  ``object_`` contains a minimal ``CoreObject``
-    wrapping the ``as_ProcessingFault``; the ``in_reply_to`` field on that
-    object points to the failed activity URI (ASK-07-004).
+    wrapping the ``as_ProcessingFault``; ``failed_activity_id`` carries the
+    URI the fault's ``inReplyTo`` names — the activity that failed
+    (ASK-07-004).
     """
 
     semantic_type: Literal[MessageSemantics.CREATE_PROCESSING_FAULT] = (
         MessageSemantics.CREATE_PROCESSING_FAULT
     )
+
+    # The id of the activity that failed — extracted from the fault object's
+    # ``inReplyTo`` at the parse edge (ASK-07-004, ADR-0032).
+    failed_activity_id: NonEmptyString | None = None
 
     @property
     def fault_id(self) -> str | None:

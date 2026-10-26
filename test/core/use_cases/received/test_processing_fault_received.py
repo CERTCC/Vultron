@@ -16,6 +16,28 @@ from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 _RECEIVER = "https://example.org/actors/sender-of-failed-activity"
 _EMITTER = "https://example.org/actors/receiver-that-refused"
 _CASE_DIVERGED = "https://certcc.github.io/Vultron/ns/errors/LedgerEntryRefused/CaseDiverged"
+_FAILED_ACTIVITY = "https://example.org/activities/failed"
+
+
+@pytest.mark.spec("ASK-07-004")
+def test_fault_event_carries_failed_activity_id(make_payload):
+    """The received event carries the fault's ``inReplyTo`` as ``failed_activity_id``.
+
+    The parse edge extracts it from the fault object at the wire boundary
+    (ASK-07-004, ADR-0032), so core never reads the wire object for it.
+    """
+    fault = as_ProcessingFault(
+        failure_class="https://vultron.example/faults/status-refused",
+        in_reply_to=_FAILED_ACTIVITY,
+    )
+    activity = create_processing_fault_activity(
+        actor=_EMITTER,
+        fault=fault,
+        to=[_RECEIVER],
+    )
+    event = make_payload(activity)
+
+    assert event.failed_activity_id == _FAILED_ACTIVITY
 
 
 @pytest.mark.spec("HP-01-003")
@@ -29,7 +51,7 @@ def test_received_fault_is_skipped_until_ask_register_exists(make_payload):
         actor=_EMITTER,
         fault=as_ProcessingFault(
             failure_class="https://vultron.example/faults/status-refused",
-            in_reply_to="https://example.org/activities/failed",
+            in_reply_to=_FAILED_ACTIVITY,
         ),
         to=[_RECEIVER],
     )
@@ -51,17 +73,18 @@ def test_received_fault_is_logged_naming_its_sender_and_fault(
 ):
     """A fault reporting a failure to apply an entry is surfaced in the log.
 
-    The line names the sender and the ``Create`` that carried the fault. It
-    does not yet name the failed activity the fault's ``inReplyTo`` names,
-    which the event does not carry (#5129).
+    The WARNING names the sender, the failed activity id (the fault's
+    ``inReplyTo``, ASK-07-004), and the fault object id, each labelled
+    correctly (CLP-04-008).
     """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    fault = as_ProcessingFault(
+        failure_class=_CASE_DIVERGED,
+        in_reply_to=_FAILED_ACTIVITY,
+    )
     activity = create_processing_fault_activity(
         actor=_EMITTER,
-        fault=as_ProcessingFault(
-            failure_class=_CASE_DIVERGED,
-            in_reply_to="https://example.org/activities/failed",
-        ),
+        fault=fault,
         to=[_RECEIVER],
     )
     event = make_payload(activity)
@@ -69,9 +92,13 @@ def test_received_fault_is_logged_naming_its_sender_and_fault(
     with caplog.at_level(logging.WARNING, logger="vultron"):
         CreateProcessingFaultReceivedUseCase(dl, event).execute()
 
-    assert any(
-        r.levelno >= logging.WARNING
-        and _EMITTER in r.getMessage()
-        and activity.id_ in r.getMessage()
-        for r in caplog.records
-    ), caplog.text
+    warning_messages = [
+        r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING
+    ]
+    assert any(_EMITTER in msg for msg in warning_messages), caplog.text
+    assert any(_FAILED_ACTIVITY in msg for msg in warning_messages), (
+        f"failed activity id {_FAILED_ACTIVITY!r} not in log: {caplog.text}"
+    )
+    assert any(fault.id_ in msg for msg in warning_messages), (
+        f"fault id {fault.id_!r} not in log: {caplog.text}"
+    )
