@@ -99,6 +99,7 @@ class TestFetchUrl:
 
 class TestHttpObjectFetcher:
     @pytest.mark.spec("AKM-05-003")
+    @pytest.mark.spec("AKM-05-004")
     def test_a_fetch_answers_with_the_object_and_names_its_requester(self):
         body = {"type": "EmbargoEvent", "id": _OBJECT}
 

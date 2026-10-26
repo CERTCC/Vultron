@@ -65,23 +65,27 @@ FETCH_RECORD_TYPE = "PendingObjectFetch"
 
 
 def parse_fetched_object(
-    body: dict[str, Any], object_id: str
+    document: dict[str, Any], object_id: str
 ) -> CoreObject | as_Base:
     """The object a fetch answered with, typed by its ``type``.
+
+    *document* is what the object's holder served, not a received body: the
+    receive path's parsed activity stays the authority for what arrived
+    (MV-11-005).
 
     Raises:
         VultronValidationError: When the body names no type the vocabulary
             knows, does not validate as that type, or is not the object
             *object_id* names.
     """
-    type_name = body.get("type")
+    type_name = document.get("type")
     if not isinstance(type_name, str) or not type_name:
         raise VultronValidationError(
             f"the fetched body for {object_id!r} names no type"
         )
     try:
         cls = find_in_vocabulary(type_name)
-        parsed = cls.model_validate(body)
+        parsed = cls.model_validate(document)
     except (KeyError, ValueError) as exc:
         raise VultronValidationError(
             f"the fetched body for {object_id!r} is not a valid"

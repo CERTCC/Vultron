@@ -29,9 +29,14 @@ import urllib.parse
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
-from vultron.core.models.base import CoreRecord, UriString, with_record_id
+from vultron.core.models.base import (
+    CoreRecord,
+    UriString,
+    ValidatedAssignmentMixin,
+    with_record_id,
+)
 from vultron.core.models.received_body import require_json_object_text
 from vultron.primitives import NonEmptyString
 
@@ -64,7 +69,7 @@ class ObjectFetchState(StrEnum):
     FAILED = "failed"
 
 
-class ObjectReference(BaseModel):
+class ObjectReference(ValidatedAssignmentMixin):
     """One object a receiver must fetch before it can process an activity.
 
     Attributes:

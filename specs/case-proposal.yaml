@@ -124,11 +124,12 @@ groups:
       profile inline, or a reference to that profile which the CASE_MANAGER dereferences
       by an API call (AKM-05-003, AKM-05-004).
     rationale: >-
-      The proposing actor becomes the CASE_OWNER (CP-09-001), and its published embargo policy lives
-      on its profile (EP-01-001), in its own store, which the CASE_MANAGER cannot read (PCR-01-003).
-      That policy is the CASE_OWNER's actor default at case creation (EP-04-003), so it has to reach
-      case creation; whether the profile travels inline or is fetched is an implementation choice.
-      This codebase sends the inline form and accepts either (CP-01-010).
+      The proposing actor becomes the CASE_OWNER (CP-09-001), and its published embargo
+      policy lives on its profile (EP-01-001), in its own store, which the CASE_MANAGER
+      cannot read (PCR-01-003). That policy is the CASE_OWNER's actor default at case
+      creation (EP-04-003), so it has to reach case creation; whether the profile
+      travels inline or is fetched is an implementation choice. This codebase sends the
+      inline form and accepts either (CP-01-010).
     relationships:
     - rel_type: depends_on
       spec_id: EP-04-003
@@ -144,31 +145,35 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      In this implementation, a sender MUST carry the proposing actor's full actor profile inline as
-      the `actor` of `Create(as_CaseProposal)`, carrying its embargo policy when it has published one.
-      The CASE_MANAGER MUST accept that inline profile, or the proposer's id, which it dereferences
-      from the proposer's published profile before it processes the proposal (AKM-05-007), and in
-      either form the `actor` MUST name the proposal's `attributed_to`. The CASE_MANAGER MUST read the
-      CASE_OWNER's actor default only from the inline or fetched profile, never from its own store,
-      MUST NOT store a fetched profile, and MUST NOT retain either as a candidate for any other case.
-      A proposal whose `actor` is a `Link` or names a different actor than `attributed_to` MUST be
-      refused at the parse edge with a reason naming the fault, and one whose profile could not be
-      fetched MUST be refused (AKM-05-008). A profile with no embargo policy means the CASE_OWNER has
-      no actor default.
+      In this implementation, a sender MUST carry the proposing actor's full actor
+      profile inline as the `actor` of `Create(as_CaseProposal)`, carrying its embargo
+      policy when it has published one. The CASE_MANAGER MUST accept that inline
+      profile, or the proposer's id, which it dereferences from the proposer's published
+      profile before it processes the proposal (AKM-05-007), and in either form the
+      `actor` MUST name the proposal's `attributed_to`. The CASE_MANAGER MUST read the
+      CASE_OWNER's actor default only from the inline or fetched profile, never from its
+      own store, MUST NOT store a fetched profile, and MUST NOT retain either as a
+      candidate for any other case. A proposal whose `actor` is a `Link` or names a
+      different actor than `attributed_to` MUST be refused at the parse edge with a
+      reason naming the fault, and one whose profile could not be fetched MUST be
+      refused (AKM-05-008). A profile with no embargo policy means the CASE_OWNER has no
+      actor default.
     rationale: >-
-      A sender inlines the objects it introduces, as CP-01-008 does the Reporter's terms (ADR-0107),
-      and a receiver dereferences the reference CP-01-009 allows (AKM-05-003). Refusing a profile it
-      cannot fetch, rather than creating the case without an actor default, keeps the owner's
-      published terms from being silently dropped. A policy read from one proposal reflects that
-      profile as sent; keeping it for later cases would let a stale policy win shortest-wins.
+      A sender inlines the objects it introduces, as CP-01-008 does the Reporter's terms
+      (ADR-0107), and a receiver dereferences the reference CP-01-009 allows
+      (AKM-05-003). Refusing a profile it cannot fetch, rather than creating the case
+      without an actor default, keeps the owner's published terms from being silently
+      dropped. A policy read from one proposal reflects that profile as sent; keeping it
+      for later cases would let a stale policy win shortest-wins.
     verification: >-
-      Tests of the case-proposal receive path confirm that the actor default comes from the
-      inline `actor` profile's embargo policy, that a profile without one yields no actor
-      default, that a `Link` `actor` and an `actor` whose `id` differs from `attributed_to` are
-      refused at parse, that a proposal naming its proposer by id parses and is refused when the
-      profile was not fetched, and that a policy carried on one proposal does not supply the
-      default for a later case. `test/adapters/driving/fastapi/test_inbox_dereference.py` checks
-      a profile named by id is fetched from the proposer, handed to the proposal and not stored.
+      Tests of the case-proposal receive path confirm that the actor default comes from
+      the inline `actor` profile's embargo policy, that a profile without one yields no
+      actor default, that a `Link` `actor` and an `actor` whose `id` differs from
+      `attributed_to` are refused at parse, that a proposal naming its proposer by id
+      parses and is refused when the profile was not fetched, and that a policy carried
+      on one proposal does not supply the default for a later case.
+      `test/adapters/driving/fastapi/test_inbox_dereference.py` checks a profile named
+      by id is fetched from the proposer, handed to the proposal and not stored.
     relationships:
     - rel_type: refines
       spec_id: CP-01-009
