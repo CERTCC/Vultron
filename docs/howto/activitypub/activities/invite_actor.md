@@ -60,24 +60,32 @@ sequenceDiagram
 ## Send the invitation
 
 1. Trigger the invitation as Case Owner.
-   Your container sends your own `Offer(Actor)` to the CASE_MANAGER, with the invited actor as its `object`, the case as its `target`, and the roles you offer in `suggestedRoles` (CM-17-007).
+   Your container sends your own `Offer(Actor)` to the CASE_MANAGER (CM-17-007).
+   The `Offer` has the invited actor as its `object` and the case as its `target`.
+   It lists the roles you offer in `suggestedRoles`.
    With no roles given, the CASE_MANAGER assigns a non-empty default role list (CM-16-003).
    A stub Invite always names at least one role, and the CASE_MANAGER refuses to send one with none (CM-11-019).
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/request-invite-actor-to-case.md" %}
 
-2. The CASE_MANAGER commits and sends `Invite(Actor)` to the actor's inbox, with a case stub as its `target` rather than the case itself (CM-11-013, CM-17-001), with itself as the ActivityStreams `actor` and your identity in `attributedTo` (PCR-08-007, PCR-08-008).
-   The trigger's `202` response means only that your `Offer` was queued, so watch for the `Invite` on the CASE_MANAGER's ledger, not in the response.
+2. The CASE_MANAGER commits and sends `Invite(Actor)` to the actor's inbox.
+   The `Invite` has a case stub as its `target`, not the case itself (CM-11-013, CM-17-001).
+   The CASE_MANAGER is the ActivityStreams `actor`, and your identity is in `attributedTo` (PCR-08-007, PCR-08-008).
+   The trigger's `202` response means only that your `Offer` was queued.
+   Watch for the `Invite` on the CASE_MANAGER's ledger, not in the response.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/invite-actor-to-case.md" %}
 
 3. Set the reply deadline on the activity's `end_time`.
-   When it is present that value settles precedence over the invitee's local policy window; when it is absent the policy window applies instead (CM-28-002, ADR-0065).
-   Either way the effective deadline is clamped down to the embargo's own `end_time`, so an `end_time` that outlives the embargo does not buy the invitee extra time (EP-07-006).
+   When that value is present, it takes precedence over the invitee's local policy window (CM-28-002, ADR-0065).
+   When it is absent, the policy window applies instead (CM-28-002, ADR-0065).
+   In both cases, the effective deadline is clamped down to the embargo's own `end_time` (EP-07-006).
+   An `end_time` that outlives the embargo does not give the invitee extra time.
 
 !!! warning "The CASE_MANAGER is the sender, not the Case Owner"
 
-    Putting the Case Owner in the `actor` field makes the invitation unrecognizable to a conformant peer, which expects case-management handshakes to come from the CASE_MANAGER.
+    If the Case Owner is in the `actor` field, a conformant peer does not recognize the invitation.
+    The peer expects case-management handshakes to come from the CASE_MANAGER.
     Record who asked for the invitation in `attributedTo` instead.
 
 ---
@@ -94,21 +102,34 @@ Send your reply to the CASE_MANAGER, never to the Case Owner.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/reject-invite-to-case.md" %}
 
-On acceptance, the CASE_MANAGER commits the reply to the ledger, seats you at Report Management (RM) state `RM.RECEIVED`, signs your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) if an embargo is active, sends `Announce(VulnerabilityCase)` to seed your replica, and backfills the earlier ledger entries (CM-17-004).
+When you accept, the CASE_MANAGER does these steps (CM-17-004):
+
+- It commits the reply to the ledger.
+- It seats you at Report Management (RM) state `RM.RECEIVED`.
+- It signs your [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent) if an embargo is active.
+- It sends `Announce(VulnerabilityCase)` to seed your replica.
+- It backfills the earlier ledger entries.
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/announce-vulnerability-case.md" %}
 
 Expect `RM.RECEIVED`, not `RM.ACCEPTED`.
-Accepting an invitation says you are willing to join the case; it does not say you have validated the report, which you have not yet seen in full (CM-11-001).
-After the case and the ledger replay reach you, the CASE_MANAGER sends a second Invite, the full-case Invite, and you judge the case by answering it — see [How to Manage a Case Roster](manage_participants.md#judge-the-case-after-joining).
+An accepted invitation says you are willing to join the case.
+It does not say you have validated the report, because you have not yet seen it in full (CM-11-001).
+
+After the case and the ledger replay reach you, the CASE_MANAGER sends a second Invite, the full-case Invite.
+You judge the case when you answer it — see [How to Manage a Case Roster](manage_participants.md#judge-the-case-after-joining).
 Do not answer the original report Offer: you were never offered that report (CM-11-020).
 Rule on the case afterwards — see [How to Advance a Case Through Report Management](manage_case.md).
 
 A reply that arrives after the Invite's deadline is still processed.
-The one exception is an `Accept` of a stub Invite that a newer one replaced, which the CASE_MANAGER refuses and answers by naming the replacement; a `Reject` of it is honored (CM-11-014, CM-11-016).
+The one exception is an `Accept` of a stub Invite that a newer one replaced.
+The CASE_MANAGER refuses that `Accept` and answers with the name of the replacement.
+A `Reject` of the replaced Invite is honored (CM-11-014, CM-11-016).
 A replacement or re-invite names the Invite it replaces in `inReplyTo` (CM-11-015, CM-11-016).
+
 A `Reject` or an `Accept` from an actor with no participant record is refused (CM-11-018, CM-11-021).
-An `Accept` of a stub Invite from an actor that already joined the case, or was removed from it, is a duplicate: the CASE_MANAGER records and sends nothing (CM-17-012).
+An actor can send an `Accept` of a stub Invite after it already joined the case, or after it was removed from it.
+That `Accept` is a duplicate, and the CASE_MANAGER records and sends nothing (CM-17-012).
 
 ---
 
@@ -117,7 +138,8 @@ An `Accept` of a stub Invite from an actor that already joined the case, or was 
 Use `as:Invite` for an actor that was absent when the case was created.
 Seat the Case Owner and any already-known participants, such as the Reporter, inline on the `as:Create` for the case instead — see [How to Initialize a Case](initialize_case.md).
 
-If you are not the Case Owner but you know an actor belongs on the case, suggest it rather than inviting it: see [How to Suggest an Actor for a Case](suggest_actor.md).
+If you are not the Case Owner but you know an actor belongs on the case, suggest the actor instead of inviting it.
+See [How to Suggest an Actor for a Case](suggest_actor.md).
 
 ---
 

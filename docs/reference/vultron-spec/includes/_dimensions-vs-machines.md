@@ -11,5 +11,5 @@
       ([§8.2 PXA — Public Aware, Exploit Public, Attacks Observed](../tracking-models.md#82-pxa-public-aware-exploit-public-attacks-observed)).
 
     This specification says "four dimensions" when describing what is tracked and
-    "five state machines" when describing what an implementation must provide.
+    "five state machines" when describing what an implementation provides.
     Both counts are correct; they count different things.

@@ -6,7 +6,9 @@ page_type: how-to
 
 # How to Manage a Case Roster
 
-Use this guide to run the full participant lifecycle on a case: invite an actor, seat it when it accepts, record its status, remove it from active participation, and reinstate it.
+Use this guide to run the full participant lifecycle on a case.
+You invite an actor, seat it when it accepts, and record its status.
+You can also remove it from active participation and reinstate it.
 Every step routes through the CASE_MANAGER, which is the authoritative recipient of case-management handshake messages once a case exists.
 You finish with a case whose active participants are the ones actually working it.
 
@@ -26,7 +28,10 @@ You finish with a case whose active participants are the ones actually working i
 ## The lifecycle
 
 The flowchart below shows the roster path from invitation to removal and back.
-The decision diamonds are the loop a long-running case sits in: status updates accumulate, a participant leaves active participation only when `Remove?` is answered yes, and it returns only when `Reinstate?` is answered yes.
+The decision diamonds are the loop that a long-running case stays in.
+Status updates accumulate.
+A participant leaves active participation only when the answer to `Remove?` is yes.
+It returns only when the answer to `Reinstate?` is yes.
 
 ```mermaid
 ---
@@ -74,7 +79,9 @@ flowchart TB
    The CASE_MANAGER sends `Invite(Actor)` with itself as the ActivityStreams `actor` and your Case Owner identity in `attributedTo` (PCR-08-007, PCR-08-008).
 2. Wait for the invitee's reply, addressed to the CASE_MANAGER.
 3. If the reply is `Accept(Invite(Actor))`, the CASE_MANAGER makes the actor an active participant — see [How to Seat a Participant on an Existing Case](initialize_participant.md).
-   The CASE_MANAGER ledgers the record's creation when it sends the Invite, and the invitee's `Accept(Invite(Actor))` is the ledger entry for its consent and `joined` mark; a replica applies those entries, and nothing else is sent to seat it.
+   The CASE_MANAGER ledgers the record's creation when it sends the Invite.
+   The invitee's `Accept(Invite(Actor))` is the ledger entry for its consent and `joined` mark.
+   A replica applies those entries, and nothing else is sent to seat the participant.
 4. If the reply is `Reject(Invite(Actor))`, stop.
    The actor never becomes active, and nothing further is owed.
    The CASE_MANAGER keeps its inert participant record at RM `CLOSED`.
@@ -144,7 +151,9 @@ If you are both the Case Owner and the CASE_MANAGER, send it to your own inbox.
 
 !!! warning "Name the case in `target`, not `origin`"
 
-    `origin` reads like the right field for a removal, and it is not one the receiver looks at: dispatch discriminates on `target`, so a `Remove` that names the case only in `origin` matches no pattern and the participant is never removed (#3438).
+    `origin` looks like the right field for a removal, but the receiver does not read it.
+    Dispatch discriminates on `target`.
+    A `Remove` that names the case only in `origin` matches no pattern, and the participant is never removed (#3438).
 
 Removal withdraws the participant's entitlement to case content.
 It does not take the participant off the roster: its record, its status history and its [embargo consent](../../../topics/behavior_logic/use-cases/embargo-lifecycle.md) stay, and the record carries a removal fact.
@@ -154,9 +163,13 @@ A second removal of the same participant changes nothing.
 The CASE_MANAGER records your `Remove` as one ledger entry and sends that entry to every active participant, the removed one included.
 It then sends the removed participant a direct `Remove(CaseParticipant)` naming it, with `attributedTo` set to you.
 The removed participant receives no later ledger entries, and no Invite of any kind.
-The CASE_MANAGER also refuses a recommendation that names the removed participant, and your acceptance of an earlier one; reinstate the participant instead.
+
+The CASE_MANAGER also refuses a recommendation that names the removed participant, and your acceptance of an earlier one.
+Reinstate the participant instead.
+
 A removed signatory stays bound by the embargo it accepted.
-When that embargo is terminated, or replaced by a revision that ends no later, the CASE_MANAGER sends the removed participant the change directly, outside the ledger (see [Embargo Termination (ET)](../../../reference/messages/em.md#embargo-termination)).
+That embargo can be terminated, or replaced by a revision that ends no later.
+In those cases, the CASE_MANAGER sends the removed participant the change directly, outside the ledger (see [Embargo Termination (ET)](../../../reference/messages/em.md#embargo-termination)).
 See [Participant Removal](../../../reference/vultron-spec/interactions.md#124-participant-removal-n).
 
 Removal is not a closure — a participant that has finished its own work closes with `Leave(VulnerabilityCase)` instead.
@@ -178,7 +191,8 @@ The CASE_MANAGER refuses an `Add` from anyone other than the Case Owner, and an 
 `Add(CaseParticipant)` does not seat a new member; an actor joins only by accepting its stub Invite.
 
 The CASE_MANAGER records your `Add` as one ledger entry.
-When the participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order, then a direct `Add(CaseParticipant)` naming it, with `attributedTo` set to you.
+When the participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order.
+Then it sends a direct `Add(CaseParticipant)` that names the participant, with `attributedTo` set to you.
 A participant that has not accepted the active embargo stays inert: the CASE_MANAGER sends it that embargo's Invite instead, and its catch-up waits until it accepts.
 
 ---

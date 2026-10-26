@@ -52,6 +52,12 @@ from pathlib import Path
 from vultron.metadata.markdown_tables import fenced_lines
 
 RECONCILED_FRAGMENTS: tuple[str, ...] = (
+    "reference/vultron-spec/_abstract.md",
+    "reference/vultron-spec/_introduction.md",
+    "reference/vultron-spec/_terminology.md",
+    "reference/vultron-spec/_protocol-overview.md",
+    "reference/vultron-spec/includes/_state-ownership-table.md",
+    "reference/vultron-spec/includes/_dimensions-vs-machines.md",
     "reference/vultron-spec/_iana.md",
     "reference/vultron-spec/_security.md",
     "reference/vultron-spec/_references.md",

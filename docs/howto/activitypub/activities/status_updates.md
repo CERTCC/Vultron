@@ -6,7 +6,10 @@ page_type: how-to
 
 # How to Post a Status Update or a Case Note
 
-Use this guide to tell the other participants something: that your fix is ready, that the vulnerability is now public, or anything that needs narrative rather than a state change.
+Use this guide to tell the other participants something.
+For example, tell them that your fix is ready or that the vulnerability is now public.
+You can also send anything that needs narrative instead of a state change.
+
 A status update is one `as:Add(ParticipantStatus)` that carries your new status inline and attaches it to your own participant record.
 A note is sent the same way: one `as:Add` that carries the note inline.
 You finish with the update committed to the case ledger and replicated to every participant.
@@ -31,8 +34,12 @@ Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemen
 Which one you are sending is determined by the field you set, not by a different activity.
 
 In every case, send `Add(ParticipantStatus)` targeting your own participant record, with the new status inline as its `object`.
-Set the status's `context` to the case your participant record belongs to: the CASE_MANAGER acts on the case of the participant record you target, and refuses a status whose `context` names another case (HP-08-008).
-The protocol names `Add(ParticipantStatus)` as the one form; a received `Create(ParticipantStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
+Set the status's `context` to the case your participant record belongs to.
+The CASE_MANAGER acts on the case of the participant record you target.
+It refuses a status whose `context` names another case (HP-08-008).
+
+The protocol names `Add(ParticipantStatus)` as the one form.
+A received `Create(ParticipantStatus)` is not a protocol message (VAM-01-011), and this implementation's inbox refuses it as an unrecognized activity (VAM-01-010).
 
 ### Report that a vendor now knows
 
@@ -56,9 +63,12 @@ That is Fix Deployed (CD).
 {% include-markdown "../../../reference/messages/_occasions/embeds/fix-deployed.md" %}
 
 Send only your own status.
-Participant status is self-declaratory, so a participant asserting another participant's state is a protocol violation outside the narrow externally-evidenced exceptions (PRM-06-001, ADR-0121).
+Participant status is self-declaratory.
+If a participant asserts the state of another participant, that is a protocol violation, outside the narrow externally-evidenced exceptions (PRM-06-001, ADR-0121).
 The CASE_MANAGER refuses an `Add(ParticipantStatus)` that targets another participant's record, whatever it carries, and commits nothing (RSH-08-007).
-The only exceptions are the on-behalf assertions: a CASE_MANAGER or Case Owner may move a vendor from `vf` to `Vf`, or a deployer from `d` to `D`, if the status changes nothing else (PRM-06-003, PRM-06-004).
+
+The only exceptions are the on-behalf assertions (PRM-06-003, PRM-06-004).
+A CASE_MANAGER or Case Owner may move a vendor from `vf` to `Vf`, or a deployer from `d` to `D`, if the status changes nothing else.
 A sender other than the record's participant, the CASE_MANAGER or the Case Owner is refused with no answer (HP-01-006).
 A CASE_MANAGER or Case Owner whose on-behalf status asserts more than that gets a `Reject` naming why (CLP-05-001).
 
@@ -100,8 +110,12 @@ That is Attacks Observed (CA).
 ### What happens to your report
 
 Your report is your view of the case status, not a change to it.
-The CASE_MANAGER takes your participant status whole or refuses it whole: if one value cannot be accepted, nothing in the update is recorded, and its refusal notice names every value it refused and why (RSH-09-002).
-The CASE_MANAGER records the status on your participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization (RSH-07-001).
+The CASE_MANAGER takes your participant status whole or refuses it whole (RSH-09-002).
+If it cannot accept one value, it records nothing in the update.
+Its refusal notice names every value it refused and why.
+
+The CASE_MANAGER records the status on your participant record.
+It chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization (RSH-07-001).
 If it adopts the change, the CASE_MANAGER commits it as an `Add(CaseStatus)` entry to the case ledger.
 While an embargo is active or proposed, it then ends or abandons the embargo (RSH-03-001).
 The Reporter + Vendor (`rv`) demo and the `status-updates` demo report public awareness this way.
@@ -120,8 +134,10 @@ Changing a posted note would be an `Update(Note)`, which this implementation doe
 A redelivery of the same `Add(Note)` changes nothing.
 
 The CASE_MANAGER stores the note, attaches it to the case and commits an `add_note_to_case` entry to the case ledger.
-The CASE_MANAGER accepts a note only from an active participant whose closure the case does not record, and refuses it from any other sender, including a closed participant (CM-23-018).
+The CASE_MANAGER accepts a note only from an active participant whose closure the case does not record (CM-23-018).
+It refuses a note from any other sender, including a closed participant.
 A refused note is not stored, attached, committed or sent on.
+
 A participant's replica accepts a note only from the CASE_MANAGER.
 `Add(Note)` is the one message that attaches a note (VAM-01-011).
 
@@ -134,7 +150,9 @@ The CASE_MANAGER admits it from the note's author while that author is an active
 
 {% include-markdown "../../../reference/messages/_occasions/embeds/remove-note-from-case.md" %}
 
-The formal message set does not name this activity: it falls under the General Inquiry (GI) umbrella, which is a placeholder rather than a description — see [Why `GI` expands](../../../topics/activity_vocabulary_design.md#why-gi-expands-and-why-the-expansion-has-no-end).
+The formal message set does not name this activity.
+It is in the General Inquiry (GI) umbrella, which is a placeholder, not a description.
+See [Why `GI` expands](../../../topics/activity_vocabulary_design.md#why-gi-expands-and-why-the-expansion-has-no-end).
 
 If the note is a fault report rather than ordinary case discussion, see [How to Report a Protocol Fault](error.md).
 

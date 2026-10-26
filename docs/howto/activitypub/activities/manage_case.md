@@ -98,7 +98,8 @@ flowchart TB
 Once the report is at `RM.VALID` and a case exists, prioritize it and take one of two moves.
 
 - If you intend to work the case now, send Report/Case Accepted (RA), implemented in ActivityStreams as `Join(VulnerabilityCase)`.
-  You are joining the case; your RM state becomes `ACCEPTED` as a result of joining, not as a separate claim about the report.
+  You are joining the case.
+  Your RM state becomes `ACCEPTED` as a result of joining, not as a separate claim about the report.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/report-accepted.md" %}
 
@@ -108,7 +109,8 @@ Once the report is at `RM.VALID` and a case exists, prioritize it and take one o
     {% include-markdown "../../../reference/messages/_occasions/embeds/report-deferred.md" %}
 
 Deferring is reversible.
-To re-engage a deferred case, send the same `Join(VulnerabilityCase)` activity you would have sent the first time — there is no separate re-engagement activity, and the earlier deferral remains part of the case history.
+To re-engage a deferred case, send the same `Join(VulnerabilityCase)` activity that you would have sent the first time.
+There is no separate re-engagement activity, and the earlier deferral stays part of the case history.
 
 ---
 
@@ -130,9 +132,13 @@ Pick the closure activity that matches what exists.
 There is no rejoin, so send the closure only when you are finished with the case.
 
 Your own RM state does not change when you send the closure.
-The CASE_MANAGER records the `Leave`, then records each step that moves you to `RM.CLOSED` as its own ledger entry, and your replica applies those entries when they arrive (CM-23-001, CM-23-004).
+The CASE_MANAGER records the `Leave`.
+Then it records each step that moves you to `RM.CLOSED` as its own ledger entry.
+Your replica applies those entries when they arrive (CM-23-001, CM-23-004).
 Do not write `RM.CLOSED` to your own replica in their place.
-Those entries are the last case content you receive: after your closure, the CASE_MANAGER sends you no further ledger entries, case announcements, status broadcasts, or embargo announcements (CM-23-004).
+
+Those entries are the last case content you receive.
+After your closure, the CASE_MANAGER sends you no further ledger entries, case announcements, status broadcasts, or embargo announcements (CM-23-004).
 If you are bound by an embargo that later ends early or gets shorter, the CASE_MANAGER still sends you a direct notice of that change (CM-31-009).
 
 What your closure does to the case depends on whether you are the Case Owner.
@@ -140,7 +146,8 @@ What your closure does to the case depends on whether you are the Case Owner.
 - If you are **not** the Case Owner, only your own RM state advances to `RM.CLOSED`.
   The case stays open for everyone else (CM-23-003).
 - If you **are** the Case Owner, your `Leave(VulnerabilityCase)` closes the case.
-  The CASE_MANAGER first expires every embargo Invite that still waits for a reply, and records each expiry as its own change to that invitee's consent row, now `TIMED_OUT` (CM-23-014).
+  The CASE_MANAGER first expires every embargo Invite that still waits for a reply.
+  It records each expiry as its own change to that invitee's consent row, which is now `TIMED_OUT` (CM-23-014).
   It then advances you to `RM.CLOSED`, then itself, and records each step as a status entry (CM-23-002).
   The CASE_MANAGER's own status entry that reaches `RM.CLOSED` is the last entry of the closure: from then on the case is fully closed.
   Every other participant keeps the RM state it already held — closure does not advance bystanders (CM-23-012).
@@ -149,12 +156,15 @@ What your closure does to the case depends on whether you are the Case Owner.
   A `Leave(VulnerabilityCase)` you send after that is declined: nothing is recorded and your RM state on the case ledger stays where it was.
   By default the CASE_MANAGER sends no reply to it.
   A CASE_MANAGER configured with `post_close_reply: reject` answers it with an `as:Reject` of your `Leave` instead.
-- Any other activity you send for the case after it is fully closed, such as `Add(Note)`, is dropped: nothing is recorded, and the CASE_MANAGER never replies, whatever its configuration (ADR-0131).
+- The CASE_MANAGER drops any other activity that you send for the case after it is fully closed, such as `Add(Note)`.
+  Nothing is recorded, and the CASE_MANAGER never replies, whatever its configuration (ADR-0131).
   Do not wait for a reply to an activity sent after the case has closed.
 
 !!! warning "An owner closure is refused while an embargo is active"
 
-    If you are the Case Owner and the case still holds an active embargo — the Embargo Management (EM) state is `ACTIVE` or `REVISE` — the CASE_MANAGER declines your `Leave(VulnerabilityCase)` with an `as:Reject` and runs no part of the closure sequence (CM-23-011).
+    An active embargo is one whose Embargo Management (EM) state is `ACTIVE` or `REVISE`.
+    If you are the Case Owner and the case still holds an active embargo, the CASE_MANAGER declines your `Leave(VulnerabilityCase)` with an `as:Reject`.
+    It runs no part of the closure sequence (CM-23-011).
     Terminate the embargo first: see [How to Revise or Terminate an Embargo](manage_embargo.md).
 
 ---
@@ -165,10 +175,11 @@ What your closure does to the case depends on whether you are the Case Owner.
 |---|---|
 | `Join(VulnerabilityCase)` | Your participant record shows `rmState` = `ACCEPTED`. |
 | `Ignore(VulnerabilityCase)` | Your participant record shows `rmState` = `DEFERRED`. |
-| `Leave(VulnerabilityCase)` | Your participant record shows `rmState` = `CLOSED`. Your replica holds no ledger entry after the last entry that records your closure. A Case Owner does not receive the CASE_MANAGER's own closure entries, because it is already closed when the CASE_MANAGER writes them; those entries are in the CASE_MANAGER's ledger. |
+| `Leave(VulnerabilityCase)` | Your participant record shows `rmState` = `CLOSED`. Your replica holds no ledger entry after the last entry that records your closure. A Case Owner does not receive the CASE_MANAGER's own closure entries, because it is already closed when the CASE_MANAGER writes them. Those entries are in the CASE_MANAGER's ledger. |
 | `Reject(Offer(VulnerabilityReport))` | Your RM state is `CLOSED` and no case was created. |
 
-Each transition is committed to the case ledger, so the same `rmState` should be visible on the replica of every participant that has not closed, not only your own.
+The CASE_MANAGER commits each transition to the case ledger.
+So the same `rmState` should be visible on the replica of every participant that has not closed, not only on your own.
 A participant that has already closed does not receive later transitions (CM-23-004).
 
 ---

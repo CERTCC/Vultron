@@ -22,10 +22,13 @@ How a participant joins a case, changes role in it and leaves it is at [§12 Par
 
 ### 10.1 Single-Writer Authority
 
-The participant holding the `CASE_MANAGER` role is the **only** entity authorized to write the case's shared state: the Public aware, eXploit public, Attacks observed (PXA) axis, the embargo state, the embargo record, and the case ledger.
-No participant and no handler may write shared case state directly; every such change MUST be made by the CASE_MANAGER ([VP-17-001](../specs/protocol.md#vp-17-001)).
+The participant holding the `CASE_MANAGER` role is the **only** entity authorized to write the case's shared state.
+That shared state is the Public aware, eXploit public, Attacks observed (PXA) axis, the embargo state, the embargo record, and the case ledger.
+No participant and no handler may write shared case state directly.
+Every such change MUST be made by the CASE_MANAGER ([VP-17-001](../specs/protocol.md#vp-17-001)).
 
-The participant-specific axes — report management and Vendor aware, Fix ready, fix Deployed (VFD) — are owned by each participant's own `CaseParticipant` record and are explicitly **not** subject to this restriction.
+The participant-specific axes are report management and Vendor aware, Fix ready, fix Deployed (VFD).
+Each participant's own `CaseParticipant` record owns these axes, and they are explicitly **not** subject to this restriction.
 A participant is the authority on its own report management and VFD state.
 
 This rule exists to make concurrent claims resolvable.
@@ -45,12 +48,15 @@ Participant → CASE_MANAGER → CaseLedgerEntry → Announce(CaseLedgerEntry) �
 - The CASE_MANAGER MUST record a case-scoped message in the case ledger before sending it on to the other participants ([PCR-08-003](../specs/protocol.md#pcr-08-003)).
 - `Announce` of a `CaseLedgerEntry` is the **only** mechanism by which a participant learns of an admitted change to shared case state ([PCR-08-002](../specs/protocol.md#pcr-08-002)).
 
-There are exactly **two** exceptions, both confined to case bootstrap, both occurring before the reporter has been introduced to the CASE_MANAGER, so the reporter has none to route through ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)):
+There are exactly **two** exceptions, and both are confined to case bootstrap.
+Both occur before the reporter has been introduced to the CASE_MANAGER, so the reporter has none to route through ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)):
 
 1. **Pre-case report submission** — the reporter sends the report directly to the vendor.
    No case exists, and therefore no participant holds the `CASE_MANAGER` role.
-2. **Case creation handshake** — the receiving party sends the case-creation message back to the reporter as itself, introducing the actor that holds the role ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
-   When that actor is not the receiving party, its first message to the reporter is a later sync, which the reporter holds if it arrives before the introduction ([CBT-01-010](../specs/protocol.md#cbt-01-010)).
+2. **Case creation handshake** — the receiving party sends the case-creation message back to the reporter as itself.
+   That message introduces the actor that holds the role ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
+   When that actor is not the receiving party, its first message to the reporter is a later sync.
+   The reporter holds that sync if it arrives before the introduction ([CBT-01-010](../specs/protocol.md#cbt-01-010)).
 
 The report acknowledgment, `RK`, falls outside this rule rather than adding a bootstrap exception.
 It answers the reporter's original report offer, outside the case, so it goes to the reporter directly, never to the CASE_MANAGER ([PCR-08-001](../specs/protocol.md#pcr-08-001)).
@@ -60,7 +66,9 @@ It answers the reporter's original report offer, outside the case, so it goes to
     It does not say that participants may not communicate with each other, and the protocol has no way to enforce such a thing.
     Participants routinely talk directly — by mail, by phone, in a shared channel — and that is outside the protocol's scope.
 
-    What the rule means is narrower: a case-scoped Vultron Activity delivered directly from one participant to another is not part of the protocol, and a receiving implementation has no obligation to apply it.
+    What the rule means is narrower.
+    A case-scoped Vultron Activity delivered directly from one participant to another is not part of the protocol.
+    A receiving implementation has no obligation to apply it.
     Case state changes through the ledger or not at all.
 
 !!! note "Informative: why route through one writer"
@@ -70,7 +78,9 @@ It answers the reporter's original report offer, outside the case, so it goes to
     This is scoped per case.
     The role is held for one case at a time, different cases may be managed by different actors, and the role is transferable ([§12.3 Case Ownership Transfer](interactions.md#123-case-ownership-transfer-n)).
 
-    The protocol deliberately leaves more decentralized realizations open — a ledger shared among peers, for instance, which would remove the single point of authority at the cost of needing agreement on ordering.
+    The protocol deliberately leaves more decentralized realizations open.
+    One example is a ledger shared among peers.
+    It would remove the single point of authority, but it would need agreement on ordering.
     This version does not specify one, and no implementation of one exists.
 
 ### 10.3 Case Bootstrap and the Trust Root
@@ -86,8 +96,11 @@ Every participant's trust in the ledger derives from it: a participant accepts e
 **A late joiner inherits that trust transitively.**
 An actor invited after the case is under way never sees the original creation message.
 It trusts the invitation that named the CASE_MANAGER ([CBT-04-001](../specs/protocol.md#cbt-04-001), [CBT-04-002](../specs/protocol.md#cbt-04-002)).
-It then receives the case snapshot and the prior ledger entries from the CASE_MANAGER ([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)), and it trusts them because it trusts that invitation.
-The hash-chaining of the ledger lets the joiner verify it received an unbroken history — a check against tampering and omission, not a second source of trust.
+It then receives the case snapshot and the prior ledger entries from the CASE_MANAGER ([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)).
+It trusts them because it trusts that invitation.
+
+The hash-chaining of the ledger lets the joiner verify it received an unbroken history.
+This is a check against tampering and omission, not a second source of trust.
 
 The threat model, identity verification, and the limits of this trust chain are covered at [§15.1 Trust Model](considerations.md#151-trust-model).
 
@@ -104,8 +117,12 @@ Their wire activities are given at [§4.12 Ledger Replication Messages](layers.m
 
 **A ledger entry records the asserted activity as it was sent.**
 Its payload snapshot is the received body of an activity the CASE_MANAGER received, or the body it delivered for one it sent itself ([CLP-07-011](../specs/protocol.md#clp-07-011)).
-Each nested object stays as the asserting activity carried it: inline where its sender inlined it, by reference where its sender named an object every replica already holds ([CLP-07-006](../specs/protocol.md#clp-07-006)).
-The CASE_MANAGER never fills a reference in, because the entry hash covers the snapshot and nothing outside it, so a filled-in snapshot would record the CASE_MANAGER's reconstruction rather than what was sent.
+Each nested object stays as the asserting activity carried it.
+It stays inline where its sender inlined it, and by reference where its sender named an object every replica already holds ([CLP-07-006](../specs/protocol.md#clp-07-006)).
+
+The CASE_MANAGER never fills a reference in.
+The entry hash covers the snapshot and nothing outside it.
+A filled-in snapshot would thus record the CASE_MANAGER's reconstruction, not what was sent.
 How a message carries an object inline or by reference is specified at [§5.2 Serialization](layers.md#52-serialization).
 
 ### 10.5 Claims and Canonical Status
@@ -120,8 +137,11 @@ The difference between them is one of authority rather than content.
   It carries what the case asserts: its embargo state and what is publicly known.
   Only the CASE_MANAGER writes it ([§10.1 Single-Writer Authority](interactions.md#101-single-writer-authority)).
 
-A claim becomes canonical only when the CASE_MANAGER adopts it, and adoption is an authorization decision with a named default rather than an automatic consequence of receipt ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
-An implementation MUST NOT substitute one type for the other: a participant that emits `CaseStatus` is asserting authority it does not hold, and a CASE_MANAGER that treats an inbound `ParticipantStatus` as canonical has skipped the decision.
+A claim becomes canonical only when the CASE_MANAGER adopts it.
+Adoption is an authorization decision with a named default, not an automatic consequence of receipt ([§11.3 Status Adoption: The Two-Seam Model](interactions.md#113-status-adoption-the-two-seam-model)).
+An implementation MUST NOT substitute one type for the other.
+A participant that emits `CaseStatus` is asserting authority it does not hold.
+A CASE_MANAGER that treats an inbound `ParticipantStatus` as canonical has skipped the decision.
 
 **The status messages depend on who is sending.**
 The six case state shorthands ([§4.9 Case State Messages](layers.md#49-case-state-messages)) do not have one wire form; they have two, and the sender's authority decides which applies:

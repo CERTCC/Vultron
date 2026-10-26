@@ -171,6 +171,19 @@ with both fixes: link the use to the named page, or re-level the page. The tool
 sees only terms some page declares under `introduces:`, so the concept-order
 and first-use checks below still need judgment for every other term.
 
+Then run `uv run docs-duplicates`. It is site-wide and advisory: it exits 0
+whatever it finds, and fails only when it resolves no target pages
+(DF-09-009). Each cluster it prints is a candidate for the "Verbatim-copied
+block" finding below, on every target page the cluster names. An `exact` cluster
+is one wording on several pages. A `drifted` cluster is several wordings that
+share most of their sentences. Read every cluster before reporting it, and drop
+the ones SG-44 exempts: the clustered paragraph is a page's own opening, in its
+own words, describing that page. Report each remaining cluster as one SG-43
+finding naming every host's `path:line`. The tool reads paragraphs on pages
+only. A copied table or diagram still needs judgment, and so does prose
+hand-copied from an include fragment onto a page that does not include it: the
+tool never reads a fragment, so it cannot see that copy.
+
 The cross-page checks are read against `notes/site-information-architecture.md`
 (ADR-0102), not re-derived per page. They are all page-scoped, so a fragment is
 assessed only through each assembly unit that renders it (Phase 1 § "Fragments
@@ -250,7 +263,8 @@ recommendation, never applied:
   plain-prose or table alternative.
 - **Verbatim-copied block** (SG-43, DF-10-001, DF-10-002) — if a paragraph,
   table, or diagram on this page appears verbatim (or near-verbatim) on another
-  `docs/` page, flag it as a judgment finding. Recommend one of two resolutions:
+  `docs/` page, flag it as a judgment finding. `docs-duplicates` lists the
+  paragraph candidates (above). Recommend one of two resolutions:
   (a) if the content should live in both places, replace both occurrences with an
   `{% include-markdown %}` fragment — a `_<slug>.md` file beside its host pages,
   referenced by a path relative to each including file, never rooted at `docs/`;

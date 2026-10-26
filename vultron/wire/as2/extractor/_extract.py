@@ -167,6 +167,14 @@ def extract_intent(
             )
         extra_kwargs["proposer_case_roles"] = list(obj.proposer_case_roles)
 
+    if "failed_activity_id" in event_class.model_fields:
+        # Create(ProcessingFault): the fault object's inReplyTo names the
+        # activity that failed (ASK-07-004).  Extracted here at the parse edge
+        # so core never reads the wire object for it (ADR-0032, ADR-0035).
+        extra_kwargs["failed_activity_id"] = _get_id(
+            getattr(obj, "in_reply_to", None)
+        )
+
     return cast(
         AnyReceivedEvent,
         event_class(
