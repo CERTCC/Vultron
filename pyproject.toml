@@ -18,13 +18,13 @@ name = "vultron"
 authors = [
     { name = "Allen D. Householder", email="adh@cert.org" },
 ]
-description = "A prototype implementation of the Vultron protocol."
+description = "A reference implementation of the Vultron CVD protocol, for research and evaluation, not production use."
 readme = {file="README.md", content-type="text/markdown"}
 requires-python = ">=3.12"
 keywords =["vultron","cvd","vulnerability disclosure"]
 license = {file="LICENSE.md"}
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
