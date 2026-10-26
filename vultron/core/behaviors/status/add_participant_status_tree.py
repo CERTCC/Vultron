@@ -25,7 +25,7 @@ after ``AppendParticipantStatusNode`` records the raw peer update, a
 should adopt the status, then ``EmitCaseStatusUpdateNode`` writes the
 post-adoption CaseStatus, adding every P, X or A latch the sender reported and
 clearing none, directly to the case ledger without routing through the inbox
-seam (RSH-01-003, RSH-04-004).  The embargo teardown and the CSB-18 diagnostic follow it
+seam (RSH-01-003, RSH-04-006).  The embargo teardown and the CSB-18 diagnostic follow it
 (RSH-01-004).  This tree is the only received path by which a participant's
 P, X or A report reaches the case status: ``Add(CaseStatus)`` is the
 CASE_MANAGER's alone (RSH-04-001, RSH-04-005).
@@ -202,7 +202,7 @@ def add_participant_status_tree(
     When the gate passes, ``EmitCaseStatusUpdateNode`` writes the post-adoption
     CaseStatus, adding every P, X or A latch the report sets and clearing
     none, directly to the case ledger and fans it out to participants
-    (RSH-01-003, RSH-04-004).  A ``FailureIsSuccess``-wrapped
+    (RSH-01-003, RSH-04-006).  A ``FailureIsSuccess``-wrapped
     ``TeardownEffects`` Sequence then attempts embargo teardown: the
     ``EmbargoTeardownAuthorizationGate`` call-out gates execution, and
     ``ThreatTerminationBranchNode`` fires when the received CaseStatus has

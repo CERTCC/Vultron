@@ -357,8 +357,8 @@ groups:
     statement: >-
       `UPDATE_CASE_OWNER` MUST be represented as `Update(VulnerabilityCase)`, carrying
       the case with its new owner in `attributedTo`. Only the CASE_MANAGER sends it,
-      as its own act on an accepted ownership transfer (CM-21-002), and no received
-      use case handles it (SE-05-002, ADR-0140).
+      as its own act on an accepted ownership transfer (CM-21-002), and it is not
+      handled on receipt (SE-05-002, ADR-0140).
     rationale: >-
       An entry's semantic type is the registry's label for its payload (ADR-0140), so
       the CASE_MANAGER's own case-field change needs a registry entry of its own.
@@ -523,14 +523,12 @@ groups:
       The full-case Invite (CM-11-010) MUST be represented as
       `Invite(Actor)[target=VulnerabilityCase]`, with the case referenced by its plain
       URI in `target` (AKM-02-003) and the CASE_MANAGER's ledger position carried in the
-      Invite's `content`. The `content` string MUST be the JSON dump, under the model's
-      wire aliases, of the core `LedgerPosition` model, for example
-      `{"logIndex":3,"entryHash":"<hash>"}`, and MUST be produced only by
-      `vultron.wire.as2.factories`. The position of an empty ledger is `logIndex` -1 with
-      the case's `genesisHash` as `entryHash` (CLP-08-004). A receiver MUST parse
-      `content` with `LedgerPosition.model_validate_json` at the parse edge and MUST
-      refuse an activity whose `content` is missing, blank or does not parse, naming the
-      activity and writing nothing (ADR-0032).
+      Invite's `content`. The `content` string MUST be a JSON object carrying the
+      position's `logIndex` and `entryHash`, for example
+      `{"logIndex":3,"entryHash":"<hash>"}`. The position of an empty ledger is `logIndex`
+      -1 with the case's `genesisHash` as `entryHash` (CLP-08-004). A receiver MUST
+      refuse an activity whose `content` is missing, blank or does not parse as a ledger
+      position, naming the activity and writing nothing.
     rationale: >-
       The participant already holds the case from the replica, so the Invite references
       it by ID. Because the stub is its own type (VAM-04-004, CM-11-013), this shape and
@@ -541,15 +539,40 @@ groups:
       A unit test confirms that an `Invite` whose `target` is a `VulnerabilityCase`
       matches the full-case Invite pattern and not the stub Invite pattern, and that one
       whose `target` is a `VulnerabilityCaseStub` matches only the stub Invite pattern.
-      Tests confirm the factory's `content` round-trips through
-      `LedgerPosition.model_validate_json` and that a missing, blank or non-parsing
-      `content` is refused at extraction.
+      Tests confirm the Invite's `content` carries the position's `logIndex` and
+      `entryHash` and that a missing, blank or non-parsing `content` is refused at
+      extraction.
     adr:
     - ADR-0121
     - ADR-0114
     stories:
     - story_2022_013
     - story_2022_054
+  - id: VAM-04-019
+    priority: MUST
+    kind: project
+    statement: >-
+      In this implementation, the `content` of the full-case Invite and of its replies
+      (VAM-04-011 to VAM-04-014) MUST be the JSON dump, under the model's wire aliases,
+      of the core `LedgerPosition` model, and MUST be produced only by
+      `vultron.wire.as2.factories`. A receiver MUST parse it with
+      `LedgerPosition.model_validate_json` at the parse edge (ADR-0032).
+    rationale: >-
+      One model and one producer keep the sender's string and the receiver's parse from
+      drifting apart. Parsing at the edge hands the core a typed position, so no core
+      code re-checks a string it could not have received (ADR-0032).
+    verification: >-
+      `test/wire/as2/factories/test_full_case_invite_factories.py::test_invite_targets_the_plain_case_uri_and_carries_the_floor_in_content`
+      confirms the factory writes the position's alias dump into `content`;
+      `test/core/use_cases/received/actor/test_full_case_invite.py::test_a_reply_with_unparseable_content_is_refused_at_the_edge`
+      confirms a reply whose `content` does not parse as a `LedgerPosition` is refused
+      at the parse edge; inspection of `vultron/wire/as2/factories/case.py` confirms the
+      factories build `content` from `LedgerPosition`.
+    relationships:
+    - rel_type: implements
+      spec_id: VAM-04-011
+    adr:
+    - ADR-0032
   - id: VAM-04-012
     priority: MUST
     kind: protocol
@@ -886,8 +909,8 @@ groups:
     statement: >-
       `CREATE_EMBARGO_CONSENT` MUST be represented as `Create(EmbargoConsent)`,
       carrying the new consent row in full. Only the CASE_MANAGER sends it, as its own
-      act when it brings a consent row into existence (ADR-0122, CLP-07-013), and no
-      received use case handles it (SE-05-002, ADR-0140).
+      act when it brings a consent row into existence (ADR-0122, CLP-07-013), and it
+      is not handled on receipt (SE-05-002, ADR-0140).
     rationale: >-
       An entry's semantic type is the registry's label for its payload (ADR-0140). The
       record is a case-file change, not a PEC transition (MSM-07-001).
@@ -910,7 +933,7 @@ groups:
       `UPDATE_EMBARGO_CONSENT` MUST be represented as `Update(EmbargoConsent)`,
       carrying the changed consent row in full. Only the CASE_MANAGER sends it, as its
       own act when it changes a consent row, its own consent included (MSM-07-004,
-      CLP-07-013), and no received use case handles it (SE-05-002, ADR-0140).
+      CLP-07-013), and it is not handled on receipt (SE-05-002, ADR-0140).
     rationale: >-
       An entry's semantic type is the registry's label for its payload (ADR-0140).
       An expired invitation is this `Update` carrying the invitee's `TIMED_OUT` row
@@ -936,7 +959,7 @@ groups:
       commits it, as a ledger entry and never as a sent message, once for each
       embargo a case's creation writes, such as the default embargo (EP-04-002),
       right after the case's genesis entry and before the case's other creation
-      entries (CLP-07-013). No received use case handles it
+      entries (CLP-07-013). It is not handled on receipt
       (SE-05-002, ADR-0140): a replica stores the embargo from the entry.
     rationale: >-
       The genesis entry carries only the case's active embargo inline, and a replica
@@ -1001,7 +1024,7 @@ groups:
       `CREATE_CASE_PARTICIPANT` MUST be represented as `Create(CaseParticipant)`,
       carrying the record in full. Only the CASE_MANAGER sends it, as its own act
       when it brings a participant record into existence (ADR-0114, CLP-07-013), and
-      no received use case handles it (SE-05-002, ADR-0140).
+      it is not handled on receipt (SE-05-002, ADR-0140).
     rationale: >-
       An entry's semantic type is the registry's label for its payload (ADR-0140).
       A received `Create(CaseParticipant)` is still not a protocol message
@@ -1024,7 +1047,7 @@ groups:
       `UPDATE_CASE_PARTICIPANT` MUST be represented as `Update(CaseParticipant)`,
       carrying the changed record in full. Only the CASE_MANAGER sends it, as its own
       act when it changes a participant record, such as moving the `CASE_OWNER` role
-      (CM-21-002, CLP-07-013), and no received use case handles it (SE-05-002,
+      (CM-21-002, CLP-07-013), and it is not handled on receipt (SE-05-002,
       ADR-0140).
     rationale: >-
       An entry's semantic type is the registry's label for its payload (ADR-0140), so

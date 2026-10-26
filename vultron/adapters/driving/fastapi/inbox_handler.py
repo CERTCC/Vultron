@@ -268,7 +268,7 @@ def emit_processing_fault(
     The fault names *failed_activity_id* and *failure_class* and nothing
     else (ASK-07-006).  Its id is derived from the failed activity and the
     class, so a second failure of the same activity builds no second fault
-    (ASK-07-010, ID-04-004).  *dl* is the receiver's own store, whose outbox
+    (ASK-07-011, ID-04-004).  *dl* is the receiver's own store, whose outbox
     delivers it.
 
     Returns:

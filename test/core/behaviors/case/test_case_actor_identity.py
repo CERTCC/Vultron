@@ -42,6 +42,7 @@ def configured_base():
 
 
 @pytest.mark.spec("CP-04-003")
+@pytest.mark.spec("CP-04-005")
 @pytest.mark.spec("BT-10-002")
 class TestCaseActorIdentity:
     def test_identity_is_the_container_not_the_case(self, configured_base):

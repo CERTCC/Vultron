@@ -837,11 +837,11 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">All known Vendors of affected software SHOULD be included — vendor coverage before others.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[PRM-01-001](../specs/protocol.md#prm-01-001)</td>
+<td markdown="span">[PRM-01-001](../specs/project.md#prm-01-001)</td>
 <td markdown="span">CaseParticipant MUST expose a read-only `roles` property — role inspection for case membership.</td>
 </tr>
 <tr markdown="1">
-<td markdown="span">[PRM-02-001](../specs/protocol.md#prm-02-001)</td>
+<td markdown="span">[PRM-02-001](../specs/project.md#prm-02-001)</td>
 <td markdown="span">`add_role()` MUST add a role to the participant's role set — role assignment for non-vendor participants.</td>
 </tr>
 <tr markdown="1">

@@ -1190,11 +1190,11 @@ class TestOwnerRolesComeFromTheProposal:
     """The owner's non-CASE_OWNER roles are the ones its proposal states.
 
     The proposer copies them from its own ``ActorConfig.default_case_roles``
-    (CFG-07-002) onto ``proposerCaseRoles`` (CP-01-011, ADR-0133).  The
-    CaseActor used to read its *own* configuration instead, which was the
-    receiver's only while the two shared a container; on the dedicated
-    case-actor container a Vendor was seated as ``CASE_OWNER`` alone and its
-    fix-readiness report was refused (#1876).
+    (CFG-07-002) onto ``proposerCaseRoles`` (CP-01-011, CP-01-013,
+    ADR-0133).  The CaseActor used to read its *own* configuration instead,
+    which was the receiver's only while the two shared a container; on the
+    dedicated case-actor container a Vendor was seated as ``CASE_OWNER``
+    alone and its fix-readiness report was refused (#1876).
 
     Regression guard, too: the node once hard-coded ``[CASE_OWNER, VENDOR]``,
     which mislabelled a coordinator as a vendor (rccv-extension M6/M7).

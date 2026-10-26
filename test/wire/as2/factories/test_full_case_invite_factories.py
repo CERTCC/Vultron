@@ -13,7 +13,7 @@
 """Factories for the full-case Invite and its replies (VAM-04-011..014, AF-02-003).
 
 The ledger position travels in ``content`` as the ``LedgerPosition`` model's
-own JSON dump, and only the factories produce that string.
+own JSON dump, and only the factories produce that string (VAM-04-019).
 """
 
 import json
@@ -48,6 +48,7 @@ def _invite():
 
 
 @pytest.mark.spec("VAM-04-011")
+@pytest.mark.spec("VAM-04-019")
 def test_invite_targets_the_plain_case_uri_and_carries_the_floor_in_content():
     invite = _invite()
 

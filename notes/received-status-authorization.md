@@ -195,4 +195,4 @@ sender check: authorization happened at the gates.
   every EM change (RSH-04-004, CLP-07-013, #5123).
 - **Write directly, never through the inbox.** The CASE_MANAGER records its own
   state change by an inner commit, not by sending `Add(CaseStatus)` to itself
-  (RSH-04-004, ADR-0108). The inbox gates exist for *external* suggestions.
+  (RSH-04-006, ADR-0108). The inbox gates exist for *external* suggestions.

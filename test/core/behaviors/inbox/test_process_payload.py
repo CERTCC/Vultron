@@ -664,6 +664,7 @@ class TestARaisedDispatchIsAnsweredWithAFault:
     """A raising received use case is answered with a fault (ASK-07-010)."""
 
     @pytest.mark.spec("ASK-07-010")
+    @pytest.mark.spec("ASK-07-011")
     @pytest.mark.spec("ASK-07-001")
     def test_the_sender_gets_one_internal_error_fault(self, report_activity):
         dispatch = _StubDispatchAdapter(should_fail=True)

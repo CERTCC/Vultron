@@ -138,7 +138,7 @@ def ledger_position_from_content(activity: as_Activity) -> LedgerPosition:
     """Parse the ledger position an activity carries in its ``content``.
 
     The full-case Invite and its three replies carry the position as the JSON
-    dump of a :class:`LedgerPosition` (VAM-04-011..014; produced only by
+    dump of a :class:`LedgerPosition` (VAM-04-011..014, VAM-04-019; produced only by
     ``vultron.wire.as2.factories.ledger_position_content``).
 
     Raises:

@@ -13,7 +13,7 @@ The behavioral requirements for these trees are specified in the
 [Protocol Specifications](../specs/protocol.md):
 
 - [RSH-01](../specs/protocol.md#rsh-01) — StatusAdoptionGate (participant status adoption)
-- [RSH-02](../specs/protocol.md#rsh-02) — EmbargoTeardownAuthorizationGate
+- [RSH-02](../specs/project.md#rsh-02) — EmbargoTeardownAuthorizationGate
 - [RSH-03](../specs/protocol.md#rsh-03) — ThreatTerminationBranchNode (embargo teardown)
 - [RSH-04](../specs/protocol.md#rsh-04) — CaseStatus emission authority and outbound emit invariant
 - [RSH-09](../specs/protocol.md#rsh-09) — Whole accept or reject of a received status

@@ -25,8 +25,9 @@ groups:
   - id: MSM-01-001
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `RS` (Report Submission) MUST dispatch as `MessageSemantics.SUBMIT_REPORT`; its AS2 wire
-      form is `Offer(VulnerabilityReport)` per VAM-02-002.
+    statement: >-
+      Protocol shorthand `RS` (Report Submission) MUST have the semantic type
+      `SUBMIT_REPORT`; its AS2 wire form is `Offer(VulnerabilityReport)` per VAM-02-002.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.SUBMIT_REPORT`
       is paired with an `ActivityPattern` matching `Offer(VulnerabilityReport)` in
@@ -41,8 +42,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Protocol shorthand `RI` (Report Invalid) MUST dispatch as
-      `MessageSemantics.INVALIDATE_REPORT`; its AS2 wire form is
+      Protocol shorthand `RI` (Report Invalid) MUST have the semantic type
+      `INVALIDATE_REPORT`; its AS2 wire form is
       `TentativeReject(Offer(VulnerabilityReport))` per VAM-02-005. This is the direct
       report recipient's RI; a participant that joined through an Invite sends RI as the
       full-case Invite reply of VAM-04-013.
@@ -62,8 +63,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Protocol shorthand `RV` (Report Valid) MUST dispatch as
-      `MessageSemantics.VALIDATE_REPORT`; its AS2 wire form is
+      Protocol shorthand `RV` (Report Valid) MUST have the semantic type
+      `VALIDATE_REPORT`; its AS2 wire form is
       `Accept(Offer(VulnerabilityReport))` per VAM-02-004. This is the direct report
       recipient's RV; a participant that joined through an Invite sends RV as the
       full-case Invite reply of VAM-04-012.
@@ -82,8 +83,9 @@ groups:
   - id: MSM-01-004
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `RD` (Report/Case Deferred) MUST dispatch as `MessageSemantics.DEFER_CASE`; its AS2 wire
-      form is `Ignore(VulnerabilityCase)` per VAM-03-004.
+    statement: >-
+      Protocol shorthand `RD` (Report/Case Deferred) MUST have the semantic type
+      `DEFER_CASE`; its AS2 wire form is `Ignore(VulnerabilityCase)` per VAM-03-004.
     rationale: A deferred report indicates the receiving actor will not engage with the case at this time. The wire representation
       uses `Ignore(VulnerabilityCase)` rather than a report-level verb because deferral is a case-participation decision,
       not a report-validity judgment.
@@ -100,8 +102,9 @@ groups:
   - id: MSM-01-005
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `RA` (Report/Case Accepted) MUST dispatch as `MessageSemantics.ENGAGE_CASE`; its AS2 wire
-      form is `Join(VulnerabilityCase)` per VAM-03-003.
+    statement: >-
+      Protocol shorthand `RA` (Report/Case Accepted) MUST have the semantic type
+      `ENGAGE_CASE`; its AS2 wire form is `Join(VulnerabilityCase)` per VAM-03-003.
     rationale: Accepting a report means the receiving actor commits to engaging with the vulnerability case. The wire verb
       `Join` captures the case-participation decision, symmetric with `Ignore` for `RD`.
     verification: >-
@@ -118,8 +121,8 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Protocol shorthand `RC` (Report Closed) MUST dispatch as
-      `MessageSemantics.CLOSE_REPORT`; its AS2 wire form is
+      Protocol shorthand `RC` (Report Closed) MUST have the semantic type
+      `CLOSE_REPORT`; its AS2 wire form is
       `Reject(Offer(VulnerabilityReport))` per VAM-02-006. This is the direct report
       recipient's RC; a participant that joined through an Invite sends RC as the
       full-case Invite reply of VAM-04-014.
@@ -155,8 +158,10 @@ groups:
   - id: MSM-01-008
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `RK` (Report Management Acknowledgment) MUST dispatch as `MessageSemantics.ACK_REPORT`;
-      its AS2 wire form is `Read(Offer(VulnerabilityReport))` per VAM-02-003.
+    statement: >-
+      Protocol shorthand `RK` (Report Management Acknowledgment) MUST have the semantic
+      type `ACK_REPORT`; its AS2 wire form is `Read(Offer(VulnerabilityReport))` per
+      VAM-02-003.
     verification: >-
       Inspection of `vultron/wire/` confirms that `MessageSemantics.ACK_REPORT` is
       paired with an `ActivityPattern` matching `Read(Offer(VulnerabilityReport))` in
@@ -176,8 +181,10 @@ groups:
   - id: MSM-02-001
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `EP` (Embargo Proposed) MUST dispatch as `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE`; its
-      AS2 wire form is `Invite(Event)[context=VulnerabilityCase]` per VAM-05-005.
+    statement: >-
+      Protocol shorthand `EP` (Embargo Proposed) MUST have the semantic type
+      `INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form is
+      `Invite(Event)[context=VulnerabilityCase]` per VAM-05-005.
     verification: >-
       Inspection of `vultron/wire/` confirms that
       `MessageSemantics.INVITE_TO_EMBARGO_ON_CASE` is paired with an `ActivityPattern`
@@ -192,7 +199,7 @@ groups:
   - id: MSM-02-002
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `EA` (Embargo Accepted) MUST dispatch as `MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE`;
+    statement: Protocol shorthand `EA` (Embargo Accepted) MUST have the semantic type `ACCEPT_INVITE_TO_EMBARGO_ON_CASE`;
       its AS2 wire form is `Accept(Invite(Event)[context=VulnerabilityCase])` per VAM-05-006.
     verification: >-
       Inspection of `vultron/wire/` confirms that
@@ -221,8 +228,11 @@ groups:
   - id: MSM-02-004
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `EJ` (Embargo Revision Rejected) MUST dispatch as `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE`;
-      its AS2 wire form is `Reject(Invite(Event)[context=VulnerabilityCase])` per VAM-05-007 — identical to `ER`.
+    statement: >-
+      Protocol shorthand `EJ` (Embargo Revision Rejected) MUST have the semantic type
+      `REJECT_INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form is
+      `Reject(Invite(Event)[context=VulnerabilityCase])` per VAM-05-007 — identical to
+      `ER`.
     rationale: EJ is an alias for ER at the wire layer. See MSM-02-003 rationale.
     verification: >-
       Inspection of `vultron/wire/` confirms that
@@ -239,8 +249,11 @@ groups:
   - id: MSM-02-005
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `EC` (Embargo Revision Accepted) MUST dispatch as `MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE`;
-      its AS2 wire form is `Accept(Invite(Event)[context=VulnerabilityCase])` per VAM-05-006 — identical to `EA`.
+    statement: >-
+      Protocol shorthand `EC` (Embargo Revision Accepted) MUST have the semantic type
+      `ACCEPT_INVITE_TO_EMBARGO_ON_CASE`; its AS2 wire form is
+      `Accept(Invite(Event)[context=VulnerabilityCase])` per VAM-05-006 — identical to
+      `EA`.
     rationale: EC is an alias for EA at the wire layer. See MSM-02-003 rationale.
     verification: >-
       Inspection of `vultron/wire/` confirms that EC shares the
@@ -255,7 +268,7 @@ groups:
   - id: MSM-02-006
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `ER` (Embargo Rejected) MUST dispatch as `MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE`;
+    statement: Protocol shorthand `ER` (Embargo Rejected) MUST have the semantic type `REJECT_INVITE_TO_EMBARGO_ON_CASE`;
       its AS2 wire form is `Reject(Invite(Event)[context=VulnerabilityCase])` per VAM-05-007.
     verification: >-
       Inspection of `vultron/wire/` confirms that
@@ -271,7 +284,7 @@ groups:
   - id: MSM-02-007
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `ET` (Embargo Terminated) MUST dispatch as `MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE`;
+    statement: Protocol shorthand `ET` (Embargo Terminated) MUST have the semantic type `REMOVE_EMBARGO_EVENT_FROM_CASE`;
       its AS2 wire form is `Remove(Event)` per VAM-05-003.
     verification: >-
       Inspection of `vultron/wire/` confirms that
@@ -330,9 +343,9 @@ groups:
   - id: MSM-03-001
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `CV` (Vendor Aware) MUST dispatch as `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
+    statement: Protocol shorthand `CV` (Vendor Aware) MUST have the semantic type `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
       its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
-      encodes vendor awareness in the `vfState` field (`CS_vf`), advancing the
+      encodes vendor awareness in the `vfState` field, advancing the
       vendor-path ladder from `vf` to `Vf`.
     rationale: 'The V dimension is participant-scoped, not case-scoped: it records whether a *specific* vendor is aware. Per
       ADR-0075 there is no case-level V/F/D state, and a case-level `Add(CaseStatus)` cannot express which vendor became
@@ -354,9 +367,9 @@ groups:
   - id: MSM-03-002
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `CF` (Fix Ready) MUST dispatch as `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
+    statement: Protocol shorthand `CF` (Fix Ready) MUST have the semantic type `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
       its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
-      encodes fix readiness in the `vfState` field (`CS_vf`), advancing the vendor-path
+      encodes fix readiness in the `vfState` field, advancing the vendor-path
       ladder from `Vf` to `VF`.
     rationale: 'The F dimension shares the participant-scoped vendor-path sub-machine with V (`CS_vf`: `vf` → `Vf` → `VF`),
       so fix readiness is recorded against the specific vendor that produced the fix. Same scope reasoning as MSM-03-001.
@@ -378,9 +391,9 @@ groups:
   - id: MSM-03-003
     priority: MUST
     kind: protocol
-    statement: Protocol shorthand `CD` (Fix Deployed) MUST dispatch as `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
+    statement: Protocol shorthand `CD` (Fix Deployed) MUST have the semantic type `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT`;
       its AS2 wire form is `Add(ParticipantStatus)[target=CaseParticipant]` per VAM-08-004. The `ParticipantStatus` payload
-      encodes deployment in the `dState` field (`CS_d`), advancing the deployer-path
+      encodes deployment in the `dState` field, advancing the deployer-path
       ladder from `d` to `D`.
     rationale: 'The D dimension is participant-scoped on the *deployer*, and ADR-0075 split it into its own sub-machine
       (`CS_d`) precisely because its scope differs from the vendor path.
@@ -404,15 +417,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Protocol shorthand `CP` (Public Aware) MUST dispatch as
-      `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
+      Protocol shorthand `CP` (Public Aware) MUST have the semantic type
+      `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
       reports it, which it does only in the `CaseStatus` that its
       `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001), and
-      as `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
+      the semantic type `ADD_CASE_STATUS_TO_CASE` when it is carried in
       `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), the
       CASE_MANAGER's record of the case status it adopted (RSH-04-001,
-      RSH-04-005). In both forms the `CaseStatus` payload encodes the
-      `public_aware` state flag.
+      RSH-04-005). In both forms the `CaseStatus` payload encodes public awareness (P)
+      in its `pxaState`.
     rationale: >-
       A participant embeds its suggested `CaseStatus` in
       `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
@@ -439,15 +452,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Protocol shorthand `CX` (Exploit Published) MUST dispatch as
-      `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
+      Protocol shorthand `CX` (Exploit Published) MUST have the semantic type
+      `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
       reports it, which it does only in the `CaseStatus` that its
       `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001), and
-      as `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
+      the semantic type `ADD_CASE_STATUS_TO_CASE` when it is carried in
       `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), the
       CASE_MANAGER's record of the case status it adopted (RSH-04-001,
-      RSH-04-005). In both forms the `CaseStatus` payload encodes the
-      `exploit_published` state flag.
+      RSH-04-005). In both forms the `CaseStatus` payload encodes a published exploit (X)
+      in its `pxaState`.
     rationale: >-
       A participant embeds its suggested `CaseStatus` in
       `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
@@ -474,15 +487,15 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      Protocol shorthand `CA` (Attacks Observed) MUST dispatch as
-      `MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
+      Protocol shorthand `CA` (Attacks Observed) MUST have the semantic type
+      `ADD_PARTICIPANT_STATUS_TO_PARTICIPANT` when a participant
       reports it, which it does only in the `CaseStatus` that its
       `Add(ParticipantStatus)[target=CaseParticipant]` embeds (RSH-04-001), and
-      as `MessageSemantics.ADD_CASE_STATUS_TO_CASE` when it is carried in
+      the semantic type `ADD_CASE_STATUS_TO_CASE` when it is carried in
       `Add(CaseStatus)[target=VulnerabilityCase]` (VAM-08-002), the
       CASE_MANAGER's record of the case status it adopted (RSH-04-001,
-      RSH-04-005). In both forms the `CaseStatus` payload encodes the
-      `attacks_observed` state flag.
+      RSH-04-005). In both forms the `CaseStatus` payload encodes observed attacks (A)
+      in its `pxaState`.
     rationale: >-
       A participant embeds its suggested `CaseStatus` in
       `Add(ParticipantStatus)` (RSH-04-001), so the formal message has one wire
@@ -829,12 +842,12 @@ groups:
       are either side-effects of EM wire activities (MSM-07-002 through MSM-07-005,
       MSM-07-008)
       or timer-based internal events (MSM-07-007) with no dedicated wire message or
-      dispatch value of their own. The CASE_MANAGER's `Create(EmbargoConsent)` and
+      semantic type of their own. The CASE_MANAGER's `Create(EmbargoConsent)` and
       `Update(EmbargoConsent)`, which record a consent row it brings into existence or
       changes as its own ledger entry (CLP-07-013), are case-file record changes, not
-      PEC transitions: they carry no shorthand, and the registry labels them
-      `create_embargo_consent` and `update_embargo_consent` with no received use case
-      (ADR-0140).
+      PEC transitions: they carry no shorthand, their ledger semantic types are
+      `create_embargo_consent` and `update_embargo_consent`, and neither is handled on
+      receipt (ADR-0140).
     rationale: >-
       PEC is participant-local state tracking each actor's relationship to the shared
       EM state, not a parallel message-driven machine. Extending the formal set with
@@ -1103,15 +1116,16 @@ groups:
     kind: protocol
     statement: >-
       The timer-based pocket-veto transition — INVITED to TIMED_OUT on the row of the
-      invitation whose deadline passed — MUST be enforced lazily with no outbound wire message emitted for the consent
-      change itself. A lapse has no timer path (CM-18-002): a lapsed participant is re-invited, and
-      the deadline attaches to that invitation. The CASE_MANAGER MUST author a case-ledger entry
-      recording the expiry (CM-28-005) so the consent change is visible in the canonical ledger, but
-      no additional protocol wire activity is required. The case owner learns of the expiry, as of
-      an explicit refusal (MSM-07-004), from that entry: by its `Announce(CaseLedgerEntry)`
-      fan-out while the owner is an active participant (CM-10-004), or from its own ledger when
-      the owner holds `CVDRole.CASE_MANAGER`. No separate notification activity is sent to the
-      owner.
+      invitation whose deadline passed — MUST be enforced lazily with no outbound wire
+      message emitted for the consent change itself. A lapse has no timer path
+      (CM-18-002): a lapsed participant is re-invited, and the deadline attaches to that
+      invitation. The CASE_MANAGER MUST author a case-ledger entry recording the expiry
+      (CM-28-005) so the consent change is visible in the canonical ledger, but no
+      additional protocol wire activity is required. The case owner learns of the
+      expiry, as of an explicit refusal (MSM-07-004), from that entry: by its
+      `Announce(CaseLedgerEntry)` fan-out while the owner is an active participant
+      (CM-10-004), or from its own ledger when the owner holds the CASE_MANAGER role. No
+      separate notification activity is sent to the owner.
     rationale: >-
       Inaction cannot produce an outbound message because there is no actor-observable event to
       report. The expiry is a derived conclusion from (the row's rsvp_deadline, now); the ledger entry

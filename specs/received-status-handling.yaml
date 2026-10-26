@@ -21,7 +21,7 @@ groups:
   specs:
   - id: RSH-01-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       `add_participant_status_tree` MUST include a StatusAdoptionGate node
       positioned after `AppendParticipantStatusNode` and before any
@@ -36,7 +36,7 @@ groups:
     - story_2022_088
   - id: RSH-01-002
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       StatusAdoptionGate MUST be implemented as a Fallback with two children:
       (1) `CheckIsCaseOwnerNode` as a hard bypass and (2) a
@@ -53,30 +53,23 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      When StatusAdoptionGate passes, `add_participant_status_tree` MUST write
-      the post-adoption `CaseStatus` directly to the canonical case ledger via
-      `EmitCaseStatusUpdateNode`, unless it changes neither EM nor PXA
+      When the CASE_MANAGER adopts the `CaseStatus` that a sender's
+      `ParticipantStatus` embeds, it MUST record the post-adoption `CaseStatus`
+      in the canonical case ledger, unless it changes neither EM nor PXA
       (RSH-04-004). The post-adoption `CaseStatus`
       MUST set each of P, X and A that either the case's current PXA state or
       the `CaseStatus` the sender's `ParticipantStatus` embeds sets, and MUST
-      NOT clear one the case already sets. It MUST NOT emit a self-addressed
-      `Add(CaseStatus, VulnerabilityCase)` to the CASE_MANAGER to reach the
-      canonical write indirectly.
+      NOT clear one the case already sets.
     rationale: >
-      The CASE_MANAGER is the authority for its own canonical state changes, so
-      routing its adoption back through its own inbox adds a hop and a second
-      adjudication to a write it has already authorized (RSH-04-004). It is the
-      only path by which a participant's P, X or A reaches the case status
-      (RSH-04-005), so a write that re-snapshots the case's PXA adopts nothing
-      (#4956).
+      Adoption is the only path by which a participant's P, X or A reaches the
+      case status (RSH-04-005), so a record that re-snapshots the case's PXA
+      adopts nothing, and one that clears a latch the case set would undo
+      another participant's report (#4956).
     verification: >-
       Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
-      confirm that when `StatusAdoptionGate` passes `EmitCaseStatusUpdateNode`
-      appends the post-adoption `CaseStatus` to the case, adding each P, X or A
-      the report newly sets and clearing none, read from the stored status by
-      id at tick, that a refused adoption leaves the case's PXA state
-      unchanged, and that no `EmitAddCaseStatusToSelf` node is present in the
-      tree.
+      confirm that an adopted status records the post-adoption `CaseStatus`,
+      adding each P, X or A the report newly sets and clearing none, and that a
+      refused adoption leaves the case's PXA state unchanged.
     adr:
     - ADR-0046
     - ADR-0108
@@ -111,7 +104,7 @@ groups:
   specs:
   - id: RSH-02-001
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       `add_participant_status_tree` MUST include a `EmbargoTeardownAuthorizationGate` Evaluator
       call-out node positioned after `EmitCaseStatusUpdateNode` and before
@@ -161,9 +154,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      `ThreatTerminationBranchNode` MUST trigger embargo teardown when the
-      canonical CaseStatus carries CS.P (public awareness), CS.X (exploit
-      public), or CS.A (attacks observed).
+      The CASE_MANAGER MUST trigger embargo teardown when the canonical
+      CaseStatus carries CS.P (public awareness), CS.X (exploit public), or CS.A
+      (attacks observed).
     rationale: >
       All three flags signal a breach of the conditions that justify an active
       embargo. Covering only CS.P (as the prior `PublicDisclosureBranchNode`
@@ -197,7 +190,7 @@ groups:
       out a teardown, not whether it is allowed, and it holds by tree shape.
   - id: RSH-03-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       `add_participant_status_tree` MUST tear an embargo down through
       `ThreatTerminationBranchNode`, after the canonical write, and MUST NOT
@@ -223,11 +216,10 @@ groups:
     priority: MUST_NOT
     kind: protocol
     statement: >
-      An actor that does not hold `CVDRole.CASE_MANAGER` MUST NOT ask the
-      CASE_MANAGER for an embargo teardown when the P/X/A status that
-      triggered `ThreatTerminationBranchNode` was declared by the
-      CASE_MANAGER; it waits for the CASE_MANAGER's committed teardown entry
-      (EP-09-007).
+      An actor that does not hold the CASE_MANAGER role MUST NOT ask the CASE_MANAGER
+      for an embargo teardown when the P/X/A status that calls for the teardown
+      (RSH-03-001) was declared by the CASE_MANAGER; it waits for the CASE_MANAGER's
+      committed teardown entry (EP-09-007).
     rationale: >
       The CASE_MANAGER tears down on its own P/X/A detection, commits the
       teardown and records the new status, each as a ledger entry announced
@@ -291,15 +283,13 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      Every BT node or tree that mutates EM state (Propose, Accept, Reject,
-      Terminate, and all cascade variants) MUST immediately follow the
-      state-mutation step with a write of the updated `CaseStatus` to the
-      canonical case ledger. A received tree whose guarded commit records the
-      very activity that caused the transition, and whose entry type has a
-      replica apply node that replays the same transition (RSH-08-004,
-      ADR-0113), has made that write: the committed entry carries the change
-      to every replica, and a second `CaseStatus` entry for it would be a
-      duplicate.
+      Every change the CASE_MANAGER makes to EM state (Propose, Accept, Reject,
+      Terminate, and all cascade variants) MUST be followed immediately by a record of
+      the updated `CaseStatus` in the canonical case ledger. A received activity whose
+      committed entry records the very activity that caused the transition, and whose
+      entry a replica applies by replaying the same transition (RSH-08-004, ADR-0113),
+      has made that record: the committed entry carries the change to every replica, and
+      a second `CaseStatus` entry for it would be a duplicate.
     rationale: >
       EM state changes are only observable to remote actors via `CaseStatus`
       entries in `Announce(CaseLedgerEntry)` messages. A mutation without a
@@ -314,15 +304,19 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      Every BT node or tree that mutates PXA state (public awareness, exploit
-      public, attacks observed) MUST immediately follow the state-mutation step
-      with a write of the updated `CaseStatus` to the canonical case ledger.
+      Every change the CASE_MANAGER makes to PXA state (public awareness,
+      exploit public, attacks observed) MUST be followed immediately by a
+      record of the updated `CaseStatus` in the canonical case ledger.
     rationale: >
       PXA state is participant-agnostic and shared across the case. The
       rationale mirrors RSH-04-002: omitting the ledger write leaves replicas
       stale and breaks the Avoid Surprise principle.
-    verification: '`test/architecture/test_vfd_rm_pxa_write_sites.py` confirms every BT node that mutates PXA state is
-      immediately followed by a `CaseStatus` ledger write, with no uncovered write sites allowed.'
+    verification: >-
+      `test/architecture/test_vfd_rm_pxa_write_sites.py` confirms every BT node that
+      mutates PXA state is immediately followed by a `CaseStatus` ledger write, with no
+      uncovered write sites allowed;
+      `test/core/behaviors/status/test_add_participant_status_bt.py::TestAdoptedPxaReachesTheCaseStatus::test_an_owners_public_awareness_is_adopted`
+      confirms an adopted P change commits one `CaseStatus` ledger entry carrying it.
     stories:
     - story_2022_045
     - story_2022_081
@@ -330,33 +324,50 @@ groups:
     priority: MUST
     kind: protocol
     statement: >
-      The CaseStatus ledger write described in RSH-04-002 and RSH-04-003 MUST
-      be implemented as a shared BT node (`EmitCaseStatusUpdateNode`) that
-      writes the new `CaseStatus` directly to `case.case_statuses` and commits
-      a canonical `CaseLedgerEntry`, then emits `Announce(CaseLedgerEntry)` for
-      participant replica sync. It MUST NOT route through the inbox
-      authorization seam (`add_case_status_tree`) — the CASE_MANAGER is always the
-      authority for its own outbound state changes. A snapshot whose EM and PXA
-      equal those of the case's last committed `CaseStatus` changes nothing, so
-      the node MUST NOT commit or write it (CLP-07-013, ADR-0152). The change
+      The CASE_MANAGER MUST make the `CaseStatus` record of RSH-04-002 and
+      RSH-04-003 by committing a canonical `CaseLedgerEntry` that carries the
+      new `CaseStatus`, then announcing it with `Announce(CaseLedgerEntry)` for
+      participant replica sync. It is the authority for its own outbound state
+      changes, so it MUST NOT adjudicate its own `CaseStatus` as a received
+      message. A snapshot whose EM and PXA equal those of the case's last
+      committed `CaseStatus` changes nothing, so the CASE_MANAGER MUST NOT
+      commit or record it (CLP-07-013, ADR-0152). The change
       is measured against the ledger, not the case's current status, which
       already carries the register's EM (ADR-0122).
     rationale: >
-      The inbox seam handles a received `Add(CaseStatus)`, which only the
-      CASE_MANAGER sends, and only to a participant replica, which writes
-      nothing on receipt (RSH-04-005, RSH-08-003). The CASE_MANAGER writing its own
-      EM/PXA transition is an authoritative state change, not a received
-      message. Routing through
-      the inbox loopback (as `EmitAddCaseStatusToSelfNode` does) inverts
-      causality: the ledger write should precede the announce, not be triggered
-      by a self-addressed inbox message. DRY: one shared node, not N inline
-      patches per BT tree factory.
-    verification: Inspection of `vultron/core/behaviors/` confirms `EmitCaseStatusUpdateNode` writes directly to
-      `case.case_statuses` and emits `Announce(CaseLedgerEntry)` without routing through `add_case_status_tree`.
+      The CASE_MANAGER's own EM or PXA transition is an authoritative state
+      change, not a received message: a received `Add(CaseStatus)` is admitted
+      only from the CASE_MANAGER at a participant replica (RSH-04-005,
+      RSH-08-003), so judging its own change as one would apply a rule meant for
+      others. Replicas learn of the change only from the announced entry, and an
+      entry that repeats the last committed `CaseStatus` would hand every replica
+      a duplicate that records no change.
+    verification: >-
       `test/core/behaviors/status/nodes/test_case_status.py` shows an unchanged snapshot
       is neither committed nor written and an EM change after a commit is committed; the
       demo and CI ledger invariant checks find no `CaseStatus` entry equal to the one
       before it (`test/support/ledger_status_repeats.py`).
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: RSH-04-006
+    priority: MUST
+    kind: project
+    statement: >
+      In this implementation, the `CaseStatus` record of RSH-01-003, RSH-04-002
+      and RSH-04-003 MUST be made by one shared BT node,
+      `EmitCaseStatusUpdateNode`, which writes the new `CaseStatus` directly to
+      `case.case_statuses`, commits the `CaseLedgerEntry` and emits
+      `Announce(CaseLedgerEntry)`. `add_participant_status_tree` MUST run it
+      when StatusAdoptionGate passes. The node and the tree MUST NOT route
+      through `add_case_status_tree`, and MUST NOT emit a self-addressed
+      `Add(CaseStatus, VulnerabilityCase)` to the CASE_MANAGER to reach the
+      canonical write indirectly.
+    rationale: >
+      One node keeps every tree that changes EM or PXA from carrying its own
+      copy of the commit and announce. A self-addressed message would make the
+      announce trigger the ledger write instead of follow it, and would put an
+      already authorized write through a second adjudication.
     note: >
       Implemented in ISSUE-2175 (`EmitCaseStatusUpdateNode`). The inbound
       adoption path was refactored onto the same node in ISSUE-2176 (RSH-01-003),
@@ -365,10 +376,18 @@ groups:
       (proposal, Invite, Accept, Reject) need no `EmitCaseStatusUpdateNode`:
       their committed entries are replayed by the relay apply nodes
       (RSH-04-002, EP-09-007, ADR-0113).
-
-    stories:
-    - story_2022_045
-    - story_2022_088
+    verification: >-
+      `test/core/behaviors/status/test_add_participant_status_bt.py::TestAddParticipantStatusTree::test_emit_node_present_rsh_01_001`
+      confirms the tree holds `EmitCaseStatusUpdateNode` and no
+      `EmitAddCaseStatusToSelf` node, and
+      `test/core/behaviors/status/nodes/test_case_status.py::TestEmitCaseStatusUpdateNode::test_happy_path_appends_new_case_status`
+      and `::test_happy_path_commits_ledger_entry` confirm the node appends the
+      new status to the case and commits its ledger entry.
+    relationships:
+    - rel_type: implements
+      spec_id: RSH-01-003
+    - rel_type: implements
+      spec_id: RSH-04-004
   - id: RSH-04-005
     priority: MUST
     kind: protocol
@@ -422,9 +441,9 @@ groups:
     kind: protocol
     statement: >
       A CASE_MANAGER receiving an `Add(ParticipantStatus, CaseParticipant)` that
-      carries a non-adjacent forward RM jump (i.e. `is_monotonic_rm_forward` is
-      True but `is_valid_rm_transition` is False) MUST accept the reported `rm`
-      state.
+      carries a non-adjacent forward RM jump (a move forward on the RM progress
+      scale to a state that is not adjacent to the recorded one) MUST accept the
+      reported `rm` state.
     rationale: >
       The sender is authoritative about its own RM progress. Refusing a
       non-adjacent forward jump would leave the receiver's replica permanently
@@ -460,19 +479,23 @@ groups:
     - story_2022_088
   - id: RSH-06-003
     priority: MUST
-    kind: protocol
+    kind: project
     statement: >
       Neither a non-adjacent forward jump acceptance nor a backward regression
       refusal MUST be silent. In both cases the receiver MUST log a WARNING
       that names the sender, the observed `rm` state before and after, and
-      identifies the anomaly type (gap or regression).
+      identifies the anomaly type (gap or regression). This holds for every
+      received write of a participant's RM state that RSH-06-006 names.
     rationale: >
       Because CVD is inherently asynchronous, protocol anomalies are detected
       at receipt time (t₁ > t₀ when the event occurred). Silent handling makes
       diagnosis impossible for both parties and breaks protocol observability.
     verification: Unit tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
       confirm both anomaly types emit a WARNING log naming the sender, the
-      before/after `rm` states, and the anomaly type.
+      before/after `rm` states, and the anomaly type;
+      `test/core/behaviors/report/test_rm_declaration_adjudication.py` and
+      `test/core/behaviors/case/test_full_case_invite_rm_declaration.py` confirm
+      the same WARNING for the report activities and the full-case Invite replies.
     stories:
     - story_2022_074
     - story_2022_077
@@ -480,18 +503,15 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >
-      On the production `add_participant_status_tree` path (where a case context
-      is available), the CASE_MANAGER SHOULD record a note on the case when an
-      RM anomaly is detected, requesting the sender to clarify the path it took
-      between the two observed states. This holds whether the declaration
-      that carries the anomaly is accepted or refused. The note is the
-      CASE_MANAGER's own
-      act (CLP-10-001): it commits the `Add(Note, VulnerabilityCase)` carrying
-      the note inline as an `add_note_to_case` entry and attaches the note to
-      the case, and the sender learns of it from the entry's
-      `Announce(CaseLedgerEntry)` fan-out (SYNC-02-002). It MUST NOT send the
-      note to the sender as a direct `Add(Note)`, which a participant refuses
-      (HP-01-005).
+      Where a case context is available, the CASE_MANAGER SHOULD record a note on the
+      case when an RM anomaly is detected, requesting the sender to clarify the path it
+      took between the two observed states. This holds whether the declaration that
+      carries the anomaly is accepted or refused. The note is the CASE_MANAGER's own act
+      (CLP-10-001): it commits the `Add(Note, VulnerabilityCase)` carrying the note
+      inline as an `add_note_to_case` entry and attaches the note to the case, and the
+      sender learns of it from the entry's `Announce(CaseLedgerEntry)` fan-out
+      (SYNC-02-002). It MUST NOT send the note to the sender as a direct `Add(Note)`,
+      which a participant refuses (HP-01-005).
     rationale: >
       The original BT protocol design included an `RE` (Report Management Error)
       message type for exactly this scenario. Until `RE` is formalised in
@@ -549,9 +569,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The RM acceptance rule of RSH-06-001 through RSH-06-005 (accept a forward move
-      including a non-adjacent one, refuse a backward move and keep the recorded state,
-      log the anomaly, and post the clarification note where a case context exists)
+      The RM acceptance rule of RSH-06-001, RSH-06-002, RSH-06-004 and RSH-06-005 (accept
+      a forward move including a non-adjacent one, refuse a backward move and keep the
+      recorded state, and post the clarification note where a case context exists)
       MUST be applied by the CASE_MANAGER to every received write of a participant's RM
       state, whichever wire activity carried the declaration. This includes the report
       activities `Accept(Offer(VulnerabilityReport))` and
@@ -875,7 +895,7 @@ groups:
     statement: >
       Participant status is self-declared. The CASE_MANAGER MUST refuse, before
       the commit, a received `Add(ParticipantStatus)` whose target participant
-      record is not the sender's own (the record's `attributed_to` is not the
+      record is not the sender's own (the record's `attributedTo` is not the
       sender), whichever dimensions it carries: RM, VF, D and the P, X and A of
       its case status. The only exceptions are the on-behalf assertions of
       PRM-06-003 and PRM-06-004: a sender holding CASE_MANAGER or CASE_OWNER

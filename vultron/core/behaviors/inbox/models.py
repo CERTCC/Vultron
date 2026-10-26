@@ -125,7 +125,7 @@ class DispatchAdapter(Protocol):
         about the activity ``event.activity_id`` (ASK-07-001).  The fault id
         is derived from the failed activity and the failure class, so a
         second failure of the same activity builds no second fault
-        (ASK-07-010, ID-04-004).
+        (ASK-07-011, ID-04-004).
         """
         ...  # pragma: no cover
 

@@ -82,7 +82,7 @@ class as_CaseProposal(as_VultronObject):
             proposed embargo terms (EP-04-004) reach case creation.
         proposer_case_roles: The CVD roles the proposer holds in a case it
             owns, copied from its own ``ActorConfig.default_case_roles``
-            (CP-01-011, ADR-0133).  The CASE_MANAGER seats the proposer with
+            (CP-01-013, ADR-0133).  The CASE_MANAGER seats the proposer with
             these plus ``CASE_OWNER``.  Never ``CASE_MANAGER`` (CP-01-012).
     """
 
@@ -184,7 +184,7 @@ class as_CaseProposal(as_VultronObject):
         serialization_alias="proposerCaseRoles",
         description=(
             "CVD roles the proposer holds in a case it owns, from its own"
-            " default_case_roles (CP-01-011)."
+            " default_case_roles (CP-01-011, CP-01-013)."
         ),
     )
 

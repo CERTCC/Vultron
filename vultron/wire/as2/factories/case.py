@@ -1020,7 +1020,7 @@ def ledger_position_content(position: LedgerPosition) -> str:
     record (VAM-04-011..014).  The string is the ``LedgerPosition`` model's own
     JSON dump under its wire aliases, ``{"logIndex": 3, "entryHash": "..."}``;
     the receiver parses it back with ``LedgerPosition.model_validate_json``.
-    This is the only place the string is produced.
+    This is the only place the string is produced (VAM-04-019).
     """
     return position.model_dump_json(by_alias=True)
 

@@ -241,7 +241,7 @@ def _content_kwargs(
     kwargs: dict[str, object] = {}
     if "ledger_tail" in event_class.model_fields:
         # The full-case Invite and its replies each carry a ledger position as
-        # the JSON dump of a LedgerPosition in ``content`` (VAM-04-011..014).
+        # the JSON dump of a LedgerPosition in ``content`` (VAM-04-019).
         kwargs["ledger_tail"] = ledger_position_from_content(activity)
     if "termination_reason" in event_class.model_fields:
         # A termination Remove carries its what in ``content``: exactly

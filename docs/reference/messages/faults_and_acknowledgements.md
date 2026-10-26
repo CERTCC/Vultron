@@ -43,7 +43,7 @@ in a way that state-machine origin is not.
 In the example, a Vendor cannot apply a ledger entry from the CASE_MANAGER whose participant status names an impossible state, and reports the fault to the CASE_MANAGER ([RSH-09-006](../specs/protocol.md#rsh-09-006)).
 
 A fault also answers a message that the receiver understood but failed to process.
-When the use case that processes a received activity fails on the receiver's own internal error, the receiver keeps nothing of the act and its inbox sends the sender one `Create(ProcessingFault)` ([ASK-07-010](../specs/protocol.md#ask-07-010)).
+When the use case that processes a received activity fails on the receiver's own internal error, the receiver keeps nothing of the act and its inbox sends the sender one `Create(ProcessingFault)` ([ASK-07-010](../specs/protocol.md#ask-07-010), [ASK-07-011](../specs/project.md#ask-07-011)).
 Its failure class is `https://certcc.github.io/Vultron/ns/errors/InternalProcessingError`, and it names the failed activity in `inReplyTo` and nothing else, with no cause and no diagnostics ([ASK-07-006](../specs/protocol.md#ask-07-006)).
 The receiver sends it after the act is rolled back, so the rollback does not remove it.
 The inbox retries an activity it holds and replays later, such as one deferred until its case arrived, a bounded number of times ([IE-06-004](../specs/project.md#ie-06-004)).
