@@ -73,13 +73,13 @@ A later split of one reader's path into narrower situations adds a thread, which
 - Bad, because a long thread makes for long frontmatter on its start page.
 - Good, because a page's source shows which threads it is on, and a change to a thread shows in the diff of every box it moves.
 - Good, because the author places the box where a reader needs it, including at the end of one section of a long page.
-- Bad, because every member page needs an include line placed by hand; the check catches a missing box but not a badly placed one, which is left to review.
+- Bad, because every member page needs an include line placed by hand; the check catches a missing box and a section's box outside its section, but where on a whole page a box sits is left to review.
 - Neutral, because the theme's navigation-order footer and a thread box can name different next pages; the box is titled by its thread, so the two read as different routes.
 
 ## Validation
 
 A check validates every thread: each listed page exists and is reader-facing, no page appears twice in one thread, and the start page's generated block and every committed box match its data.
-A check over the built site fails when a member page or start page does not render its box for each of its threads, or renders a box made for another page.
+A check over the built site, run in CI, fails when a member page or start page does not render its box for each of its threads, renders a box made for another page, or renders a section member's box outside that section.
 It fails, rather than passes, when it finds no threads (DF-09-009).
 The agent usability test that gates the navigation change has a "follow your thread" task for each persona (ADR-0136).
 
@@ -118,4 +118,4 @@ The agent usability test that gates the navigation change has a "follow your thr
 
 Explicit page-to-page edges can be added inside or across stages if a real thread needs an order that stages cannot express; that extends this decision rather than replacing it.
 
-Generated spec requirements: `diataxis-requirements.yaml` DF-11-013 through DF-11-017, DF-11-022 and DF-11-023.
+Generated spec requirements: `diataxis-requirements.yaml` DF-11-013 through DF-11-016, DF-11-022 and DF-11-023; DF-11-017 stands until #5170 retires it.

@@ -900,8 +900,8 @@ groups:
     statement: >-
       Every page that is a member of a thread, and every start page, MUST show one box
       per thread it is on, titled by the reader's situation rather than by
-      `stakeholder_type` (DF-11-009), naming the stage the page belongs to and holding
-      a table with the columns start, previous, current and next. Each cell MUST be a
+      `stakeholder_type` (DF-11-009), naming the stage the page belongs to (a start
+      page's box names none) and holding a table with the columns start, previous, current and next. Each cell MUST be a
       list: start holds the thread's start page, previous the set of thread pages
       immediately before the page, current the page itself as text and not a link, and
       next the set immediately after it; an empty set is shown as `---`. On a start
@@ -914,8 +914,7 @@ groups:
       reader.
     rationale: >-
       A reader who followed a thread into a page needs directions onward without being
-      forced down one next page, so predecessors and successors are sets, and a list
-      per cell keeps a set readable and leaves room to style it. The start column
+      forced down one next page, so predecessors and successors are sets. The start column
       gives a deep-linked reader the way back, and the same table on the start page
       shows the first step. A page on several threads shows each, so it never needs to
       know which thread a reader is on: no query parameter, script or referrer is
@@ -927,8 +926,9 @@ groups:
       confirms one box per thread with the expected stage name and start, previous,
       current and next lists, `---` for an empty set, an unlinked current cell, a
       title taken from the start page's situation, no `stakeholder_type` or `level`
-      value, no script element, and no link carrying a query string. Not yet written;
-      owned by #5170.
+      value, no script element, and no link carrying a query string. That every
+      member page and start page shows its boxes is checked over the built site by
+      DF-11-023. Not yet written; owned by #5170.
     tracking_issue: '#5170'
   - id: DF-11-016
     priority: MUST
@@ -1073,15 +1073,13 @@ groups:
     rationale: >-
       A box at the end of a long page is out of reach for a reader who followed the
       thread to one section of it. The end of the section is where that reader
-      looks for directions onward, but no build pass can find it reliably: the
-      Markdown pass would have to reproduce the toc extension's ids and cannot see
-      headings printed by exec blocks, and the HTML pass is past MkDocs' link
-      rewriting and validation. The page's author knows where the section ends.
+      looks for directions onward. No build pass can find it reliably (DF-11-023),
+      but the page's author knows where the section ends, and the built site, where
+      the anchor is an id, can check it.
     verification: >-
       A test renders a section member's box and confirms the section wording, and
-      that a whole-page member's box keeps the page wording. The DF-11-023 check
-      confirms the box is on the page; it does not confirm that the box sits inside
-      the named section, which is left to the author and the reviewer. Not yet
+      that a whole-page member's box keeps the page wording. The DF-11-023 built-site
+      check fails when a section member's box is not inside its section. Not yet
       written; owned by #5170.
     tracking_issue: '#5170'
     relationships:
@@ -1092,30 +1090,41 @@ groups:
     kind: process
     adr:
       - ADR-0150
-      - ADR-0128
     statement: >-
-      Each box (DF-11-015) MUST be a committed fragment, one per thread and page,
-      under `docs/start/_paths/<thread>/`, generated from the thread's data and gated
+      Each box (DF-11-015) MUST be a committed fragment, one per thread and member
+      (a section member's anchor is part of its fragment's name), under
+      `docs/start/_paths/<thread>/`, generated from the thread's data and gated
       by a check mode, and excluded from the build as a page. A box MUST reach a page
       only through an `include-markdown` directive its author places, and the build
       MUST NOT add one. A check over the built site MUST fail, naming the page and
       the directive to add, when a member page or start page does not render its box
-      for each thread it is on, and when a page renders a box made for another page.
+      for each thread it is on, when a page renders a box made for another page, and
+      when a section member's box (DF-11-022) does not sit after the element carrying
+      its anchor and before the next heading of the same or a higher level.
     rationale: >-
       The author knows where on a page directions onward belong; an automatic insert
       can only guess, and the guess was the page end. A committed fragment shows the
       box in a diff and keeps its content generated, so hand placement cannot make it
-      drift from the thread. Checking the built site rather than the source catches a
+      drift from the thread; the message-vocabulary fragments follow the same
+      pattern (ADR-0128). Checking the built site rather than the source catches a
       box that is missing however the page is assembled, without requiring its
       placement to be mechanical.
     verification: >-
       The generator's check mode fails when a committed fragment differs from what its
       thread implies, or when a fragment exists for a page no longer on its thread.
-      Unit tests over a fixture site cover each check failure: a member page with no
-      box, a start page with no box, a page on two threads with one box, and a page
-      that includes another page's fragment; the check fails when it resolves no
-      targets (DF-09-009). Not yet written; owned by #5170.
+      A test confirms `docs/start/_paths/` is in `exclude_docs`. Unit tests over a
+      fixture site cover each built-site check failure, asserting that the message
+      names the page and the `include-markdown` line to add: a member page with no
+      box, a start page with no box, a page on two threads with one box, a page that
+      includes another page's fragment, a section member's box outside its section,
+      and a rendered box with no matching `include-markdown` directive in its page's
+      source, which is how a box added by the build shows; the check fails when it
+      resolves no targets (DF-09-009). The check runs in CI beside the other
+      built-site checks, not as a pre-commit hook, since it needs a full site build.
+      Not yet written; owned by #5170.
     tracking_issue: '#5170'
+    lint_suppress:
+    - phantom_path_ref
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers
   description: >-

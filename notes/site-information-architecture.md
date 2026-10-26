@@ -471,23 +471,25 @@ at some points and not at others (ADR-0150).
   in its stage's `framing:`, which renders under the stage heading; that is
   how `contribute.md` keeps its decision-record and developer-docs links.
 - **Member pages and start pages carry a box per thread.** It is titled by
-  situation, never by `stakeholder_type`, names the page's stage, and holds a
-  start | previous | current | next table whose cells are lists, with `---` for
-  an empty set and the current page unlinked; a start page's own box starts at
-  `--- | start`. The sets are the adjacent ones: the neighbor in a chain, or
-  else the whole neighboring set stage (or the near end of a neighboring
-  chain). It is the same for every reader, so no query parameter or referrer
-  is needed (DF-11-015).
+  situation, never by `stakeholder_type`, names the page's stage (a start
+  page's names none), and holds a start | previous | current | next table whose
+  cells are lists, with `---` for an empty set and the current page unlinked; on
+  a start page, previous is `---` and current is the start page. The sets are
+  the adjacent ones: the neighbor in a chain, or else the whole neighboring set
+  stage (or the near end of a neighboring chain). It is the same for every
+  reader, so no query parameter or referrer is needed (DF-11-015).
 - **A box is a committed fragment, placed by hand.** `docs-site --write`
-  generates one per thread and page under `docs/start/_paths/<thread>/`; the
-  page's author adds the `include-markdown` line where directions onward
-  belong, and a built-site check fails when a box is missing (DF-11-023). The
+  generates one per thread and member (a section's anchor in its name) under
+  `docs/start/_paths/<thread>/`; the page's author adds the `include-markdown`
+  line where directions onward belong, and a built-site check in CI fails when
+  a box is missing (DF-11-023). The
   build never adds one, because no pass finds the right spot: the Markdown pass
   would have to copy the toc extension's ids and cannot see headings printed by
   exec blocks, and the HTML pass is past MkDocs' link rewriting and checks. A
   section member's box says "section" and goes at that section's end
-  (DF-11-022); the check cannot tell whether it is inside the right section, so
-  review that by eye. With no box at the page end, the theme's footer stays.
+  (DF-11-022). The built site has the section's anchor as an id, so the same
+  check fails when the box is not between that heading and the next one of the
+  same or a higher level. With no box at the page end, the theme's footer stays.
 - **Not a level sort.** The level rule forbids depending upward; it does not
   require a thread to climb in level. Order a thread by what the reader needs
   first.
