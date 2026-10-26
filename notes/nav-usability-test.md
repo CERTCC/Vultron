@@ -35,7 +35,7 @@ survives any nav change that keeps its pages.
 
 ## Running it
 
-All commands are `uv run nav-usability …` (`vultron/metadata/docs/nav_usability.py`).
+All commands are `uv run nav-usability …` (`vultron/metadata/docs/nav_usability/`).
 
 1. **Tree test (Stage 1).** `prompt --persona P [--config X]` prints the
    briefing: the persona, the label tree with no paths, and the persona's
