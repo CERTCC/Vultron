@@ -168,6 +168,8 @@ groups:
     relationships:
     - rel_type: constrains
       spec_id: HP-01-010
+    - rel_type: constrains
+      spec_id: HP-10-001
   - id: HP-01-006
     priority: MUST
     kind: protocol
@@ -728,8 +730,6 @@ groups:
     - story_2022_012
     - story_2022_038
     relationships:
-    - rel_type: refines
-      spec_id: HP-01-005
     - rel_type: constrains
       spec_id: HP-01-010
   - id: HP-09-002
@@ -765,8 +765,6 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-09-001
-    - rel_type: refines
-      spec_id: HP-01-005
     stories:
     - story_2022_002
     - story_2022_012

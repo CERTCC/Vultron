@@ -9,7 +9,9 @@ description: >
   `foundation` and which are `project`, splitting a spec that mixes
   kinds, what a kind change moves, and the scoping of MS-12-006;
   the enum values spec-lint accepts for `kind`, `priority` and `rel_type`, and
-  where each relationship is recorded (SR-13); `adr:`
+  where each relationship is recorded (SR-13); how to pick a `rel_type` by its
+  definition, including `uses_definition` and recording no link when no type
+  fits (SR-13-017, SR-13-018); `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
   (MS-02-003/004); the `verification_debt` ratchet (MS-10-005..009); guards that
@@ -199,7 +201,8 @@ MS-02-002 prose writes "MUST NOT", but the enum uses underscores; `MUST NOT`
 What each type means, and which end is upstream, is SR-13-001 through SR-13-011
 and SR-13-017 (`spec-dump --group SR-13`); do not keep a second copy here.
 Record a link once, on the end SR-13-012 names, never at both ends. A second
-copy written with an opposite verb closes a loop that spec-lint rejects (SR-13-014, SR-13-015).
+copy written with an opposite verb closes a loop that spec-lint rejects
+(SR-13-014, SR-13-015).
 `spec-dump` and the docs "Related" column show only the links a requirement
 records. To find the links that name a requirement, filter
 `relation_graph.recorded_relationships()` on their target. To find what a change
@@ -212,7 +215,7 @@ narrower requirement, never `constrains` on the general one (SR-13-013).
 no link (SR-13-018): do not fall back to `depends_on`, which then becomes the new
 catch-all. A false link gives the impact walk a wrong answer; a missing one costs
 at most a missed answer, and the statement's prose still cites the other
-requirement (ADR-0160). Pick the type by its definition, not by habit:
+requirement (ADR-0161). Pick the type by its definition, not by habit:
 
 - `refines` only when meeting A in A's case meets B. A sibling in the same group
   that adds a duty is `extends`; one that states how B is met is `implements`.

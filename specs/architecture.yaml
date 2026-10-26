@@ -288,6 +288,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: ARCH-25-004
+    - rel_type: refines
+      spec_id: ARCH-25-008
   - id: ARCH-12-003
     priority: MUST
     kind: project
@@ -1752,8 +1754,6 @@ groups:
     relationships:
     - rel_type: extends
       spec_id: ARCH-25-007
-    - rel_type: constrains
-      spec_id: ARCH-12-002
     - rel_type: uses_definition
       spec_id: MV-11-002
   - id: ARCH-25-009

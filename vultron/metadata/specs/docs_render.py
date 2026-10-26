@@ -89,6 +89,7 @@ _REL_LABEL: dict[RelationType, str] = {
     RelationType.PART_OF: "Part of",
     RelationType.CONSTRAINS: "Constrains",
     RelationType.SATISFIES: "Satisfies",
+    RelationType.USES_DEFINITION: "Uses definition from",
 }
 
 #: Rendered in place of the requirement list for a kind no spec carries yet.

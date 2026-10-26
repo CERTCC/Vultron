@@ -25,13 +25,14 @@ from vultron.metadata.docs.requirement_catalog import (
 )
 from vultron.metadata.docs.site_urls import url_path
 from vultron.metadata.specs.docs_render import (
+    _REL_LABEL,
     render_catalog_page,
     render_for_kind,
     render_requirement_row,
     requirement_callout,
 )
 from vultron.metadata.specs.registry import load_registry
-from vultron.metadata.specs.schema import SpecKind, SpecTag
+from vultron.metadata.specs.schema import RelationType, SpecKind, SpecTag
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -358,6 +359,11 @@ def test_render_for_kind_cross_kind_link(cross_kind_registry):
 def test_render_for_kind_relationship_label(cross_kind_registry):
     md = render_for_kind("architecture", cross_kind_registry)
     assert "Satisfies" in md
+
+
+def test_every_relation_type_has_a_label():
+    """A new RelationType member must not render as its raw value."""
+    assert set(_REL_LABEL) == set(RelationType)
 
 
 def test_render_for_kind_relationship_note(cross_kind_registry):
