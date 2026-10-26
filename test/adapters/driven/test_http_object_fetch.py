@@ -171,3 +171,18 @@ class TestHttpObjectFetcher:
     def test_at_least_one_attempt_is_required(self):
         with pytest.raises(ValueError, match="at least 1"):
             HttpObjectFetcher(max_attempts=0)
+
+
+class TestAnyFailureIsAResult:
+    @pytest.mark.spec("AKM-05-008")
+    def test_a_url_the_client_refuses_is_retried_then_a_failed_result(self):
+        """Not only HTTP errors: whatever an attempt raises ends in a result."""
+        refused = httpx.InvalidURL("Invalid port: '99999'")
+
+        result, get = _fetch(HttpObjectFetcher(max_attempts=2), [refused] * 2)
+
+        assert result.body is None
+        assert result.failure is not None
+        assert "Invalid port" in result.failure
+        assert result.attempts == 2
+        assert get.call_count == 2

@@ -71,9 +71,10 @@ groups:
       has, such as the case it participates in.
     rationale: >-
       How this codebase meets AKM-02-002; split from it so AKM-02-002 states only what
-      other participants observe (MS-12-010). This codebase does not yet dereference
-      (AKM-05-003), so a reference to an object its recipient does not hold could not be
-      resolved. Carrying the object inline instead is a shortcut of this prototype
+      other participants observe (MS-12-010). This codebase dereferences only the few
+      references AKM-05-007 lists, so a reference to an object its recipient does not
+      hold could not in general be resolved. Carrying the object inline instead is a
+      shortcut of this prototype
       reference implementation, not a protocol rule.
     verification: >-
       `test/architecture/test_introduced_objects_inline.py` classifies every outbound
@@ -294,10 +295,10 @@ groups:
       `case_id` and `object_id` query parameters, an object a case it manages names (the
       case itself, an embargo in its register, or a participant, status, report or note
       it lists) or an object whose `context` is that case, to an active participant of
-      the case (CM-10-004). It MUST answer 403 to a requester that is not one, 401 to a
-      request naming no requester, and 404 for a case it does not manage or an object
-      the case does not name. The requester is the actor the request names in its
-      `X-Vultron-Actor` header.
+      the case (CM-10-004) that has not closed on it (CM-23-004). It MUST answer 403 to
+      a requester that is not one, 401 to a request naming no requester, and 404 for a
+      case it does not manage or an object the case does not name. The requester is the
+      actor the request names in its `X-Vultron-Actor` header.
     rationale: >-
       A replica dereferences a case object from the actor that holds the canonical case
       (ADR-0107), and only an active participant is entitled to case content

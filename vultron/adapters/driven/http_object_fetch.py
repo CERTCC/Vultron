@@ -32,9 +32,7 @@ at once, since the same request will never succeed (AKM-05-008, OX-13-005).
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import random
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -46,6 +44,12 @@ from vultron.adapters.driven.http_delivery import (
     DEFAULT_DELIVERY_TIMEOUT,
     DEFAULT_INITIAL_DELAY,
     DEFAULT_MAX_DELAY,
+)
+from vultron.adapters.driven.http_retry import (
+    Backoff,
+    RetriesExhaustedError,
+    TerminalAttemptError,
+    retry_with_backoff,
 )
 from vultron.core.models.object_fetch import ObjectFetchSource, ObjectReference
 
@@ -118,14 +122,13 @@ class HttpObjectFetcher:
         max_delay: float = DEFAULT_MAX_DELAY,
         timeout: float = DEFAULT_FETCH_TIMEOUT,
     ) -> None:
-        if max_attempts < 1:
-            raise ValueError(
-                f"max_attempts must be at least 1: {max_attempts}"
-            )
+        self._backoff = Backoff(
+            attempts=max_attempts,
+            initial_delay=initial_delay,
+            multiplier=backoff_multiplier,
+            max_delay=max_delay,
+        )
         self._max_attempts = max_attempts
-        self._initial_delay = initial_delay
-        self._backoff_multiplier = backoff_multiplier
-        self._max_delay = max_delay
         self._timeout = timeout
 
     async def fetch(
@@ -133,72 +136,92 @@ class HttpObjectFetcher:
     ) -> ObjectFetchResult:
         """Fetch *reference*'s object, retrying a retryable failure.
 
-        Never raises for a failed fetch: the failure is the result.
+        Never raises for a failed fetch: the failure is the result.  A 4xx
+        answer, or a 2xx that is not a JSON object, ends the fetch at once;
+        any other failure, a URL the client refuses included, is retried up
+        to the cap (AKM-05-008).
         """
         url = fetch_url(reference)
-        delay = self._initial_delay
-        last_error = "no attempt made"
-        async with httpx.AsyncClient() as client:
-            for attempt in range(1, self._max_attempts + 1):
-                try:
-                    response = await client.get(
-                        url,
-                        headers={
-                            REQUESTER_HEADER: requester_id,
-                            "Accept": "application/activity+json",
-                        },
-                        timeout=self._timeout,
-                    )
-                    response.raise_for_status()
-                    body = response.json()
-                    if not isinstance(body, dict):
-                        return ObjectFetchResult(
-                            None,
-                            f"GET {url} answered with a JSON"
-                            f" {type(body).__name__}, not an object",
-                            attempt,
-                        )
-                    logger.info(
-                        "Fetched '%s' from %s for actor_id=%s (attempt %d)",
-                        reference.object_id,
-                        url,
-                        requester_id,
-                        attempt,
-                    )
-                    return ObjectFetchResult(body, None, attempt)
-                except httpx.HTTPStatusError as exc:
-                    status = exc.response.status_code
-                    if 400 <= status < 500:
-                        # The same request will never succeed (OX-13-005).
-                        return ObjectFetchResult(
-                            None, f"GET {url} answered HTTP {status}", attempt
-                        )
-                    last_error = f"GET {url} answered HTTP {status}"
-                except ValueError as exc:
-                    # A 2xx whose body is not JSON: retrying gets the same.
-                    return ObjectFetchResult(
-                        None,
-                        f"GET {url} answered with no JSON: {exc}",
-                        attempt,
-                    )
-                except httpx.HTTPError as exc:
-                    last_error = f"GET {url} failed: {exc!r}"
-                if attempt < self._max_attempts:
-                    logger.info(
-                        "Fetch attempt %d/%d of '%s' failed (%s); retrying"
-                        " in %.1fs",
-                        attempt,
-                        self._max_attempts,
-                        reference.object_id,
-                        last_error,
-                        delay,
-                    )
-                    # Retry jitter, not a secret: a PRNG is the right tool.
-                    await asyncio.sleep(delay + random.uniform(0, 0.5))  # noqa: S311
-                    delay = min(
-                        delay * self._backoff_multiplier, self._max_delay
-                    )
-        return ObjectFetchResult(None, last_error, self._max_attempts)
+
+        def _log_retry(
+            number: int, attempts: int, exc: Exception, delay: float
+        ) -> None:
+            logger.info(
+                "Fetch attempt %d/%d of '%s' failed (%s); retrying in %.1fs",
+                number,
+                attempts,
+                reference.object_id,
+                _describe(url, exc),
+                delay,
+            )
+
+        try:
+            async with httpx.AsyncClient() as client:
+                body, attempts = await retry_with_backoff(
+                    lambda: self._get(client, url, requester_id),
+                    self._backoff,
+                    _log_retry,
+                )
+        except TerminalAttemptError as exc:
+            return ObjectFetchResult(
+                None, _describe(url, exc.cause), exc.attempt
+            )
+        except RetriesExhaustedError as exc:
+            return ObjectFetchResult(
+                None, _describe(url, exc.last), exc.attempts
+            )
+        logger.info(
+            "Fetched '%s' from %s for actor_id=%s (attempt %d)",
+            reference.object_id,
+            url,
+            requester_id,
+            attempts,
+        )
+        return ObjectFetchResult(body, None, attempts)
+
+    async def _get(
+        self, client: httpx.AsyncClient, url: str, requester_id: str
+    ) -> dict[str, Any]:
+        """One attempt: the fetched JSON object, or the failure raised."""
+        try:
+            response = await client.get(
+                url,
+                headers={
+                    REQUESTER_HEADER: requester_id,
+                    "Accept": "application/activity+json",
+                },
+                timeout=self._timeout,
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            if 400 <= exc.response.status_code < 500:
+                # The same request will never succeed (OX-13-005).
+                raise TerminalAttemptError(exc) from exc
+            raise
+        try:
+            body = response.json()
+        except ValueError as exc:
+            # A 2xx whose body is not JSON: a retry gets the same.
+            raise TerminalAttemptError(
+                ValueError(f"answered with no JSON: {exc}")
+            ) from exc
+        if not isinstance(body, dict):
+            raise TerminalAttemptError(
+                ValueError(
+                    f"answered with a JSON {type(body).__name__}, not an"
+                    " object"
+                )
+            )
+        return body
+
+
+def _describe(url: str, exc: Exception) -> str:
+    """One line naming why a fetch of *url* failed."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"GET {url} answered HTTP {exc.response.status_code}"
+    if isinstance(exc, ValueError):
+        return f"GET {url} {exc}"
+    return f"GET {url} failed: {exc!r}"
 
 
 __all__ = [

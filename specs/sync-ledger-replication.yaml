@@ -187,10 +187,11 @@ groups:
       `Announce(CaseLedgerEntry)` and MUST NOT use a URI-only reference there.
     rationale: >-
       How this codebase meets SYNC-02-004; split from it so SYNC-02-004 states only what
-      other participants observe (MS-12-010). Inlining lets the recipient validate the hash
-      chain without a round-trip to the sender, and this codebase does not yet dereference
-      (AKM-05-003). An entry fetched by reference validates the same way, so carrying it
-      inline is a shortcut of this prototype reference implementation, not a protocol rule.
+      other participants observe (MS-12-010). Inlining lets the recipient validate the
+      hash chain without a round-trip to the sender, and this codebase never
+      dereferences a ledger entry (AKM-05-007). An entry fetched by reference validates
+      the same way, so carrying it inline is a shortcut of this prototype reference
+      implementation, not a protocol rule.
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py::test_handle_outbox_item_preserves_inline_case_ledger_entry_fields`
       confirms the delivered Announce(CaseLedgerEntry) carries the full inline entry,

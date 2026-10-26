@@ -27,6 +27,7 @@ from vultron.core.models._helpers import now_utc
 from vultron.core.models.actor import VultronOrganization
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
+from vultron.core.models.dimensions import RmDimension
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.embargo import (
@@ -37,12 +38,14 @@ from vultron.core.models.object_fetch import (
     ObjectFetchUse,
     ObjectReference,
 )
+from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.report import VulnerabilityReport
 from vultron.core.services.dereference import (
     case_object_for_participant,
     references_to_fetch,
     with_fetched_object,
 )
+from vultron.core.states.rm import RM
 from vultron.errors import (
     VultronNotACaseParticipantError,
     VultronNotFoundError,
@@ -394,6 +397,27 @@ class TestCaseObjectForParticipant:
         participant = dl.read(case.actor_participant_index[_PARTICIPANT])
         assert isinstance(participant, CaseParticipant)
         participant.record_removal("https://example.org/activities/remove-1")
+        dl.save(participant)
+
+        with pytest.raises(VultronNotACaseParticipantError):
+            case_object_for_participant(
+                dl, CASE_MANAGER_ID, case.id_, case.id_, _PARTICIPANT
+            )
+
+    @pytest.mark.spec("AKM-05-006")
+    @pytest.mark.spec("CM-23-004")
+    def test_a_participant_that_has_closed_is_refused(self):
+        """A closed participant is sent nothing further, so it reads nothing."""
+        dl, case = self._host()
+        participant = dl.read(case.actor_participant_index[_PARTICIPANT])
+        assert isinstance(participant, CaseParticipant)
+        participant.participant_statuses = [
+            ParticipantStatus(
+                context=case.id_,
+                attributed_to=_PARTICIPANT,
+                rm=RmDimension(state=RM.CLOSED),
+            )
+        ]
         dl.save(participant)
 
         with pytest.raises(VultronNotACaseParticipantError):

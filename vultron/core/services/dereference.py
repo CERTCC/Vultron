@@ -49,8 +49,9 @@ from vultron.core.models.object_fetch import (
     ObjectFetchUse,
     ObjectReference,
 )
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.participants.authority import resolve_case_manager_id
-from vultron.core.participants.recipients import is_case_content_recipient
+from vultron.core.participants.recipients import may_act_on_case
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.errors import (
     VultronNotACaseParticipantError,
@@ -248,8 +249,6 @@ def with_fetched_object(
 
 def _case_names(case: VulnerabilityCase, object_id: str) -> bool:
     """True when *case*'s own file names *object_id*."""
-    if object_id == case.id_:
-        return True
     named = [
         *(entry.embargo_id for entry in case.embargo_register),
         *(_id_of(p) for p in case.case_participants),
@@ -266,13 +265,15 @@ def case_object_for_participant(
     case_id: str,
     object_id: str,
     requester_id: str,
-) -> object:
+) -> PersistableModel:
     """The case host's read: *object_id*, as *case_id*'s host holds it.
 
     Served only by the case's CASE_MANAGER, *host_actor_id*, whose store
     *dl* is: a participant's replica is not the case host.  Served only to
-    an active participant of the case (CM-10-004), and only an object the
-    case names, or one scoped to it by its ``context`` (AKM-05-006).
+    an active participant of the case (CM-10-004) that has not closed, as
+    case content is sent only to one (CM-23-004, :func:`may_act_on_case`),
+    and only an object the case names, or one scoped to it by its
+    ``context`` (AKM-05-006).
     *requester_id* is the actor the request claims to be: the prototype
     authenticates nobody (#509).
 
@@ -283,7 +284,7 @@ def case_object_for_participant(
             under another case, so the read tells a participant nothing
             about cases it is not in.
         VultronNotACaseParticipantError: When *requester_id* is not an active
-            participant of the case.
+            participant of the case, or has closed on it.
     """
     case = dl.read_case(case_id)
     if case is None:
@@ -292,7 +293,7 @@ def case_object_for_participant(
     if manager_id is None or not same_actor_id(manager_id, host_actor_id):
         raise VultronNotFoundError("VulnerabilityCase", case_id)
     requester = normalise_actor_id(requester_id)
-    if not is_case_content_recipient(case, dl, requester):
+    if not may_act_on_case(case, dl, requester):
         raise VultronNotACaseParticipantError(case.id_, requester)
     if object_id == case.id_:
         return case

@@ -856,7 +856,8 @@ groups:
       activities are given records only one level deep — so a second-level inline object collapses to
       an id that no read can expand. CP-01-004 requires `as_CaseProposal` to carry its
       `as_VulnerabilityReport` inline for exactly the reason that makes the collapse unrecoverable: the
-      receiver may not hold the report and this codebase does not yet dereference (AKM-03-003). The
+      receiver may not hold the report and this codebase dereferences only the few
+      references AKM-05-007 lists (AKM-03-003). The
       declaration belongs on the model because that is where the invariant is, and because a lookup
       table in the storage layer is action at a distance from the field it governs.
     relationships:

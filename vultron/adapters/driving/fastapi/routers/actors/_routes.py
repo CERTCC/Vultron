@@ -30,7 +30,6 @@ from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
-    Header,
     HTTPException,
     Request,
     status,
@@ -40,7 +39,6 @@ from pydantic import BaseModel, Field
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.http_object_fetch import REQUESTER_HEADER
 from vultron.adapters.driving.fastapi.deps import (
     get_actor_dl,
     node_base_url,
@@ -51,7 +49,10 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.adapters.driving.fastapi.routers.actors import _embargo_policy
+from vultron.adapters.driving.fastapi.routers.actors import (
+    _case_object,
+    _embargo_policy,
+)
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_addressed_to,
     parse_activity,
@@ -75,16 +76,11 @@ from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.datalayer import DataLayer
-from vultron.core.services.dereference import case_object_for_participant
 from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
     GetActionRulesUseCase,
 )
-from vultron.errors import (
-    VultronNotACaseParticipantError,
-    VultronNotFoundError,
-    VultronValidationError,
-)
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 AnyActor = CoreActor
@@ -424,62 +420,6 @@ def get_actor_profile(
 
 
 @router.get(
-    "/{actor_id:path}/case-object",
-    summary="Get a Case Object for a Case Participant",
-    description=(
-        "Returns an object a case names, as the case's CASE_MANAGER holds"
-        " it, to an active participant of that case (object dereference,"
-        " AKM-05-006). The requester names itself in the"
-        f" `{REQUESTER_HEADER}` header; the prototype trusts that claim as"
-        " its inbox trusts a claimed sender, and authenticates nobody"
-        " (#509)."
-    ),
-    operation_id="actors_get_case_object",
-)
-def get_case_object(
-    actor_id: str,
-    case_id: str,
-    object_id: str,
-    request: Request,
-    requester: str | None = Header(default=None, alias=REQUESTER_HEADER),
-    dl: DataLayer = Depends(get_actor_dl),
-) -> AS2JSONResponse:
-    """Serve *object_id* of *case_id* to the participant the request names.
-
-    404 when this actor does not host the case, or the case does not name
-    the object; 403 when the requester is no active participant of the
-    case; 401 when the request names no requester.
-    """
-    if not requester:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"The request names no requester ({REQUESTER_HEADER}).",
-        )
-    host_id = actor_hosts.canonical_actor_uri(
-        actor_id, base_url=node_base_url(request)
-    )
-    try:
-        found = case_object_for_participant(
-            cast(CasePersistence, dl), host_id, case_id, object_id, requester
-        )
-    except VultronNotFoundError as exc:
-        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        )
-    except VultronNotACaseParticipantError as exc:
-        logger.warning(
-            "case object read refused: %s (case_id=%s, object_id=%s)",
-            exc,
-            case_id,
-            object_id,
-        )
-        raise HTTPException(  # noqa: B904  # ruff-baseline #3353
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        )
-    return AS2JSONResponse(found)
-
-
-@router.get(
     "/{actor_id:path}/cases/{case_id}/action-rules",
     summary="Get CVD Action Rules for an Actor in a Case",
     description=(
@@ -698,8 +638,10 @@ def post_actor_outbox(
 
 # Included ahead of the catch-all below on purpose: FastAPI matches routes in
 # registration order, and ``GET /{actor_id:path}`` would otherwise claim
-# ``/actors/{slug}/embargo-policy`` with the suffix folded into the segment.
+# ``/actors/{slug}/embargo-policy`` and ``/actors/{slug}/case-object`` with the
+# suffix folded into the segment.
 router.include_router(_embargo_policy.router)
+router.include_router(_case_object.router)
 
 
 @router.get(

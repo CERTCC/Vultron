@@ -229,13 +229,13 @@ Each of the first two has its own trust anchor.
 
 The bootstrap is a one-time `Create(VulnerabilityCase)` message ([CBT-01-001](../../reference/specs/protocol.md#cbt-01-001)).
 It carries the whole case and every participant record, inline or by reference ([CBT-01-002](../../reference/specs/protocol.md#cbt-01-002), [CBT-01-007](../../reference/specs/protocol.md#cbt-01-007)).
-The reference implementation embeds them in full rather than as bare links, because it cannot yet fetch an object by reference ([CBT-01-012](../../reference/specs/project.md#cbt-01-012)).
+The reference implementation embeds them in full rather than as bare links, because it fetches only a few objects by reference ([CBT-01-012](../../reference/specs/project.md#cbt-01-012)).
 It names the Case Owner and the CASE_MANAGER as distinct participants ([CBT-01-003](../../reference/specs/protocol.md#cbt-01-003)).
 It includes the reporter at RM `ACCEPTED`, set directly ([CBT-01-008](../../reference/specs/protocol.md#cbt-01-008)).
 
 A receiver that finds a required participant missing rejects the whole bootstrap.
 It does not fill the gap from what it thinks the participant should be ([CBT-05-008](../../reference/specs/protocol.md#cbt-05-008)).
-The reference implementation also counts a participant present only as a bare link as missing, because it cannot fetch it ([CBT-05-009](../../reference/specs/project.md#cbt-05-009)).
+The reference implementation also counts a participant present only as a bare link as missing, because it does not fetch it ([CBT-05-009](../../reference/specs/project.md#cbt-05-009)).
 
 The report receiver, not the CASE_MANAGER, sends the reporter's bootstrap ([ADR-0132](../../adr/0132-the-report-receiver-introduces-the-case-manager-to-the-reporter.md)).
 The CASE_MANAGER sends its own `Create(VulnerabilityCase)` to the Case Owner only ([CBT-01-010](../../reference/specs/protocol.md#cbt-01-010)).

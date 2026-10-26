@@ -40,7 +40,8 @@ groups:
     statement: '`as_CaseProposal` MUST include an `object_` field containing a fully inline `as_VulnerabilityReport` around
       which the case is to be created. URI references to the report are NOT permitted (see AKM-03-003).'
     rationale: The case-actor service needs the vulnerability report to initialize the case. URI references are prohibited
-      because the receiver may not have the referenced object and this codebase does not yet dereference (AKM-05-003, AKM-03-003).
+      because the receiver may not have the referenced object, and this codebase
+      dereferences only the few references AKM-05-007 lists (AKM-03-003).
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `object_` is typed as
       `ActivityStreamRequiredRef[as_VulnerabilityReport]`, enforcing an inline report and rejecting bare URI references.
   - id: CP-01-005
@@ -462,7 +463,8 @@ groups:
       store round-trip rather than dehydrating to a bare URI.
     rationale: How this codebase meets CP-05-003 and CP-05-004; split from them so they state only what other participants
       observe (MS-12-010). Carrying the proposal inline rather than by reference is a shortcut of this prototype reference
-      implementation, which does not yet dereference (AKM-05-003), not a protocol rule.
+      implementation, which dereferences only the few references AKM-05-007 lists,
+      not a protocol rule.
     verification: '`test/core/use_cases/received/test_case_proposal.py::TestCreateCaseProposalReceivedUseCase::test_execute_creates_case_and_queues_activities`
       confirms the accept path emits `Accept(as_CaseProposal)` whose `object_` is the typed proposal, not a bare URI string;
       unit tests in `test/core/behaviors/case/test_case_proposal_admission.py` confirm the reject path emits

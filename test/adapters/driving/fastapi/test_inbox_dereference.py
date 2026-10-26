@@ -33,7 +33,10 @@ from test.support.case_manager import (
 from test.support.embargo_register import activate
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_object_fetch import ObjectFetchResult
-from vultron.adapters.driving.fastapi import inbox_orchestration as io
+from vultron.adapters.driving.fastapi import (
+    inbox_dereference as deref,
+    inbox_orchestration as io,
+)
 from vultron.adapters.driving.fastapi.inbox_dereference import (
     FastAPIDereferencePort,
     open_fetches,
@@ -589,15 +592,17 @@ def test_a_waiter_not_held_for_replay_is_logged_and_skipped(
         )
     )
 
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.WARNING):
         queued = settle_fetch(
             dl, _REPLICA, reference.object_id, ObjectFetchResult(None, "x", 1)
         )
 
     assert queued == []
-    assert any("not held" in r.getMessage() for r in caplog.records)
-    (fetch,) = _fetches(dl)
-    assert fetch.state is ObjectFetchState.FAILED
+    assert any(
+        r.levelno == logging.WARNING and "not held" in r.getMessage()
+        for r in caplog.records
+    )
+    assert _fetches(dl) == [], "a record nothing can wait on is removed"
 
 
 def test_release_keeps_a_settled_fetch_others_still_wait_on():
@@ -657,14 +662,178 @@ def test_the_default_fetcher_takes_its_limits_from_the_config(
     from types import SimpleNamespace
 
     monkeypatch.setattr(
-        io,
+        deref,
         "get_config",
         lambda: SimpleNamespace(
             max_object_fetch_attempts=7, object_fetch_timeout_seconds=1.5
         ),
     )
 
-    fetcher = io.default_object_fetcher()
+    fetcher = deref.default_object_fetcher()
 
     assert fetcher._max_attempts == 7
     assert fetcher._timeout == 1.5
+
+
+def _open_fetch_and_held_waiter(
+    dl: SqliteDataLayer, case: VulnerabilityCase, object_id: str
+) -> str:
+    """An open fetch of *object_id* and the held activity waiting on it."""
+    activity_id = f"https://example.org/activities/waits-on-{object_id[-5:]}"
+    dl.save(
+        PendingObjectFetch.for_reference(
+            _store_reference(case.id_, object_id)
+        ).model_copy(update={"waiting_activity_ids": [activity_id]})
+    )
+    dl.create(
+        DeferredInboxActivity(
+            activity_id=activity_id,
+            received_body=json.dumps({"id": activity_id}),
+        )
+    )
+    return activity_id
+
+
+async def _no_lock(work: Any) -> None:
+    work()
+
+
+@pytest.mark.spec("AKM-05-008")
+def test_the_default_fetcher_is_built_only_when_something_is_open(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    dl, case = _replica()
+    _open_fetch_and_held_waiter(dl, case, "urn:uuid:obj-1")
+    fake = _FakeFetcher(
+        {"urn:uuid:obj-1": ObjectFetchResult(None, "unreachable", 1)}
+    )
+    built: list[int] = []
+
+    def _default() -> _FakeFetcher:
+        built.append(1)
+        return fake
+
+    monkeypatch.setattr(deref, "default_object_fetcher", _default)
+
+    asyncio.run(
+        deref.resolve_open_fetches(dl, _REPLICA, _no_lock, lambda: None)
+    )
+    asyncio.run(
+        deref.resolve_open_fetches(dl, _REPLICA, _no_lock, lambda: None)
+    )
+
+    assert built == [1], "built for the open fetch, not for the empty run"
+    assert len(fake.asked) == 1
+
+
+@pytest.mark.spec("AKM-05-008")
+def test_a_fetch_still_open_after_the_round_cap_waits_for_the_next_run(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A settlement that leaves the fetch open bounds the run, not loops it."""
+    dl, case = _replica()
+    _open_fetch_and_held_waiter(dl, case, "urn:uuid:obj-1")
+    fake = _FakeFetcher(
+        {"urn:uuid:obj-1": ObjectFetchResult(None, "unreachable", 1)}
+    )
+    monkeypatch.setattr(deref, "settle_fetch", lambda *_: [])
+
+    asyncio.run(
+        deref.resolve_open_fetches(dl, _REPLICA, _no_lock, lambda: None, fake)
+    )
+
+    assert len(fake.asked) == deref.MAX_FETCH_ROUNDS
+    (fetch,) = _fetches(dl)
+    assert fetch.state is ObjectFetchState.PENDING
+
+
+@pytest.mark.spec("AKM-05-008")
+def test_a_fetcher_that_raises_fails_the_fetch_and_the_run_goes_on(
+    caplog: pytest.LogCaptureFixture,
+):
+    dl, case = _replica()
+    first = _open_fetch_and_held_waiter(dl, case, "urn:uuid:obj-1")
+    second = _open_fetch_and_held_waiter(dl, case, "urn:uuid:obj-2")
+
+    class _Raises:
+        def __init__(self) -> None:
+            self.asked: list[str] = []
+
+        async def fetch(
+            self, reference: ObjectReference, requester_id: str
+        ) -> ObjectFetchResult:
+            self.asked.append(reference.object_id)
+            raise RuntimeError("the client refused the URL")
+
+    fetcher = _Raises()
+    with caplog.at_level(logging.WARNING):
+        asyncio.run(
+            deref.resolve_open_fetches(
+                dl, _REPLICA, _no_lock, lambda: None, fetcher
+            )
+        )
+
+    assert sorted(fetcher.asked) == ["urn:uuid:obj-1", "urn:uuid:obj-2"]
+    assert {f.state for f in _fetches(dl)} == {ObjectFetchState.FAILED}
+    assert sorted(dl.inbox_list()) == sorted([first, second])
+    assert any("the fetcher raised" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.spec("AKM-05-007")
+@pytest.mark.spec("IE-10-001")
+def test_a_redelivery_of_a_waiting_activity_waits_once():
+    """The same activity delivered again is held once and waits once."""
+    dl, case, replaced = _replica_missing_its_active_embargo()
+    payload = _revision(case.id_, _embargo(case.id_))
+    for _ in range(2):
+        run = io._InboxRun(dl, _REPLICA, None)
+        outcome = io.process_payload(
+            payload,
+            run.ingress,
+            run.dispatch,
+            run.queue,
+            dereference_port=run.dereference,
+        )
+        assert outcome.status.value == "deferred"
+
+    (fetch,) = _fetches(dl)
+    assert fetch.object_id == replaced.id_
+    assert fetch.waiting_activity_ids == [payload["id"]]
+    held = [
+        r
+        for r in dl.list_objects("DeferredInboxActivity")
+        if isinstance(r, DeferredInboxActivity)
+    ]
+    assert [r.activity_id for r in held] == [payload["id"]]
+
+
+def test_release_with_no_record_changes_nothing():
+    dl, _ = _replica()
+    port = FastAPIDereferencePort(dl, _REPLICA, InlineObjectStaging(dl))
+
+    port.release("urn:uuid:never-fetched", "https://example.org/a/1")
+
+    assert _fetches(dl) == []
+
+
+def test_a_handed_off_body_that_is_not_a_core_object_is_unreadable():
+    dl, _ = _replica()
+    port = FastAPIDereferencePort(dl, _REPLICA, InlineObjectStaging(dl))
+    record = PendingObjectFetch.for_reference(
+        ObjectReference(
+            object_id="urn:uuid:img",
+            source=ObjectFetchSource.ACTOR_PROFILE,
+            host_actor_id=CASE_MANAGER_ID,
+            use=ObjectFetchUse.HAND_OFF,
+        )
+    ).model_copy(
+        update={
+            "state": ObjectFetchState.FETCHED,
+            "fetched_body": json.dumps(
+                {"type": "Image", "id": "urn:uuid:img"}
+            ),
+        }
+    )
+
+    with pytest.raises(VultronValidationError, match="not a core object"):
+        port.fetched_object(record)

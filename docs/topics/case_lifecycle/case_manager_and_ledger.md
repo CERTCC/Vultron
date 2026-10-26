@@ -93,7 +93,7 @@ The hashes link the entries into a chain, so a participant can tell whether a ne
 After it appends an entry, the CASE_MANAGER sends that entry to each participant individually ([SYNC-02-003](../../reference/specs/protocol.md#sync-02-003)).
 The message is an `Announce` whose object is the entry itself, carried inline or by reference ([SYNC-02-001](../../reference/specs/protocol.md#sync-02-001), [SYNC-02-004](../../reference/specs/protocol.md#sync-02-004)).
 A participant needs every field of the entry to check it against the chain it already holds.
-The reference implementation cannot yet fetch an object by reference, so it always sends the whole entry inline ([SYNC-02-005](../../reference/specs/project.md#sync-02-005)).
+The reference implementation never fetches a ledger entry by reference, so it always sends the whole entry inline ([SYNC-02-005](../../reference/specs/project.md#sync-02-005)).
 
 This one-way sending of entries from the CASE_MANAGER to every participant is the **Ledger Fanout**.
 Participants never send ledger entries to each other; every copy comes from the one writer ([ADR-0077](../../adr/0077-ledger-replication-companion-spec.md)).

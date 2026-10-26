@@ -19,8 +19,9 @@ An activity naming an object its receiver must fetch first waits, held whole,
 on a :class:`~vultron.core.models.object_fetch.PendingObjectFetch`
 (:class:`FastAPIDereferencePort`, AKM-05-007).  After the inbox run, outside
 the actor's inbox lock, the open fetches are made
-(:func:`open_fetches`, an :class:`~vultron.adapters.driven.http_object_fetch.ObjectFetcher`),
-and each result is settled under the lock (:func:`settle_fetch`): a fetched
+(:func:`resolve_open_fetches`, through an
+:class:`~vultron.adapters.driven.http_object_fetch.ObjectFetcher`), and each
+result is settled under the lock (:func:`settle_fetch`): a fetched
 case object is stored, a fetched profile is kept on the record for its
 waiters, and a failed fetch is logged at WARNING (AKM-05-008).  Either way
 the waiting activities are queued again, and the inbox queue drain replays
@@ -29,13 +30,20 @@ them (IE-06-004).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
-from vultron.adapters.driven.http_object_fetch import ObjectFetchResult
+from vultron.adapters.driven.http_object_fetch import (
+    HttpObjectFetcher,
+    ObjectFetcher,
+    ObjectFetchResult,
+)
 from vultron.adapters.driven.inbox_replay_adapter import InboxReplayAdapter
 from vultron.adapters.inbox_staging import InlineObjectStaging
+from vultron.config import get_config
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.events import VultronEvent
@@ -273,6 +281,7 @@ def settle_fetch(
                 " kept under its own id (DL-06-006)"
             )
             fetched = None
+        settled: PendingObjectFetch | None
         if fetched is None:
             reason = failure or "the fetch returned nothing"
             logger.warning(
@@ -286,33 +295,42 @@ def settle_fetch(
                 reason,
                 fetch.waiting_activity_ids,
             )
-            dl.save(
-                fetch.model_copy(
-                    update={
-                        "state": ObjectFetchState.FAILED,
-                        "attempts": attempts,
-                        "failure_reason": reason,
-                    }
-                )
+            settled = fetch.model_copy(
+                update={
+                    "state": ObjectFetchState.FAILED,
+                    "attempts": attempts,
+                    "failure_reason": reason,
+                }
             )
+            dl.save(settled)
         elif fetch.use is ObjectFetchUse.STORE:
             _store_fetched(dl, fetch, fetched)
             dl.delete(fetch.type_, fetch.id_)
+            settled = None
         else:
-            dl.save(
-                fetch.model_copy(
-                    update={
-                        "state": ObjectFetchState.FETCHED,
-                        "attempts": attempts,
-                        "fetched_body": json.dumps(result.body),
-                    }
-                )
+            settled = fetch.model_copy(
+                update={
+                    "state": ObjectFetchState.FETCHED,
+                    "attempts": attempts,
+                    "fetched_body": json.dumps(result.body),
+                }
             )
-        return _queue_ready_waiters(dl, fetch.waiting_activity_ids)
+            dl.save(settled)
+        queued, unheld = _queue_ready_waiters(dl, fetch.waiting_activity_ids)
+        if settled is not None and unheld:
+            _drop_waiters(dl, settled, unheld)
+        return queued
 
 
-def _queue_ready_waiters(dl: DataLayer, waiters: list[str]) -> list[str]:
-    """Queue each waiter that waits on no other open fetch."""
+def _queue_ready_waiters(
+    dl: DataLayer, waiters: list[str]
+) -> tuple[list[str], list[str]]:
+    """Queue each waiter that waits on no other open fetch.
+
+    Returns:
+        The waiters queued for replay, and those not held for one: nothing
+        holds their body, so nothing can replay them (DL-06-006).
+    """
     still_waiting = {
         waiter
         for record in open_fetches(dl)
@@ -320,26 +338,126 @@ def _queue_ready_waiters(dl: DataLayer, waiters: list[str]) -> list[str]:
     }
     replay = InboxReplayAdapter(dl)
     queued: list[str] = []
+    unheld: list[str] = []
     for waiter in waiters:
         if waiter in still_waiting:
             continue
         try:
             replay.replay_held(waiter)
         except VultronWiringError:
-            # Nothing holds it, so there is nothing to replay; the record of
-            # the fetch it waited on is settled all the same.
-            logger.exception(
+            logger.warning(
                 "Activity %s waited on a fetch but is not held for its"
-                " replay (DL-06-006)",
+                " replay, so it is not replayed (DL-06-006)",
                 waiter,
             )
+            unheld.append(waiter)
             continue
         queued.append(waiter)
-    return queued
+    return queued, unheld
+
+
+def _drop_waiters(
+    dl: DataLayer, settled: PendingObjectFetch, dropped: list[str]
+) -> None:
+    """Take *dropped* off *settled*; remove it when nothing waits on it.
+
+    A settled record nothing waits on would never be released, so a later
+    activity naming the object would be handed its outcome instead of
+    fetching afresh (CP-01-010).
+    """
+    remaining = [
+        waiter
+        for waiter in settled.waiting_activity_ids
+        if waiter not in dropped
+    ]
+    if remaining:
+        dl.save(settled.model_copy(update={"waiting_activity_ids": remaining}))
+    else:
+        dl.delete(settled.type_, settled.id_)
+
+
+#: Runs one unit of synchronous work under the actor's inbox lock, off the
+#: event loop (``inbox_orchestration._run_serialised``).
+LockedRunner = Callable[[Callable[[], None]], Awaitable[None]]
+
+#: Rounds of fetching one run makes: a replay a fetch released may itself
+#: wait on another object, and this bounds how far one run chases them.
+MAX_FETCH_ROUNDS = 4
+
+
+def default_object_fetcher() -> HttpObjectFetcher:
+    """The HTTP fetcher, bounded by the configured attempts (AKM-05-008)."""
+    config = get_config()
+    return HttpObjectFetcher(
+        max_attempts=config.max_object_fetch_attempts,
+        timeout=config.object_fetch_timeout_seconds,
+    )
+
+
+async def _fetch(
+    fetcher: ObjectFetcher, fetch: PendingObjectFetch, actor_id: str
+) -> ObjectFetchResult:
+    """*fetcher*'s result, or a failed one when the fetcher raises.
+
+    A fetcher is not to raise for a failed fetch, but one that does must not
+    leave the fetch open forever or stop the fetches after it (AKM-05-008).
+    """
+    try:
+        return await fetcher.fetch(fetch.reference, actor_id)
+    except Exception as exc:  # noqa: BLE001 — the raise is the fetch's failure
+        logger.warning(
+            "The fetcher raised fetching '%s' for actor_id=%s: %r",
+            fetch.object_id,
+            actor_id,
+            exc,
+        )
+        return ObjectFetchResult(None, f"the fetcher raised {exc!r}", 1)
+
+
+async def resolve_open_fetches(
+    dl: DataLayer,
+    actor_id: str,
+    run_locked: LockedRunner,
+    drain: Callable[[], None],
+    fetcher: ObjectFetcher | None = None,
+) -> None:
+    """Make every open fetch in *dl*, then replay what waited on it.
+
+    The fetches run on the event loop, outside the actor's inbox lock: a
+    fetch may wait out its retries, and the actor's deliveries must not wait
+    with it (IE-06-002).  Each result is settled through *run_locked*, under
+    the lock and off the loop, and *drain* replays the inbox queue, as for a
+    delivery (AKM-05-007, AKM-05-008).  A replay may open a fetch of its own,
+    so the open fetches are read again, up to :data:`MAX_FETCH_ROUNDS`
+    times; a fetch still open after that is made by the actor's next inbox
+    run.  *fetcher* defaults to :func:`default_object_fetcher`, built only
+    when there is something to fetch.
+    """
+    active = fetcher
+    for _ in range(MAX_FETCH_ROUNDS):
+        pending = await asyncio.to_thread(open_fetches, dl)
+        if not pending:
+            return
+        if active is None:
+            active = default_object_fetcher()
+        for fetch in pending:
+            result = await _fetch(active, fetch, actor_id)
+
+            def _settle(
+                object_id: str = fetch.object_id,
+                settled: ObjectFetchResult = result,
+            ) -> None:
+                settle_fetch(dl, actor_id, object_id, settled)
+                drain()
+
+            await run_locked(_settle)
 
 
 __all__ = [
+    "MAX_FETCH_ROUNDS",
     "FastAPIDereferencePort",
+    "default_object_fetcher",
+    "resolve_open_fetches",
     "open_fetches",
     "parse_fetched_object",
     "settle_fetch",
