@@ -383,7 +383,9 @@ A message the CASE_MANAGER sends outside `Announce(CaseLedgerEntry)` MUST NOT le
 
 A coordination decision MUST NOT depend on an arrival order that the ledger does not define.
 The CASE_MANAGER's observation order is the case's causal order, so its ledger records the order in which it takes concurrent assertions from different senders.
-Every other decision MUST be the same whatever order its messages arrive in: a participant's handling of a direct message and the entries it relates to, and the CASE_MANAGER's record of two assertions one sender sent before the first was committed. (SYNC-19-001)
+Every other decision MUST be the same whatever order its messages arrive in.
+That covers a participant's handling of a direct message and the entries it relates to.
+It also covers the CASE_MANAGER's record of two assertions that one sender sent before the first was committed. (SYNC-19-001)
 
 Per-recipient delivery order MUST NOT be a protocol guarantee.
 An implementation MAY deliver in order per recipient as an optimization, but neither a sender nor a receiver may rely on it. (SYNC-19-003)

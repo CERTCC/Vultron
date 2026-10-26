@@ -341,10 +341,10 @@ The rule that goes with it is that no decision may depend on the order messages 
 The rule covers more than ledger entries.
 The CASE_MANAGER also sends some messages directly, outside the ledger.
 A participant can receive one of these before, between, or after the ledger entries it relates to.
-Whatever the order, the participant must end with the same case file and give the same answer.
+Whatever the order, the participant must end with the same case file and give the same answer ([SYNC-19-001](../../reference/specs/protocol.md#sync-19-001)).
 
 The CASE_MANAGER cannot see the order in which one participant sent two messages either.
-So a decision must not depend on that order.
+So a decision must not depend on that order either ([SYNC-19-001](../../reference/specs/protocol.md#sync-19-001)).
 
 A sender may deliver its messages to each recipient in order, and this implementation does ([OX-01-005](../../reference/specs/project.md#ox-01-005)).
 That is an optimization, not a guarantee another implementation must give, and no participant may rely on it ([SYNC-19-003](../../reference/specs/protocol.md#sync-19-003)).
