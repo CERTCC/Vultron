@@ -195,6 +195,23 @@ class TestRule:
         assert failure.location == "docs/howto/_frag.md:1:6"
         assert "renders on docs/howto/a.md" in str(failure)
 
+    def test_fragment_on_two_earlier_members_is_one_finding(self, tmp_path):
+        host = '# H\n\n{% include-markdown "./_frag.md" %}\n'
+        root = _repo(
+            tmp_path,
+            [_chain("howto/a.md", "howto/b.md", "topics/ledger.md")],
+            {
+                "howto/a.md": leveled_page(400, host),
+                "howto/b.md": leveled_page(400, host),
+                "howto/_frag.md": "Each case ledger entry is signed.\n",
+            },
+            nav=["start/s.md", "howto/a.md", "howto/b.md", "topics/ledger.md"],
+        )
+
+        (failure,) = _failures(root)
+        assert failure.location == "docs/howto/_frag.md:1:6"
+        assert "renders on docs/howto/a.md" in str(failure)
+
     def test_no_threads_fails(self, tmp_path):
         """DF-09-009: resolving no thread is a failure (AC-3)."""
         root = make_repo(tmp_path, {"howto/a.md": leveled_page(400, _USE)})
