@@ -20,27 +20,62 @@ from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import (
     CASE_ID,
+    OWNER_ACTOR_ID,
     PARTICIPANT_ACTOR_ID,
     _make_entry,
     _make_event,
 )
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
     EmitLedgerEntryFaultNode,
     emit_ledger_entry_fault,
 )
+from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH,
 )
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.enums.roles import CVDRole
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronValidationError,
+    VultronWiringError,
+)
 
 _CASE_MANAGER = "https://example.org/actors/case-actor"
+_STRANGER = "https://example.org/actors/stranger"
 _CLASS = VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH
 
 
-def _node(trigger: TriggerActivityPort | None) -> EmitLedgerEntryFaultNode:
+@pytest.fixture
+def managed(datalayer: SqliteDataLayer) -> SqliteDataLayer:
+    """The replica's store, holding the case and its CASE_MANAGER's record."""
+    manager = CaseParticipant(
+        id_=f"{CASE_ID}/participants/case-manager",
+        attributed_to=_CASE_MANAGER,
+        context=CASE_ID,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    datalayer.create(manager)
+    datalayer.save(
+        VulnerabilityCase(
+            id_=CASE_ID,
+            attributed_to=OWNER_ACTOR_ID,
+            case_participants=[manager.id_],
+            actor_participant_index={_CASE_MANAGER: manager.id_},
+        )
+    )
+    return datalayer
+
+
+def _node(
+    dl: SqliteDataLayer, trigger: TriggerActivityPort | None
+) -> EmitLedgerEntryFaultNode:
     """A node as the bridge leaves it, without running a tree."""
     node = EmitLedgerEntryFaultNode(_CLASS, name="EmitFault")
+    node.datalayer = dl
     node.actor_id = PARTICIPANT_ACTOR_ID
     node.trigger_activity_factory = trigger
     return node
@@ -48,13 +83,13 @@ def _node(trigger: TriggerActivityPort | None) -> EmitLedgerEntryFaultNode:
 
 @pytest.mark.spec("SYNC-03-007")
 @pytest.mark.spec("ASK-07-004")
-def test_the_fault_names_the_announce_and_goes_to_its_sender(datalayer):
-    """The node emits once, to the announce's sender, and still fails."""
+def test_the_fault_names_the_announce_and_goes_to_the_case_manager(managed):
+    """The node emits once, to the CASE_MANAGER, and still fails."""
     trigger = MagicMock(spec=TriggerActivityPort)
     event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER)
 
     result = BTBridge(
-        datalayer=datalayer, trigger_activity=trigger
+        datalayer=managed, trigger_activity=trigger
     ).execute_with_setup(
         tree=EmitLedgerEntryFaultNode(_CLASS, name="EmitFault"),
         actor_id=PARTICIPANT_ACTOR_ID,
@@ -72,33 +107,64 @@ def test_the_fault_names_the_announce_and_goes_to_its_sender(datalayer):
 
 
 @pytest.mark.spec("SYNC-03-007")
-def test_without_a_trigger_port_nothing_is_emitted(caplog):
-    event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER)
+@pytest.mark.spec("ASK-07-002")
+@pytest.mark.parametrize("seeded", [True, False], ids=["stranger", "no-case"])
+def test_a_sender_that_is_not_the_case_manager_is_not_answered(
+    datalayer, managed, seeded, caplog
+):
+    """Nothing goes to a sender this store cannot verify as the CASE_MANAGER.
+
+    Either the case names another CASE_MANAGER, or this store holds no case
+    and no bootstrap record naming one, the window in which the announce
+    tree's sender guard lets the ``Announce`` through.
+    """
+    dl = (
+        managed
+        if seeded
+        else SqliteDataLayer(
+            "sqlite:///:memory:", actor_id=PARTICIPANT_ACTOR_ID
+        )
+    )
+    trigger = MagicMock(spec=TriggerActivityPort)
+    event = _make_event(_make_entry(0), actor_id=_STRANGER)
 
     with caplog.at_level("WARNING", logger="vultron"):
-        emitted = emit_ledger_entry_fault(_node(None), event, _CLASS)
+        emit_ledger_entry_fault(_node(dl, trigger), event, _CLASS)
 
-    assert emitted is False
+    trigger.emit_processing_fault.assert_not_called()
     assert any(
-        r.levelname == "WARNING" and "HashMismatch" in r.getMessage()
+        r.levelname == "WARNING" and "ASK-07-002" in r.getMessage()
         for r in caplog.records
     ), caplog.text
 
 
 @pytest.mark.spec("SYNC-03-007")
-def test_an_announce_naming_no_sender_is_not_answered(caplog):
-    """With no one to answer, the WARNING says so and nothing is built."""
+def test_without_a_trigger_port_the_wiring_fault_is_raised(managed):
+    event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER)
+
+    with pytest.raises(VultronWiringError):
+        emit_ledger_entry_fault(_node(managed, None), event, _CLASS)
+
+
+@pytest.mark.spec("SYNC-03-007")
+def test_an_event_naming_no_activity_is_a_wiring_fault(managed):
     trigger = MagicMock(spec=TriggerActivityPort)
     event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER).model_copy(
-        update={"actor_id": ""}
+        update={"activity_id": ""}
     )
 
-    with caplog.at_level("WARNING", logger="vultron"):
-        emitted = emit_ledger_entry_fault(_node(trigger), event, _CLASS)
+    with pytest.raises(VultronWiringError):
+        emit_ledger_entry_fault(_node(managed, trigger), event, _CLASS)
 
-    assert emitted is False
     trigger.emit_processing_fault.assert_not_called()
-    assert any(
-        r.levelname == "WARNING" and "names no id or sender" in r.getMessage()
-        for r in caplog.records
-    ), caplog.text
+
+
+@pytest.mark.spec("SYNC-03-007")
+def test_a_port_that_fails_to_queue_the_fault_is_an_internal_error(managed):
+    """A lost fault is not reported as a handled refusal."""
+    trigger = MagicMock(spec=TriggerActivityPort)
+    trigger.emit_processing_fault.side_effect = VultronValidationError("boom")
+    event = _make_event(_make_entry(0), actor_id=_CASE_MANAGER)
+
+    with pytest.raises(VultronBTInternalError):
+        emit_ledger_entry_fault(_node(managed, trigger), event, _CLASS)

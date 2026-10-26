@@ -41,6 +41,10 @@ in a way that state-machine origin is not.
 {% include-markdown "./_occasions/sections/create-processing-fault.md" heading-offset=1 %}
 
 In the example, a Vendor cannot apply a ledger entry from the CASE_MANAGER whose participant status names an impossible state, and reports the fault to the CASE_MANAGER ([RSH-09-006](../specs/protocol.md#rsh-09-006)).
+A participant reports two other refused ledger entries the same way, each with a `LedgerEntryRefused` failure class.
+An entry whose content does not reproduce its hash takes `LedgerEntryRefused/HashMismatch` ([SYNC-03-007](../specs/protocol.md#sync-03-007)).
+An entry that extends the participant's chain but does not apply to its case takes `LedgerEntryRefused/CaseDiverged`, because the participant's case has diverged from the CASE_MANAGER's ([SYNC-16-001](../specs/protocol.md#sync-16-001)).
+The participant sends either fault only to the actor it knows as the case's CASE_MANAGER, and neither side commits it to the case ledger ([SYNC-16-002](../specs/protocol.md#sync-16-002)).
 
 A fault also answers a message that the receiver understood but failed to process.
 When the use case that processes a received activity fails on the receiver's own internal error, the receiver keeps nothing of the act and its inbox sends the sender one `Create(ProcessingFault)` ([ASK-07-010](../specs/protocol.md#ask-07-010), [ASK-07-011](../specs/project.md#ask-07-011)).

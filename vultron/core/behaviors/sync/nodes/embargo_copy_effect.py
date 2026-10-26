@@ -195,7 +195,10 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
         CASE_MANAGER is told so with a ``LedgerEntryRefused/CaseDiverged``
         fault (SYNC-16-001).  The ``Announce`` is held as a forward gap is,
         and the fault is sent whether or not the holding area's bound let it
-        be held.
+        be held.  Each replay of the held ``Announce`` that is refused again
+        queues the same fault, under the same id, which the CASE_MANAGER
+        drops as a repeat; the replay rate bound limits how often
+        (SYNC-15-003).
         """
         assert self.datalayer is not None
         buffered = hold_received_announce(

@@ -28,13 +28,18 @@ replica's case has diverged from the CASE_MANAGER's
 apply node that refuses inside its own ``update()`` calls it, and
 :class:`EmitLedgerEntryFaultNode` composes it as a tree's fallback.
 
-The fault goes to the ``Announce``'s sender.  The announce tree's sender guard
-admits only the case's CASE_MANAGER (SYNC-13-006, HP-01-006), so past it the
-sender is the CASE_MANAGER and no one else.  Its id is derived from the
-refused ``Announce`` and the failure class by the trigger-activity port, so a
-retried refusal builds no second fault (ID-04-004).  The fault is replication
-signalling, like ``Reject(CaseLedgerEntry)``, and nothing here commits it to a
-case ledger (SYNC-16-002).
+The fault goes to the case's CASE_MANAGER as this replica knows it
+(:func:`~vultron.core.participants.authority.case_manager_address`), and only
+when the ``Announce``'s sender is that actor.  The announce tree's sender guard
+lets an ``Announce`` through for bootstrap handling when this store knows no
+CASE_MANAGER for the case, and a fault to a sender no one has verified is not
+allowed (ASK-07-002), so such a refusal is logged and answered with nothing.
+The fault's id is derived from the refused ``Announce`` and the failure class
+by the trigger-activity port, so a retried refusal builds no second fault
+(ID-04-004); a replay of a still-held ``Announce`` queues the same fault again,
+which the CASE_MANAGER drops as a repeat.  The fault is replication signalling,
+like ``Reject(CaseLedgerEntry)``, and nothing here commits it to a case ledger
+(SYNC-16-002).
 """
 
 from __future__ import annotations
@@ -46,60 +51,92 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.sync.nodes.conditions import _require_log_entry
+from vultron.core.participants.authority import case_manager_address
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronError,
+    VultronWiringError,
+)
+from vultron.primitives import same_actor_id
 
 __all__ = ["EmitLedgerEntryFaultNode", "emit_ledger_entry_fault"]
 
 
 def emit_ledger_entry_fault(
     node: DataLayerActionWithPorts, activity: object, failure_class: str
-) -> bool:
+) -> None:
     """Queue *node*'s actor's fault about the ``Announce`` *activity* carried.
 
     *activity* is the received ``Announce(CaseLedgerEntry)`` event.  The fault
-    names it by its id and goes to its sender, the CASE_MANAGER past the
-    announce tree's sender guard.  Returns whether a fault was queued.  With
-    no trigger-activity port, or an event naming no id or sender, nothing can
-    be built: the WARNING says so and the refusal stands without its fault.
+    names it by its id and goes to the case's CASE_MANAGER.  When this store
+    knows no CASE_MANAGER for the case, or the ``Announce``'s sender is not
+    it, the WARNING says so and nothing is built.
+
+    Raises:
+        VultronWiringError: *node* has no DataLayer, actor id or
+            trigger-activity port, or the event names no activity id.
+        VultronBTInternalError: The port failed to build or queue the fault,
+            so the refusal is not reported as handled while its fault is lost.
     """
+    if (
+        node.datalayer is None
+        or node.actor_id is None
+        or node.trigger_activity_factory is None
+    ):
+        raise VultronWiringError(
+            f"{node.name}: the DataLayer, actor id and trigger-activity port"
+            " must be injected to report a refused ledger entry"
+        )
+    entry = _require_log_entry(activity, node.name)
     failed_id = getattr(activity, "activity_id", None)
-    sender_id = getattr(activity, "actor_id", None)
+    if not isinstance(failed_id, str) or not failed_id:
+        raise VultronWiringError(
+            f"{node.name}: the event carrying ledger entry '{entry.id_}'"
+            " names no activity to report"
+        )
     class_label = failure_class.rsplit("/", 1)[-1]
-    if node.trigger_activity_factory is None or node.actor_id is None:
+    sender_id = getattr(activity, "actor_id", None)
+    manager_id = case_manager_address(node.datalayer, entry.case_id)
+    if (
+        manager_id is None
+        or not isinstance(sender_id, str)
+        or not same_actor_id(sender_id, manager_id)
+    ):
         node.logger.warning(
-            "%s: no trigger-activity port or actor id — ProcessingFault/%s"
-            " not emitted for refused announce '%s'",
+            "%s: ProcessingFault/%s not emitted for refused announce '%s':"
+            " its sender '%s' is not the CASE_MANAGER this store knows for"
+            " case '%s' (%s) (ASK-07-002)",
             node.name,
             class_label,
             failed_id,
+            sender_id,
+            entry.case_id,
+            manager_id or "none known",
         )
-        return False
-    if not failed_id or not sender_id:
-        node.logger.warning(
-            "%s: the refused announce names no id or sender —"
-            " ProcessingFault/%s not emitted",
-            node.name,
-            class_label,
+        return
+    try:
+        node.trigger_activity_factory.emit_processing_fault(
+            actor=node.actor_id,
+            failed_activity_id=failed_id,
+            failure_class=failure_class,
+            to=[manager_id],
+            case_id=entry.case_id,
         )
-        return False
-    entry = _require_log_entry(activity, node.name)
-    node.trigger_activity_factory.emit_processing_fault(
-        actor=node.actor_id,
-        failed_activity_id=failed_id,
-        failure_class=failure_class,
-        to=[sender_id],
-        case_id=entry.case_id,
-    )
+    except VultronError as exc:
+        raise VultronBTInternalError(
+            f"{node.name}: could not queue ProcessingFault/{class_label} for"
+            f" refused announce '{failed_id}': {exc}"
+        ) from exc
     node.logger.info(
         "%s: emitted ProcessingFault/%s to the CASE_MANAGER '%s' for refused"
         " announce '%s' of ledger entry '%s' (case '%s')",
         node.name,
         class_label,
-        sender_id,
+        manager_id,
         failed_id,
         entry.id_,
         entry.case_id,
     )
-    return True
 
 
 class EmitLedgerEntryFaultNode(DataLayerActionWithPorts):

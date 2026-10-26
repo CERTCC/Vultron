@@ -56,7 +56,7 @@ from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.errors import VultronEntryRefusedError
+from vultron.errors import VultronBTInternalError, VultronEntryRefusedError
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
@@ -423,23 +423,22 @@ class TestReplicaCopies:
         assert fault["object"]["failureClass"] == _CASE_DIVERGED
 
     @pytest.mark.spec("SYNC-16-001")
-    def test_a_divergence_without_a_trigger_port_is_still_held(self, caplog):
-        """No port, no fault: the WARNING says so, and the entry stays held."""
+    def test_a_divergence_without_a_trigger_port_is_a_wiring_fault(self):
+        """No port is a composition fault, raised, never a silent hold.
+
+        In the inbox the act's transaction then rolls back, the held
+        ``Announce`` with it, so a redelivery to a correctly wired replica
+        runs it again.
+        """
         net = _net("cc-diverged-no-port")
         body = _diverged_announcement(net)
 
-        with caplog.at_level("WARNING", logger="vultron"):
-            verdict = net.receive(
+        with pytest.raises(VultronBTInternalError):
+            net.receive(
                 BYSTANDER, body, without=frozenset({"trigger_activity"})
             )
 
-        assert verdict.disposition is HandlerDisposition.DEFERRED
-        assert held_depth(net.stores[BYSTANDER], net.case_id) == 1
         assert _faults(net) == []
-        assert any(
-            r.levelname == "WARNING" and "CaseDiverged" in r.getMessage()
-            for r in caplog.records
-        ), caplog.text
 
     @pytest.mark.spec("SYNC-16-002")
     @pytest.mark.spec("CLP-04-007")
