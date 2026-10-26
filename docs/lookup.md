@@ -26,7 +26,7 @@ If this is your first visit, start from the [home page](index.md) instead: it se
 
 ## Coordinate Cases
 
-- [Standards Crosswalks](reference/iso_crosswalks/index.md) — Crosswalks of the Vultron Protocol against the ISO/IEC standards on vulnerability handling and disclosure, against SSVC, and against the CSAF 2.1 draft, each routed to the explanation that covers it and to the specification section that governs it.
+- [Standards Crosswalks](reference/iso_crosswalks/index.md) — Crosswalks of the Vultron Protocol against the International Organization for Standardization (ISO) standards on vulnerability handling and disclosure, against Stakeholder-Specific Vulnerability Categorization (SSVC), and against the Common Security Advisory Framework (CSAF) 2.1 draft, each routed to the explanation that covers it and to the specification section that governs it.
 
 ## Implement the Protocol
 
