@@ -504,6 +504,13 @@ at some points and not at others (ADR-0150).
 - **Not a level sort.** The level rule forbids depending upward; it does not
   require a thread to climb in level. Order a thread by what the reader needs
   first.
+- **Order is checked by the same scan.** `uv run docs-thread-order` fails when
+  a member, or a fragment it renders, uses a term that a later member
+  `introduces:` without linking out for it first (DF-11-024). A later stage
+  comes after every earlier member, and a chain is ordered, but a set's members
+  are not. Fix a finding with a link or a reorder; the baseline
+  (`vultron/metadata/docs/thread_order_baseline.txt`, keyed by thread, page and
+  term) may only shrink.
 - **More threads, not more tabs.** The practitioner start page already serves
   someone deciding whether to adopt and someone working cases; splitting them
   adds a start page with its own thread, and no page's `stakeholder_type`

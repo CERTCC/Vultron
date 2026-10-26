@@ -1,10 +1,11 @@
 """The concepts ``docs/`` pages introduce, read for the level check.
 
-Support for :mod:`vultron.metadata.docs.level_order` (DF-11-002). The glossary
+Support for :mod:`vultron.metadata.docs.level_order` (DF-11-002) and
+:mod:`vultron.metadata.docs.thread_order` (DF-11-024). The glossary
 is the concept registry (SG-11): a concept is a glossary term, and the page
 that is its canonical introduction lists it under :data:`INTRODUCES_KEY` in
 its frontmatter. This module reads the registry and validates those
-declarations; the level check orders pages by them.
+declarations; the level and thread-order checks order pages by them.
 """
 
 from __future__ import annotations

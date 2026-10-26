@@ -236,7 +236,9 @@ confirm it.** The recipe:
    of its start page under `docs/start/`, with a blurb written for that thread;
    the start page's listing is generated from it (`docs-site --write`,
    DF-11-014). Only a reader-facing page can be a member (`docs-threads`,
-   DF-11-016); any other link goes in the stage's `framing:`.
+   DF-11-016); any other link goes in the stage's `framing:`. A member must not
+   use a term a later member introduces without linking out for it
+   (`docs-thread-order`, DF-11-024).
 2. **Group** — the page's `stakeholder_type` picks the group within the section:
    the group whose other pages address the same reader, or the routing page
    (`docs/start/*.md`, `docs/research/index.md`) that carries that type's path.

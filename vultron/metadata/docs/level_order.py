@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -56,14 +57,13 @@ from vultron.metadata.docs.concept_registry import (
 from vultron.metadata.docs.concept_scan import (
     Position,
     ScannedPage,
+    Use,
     first_use,
     read_page,
 )
 from vultron.metadata.docs.level_baseline import (
     BASELINE_PATH,
-    read_baseline,
-    read_baseline_entries,
-    write_baseline,
+    LEVEL_BASELINE,
 )
 from vultron.metadata.docs.page_frontmatter import (
     DocsTree,
@@ -154,10 +154,14 @@ def _declared_level(metadata: dict[str, object]) -> int | None:
     return level if type(level) is int and level in LEVELS else None
 
 
-def _collect(
+def collect_declarations(
     root: Path, tree: DocsTree, collector: FailureCollector
 ) -> Analysis:
-    """Read every page's level and introductions."""
+    """Read every page's level and introductions.
+
+    Each declaration fault (an unreadable page, a malformed or misplaced
+    ``introduces``) is added to *collector* rather than raised.
+    """
     docs_dir = root / "docs"
     terms = glossary_terms(root)
     analysis = Analysis(terms=terms)
@@ -193,23 +197,26 @@ def _collect(
     return analysis
 
 
-def _fragment_hosts(
-    rel: str, tree: DocsTree, levels: dict[str, int], seen: frozenset[str]
-) -> list[tuple[int, str]]:
-    """``(level, page)`` for each leveled page that renders fragment *rel*.
+def fragment_hosts(
+    rel: str,
+    tree: DocsTree,
+    pages: Collection[str],
+    seen: frozenset[str],
+) -> list[str]:
+    """Each of *pages* that renders fragment *rel*.
 
     A fragment included by another fragment takes that fragment's hosts.
     """
-    found: list[tuple[int, str]] = []
+    found: list[str] = []
     for host in tree.fragments.get(rel, ()):
-        if host in levels:
-            found.append((levels[host], host))
+        if host in pages:
+            found.append(host)
         elif host in tree.fragments and host not in seen:
-            found += _fragment_hosts(host, tree, levels, seen | {host})
+            found += fragment_hosts(host, tree, pages, seen | {host})
     return found
 
 
-class _Pages:
+class PageScanner:
     """Scans each page once, and knows which links a page renders."""
 
     def __init__(self, docs_dir: Path, tree: DocsTree) -> None:
@@ -247,19 +254,39 @@ class _Pages:
                     earliest[page] = offset
         return earliest
 
+    def unlinked_use(
+        self, rel: str, forms: tuple[str, ...], introducer: str
+    ) -> Use | None:
+        """*rel*'s first prose use of a term, unless it links out for it.
+
+        The use is linked out when *rel* links to *introducer* before or at
+        the use, or when the use is itself the text of a link to either
+        canonical introduction SG-11 names: the introducing page or the
+        glossary. A link later on the same line does not count.
+        """
+        scanned = self.scan(rel)
+        use = first_use(scanned, forms)
+        if use is None:
+            return None
+        linked = self.earliest_links(rel).get(introducer)
+        if linked is not None and linked <= use.offset:
+            return None
+        if scanned.link_around(use.offset) in (introducer, REGISTRY):
+            return None
+        return use
+
 
 def _scan(root: Path, tree: DocsTree, analysis: Analysis) -> None:
     """Append every unlinked first use of a higher-level concept."""
-    pages = _Pages(root / "docs", tree)
+    pages = PageScanner(root / "docs", tree)
     subjects: list[tuple[str, int, tuple[str, ...]]] = [
         (rel, level, ())
         for rel, level in analysis.levels.items()
         if rel != REGISTRY
     ]
     for rel in sorted(tree.fragments):
-        leveled = sorted(
-            set(_fragment_hosts(rel, tree, analysis.levels, frozenset({rel})))
-        )
+        hosts_of = fragment_hosts(rel, tree, analysis.levels, frozenset({rel}))
+        leveled = sorted({(analysis.levels[h], h) for h in hosts_of})
         # No leveled page renders it: the snippets auto_append file, whose
         # abbreviation definitions become tooltips rather than prose.
         if leveled:
@@ -269,20 +296,12 @@ def _scan(root: Path, tree: DocsTree, analysis: Analysis) -> None:
             )
 
     for rel, level, hosts in subjects:
-        scanned = pages.scan(rel)
         for term, introducer in sorted(analysis.introducers.items()):
             introducer_level = analysis.levels[introducer]
             if introducer == rel or introducer_level <= level:
                 continue
-            use = first_use(scanned, analysis.terms[term])
+            use = pages.unlinked_use(rel, analysis.terms[term], introducer)
             if use is None:
-                continue
-            # Linked out before or at the use, to either canonical
-            # introduction SG-11 names: the introducing page or the glossary.
-            linked = pages.earliest_links(rel).get(introducer)
-            if linked is not None and linked <= use.offset:
-                continue
-            if scanned.link_around(use.offset) in (introducer, REGISTRY):
                 continue
             analysis.violations.append(
                 Violation(
@@ -323,7 +342,7 @@ def analyse(
         classify_docs_tree(root) if docs_dir.is_dir() else DocsTree((), {}, {})
     )
     collector = FailureCollector()
-    analysis = _collect(root, tree, collector)
+    analysis = collect_declarations(root, tree, collector)
     if not (analysis.levels and analysis.introducers):
         # A malformed declaration can be why the set is empty; name it first.
         collector.raise_if_any(summary=_summary(collector))
@@ -362,36 +381,29 @@ def check_level_order(
             entry that no longer matches a violation.
     """
     analysis, collector = analyse(repo_root)
-    entries = read_baseline_entries(BASELINE_PATH) if baseline is None else {}
-    allowed = (
-        {key: entry.reason for key, entry in entries.items()}
-        if baseline is None
-        else baseline
-    )
-    found = {v.key for v in analysis.violations}
-    baselined = []
-    for violation in analysis.violations:
-        if violation.key in allowed:
-            baselined.append(violation.key)
-        else:
-            collector.failures.append(violation.error())
-    for page, term in sorted(set(allowed) - found):
-        collector.failures.append(
-            MetadataLoadError(
-                f"baselines docs/{page} | {term}, which is no longer a "
-                f"violation; run `uv run docs-level-order --prune-baseline` "
-                f"and drop the key from _BASELINED in "
-                f"test/metadata/docs/test_level_baseline.py",
-                path=BASELINE_PATH.name,
-                line=entries[(page, term)].line if entries else None,
-            )
+
+    def stale(key: tuple[str, str]) -> str:
+        page, term = key
+        return (
+            f"baselines docs/{page} | {term}, which is no longer a "
+            f"violation; run `uv run docs-level-order --prune-baseline` "
+            f"and drop the key from _BASELINED in "
+            f"test/metadata/docs/test_level_baseline.py"
         )
+
+    baselined, faults = LEVEL_BASELINE.check(
+        {v.key: v.error() for v in analysis.violations},
+        baseline,
+        path=BASELINE_PATH,
+        stale_detail=stale,
+    )
+    collector.failures += faults
     collector.raise_if_any(summary=_summary(collector))
     return CheckResult(
         leveled_pages=len(analysis.levels),
         unleveled_pages=analysis.unleveled,
         introductions=len(analysis.introducers),
-        baselined=sorted(baselined),
+        baselined=baselined,
     )
 
 
@@ -408,17 +420,12 @@ def prune_baseline(
         How many entries were removed.
     """
     analysis, collector = analyse(repo_root)
-    baseline_path = baseline_path or BASELINE_PATH
-    current = read_baseline(baseline_path)
-    found = {v.key for v in analysis.violations}
-    unread = {f.path for f in collector.failures}
-    keep = {
-        key: reason
-        for key, reason in current.items()
-        if key in found or f"docs/{key[0]}" in unread
-    }
-    write_baseline(keep, baseline_path)
-    return len(current) - len(keep)
+    return LEVEL_BASELINE.prune(
+        (v.key for v in analysis.violations),
+        (f.path for f in collector.failures if f.path),
+        page_of=lambda key: key[0],
+        path=baseline_path or BASELINE_PATH,
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
