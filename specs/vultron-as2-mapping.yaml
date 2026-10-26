@@ -74,13 +74,32 @@ groups:
   - id: VAM-01-009
     priority: MUST
     kind: project
-    statement: If the `object_` field of an activity remains a bare string URI after rehydration (i.e., the DataLayer does
-      not have a record for that URI), `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN`
-    rationale: Semantic dispatch depends on the object type. A bare string in `object_` makes the object type unknowable;
-      proceeding as if the pattern matches would route the activity to the wrong handler
-    verification: A unit test confirms that `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` when
-      the activity's `object_` remains a bare string URI after rehydration because the DataLayer has no record
-      for that URI.
+    statement: >-
+      A non-strict `ActivityPattern` (`strict=False`, the default) MUST match an
+      activity whose `object_` is an unresolved bare string URI after rehydration.
+      A pattern with `strict=True` MUST NOT match such an activity.
+      `find_matching_semantics()` MUST return
+      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` when no registered pattern
+      matches, the activity type has at least one registered pattern, and
+      `object_` is still a bare string URI after rehydration; it MUST return
+      `MessageSemantics.UNKNOWN` only when the activity type has no registered
+      patterns at all.
+    rationale: >-
+      Permissive matching is correct for activities such as
+      `Reject(CaseLedgerEntry)` that legitimately carry a by-reference object on
+      the wire.
+      `strict=True` protects against wrong dispatch only where the object type is
+      needed to distinguish competing patterns; patterns without competing
+      alternatives need not pay the cost.
+      `UNKNOWN_UNRESOLVABLE_OBJECT` is the specific signal for a known activity
+      type whose object could not be resolved, distinguishing a data gap from an
+      unrecognised activity type.
+    verification: >-
+      Tests marked `VAM-01-009` confirm that `find_matching_semantics()` returns
+      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` for an activity of a known
+      type whose `object_` is a bare string URI after rehydration and no pattern
+      matches; and that a non-strict pattern matches an activity with an
+      unresolved `object_` string.
   - id: VAM-01-007
     priority: MUST
     kind: project
