@@ -22,7 +22,7 @@ import yaml
 
 from vultron.metadata.base import repo_root
 from vultron.metadata.docs import nav_usability as nu
-from vultron.metadata.file_loading import MetadataLoadError
+from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
 
 _PERSONA = {
     "id": "p1",
@@ -90,10 +90,6 @@ def _nodes(tmp_path: Path) -> list[nu.NavNode]:
     return nu.nav_tree(yaml.safe_dump(_NAV), _docs(tmp_path))
 
 
-def _number(nodes: list[nu.NavNode], label: str) -> int:
-    return next(n.number for n in nu.walk_nodes(nodes) if n.label == label)
-
-
 class TestSuite:
     def test_committed_suite_loads_and_every_destination_exists(self):
         root = repo_root()
@@ -108,28 +104,39 @@ class TestSuite:
 
     def test_unknown_persona_fails(self, tmp_path):
         bad = {**_LOOKUP, "persona": "nobody"}
-        with pytest.raises(MetadataLoadError, match="unknown persona"):
+        with pytest.raises(MetadataLoadErrors, match="unknown persona"):
             nu.load_suite(_suite_file(tmp_path, tasks=[_THREAD, bad]))
 
     def test_lookup_without_destination_fails(self, tmp_path):
         bad = {**_LOOKUP, "destinations": []}
-        with pytest.raises(MetadataLoadError, match="names no destination"):
+        with pytest.raises(MetadataLoadErrors, match="names no destination"):
             nu.load_suite(_suite_file(tmp_path, tasks=[_THREAD, bad]))
 
     def test_thread_with_own_destination_fails(self, tmp_path):
         bad = {**_THREAD, "destinations": ["x.md"]}
-        with pytest.raises(MetadataLoadError, match="declares destinations"):
+        with pytest.raises(MetadataLoadErrors, match="declares destinations"):
             nu.load_suite(_suite_file(tmp_path, tasks=[bad, _LOOKUP]))
 
     def test_persona_without_thread_task_fails(self, tmp_path):
-        with pytest.raises(MetadataLoadError, match="follow your thread"):
+        with pytest.raises(MetadataLoadErrors, match="follow your thread"):
             nu.load_suite(_suite_file(tmp_path, tasks=[_LOOKUP]))
 
     def test_repeated_task_id_fails(self, tmp_path):
-        with pytest.raises(MetadataLoadError, match="repeats task"):
+        with pytest.raises(MetadataLoadErrors, match="repeats task"):
             nu.load_suite(
                 _suite_file(tmp_path, tasks=[_THREAD, _LOOKUP, _LOOKUP])
             )
+
+    def test_every_fault_is_reported_at_once(self, tmp_path):
+        bad = {**_LOOKUP, "persona": "nobody", "destinations": []}
+        with pytest.raises(MetadataLoadErrors) as caught:
+            nu.load_suite(_suite_file(tmp_path, tasks=[bad]))
+        assert len(caught.value.failures) == 3
+
+    def test_schema_fault_names_the_file(self, tmp_path):
+        path = _suite_file(tmp_path, personas=[{**_PERSONA, "extra": 1}])
+        with pytest.raises(MetadataLoadError, match=r"suite\.yaml"):
+            nu.load_suite(path)
 
 
 class TestNavTree:
@@ -147,16 +154,23 @@ class TestNavTree:
         assert deeper.path is None
         assert deeper.pages() == ["topics/leaf.md"]
 
-    def test_render_shows_numbers_and_labels_never_paths(self, tmp_path):
+    def test_render_shows_labels_never_paths_or_numbers(self, tmp_path):
         rendered = nu.render_tree(_nodes(tmp_path))
-        assert "- [1] Home" in rendered
-        assert "    - [" in rendered
+        assert rendered.splitlines()[0] == "- Home"
+        assert "\n    - Leaf" in rendered and "[" not in rendered
         assert ".md" not in rendered and "example.org" not in rendered
 
     def test_unlabelled_missing_page_fails(self, tmp_path):
         nav = {"nav": [{"G": ["g/index.md", "g/missing.md"]}]}
         with pytest.raises(MetadataLoadError, match="does not exist"):
             nu.nav_tree(yaml.safe_dump(nav), _docs(tmp_path))
+
+    def test_first_of_same_named_siblings_wins(self, tmp_path):
+        nav = {"nav": [{"A": "x.md"}, {"A": [{"B": "y.md"}]}]}
+        nodes = nu.nav_tree(yaml.safe_dump(nav), _docs(tmp_path))
+        assert nu.resolve_label_path(nodes, ["a"])[0].path == "x.md"
+        with pytest.raises(KeyError, match="no entry 'B' under A"):
+            nu.resolve_label_path(nodes, ["A", "B"])
 
     def test_hash_follows_the_nav_only(self):
         base = yaml.safe_dump(_NAV)
@@ -169,7 +183,7 @@ class TestNavTree:
         prompt = nu.tree_prompt(_suite(tmp_path), "p1", _nodes(tmp_path))
         assert "You do not know X." in prompt
         assert "T2: Find the embargo page." in prompt
-        assert "[1] Home" in prompt
+        assert "- Home" in prompt
 
 
 class TestScoreTree:
@@ -182,8 +196,8 @@ class TestScoreTree:
     def test_outcomes(self, tmp_path):
         nodes = _nodes(tmp_path)
         answers = [
-            {"task": "T1", "node": _number(nodes, "A")},
-            {"task": "T2", "node": _number(nodes, "Embargo")},
+            {"task": "T1", "path": ["Start", "A"]},
+            {"task": "T2", "path": ["topics", " embargo "]},
         ]
         results = nu.score_tree_answers(_suite(tmp_path), "p1", nodes, answers)
         assert [r.outcome for r in results] == [nu.Outcome.SUCCESS] * 2
@@ -191,33 +205,39 @@ class TestScoreTree:
 
     def test_group_holding_the_destination_is_near(self, tmp_path):
         nodes = _nodes(tmp_path)
-        answers = [{"task": "T2", "node": _number(nodes, "Topics")}]
+        answers = [{"task": "T2", "path": ["Topics"]}]
         results = nu.score_tree_answers(_suite(tmp_path), "p1", nodes, answers)
         assert results[1].outcome is nu.Outcome.NEAR
         assert not results[1].stalled_at_home
 
     def test_unanswered_and_null_are_giving_up(self, tmp_path):
-        _, results = self._score(tmp_path, [{"task": "T2", "node": None}])
+        _, results = self._score(tmp_path, [{"task": "T2", "path": None}])
         assert [r.outcome for r in results] == [nu.Outcome.GAVE_UP] * 2
 
     def test_home_answer_is_a_stall(self, tmp_path):
         nodes = _nodes(tmp_path)
-        answers = [{"task": "T2", "node": _number(nodes, "Vultron")}]
+        answers = [{"task": "T2", "path": ["Vultron"]}]
         results = nu.score_tree_answers(_suite(tmp_path), "p1", nodes, answers)
         assert results[1].outcome is nu.Outcome.FAIL
         assert results[1].stalled_at_home
 
     def test_stray_task_fails(self, tmp_path):
         with pytest.raises(MetadataLoadError, match="not given"):
-            self._score(tmp_path, [{"task": "T9", "node": 1}])
+            self._score(tmp_path, [{"task": "T9", "path": ["Home"]}])
 
-    def test_unknown_node_fails(self, tmp_path):
-        with pytest.raises(MetadataLoadError, match="no node 999"):
-            self._score(tmp_path, [{"task": "T2", "node": 999}])
+    def test_unknown_label_fails(self, tmp_path):
+        with pytest.raises(
+            MetadataLoadError, match="no entry 'Nope' under Topics"
+        ):
+            self._score(tmp_path, [{"task": "T2", "path": ["Topics", "Nope"]}])
 
-    def test_non_integer_node_fails(self, tmp_path):
-        with pytest.raises(MetadataLoadError, match="integer or null"):
-            self._score(tmp_path, [{"task": "T2", "node": "3"}])
+    def test_non_list_path_fails(self, tmp_path):
+        with pytest.raises(MetadataLoadError, match="list of labels or null"):
+            self._score(tmp_path, [{"task": "T2", "path": "Topics"}])
+
+    def test_empty_path_fails(self, tmp_path):
+        with pytest.raises(MetadataLoadError, match="empty path"):
+            self._score(tmp_path, [{"task": "T2", "path": []}])
 
 
 _PAGE = """<html><head><title>{title}</title></head><body>
@@ -379,15 +399,10 @@ class TestCli:
         docs = _docs(tmp_path)
         config = tmp_path / "mkdocs.yml"
         config.write_text(yaml.safe_dump(_NAV))
-        nodes = nu.nav_tree(config.read_text(), docs)
         answers = tmp_path / "a.json"
         answers.write_text(
             json.dumps(
-                {
-                    "answers": [
-                        {"task": "T2", "node": _number(nodes, "Embargo")}
-                    ]
-                }
+                {"answers": [{"task": "T2", "path": ["topics", " embargo "]}]}
             )
         )
         results = tmp_path / "r.yaml"

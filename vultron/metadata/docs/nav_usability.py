@@ -18,7 +18,7 @@ vary between runs, so the personas and tasks in
 ``notes/nav-usability/suite.yaml`` can be reused:
 
 * **Stage 1, tree test.** :func:`nav_tree` turns a ``mkdocs.yml`` nav into a
-  numbered label tree with no page content; :func:`tree_prompt` briefs one
+  label tree with no page content; :func:`tree_prompt` briefs one
   persona on it; :func:`score_tree_answers` resolves each answered node to
   its page and scores it against the task's destinations.
 * **Stage 2, walkthrough.** :class:`Walk` serves a built ``site/`` one page
@@ -31,7 +31,7 @@ Results are keyed on :func:`nav_hash`, so a baseline is reused until the
 baseline nav itself changes.
 
 CLI (``uv run nav-usability``):
-    tree     print a config's nav hash and numbered label tree
+    tree     print a config's nav hash and label tree
     prompt   print the Stage 1 briefing for one persona
     score    score a persona's Stage 1 answers into a results file
     walk     take one Stage 2 step in a session
@@ -56,7 +56,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from vultron.metadata.base import parse_mkdocs_config
 from vultron.metadata.docs.landing_pages import page_title
-from vultron.metadata.file_loading import MetadataLoadError, load_frontmatter
+from vultron.metadata.file_loading import (
+    MetadataLoadError,
+    MetadataLoadErrors,
+    load_frontmatter,
+    load_yaml,
+    validate,
+)
 from vultron.primitives import NonEmptyString
 
 SUITE_PATH = Path("notes/nav-usability/suite.yaml")
@@ -120,52 +126,58 @@ class Suite(BaseModel):
         return list(task.destinations)
 
 
-def load_suite(path: Path) -> Suite:
-    """Load and cross-check the suite at *path*.
-
-    Raises:
-        MetadataLoadError: If a task names an unknown persona, a lookup task
-            has no destination, a thread task declares its own, a persona
-            has no thread task, or an id repeats.
-    """
-    suite = Suite.model_validate(yaml.safe_load(path.read_text("utf-8")))
-    where = str(path)
+def _suite_faults(suite: Suite) -> list[str]:
+    """Every way *suite* breaks the test's rules, not just the first."""
+    faults: list[str] = []
     persona_ids = [p.id for p in suite.personas]
     task_ids = [t.id for t in suite.tasks]
     for ids, what in ((persona_ids, "persona"), (task_ids, "task")):
         repeated = sorted({i for i in ids if ids.count(i) > 1})
         if repeated:
-            raise MetadataLoadError(
-                f"repeats {what} id(s) {', '.join(repeated)}", path=where
-            )
+            faults.append(f"repeats {what} id(s) {', '.join(repeated)}")
     for task in suite.tasks:
         if task.persona not in persona_ids:
-            raise MetadataLoadError(
-                f"task {task.id} names unknown persona {task.persona!r}",
-                path=where,
+            faults.append(
+                f"task {task.id} names unknown persona {task.persona!r}"
             )
         if task.kind == "lookup" and not task.destinations:
-            raise MetadataLoadError(
-                f"lookup task {task.id} names no destination", path=where
-            )
+            faults.append(f"lookup task {task.id} names no destination")
         if task.kind == "thread" and task.destinations:
-            raise MetadataLoadError(
+            faults.append(
                 f"thread task {task.id} declares destinations; a thread "
-                "task's destination is its persona's start_page",
-                path=where,
+                "task's destination is its persona's start_page"
             )
     for persona_id in persona_ids:
         if not any(t.kind == "thread" for t in suite.tasks_for(persona_id)):
-            raise MetadataLoadError(
+            faults.append(
                 f"persona {persona_id} has no 'follow your thread' task "
-                "(ADR-0136 § Validation)",
-                path=where,
+                "(ADR-0136 § Validation)"
             )
+    return faults
+
+
+def load_suite(path: Path) -> Suite:
+    """Load and cross-check the suite at *path*.
+
+    Raises:
+        MetadataLoadError: If the file is not valid YAML or does not match
+            :class:`Suite`.
+        MetadataLoadErrors: One failure per rule the suite breaks: a task
+            naming an unknown persona, a lookup task with no destination, a
+            thread task declaring its own, a persona with no thread task, or
+            a repeated id.
+    """
+    suite = validate(Suite, load_yaml(path), path=path)
+    faults = _suite_faults(suite)
+    if faults:
+        raise MetadataLoadErrors(
+            [MetadataLoadError(f, path=str(path)) for f in faults]
+        )
     return suite
 
 
 # --------------------------------------------------------------------------
-# Stage 1: the nav as a numbered label tree
+# Stage 1: the nav as a label tree
 # --------------------------------------------------------------------------
 
 
@@ -173,7 +185,6 @@ def load_suite(path: Path) -> Suite:
 class NavNode:
     """One nav entry: a label, the page it opens (if any), its children."""
 
-    number: int
     label: str
     path: str | None
     children: list[NavNode] = field(default_factory=list)
@@ -202,10 +213,9 @@ def _split(item: object) -> tuple[str | None, object]:
     return None, item
 
 
-class _Numberer:
+class _TreeBuilder:
     def __init__(self, docs_dir: Path) -> None:
         self.docs_dir = docs_dir
-        self.next = 1
 
     def title(self, rel: str) -> str:
         path = self.docs_dir / rel
@@ -216,9 +226,7 @@ class _Numberer:
         return page_title(load_frontmatter(path), rel)
 
     def node(self, label: str, path: str | None) -> NavNode:
-        node = NavNode(number=self.next, label=label, path=path)
-        self.next += 1
-        return node
+        return NavNode(label=label, path=path)
 
     def items(self, items: list[object]) -> list[NavNode]:
         nodes: list[NavNode] = []
@@ -252,7 +260,7 @@ class _Numberer:
 
 
 def nav_tree(config_text: str, docs_dir: Path) -> list[NavNode]:
-    """Return the nav of a ``mkdocs.yml`` as numbered label nodes.
+    """Return the nav of a ``mkdocs.yml`` as label nodes.
 
     Unlabelled entries take the page's title, as mkdocs shows them.
 
@@ -260,7 +268,7 @@ def nav_tree(config_text: str, docs_dir: Path) -> list[NavNode]:
         MetadataLoadError: If an unlabelled entry names a missing page.
     """
     nav = parse_mkdocs_config(config_text).get("nav", [])
-    return _Numberer(docs_dir).items(nav if isinstance(nav, list) else [])
+    return _TreeBuilder(docs_dir).items(nav if isinstance(nav, list) else [])
 
 
 def walk_nodes(nodes: list[NavNode]) -> list[NavNode]:
@@ -269,10 +277,14 @@ def walk_nodes(nodes: list[NavNode]) -> list[NavNode]:
 
 
 def render_tree(nodes: list[NavNode], depth: int = 0) -> str:
-    """The label tree an agent sees: numbers and labels, no paths."""
+    """The label tree an agent sees: labels only, no paths or numbers.
+
+    Numbers invite an agent to answer with a line number of the file it
+    read the tree from, so the answer names the labels instead.
+    """
     lines: list[str] = []
     for node in nodes:
-        lines.append(f"{'  ' * depth}- [{node.number}] {node.label}")
+        lines.append(f"{'  ' * depth}- {node.label}")
         if node.children:
             lines.append(render_tree(node.children, depth + 1))
     return "\n".join(lines)
@@ -281,17 +293,18 @@ def render_tree(nodes: list[NavNode], depth: int = 0) -> str:
 _TREE_INSTRUCTIONS = """\
 You are taking part in a usability test of a documentation website's
 navigation. Stay in character as the reader described below. You see ONLY the
-site's navigation labels, as a numbered tree; you cannot see any page. Do not
+site's navigation labels, as an indented tree; you cannot see any page. Do not
 use anything you may already know about this project or its repository:
 judge only from the labels, as this reader would.
 
-For each task, pick the ONE numbered entry you would click to finish the
-task, as the reader would. If no entry looks right, give up rather than
-guess wildly.
+For each task, pick the ONE entry you would click to finish the task, as the
+reader would, and give its full path of labels from the top level down,
+copied exactly. If no entry looks right, give up rather than guess wildly.
 
 Answer with JSON only, no prose around it:
-{"answers": [{"task": "<task id>", "node": <number or null to give up>,
-"confidence": "high|medium|low", "why": "<one short sentence>"}]}
+{"answers": [{"task": "<task id>", "path": ["<top label>", "...", "<entry>"]
+or null to give up, "confidence": "high|medium|low",
+"why": "<one short sentence>"}]}
 """
 
 
@@ -355,14 +368,35 @@ class Results(BaseModel):
     results: list[TaskResult] = Field(default_factory=list)
 
 
-def _label_path(nodes: list[NavNode], number: int) -> list[NavNode] | None:
-    for node in nodes:
-        if node.number == number:
-            return [node]
-        below = _label_path(node.children, number)
-        if below is not None:
-            return [node, *below]
-    return None
+def _fold(label: str) -> str:
+    return " ".join(label.split()).casefold()
+
+
+def resolve_label_path(
+    nodes: list[NavNode], labels: list[str]
+) -> list[NavNode]:
+    """The chain of nodes a label path names, top level first.
+
+    Labels match case- and whitespace-insensitively. Where siblings share a
+    label, the first one wins, as it would for a reader scanning the tree.
+
+    Raises:
+        KeyError: If the path is empty or a label is not under its parent.
+    """
+    if not labels:
+        raise KeyError("an empty path names no entry")
+    chain: list[NavNode] = []
+    level = nodes
+    for label in labels:
+        match = next(
+            (n for n in level if _fold(n.label) == _fold(label)), None
+        )
+        if match is None:
+            under = " > ".join(n.label for n in chain) or "the top level"
+            raise KeyError(f"no entry {label!r} under {under}")
+        chain.append(match)
+        level = match.children
+    return chain
 
 
 def _home_pages(nodes: list[NavNode]) -> set[str]:
@@ -387,7 +421,7 @@ def score_tree_answers(
 
     Raises:
         MetadataLoadError: If an answer names a task the persona was not
-            given, or a node number the tree does not have.
+            given, or a path the tree does not have.
     """
     by_task: dict[str, dict[str, object]] = {}
     for answer in answers:
@@ -404,10 +438,10 @@ def score_tree_answers(
     results: list[TaskResult] = []
     for task in suite.tasks_for(persona_id):
         answer = by_task.get(task.id, {})
-        number = answer.get("node")
+        labels = answer.get("path")
         why = answer.get("why")
         why_text = str(why) if why else None
-        if number is None:
+        if labels is None:
             results.append(
                 TaskResult(
                     task=task.id,
@@ -419,18 +453,20 @@ def score_tree_answers(
                 )
             )
             continue
-        if not isinstance(number, int):
+        if not isinstance(labels, list) or not all(
+            isinstance(label, str) for label in labels
+        ):
             raise MetadataLoadError(
-                f"task {task.id}: node must be an integer or null, "
-                f"not {number!r}",
+                f"task {task.id}: path must be a list of labels or null, "
+                f"not {labels!r}",
                 path="answers",
             )
-        chain = _label_path(nodes, number)
-        if chain is None:
+        try:
+            chain = resolve_label_path(nodes, labels)
+        except KeyError as exc:
             raise MetadataLoadError(
-                f"task {task.id}: the tree has no node {number}",
-                path="answers",
-            )
+                f"task {task.id}: {exc.args[0]}", path="answers"
+            ) from exc
         chosen = chain[-1]
         destinations = suite.destinations(task)
         if chosen.path in destinations:
@@ -910,7 +946,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     try:
         args.func(args)
-    except MetadataLoadError as exc:
+    except (MetadataLoadError, MetadataLoadErrors) as exc:
         raise SystemExit(str(exc)) from exc
 
 
