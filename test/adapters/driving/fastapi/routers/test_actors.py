@@ -280,6 +280,34 @@ def test_get_actor_profile_returns_discovery_fields(
         assert isinstance(data["outbox"], str), "outbox must be a URL string"
 
 
+@pytest.mark.spec("ARCH-12-006")
+def test_get_actor_profile_publishes_the_inbox_its_record_states(
+    client_actors,
+):
+    """A stated inbox is published as stated; only an absent one is filled.
+
+    The fallback is the address this node routes for the hosted actor, so it
+    never overrides what the profile itself states.
+    """
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+    from vultron.adapters.driven.datalayer_sqlite import get_datalayer
+    from vultron.adapters.driven.db_record import object_to_record
+    from vultron.core.models.actor import VultronOrganization
+
+    actor_id = canonical_actor_uri("stated-inbox-actor")
+    stated = "https://boxes.example/stated-inbox"
+    get_datalayer(actor_id, db_url="sqlite:///:memory:").create(
+        object_to_record(
+            VultronOrganization(id_=actor_id, name="Stated", inbox=stated)
+        )
+    )
+
+    data = client_actors.get(f"/actors/{_route_key(actor_id)}/profile").json()
+
+    assert data["inbox"] == stated
+    assert data["outbox"] == f"{actor_id}/outbox"
+
+
 @pytest.mark.spec("HTTP-04-001")
 def test_get_actor_profile_is_served_as_activitystreams(
     client_actors, created_actors

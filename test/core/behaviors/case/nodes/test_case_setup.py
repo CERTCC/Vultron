@@ -172,13 +172,21 @@ class TestEnsureCaseActorHostedNode:
         # The local copy of the CaseActor's store stays empty: nothing on this
         # node answers for http://case-actor:7999/.../case-actor.
         assert dl.clone_for_actor(case_actor_id).read(case_actor_id) is None
-        # The sending actor knows the CaseActor as a peer.
-        assert dl.read(case_actor_id) is not None
+        # The sending actor knows the CaseActor as a peer, by its id alone:
+        # no name, time or endpoint this node would have to guess (AKM-02-006).
+        peer = dl.read(case_actor_id)
+        assert peer is not None
+        assert (peer.name, peer.published, peer.updated) == (None, None, None)
+        assert (peer.inbox, peer.outbox) == (None, None)
 
     def test_self_hosting_container_publishes_it(self, monkeypatch):
         """Guard the guard: the same node does publish a co-located one."""
         dl, case_actor_id = self._run(monkeypatch, "http://vendor:7999/api/v2")
 
-        assert (
-            dl.clone_for_actor(case_actor_id).read(case_actor_id) is not None
+        hosted = dl.clone_for_actor(case_actor_id).read(case_actor_id)
+        assert hosted is not None
+        # The CaseActor this node hosts states the endpoints it routes for it.
+        assert (hosted.inbox, hosted.outbox) == (
+            f"{case_actor_id}/inbox",
+            f"{case_actor_id}/outbox",
         )

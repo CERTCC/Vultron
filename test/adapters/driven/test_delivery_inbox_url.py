@@ -135,6 +135,23 @@ def test_held_inboxes_reads_the_sender_store(dl):
 
 
 @pytest.mark.spec("OX-12-009")
+def test_held_inboxes_reads_a_wire_profile_inbox_collection():
+    """A held wire profile's inbox collection maps to its address."""
+    from unittest.mock import MagicMock
+
+    stated = "https://elsewhere.example/actors/wire"
+    held = as_Organization.model_validate(
+        {"id": stated, "inbox": "https://elsewhere.example/boxes/wire-in"}
+    )
+    dl = MagicMock()
+    dl.read.side_effect = {stated: held}.get
+
+    assert held_inboxes(dl, [stated]) == {
+        stated: "https://elsewhere.example/boxes/wire-in"
+    }
+
+
+@pytest.mark.spec("OX-12-009")
 def test_the_inbox_a_hosted_profile_states_accepts_post(dl):
     """A sender holding a hosted actor's profile posts to its stated inbox.
 
