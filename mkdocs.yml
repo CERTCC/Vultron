@@ -422,6 +422,8 @@ plugins:
         topics/background/versioning.md: reference/versioning.md
         topics/formal_protocol/index.md: reference/formal_protocol/index.md
         topics/formal_protocol/worked_example.md: tutorials/worked_example.md
+        # The fan-out ordering question was decided: eventual consistency (#5102).
+        topics/future_work/_oq-fanout-ordering.md: topics/case_lifecycle/case_ledger_sync.md
         topics/future_work/cs_model_limitations.md: topics/measuring_cvd/open_questions.md
         topics/future_work/cvd_directory.md: topics/future_work/open_questions.md
         topics/future_work/mod_sim.md: topics/measuring_cvd/reward_functions.md
