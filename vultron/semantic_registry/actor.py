@@ -423,11 +423,10 @@ ENTRIES: list[SemanticEntry] = [
                     "Coordinator. The Case Manager offers the case only to "
                     "an active participant, so the Case Owner invites any "
                     "other actor first. The inner Offer names the case, the "
-                    "new owner as its "
-                    "target and, optionally, an `endTime` after which the "
-                    "Case Manager refuses an answer: the offer is then "
-                    "closed, with nothing recorded or sent. The Case "
-                    "Manager makes the offer itself."
+                    "new owner as its target and, optionally, an `endTime` "
+                    "after which the Case Manager refuses an answer: the "
+                    "offer is then closed, with nothing recorded or sent. "
+                    "The Case Manager makes the offer itself."
                 ),
                 example="propose_case_ownership_transfer",
             ),
