@@ -1125,6 +1125,36 @@ groups:
     tracking_issue: '#5170'
     lint_suppress:
     - phantom_path_ref
+  - id: DF-11-024
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      A page on a reading-path thread (DF-11-013) MUST NOT depend on a member that
+      comes after it on that thread, where depending is as DF-11-002 defines it and a
+      member comes after another when it is in a later stage, or later in the same
+      chain; members of one set stage are unordered among themselves.
+    rationale: >-
+      A thread's order is a claim that a reader can follow it, and this makes the claim
+      falsifiable in the same way DF-11-002 makes navigation order falsifiable: a reader
+      who meets a concept before the page that introduces it either needs a link out
+      or a different order. The level rule cannot see this, since a thread need not
+      climb in level.
+    verification: >-
+      `docs-thread-order` reuses the `docs-level-order` term-dependency scan: for each
+      thread member, and each include fragment it renders, the first unlinked prose use
+      of a term that a later member declares in `introduces:` is a finding at
+      `path:line:col`, where a link to the introducer before or at the use, or a use
+      that is itself a glossary link, passes. Pre-existing findings go in a shrink-only
+      baseline keyed by thread, page and term. The check fails when it resolves no
+      threads (DF-09-009) and runs as a pre-commit hook and in CI; unit tests cover a
+      violation, a linked use, and a glossary-link use.
+    relationships:
+    - rel_type: refines
+      spec_id: DF-11-013
+    - rel_type: extends
+      spec_id: DF-11-002
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers
   description: >-

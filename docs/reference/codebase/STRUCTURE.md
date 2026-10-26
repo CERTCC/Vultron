@@ -86,6 +86,9 @@ stakeholder_type: [project-contributor]
     `--check` fails if any committed copy is stale.
   - `docs-threads` → `vultron.metadata.docs.threads:main`.
     It fails when a start page declares no thread, a thread lists a page twice or a page that is missing, working record, or not a page, or no thread resolves at all (DF-11-016).
+  - `docs-thread-order` → `vultron.metadata.docs.thread_order:main`.
+    It fails when a thread member, or a fragment it renders, uses a term a later member introduces without linking out for it first (DF-11-024).
+    It reuses the `docs-level-order` scan, and its shrink-only baseline is `vultron/metadata/docs/thread_order_baseline.txt`.
   - `docs-withheld` → `vultron.metadata.docs.withheld:main` (a withheld artifact produces no `site/` files), `docs-links` → `vultron.metadata.docs.links:main` (every internal reference in the built `site/` resolves), `docs-legacy-urls` → `vultron.metadata.docs.legacy_urls:main` (a URL the site once published still answers)
   - `demo-scenarios` → `vultron.metadata.demo_scenarios.sync:main`.
     `--write` regenerates the artifacts derived from the demo scenario registry.

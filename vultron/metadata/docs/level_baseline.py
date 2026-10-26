@@ -9,10 +9,12 @@ an unrelated edit above the use does not make the entry stale.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import NamedTuple
 
-from vultron.metadata.docs.baseline_file import entry_lines, write_entries
-from vultron.metadata.file_loading import FailureCollector, MetadataLoadError
+from vultron.metadata.docs.baseline_file import (
+    BaselineEntry,
+    read_keyed_entries,
+    write_keyed_entries,
+)
 
 #: Upward dependencies that predate the check, one per line as
 #: ``page | term | reason``. Kept outside ``docs/`` so it is never published.
@@ -30,13 +32,6 @@ _BASELINE_HEADER = """\
 """
 
 
-class BaselineEntry(NamedTuple):
-    """One tolerated violation: why it is unfixed, and where it is listed."""
-
-    reason: str
-    line: int
-
-
 def read_baseline_entries(
     path: Path | None = None,
 ) -> dict[tuple[str, str], BaselineEntry]:
@@ -47,31 +42,8 @@ def read_baseline_entries(
             three ``|``-separated fields with a non-empty reason, or repeats
             an earlier entry.
     """
-    path = path or BASELINE_PATH
-    entries: dict[tuple[str, str], BaselineEntry] = {}
-    collector = FailureCollector()
-    for number, line in entry_lines(path):
-        with collector.attempt():
-            fields = [f.strip() for f in line.split("|")]
-            if len(fields) != 3 or not all(fields):
-                raise MetadataLoadError(
-                    "an entry is `page | term | reason`, each non-empty; "
-                    "every baselined violation names why it is unfixed",
-                    path=path.name,
-                    line=number,
-                )
-            page, term, reason = fields
-            if (page, term) in entries:
-                raise MetadataLoadError(
-                    f"repeats the entry for {page} | {term}",
-                    path=path.name,
-                    line=number,
-                )
-            entries[(page, term)] = BaselineEntry(reason, number)
-    collector.raise_if_any(
-        summary=f"{len(collector.failures)} malformed baseline entry(ies):"
-    )
-    return entries
+    entries = read_keyed_entries(path or BASELINE_PATH, ("page", "term"))
+    return {(page, term): entry for (page, term), entry in entries.items()}
 
 
 def read_baseline(path: Path | None = None) -> dict[tuple[str, str], str]:
@@ -89,11 +61,4 @@ def write_baseline(
     entries: dict[tuple[str, str], str], path: Path | None = None
 ) -> None:
     """Write *entries* sorted, under the explanatory header."""
-    write_entries(
-        path or BASELINE_PATH,
-        _BASELINE_HEADER,
-        (
-            f"{page} | {term} | {reason}"
-            for (page, term), reason in entries.items()
-        ),
-    )
+    write_keyed_entries(path or BASELINE_PATH, _BASELINE_HEADER, entries)
