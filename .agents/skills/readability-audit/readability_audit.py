@@ -23,8 +23,6 @@ import sys
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 
-import textstat
-
 LONG_SENTENCE_WORDS = 28  # SG-14
 LONG_PARAGRAPH_SENTENCES = 5  # SG-16
 MIN_WORDS = 200  # smaller pages give unstable formula scores
@@ -40,7 +38,17 @@ OUT_OF_SCOPE = (
 )
 
 LIST_OR_HEADING = re.compile(r"^\s*(#+\s|[-*+]\s|\d+\.\s|>|\|)")
-SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+# a stop may be followed by closing quotes or brackets: `(See X.)`, `"go."`
+CLOSERS = "\"'\u201d\u2019)\\]"
+SENTENCE_END = re.compile(rf"[.!?:][{CLOSERS}]*$")
+SENTENCE_BREAK = re.compile(
+    rf"(?:(?<=[.!?])|(?<=[.!?][{CLOSERS}])|(?<=[.!?][{CLOSERS}]{{2}}))"
+    r"\s+(?=[A-Z])"
+)
+FENCE = re.compile(r"^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[ \t]*$", re.M | re.S)
+# TeX rule: no space inside either `$`, no digit after the closing one, so
+# two literal amounts (`$5 ... $10`) never pair; a blank line ends the search
+INLINE_MATH = re.compile(r"\$(?=\S)(?:[^$\n]|\n(?![ \t]*\n))+?(?<=\S)\$(?!\d)")
 
 
 @dataclass
@@ -60,13 +68,13 @@ class PageScore:
 def strip_markup(md: str) -> str:
     """Remove everything that is not prose; keep blank lines as block breaks."""
     md = re.sub(r"\A---\n.*?\n---\n", "", md, flags=re.S)  # front matter
-    md = re.sub(r"```.*?```", "", md, flags=re.S)  # code and mermaid
+    md = FENCE.sub("", md)  # code and mermaid, ``` or ~~~, any length
     md = re.sub(r"\{%.*?%\}", "", md, flags=re.S)  # include-markdown
     md = re.sub(r"<!--.*?-->", "", md, flags=re.S)
     md = re.sub(r"\$\$.*?\$\$", "", md, flags=re.S)  # display math
     md = re.sub(r"\\\[.*?\\\]", "", md, flags=re.S)  # bracketed display math
+    md = INLINE_MATH.sub("", md)  # inline math, may span lines
     md = re.sub(r"\\begin\{(\w+\*?)\}.*?\\end\{\1\}", "", md, flags=re.S)
-    md = re.sub(r"\$[^$]+\$", "", md)  # inline math, may span lines
     md = re.sub(r"\(\s*\)", "", md)  # parentheses emptied by math removal
     md = re.sub(r"<[^>]+>", "", md)  # html tags
     md = re.sub(r"^\s*\|.*\|\s*$", "", md, flags=re.M)  # tables
@@ -105,7 +113,7 @@ def units(block: list[str]) -> list[str]:
         if (
             out
             and not LIST_OR_HEADING.match(line)
-            and out[-1][-1] not in ".!?:"
+            and not SENTENCE_END.search(out[-1])
         ):
             out[-1] += " " + line.strip()
         else:
@@ -118,12 +126,14 @@ def sentences_of(line: str) -> list[str]:
     line = re.sub(r"^\s*(#+|[-*+]|\d+\.|>)\s*", "", line).strip()
     if not line:
         return []
-    if line[-1] not in ".!?:":
+    if not SENTENCE_END.search(line):
         line += "."  # headings and list items end without a stop
     return [s for s in SENTENCE_BREAK.split(line) if s.strip()]
 
 
 def score(path: str, md: str) -> PageScore | None:
+    import textstat  # supplied by uvx at run time; the parsing needs none
+
     bl = [units(b) for b in blocks(strip_markup(md))]
     sents = [s for b in bl for line in b for s in sentences_of(line)]
     if not sents:
@@ -167,6 +177,39 @@ def git_show(rev: str, path: str) -> str | None:
         text=True,
     )
     return r.stdout if r.returncode == 0 else None
+
+
+def repo_root() -> pathlib.Path:
+    r = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return pathlib.Path(r.stdout.strip())
+
+
+def targets(
+    args: list[str], root: pathlib.Path
+) -> list[tuple[str, pathlib.Path]]:
+    """Expand ARGS to (repo-relative posix path, file) pairs for every .md file.
+
+    Paths may be absolute or relative to the working directory; scope is
+    decided on the repo-relative form. Raises ValueError for a path that does
+    not exist or lies outside the repo.
+    """
+    out: list[tuple[str, pathlib.Path]] = []
+    for arg in args:
+        p = pathlib.Path(arg).resolve()
+        if not p.exists():
+            raise ValueError(f"no such file or directory: {arg}")
+        try:
+            p.relative_to(root)
+        except ValueError:
+            raise ValueError(f"not inside the repository: {arg}") from None
+        for f in sorted(p.rglob("*.md")) if p.is_dir() else [p]:
+            out.append((f.relative_to(root).as_posix(), f))
+    return out
 
 
 def section_of(path: str) -> str:
@@ -255,10 +298,11 @@ def compare(rev: str, pages: list[PageScore]) -> None:
     before_all, after_all = [], []
     for after in pages:
         old = git_show(rev, after.path)
-        before = score(after.path, old) if old else None
+        before = score(after.path, old) if old is not None else None
         if before is None:
+            label = "new" if old is None else "no prose before"
             print(
-                f"| `{after.path[5:]}` (new) | {after.long_sentences} "
+                f"| `{after.path[5:]}` ({label}) | {after.long_sentences} "
                 f"| {after.median_wps:g} | {after.long_paragraphs} "
                 f"| {after.fk_grade} | {after.words} |"
             )
@@ -310,17 +354,18 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    files: list[pathlib.Path] = []
-    for arg in args.paths:
-        p = pathlib.Path(arg)
-        files.extend(sorted(p.rglob("*.md")) if p.is_dir() else [p])
+    root = repo_root()
+    try:
+        files = targets(args.paths, root)
+    except ValueError as e:
+        ap.error(str(e))
     match = re.compile(args.match) if args.match else None
     pages = [
         s
-        for f in files
-        if in_scope(f.as_posix())
-        and (not match or match.search(f.as_posix()))
-        and (s := score(f.as_posix(), f.read_text(errors="replace")))
+        for rel, f in files
+        if in_scope(rel)
+        and (not match or match.search(rel))
+        and (s := score(rel, f.read_text(errors="replace")))
     ]
     if not pages:
         print("error: no in-scope pages matched", file=sys.stderr)

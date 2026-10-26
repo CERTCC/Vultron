@@ -33,8 +33,10 @@ uvx --with 'textstat>=0.7.13,<0.8' python -I "$A" --baseline origin/main docs/to
 ```
 
 Options: `--top N` (ranking rows, default 30), `--csv FILE` (every page
-score), `--paths-out FILE` (ranked paths, one per line). Exit 1 means no
-in-scope page matched.
+score), `--paths-out FILE` (ranked paths, one per line). Paths may be
+absolute or relative to any directory in the repo. Exit 1 means no in-scope
+page matched; exit 2 means a bad argument, such as a path that does not exist
+or lies outside the repo.
 
 ## Workflow
 
@@ -93,4 +95,6 @@ with `--paths-out`.
   link targets before scoring. A page that is mostly a table can score near
   zero.
 - Lines hard-wrapped mid-sentence (an SG-38 break) are rejoined before
-  counting, so a wrapped page scores the same as an unwrapped one.
+  counting, so a wrapped page scores about the same as an unwrapped one. A
+  wrap right after an abbreviation such as `e.g.` still splits the sentence
+  there.
