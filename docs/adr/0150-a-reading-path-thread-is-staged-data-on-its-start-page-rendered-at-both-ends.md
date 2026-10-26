@@ -2,11 +2,11 @@
 status: proposed
 date: 2026-10-20
 created: 2026-10-20
-updated: 2026-10-20
-revision: 1
+updated: 2026-10-26
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
-  Claude Opus 5.5; ADR-0102, ADR-0136;
+  Claude Opus 5.5; ADR-0102, ADR-0128, ADR-0136;
   notes/site-information-architecture.md; specs/diataxis-requirements.yaml DF-11
 informed: []
 stakeholder_type: [project-contributor]
@@ -55,9 +55,11 @@ The thread is declared in its start page's frontmatter, beside the page that ope
 From that one declaration:
 
 - the start page's stage headings, lists and per-step blurbs are generated between markers in its source, and a check fails when the committed text differs from the data;
-- each member page gets, at build time, a short box per thread it belongs to, titled by the reader's situation, naming the pages before it and the pages after it as sets, with a link back to the full path.
+- each member page, and the start page itself, carries a box per thread it is on, titled by the reader's situation, with a table of the thread's start page, the pages before it, the page itself and the pages after it, where before and after are sets;
+- each box is a committed fragment generated from the declaration, the way the message-vocabulary fragments are (ADR-0128), and the page's author places it with `include-markdown` where directions onward belong; the build never adds one, and a check over the built site fails when a page is missing its box.
 
-A member page on several threads shows one entry per thread, so it never needs to know which thread a reader is following.
+A member page on several threads shows one box per thread, so it never needs to know which thread a reader is following.
+Because no box is added at the page end, the theme's navigation-order footer stays on every page.
 
 The mechanism supports any number of threads.
 A later split of one reader's path into narrower situations adds a thread, which is the move ADR-0136 anticipated for a `stakeholder_type` split.
@@ -69,12 +71,15 @@ A later split of one reader's path into narrower situations adds a thread, which
 - Good, because rendered pages do not vary by reader, so no query parameter, script or referrer is involved, and every page still stands alone.
 - Good, because a thread's data is plain YAML that reviews well in a diff.
 - Bad, because a long thread makes for long frontmatter on its start page.
-- Bad, because a member page's box comes from a build hook, so the page's source does not show that it is on a thread.
-- Neutral, because the theme's navigation-order footer and the thread box can disagree about "next"; the footer is suppressed on thread member pages.
+- Good, because a page's source shows which threads it is on, and a change to a thread shows in the diff of every box it moves.
+- Good, because the author places the box where a reader needs it, including at the end of one section of a long page.
+- Bad, because every member page needs an include line placed by hand; the check catches a missing box and a section's box outside its section, but where on a whole page a box sits is left to review.
+- Neutral, because the theme's navigation-order footer and a thread box can name different next pages; the box is titled by its thread, so the two read as different routes.
 
 ## Validation
 
-A check validates every thread: each listed page exists and is reader-facing, no page appears twice in one thread, and the start page's generated block matches its data.
+A check validates every thread: each listed page exists and is reader-facing, no page appears twice in one thread, and the start page's generated block and every committed box match its data.
+A check over the built site, run in CI, fails when a member page or start page does not render its box for each of its threads, renders a box made for another page, or renders a section member's box outside that section.
 It fails, rather than passes, when it finds no threads (DF-09-009).
 The agent usability test that gates the navigation change has a "follow your thread" task for each persona (ADR-0136).
 
@@ -113,4 +118,4 @@ The agent usability test that gates the navigation change has a "follow your thr
 
 Explicit page-to-page edges can be added inside or across stages if a real thread needs an order that stages cannot express; that extends this decision rather than replacing it.
 
-Generated spec requirements: `diataxis-requirements.yaml` DF-11-013 through DF-11-017.
+Generated spec requirements: `diataxis-requirements.yaml` DF-11-013 through DF-11-016, DF-11-022 and DF-11-023; DF-11-017 stands until #5170 retires it.

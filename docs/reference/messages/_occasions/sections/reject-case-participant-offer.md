@@ -4,19 +4,23 @@
 
 Rejects the proposed participant record. The Case Manager tells the recommender.
 
-- **When…** the Case Owner declines a suggested actor
-- **Send:** `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`
-- **Send to:** the case manager
-- **Sent by:** the case owner
-- **Seen in:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
-- **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
-- **Mapping status:** [expansion](../../index.md#mapping-status)
+=== "Details"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    reject_case_participant_offer,
-    json2md,
-)
+    - **When…** the Case Owner declines a suggested actor
+    - **Send:** `Reject(Offer(CaseParticipant)[target=VulnerabilityCase])`
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
+    - **Seen in:** [How to Suggest an Actor for a Case](../../../../howto/activitypub/activities/suggest_actor.md)
+    - **Formal definition:** [General Inquiry (GI)](../../../formal_protocol/messages.md#other-message-types)
+    - **Mapping status:** [expansion](../../index.md#mapping-status)
 
-print(json2md(reject_case_participant_offer()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        reject_case_participant_offer,
+        json2md,
+    )
+
+    print(json2md(reject_case_participant_offer()))
+    ```

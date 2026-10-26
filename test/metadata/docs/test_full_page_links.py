@@ -20,6 +20,10 @@ from typing import Any, cast
 
 import markdown  # type: ignore[import-untyped]  # Python-Markdown ships no stubs
 import pytest
+from markdown_exec import (
+    formatter as exec_formatter,
+    validator as exec_validator,
+)
 from mkdocs_include_markdown_plugin.event import (
     on_page_markdown as include_markdown,
 )
@@ -27,6 +31,7 @@ from mkdocs_include_markdown_plugin.plugin import IncludeMarkdownPlugin
 
 from vultron.metadata.base import mkdocs_config, repo_root
 from vultron.metadata.docs.anchor_ids import anchor_ids_in
+from vultron.metadata.docs.exec_page import EXEC_PAGE_ENV
 from vultron.metadata.docs.full_page_links import (
     FULL_PAGE_SRC_URI,
     on_page_markdown,
@@ -194,7 +199,11 @@ def test_hook_is_registered_in_mkdocs_yml():
 
 # Enough of the site's Markdown extensions for headings to render with the ids
 # the build gives them: ``toc`` makes the ids, and ``superfences`` keeps a
-# ``#`` line inside a fenced (or exec) block from reading as a heading.
+# ``#`` line inside a fenced (or exec) block from reading as a heading. The
+# ``python`` fence is markdown-exec's, as its plugin registers it in the
+# build, so an exec block (a requirement callout) parses and runs; without it
+# the block's attributes do not parse and the fence swallows the headings
+# after it.
 _HEADING_EXTENSIONS = [
     "toc",
     "attr_list",
@@ -207,6 +216,19 @@ _HEADING_EXTENSIONS = [
     "pymdownx.superfences",
     "pymdownx.tabbed",
 ]
+
+_HEADING_EXTENSION_CONFIGS = {
+    "pymdownx.superfences": {
+        "custom_fences": [
+            {
+                "name": "python",
+                "class": "python",
+                "validator": exec_validator,
+                "format": exec_formatter,
+            }
+        ]
+    }
+}
 
 _DOCS_DIR = repo_root() / "docs"
 
@@ -257,7 +279,14 @@ def full_page() -> _FullPage:
         plugin=plugin,
     )
     rewritten = _run(assembled, FULL_PAGE_SRC_URI)
-    html = markdown.markdown(rewritten, extensions=_HEADING_EXTENSIONS)
+    # The exec_page hook's record of the page, which the callouts read.
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv(EXEC_PAGE_ENV, FULL_PAGE_SRC_URI)
+        html = markdown.markdown(
+            rewritten,
+            extensions=_HEADING_EXTENSIONS,
+            extension_configs=_HEADING_EXTENSION_CONFIGS,
+        )
     return _FullPage(assembled, rewritten, html)
 
 
@@ -286,6 +315,12 @@ class TestAssembledFullPage:
             if (m := _SIBLING_HREF.match(href)) and m["page"] != "index.md"
         )
         assert not leaving, f"full.md still links off-page: {leaving}"
+
+    def test_exec_blocks_render(self, full_page: _FullPage):
+        """The requirement callouts ran, so the ids checked below are the
+        page's as built, not a page whose exec fences failed to parse."""
+        assert 'class="admonition info"' in full_page.html
+        assert "vm-10-001" in full_page.html
 
     def test_every_in_page_target_is_a_unique_heading_id(
         self, full_page: _FullPage

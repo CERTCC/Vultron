@@ -42,10 +42,31 @@ Three other pages cover the rest of the RM model:
 
 The RM model describes a report lifecycle of seven states: *Start*, *Received*, *Invalid*, *Valid*, *Accepted*, *Deferred*, and *Closed*.
 The diagram below shows all seven states and the transitions between them.
+The table with it gives each state's shorthand, the capital letter in its name, which this and other pages use.
+
+<div class="grid two-col" markdown>
+
+<div markdown>
 
 {% include-markdown "./rm_state_machine_diagram.md" %}
 
-The capital letter in each state name, such as *R* for *Received*, is its shorthand on this and other pages.
+</div>
+
+<div markdown>
+
+| Shorthand | State |
+|---|---|
+| *S* | *Start* |
+| *R* | *Received* |
+| *I* | *Invalid* |
+| *V* | *Valid* |
+| *A* | *Accepted* |
+| *D* | *Deferred* |
+| *C* | *Closed* |
+
+</div>
+
+</div>
 
 !!! info "RM States vs. CVD Case States"
 

@@ -4,9 +4,8 @@
 
 **Actor identity.** The protocol uses actor URIs as process identifiers. An
 actor URI is the identity anchor for all messages sent by that actor, and for
-the canonical case ledger if the actor holds the CASE_MANAGER role. Implementations
-MUST treat actor URI equality as identity equality: two messages with the same
-`actor` URI are from the same actor.
+the canonical case ledger if the actor holds the CASE_MANAGER role.
+Actor URI equality is identity equality: two messages with the same `actor` URI are from the same actor.
 
 **Verification.** The protocol does not currently mandate a specific identity
 verification mechanism. The reference implementation anticipates HTTP Signatures
@@ -44,14 +43,16 @@ This is the primary technical lever the protocol provides against inadvertent ov
 
 ### 15.3 Replay and Idempotency
 
-**Message deduplication.** Each ActivityStreams Activity carries a unique `id`.
-Implementations MUST deduplicate inbound messages by `id` before processing
-them. Duplicate delivery does not change state.
+**Message deduplication.** Each ActivityStreams Activity carries a unique `id`, so a receiver can recognize a message it has already processed.
+Duplicate delivery does not change state.
 
-**Ledger idempotency.** The canonical case ledger is append-only and
-hash-chained. A re-delivered `Announce(CaseLedgerEntry)` with a known entry
-hash MUST be treated as a no-op. The ledger NAK path (`Reject(CaseLedgerEntry)`)
-and gap-fill replay provide recovery from missed entries.
+**Ledger idempotency.** The canonical case ledger is append-only and hash-chained.
+A re-delivered `Announce(CaseLedgerEntry)` adds no second entry, and replaying entries a receiver already holds changes nothing.
+The ledger NAK path (`Reject(CaseLedgerEntry)`) and gap-fill replay provide recovery from missed entries.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ID-01-001", "SYNC-03-003", "SYNC-08-003"))
+```
 
 ### 15.4 Confidentiality
 
@@ -61,8 +62,8 @@ HTTP delivery. A future version of this specification is expected to require TLS
 
 **At-rest and end-to-end confidentiality.** Content-level encryption — protecting
 case details from the CASE_MANAGER itself, or supporting future multi-party
-computation — is not specified by this version. Implementations SHOULD treat any
-unencrypted case content as accessible to whoever operates the CASE_MANAGER.
+computation — is not specified by this version.
+Any unencrypted case content is accessible to whoever operates the CASE_MANAGER.
 
 **Scope.** This section covers security requirements for the protocol as
 specified. Operational security measures (key management, access control,

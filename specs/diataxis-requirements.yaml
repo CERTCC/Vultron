@@ -898,26 +898,38 @@ groups:
     adr:
       - ADR-0150
     statement: >-
-      Every page that is a member of a thread MUST show, for each thread it belongs to,
-      the set of thread pages immediately before it, the set immediately after it, and a
-      link to the thread's start page, titled by the reader's situation rather than by
-      `stakeholder_type` (DF-11-009), and the rendered page MUST be the same for every
-      reader. The set before a page is the preceding member of its chain, or else the
-      previous stage's exit pages; the set after it is the next member of its chain, or
-      else the next stage's entry pages. A set stage's entry and exit pages are all its
-      members; a chain's entry page is its first member and its exit page its last.
+      Every page that is a member of a thread, and every start page, MUST show one box
+      per thread it is on, titled by the reader's situation rather than by
+      `stakeholder_type` (DF-11-009), naming the stage the page belongs to (a start
+      page's box names none) and holding a table with the columns start, previous,
+      current and next. Each cell MUST be a list: start holds the thread's start page,
+      previous the set of thread pages immediately before the page, current the page
+      itself as text and not a link, and next the set immediately after it; an empty set
+      is shown as `---`. On a start page, start and current are the start page as text,
+      previous is `---`, and next is the first stage's entry pages. The set before a
+      member page is the preceding member of its chain, or else the previous stage's
+      exit pages; the set after it is the next member of its chain, or else the next
+      stage's entry pages. A set stage's entry and exit pages are all its members; a
+      chain's entry page is its first member and its exit page its last. The rendered
+      page MUST be the same for every reader.
     rationale: >-
       A reader who followed a thread into a page needs directions onward without being
-      forced down one next page, so predecessors and successors are sets. A page on
-      several threads lists each, so it never needs to know which thread a reader is
-      on: no query parameter, script or referrer is involved, the page renders the same
-      on a deep link, and it still stands alone (DF-11-007).
+      forced down one next page, so predecessors and successors are sets. The start
+      column gives a deep-linked reader the way back, and the same table on the start
+      page shows the first step. A page on several threads shows each, so it never needs
+      to know which thread a reader is on: no query parameter, script or referrer is
+      involved, the page renders the same on a deep link, and it still stands alone
+      (DF-11-007).
     verification: >-
-      A test builds a fixture tree with a page on two threads, one in a chain and one in
-      a set stage, and confirms the rendered page carries one entry per thread with the
-      expected before and after sets, a title taken from the start page's situation, a
-      link to each start page, no `stakeholder_type` or `level` value, no script
-      element, and no link carrying a query string.
+      A test renders the boxes of a fixture tree with a page on two threads, one in a
+      chain and one in a set stage, a first and a last member, and a start page, and
+      confirms one box per thread with the expected stage name and start, previous,
+      current and next lists, `---` for an empty set, an unlinked current cell, a
+      title taken from the start page's situation, no `stakeholder_type` or `level`
+      value, no script element, and no link carrying a query string. That every
+      member page and start page shows its boxes is checked over the built site by
+      DF-11-023. Not yet written; owned by #5170.
+    tracking_issue: '#5170'
   - id: DF-11-016
     priority: MUST
     kind: process
@@ -1056,34 +1068,63 @@ groups:
       - ADR-0150
     statement: >-
       A thread member whose page path names a section (`page.md#anchor`) MUST have
-      its box (DF-11-015) rendered where a marker naming that thread is placed on its
-      page, and the box MUST say that the section, not the page, is on the thread. A
-      member without a section keeps its box at the end of the page unless its page
-      places such a marker. A thread check MUST fail when a section member's page
-      has no marker for the thread, when a page places a marker for a thread it is
-      not on, or when a page places more than one marker for the same thread.
+      its box (DF-11-015) say that the section, not the page, is on the thread, and
+      its page's author MUST place the box at the end of that section (DF-11-023).
     rationale: >-
       A box at the end of a long page is out of reach for a reader who followed the
       thread to one section of it. The end of the section is where that reader
-      looks for directions onward, but no build pass can find it reliably: the
-      Markdown pass would have to reproduce the toc extension's ids and cannot see
-      headings printed by exec blocks, and the HTML pass is past MkDocs' link
-      rewriting and validation. The page's author knows where the section ends, so
-      the author places the marker and the build fills it; the check keeps a section
-      member from silently falling back to the page end.
+      looks for directions onward. No build pass can find it reliably (DF-11-023),
+      but the page's author knows where the section ends, and the built site, where
+      the anchor is an id, can check it.
     verification: >-
-      A fixture test renders a page with a section member and confirms the box
-      replaces the marker, carries the section wording, and is absent from the page
-      end. Fixture tests render a whole-page member with a marker (box at the
-      marker, page wording) and without one (box at the page end). Unit tests cover
-      each check failure: a section member with no marker, a marker for a thread the
-      page is not on, and two markers for one thread. The check does not confirm
-      that the marker sits inside the named section; that is left to the author and
-      the reviewer. Not yet written; owned by #5170.
+      A test renders a section member's box and confirms the section wording, and
+      that a whole-page member's box keeps the page wording. The DF-11-023 built-site
+      check fails when a section member's box is not inside its section. Not yet
+      written; owned by #5170.
     tracking_issue: '#5170'
     relationships:
     - rel_type: refines
       spec_id: DF-11-015
+  - id: DF-11-023
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0150
+    statement: >-
+      Each box (DF-11-015) MUST be a committed fragment, one per thread and member
+      (a section member's anchor is part of its fragment's name), under
+      `docs/start/_paths/<thread>/`, generated from the thread's data and gated
+      by a check mode, and excluded from the build as a page. A box MUST reach a page
+      only through an `include-markdown` directive its author places, and the build
+      MUST NOT add one. A check over the built site MUST fail, naming the page and
+      the directive to add, when a member page or start page does not render its box
+      for each thread it is on, when a page renders a box made for another page, and
+      when a section member's box (DF-11-022) does not sit after the element carrying
+      its anchor and before the next heading of the same or a higher level.
+    rationale: >-
+      The author knows where on a page directions onward belong; an automatic insert
+      can only guess, and the guess was the page end. A committed fragment shows the
+      box in a diff and keeps its content generated, so hand placement cannot make it
+      drift from the thread; the message-vocabulary fragments follow the same
+      pattern (ADR-0128). Checking the built site rather than the source catches a
+      box that is missing however the page is assembled, without requiring its
+      placement to be mechanical.
+    verification: >-
+      The generator's check mode fails when a committed fragment differs from what its
+      thread implies, or when a fragment exists for a page no longer on its thread.
+      A test confirms `docs/start/_paths/` is in `exclude_docs`. Unit tests over a
+      fixture site cover each built-site check failure, asserting that the message
+      names the page and the `include-markdown` line to add: a member page with no
+      box, a start page with no box, a page on two threads with one box, a page that
+      includes another page's fragment, a section member's box outside its section,
+      and a rendered box with no matching `include-markdown` directive in its page's
+      source, which is how a box added by the build shows; the check fails when it
+      resolves no targets (DF-09-009). The check runs in CI beside the other
+      built-site checks, not as a pre-commit hook, since it needs a full site build.
+      Not yet written; owned by #5170.
+    tracking_issue: '#5170'
+    lint_suppress:
+    - phantom_path_ref
 - id: DF-12
   title: Protocol Specification normative text rendered from the requirement tiers
   description: >-

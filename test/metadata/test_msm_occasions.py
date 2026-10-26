@@ -648,6 +648,34 @@ def test_section_is_anchored_by_the_occasion_id(table):
     assert "print(json2md(add_fix_readiness_to_participant()))" in section
 
 
+def test_section_puts_facts_and_example_in_tabs_below_its_heading(table):
+    _, row = _rows(table)["fix-readiness"]
+    head, details, example = gen.render_section(row).split("\n\n=== ")
+    # The heading and description sit outside the tab set, so the anchor
+    # does not depend on which tab is open.
+    assert head.startswith("## Fix Readiness (CF) { #fix-readiness }")
+    assert head.endswith(row.description)
+    assert details.startswith(f'"{gen.DETAILS_TAB}"\n\n')
+    assert "    - **When…**" in details
+    assert "    - **Mapping status:**" in details
+    assert example.startswith(f'"{gen.EXAMPLE_TAB}"\n\n')
+    assert '    ```python exec="true"' in example
+    # Every line inside a tab is indented one block level.
+    for tab in (details, example):
+        body = tab.split("\n\n", 1)[1]
+        assert all(
+            line.startswith("    ") for line in body.splitlines() if line
+        )
+
+
+def test_section_notes_sit_in_the_details_tab(table):
+    row = next(r for _, r in _rows(table).values() if r.notes is not None)
+    section = gen.render_section(row)
+    details, example = section.split("\n\n=== ")[1:]
+    assert gen._indent(row.notes) in details
+    assert row.notes not in example
+
+
 def _resolve(fragment: Path, target: str) -> tuple[Path, str]:
     path, _, anchor = target.partition("#")
     joined = posixpath.normpath(

@@ -52,6 +52,9 @@ This tab holds the research built on those models: measuring disclosure across m
 This page is a reading path through the models, the measurements, and the formal definition, on this tab and the others.
 Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
 
+[Read the process models](../topics/process_models/index.md){ .md-button .md-button--primary }
+[Read the formal protocol](../reference/formal_protocol/index.md){ .md-button }
+
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
 
 ## Start from the goals

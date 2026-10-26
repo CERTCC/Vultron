@@ -1,0 +1,25 @@
+/*
+ * Layout classes for the approved visual components (docs style guide
+ * § "Visual components", ADR-0136). Content tabs, code annotations, card
+ * grids and buttons ship with the theme and need no rule here; this file
+ * holds only the classes the theme does not provide.
+ */
+
+/*
+ * Two-column grid: a diagram and its key side by side. Use as
+ * <div class="grid two-col" markdown> with exactly two children, the diagram
+ * first. The theme's .grid supplies display, gap and margins; this fixes two
+ * columns, the first wider because a diagram needs more room than its key,
+ * and collapses to one column on narrow screens, where a key beside its
+ * diagram would leave both too small to read.
+ */
+.md-typeset .grid.two-col {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  align-items: start;
+}
+
+@media screen and (max-width: 44.984375em) {
+  .md-typeset .grid.two-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

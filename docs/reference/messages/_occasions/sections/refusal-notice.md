@@ -4,17 +4,21 @@
 
 Tells the participant that its assertion was received and understood but refused, so it had no effect. It carries the refused activity inline and names the refusing guard's reason. This notice serves the declined purpose of the formal RE, EE, CE and GE messages.
 
-- **When…** the Case Manager has refused a participant's assertion because a precondition did not hold
-- **Send:** `Reject(Activity)`
-- **Send to:** a participant
-- **Sent by:** the case manager
-- **Mapping status:** [evolved](../../index.md#mapping-status)
+=== "Details"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    refusal_notice,
-    json2md,
-)
+    - **When…** the Case Manager has refused a participant's assertion because a precondition did not hold
+    - **Send:** `Reject(Activity)`
+    - **Send to:** a participant
+    - **Sent by:** the case manager
+    - **Mapping status:** [evolved](../../index.md#mapping-status)
 
-print(json2md(refusal_notice()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        refusal_notice,
+        json2md,
+    )
+
+    print(json2md(refusal_notice()))
+    ```

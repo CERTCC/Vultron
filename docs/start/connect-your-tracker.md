@@ -63,6 +63,9 @@ Today your partners reach it through accounts on your system, or you reach their
 This page is a reading path through the parts of this site that describe what your system sends, when it sends it, and where your own logic plugs in.
 Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
 
+[Send your first message](../tutorials/submit-a-report.md){ .md-button .md-button--primary }
+[Read the Protocol Specification](../reference/vultron-spec/index.md){ .md-button }
+
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
 
 ## Understand the shape of the integration

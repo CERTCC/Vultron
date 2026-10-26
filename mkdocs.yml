@@ -286,6 +286,10 @@ hooks:
   # Rewrites the Protocol Specification's cross-page section links to in-page
   # anchors on its single-page edition, full.md. See the module docstring.
   - vultron/metadata/docs/full_page_links.py
+  # Records the page being built, so a requirement callout printed from an
+  # exec block links from the right page (in-page on full.md). See the
+  # module docstring.
+  - vultron/metadata/docs/exec_page.py
   # Adds each reading-path thread's before/after box to the pages on it and
   # hides their nav-order footer (DF-11-015, DF-11-017). See the docstring.
   - vultron/metadata/docs/thread_box.py
@@ -318,6 +322,7 @@ theme:
   name: 'material'
   custom_dir: 'overrides'
   features:
+    - content.code.annotate
     - content.tabs.link
     - content.tooltips
     - navigation.footer

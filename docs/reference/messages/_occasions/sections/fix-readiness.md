@@ -4,20 +4,24 @@
 
 Announces that the Vendor whose participant record is the target has a fix ready.
 
-- **When…** a Vendor has a fix ready
-- **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
-- **Send to:** the case manager
-- **Sent by:** the case manager or the case owner or the participant status's author (usually: vendor)
-- **Distinguished by:** `vfState` = `VF`
-- **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
-- **Formal definition:** [Fix Readiness (CF)](../../../formal_protocol/messages.md#cs-message-types)
-- **Mapping status:** [collapse](../../index.md#mapping-status)
+=== "Details"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    add_fix_readiness_to_participant,
-    json2md,
-)
+    - **When…** a Vendor has a fix ready
+    - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+    - **Send to:** the case manager
+    - **Sent by:** the case manager or the case owner or the participant status's author (usually: vendor)
+    - **Distinguished by:** `vfState` = `VF`
+    - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
+    - **Formal definition:** [Fix Readiness (CF)](../../../formal_protocol/messages.md#cs-message-types)
+    - **Mapping status:** [collapse](../../index.md#mapping-status)
 
-print(json2md(add_fix_readiness_to_participant()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        add_fix_readiness_to_participant,
+        json2md,
+    )
+
+    print(json2md(add_fix_readiness_to_participant()))
+    ```

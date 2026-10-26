@@ -85,6 +85,9 @@ This tab holds what adopting Vultron asks of a disclosure program, and how it li
 This page is a reading path through the parts of this site that describe how a Coordinated Vulnerability Disclosure (CVD) case works under Vultron, on this tab and the others.
 Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
 
+[Read What Is Vultron?](../topics/background/what-is-vultron.md){ .md-button .md-button--primary }
+[Adopt Vultron in your program](../howto/adopt_vultron.md){ .md-button }
+
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
 
 ## Decide whether it solves a problem you have
