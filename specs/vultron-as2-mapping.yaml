@@ -124,8 +124,10 @@ groups:
   - id: VAM-01-007
     priority: MUST
     kind: project
-    statement: '`MessageSemantics.UNKNOWN` MUST be returned when no registered pattern matches the incoming activity,
-      except where VAM-01-009 requires `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`'
+    statement: >-
+      `MessageSemantics.UNKNOWN` MUST be returned when no registered pattern
+      matches the incoming activity, except where VAM-01-009 requires
+      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`
     verification: A unit test (`test_find_matching_semantics_returns_unknown_for_unmatched_activity`) in
       `test/wire/as2/test_extractor.py` confirms that `find_matching_semantics()` returns
       `MessageSemantics.UNKNOWN` for an activity matching no registered pattern.
