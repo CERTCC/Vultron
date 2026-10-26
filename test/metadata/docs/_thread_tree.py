@@ -1,8 +1,8 @@
 """A throwaway checkout for the reading-path thread tests (DF-11-013..016/022/023).
 
 Shared by ``test_threads.py``, ``test_thread_boxes.py`` and
-``test_path_boxes.py``: start pages built
-from stage dicts, plain member pages, and the tree that holds them.
+``test_path_boxes.py``: start pages built from stage dicts, plain member
+pages, and the tree that holds them.
 """
 
 from __future__ import annotations
