@@ -123,7 +123,7 @@ The embargo has already ended, so publication tears nothing down and EM stays `E
 
 Every participant closes the case.
 The Vendor and the Reporter leave first; the Coordinator, the Case Owner, leaves last.
-A departure sent after the owner's is not recorded, so every other participant's departure is recorded first.
+{% include-markdown "./_owner_leaves_last.md" trailing-newlines=false %}
 
 *Antecedent:* the vulnerability has been published.
 

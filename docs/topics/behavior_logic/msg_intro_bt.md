@@ -11,26 +11,11 @@ The behavioral requirements for the message-receive behaviors are specified in t
 
 **Report Management Messages** ([RMB](../../reference/specs/protocol.md#rmb)):
 
-- [RMB-01](../../reference/specs/protocol.md#rmb-01) — Receive RS (Report Submission)
-- [RMB-02](../../reference/specs/protocol.md#rmb-02) — Receive RI (Report Invalid)
-- [RMB-03](../../reference/specs/protocol.md#rmb-03) — Receive RV (Report Valid)
-- [RMB-04](../../reference/specs/protocol.md#rmb-04) — Receive RD (Report/Case Deferred)
-- [RMB-05](../../reference/specs/protocol.md#rmb-05) — Receive RA (Report/Case Accepted)
-- [RMB-06](../../reference/specs/protocol.md#rmb-06) — Receive RC (Report Closed)
-- [RMB-07](../../reference/specs/protocol.md#rmb-07) — Receive RE (Report Error)
-- [RMB-08](../../reference/specs/protocol.md#rmb-08) — Receive RK (Report Acknowledgment)
+{% include-markdown "./_rm_message_requirements.md" %}
 
 **Embargo Management Messages** ([EMB](../../reference/specs/protocol.md#emb)):
 
-- [EMB-01](../../reference/specs/protocol.md#emb-01) — Receive EP (Embargo Proposed)
-- [EMB-02](../../reference/specs/protocol.md#emb-02) — Receive EA (Embargo Accepted)
-- [EMB-03](../../reference/specs/protocol.md#emb-03) — Receive EV (Embargo Revision Proposed)
-- [EMB-04](../../reference/specs/protocol.md#emb-04) — Receive EJ (Embargo Revision Rejected)
-- [EMB-05](../../reference/specs/protocol.md#emb-05) — Receive EC (Embargo Revision Accepted)
-- [EMB-06](../../reference/specs/protocol.md#emb-06) — Receive ER (Embargo Rejected)
-- [EMB-07](../../reference/specs/protocol.md#emb-07) — Receive ET (Embargo Terminated)
-- [EMB-08](../../reference/specs/protocol.md#emb-08) — Receive EE (Embargo Error)
-- [EMB-09](../../reference/specs/protocol.md#emb-09) — Receive EK (Embargo Acknowledgment)
+{% include-markdown "./_em_message_requirements.md" %}
 
 **Case State Messages** ([CSB](../../reference/specs/protocol.md#csb)):
 
@@ -43,18 +28,9 @@ The behavioral requirements for the message-receive behaviors are specified in t
 - [CSB-07](../../reference/specs/protocol.md#csb-07) — Receive CE (CS Error)
 - [CSB-08](../../reference/specs/protocol.md#csb-08) — Receive CK (CS Acknowledgment)
 
-!!! note "Implementation approach"
+{% include-markdown "./_conformant_implementation_note.md" %}
 
-    The behavior tree diagram below illustrates one conformant implementation of these requirements.
-    Implementations are not required to use behavior trees — any approach that satisfies the
-    requirements above is conformant.
-
-!!! note "Legacy design diagram"
-
-    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
-    match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for
-    auto-generated documentation from the current implementation.
+{% include-markdown "./_legacy_diagram_note.md" %}
 
 Now we return to the [CVD Behavior Tree](cvd_bt.md) to pick up the last unexplored branch, Receive Messages.
 The Receive Messages Behavior Tree is shown below.

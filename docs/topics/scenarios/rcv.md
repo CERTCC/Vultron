@@ -65,11 +65,12 @@ The Vendor carries out the fix; the Coordinator and Reporter manage communicatio
 
 **Participants:**
 
-- **Reporter** — discovers the vulnerability and submits the report; in the case it holds the Reporter role; the protocol has no separate Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
+{% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
+
 - **Coordinator** — receives the report; validates, engages, and owns the case;
   invites the Vendor.
 - **Vendor** — receives an invitation; develops and ships the fix.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
+{% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
 
 ## Protocol narrative
 
@@ -134,7 +135,7 @@ All participants publish.  The embargo exits ACTIVE.  The CS PXA state advances.
 
 Reporter, Coordinator, and Vendor each close the case with `close_case` entries.
 The Vendor and the Reporter leave first; the Coordinator, the Case Owner, leaves last.
-A departure sent after the owner's is not recorded, so every other participant's departure is recorded first.
+{% include-markdown "./_owner_leaves_last.md" trailing-newlines=false %}
 
 *Antecedent:* `validate_report` and `engage_case` are in the ledger.
 

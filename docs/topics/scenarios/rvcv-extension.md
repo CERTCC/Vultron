@@ -88,11 +88,12 @@ Both vendors reach the fix-ready state before joint disclosure.
 
 **Participants:**
 
-- **Reporter** — discovers the vulnerability and submits the report; in the case it holds the Reporter role; the protocol has no separate Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
+{% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
+
 - **Vendor1** — receives the report; validates, engages, and owns the case.
 - **Coordinator** — invited by Vendor1; suggests Vendor2.
 - **Vendor2** — joins via the actor-suggestion path; develops and ships a fix.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
+{% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
 
 ## Protocol narrative
 
@@ -111,7 +112,7 @@ entries appear in the ledger.
 
 ### 3. Participant status records are created
 
-The Case Actor records the engagement's status as an `add_participant_status_to_participant` entry; each record seated at case creation was ledgered as a `create_case_participant` entry.
+{% include-markdown "./_engagement_status_entry.md" %}
 
 *Antecedent:* `engage_case` is in the ledger.
 
@@ -157,8 +158,7 @@ Vendor2 reviews and accepts.  An `accept_invite_actor_to_case` entry is recorded
 
 ### 10. Participants exchange notes
 
-All participants communicate through case notes.
-Each note is sent as one `Add(Note)` carrying the note inline, and recorded as an `add_note_to_case` entry, which attaches it to the case.
+{% include-markdown "./_case_notes.md" %}
 
 *Antecedent:* `engage_case` is in the ledger.
 
@@ -178,7 +178,7 @@ All participants publish.  The embargo exits ACTIVE.
 
 `close_case` entries appear for each participant.
 Vendor2, the Coordinator, and the Reporter leave first; Vendor1, the Case Owner, leaves last.
-A departure sent after the owner's is not recorded, so every other participant's departure is recorded first.
+{% include-markdown "./_owner_leaves_last.md" trailing-newlines=false %}
 
 *Antecedent:* `validate_report` and `engage_case` are in the ledger.
 

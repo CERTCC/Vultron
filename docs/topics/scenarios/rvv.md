@@ -65,10 +65,11 @@ independent fix paths and must each reach the fix-ready state before disclosure.
 
 **Participants:**
 
-- **Reporter** — discovers the vulnerability and submits the report; in the case it holds the Reporter role; the protocol has no separate Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
+{% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
+
 - **Vendor1** — receives the report; validates, engages, and initially owns the case.
 - **Vendor2** — invited by Vendor1; an additional affected party with its own fix path.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
+{% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
 
 ## Protocol narrative
 
@@ -134,7 +135,7 @@ advances towards publicly-known for each participant.
 Vendor1, Vendor2, and Reporter each close the case.
 `close_case` entries appear for each.
 Vendor2 and the Reporter leave first; Vendor1, the Case Owner, leaves last.
-A departure sent after the owner's is not recorded, so every other participant's departure is recorded first.
+{% include-markdown "./_owner_leaves_last.md" trailing-newlines=false %}
 
 *Antecedent:* `validate_report` and `engage_case` are in the ledger.
 
