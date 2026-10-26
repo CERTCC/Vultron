@@ -197,17 +197,20 @@ class KeyedBaseline[K: EntryKey]:
         found: Mapping[K, MetadataLoadError],
         override: Mapping[K, str] | None,
         *,
-        path: Path,
         stale_detail: Callable[[K], str],
+        path: Path | None = None,
     ) -> tuple[list[K], list[MetadataLoadError]]:
         """Split *found* by the baseline at *path*, or by *override*.
 
         A stale entry is located at its line in the file; an *override* (a
-        test's in-memory baseline) has no lines to name.
+        test's in-memory baseline) has no lines to name. *path* defaults to
+        :attr:`path`; a check passes its module's ``BASELINE_PATH`` so a test
+        can redirect it.
 
         Returns:
             As :func:`apply_baseline`.
         """
+        path = path or self.path
         entries = self.entries(path) if override is None else {}
         allowed: Mapping[K, object] = entries if override is None else override
 
@@ -220,3 +223,24 @@ class KeyedBaseline[K: EntryKey]:
             )
 
         return apply_baseline(found, allowed, stale=stale)
+
+    def prune(
+        self,
+        found: Iterable[K],
+        unread: Iterable[str],
+        page_of: Callable[[K], str],
+        path: Path | None = None,
+    ) -> int:
+        """Rewrite the baseline at *path* with the entries a prune keeps.
+
+        Never adds an entry; see :func:`prune_entries` for *unread* and
+        *page_of*.
+
+        Returns:
+            How many entries were removed.
+        """
+        path = path or self.path
+        current = self.read(path)
+        keep = prune_entries(current, found, unread, page_of)
+        self.write(keep, path)
+        return len(current) - len(keep)

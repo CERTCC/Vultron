@@ -46,7 +46,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vultron.metadata.base import repo_root as _find_repo_root
-from vultron.metadata.docs.baseline_file import KeyedBaseline, prune_entries
+from vultron.metadata.docs.baseline_file import KeyedBaseline
 from vultron.metadata.docs.concept_registry import REGISTRY
 from vultron.metadata.docs.concept_scan import Position
 from vultron.metadata.docs.level_order import (
@@ -250,7 +250,6 @@ THREAD_BASELINE = KeyedBaseline[ThreadOrderKey](
     BASELINE_PATH, _BASELINE_HEADER, ("thread", "page", "term")
 )
 
-read_baseline_entries = THREAD_BASELINE.entries
 read_baseline = THREAD_BASELINE.read
 write_baseline = THREAD_BASELINE.write
 
@@ -312,13 +311,12 @@ def prune_baseline(
         How many entries were removed.
     """
     _threads, _introducers, violations = analyse(repo_root)
-    baseline_path = baseline_path or BASELINE_PATH
-    current = read_baseline(baseline_path)
-    keep = prune_entries(
-        current, (v.key for v in violations), (), page_of=lambda key: key[1]
+    return THREAD_BASELINE.prune(
+        (v.key for v in violations),
+        (),
+        page_of=lambda key: key[1],
+        path=baseline_path or BASELINE_PATH,
     )
-    write_baseline(keep, baseline_path)
-    return len(current) - len(keep)
 
 
 def main(argv: list[str] | None = None) -> None:

@@ -1,9 +1,9 @@
 """The shrink-only baseline of upward level dependencies (DF-11-002).
 
-Read and written by :mod:`vultron.metadata.docs.level_order`, which re-exports
-these names. Each entry is ``page | term | reason``: a violation that predates
-the check, keyed by the page and the glossary term rather than a line number so
-an unrelated edit above the use does not make the entry stale.
+Read and written by :mod:`vultron.metadata.docs.level_order`. Each entry is
+``page | term | reason``: a violation that predates the check, keyed by the
+page and the glossary term rather than a line number so an unrelated edit above
+the use does not make the entry stale.
 """
 
 from __future__ import annotations
@@ -33,6 +33,5 @@ LEVEL_BASELINE = KeyedBaseline[tuple[str, str]](
     BASELINE_PATH, _BASELINE_HEADER, ("page", "term")
 )
 
-read_baseline_entries = LEVEL_BASELINE.entries
 read_baseline = LEVEL_BASELINE.read
 write_baseline = LEVEL_BASELINE.write

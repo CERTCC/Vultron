@@ -14,12 +14,8 @@ from test.metadata.docs._level_tree import (
     make_repo,
 )
 from vultron.metadata.docs import level_order
-from vultron.metadata.docs.level_order import (
-    check_level_order,
-    prune_baseline,
-    read_baseline,
-    write_baseline,
-)
+from vultron.metadata.docs.level_baseline import read_baseline, write_baseline
+from vultron.metadata.docs.level_order import check_level_order, prune_baseline
 from vultron.metadata.file_loading import MetadataLoadErrors
 
 # ---------------------------------------------------------------------------

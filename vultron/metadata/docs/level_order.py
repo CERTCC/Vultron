@@ -48,7 +48,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from vultron.metadata.base import repo_root as _find_repo_root
-from vultron.metadata.docs.baseline_file import prune_entries
 from vultron.metadata.docs.concept_registry import (
     INTRODUCES_KEY,
     REGISTRY,
@@ -65,8 +64,6 @@ from vultron.metadata.docs.concept_scan import (
 from vultron.metadata.docs.level_baseline import (
     BASELINE_PATH,
     LEVEL_BASELINE,
-    read_baseline,
-    write_baseline,
 )
 from vultron.metadata.docs.page_frontmatter import (
     DocsTree,
@@ -423,16 +420,12 @@ def prune_baseline(
         How many entries were removed.
     """
     analysis, collector = analyse(repo_root)
-    baseline_path = baseline_path or BASELINE_PATH
-    current = read_baseline(baseline_path)
-    keep = prune_entries(
-        current,
+    return LEVEL_BASELINE.prune(
         (v.key for v in analysis.violations),
         (f.path for f in collector.failures if f.path),
         page_of=lambda key: key[0],
+        path=baseline_path or BASELINE_PATH,
     )
-    write_baseline(keep, baseline_path)
-    return len(current) - len(keep)
 
 
 def main(argv: list[str] | None = None) -> None:
