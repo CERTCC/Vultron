@@ -174,3 +174,22 @@ def test_score_walk_refuses_an_unknown_task(tmp_path):
     state = nu.WalkState(site="site", history=["index.html"], finished="found")
     with pytest.raises(MetadataLoadError, match="does not have"):
         nu.score_walk(_suite(tmp_path), "T9", state)
+
+
+def test_score_walks_names_the_session_file_of_an_unknown_task(tmp_path):
+    results = tmp_path / "r.yaml"
+    nu.save_results(results, _results("b", {"T2": [F]}))
+    sessions = tmp_path / "walks"
+    sessions.mkdir()
+    walk = nu.Walk(sessions / "T9.json")
+    walk.start(_site(tmp_path))
+    walk.finish("gave-up")
+    argv = [
+        "score-walks",
+        "--suite", str(_suite_file(tmp_path)),
+        "--sessions", str(sessions),
+        "--results", str(results),
+    ]  # fmt: skip
+    with pytest.raises(SystemExit) as exc:
+        nu.main(argv)
+    assert str(exc.value).startswith(f"{sessions / 'T9.json'} — names task")

@@ -132,7 +132,10 @@ def _cmd_score_walks(args: argparse.Namespace) -> None:
             raise SystemExit(
                 f"{session} is unfinished; the walk has no outcome"
             )
-        scored.append(score_walk(suite, session.stem, state, args.run))
+        try:
+            scored.append(score_walk(suite, session.stem, state, args.run))
+        except MetadataLoadError as exc:
+            raise MetadataLoadError(exc.detail, path=str(session)) from exc
     keys = {(r.task, r.run) for r in scored}
     results.results = [
         r

@@ -255,13 +255,13 @@ def score_walk(
 
     Raises:
         MetadataLoadError: If the suite has no task *task_id*, as when a
-            session file is named for no task.
+            session file is named for no task. It has no path: the caller
+            knows which session file it read.
     """
     task = next((t for t in suite.tasks if t.id == task_id), None)
     if task is None:
         raise MetadataLoadError(
-            f"names task {task_id!r}, which the suite does not have",
-            path=f"{task_id}.json",
+            f"names task {task_id!r}, which the suite does not have"
         )
     wanted = {site_page(p) for p in suite.destinations(task)}
     final = state.history[-1] if state.history else None
