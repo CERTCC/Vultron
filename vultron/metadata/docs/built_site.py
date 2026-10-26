@@ -15,7 +15,8 @@
 ``docs-withheld``, ``docs-links``, ``docs-legacy-urls`` and ``docs-path-boxes``
 judge what ``mkdocs build`` produced rather than the ``docs/`` sources. Each
 must refuse an absent or empty ``site/``: an unbuilt site evidences nothing, so
-a check that ran against one and reported success would pass while checking nothing (DF-09-009).
+a check that ran against one and reported success would pass while checking
+nothing (DF-09-009).
 """
 
 from __future__ import annotations

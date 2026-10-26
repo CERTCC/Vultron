@@ -498,9 +498,10 @@ at some points and not at others (ADR-0150).
   spot: the Markdown pass would have to copy the toc extension's ids and cannot
   see headings printed by exec blocks, and the HTML pass is past MkDocs' link
   rewriting and checks. A section member's box says "section" and goes at that
-  section's end (DF-11-022). The built site has the section's anchor as an id, so the same
-  check fails when the box is not between that heading and the next one of the
-  same or a higher level. With no box at the page end, the theme's footer stays.
+  section's end (DF-11-022). The built site has the section's anchor as an id,
+  so the same check fails when the box is not between that heading and the next
+  one of the same or a higher level. With no box at the page end, the theme's
+  footer stays.
 - **Not a level sort.** The level rule forbids depending upward; it does not
   require a thread to climb in level. Order a thread by what the reader needs
   first.
