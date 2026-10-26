@@ -38,6 +38,7 @@ from vultron.core.behaviors.case.nodes.lifecycle import (
 from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
     OfferParty,
     OwnershipOfferOpenNode,
+    OwnershipTransfereeActiveNode,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     AcceptRecordedOwnershipOfferNode,
@@ -135,7 +136,8 @@ def _sender_admitted():
     """Admit the sender and name the transferee as the recorded Offer would.
 
     These tests are about the commit gate, not the Offer lookup; the sender
-    guard, the open-Offer guard and the lookup are tested through the use case in
+    guard, the open-Offer and active-transferee guards and the lookup are
+    tested through the use case in
     ``test/core/use_cases/received/actor/test_ownership.py``.
     """
     with (
@@ -154,6 +156,12 @@ def _sender_admitted():
         ),
         patch.object(
             OwnershipOfferOpenNode,
+            "update",
+            autospec=True,
+            return_value=Status.SUCCESS,
+        ),
+        patch.object(
+            OwnershipTransfereeActiveNode,
             "update",
             autospec=True,
             return_value=Status.SUCCESS,
@@ -268,5 +276,25 @@ def test_open_offer_guard_raises_when_the_offer_is_not_recorded(
     bt_scenario.assert_failure(
         result,
         reason="the Offer the sender check found is gone",
+        allow_internal=True,
+    )
+
+
+@pytest.mark.spec("CM-21-021")
+@pytest.mark.executes_as(CASE_ACTOR_ID)
+def test_active_transferee_guard_raises_when_the_offer_is_not_recorded(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """The guards before it found the Offer, so the active-transferee guard
+    not finding it is a local anomaly: an internal error, never a refusal
+    of the sender."""
+    _seed_case(bt_scenario)
+    guard = OwnershipTransfereeActiveNode(case_id=CASE_ID, offer_id=OFFER_ID)
+
+    result = bt_scenario.run(guard, actor_id=CASE_ACTOR_ID)
+
+    bt_scenario.assert_failure(
+        result,
+        reason="the Offer the earlier guards found is gone",
         allow_internal=True,
     )

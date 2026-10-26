@@ -57,8 +57,10 @@ from vultron.core.behaviors.case.intake_only_received_tree import (
     create_incomplete_activity_received_tree,
 )
 from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
-    OfferParty,
     case_manager_admits_ownership_proposal_guard,
+)
+from vultron.core.behaviors.case.nodes.ownership_reply_guard import (
+    OfferParty,
     case_manager_ownership_offer_open_guard,
 )
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
@@ -91,6 +93,8 @@ def _reply_stages(
     reply_id: str,
     party: OfferParty,
     now: datetime | None,
+    *,
+    transferee_must_be_active: bool = False,
 ) -> _ReplyStages:
     """The sender context and guards of a reply to an Offer.
 
@@ -100,7 +104,9 @@ def _reply_stages(
     (PCR-03-001).  The open-Offer check runs next, at the CASE_MANAGER only
     (CM-21-014, CM-21-016, HP-01-003): a reply to an Offer past its
     ``end_time`` is refused from that time alone, and nothing records the
-    expiry (CM-21-017, ADR-0152).
+    expiry (CM-21-017, ADR-0152).  With *transferee_must_be_active* (the
+    Accept), the transferee must then still be an active participant
+    (CM-21-021).
     """
     context = SenderCheckContext(
         sender_id=sender_id,
@@ -116,6 +122,7 @@ def _reply_stages(
             sender_id=sender_id,
             party=party,
             now=now,
+            transferee_must_be_active=transferee_must_be_active,
         )
     ]
     return _ReplyStages(context, guards)
@@ -137,7 +144,8 @@ def create_accept_ownership_transfer_tree(
     (CM-21-011, HP-01-006), and the guarded commit (CaseLedgerEntry +
     Announce broadcast) fires before ``AcceptRecordedOwnershipOfferNode``
     applies the change (CM-21-007) to the transferee the recorded Offer
-    names, never to the sender.
+    names, never to the sender.  A transferee that is no longer an active
+    participant is refused before the commit (CM-21-021).
 
     Args:
         case_id: URI of the case whose ownership is being transferred; ``None``
@@ -166,7 +174,13 @@ def create_accept_ownership_transfer_tree(
             "Accept(ownership transfer) names no case",
         )
     stages = _reply_stages(
-        case_id, offer_id, sender_id, answer_id, OfferParty.TRANSFEREE, now
+        case_id,
+        offer_id,
+        sender_id,
+        answer_id,
+        OfferParty.TRANSFEREE,
+        now,
+        transferee_must_be_active=True,
     )
     tree = create_receive_activity_tree(
         name="AcceptOwnershipTransferBT",
@@ -363,9 +377,10 @@ def create_propose_ownership_transfer_tree(
             → CaseManagerGate[MakeOwnershipTransferOfferNode]
 
     The guards refuse a proposal while an earlier Offer for the case is
-    open (CM-21-014), and one whose inner Offer names another case or no
-    actor the CASE_MANAGER can address, so a refused proposal leaves no
-    entry and makes no Offer.  The effect makes the Offer, queues it and
+    open (CM-21-014), and one whose inner Offer names another case, no
+    actor the CASE_MANAGER can address, or a transferee that is not an
+    active participant (CM-21-021), so a refused proposal leaves no entry
+    and makes no Offer.  The effect makes the Offer, queues it and
     commits it as the ``offer_case_ownership_transfer`` entry (SYNC-09-002).
     An Offer already made from this proposal is a redelivery, ``SKIPPED``
     (HP-01-003).

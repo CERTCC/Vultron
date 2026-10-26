@@ -256,16 +256,18 @@ groups:
     example: reject_case_participant_role
   - anchor: propose-case-ownership-transfer
     heading: Propose case ownership transfer
-    when: the Case Owner proposes to transfer ownership of the case to another actor
+    when: the Case Owner proposes to transfer ownership of the case to another participant
     send: Offer(Offer(VulnerabilityCase))
     send_to: the case manager
     sent_by: the case owner
     semantics: propose_case_ownership_transfer
     status: none
-    description: 'Asks the Case Manager to offer the case to another actor, for example from
-      a Reporter to a Coordinator. The inner Offer names the case, the new owner as its target
-      and, optionally, an `endTime` after which the Case Manager refuses an answer: the offer
-      is then closed, with nothing recorded or sent. The Case Manager makes the offer itself.'
+    description: 'Asks the Case Manager to offer the case to another participant, for example
+      from a Reporter to a Coordinator. The Case Manager offers the case only to an active
+      participant, so the Case Owner invites any other actor first. The inner Offer names
+      the case, the new owner as its target and, optionally, an `endTime` after which the
+      Case Manager refuses an answer: the offer is then closed, with nothing recorded or sent.
+      The Case Manager makes the offer itself.'
     seen_in: []
     example: propose_case_ownership_transfer
   - anchor: offer-case-ownership-transfer

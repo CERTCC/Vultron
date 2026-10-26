@@ -39,6 +39,7 @@ from vultron.core.participants.recipients import (
     ledger_entry_recipients,
     may_act_on_case,
     reporter_introduction_recipients,
+    why_may_not_act_on_case,
 )
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
@@ -521,3 +522,37 @@ def test_an_unresolvable_sender_record_may_not_act(
     _seat(dl, case, _SIGNATORY, store=False)
     case.case_participants.clear()
     assert not may_act_on_case(case, dl, _SIGNATORY)
+
+
+@pytest.mark.spec("CM-21-021", "CM-10-004")
+def test_the_reason_names_the_condition_a_sender_misses(
+    dl: SqliteDataLayer,
+) -> None:
+    """``why_may_not_act_on_case`` answers ``None`` exactly when
+    ``may_act_on_case`` admits, and otherwise names the first unmet
+    condition, so a refusal cites its ground."""
+    case = _embargoed_case(dl)
+    removed = _seat(dl, case, _REMOVED)
+    removed.removal_activity = f"{_CASE_ID}/activities/remove-1"
+    dl.save(removed)
+    unresolvable = "https://example.org/actors/unresolvable"
+    case.actor_participant_index[unresolvable] = (
+        f"{_CASE_ID}/participants/gone"
+    )
+
+    expected = {
+        _SIGNATORY: None,
+        "https://example.org/actors/stranger": "is not a participant",
+        unresolvable: "has no participant record",
+        _UNJOINED: "has not joined",
+        _REMOVED: "was removed",
+        _CLOSED: "has left the case",
+        _INVITED: f"has not agreed to the active embargo '{_EMBARGO_ID}'",
+    }
+    for actor_id, fragment in expected.items():
+        why = why_may_not_act_on_case(case, dl, actor_id)
+        assert (why is None) == may_act_on_case(case, dl, actor_id), actor_id
+        if fragment is None:
+            assert why is None, actor_id
+        else:
+            assert why is not None and fragment in why, (actor_id, why)

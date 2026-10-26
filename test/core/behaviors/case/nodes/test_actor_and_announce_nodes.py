@@ -147,10 +147,20 @@ class TestAcceptCaseOwnershipTransferNode:
     @pytest.mark.spec("CM-21-002")
     def test_transfers_ownership(self, bridge, dl) -> None:
         """Happy path: case.attributed_to updated to new_owner_id."""
+        # The new owner is a participant: the Accept's guards admit only an
+        # active transferee (CM-21-021), and the node refuses any other.
+        participant = CaseParticipant(
+            id_="https://example.org/participants/p-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(participant)
         case = as_VulnerabilityCase(
             id_=CASE_ID,
             name="OT Node Test",
             attributed_to=ACTOR_ID,
+            actor_participant_index={NEW_OWNER_ID: participant.id_},
         )
         dl.create(case)
         tree = AcceptCaseOwnershipTransferNode(
@@ -191,6 +201,138 @@ class TestAcceptCaseOwnershipTransferNode:
         )
         result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
         assert result.status == Status.FAILURE
+
+    @pytest.mark.spec("CM-21-001")
+    @pytest.mark.spec("CM-21-004")
+    @pytest.mark.spec("CM-21-021")
+    def test_raises_when_the_new_owner_has_no_participant_record(
+        self, bridge, dl
+    ) -> None:
+        """A new owner the case holds no record for is a fault, not a skip.
+
+        Stripping the old owner without a record to grant ``CASE_OWNER`` to
+        would leave the case with no owner, so the node raises before it
+        changes anything: the bridge flags an internal error and the old
+        owner, its role and ``attributed_to`` are untouched.
+        """
+        old_owner = CaseParticipant(
+            id_="https://example.org/participants/p-old-owner",
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        dl.create(old_owner)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Node No New Owner",
+            attributed_to=ACTOR_ID,
+            actor_participant_index={ACTOR_ID: old_owner.id_},
+        )
+        dl.create(case)
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+        )
+
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+
+        assert result.status == Status.FAILURE
+        assert result.internal_error is True
+        refreshed = cast(Any, dl.read(CASE_ID))
+        assert _as_id(refreshed.attributed_to) == ACTOR_ID
+        stored_old_owner = cast(Any, dl.read(old_owner.id_))
+        assert CVDRole.CASE_OWNER in stored_old_owner.case_roles
+
+    @pytest.mark.spec("CM-21-002")
+    @pytest.mark.spec("CM-21-021")
+    def test_grants_the_role_to_a_new_owner_held_only_inline(
+        self, bridge, dl
+    ) -> None:
+        """The node reads the new owner's record as the Accept's guard does.
+
+        The active-transferee guard admits a record the case carries inline,
+        so the node must find that record too, rather than raise after the
+        Accept is ledgered and leave the transfer unapplied.
+        """
+        participant = CaseParticipant(
+            id_="https://example.org/participants/p-inline-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Inline New Owner",
+            attributed_to=ACTOR_ID,
+            case_participants=[participant],
+            actor_participant_index={NEW_OWNER_ID: participant.id_},
+        )
+        dl.create(case)
+        assert dl.read(participant.id_) is None
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+        )
+
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        stored = cast(Any, dl.read(participant.id_))
+        assert stored is not None
+        assert CVDRole.CASE_OWNER in stored.case_roles
+        assert (
+            _as_id(cast(Any, dl.read(CASE_ID)).attributed_to) == NEW_OWNER_ID
+        )
+
+    @pytest.mark.spec("CM-21-003")
+    @pytest.mark.spec("CM-21-004")
+    def test_strips_the_role_from_an_old_owner_held_only_inline(
+        self, bridge, dl
+    ) -> None:
+        """The outgoing owner's record is read through the same lookup.
+
+        An old owner the case carries only inline loses ``CASE_OWNER`` and
+        its record is saved with the transfer, so the case is never left
+        with two owners.
+        """
+        old_owner = CaseParticipant(
+            id_="https://example.org/participants/p-inline-old-owner",
+            attributed_to=ACTOR_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.CASE_OWNER],
+        )
+        new_owner = CaseParticipant(
+            id_="https://example.org/participants/p-stored-new-owner",
+            attributed_to=NEW_OWNER_ID,
+            context=CASE_ID,
+            case_roles=[CVDRole.COORDINATOR],
+        )
+        dl.create(new_owner)
+        case = as_VulnerabilityCase(
+            id_=CASE_ID,
+            name="OT Inline Old Owner",
+            attributed_to=ACTOR_ID,
+            case_participants=[old_owner],
+            actor_participant_index={
+                ACTOR_ID: old_owner.id_,
+                NEW_OWNER_ID: new_owner.id_,
+            },
+        )
+        dl.create(case)
+        assert dl.read(old_owner.id_) is None
+        tree = AcceptCaseOwnershipTransferNode(
+            case_id=CASE_ID, new_owner_id=NEW_OWNER_ID, cause_id=CAUSE_ID
+        )
+
+        result = bridge.execute_with_setup(tree=tree, actor_id=NEW_OWNER_ID)
+
+        assert result.status == Status.SUCCESS, result.feedback_message
+        stored_old_owner = cast(Any, dl.read(old_owner.id_))
+        assert stored_old_owner is not None
+        assert CVDRole.CASE_OWNER not in stored_old_owner.case_roles
+        stored_new_owner = cast(Any, dl.read(new_owner.id_))
+        assert CVDRole.CASE_OWNER in stored_new_owner.case_roles
+        assert (
+            _as_id(cast(Any, dl.read(CASE_ID)).attributed_to) == NEW_OWNER_ID
+        )
 
     @pytest.mark.spec("CM-21-011")
     def test_recorded_offer_node_fails_without_a_recorded_offer(
