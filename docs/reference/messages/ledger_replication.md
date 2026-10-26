@@ -92,7 +92,7 @@ The check runs before any write, so a stranger cannot obtain case content by sen
 - **Object:** the last canonical entry the participant has applied, by reference: its id, not the entry.
 - **Context:** the case.
 - **`ledgerPosition`:** the named entry's `logIndex` and `entryHash`, so the CASE_MANAGER can tell a lag from a position its ledger does not hold (SYNC-17-001).
-- **Triggering transition:** the participant's own policy, not a protocol shorthand. The reference participant sends one for each case it holds after every restart, and on `ledger.position_statement_interval_seconds` when that is set (off by default) (SYNC-17-007).
+- **Triggering transition:** the participant's own policy, not a protocol shorthand. The reference participant sends one for each case it holds after every restart, and on `ledger.position_statement_interval_seconds` when that is set, which is off by default (SYNC-17-007).
 - **Spec:** SYNC-17-001 through SYNC-17-007.
 - **Pattern:** `ReadLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.
 - **Factory:** `read_ledger_entry_activity` in `vultron/wire/as2/factories/sync.py`.

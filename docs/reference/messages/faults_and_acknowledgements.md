@@ -130,9 +130,13 @@ and a participant that is unreachable look identical until a new entry arrives.
 Implementations MAY rely solely on `Announce` deliveries for liveness inference
 without emitting a dedicated periodic heartbeat ([MSM-05-006](../specs/protocol.md#msm-05-006)).
 
+A participant can still state how far it has got.
+`Read(CaseLedgerEntry)` names the last entry it applied, and the CASE_MANAGER replays any entries after it ([SYNC-17-004](../specs/protocol.md#sync-17-004)).
+It is a statement of position, not an acknowledgment of a received entry: a participant sends it on its own policy, such as after a restart, so a lost last entry before a quiet period is recovered without waiting for a new one.
+
 #### NAK path bounding
 
-The replay triggered by `Reject(CaseLedgerEntry)` is rate-limited per peer to prevent amplification; see [SYNC-15-003](../specs/protocol.md#sync-15-003).
+The replay triggered by `Reject(CaseLedgerEntry)` or `Read(CaseLedgerEntry)` is rate-limited per peer to prevent amplification; see [SYNC-15-003](../specs/protocol.md#sync-15-003).
 The outbox delivery budget ([ADR-0066](../../adr/0066-outbox-terminal-state.md)) provides a finite total-attempt bound independent of the replay rate limit.
 
 ---
@@ -147,4 +151,5 @@ The outbox delivery budget ([ADR-0066](../../adr/0066-outbox-terminal-state.md))
 - [How to Acknowledge a Report](../../howto/activitypub/activities/acknowledge.md) —
   how-to guide for `RK`.
 - [Ledger Replication](ledger_replication.md) — the wire format for
-  `Announce(CaseLedgerEntry)` and `Reject(CaseLedgerEntry)`.
+  `Announce(CaseLedgerEntry)`, `Reject(CaseLedgerEntry)` and
+  `Read(CaseLedgerEntry)`.
