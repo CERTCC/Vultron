@@ -153,7 +153,7 @@ class _PageFacts:
     contents: str | None
 
 
-def _is_url(target: str) -> bool:
+def is_url(target: str) -> bool:
     """True for any target with a URI scheme (``https:``, ``mailto:``...)."""
     return bool(urlsplit(target).scheme)
 
@@ -238,7 +238,7 @@ def _page_facts(docs_dir: Path, rel: str, root: Path) -> _PageFacts:
     )
 
 
-def _split_item(item: object) -> tuple[str | None, object]:
+def split_nav_item(item: object) -> tuple[str | None, object]:
     """Return ``(label, value)`` for one nav item; bare paths have no label."""
     if isinstance(item, dict) and len(item) == 1:
         ((label, value),) = item.items()
@@ -246,11 +246,11 @@ def _split_item(item: object) -> tuple[str | None, object]:
     return None, item
 
 
-def _group_landing(items: list[object]) -> str | None:
+def group_landing(items: list[object]) -> str | None:
     """The ``index.md`` a nav group opens with, which becomes its link."""
     if not items:
         return None
-    _label, value = _split_item(items[0])
+    _label, value = split_nav_item(items[0])
     if isinstance(value, str) and posixpath.basename(value) == _INDEX_NAME:
         return value
     return None
@@ -276,10 +276,20 @@ def sort_entries(entries: list[Entry]) -> tuple[Entry, ...]:
     return tuple(entry for _level, run in ordered for entry in run)
 
 
-def _entry(item: object, docs_dir: Path, root: Path) -> Entry:
-    label, value = _split_item(item)
+def nav_entry(item: object, docs_dir: Path, root: Path) -> Entry:
+    """The listing entry for one nav *item*.
+
+    A page links itself; a group that opens with an ``index.md`` links that
+    index, under the group's label and with the index's description; a group
+    without one becomes an unlinked entry holding its members.
+
+    Raises:
+        MetadataLoadError: If a listed page is missing or unreadable, or the
+            item is a shape this generator cannot read.
+    """
+    label, value = split_nav_item(item)
     if isinstance(value, str):
-        if _is_url(value):
+        if is_url(value):
             return Entry(label=label or value, target=value)
         facts = _page_facts(docs_dir, value, root)
         return Entry(
@@ -293,7 +303,7 @@ def _entry(item: object, docs_dir: Path, root: Path) -> Entry:
             f"has a nav item this generator cannot read: {item!r}",
             path="mkdocs.yml",
         )
-    landing = _group_landing(value)
+    landing = group_landing(value)
     if landing is not None:
         facts = _page_facts(docs_dir, landing, root)
         return Entry(
@@ -302,7 +312,7 @@ def _entry(item: object, docs_dir: Path, root: Path) -> Entry:
             description=facts.description,
             level=facts.level,
         )
-    children = sort_entries([_entry(i, docs_dir, root) for i in value])
+    children = sort_entries([nav_entry(i, docs_dir, root) for i in value])
     levels = [c.level for c in children if c.level is not None]
     return Entry(
         label=label,
@@ -321,12 +331,12 @@ def _member_pages(items: list[object]) -> list[str]:
     """
     pages: list[str] = []
     for item in items:
-        _label, value = _split_item(item)
+        _label, value = split_nav_item(item)
         if isinstance(value, str):
-            if not _is_url(value):
+            if not is_url(value):
                 pages.append(value)
         elif isinstance(value, list):
-            landing = _group_landing(value)
+            landing = group_landing(value)
             if landing is not None:
                 pages.append(landing)
             else:
@@ -386,12 +396,12 @@ class _Walk:
 
     def visit(self, items: list[object]) -> None:
         for item in items:
-            _label, value = _split_item(item)
+            _label, value = split_nav_item(item)
             if isinstance(value, list):
                 self._group(value)
             elif (
                 isinstance(value, str)
-                and not _is_url(value)
+                and not is_url(value)
                 and posixpath.basename(value) == _INDEX_NAME
             ):
                 self._leaf_index(value)
@@ -421,7 +431,7 @@ class _Walk:
         self._decided(landing, facts, [])
 
     def _group(self, value: list[object]) -> None:
-        landing = _group_landing(value)
+        landing = group_landing(value)
         if landing is None:
             self.visit(value)
             return
@@ -443,7 +453,7 @@ class _Walk:
                     path="mkdocs.yml",
                 )
             entries = sort_entries(
-                [_entry(i, self.docs_dir, self.root) for i in members]
+                [nav_entry(i, self.docs_dir, self.root) for i in members]
             )
             self.generated.append(LandingPage(path=landing, entries=entries))
         elif shape is Contents.ROUTING:
@@ -495,23 +505,32 @@ def discover_landing_pages(root: Path) -> tuple[LandingPage, ...]:
     return discover_section_indexes(root).generated
 
 
-def routing_faults(root: Path, page: RoutingPage) -> list[MetadataLoadError]:
-    """Return one fault per member *page* is required to link but does not.
+def linked_pages(root: Path, page: str) -> set[str]:
+    """The ``docs/``-relative pages the page at *page* links.
 
     A link counts whether the page writes it or a fragment it includes whole
     carries it, so cards shared with another page route both (DF-10-002). A
     fragment's links resolve against the fragment, as include-markdown rewrites
     them; a ``start=`` or ``end=`` include may cut the link, so it is not
-    counted. Every
-    missing member is reported, not only the first (EH-07-001).
+    counted.
     """
     docs_dir = root / "docs"
-    host = docs_dir / page.path
-    linked = link_targets(page.path, host.read_text(encoding="utf-8"))
+    host = docs_dir / page
+    linked = link_targets(page, host.read_text(encoding="utf-8"))
     for _, fragment, whole in include_directives(host, docs_dir, uncut=True):
         if whole:
             text = (docs_dir / fragment).read_text(encoding="utf-8")
             linked |= link_targets(fragment, text)
+    return linked
+
+
+def routing_faults(root: Path, page: RoutingPage) -> list[MetadataLoadError]:
+    """Return one fault per member *page* is required to link but does not.
+
+    Links are counted by :func:`linked_pages`. Every missing member is
+    reported, not only the first (EH-07-001).
+    """
+    linked = linked_pages(root, page.path)
     return [
         MetadataLoadError(
             f"declares `{CONTENTS_KEY}: {Contents.ROUTING.value}` but does not "
@@ -533,7 +552,7 @@ def _render_entry(entry: Entry, landing: str, depth: int) -> list[str]:
         return lines
     href = (
         entry.target
-        if _is_url(entry.target)
+        if is_url(entry.target)
         else posixpath.relpath(entry.target, posixpath.dirname(landing))
     )
     line = f"{indent}- [{entry.label}]({href})"

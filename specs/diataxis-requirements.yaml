@@ -1043,7 +1043,19 @@ groups:
       top level. Listing a subgroup through its index keeps the page short enough
       to scan (DF-11-006), and deriving it from the nav and frontmatter keeps it
       from drifting (DF-11-005).
-    verification_debt: '#2571'
+    verification: >-
+      `uv run docs-site --check` (the `docs-site-sync` pre-commit hook, and
+      `test/metadata/docs/test_site_sync.py::TestSiteSync::test_committed_site_artifacts_are_in_sync`
+      in CI) regenerates the listing
+      between the markers on `docs/lookup.md` from the nav and frontmatter
+      (`vultron/metadata/docs/lookup_page.py`) and fails when the committed
+      listing differs, when an omitted reference page cannot be placed, when an
+      entry's page declares no `description:`, or when the home page or a start
+      page does not link the lookup page.
+      `test/metadata/docs/test_lookup_page.py` covers the grouping, a nested
+      group listed through its outermost index, an omitted page placed beside
+      its directory's index and one that cannot be placed, staleness on a new
+      reference page and on a changed description, and a missing link.
     tracking_issue: '#5150'
   - id: DF-11-022
     priority: MUST

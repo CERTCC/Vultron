@@ -46,6 +46,8 @@ from vultron.metadata.docs.stakeholder_fragment import (
 )
 from vultron.metadata.file_loading import MetadataLoadError, MetadataLoadErrors
 
+from ._lookup_tree import LOOKUP_NAV, with_lookup
+
 _LANDING = (
     f"---\n{CONTENTS_KEY}: generated\n---\n\n"
     "# Guides\n\nHand-written framing.\n\n"
@@ -82,7 +84,19 @@ def _page(
     return f"{head}# {title}\n"
 
 
-def _repo(tmp_path: Path, files: dict[str, str], nav: list[object]) -> Path:
+def _repo(
+    tmp_path: Path,
+    files: dict[str, str],
+    nav: list[object],
+    *,
+    lookup: bool = True,
+) -> Path:
+    """A checkout with repo-relative *files* and *nav*, plus, unless *lookup*
+    is false, the lookup page and its hosts every ``docs-site`` tree needs
+    (DF-11-021)."""
+    if lookup:
+        docs, nav = with_lookup({}, nav)
+        files = {**{f"docs/{k}": v for k, v in docs.items()}, **files}
     (tmp_path / "mkdocs.yml").write_text(yaml.safe_dump({"nav": nav}))
     for rel, text in files.items():
         path = tmp_path / rel
@@ -327,7 +341,7 @@ class TestEmptyTargetSet:
 
     def test_matrix_over_an_empty_tree_fails(self, tmp_path):
         (tmp_path / "docs").mkdir()
-        _repo(tmp_path, {}, [])
+        _repo(tmp_path, {}, [], lookup=False)
         with pytest.raises(MetadataLoadError, match="DF-09-009"):
             measure_coverage(tmp_path)
 
@@ -582,7 +596,7 @@ class TestSectionIndexDecisions:
             site_sync.main(["--write"])
         assert run.value.code == 1
         err = capsys.readouterr().err
-        assert "routing-page link(s) missing" in err
+        assert "required link(s) missing" in err
         assert "guides/sub/other.md" in err
         assert (root / "docs/guides/sub/index.md").read_text() == _index(
             "routing"
@@ -840,7 +854,12 @@ class TestSiteSync:
         site_sync.write_artifacts(root)
         (root / "mkdocs.yml").write_text(
             yaml.safe_dump(
-                {"nav": [{"Guides": ["guides/index.md", "guides/b.md"]}]}
+                {
+                    "nav": [
+                        {"Guides": ["guides/index.md", "guides/b.md"]},
+                        *LOOKUP_NAV,
+                    ]
+                }
             )
         )
         assert "docs/guides/index.md" in site_sync.stale_artifacts(root)
@@ -904,6 +923,7 @@ class TestSiteSync:
             "topics/other_uses/index.md",
         }
         assert {p.path for p in indexes.routing} == {
+            "index.md",
             "topics/process_models/index.md",
             "topics/behavior_logic/index.md",
             "howto/activitypub/index.md",

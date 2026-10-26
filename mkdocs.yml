@@ -3,7 +3,9 @@ site_url: 'https://certcc.github.io/Vultron/'
 site_description: 'A protocol for coordinated vulnerability disclosure'
 site_author: 'CERT Coordination Center'
 nav:
-  - Home: 'index.md'
+  - Home:
+    - 'index.md'
+    - Look Something Up: 'lookup.md'
   - How Vultron Works:
     - Overview: 'start/how-vultron-works.md'
     - Background:
@@ -199,7 +201,7 @@ nav:
     - Proposing a Change: 'project/proposing_a_change.md'
     - FAQ: 'about/faq.md'
     - License: 'about/license.md'
-    - Acknowledgements: 'about/acknowledgements.md'
+    - Acknowledgments: 'about/acknowledgements.md'
   - CERT/CC: 'https://certcc.github.io/'
 not_in_nav: |
   _*.md
@@ -222,9 +224,6 @@ not_in_nav: |
   howto/index.md
   reference/index.md
   research/index.md
-  # Annex C of the Protocol Specification is the notation's nav entry; this
-  # older page keeps its URL for inbound links (#4684).
-  reference/notation.md
   # A redirect stub: the case object moved to topics/case_lifecycle/case_model.md,
   # but older pages still link here.
   howto/case_object.md
@@ -411,10 +410,13 @@ plugins:
         howto/em_icalendar.md: topics/process_models/em/index.md
         howto/general_implementation.md: howto/activitypub/index.md
         reference/fv-demo-protocol.md: reference/rv-demo-protocol.md
+        # Annex C of the Protocol Specification carries the notation; the older
+        # page had no nav entry of its own (#5150).
+        reference/notation.md: reference/vultron-spec/annex-c-notation.md
         # The section 4 and 5 fragments were renamed with their sections (#5148).
         reference/vultron-spec/_semantic-layer.md: reference/vultron-spec/layers.md#4-messages-n
         reference/vultron-spec/_syntactic-layer.md: reference/vultron-spec/layers.md#5-encoding-and-transport-n
-        topics/background/notation.md: reference/notation.md
+        topics/background/notation.md: reference/vultron-spec/annex-c-notation.md
         topics/background/overview.md: topics/background/what-is-vultron.md
         # Terms and Definitions was merged into the glossary's roles section (#3624).
         reference/terms.md: reference/glossary.md#cvd-roles-and-participants

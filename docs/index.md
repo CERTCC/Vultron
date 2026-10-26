@@ -5,6 +5,7 @@ description: >
 stakeholder_type: ALL
 level: 100
 page_type: routing
+contents: routing
 template: home.html
 hero:
   title: Open Protocol for Vulnerability Coordination
@@ -35,6 +36,8 @@ It builds on decades of vulnerability coordination experience at the CERT Coordi
 ## Where to start
 
 {% include-markdown "./includes/start_here_cards.md" %}
+
+If you have been here before and want one page in particular, [Look Something Up](lookup.md) lists the reference pages of every tab: the specification, the requirements, the messages, and the glossary.
 
 ## What kind of thing Vultron is
 

@@ -616,7 +616,7 @@ The [Concept Taxonomy](vultron-taxonomy.md) explains the boundary: `vultron/core
 - [Concept Taxonomy](vultron-taxonomy.md) — what each Vultron concept covers and excludes
 - [Protocol Quick Reference](quick_reference.md) — the five state machines and the message set on one page
 - [Documentation Conventions](conventions.md) — the call-out boxes and normative-page banners this documentation uses
-- [Notation](notation.md) — the mathematical and diagram notation used in the formal treatment
+- [Annex C Notation Reference](vultron-spec/annex-c-notation.md) — the mathematical and diagram notation used in the formal treatment
 - [Process Models](../topics/process_models/index.md) — the RM, EM, and CS models explained
 - [Formal Protocol](formal_protocol/index.md) — the protocol as a communicating hierarchical state machine
 - [*A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure*](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"} (CMU/SEI-2021-SR-021) — the source of the Case State model

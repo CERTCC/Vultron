@@ -44,6 +44,7 @@ thread:
 Every other part of this site assumes the ideas on this one: what a Coordinated Vulnerability Disclosure (CVD) case is, who takes part in it, and the processes that move it from a first report to publication.
 Read this path first if you are deciding which of the other tabs you need, or if you need the shared vocabulary before you go deeper.
 Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
+If you have been here before and want one page in particular, [Look Something Up](../lookup.md) lists the reference pages of every tab.
 
 {% include-markdown "./_paths/how-vultron-works/start__how-vultron-works.md" %}
 
