@@ -549,7 +549,7 @@ def is_case_content_recipient(
     sends a closed peer with :func:`closed_participant_ledger_cutoff`
     instead (CM-23-004).
     """
-    record = _listed_record(case, dl, actor_id)
+    record = listed_participant_record(case, dl, actor_id)
     return record is not None and case.is_active_participant(record)
 
 
@@ -586,7 +586,7 @@ def may_act_on_case(
     An actor the case does not list, or whose record does not resolve, may
     not act: the case cannot vouch for it.
     """
-    record = _listed_record(case, dl, actor_id)
+    record = listed_participant_record(case, dl, actor_id)
     return record is not None and _receives_case_content(case, record)
 
 
@@ -605,7 +605,7 @@ def why_may_not_act_on_case(
         return None
     if actor_id not in case.actor_participant_index:
         return "is not a participant of the case"
-    record = _listed_record(case, dl, actor_id)
+    record = listed_participant_record(case, dl, actor_id)
     if record is None:
         return "has no participant record the case can resolve"
     if not record.joined:
@@ -620,13 +620,16 @@ def why_may_not_act_on_case(
     )
 
 
-def _listed_record(
+def listed_participant_record(
     case: VulnerabilityCase, dl: CasePersistence, actor_id: str
 ) -> CaseParticipant | None:
     """The record *case*'s roster lists for *actor_id*, or ``None``.
 
     ``None`` when the roster does not list the actor or its record does not
-    resolve (:func:`_resolve_record`).
+    resolve (:func:`_resolve_record`: the stored record first, an inline copy
+    as the fallback).  The one lookup behind :func:`may_act_on_case`, so a
+    writer that must change the record an entitlement check admitted reads it
+    here too (CM-21-021).
     """
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id is None:
@@ -645,5 +648,5 @@ def closure_recorded(
     (ID-05-003).  An actor the case does not list, or whose record does not
     resolve, has no recorded closure.
     """
-    record = _listed_record(case, dl, actor_id)
+    record = listed_participant_record(case, dl, actor_id)
     return record is not None and record.rm_closed

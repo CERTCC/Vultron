@@ -96,6 +96,30 @@ def _named_offer(
     return recorded_ownership_offer(datalayer, case_id, offer_id)
 
 
+def _require_named_offer(
+    node: DataLayerConditionWithPorts,
+    case_id: str,
+    offer_id: str | None,
+    found_by: str,
+) -> RecordedOwnershipOffer:
+    """The Offer a reply names, which *found_by* already found recorded.
+
+    Its absence now is a local anomaly, not the sender's refusal, so it
+    raises: the bridge flags an internal error instead of a ``REFUSED``
+    verdict.
+
+    Raises:
+        VultronBTInternalError: The Offer is not recorded.
+    """
+    assert node.datalayer is not None
+    try:
+        return _named_offer(node.datalayer, case_id, offer_id)
+    except VultronNotFoundError as exc:
+        raise VultronBTInternalError(
+            f"{node.name}: the Offer {found_by} found is gone ({exc})"
+        ) from exc
+
+
 class OwnershipOfferOpenNode(
     FlaggedRepeatGuardMixin, DataLayerConditionWithPorts
 ):
@@ -193,16 +217,11 @@ class OwnershipOfferOpenNode(
         _case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1: the gate found this store's case
-        try:
-            offer = _named_offer(self.datalayer, self._case_id, self._offer_id)
-        except VultronNotFoundError as exc:
-            # The sender check ran first and found this Offer, so its absence
-            # now is a local anomaly, not the sender's refusal: raise, so the
-            # bridge flags an internal error instead of a REFUSED verdict.
-            raise VultronBTInternalError(
-                f"{self.name}: the Offer the sender check found is gone"
-                f" ({exc})"
-            ) from exc
+        # The sender check ran first and found this Offer, so its absence
+        # now is a local anomaly, not the sender's refusal.
+        offer = _require_named_offer(
+            self, self._case_id, self._offer_id, "the sender check"
+        )
         if offer.answer_id == self._reply_id:
             self.is_redelivery = True
             self.feedback_message = (
@@ -276,13 +295,9 @@ class OwnershipTransfereeActiveNode(DataLayerConditionWithPorts):
         case, failure = self._require_case(self._case_id)
         if failure is not None:
             return failure  # Regime 1: the gate found this store's case
-        try:
-            offer = _named_offer(self.datalayer, self._case_id, self._offer_id)
-        except VultronNotFoundError as exc:
-            raise VultronBTInternalError(
-                f"{self.name}: the Offer the earlier guards found is gone"
-                f" ({exc})"
-            ) from exc
+        offer = _require_named_offer(
+            self, self._case_id, self._offer_id, "the earlier guards"
+        )
         why = why_may_not_act_on_case(
             case, self.datalayer, offer.transferee_id
         )

@@ -40,6 +40,7 @@ from vultron.core.models.participant_semantic_types import (
     UPDATE_CASE_PARTICIPANT_SEMANTIC_TYPE,
 )
 from vultron.core.participants.ownership_offer import recorded_ownership_offer
+from vultron.core.participants.recipients import listed_participant_record
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.sync_helpers import at_stored_position
 from vultron.enums.roles import CVDRole
@@ -148,10 +149,15 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
     def _resolve_participant(
         self, actor_id: str, case: VulnerabilityCase
     ) -> CaseParticipant | None:
-        """Return the ``CaseParticipant`` for *actor_id*, or ``None``."""
+        """Return the ``CaseParticipant`` for *actor_id*, or ``None``.
+
+        Read through the lookup the Accept's active-transferee guard uses
+        (:func:`~vultron.core.participants.recipients.listed_participant_record`),
+        so a record the guard admitted, stored or carried inline, is the one
+        this node changes (CM-21-021).
+        """
         assert self.datalayer is not None
-        participant_id = case.actor_participant_index.get(actor_id)
-        if participant_id is None:
+        if actor_id not in case.actor_participant_index:
             self.logger.warning(
                 "%s: actor '%s' not found in actor_participant_index for"
                 " case '%s' — CVDRole.CASE_OWNER role update skipped",
@@ -160,8 +166,8 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
                 self.case_id,
             )
             return None
-        participant = self.datalayer.read(participant_id)
-        if not isinstance(participant, CaseParticipant):
+        participant = listed_participant_record(case, self.datalayer, actor_id)
+        if participant is None:
             self.logger.warning(
                 "%s: actor '%s' has no CaseParticipant record in case '%s'"
                 " — CVDRole.CASE_OWNER role update skipped",

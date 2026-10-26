@@ -2887,6 +2887,34 @@ def test_an_accept_from_a_transferee_no_longer_active_is_refused(
 
 
 @pytest.mark.spec("CM-21-021")
+@pytest.mark.spec("CM-21-013")
+def test_a_reject_from_a_lapsed_transferee_still_closes_the_offer(
+    make_payload,
+):
+    """CM-21-021 governs the Accept, which moves ownership; a Reject moves
+    nothing, so a transferee removed since the Offer may still decline it.
+
+    The Reject is ledgered and closes the Offer, and ownership is unchanged.
+    (A closed transferee's answer is refused on its own ground, CM-23-018.)
+    """
+    case_id = "https://example.org/cases/case_ot_lapsed_reject"
+    dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+    _, offer = deliver(_COORDINATOR_ID, f"{case_id}/offer")
+    make_inactive(
+        _read_case(dl, case_id),
+        dl,
+        _COORDINATOR_ID,
+        TransfereeStanding.REMOVED,
+    )
+
+    result = _reject(dl, make_payload, offer)
+
+    assert result.disposition is HandlerDisposition.APPLIED, result.reason
+    assert "reject_case_ownership_transfer" in _semantic_types(dl)
+    assert _owner(dl, case_id) == _VENDOR_ID
+
+
+@pytest.mark.spec("CM-21-021")
 @pytest.mark.spec("HP-01-003")
 def test_a_redelivered_accept_is_skipped_after_the_new_owner_lapses(
     make_payload,

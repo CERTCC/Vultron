@@ -412,15 +412,18 @@ ENTRIES: list[SemanticEntry] = [
             Occasion(
                 when=(
                     "the Case Owner proposes to transfer ownership of the "
-                    "case to another actor"
+                    "case to another participant"
                 ),
                 anchor="propose-case-ownership-transfer",
                 addressee=AddresseeSide.CASE_MANAGER,
                 heading="Propose case ownership transfer",
                 description=(
                     "Asks the Case Manager to offer the case to another "
-                    "actor, for example from a Reporter to a Coordinator. "
-                    "The inner Offer names the case, the new owner as its "
+                    "participant, for example from a Reporter to a "
+                    "Coordinator. The Case Manager offers the case only to "
+                    "an active participant, so the Case Owner invites any "
+                    "other actor first. The inner Offer names the case, the "
+                    "new owner as its "
                     "target and, optionally, an `endTime` after which the "
                     "Case Manager refuses an answer: the offer is then "
                     "closed, with nothing recorded or sent. The Case "
