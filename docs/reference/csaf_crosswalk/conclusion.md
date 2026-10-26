@@ -102,7 +102,7 @@ CSAF already records status at this granularity, in `vulnerabilities[].product_s
 
 Tracking at this granularity could increase the state space very much.
 It could also bring the Vultron model of the process closer to the real process.
-The page [Limitations and Future Work](../../topics/process_models/cs/cs_model_limitations.md#state-explosion) already describes D as a process that spreads through many deployments, and it suggests a roll-up of many facts into one event.
+The page [Open Questions](../../topics/measuring_cvd/open_questions.md#when-is-a-fix-deployed) already describes D as a process that spreads through many deployments, and it suggests a roll-up of many facts into one event.
 Concern [#5140](https://github.com/CERTCC/Vultron/issues/5140){:target="_blank"} tracks the question.
 
 ---

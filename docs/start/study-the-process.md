@@ -29,7 +29,7 @@ thread:
           the state space of every possible case history.
       - page: topics/measuring_cvd/index.md
         blurb: >-
-          metrics derived from those histories.
+          what a case records, and the desiderata and metrics drawn from it.
       - page: topics/other_uses/index.md
         blurb: >-
           applications of the model outside the protocol.
@@ -63,7 +63,7 @@ Each section builds on the ones before it; read a numbered list in order and a b
 
 1. [Vultron Process Models](../topics/process_models/index.md) — the report, embargo and case state processes and how they interact.
 2. [CVD Case State Model](../topics/process_models/cs/cs_model.md) — the state space of every possible case history.
-3. [Measuring CVD](../topics/measuring_cvd/index.md) — metrics derived from those histories.
+3. [Measuring CVD](../topics/measuring_cvd/index.md) — what a case records, and the desiderata and metrics drawn from it.
 4. [Other Uses of the Vultron Case State Model](../topics/other_uses/index.md) — applications of the model outside the protocol.
 
 ## Go to the formal definition

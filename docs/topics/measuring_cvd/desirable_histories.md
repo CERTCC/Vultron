@@ -142,7 +142,7 @@ desired orderings $\mathbb{D}$ as follows:
     the interval between transitions may be of more interest than merely the
     order of those transitions, as a rapid tempo of transitions can alter
     the options available to stakeholders in their response. We discuss this
-    limitation further in [Limitations](../process_models/cs/cs_model_limitations.md) however,
+    limitation further in [Open Questions](open_questions.md#what-timing-should-a-case-meet) however,
     the following model posits event sequence timing on a human-oriented timescale 
     measured in minutes to weeks.
 
