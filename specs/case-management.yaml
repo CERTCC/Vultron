@@ -5870,6 +5870,8 @@ groups:
     relationships:
     - rel_type: implements
       spec_id: CM-31-003
+    - rel_type: constrains
+      spec_id: ARCH-23-005
   - id: CM-31-004
     priority: MUST
     kind: protocol
@@ -6662,6 +6664,8 @@ groups:
       spec_id: PCR-08-001
     - rel_type: refines
       spec_id: PCR-03-001
+    - rel_type: refines
+      spec_id: HP-01-006
     adr:
     - ADR-0039
   - id: CM-33-005

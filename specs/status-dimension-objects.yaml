@@ -75,6 +75,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: SDO-01-001
+    - rel_type: refines
+      spec_id: ARCH-25-005
     adr:
     - ADR-0036
     - ADR-0099

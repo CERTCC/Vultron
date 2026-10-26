@@ -82,7 +82,7 @@ groups:
     verification_debt: '#2569'
     statement: Core modules SHALL NOT import from application layer modules
     relationships:
-    - rel_type: derives_from
+    - rel_type: refines
       spec_id: ARCH-01-001
   - id: CS-05-002
     priority: SHOULD
@@ -115,7 +115,7 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CS-05-002
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: IMPLTS-07-020
   - id: CS-05-006
     priority: MAY
@@ -126,9 +126,6 @@ groups:
       collection-time import order (`isolated_core_registries`, `monkeypatch` of module attributes). It is an isolation
       idiom, not a cycle break, so CS-05-002 does not govern it and CS-05-005's marker discipline would add noise without
       a backlog to drain.
-    relationships:
-    - rel_type: refines
-      spec_id: CS-05-005
   - id: CS-05-003
     priority: MUST
     kind: architecture
@@ -186,7 +183,7 @@ groups:
     rationale: Reduces boilerplate and makes the invariant visible in the type signature rather than buried in a per-field
       validator.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CS-08-001
 - id: CS-09
   title: Code Reuse
@@ -216,9 +213,6 @@ groups:
       in name only — the type system cannot enforce what passes through them. Naming the specific domain type at the boundary
       makes the contract explicit, enables static verification, and surfaces layer-coupling violations at compile/analysis
       time rather than runtime.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-08-001
   - id: CS-10-003
     priority: MUST
     kind: project
@@ -230,11 +224,9 @@ groups:
       With named domain types in place the standard is higher: bare `BaseModel` at a port is equivalent to `dict` from a contract-clarity
       perspective. See also ARCH-08-001 for the port Protocol obligation.'
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: CS-10-001
       note: Python/Pydantic-specific application of the typed-port-boundary pattern
-    - rel_type: refines
-      spec_id: ARCH-08-001
   - id: CS-10-002
     priority: SHOULD
     kind: project
@@ -320,8 +312,9 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: CLP-15-007
-    - rel_type: depends_on
-      spec_id: CLP-07-011
+    - rel_type: refines
+      spec_id: CS-13-006
+      note: picks which explicit offset a wire timestamp carries
     lint_suppress:
     - missing_story_reference
   - id: CS-13-006
@@ -343,10 +336,6 @@ groups:
       offset, and `test_minted_timestamp_serialises_with_a_utc_offset` asserts the
       same of a time this node mints. The CS-13-001 tests assert a naive value is
       normalized to UTC before it can reach the wire.
-    relationships:
-    - rel_type: constrains
-      spec_id: CS-13-005
-      note: split from it (MS-12-010); CS-13-005 picks which offset, within this rule
     tags:
     - as2
 - id: CS-14
@@ -370,9 +359,6 @@ groups:
     verification_debt: '#2575'
     statement: Domain event subclasses MUST narrow the `semantic_type` field to a `Literal[MessageSemantics.FOO]` type with
       the corresponding default value
-    relationships:
-    - rel_type: refines
-      spec_id: CS-10-002
 - id: CS-15
   title: No Compatibility Shims
   specs:
@@ -426,9 +412,6 @@ groups:
       The key signal is mixed responsibility.
     verification: 'Any production source file exceeding 500 lines SHOULD be reviewed for mixed-responsibility concerns. A
       codebase scan MAY flag such files for triage. Applies to all layers: core, wire, adapters, use cases, and demo.'
-    relationships:
-    - rel_type: refines
-      spec_id: BTND-07-001
   - id: CS-18-002
     priority: MUST
     kind: project
@@ -450,7 +433,7 @@ groups:
     rationale: Callers that previously imported `from vultron.foo.nodes import SomeNode` MUST continue to work without modification.
       Exposing all names via `__init__.py` prevents a split from becoming a breaking change.
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: CS-15-001
   - id: CS-18-004
     priority: SHOULD
@@ -460,9 +443,6 @@ groups:
       structure: a `test/…/nodes/` (or equivalent) directory with one `test_<submodule>.py` per submodule.
     rationale: A monolithic test file grows in parallel with the flat module and inherits the same blast-radius problem. Mirrored
       test files scope failures to the affected concern and make it easier to add focused per-unit tests.
-    relationships:
-    - rel_type: refines
-      spec_id: BTND-07-002
 - id: CS-20
   title: Protocol and Type-Guard Hygiene
   specs:
@@ -479,10 +459,6 @@ groups:
       after `VulnerabilityCase.events` was removed.'
     verification: Diff any PR that removes a field or method from a Protocol-conforming class; confirm the matching Protocol
       declaration is also removed.
-    relationships:
-    - rel_type: refines
-      spec_id: CS-11-001
-      note: Explicit typing must stay accurate; stale Protocol members are a form of inaccurate type annotation
   - id: CS-20-002
     priority: MUST
     kind: project
@@ -496,9 +472,6 @@ groups:
       ensures the guard stays correct as long as the Protocol itself is maintained (per CS-20-001).'
     verification: Inspect each `TypeGuard` function; confirm every `hasattr(obj, "x")` check uses an attribute `x` that is
       declared on the target `Protocol`.
-    relationships:
-    - rel_type: refines
-      spec_id: CS-20-001
 - id: CS-19
   title: Test Fixtures Mirroring Production Enums
   specs:
@@ -603,10 +576,6 @@ groups:
       broad catch is load-bearing, apply the instrument-and-count method from #3217 (log the
       class, keys, and error reaching the handler; run the full suite; group by
       cause) before deciding to narrow, delete, or justify it.
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-15-002
-      note: ARCH-15 forbids silent-None fail-open; CS-23 forbids the broad-catch form of the same masking failure
     exceptions:
     - A behavior-tree node's `update()` method MAY use `except Exception` to
       convert an unexpected error into `Status.FAILURE` (BT-HELPER-01).

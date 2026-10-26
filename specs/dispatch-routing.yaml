@@ -32,6 +32,9 @@ groups:
     statement: >-
       Dispatchers MUST perform semantic type validation at dispatch time using the configured
       semantics-to-use-case mapping
+    relationships:
+    - rel_type: implements
+      spec_id: HP-02-001
 - id: DR-02
   title: Handler Lookup
   specs:
