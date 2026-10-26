@@ -2176,6 +2176,11 @@ groups:
       messages, and the ledger cannot explain the difference. The CASE_MANAGER cannot
       observe the order one sender sent two messages in, so that order is lost unless
       the decision does not need it.
+    note: >-
+      The second clause covers one sender's changed embargo answer: CM-13-005 and
+      CM-18-003 record a changed `Accept` or `Reject` of one Invite as it arrives, so
+      two answers sent back to back are recorded in arrival order until the CASE_MANAGER
+      can tell which was sent last (#5202).
     relationships:
     - rel_type: depends_on
       spec_id: CLP-14-001

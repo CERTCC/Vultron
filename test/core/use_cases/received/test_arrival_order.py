@@ -10,7 +10,7 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""No coordination decision depends on arrival order (SYNC-19, ADR-0160).
+"""No coordination decision may depend on arrival order (SYNC-19, ADR-0161).
 
 The transport promises no order (ADR-0037), so a message the CASE_MANAGER
 sends outside the ledger can reach a participant before, between or after
@@ -29,10 +29,17 @@ import pytest
 
 from test.core.use_cases.received import (
     test_embargo_ending_notices as notices,
-    test_embargo_invite_lapse as lapse,
 )
 from test.support.embargo_register import activate, propose
+from test.support.ledger import ledger_entries
 from test.support.ledger_rebuild import case_file_differences
+from test.support.relayed_invite import (
+    INVITEE,
+    answers_in_outbox,
+    deliver_relayed_invite,
+    seed_invitee_case,
+)
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.outbox_sealed_body import (
     dump_outbound_body,
     read_sealed_body_dict,
@@ -91,21 +98,34 @@ def _answers(net: LedgerNetwork, actor: str, invite_id: str) -> list[str]:
 
 
 def _addressed_to(entry: dict[str, Any], actor: str) -> bool:
+    """Whether the activity *entry* records was sent to *actor*."""
     snapshot = entry.get("payloadSnapshot") or {}
-    return actor in json.dumps(snapshot.get("to"))
+    recipients = snapshot.get("to") or []
+    if isinstance(recipients, str):
+        recipients = [recipients]
+    return actor in recipients
+
+
+def _stored_hashes(net: LedgerNetwork, actor: str) -> set[str]:
+    """The hashes of the entries *actor*'s replica has stored."""
+    return {
+        e.entry_hash for e in ledger_entries(net.stores[actor], net.case_id)
+    }
 
 
 class TestRevisionInvitePermutations:
     """The revision Invite races its own ledger entries (EP-09-002, SYNC-19).
 
-    A revision proposal reaches a participant as three related messages: the
-    ``Announce`` of the proposal entry (its ``PROPOSE`` register step), the
-    relayed ``Invite(EmbargoEvent)``, and the ``Announce`` of the entry that
-    records the Invite's emission to that participant.  The rest of the act
-    (the consent rows and the other participants' emissions) follows in chain
-    order.  Every order of the three must leave the participant with the
-    CASE_MANAGER's case file, the relayed Invite indexed as the proposal it
-    answers, and one answer.
+    A revision proposal reaches a participant as three related units: the
+    ``Announce`` of the proposal entry (its ``PROPOSE`` register step); the
+    relayed ``Invite(EmbargoEvent)``; and the rest of the act's entries in
+    chain order, which end with the entry recording the Invite's emission to
+    that participant.  Each of the six orders of the three is delivered, and
+    the test first checks that the order really happened: when the Invite
+    arrives, the replica holds the proposal entry only if the proposal came
+    first, and the emission entry only if both entry units did.  Every order
+    must leave the participant with the CASE_MANAGER's case file, the relayed
+    Invite indexed as the proposal it answers, and one answer.
     """
 
     @pytest.mark.spec("SYNC-19-001")
@@ -115,7 +135,7 @@ class TestRevisionInvitePermutations:
         "order",
         list(itertools.permutations(range(3))),
         ids=lambda order: "-".join(
-            ("proposal", "emission", "invite")[i] for i in order
+            ("proposal", "entries", "invite")[i] for i in order
         ),
     )
     def test_every_order_reaches_one_case_file(
@@ -129,22 +149,36 @@ class TestRevisionInvitePermutations:
         announces = [b for b in bodies if _entry(b)]
         invites = [b for b in bodies if b.get("type") == "Invite"]
         assert len(invites) == 1, [b.get("type") for b in bodies]
-        proposal = announces[0]
+        proposal, *entries = announces
         assert _entry(proposal)["semanticType"] == _PROPOSAL_TYPE
         (emission,) = [
             b
-            for b in announces[1:]
+            for b in entries
             if _entry(b)["semanticType"] == _PROPOSAL_TYPE
             and _addressed_to(_entry(b), BYSTANDER)
         ]
-        related = (proposal, emission, invites[0])
-        rest = [
-            b for b in announces if b is not proposal and b is not emission
-        ]
+        units: tuple[list[dict[str, Any]], ...] = (
+            [proposal],
+            entries,
+            [invites[0]],
+        )
 
-        for body in [related[i] for i in order] + rest:
-            net.receive(BYSTANDER, body)
+        stored_at_invite: set[str] = set()
+        for unit in order:
+            if unit == 2:
+                stored_at_invite = _stored_hashes(net, BYSTANDER)
+            for body in units[unit]:
+                net.receive(BYSTANDER, body)
 
+        # The order was realized, not undone by holding (SYNC-14).
+        proposal_first = order.index(0) < order.index(2)
+        entries_first = proposal_first and order.index(1) < order.index(2)
+        assert (_entry(proposal)["entryHash"] in stored_at_invite) is (
+            proposal_first
+        )
+        assert (_entry(emission)["entryHash"] in stored_at_invite) is (
+            entries_first
+        )
         assert (
             case_file_differences(
                 net.stores[MANAGER], net.stores[BYSTANDER], net.case_id
@@ -177,9 +211,8 @@ def test_owner_answer_to_first_proposal_does_not_depend_on_its_entry(
     """The owner's answer is the same whether the PROPOSE entry came first."""
     answers = {}
     for entry_first in (False, True):
-        owner_answer = lapse.TestOwnerAnswerToRelayedInvite()
-        dl = lapse._make_dl(actor_id=lapse._INVITEE)
-        case, embargo = owner_answer._seed(
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
+        case, embargo = seed_invitee_case(
             dl,
             f"https://example.org/cases/owner-first-{entry_first}",
             em_state=EM.NONE,
@@ -191,8 +224,8 @@ def test_owner_answer_to_first_proposal_does_not_depend_on_its_entry(
             # The proposal's ledger entry is its PROPOSE register step.
             propose(case, embargo.id_)
             dl.save(case)
-        owner_answer._deliver(dl, case, embargo, make_payload)
-        answers[entry_first] = lapse._answers_in_outbox(dl, lapse._INVITEE)
+        deliver_relayed_invite(dl, case, embargo, make_payload)
+        answers[entry_first] = answers_in_outbox(dl, INVITEE)
         # One in-memory store per actor id: close it before the next order.
         dl.close()
 
@@ -223,9 +256,8 @@ def test_late_relayed_invite_leaves_the_same_proposal_index(
     """The proposal index ends the same whether the Invite came first."""
     indexes = {}
     for invite_first in (True, False):
-        invitee = lapse.TestOwnerAnswerToRelayedInvite()
-        dl = lapse._make_dl(actor_id=lapse._INVITEE)
-        case, embargo = invitee._seed(
+        dl = SqliteDataLayer("sqlite:///:memory:", actor_id=INVITEE)
+        case, embargo = seed_invitee_case(
             dl,
             f"https://example.org/cases/late-invite-{invite_first}",
             em_state=EM.NONE,
@@ -234,13 +266,13 @@ def test_late_relayed_invite_leaves_the_same_proposal_index(
             policy_days=30,
         )
         if invite_first:
-            invitee._deliver(dl, case, embargo, make_payload)
+            deliver_relayed_invite(dl, case, embargo, make_payload)
             _apply_decision(dl, case.id_, embargo.id_)
         else:
             _apply_decision(dl, case.id_, embargo.id_)
             stored = dl.read_case(case.id_)
             assert stored is not None
-            invitee._deliver(dl, stored, embargo, make_payload)
+            deliver_relayed_invite(dl, stored, embargo, make_payload)
         final = dl.read_case(case.id_)
         assert final is not None
         indexes[invite_first] = dict(final.pending_embargo_proposal_index)
@@ -316,16 +348,19 @@ def _consent(net: LedgerNetwork, actor: str, embargo_id: str) -> str:
 def test_same_sender_answers_record_one_consent_in_either_order() -> None:
     """An Accept then a Reject of one Invite record one consent in any order."""
     consents = {}
+    # Each order runs in a network of its own case. The actors' in-memory
+    # stores are shared by actor id, so every id an order mints names its
+    # order, and nothing one order receives is a repeat of the other's.
     for send_order in (True, False):
         net = LedgerNetwork(
             f"https://example.org/cases/two-answers-{send_order}"
         )
         embargo_id, invite_id = _invited(net, BYSTANDER, "two-answers")
         accept = _answer_body(
-            net, BYSTANDER, invite_id, accept=True, tag="first"
+            net, BYSTANDER, invite_id, accept=True, tag=f"accept-{send_order}"
         )
         reject = _answer_body(
-            net, BYSTANDER, invite_id, accept=False, tag="second"
+            net, BYSTANDER, invite_id, accept=False, tag=f"reject-{send_order}"
         )
         for body in (accept, reject) if send_order else (reject, accept):
             net.receive(MANAGER, body)
@@ -346,6 +381,8 @@ def test_same_sender_answers_record_one_consent_in_either_order() -> None:
 def test_note_sent_before_leave_is_kept_in_either_order() -> None:
     """``Add(Note)`` then ``Leave(Case)`` keep the note in either order."""
     notes = {}
+    # One case per order; the note's id carries its case, so neither order's
+    # note is a repeat of the other's.
     for send_order in (True, False):
         net = LedgerNetwork(
             f"https://example.org/cases/note-leave-{send_order}"

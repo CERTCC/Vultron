@@ -312,8 +312,10 @@ Enqueuing for another actor means opening that actor's store explicitly
 
 The ledger's `log_index` is the one order the protocol defines, and eventual
 consistency is its guarantee (ADR-0161). Every other arrival order is noise, so a
-decision that reads it is a bug against SYNC-19-001. The per-type verdicts and the
-inventory of direct messages are in ADR-0161 § "The audit".
+decision that reads it is a bug against SYNC-19-001. The maintained list of direct
+messages and their verdicts is the table in
+`docs/topics/case_lifecycle/case_ledger_sync.md` § "Messages the CASE_MANAGER sends
+outside the ledger".
 
 - **The CASE_MANAGER's observation order is the order.** Taking concurrent
   assertions from different senders as they arrive is correct: the ledger records
@@ -345,10 +347,11 @@ inventory of direct messages are in ADR-0161 § "The audit".
 - **Expect the relayed Invite before its emission entry.** The CASE_MANAGER commits
   each emission after queueing it (SYNC-09-002), so the steady state delivers the
   Invite first; the replica arm must not need its emission entry.
-- **Every new direct message gets a verdict.** Classify it by the rules above in its
-  PR, and add it to `test/core/use_cases/received/test_arrival_order.py` if it can
-  race its ledger entries ([`vultron/core/AGENTS.md`](../vultron/core/AGENTS.md)
-  § "Adding a New Message Type").
+- **Every new direct message gets a verdict.** Classify it by the rules above, add a
+  row to the docs table, and add it to
+  `test/core/use_cases/received/test_arrival_order.py` if it can race its ledger
+  entries ([`vultron/core/AGENTS.md`](../vultron/core/AGENTS.md) § "Adding a New
+  Message Type").
 
 ## A Refusal That Extends the Chain Is Divergence (SYNC-16)
 

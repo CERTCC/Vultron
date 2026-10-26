@@ -59,8 +59,8 @@ Chosen option: "Eventual consistency", because the ledger already gives one caus
 - Good, because the protocol needs nothing from the transport beyond eventual delivery.
 - Good, because a new message type has one test to pass: its outcome is the same in every arrival order.
 - Good, because ordered delivery stays free to use as an optimization without becoming load-bearing.
-- Bad, because one sender's back-to-back assertions lose their send order, so a decision that needs it must get it some other way. Two open bugs need such a fix.
-- Bad, because a direct message that writes replica state outside the ledger is order-dependent unless the ledger later makes it idempotent, and two of the bugs come from exactly that.
+- Bad, because one sender's back-to-back assertions lose their send order, so a decision that needs it must get it some other way.
+- Bad, because a direct message that writes replica state outside the ledger is order-dependent unless the ledger later makes it idempotent.
 
 ## Validation
 
@@ -93,7 +93,7 @@ Each order dependency still open has a strict `xfail` test in the same file.
 ### The audit (#5102, 2026-10-26)
 
 The audit classified every received semantic type at a participant and at the CASE_MANAGER, and inventoried every message the CASE_MANAGER sends outside the ledger.
-The rules it produced, and the living inventory of direct messages, are in `notes/sync-ledger-replication.md` § "No Decision Depends on Arrival Order (SYNC-19)".
+The rules it produced are in `notes/sync-ledger-replication.md` § "No Decision Depends on Arrival Order (SYNC-19)", and the maintained list of direct messages is in `docs/topics/case_lifecycle/case_ledger_sync.md`; the tables below record the audit as it stood.
 "Ledger-ordered" below means that the CASE_MANAGER's first committed decision wins and later ones are refused, which SYNC-19-001 allows.
 
 **Ledger apply** (`announce_case_ledger_entry` at a participant) is order-independent by construction.
@@ -135,7 +135,7 @@ Repairing a lost last entry before a quiet period relies on the participant's po
 | `add_participant_status_to_participant`, `engage_case`, `defer_case` | independent | P/X/A are only added; RM, VF and D are judged against the sender's own record, and the trigger checks its replica first. |
 | `add_case_status_to_case` | not applicable | Only the CASE_MANAGER sends it (RSH-04-001). |
 | `close_case` | **dependent** for one sender | An assertion sent before the sender's Leave is refused silently when the Leave overtakes it, #5203. |
-| `add_note_to_case`, `remove_note_from_case` | independent | A Remove needs the note in the author's replica, so it follows the Add's commit. |
+| `add_note_to_case`, `remove_note_from_case` | independent across senders | A Remove needs the note in the author's replica, so it follows the Add's commit. A note overtaken by its own sender's Leave is #5203, under `close_case`. |
 | `add_case_participant_to_case`, `remove_case_participant_from_case`, `invite_actor_to_case`, `accept_invite_actor_to_case`, `reject_invite_actor_to_case` | ledger-ordered | A removal racing an Accept ends removed in either order; a superseded Invite's Accept is refused. |
 | `accept_invite_actor_to_full_case`, `tentative_reject_invite_actor_to_full_case`, `reject_invite_actor_to_full_case` | independent | Checked against the Invite's ledger position (CM-11-012). |
 | `offer_actor_to_case`, `offer_case_participant`, `accept_offer_case_participant`, `reject_offer_case_participant`, `accept_actor_recommendation`, `reject_actor_recommendation`, `offer_case_participant_role`, `accept_case_participant_role`, `reject_case_participant_role` | ledger-ordered | The first committed answer closes the offer; later answers are refused. |
@@ -159,7 +159,7 @@ Repairing a lost last entry before a quiet period relies on the participant's po
 | Stub `Invite(Actor, CaseStub)` | The invitee's participant entry | independent | A superseded Invite's answer is refused by the CASE_MANAGER. |
 | Refusal notice `Reject(activity)` (ADR-0141), ER `Reject(Invite(EmbargoEvent))`, `Reject(Leave(VulnerabilityCase))` | None | independent | Closes a pending assertion or answers an ask; writes no case state. |
 | Removal and reinstatement notices `Remove`/`Add(CaseParticipant)` | The removal or reinstatement entry | independent | Stored; the replica applies the entry. |
-| Ending notices `Remove(EmbargoEvent)`, `Announce(EmbargoEvent)` to a paused signatory (CM-31-009) | The termination or shorter-revision entry, which the paused replica gets only on backfill | **dependent** (#5201) | The only direct messages that write replica case state outside the ledger. |
+| Ending notices `Remove(EmbargoEvent)`, `Announce(EmbargoEvent)` to a paused signatory (CM-31-009) | The termination or shorter-revision entry, which the paused replica gets only on backfill | **dependent** (#5201) | They write replica case state outside the ledger, as the relayed Invite writes the proposal index (#5200). |
 | Forwarded `Offer(CaseParticipant)`, recommendation answers, forwarded `Offer(CaseParticipantRole)`, ownership `Offer(VulnerabilityCase)` | The offer's own entry | independent | Stored and answered by trigger; the CASE_MANAGER judges the answer against the ledger. |
 | Case-actor `Accept`/`Reject(CaseProposal)`, bootstrap `Create(VulnerabilityCase)` | Genesis and creation entries | independent | Processed before the case is held; entries before genesis are held (SYNC-15). |
 | `Create(ProcessingFault)` answering a malformed Invite | None | independent | Logged only. |

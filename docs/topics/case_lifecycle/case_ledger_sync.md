@@ -314,23 +314,6 @@ Taken together, the ledger rules and the holding area give each participant thes
 The result is eventual consistency with a strong bound.
 Given the same entries, every replica reaches the same state as the CASE_MANAGER, no matter what order those entries arrived in.
 
-### Eventual consistency is the guarantee
-
-Eventual consistency is the ordering guarantee the protocol makes, and the only one ([SYNC-19-002](../../reference/specs/protocol.md#sync-19-002), [ADR-0161](../../adr/0161-eventual-consistency-is-the-protocols-ordering-guarantee.md)).
-No decision in the protocol depends on the order messages arrive in, except the order the CASE_MANAGER observes, which the ledger records ([SYNC-19-001](../../reference/specs/protocol.md#sync-19-001)).
-
-That covers more than ledger entries.
-The CASE_MANAGER also sends some messages directly, outside the ledger: a relayed embargo Invite, a copy of the case, a refusal notice, an invitation to join.
-A participant can receive one of these before, between, or after the ledger entries it relates to.
-Whatever the order, the participant must end with the same case file and give the same answer.
-Most direct messages are only stored, and the participant takes their effect from the ledger entry, so their order cannot matter.
-
-The CASE_MANAGER cannot see the order in which one participant sent two messages either.
-So a decision must not depend on that order.
-
-A sender may deliver its messages to each recipient in order, and this implementation does ([OX-01-005](../../reference/specs/project.md#ox-01-005)).
-That is an optimization, not a guarantee another implementation must give, and no participant may rely on it ([SYNC-19-003](../../reference/specs/protocol.md#sync-19-003)).
-
 The holding area is kept in the replica's store, apart from its ledger, so a restart keeps what it holds.
 Nothing in it is committed, so it never stands in for an applied entry ([SYNC-14-005](../../reference/specs/project.md#sync-14-005)).
 An entry it does not hold comes back the same way an evicted one does.
@@ -347,6 +330,43 @@ When that copy is ahead of the replica's chain, the replica asks for the missing
 It also stores each entry the copy already reflects, without applying it again or moving its position back ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
 An entry at the copy's position that is not the entry the copy names comes from a different chain.
 So the replica refuses it as a conflict and does not store it ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
+
+---
+
+## Eventual consistency is the guarantee
+
+Eventual consistency is the ordering guarantee the protocol makes, and the only one ([SYNC-19-002](../../reference/specs/protocol.md#sync-19-002), [ADR-0161](../../adr/0161-eventual-consistency-is-the-protocols-ordering-guarantee.md)).
+The rule that goes with it is that no decision may depend on the order messages arrive in, except the order the CASE_MANAGER observes, which the ledger records ([SYNC-19-001](../../reference/specs/protocol.md#sync-19-001)).
+
+The rule covers more than ledger entries.
+The CASE_MANAGER also sends some messages directly, outside the ledger.
+A participant can receive one of these before, between, or after the ledger entries it relates to.
+Whatever the order, the participant must end with the same case file and give the same answer.
+
+The CASE_MANAGER cannot see the order in which one participant sent two messages either.
+So a decision must not depend on that order.
+
+A sender may deliver its messages to each recipient in order, and this implementation does ([OX-01-005](../../reference/specs/project.md#ox-01-005)).
+That is an optimization, not a guarantee another implementation must give, and no participant may rely on it ([SYNC-19-003](../../reference/specs/protocol.md#sync-19-003)).
+
+### Messages the CASE_MANAGER sends outside the ledger
+
+Most direct messages are only stored, and the participant takes their effect from the ledger entry, so their order cannot matter.
+The table lists each one and what makes its arrival order safe.
+Where the implementation still breaks the rule, the table names the open issue.
+
+| Message | Related ledger entries | What makes the order safe |
+|---|---|---|
+| Relayed embargo `Invite(EmbargoEvent)` | The proposal entry, the consent rows, and the entry that records the Invite's emission | The participant stores the Invite and the embargo it carries, and its answer needs only the case and the embargo. Exceptions: the owner's automatic answer to a first proposal ([#5199](https://github.com/CERTCC/Vultron/issues/5199)), and an Invite that arrives after its proposal is decided ([#5200](https://github.com/CERTCC/Vultron/issues/5200)). |
+| Embargo Invite relayed to a joiner, or to a reinstated participant | The joiner's copy of the case and the entries replayed to it | An Invite that arrives before the copy waits for it, for a bounded time. |
+| Copy of the case, `Announce(VulnerabilityCase)` | Every entry at or before the ledger position the copy names | The replica judges the copy by that position, and stores without effect each entry the copy already reflects. |
+| Full-case `Invite(Actor)` | Its own entry | The participant stores it, and its reply waits until its replica reaches the Invite's ledger position. |
+| Stub `Invite(Actor)` | The invitee's participant entry | The CASE_MANAGER refuses an answer to an Invite that a later one replaced. |
+| Refusal notice `Reject(activity)`, embargo refusal, and refusal of a `Leave` | None | It only closes the participant's pending assertion. |
+| Removal and reinstatement notices | The removal or reinstatement entry | The participant stores the notice and applies the entry. |
+| Embargo ending notices to a participant the ledger no longer reaches | The termination or shorter-revision entry | Not yet safe: two notices about one revision diverge when they arrive reversed ([#5201](https://github.com/CERTCC/Vultron/issues/5201)). |
+| Forwarded offers: a recommended participant, a role, an ownership transfer | The offer's own entry | The receiver stores the offer and answers it by trigger, and the CASE_MANAGER judges the answer against the ledger. |
+| Answers to a case proposal, and the `Create(VulnerabilityCase)` that starts a case | The case's first entries | Entries that arrive before the case are held until it arrives. |
 
 ---
 

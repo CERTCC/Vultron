@@ -271,7 +271,7 @@ The loop continues until the tail hash of the replica agrees with the tail hash 
 The recipient buffers each entry that arrives out of sequence, and replay is the backstop for an entry that is genuinely lost (ADR-0037).
 A read path for a Participant is a possible addition, and the protocol does not specify one.
 A `GET` of the `/outbox` of the CASE_MANAGER, as a paginated AS2 `OrderedCollection`, is the expected shape of such a path.
-The ordering guarantee of the protocol is eventual consistency, and no decision uses the sequence of arrival ([ADR-0161](../../adr/0161-eventual-consistency-is-the-protocols-ordering-guarantee.md)).
+The ordering guarantee of the protocol is eventual consistency, and no decision may use the sequence of arrival ([ADR-0161](../../adr/0161-eventual-consistency-is-the-protocols-ordering-guarantee.md)).
 Federation does not need a stronger guarantee.
 
 ---
