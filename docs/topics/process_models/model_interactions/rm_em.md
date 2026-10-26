@@ -11,14 +11,18 @@ description: >
 {% include-markdown "../../../includes/specification_governs.md" %}
 
 This page lists the constraints on how the [Report Management (RM)](../rm/index.md) and [Embargo Management (EM)](../em/index.md) processes interact.
-The RM process is specific to each Participant, while the EM process is global to the case, so most constraints describe which RM states a Participant should be in when it takes part in an EM transition.
+The RM process is specific to each Participant.
+The EM process is global to the case.
+For this reason, most constraints describe which RM states a Participant should be in when it takes part in an EM transition.
 Formulas on this page use $q^{rm}$ for a Participant's RM state and $q^{em}$ for the case's EM state, with the single-letter state abbreviations from each model.
-The [RM process model](../rm/index.md#rm-states) introduces the RM abbreviations, and the [EM formal model](../em/formal_model.md#em-states) defines the EM ones; you do not need the rest of the EM formal model to read this page.
+The [RM process model](../rm/index.md#rm-states) introduces the RM abbreviations.
+The [EM formal model](../em/formal_model.md#em-states) defines the EM abbreviations.
+You do not need the rest of the EM formal model to read this page.
 For how an embargo runs from start to finish, see the [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explanation.
 
 ## Start Embargo Negotiations As Early as Possible
 
-A Sender often wants to know the embargo terms *before* handing over a report.
+A Sender often wants to know the embargo terms *before* it sends a report.
 The protocol serves that need, but not by running the EM process ahead of the report.
 The EM process is *per case*, so before a case exists there is no EM state machine for a transition to occur in.
 
@@ -26,12 +30,14 @@ Two mechanisms give the Sender what they need instead:
 
 1. **Read the Recipient's published default.**
    A Report Recipient's published default embargo period is a [standing proposal](../em/defaults.md#embargoes-are-active-at-case-creation).
-   A Sender can know the terms in advance by reading it, with no exchange at all.
-   Where the Recipient has published nothing, the short [protocol default](../em/defaults.md#no-defaults-no-proposals-the-protocol-default) applies, so the Sender still knows the floor.
+   A Sender that reads this default knows the terms in advance, with no exchange at all.
+   If the Recipient has published nothing, the short [protocol default](../em/defaults.md#no-defaults-no-proposals-the-protocol-default) applies.
+   The Sender then still knows the floor.
 
 2. **State terms with the report.**
    A Sender proposes its own terms by including a proposed embargo with the report submission.
-   Where the two differ, the [shortest proposal wins](../em/defaults.md#rationale-for-accepting-the-shortest-proposed-embargo) and the longer becomes a proposed revision, so agreement is reached at case creation rather than negotiated beforehand.
+   If the two sets of terms differ, the [shortest proposal wins](../em/defaults.md#rationale-for-accepting-the-shortest-proposed-embargo) and the longer one becomes a proposed revision.
+   Agreement thus occurs at case creation, not in a negotiation before it.
 
 !!! note ""
 
@@ -43,15 +49,18 @@ Two mechanisms give the Sender what they need instead:
     Earlier versions of this page stated that the EM process MAY begin, with the initial _propose_ transition $q^{em} \in N \xrightarrow{p} P$, before the report was sent to a potential Participant ($q^{rm} \in S$).
     [ADR-0096: A Protocol Default Embargo Replaces the Pre-Case Phase](../../../adr/0096-protocol-default-embargo.md) withdrew that.
 
-    The **motivation** was sound and is preserved above: a Participant may well wish to ensure acceptable embargo terms before sharing a report with a potential recipient.
+    The **motivation** was sound, and the sections above keep it.
+    A Participant may want to ensure acceptable embargo terms before it shares a report with a potential recipient.
     The **mechanism** was not.
-    EM is a global per-case state machine, so a $N \xrightarrow{p} P$ transition before any case exists names a machine instance that cannot exist.
+    EM is a global per-case state machine.
+    A $N \xrightarrow{p} P$ transition before any case exists therefore names a machine instance that cannot exist.
     The two mechanisms above deliver the same assurance without a pre-case phase.
 
 !!! note ""
 
     The [EM](../em/index.md) process SHALL begin when a recipient reaches RM _Received_ ($q^{rm} \in R$), because that is when the case exists.
-    For an embargo-eligible case this is not merely a SHOULD: an embargo is established at case creation, from the Recipient's published default, the Sender's proposal, or the [protocol default](../em/defaults.md#no-defaults-no-proposals-the-protocol-default).
+    For an embargo-eligible case, this requirement is not merely a SHOULD.
+    An embargo is established at case creation, from the Recipient's published default, the Sender's proposal, or the [protocol default](../em/defaults.md#no-defaults-no-proposals-the-protocol-default).
 
 The diagram below shows the EM process beginning when the case is created.
 
@@ -71,15 +80,20 @@ stateDiagram-v2
     RM --> EM : begin at<br/>case creation
 ```
 
-The *propose* and *accept* transitions above are applied atomically at case creation, and the intermediate *Proposed* state is never externally observable ([EP-04-002](../em/defaults.md#why-active-and-not-proposed)).
+The protocol applies the *propose* and *accept* transitions above atomically at case creation.
+The intermediate *Proposed* state is never externally observable ([EP-04-002](../em/defaults.md#why-active-and-not-proposed)).
 
 ## Negotiate Embargoes for Active Reports
 
 Because an embargo-eligible case already starts with an *Active* embargo, later proposals are revisions ($q^{em} \in A \xrightarrow{p} R$).
-A case still at EM *None* after creation is one that was not embargo-eligible, and no embargo may be proposed for it while it stays that way (VP-06-001).
-A proposal from *None* ($q^{em} \in N \xrightarrow{p} P$) would need a case at *None* to become embargo-eligible after creation, and nothing in the protocol does that today ([ADR-0096](../../../adr/0096-protocol-default-embargo.md)).
-The constraints below apply to either kind of proposal, and the diagrams show the *None* to *Proposed* step.
-Every rule on this page that mentions EM *Proposed* governs only that later step: the case-creation traversal never rests in *Proposed*, so no Participant can observe it there or act on it (EP-04-002).
+A case still at EM *None* after creation was not embargo-eligible.
+No embargo may be proposed for that case while it is still not embargo-eligible (VP-06-001).
+A proposal from *None* ($q^{em} \in N \xrightarrow{p} P$) would need a case at *None* to become embargo-eligible after creation.
+Nothing in the protocol does that today ([ADR-0096](../../../adr/0096-protocol-default-embargo.md)).
+The constraints below apply to either kind of proposal.
+The diagrams show the *None* to *Proposed* step.
+Every rule on this page that mentions EM *Proposed* governs only that later step.
+The case-creation traversal never rests in *Proposed*, so no Participant can observe the case in that state or act on it there (EP-04-002).
 
 !!! note ""
 
@@ -127,7 +141,7 @@ stateDiagram-v2
     RM --> EM : avoid
 ```
 
-The active and inactive sets are defined in the [RM state subsets](../rm/formal_model.md#rm-state-subsets).
+The [RM state subsets](../rm/formal_model.md#rm-state-subsets) define the active and inactive sets.
 
 ## Negotiate Embargoes Through Validation and Prioritization
 
@@ -144,7 +158,8 @@ The active and inactive sets are defined in the [RM state subsets](../rm/formal_
 The diagram below shows the revision cycle running while the report is valid yet unclosed.
 Accepting a revision returns the case to *Active* under the new terms.
 Rejecting a revision normally keeps the prior terms in force and returns to *Active*.
-When CS is already public, exploited, or attacked, the Case Manager follows the Case Owner's rejection of the last open revision with a termination in the same act, so EM ends *eXited* rather than *Active* (MSM-07-009, EMB-04-002).
+When CS is already public, exploited, or attacked, the Case Manager follows the Case Owner's rejection of the last open revision with a termination in the same act.
+EM then ends in *eXited*, not in *Active* (MSM-07-009, EMB-04-002).
 
 ```mermaid
 ---
@@ -194,7 +209,8 @@ stateDiagram-v2
 
     Outstanding embargo negotiations ($q^{em} \in P \xrightarrow{\{r,p\}} \{N,P\}$) MAY continue in RM _Invalid_ ($q^{rm} \in I$), for example if additional information is expected that may promote the report from _Invalid_ to _Valid_ ($q^{rm} \in I \xrightarrow{v} V$).
 
-As noted [above](#negotiate-embargoes-for-active-reports), an outstanding proposal in *Proposed* has no producer at present, so this rule would govern only a case at *None* that later became embargo-eligible.
+As noted [above](#negotiate-embargoes-for-active-reports), nothing produces an outstanding proposal in *Proposed* at present.
+This rule would therefore govern only a case at *None* that later became embargo-eligible.
 The diagram below shows an outstanding proposal that can still be superseded or rejected while the report waits in *Invalid*.
 
 ```mermaid
@@ -219,7 +235,9 @@ stateDiagram-v2
 
     Embargo Management MAY proceed from EM _Proposed_ to EM _Active_ ($q^{em} \in P \xrightarrow{a} A$) when RM is neither _Invalid_ nor _Closed_ ($q^{rm} \in \{R,V,A,D\}$).
 
-As above, this is the acceptance of a proposal made after case creation; the case-creation acceptance is atomic, and the case owner is then in RM *Received*, which this rule allows anyway.
+As above, this rule covers the acceptance of a proposal made after case creation.
+The case-creation acceptance is atomic.
+At that point the case owner is in RM *Received*, which this rule allows anyway.
 The diagram below shows the RM states from which accepting a proposal is allowed.
 
 ```mermaid
@@ -319,8 +337,8 @@ Instead,
 
     Reports with no further tasks SHOULD be held in either _Deferred_ or _Invalid_ (${q^{rm} \in \{ D,I\}}$), depending on the report validity status, until the embargo has terminated (${q^{em} \in X}$).
 
-This allows Participants to stop work on a report but still maintain their participation in an extant embargo.
-Notwithstanding the above,
+This hold lets Participants stop work on a report but still maintain their participation in an extant embargo.
+Even so,
 
 !!! note ""
 
@@ -353,14 +371,15 @@ stateDiagram-v2
     RM --> EM : does not imply
 ```
 
-Participants are expected to continue to adhere to the embargo until it is explicitly terminated.
+The protocol expects Participants to continue to adhere to the embargo until the embargo is explicitly terminated.
 However,
 
 !!! note ""
 
     Participants MAY choose to terminate their compliance with an embargo at any time.
 
-While this is usually an undesirable development, it must be communicated to other Participants so that they can make informed decisions about the viability of the extant embargo.
+This choice is usually an undesirable development.
+The Participant must still communicate this choice to other Participants, so that they can make informed decisions about the viability of the extant embargo.
 
 !!! note ""
 
@@ -372,9 +391,11 @@ While this is usually an undesirable development, it must be communicated to oth
 
 ### Closing a Case While an Embargo Is Active
 
-Because the RM process is specific to each Participant but the EM process is global to the case, one Participant's closure leaves the shared embargo in force for everyone else ([VP-13](../../../reference/specs/protocol.md#vp-13)).
+The RM process is specific to each Participant, but the EM process is global to the case.
+One Participant's closure therefore leaves the shared embargo in force for everyone else ([VP-13](../../../reference/specs/protocol.md#vp-13)).
 
 The [Case Owner](../../../reference/glossary.md#cvd-roles-and-participants) is different, because the Case Owner's departure closes the case for every Participant.
-While the embargo is *Active* or being revised, the [CASE_MANAGER](../../../reference/glossary.md#cvd-roles-and-participants) declines the Case Owner's request to leave, and the case stays open with the embargo in force ([CM-23](../../../reference/specs/protocol.md#cm-23)).
+While the embargo is *Active* or being revised, the [CASE_MANAGER](../../../reference/glossary.md#cvd-roles-and-participants) declines the Case Owner's request to leave.
+The case then stays open with the embargo in force ([CM-23](../../../reference/specs/protocol.md#cm-23)).
 The Case Owner terminates the embargo first, for example once the vulnerability is public, and then leaves.
 [Close your participation](../../../howto/activitypub/activities/manage_case.md#close-your-participation) in the case-management how-to shows the messages involved.
