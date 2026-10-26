@@ -495,3 +495,86 @@ class TestWalkPrompt:
             (2, nu.Outcome.GAVE_UP),
         ]
         assert "T2 gave-up in 0 click(s)" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("current", "href", "target"),
+    [
+        ("index.html", "topics/em/", "topics/em/index.html"),
+        ("topics/em/index.html", "../../", "index.html"),
+        ("topics/em/index.html", "../x.html#a", "topics/x.html"),
+        ("index.html", "#anchor", None),
+        ("index.html", "mailto:x@y.org", None),
+        ("index.html", "https://x.org/", None),
+        ("index.html", "../outside/", None),
+        ("index.html", "?q=1", None),
+    ],
+)
+def test_resolve_href(current, href, target):
+    assert nu._resolve_href(current, href) == target
+
+
+class TestCliSubcommands:
+    def _config(self, tmp_path):
+        docs = _docs(tmp_path)
+        config = tmp_path / "mkdocs.yml"
+        config.write_text(yaml.safe_dump(_NAV))
+        return ["--config", str(config), "--docs", str(docs)]
+
+    def test_tree_prints_hash_and_labels(self, tmp_path, capsys):
+        nu.main(["tree", *self._config(tmp_path)])
+        out = capsys.readouterr().out
+        assert out.startswith("nav hash: ") and "- Titled By H1" in out
+
+    def test_prompt_prints_the_briefing(self, tmp_path, capsys):
+        suite = str(_suite_file(tmp_path))
+        nu.main(
+            [
+                "prompt",
+                *self._config(tmp_path),
+                "--suite",
+                suite,
+                "--persona",
+                "p1",
+            ]
+        )
+        assert "## Your tasks" in capsys.readouterr().out
+
+    def test_walk_steps_and_needs_an_action(self, tmp_path, capsys):
+        session = str(tmp_path / "s.json")
+        site = str(_site(tmp_path))
+        nu.main(["walk", "--session", session, "--start", site])
+        nu.main(["walk", "--session", session, "--go", "1"])
+        nu.main(["walk", "--session", session, "--found"])
+        assert (
+            "Recorded: found at topics/em/index.html"
+            in capsys.readouterr().out
+        )
+        with pytest.raises(SystemExit, match="needs one of"):
+            nu.main(["walk", "--session", session])
+
+    def test_walk_prompt_and_bad_suite_exit_cleanly(self, tmp_path, capsys):
+        suite = _suite_file(tmp_path)
+        nu.main(
+            [
+                "walk-prompt",
+                "--suite", str(suite),
+                "--persona", "p1",
+                "--site", "/site",
+                "--sessions", "/s",
+                "--tasks", "T1,T2",
+            ]
+        )  # fmt: skip
+        assert "/s/T1.json" in capsys.readouterr().out
+        bad = _suite_file(tmp_path, tasks=[_LOOKUP])
+        with pytest.raises(SystemExit, match="follow your thread"):
+            nu.main(
+                [
+                    "prompt",
+                    *self._config(tmp_path),
+                    "--suite",
+                    str(bad),
+                    "--persona",
+                    "p1",
+                ]
+            )
