@@ -66,7 +66,7 @@ Chosen option: **D. An active participant**, because it is the only option under
 
 ## Validation
 
-- A test delivers a proposal naming an actor off the roster, an invitee that has not joined, a removed participant and a lapsed participant, and asserts each is refused with no ledger entry and no Offer made.
+- A test delivers a proposal naming an actor off the roster, an invitee that has not joined, a removed participant and a participant that is not a signatory to the active embargo, and asserts each is refused with no ledger entry and no Offer made.
 - A test lets the transferee stop being active between the Offer and its `Accept`, and asserts the `Accept` is refused with no role change.
 - A test asserts that no admitted `Accept` leaves the case with no participant holding `CASE_OWNER`.
 

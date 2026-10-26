@@ -150,6 +150,8 @@ def test_the_case_manager_makes_one_offer_and_ledgers_it(
     bt_scenario: BTTestScenario,
 ) -> None:
     """One Offer, under the derived id, queued and then ledgered."""
+    # The transferee is off the roster here, which CM-21-021 forbids; #5189
+    # (AC-5) seats it as an active participant when the rule is built.
     _seed_case(bt_scenario)
 
     result = bt_scenario.run(
@@ -190,16 +192,16 @@ def test_a_transferee_that_is_not_an_active_participant_is_refused(
     """No Offer, and so no case content, goes to an actor off the roster."""
     _seed_case(bt_scenario)
 
-    bt_scenario.run(
+    result = bt_scenario.run(
         _tree(), actor_id=CASE_ACTOR_ID, activity=_proposal_event()
     )
 
+    assert result.status == Status.FAILURE
     assert _offers(bt_scenario) == []
     assert not [
         entry
         for entry in bt_scenario.dl.list_objects("CaseLedgerEntry")
         if isinstance(entry, CaseLedgerEntry)
-        and entry.semantic_type == "offer_case_ownership_transfer"
     ]
 
 

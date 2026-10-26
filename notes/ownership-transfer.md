@@ -290,7 +290,9 @@ CASE_MANAGER inbox receives Reject
 - **The transferee must be known to the CASE_MANAGER**: in its address book
   (`seed_peer(client, local_actor_id=case_actor_id, ...)`) and seated on its replica
   through the stub Invite (`seat_participant_through_stub_invite`), because
-  `Add(CaseParticipant)` never seats a member (CM-31-011). The commit boundary no
+  `Add(CaseParticipant)` never seats a member (CM-31-011). While an embargo is
+  active it must also have agreed to it, since only an active participant may be
+  offered the case (CM-21-021; not built, #5189). The commit boundary no
   longer catches a transferee sent by bare id: a snapshot records `target` as sent
   (CLP-07-006), so the inline `Actor` the factory builds is what every replica
   reads.

@@ -3343,6 +3343,7 @@ groups:
     - ADR-0053
     - ADR-0114
     - ADR-0148
+    - ADR-0160
     stories:
     - story_2022_050
   - id: CM-21-006
@@ -3774,7 +3775,8 @@ groups:
       participant that is not a signatory to the active embargo, and assert each is
       `REFUSED` with no ledger entry and no Offer made; a test lets the transferee
       stop being an active participant between the Offer and its Accept and asserts
-      the Accept is `REFUSED` with the owner unchanged.
+      the Accept is `REFUSED` with the owner unchanged; a test asserts that no
+      admitted Accept leaves the case with no participant holding `CASE_OWNER`.
     relationships:
     - rel_type: refines
       spec_id: CM-21-005
