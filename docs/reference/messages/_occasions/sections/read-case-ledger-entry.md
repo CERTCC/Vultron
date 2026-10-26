@@ -4,17 +4,21 @@
 
 States the last ledger entry the sender has applied. The Case Manager records it as the sender's acknowledged position and replays every entry after it.
 
-- **When…** a Participant checks that its ledger is current, such as after a restart
-- **Send:** `Read(CaseLedgerEntry)`
-- **Send to:** the case manager
-- **Sent by:** an active participant
-- **Mapping status:** [none](../../index.md#mapping-status)
+=== "Details"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    read_case_ledger_entry,
-    json2md,
-)
+    - **When…** a Participant checks that its ledger is current, such as after a restart
+    - **Send:** `Read(CaseLedgerEntry)`
+    - **Send to:** the case manager
+    - **Sent by:** an active participant
+    - **Mapping status:** [none](../../index.md#mapping-status)
 
-print(json2md(read_case_ledger_entry()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        read_case_ledger_entry,
+        json2md,
+    )
+
+    print(json2md(read_case_ledger_entry()))
+    ```

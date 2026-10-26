@@ -529,3 +529,28 @@ def test_stating_positions_without_a_sync_port_is_a_wiring_fault() -> None:
             SIGNATORY_ID,
             None,  # type: ignore[arg-type]
         )
+
+
+@pytest.mark.spec("SYNC-17-007")
+def test_actor_the_roster_does_not_list_states_no_position() -> None:
+    store = SqliteDataLayer("sqlite:///:memory:", actor_id=REMOVED_ID)
+    seed_case(store, embargo_active=False)
+    seed_ledger(store, 2)
+    port = MagicMock(spec=SyncActivityPort)
+
+    assert state_ledger_positions_trigger(store, REMOVED_ID, port) == 0
+    port.send_read_ledger_entry.assert_not_called()
+
+
+@pytest.mark.spec("SYNC-17-007")
+def test_removed_participant_still_states_its_position() -> None:
+    """The entry that reinstated it may be the one its replica lost."""
+    store = _participant_store()
+    participant = cast(
+        CaseParticipant, store.read(f"{SIGNATORY_ID}/participant")
+    )
+    participant.record_removal("https://example.org/activities/remove-2")
+    store.save(participant)
+    port = MagicMock(spec=SyncActivityPort)
+
+    assert state_ledger_positions_trigger(store, SIGNATORY_ID, port) == 1

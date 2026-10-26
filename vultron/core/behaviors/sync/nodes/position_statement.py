@@ -34,7 +34,6 @@ from typing import cast
 from py_trees.common import Status
 from py_trees.ports import NoDataAvailable
 
-from vultron.core.behaviors.emit_capable import EmitCapable
 from vultron.core.behaviors.helpers import (
     DataLayerActionWithPorts,
     DataLayerConditionWithPorts,
@@ -149,16 +148,21 @@ class CheckStatedPositionInLedgerNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class StateLedgerPositionsNode(DataLayerActionWithPorts, EmitCapable):
+class StateLedgerPositionsNode(DataLayerActionWithPorts):
     """Queue ``Read(CaseLedgerEntry)`` for each case replica the actor holds.
 
     For each ``VulnerabilityCase`` in the executing actor's store whose
     CASE_MANAGER is another actor, the participant names the last entry its
     replica has stored and sends it to that CASE_MANAGER (SYNC-17-001,
     SYNC-17-007).  It sends nothing for a case it manages, a case naming no
-    CASE_MANAGER, a case whose ledger it holds no entry of (it has no entry
-    to name), or a case that records its own closure (the CASE_MANAGER
-    refuses a closed sender, CM-23-018).
+    CASE_MANAGER, a case whose roster does not list it, a case whose ledger
+    it holds no entry of (it has no entry to name), or a case that records
+    its own closure: closure is final, and the CASE_MANAGER refuses a closed
+    sender (CM-23-018).  An inert participant, removed or not yet a
+    signatory, still states its position.  Its replica learns that it is
+    inert from ledger entries, and the entry that made it active again may be
+    the one it lost; the CASE_MANAGER refuses the statement of a participant
+    that is still inert (SYNC-17-002).
 
     ``sent`` counts the statements queued, for the caller's log.
     """
@@ -203,6 +207,8 @@ class StateLedgerPositionsNode(DataLayerActionWithPorts, EmitCapable):
                 continue
             manager_id = resolve_case_manager_id(case, dl)
             if manager_id is None or manager_id == self.actor_id:
+                continue
+            if self.actor_id not in case.actor_participant_index:
                 continue
             if closure_recorded(case, dl, self.actor_id):
                 continue

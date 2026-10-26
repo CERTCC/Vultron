@@ -31,6 +31,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from functools import partial
+from typing import Any
 
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.datalayer import get_datalayer
@@ -108,36 +109,61 @@ class PositionStatements:
     stop: asyncio.Event
 
 
+async def _one_round(emitter: ActivityEmitter | None) -> None:
+    """State every hosted actor's positions once, never raising.
+
+    A failure outside one actor's statements, such as listing the hosted
+    actors, is logged and the round ends; the next round tries again, so an
+    error never ends the interval loop or surfaces at shutdown.
+    """
+    try:
+        await state_hosted_ledger_positions(emitter=emitter)
+    except Exception:
+        logger.exception(
+            "Ledger position statement round raised (SYNC-17-007)."
+        )
+
+
 async def _state_positions_then_repeat(
     emitter: ActivityEmitter | None,
     interval_seconds: int | None,
     stop: asyncio.Event,
+    after: "asyncio.Task[Any] | None",
 ) -> None:
-    """State positions after the restart, then on the interval, if set."""
-    await state_hosted_ledger_positions(emitter=emitter)
+    """State positions after the restart, then on the interval, if set.
+
+    The first round waits for *after*, the startup inbox replay, so the
+    position a participant states includes every entry its queue held
+    (IE-06-006); a replay that failed is the replay's to report.
+    """
+    if after is not None:
+        await asyncio.wait({after})
+    await _one_round(emitter)
     if interval_seconds is None:
         return
     while not stop.is_set():
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval_seconds)
         except TimeoutError:
-            await state_hosted_ledger_positions(emitter=emitter)
+            await _one_round(emitter)
 
 
 def start_ledger_position_statements(
     emitter: ActivityEmitter | None,
+    after: "asyncio.Task[Any] | None" = None,
 ) -> PositionStatements:
     """Start the position statements as a task beside the server.
 
     A task, so the statements and their outbox drain never hold back
-    readiness.  The interval is read from
+    readiness.  The first round runs once *after* (the startup inbox replay)
+    is done.  The interval is read from
     ``ledger.position_statement_interval_seconds`` (off by default).
     """
     interval = get_config().ledger.position_statement_interval_seconds
     stop = asyncio.Event()
     return PositionStatements(
         task=asyncio.create_task(
-            _state_positions_then_repeat(emitter, interval, stop)
+            _state_positions_then_repeat(emitter, interval, stop, after)
         ),
         stop=stop,
     )

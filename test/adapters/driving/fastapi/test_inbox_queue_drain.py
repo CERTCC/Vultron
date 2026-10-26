@@ -655,7 +655,9 @@ def _serve_once(
     # (SYNC-17-007), which drains their outboxes too; these tests count only
     # the startup replay's drains.
     monkeypatch.setattr(
-        app_module, "start_ledger_position_statements", lambda _emitter: None
+        app_module,
+        "start_ledger_position_statements",
+        lambda *_args, **_kwargs: None,
     )
 
     with TestClient(FastAPI(lifespan=_make_lifespan(configure_globals=True))):

@@ -206,8 +206,9 @@ def test_the_server_lifespan_starts_and_finishes_the_statements(
     events: list[str] = []
     handle = object()
 
-    def _start(emitter: object) -> object:
+    def _start(emitter: object, after: object = None) -> object:
         events.append("start")
+        assert after is not None  # it waits for the startup replay
         return handle
 
     async def _finish(statements: object) -> None:
@@ -223,3 +224,65 @@ def test_the_server_lifespan_starts_and_finishes_the_statements(
         assert events == ["start"]
 
     assert events == ["start", "finish"]
+
+
+@pytest.mark.spec("SYNC-17-007")
+def test_the_first_round_waits_for_the_startup_replay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A participant states its tail only after its queue has been applied."""
+    order: list[str] = []
+
+    async def _round(emitter: object = None) -> int:
+        order.append("statements")
+        return 0
+
+    monkeypatch.setattr(lps, "state_hosted_ledger_positions", _round)
+
+    async def _replay() -> int:
+        await asyncio.sleep(0.05)
+        order.append("replay")
+        return 0
+
+    async def _run() -> None:
+        replay = asyncio.create_task(_replay())
+        statements = lps.start_ledger_position_statements(None, after=replay)
+        await lps.finish_ledger_position_statements(statements)
+
+    asyncio.run(_run())
+
+    assert order == ["replay", "statements"]
+
+
+@pytest.mark.spec("SYNC-17-007")
+def test_a_round_that_raises_neither_ends_the_loop_nor_the_shutdown(
+    monkeypatch: pytest.MonkeyPatch, caplog
+) -> None:
+    rounds: list[int] = []
+    second = asyncio.Event()
+
+    async def _round(emitter: object = None) -> int:
+        rounds.append(1)
+        if len(rounds) == 2:
+            second.set()
+        raise RuntimeError("cannot list hosted actors")
+
+    def _config() -> SimpleNamespace:
+        return SimpleNamespace(
+            ledger=LedgerConfig(position_statement_interval_seconds=1)
+        )
+
+    monkeypatch.setattr(lps, "state_hosted_ledger_positions", _round)
+    monkeypatch.setattr(lps, "get_config", _config)
+
+    async def _run() -> None:
+        statements = lps.start_ledger_position_statements(None)
+        await asyncio.wait_for(second.wait(), timeout=10)
+        await asyncio.wait_for(
+            lps.finish_ledger_position_statements(statements), timeout=5
+        )
+
+    asyncio.run(_run())
+
+    assert len(rounds) == 2
+    assert "round raised" in caplog.text

@@ -272,6 +272,7 @@ These messages keep every participant's replica of the case ledger in step with 
 Acknowledgment of the ledger is cumulative and implicit ([MSM-05-002](../specs/protocol.md#msm-05-002)).
 A participant whose local tail matches a received entry's previous-entry hash sends nothing, because the match is the acknowledgment.
 On a mismatch it sends `Reject(CaseLedgerEntry)`, and the CASE_MANAGER replays every entry after the last one the participant accepted.
+A participant that wants to check its replica is current, after a restart for example, states its position with `Read(CaseLedgerEntry)` naming the last entry it applied, and the CASE_MANAGER answers a lag the same way ([SYNC-17-001](../specs/protocol.md#sync-17-001), [SYNC-17-004](../specs/protocol.md#sync-17-004)).
 
 ### 4.13 Formal Message Set
 

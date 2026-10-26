@@ -236,10 +236,13 @@ def _make_lifespan(*, configure_globals: bool = True):
         )
 
         # State each hosted participant's ledger positions after the restart,
-        # and on the configured interval, so a lost last entry before a
-        # quiet period is recovered (SYNC-17-007).
+        # once the startup replay has applied what its queue held, and on the
+        # configured interval, so a lost last entry before a quiet period is
+        # recovered (SYNC-17-007).
         position_statements = (
-            start_ledger_position_statements(application.state.emitter)
+            start_ledger_position_statements(
+                application.state.emitter, after=startup_replay
+            )
             if configure_globals
             else None
         )

@@ -336,7 +336,63 @@ class AnnounceLedgerEntryReceivedUseCase:
         return verdict
 
 
-class RejectLedgerEntryReceivedUseCase:
+class _LedgerReplayRequestUseCase:
+    """What the ``Reject`` and ``Read`` of a ``CaseLedgerEntry`` share.
+
+    Both ask the CASE_MANAGER, in their own words, for the entries a peer
+    lacks, and both are answered by one tree run against the receiver's own
+    store (CLP-10-005); this holds the ports and the run.
+    """
+
+    def __init__(
+        self,
+        dl: CaseOutboxPersistence,
+        sync_port: SyncActivityPort | None,
+        trigger_activity: TriggerActivityPort | None,
+        wire_render_port: "WireRenderPort | None",
+    ) -> None:
+        self._dl = dl
+        self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
+        self._wire_render_port = wire_render_port
+
+    def _run(
+        self,
+        tree: py_trees.behaviour.Behaviour,
+        request: RejectLogEntryReceivedEvent | ReadLogEntryReceivedEvent,
+    ) -> BTExecutionResult:
+        """Run *tree* once for *request*, as the receiving actor."""
+        return BTBridge(
+            datalayer=self._dl,
+            sync_port=self._sync_port,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
+            activity=request,
+        )
+
+    @staticmethod
+    def _reported(
+        verdict: HandlerResult,
+        request: RejectLogEntryReceivedEvent | ReadLogEntryReceivedEvent,
+        label: str,
+    ) -> HandlerResult:
+        """*verdict*, logged at WARNING when it is a refusal."""
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "sync: could not act on %s '%s': %s",
+                label,
+                request.activity_id,
+                verdict.reason,
+            )
+        return verdict
+
+
+class RejectLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     """CaseActor handles a participant's rejection of a log entry announcement.
 
     When a participant rejects an ``Announce(CaseLedgerEntry)`` because the
@@ -372,11 +428,8 @@ class RejectLedgerEntryReceivedUseCase:
         trigger_activity: TriggerActivityPort | None = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
-        self._dl = dl
-        self._wire_render_port = wire_render_port
+        super().__init__(dl, sync_port, trigger_activity, wire_render_port)
         self._request = request
-        self._sync_port = sync_port
-        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -405,34 +458,20 @@ class RejectLedgerEntryReceivedUseCase:
         tree = create_reject_log_entry_tree(
             case_id, sender_rule=self.sender_entitlement
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            sync_port=self._sync_port,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
-        )
+        result = self._run(tree, request)
         verdict = verdict_from_bt(
             tree, result, label="RejectLogEntryReceivedBT"
         )
         # Only the CASE_MANAGER answers a rejection; a replica that
         # receives one was misaddressed (SYNC-03-005, HP-01-005).
-        verdict = case_manager_verdict(tree, verdict, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "sync: could not act on Reject(CaseLedgerEntry) '%s': %s",
-                request.activity_id,
-                verdict.reason,
-            )
-        return verdict
+        return self._reported(
+            case_manager_verdict(tree, verdict, self._dl, case_id),
+            request,
+            "Reject(CaseLedgerEntry)",
+        )
 
 
-class ReadLedgerEntryReceivedUseCase:
+class ReadLedgerEntryReceivedUseCase(_LedgerReplayRequestUseCase):
     """The CASE_MANAGER answers a participant's stated ledger position.
 
     A ``Read(CaseLedgerEntry)`` names the last canonical entry its sender has
@@ -466,11 +505,8 @@ class ReadLedgerEntryReceivedUseCase:
         trigger_activity: TriggerActivityPort | None = None,
         wire_render_port: "WireRenderPort | None" = None,
     ) -> None:
-        self._dl = dl
-        self._wire_render_port = wire_render_port
+        super().__init__(dl, sync_port, trigger_activity, wire_render_port)
         self._request = request
-        self._sync_port = sync_port
-        self._trigger_activity = trigger_activity
 
     def execute(self) -> HandlerResult:
         request = self._request
@@ -501,26 +537,12 @@ class ReadLedgerEntryReceivedUseCase:
             sender_id=request.actor_id,
             sender_rule=self.sender_entitlement,
         )
-        result = BTBridge(
-            datalayer=self._dl,
-            sync_port=self._sync_port,
-            trigger_activity=self._trigger_activity,
-            wire_render_port=self._wire_render_port,
-        ).execute_with_setup(
-            tree=tree,
-            actor_id=resolve_receiving_actor_id(
-                self._dl, request.receiving_actor_id
-            ),
-            activity=request,
+        result = self._run(tree, request)
+        return self._reported(
+            _read_verdict(tree, result, self._dl, case_id),
+            request,
+            "Read(CaseLedgerEntry)",
         )
-        verdict = _read_verdict(tree, result, self._dl, case_id)
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            logger.warning(
-                "sync: could not act on Read(CaseLedgerEntry) '%s': %s",
-                request.activity_id,
-                verdict.reason,
-            )
-        return verdict
 
 
 def _read_verdict(

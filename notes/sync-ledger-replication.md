@@ -359,7 +359,7 @@ same entry forever (ADR-0142).
 - **An empty chain still asks.** A replica with no stored entry sends the `Reject`
   that names none: empty last-accepted hash, case as `target`. The parser admits an
   objectless `Reject` only in that form (`ledger_reject_envelope.py`), and the
-  CASE_MANAGER reads the case through `rejected_case_id`, never the entry.
+  CASE_MANAGER reads the case through the event's `replay_case_id`, never the entry.
 - **A no-op still copies what the copy names by id.** A copy carries participants,
   reports and the active embargo inline but names notes, statuses and other
   embargoes by id; `StoreRecordsReflectedEntryCarriesNode` stores those records
