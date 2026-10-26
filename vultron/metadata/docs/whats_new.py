@@ -43,6 +43,7 @@ from pathlib import Path
 import pathspec
 
 from vultron.metadata.base import mkdocs_config, unbuilt_docs_spec
+from vultron.metadata.docs.site_urls import relative_url, url_path
 
 # The source path of the page that hosts the generated list. Used as the base
 # for computing relative URLs to each listed page.
@@ -94,37 +95,9 @@ def _title_for(path: str) -> str:
     directory (``docs/reference/index.md`` -> "Reference") rather than the
     literal "Index"/"Readme"; the docs-root index is titled "Home".
     """
-    url = _url_path(path)
+    url = url_path(path)
     stem = posixpath.basename(url) if url else "Home"
     return stem.replace("-", " ").replace("_", " ").title()
-
-
-def _url_path(md_path: str) -> str:
-    """Return the ``use_directory_urls`` URL path for a docs source file.
-
-    ``docs/x/y.md`` -> ``x/y``; index pages collapse to their parent directory
-    (``docs/x/index.md`` -> ``x``, ``docs/index.md`` -> ``""``). ``README.md`` is
-    treated as an index page, matching MkDocs. The result has no leading or
-    trailing slash; callers add the trailing slash.
-    """
-    rel = md_path.removeprefix("docs/").removesuffix(".md")
-    if posixpath.basename(rel) in ("index", "README"):
-        return posixpath.dirname(rel)
-    return rel
-
-
-def _relative_url(target: str, *, page_path: str) -> str:
-    """Directory-style relative URL from ``page_path`` to ``target`` (both docs paths).
-
-    e.g. ``docs/reference/quick_reference.md`` from ``docs/about/whats_new.md``
-    -> ``../../reference/quick_reference/``.
-    """
-    # The docs-root index collapses to "" (see _url_path); posixpath.relpath
-    # raises on an empty path, so substitute "." for the repo-root directory.
-    page_url = _url_path(page_path) or "."
-    target_url = _url_path(target) or "."
-    rel = posixpath.relpath(target_url, page_url)
-    return rel + "/" if rel != "." else "./"
 
 
 def render_recent_pages(
@@ -148,7 +121,7 @@ def render_recent_pages(
     if not pages:
         return NO_PAGES_MESSAGE
     lines = [
-        f"- [{_title_for(f)}]({_relative_url(f, page_path=page_path)})"
+        f"- [{_title_for(f)}]({relative_url(f, page_path=page_path)})"
         for f in pages
     ]
     return "\n".join(lines)

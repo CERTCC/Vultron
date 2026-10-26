@@ -26,7 +26,7 @@ This specification and the documentation write one as `Verb(Object)[field=Value]
 !!! note "A known defect in the reference implementation"
 
     The reference implementation currently also accepts a plain AS2 `Event` where an embargo is expected.
-    This is a defect tracked in [#5155](https://github.com/CERTCC/Vultron/issues/5155), and a sender MUST NOT rely on it.
+    This is a defect tracked in [#5155](https://github.com/CERTCC/Vultron/issues/5155), and a sender cannot rely on it.
 
 A Wire Activity is the shape a sender puts on the wire.
 It does not name a formal protocol message: the [Protocol Shorthand](../glossary.md#messaging-and-protocol), such as `RS` or `EP`, does.

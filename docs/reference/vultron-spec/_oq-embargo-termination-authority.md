@@ -18,9 +18,5 @@
     the Case Owner triggers teardown).
 
     Open: whether the Case Owner may decline to tear down even after the
-    condition is canonical; whether the "attacks" condition (SHOULD, VP-11-006)
-    differs from the "public/exploit" condition (SHALL) in this respect; and how
-    a deliberate decision to keep an otherwise-terminable embargo would be
-    recorded. This is expected to be a matter of discussion; the resolution MUST
-    be reflected in this reference and in `specs/vultron-protocol-spec.yaml`
-    (VP-11, VP-14) once reached.
+    condition is canonical; whether the "attacks" condition, which recommends termination (VP-11-006), differs in this respect from the "public/exploit" condition, which requires it (VP-14-001, VP-14-002); and how a deliberate decision to keep an otherwise-terminable embargo would be recorded.
+    This is expected to be a matter of discussion; once reached, the resolution will be reflected in this reference and in the VP-11 and VP-14 requirements.

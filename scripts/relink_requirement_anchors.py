@@ -44,12 +44,14 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = ROOT / "docs"
 sys.path.insert(0, str(ROOT))
 
-from vultron.metadata.specs.docs_render import _KIND_SLUG  # noqa: E402
 from vultron.metadata.specs.registry import (  # noqa: E402
     SpecRegistry,
     load_registry,
 )
 from vultron.metadata.specs.schema import SpecKind  # noqa: E402
+
+#: Each kind's requirements page, ``docs/reference/specs/<slug>.md``.
+_KIND_SLUG = {kind: kind.value for kind in SpecKind}
 
 _SLUGS = "|".join(sorted(_KIND_SLUG.values()))
 

@@ -194,7 +194,8 @@ Keep the two consequences apart:
 - **Links.** Links *printed by* an exec block are still never validated, and
   `docs-links` strips fragments by design. A generator that emits `#fragment`
   links needs its own test that each fragment exists on its target page — for
-  the spec pages, `test_render_for_kind_cross_links_resolve` in
+  the spec pages, `test_render_for_kind_cross_links_resolve`, and for the
+  requirement callouts, `test_docs_callouts_link_existing_rows`, both in
   `test/metadata/specs/test_docs_render.py` (DF-09-009).
 
 ## The Third Axis Is Time: a URL Once Served Must Keep Answering
