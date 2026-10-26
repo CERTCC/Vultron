@@ -49,6 +49,7 @@ Who may be offered ownership of a case?
 - No new vocabulary type where the ActivityStreams vocabulary already says it.
 - No actor receives case content before it is entitled to it, and while an embargo is active that means agreeing to the embargo first (CM-10-004).
 - A transfer must end with exactly one participant holding `CASE_OWNER` (CM-21-001).
+- Taking over a case requires the embargo negotiation that joining it requires, so the transfer should not run a second path around it.
 
 ## Considered Options
 
@@ -68,9 +69,13 @@ For who may be offered ownership (revision 2):
 
 Chosen option: **D. The owner offers the Offer**, because it is the only option with one Offer per transfer, authored by the CASE_MANAGER under its own id, whose request is told apart from the Offer by shape without a new type.
 
+For who may be offered ownership, chosen option: **T4. An active participant**, because it is the only option under which the Offer's case content goes only to an actor already entitled to it, and it reuses the entitlement rule the protocol already has rather than adding a new one (revision 2).
+
 An actor that works through the CASE_MANAGER proposes, and the CASE_MANAGER executes the act under its own identity, with `attributedTo` the proposer.
 For ownership transfer:
 
+0. **The owner invites first.**
+   To hand a case to an actor not yet in it, the owner invites that actor, and offers the case once the actor has joined and agreed to any active embargo.
 1. **The owner proposes.**
    The Case Owner sends `Offer(Offer(VulnerabilityCase))` to the CASE_MANAGER.
    The inner Offer carries what the owner decides: the case as its object, the transferee as its `target`, and the optional answer deadline as its `endTime` (CM-21-016).
@@ -83,14 +88,11 @@ For ownership transfer:
 3. **The transferee answers that Offer.**
    Its `Accept` or `Reject` names the CASE_MANAGER's Offer by its id, and the open-Offer check reads that id.
    No back-link is resolved.
-   The CASE_MANAGER admits an `Accept` only if the transferee is still an active participant, since it can be removed, or lapse when an embargo revision it has not agreed to comes into force, between the Offer and the answer; otherwise it refuses the `Accept` with no role change (CM-21-021).
+   A transferee can stop being active between the Offer and its answer: it can be removed, or lapse when an embargo revision it has not agreed to comes into force.
+   So the CASE_MANAGER admits an `Accept` only if the transferee is still an active participant, and otherwise refuses it with no role change (CM-21-021).
 4. **The owner withdraws its proposal.**
    The owner sends `Undo` of its own proposal; the CASE_MANAGER withdraws the Offer it made from it and ledgers the withdrawal (CM-21-015).
    The owner needs nothing it learned from the ledger to withdraw.
-5. **The owner invites first.**
-   To hand a case to an actor not yet in it, the owner invites that actor, and offers the case once the actor has joined and agreed to any active embargo.
-
-For who may be offered ownership, chosen option: **T4. An active participant**, because it is the only option under which the Offer's case content goes only to an actor already entitled to it, and it reuses the entitlement rule the protocol already has rather than adding a new one (revision 2).
 
 ### Consequences
 
@@ -100,8 +102,9 @@ For who may be offered ownership, chosen option: **T4. An active participant**, 
 - Good, because ownership transfer joins the propose-then-execute shape of the case invitation and the embargo relay.
 - Bad, because the wire flow changes for an existing message: the owner's message gains a nesting level, and its pattern, extractor branch, trigger and received use case change with it.
 - Bad, because the CASE_MANAGER must validate a nested activity it will not send as is, a check the forward did not need.
-- Good, because the Offer carries case content only to an actor entitled to it, and the transferee always has a participant record, so an accepted transfer always ends with one `CASE_OWNER`.
-- Bad, because handing a case to an actor outside it takes two steps, an invitation and then an Offer.
+- Good, because the Offer carries case content only to an actor entitled to it, and the transferee always has a participant record, so an accepted transfer always ends with one `CASE_OWNER` (T4).
+- Good, because the embargo negotiation happens once, through the invitation, before ownership is offered (T4).
+- Bad, because handing a case to an actor outside it takes two steps, an invitation and then an Offer (T4).
 - Neutral, because the CASE_MANAGER's Offer keeps `actor` and `attributedTo` as CM-24-001 and CM-24-002 require; only its origin changes from a forward to an act.
 
 ## Validation
