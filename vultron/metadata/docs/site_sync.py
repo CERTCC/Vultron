@@ -99,8 +99,10 @@ def desired_contents(root: Path) -> dict[str, str]:
             section, or the home page or a start page fails to link the
             lookup page, every missing link listed (DF-11-005, DF-11-021); if
             a start page's thread is missing or does not validate
-            (DF-11-013); or if a reference page cannot be placed on the
-            lookup page or its entry has no description (DF-11-021).
+            (DF-11-013); or if the lookup page cannot be built: a
+            reference page cannot be placed or its entry has no description
+            (DF-11-021), or any other fault ``lookup_sections`` raises,
+            reported with the missing links (EH-07-001).
         ValueError: If a landing, start or lookup page's markers are missing
             or malformed.
     """
@@ -138,6 +140,8 @@ def desired_contents(root: Path) -> dict[str, str]:
         # Reported with the missing links, so one run names every
         # hand-fixable fault (EH-07-001).
         faults.extend(exc.failures)
+    except MetadataLoadError as exc:
+        faults.append(exc)
     if faults:
         raise MetadataLoadErrors(
             faults,

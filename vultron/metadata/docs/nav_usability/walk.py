@@ -114,9 +114,7 @@ def _resolve_href(current: str, href: str) -> str | None:
 
     *current* is a site-relative page such as ``topics/index.html``.
     """
-    if not href or href.startswith(("#", "mailto:", "javascript:")):
-        return None
-    if is_url(href):
+    if not href or href.startswith("#") or is_url(href):
         return None
     target = href.split("#", 1)[0].split("?", 1)[0]
     if not target:

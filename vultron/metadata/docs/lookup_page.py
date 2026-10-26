@@ -56,6 +56,7 @@ from vultron.metadata.docs.landing_pages import (
     nav_entry,
     render_listing,
     split_nav_item,
+    unreadable_nav_item,
 )
 from vultron.metadata.docs.page_frontmatter import (
     DocsTree,
@@ -166,13 +167,6 @@ def _with_placed(
     return out
 
 
-def _unreadable(item: object) -> MetadataLoadError:
-    return MetadataLoadError(
-        f"has a nav item the lookup page cannot read: {item!r}",
-        path="mkdocs.yml",
-    )
-
-
 class _Lookup:
     """One pass over the nav, collecting each section's reference entries."""
 
@@ -189,11 +183,11 @@ class _Lookup:
         without an opening index."""
         found: list[Entry] = []
         for item in items:
-            _label, value = split_nav_item(item)
+            label, value = split_nav_item(item)
             if isinstance(value, str):
                 if value in self.reference:
                     found.append(nav_entry(item, self.docs_dir, self.root))
-            elif isinstance(value, list):
+            elif isinstance(value, list) and label is not None:
                 if not self._holds_reference(value):
                     continue
                 if group_landing(value) is not None:
@@ -201,7 +195,7 @@ class _Lookup:
                 else:
                     found.extend(self.entries(value))
             else:
-                raise _unreadable(item)
+                raise unreadable_nav_item(item)
         return found
 
     def section(
@@ -224,7 +218,7 @@ class _Lookup:
                 return None
             members = [item, *placed.get(value, [])]
         else:
-            raise _unreadable(item)
+            raise unreadable_nav_item(item)
         entries = self.entries(members)
         if not entries:
             return None
@@ -253,8 +247,9 @@ def lookup_sections(root: Path) -> tuple[LookupSection, ...]:
     """Return the lookup page's listing, one section per top-level nav item.
 
     Raises:
-        MetadataLoadError: If a listed page is missing or unreadable, or no
-            reference page resolves (DF-09-009).
+        MetadataLoadError: If a listed page is missing or unreadable, the
+            nav holds an item of a shape mkdocs cannot read, or no reference
+            page resolves (DF-09-009).
         MetadataLoadErrors: Carrying every omitted reference page that cannot
             be placed and every entry whose target declares no
             ``description:``.

@@ -142,6 +142,7 @@ class TestListing:
             [{"Tab": ["a.md", 7]}],
             [7, {"Tab": ["a.md"]}],
             [["a.md"]],
+            [{"Tab": [["a.md"]]}],
         ],
     )
     def test_unreadable_nav_item_fails_rather_than_drops(self, tmp_path, nav):
@@ -586,6 +587,22 @@ class TestOneRunReportsEveryFault:
             site_sync.stale_artifacts(site)
         assert {str(f.path) for f in exc.value.failures} == {
             "docs/orphan/old.md",
+            "docs/start/go.md",
+        }
+
+    def test_empty_target_set_and_link_faults_are_reported_together(
+        self, site
+    ):
+        """A single lookup fault (DF-09-009) does not hide the link faults
+        already collected (EH-07-001)."""
+        ref = site / "docs/guides/ref.md"
+        ref.write_text(_page("Ref", page_type="how-to", description="Gone."))
+        start = site / "docs/start/go.md"
+        start.write_text(start.read_text().replace(LOOKUP_LINK, ""))
+        with pytest.raises(MetadataLoadErrors) as exc:
+            site_sync.stale_artifacts(site)
+        assert {str(f.path) for f in exc.value.failures} == {
+            "docs/",
             "docs/start/go.md",
         }
 

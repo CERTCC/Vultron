@@ -276,6 +276,18 @@ def sort_entries(entries: list[Entry]) -> tuple[Entry, ...]:
     return tuple(entry for _level, run in ordered for entry in run)
 
 
+def unreadable_nav_item(item: object) -> MetadataLoadError:
+    """The error for a nav *item* of a shape mkdocs cannot read.
+
+    One builder, so every nav reader names the fault the same way
+    (CS-22-001).
+    """
+    return MetadataLoadError(
+        f"has a nav item this generator cannot read: {item!r}",
+        path="mkdocs.yml",
+    )
+
+
 def nav_entry(item: object, docs_dir: Path, root: Path) -> Entry:
     """The listing entry for one nav *item*.
 
@@ -299,10 +311,7 @@ def nav_entry(item: object, docs_dir: Path, root: Path) -> Entry:
             level=facts.level,
         )
     if not isinstance(value, list) or label is None:
-        raise MetadataLoadError(
-            f"has a nav item this generator cannot read: {item!r}",
-            path="mkdocs.yml",
-        )
+        raise unreadable_nav_item(item)
     landing = group_landing(value)
     if landing is not None:
         facts = _page_facts(docs_dir, landing, root)
