@@ -300,8 +300,8 @@ frontmatter: it is a short fixed list, and a key on hundreds of pages would be
 one more thing to drift (#4945). When the Requirements Catalog replaces the two
 tier pages (ADR-0147), the check fails on the missing pages until the list is
 updated. Machine-checking that no nav section mixes
-protocol and implementation pages needs a per-page `subject` key and waits for
-the tabbed nav; until then the rule is a review rule (#4946).
+protocol and implementation pages needs a per-page `subject` key (#4946);
+until it lands the rule is a review rule.
 
 **Edge placements decided so far:** Behavior Logic and Federation
 (`platform-developer`) are Engineering; the Concept Taxonomy, the Glossary and
@@ -357,8 +357,7 @@ enough to scan. Group by top-level nav section, so the page follows the nav.
 It is a routing page beside the home page, titled by the reader's situation.
 It does not go under `docs/start/`: every page there is a start page, with a
 thread of its own (DF-11-013).
-Build it after the tab restructure (#4684): before that, Reference is still a
-tab and the page only repeats it.
+The tabs it groups by are in place (#4684), so it can be built.
 
 ### Page type is a label, not a section
 
@@ -382,11 +381,10 @@ the page sits. The key is not `content_type`, which reads as a MIME type.
 
 ### Type signal first, nav gated, files stay
 
-The `page_type` badge is the type signal, and it is already on every page. The
-usability test runs against a build with badges (#4687); then the nav changes
-(#4684). The proposed nav stays on a branch or
-preview build until it passes against `main`'s nav; a failing nav is revised
-and retested, and `main` keeps its current top level meanwhile.
+The `page_type` badge is the type signal, and it is on every page. A nav
+change runs the usability test against a build with badges before it merges
+([nav-usability-test.md](nav-usability-test.md)); a failing nav is revised and
+retested, and `main` keeps its current nav meanwhile.
 
 **Files stay where they are**, so no URL breaks, and a page's directory is not
 evidence of its floor. Moving them is reconsidered only if contributors

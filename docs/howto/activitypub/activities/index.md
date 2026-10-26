@@ -18,7 +18,7 @@ Two neighboring sections carry the material these guides deliberately leave out.
 The wire format of every activity — fields, discriminators, and a rendered example — is in [Message Types](../../../reference/messages/index.md).
 The reasoning behind the verb choices is in [Activity Vocabulary Design](../../../topics/activity_vocabulary_design.md).
 
-If you want a guided first pass rather than a task recipe, start with [Tutorials](../../../tutorials/index.md).
+If you want a guided first pass rather than a task recipe, start with the tutorial [Submit a Report to a Vultron Actor](../../../tutorials/submit-a-report.md).
 
 ---
 
