@@ -51,22 +51,27 @@ It was produced by the reference implementation; the identifiers and timestamps 
 
 ```json
 {
-  "@context": "https://www.w3.org/ns/activitystreams",
+  "@context": "https://www.w3.org/ns/activitystreams", // (1)!
   "type": "Offer",
-  "id": "urn:uuid:70f657e8-8640-414f-9b1a-2512f9664e3a",
+  "id": "urn:uuid:70f657e8-8640-414f-9b1a-2512f9664e3a", // (2)!
   "published": "2026-09-28T17:38:03+00:00",
   "to": ["https://vendor.example/actors/psirt"],
   "actor": "https://reporter.example/actors/finder",
   "object": {
-    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
+    "@context": "https://certcc.github.io/Vultron/ns/context.jsonld", // (3)!
     "type": "VulnerabilityReport",
     "id": "https://reporter.example/reports/CVE-2026-0001",
     "name": "Buffer overflow in example-server",
     "content": "Details of the finding.",
-    "attributedTo": "https://reporter.example/actors/finder"
+    "attributedTo": "https://reporter.example/actors/finder" // (4)!
   }
 }
 ```
+
+1. The activity itself is plain ActivityStreams 2.0, so it cites only the ActivityStreams context.
+2. Every activity has its own `id`, distinct from the `id` of the object it carries.
+3. The object cites the Vultron JSON-LD context, which declares `VulnerabilityReport` and the other Vultron types.
+4. The report's author is the finder who sends it, so `attributedTo` matches the activity's `actor` here.
 
 Read it field by field.
 

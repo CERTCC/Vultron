@@ -4,17 +4,21 @@
 
 Accepts the ownership transfer offer.
 
-- **When…** an actor accepts an offer of case ownership
-- **Send:** `Accept(Offer(VulnerabilityCase))`
-- **Send to:** the case manager
-- **Sent by:** the addressee of the vulnerability case offer
-- **Mapping status:** [none](../../index.md#mapping-status)
+=== "Details"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    accept_case_ownership_transfer,
-    json2md,
-)
+    - **When…** an actor accepts an offer of case ownership
+    - **Send:** `Accept(Offer(VulnerabilityCase))`
+    - **Send to:** the case manager
+    - **Sent by:** the addressee of the vulnerability case offer
+    - **Mapping status:** [none](../../index.md#mapping-status)
 
-print(json2md(accept_case_ownership_transfer()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        accept_case_ownership_transfer,
+        json2md,
+    )
+
+    print(json2md(accept_case_ownership_transfer()))
+    ```

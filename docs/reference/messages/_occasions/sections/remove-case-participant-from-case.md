@@ -4,18 +4,22 @@
 
 Asks the Case Manager to remove the participant record named by the object. The removed Participant receives a direct notice.
 
-- **When…** the Case Owner removes a Participant from active participation
-- **Send:** `Remove(CaseParticipant)[target=VulnerabilityCase]`
-- **Send to:** the case manager
-- **Sent by:** the case owner
-- **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
-- **Mapping status:** [none](../../index.md#mapping-status)
+=== "Details"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    remove_participant_from_case,
-    json2md,
-)
+    - **When…** the Case Owner removes a Participant from active participation
+    - **Send:** `Remove(CaseParticipant)[target=VulnerabilityCase]`
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
+    - **Seen in:** [How to Manage a Case Roster](../../../../howto/activitypub/activities/manage_participants.md)
+    - **Mapping status:** [none](../../index.md#mapping-status)
 
-print(json2md(remove_participant_from_case()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        remove_participant_from_case,
+        json2md,
+    )
+
+    print(json2md(remove_participant_from_case()))
+    ```

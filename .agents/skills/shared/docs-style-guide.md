@@ -382,7 +382,86 @@ self-sufficient; nav order carries dependency".
 
 ---
 
-## 10. Rule index
+## 10. Visual components
+
+A page may break up its text with the components below, and with no others
+(ADR-0136). Each rule says when to use the component and when not to. A
+component used where its rule does not fit is a finding, reported with the
+plain-prose alternative.
+
+**SG-45 — A closed set.** The approved components are content tabs, code
+annotations, card grids, the two-column grid, buttons, and the page-type badge.
+The theme provides content tabs, code annotations, card grids and buttons; the
+two-column grid's class lives in `docs/stylesheets/components.css`, and the
+badge is rendered by a template (SG-51). Do not add inline `style=` attributes,
+hand-built HTML layouts, or a component class outside those stylesheets. A new
+component needs a rule in this section before any page uses it. Two components
+are rejected and are not to be added: a "who this page is for" strip, because
+naming the page's audience exposes its stakeholder type (DF-11-009), and an "in
+brief" summary box, because the orientation paragraph already does that job
+(SG-41).
+
+**SG-46 — Content tabs: parallel views of one subject.** Use `===` tabs
+(`pymdownx.tabbed`) when one subject has views a reader wants one at a time,
+such as a message's reference facts and its example JSON. Each tab must make
+sense alone. Do not use tabs for steps that run in sequence (SG-29), for
+content a reader must compare side by side, or for a single tab. Keep headings
+outside a tab set, so an anchor never depends on which tab is open. The site
+links tabs by label (`content.tabs.link`), so give the same view the same label
+everywhere on a page. The message reference sections render their facts and
+example as tabs from `msm-occasions`; change the generator, not the fragments.
+
+````markdown
+=== "Details"
+
+    - **Send:** `Offer(VulnerabilityReport)`
+
+=== "Example activity"
+
+    ```json
+    { "type": "Offer" }
+    ```
+````
+
+**SG-47 — Code annotations: notes on one example.** Use numbered annotations
+(`content.code.annotate`) when a wire example needs a note tied to a particular
+field. Write the marker as a trailing comment, `// (1)!`, and the notes as a
+numbered list immediately after the block. An annotation states a fact about
+this example; field semantics shared across examples go in a table instead
+(SG-30). The notes are hidden until opened, so nothing the reader needs to
+understand the example may live only in one. Do not annotate a generated
+example: change its generator.
+
+**SG-48 — Card grids: a set of destinations.** Use
+`<div class="grid cards" markdown>` around a list on a routing or landing page,
+one card per destination or step, each a link with one line saying what is
+there. Do not use cards for a
+page's argument, or for an ordered sequence, which is a numbered list (SG-29). A
+generated section listing (DF-11-005) may sit inside a card grid; keep the
+`<div>` outside the generated markers.
+
+**SG-49 — Two-column grid: a diagram beside its key.** Use
+`<div class="grid two-col" markdown>` with exactly two `<div markdown>`
+children, the diagram first, when a diagram and the table or list that decodes
+it belong side by side. The first column is wider, and the grid collapses to
+one column on narrow screens. Do not use it for two columns of prose. The
+diagram still needs its adjacent sentence (SG-33), outside the grid.
+
+**SG-50 — Buttons: at most two, at the top of a landing page.** Use
+`{ .md-button }` on a link for the primary destinations of a landing or start
+page, directly after the orientation paragraph: at most two, the first marked
+`.md-button--primary`. Label a button with what the reader does there, such as
+"Send your first message". Do not use buttons in body prose, on a content page,
+or to make an ordinary link stand out.
+
+**SG-51 — The page-type badge is rendered, never written.** The site draws the
+badge above the title from the page's `page_type` (DF-11-019), and a `routing`
+page shows none. Its styles are in `docs/stylesheets/page_type.css`. Never write
+a badge by hand, and never state the page's type in prose (SG-40).
+
+---
+
+## 11. Rule index
 
 `Fix` marks rules `lint-docs` applies automatically. The rest are reported with
 a recommendation.
@@ -410,6 +489,10 @@ a recommendation.
 | SG-38, SG-39, SG-40, SG-41, SG-42 | Line breaks, headings, frontmatter, furniture | |
 | SG-43 | Shared content included, not copied | |
 | SG-44 | Self-sufficient on arrival; adjacent repeats are compliant | |
+| SG-45 | Visual components are a closed set | |
+| SG-46, SG-47 | Content tabs, code annotations | |
+| SG-48, SG-49, SG-50 | Card grids, two-column grid, buttons | |
+| SG-51 | Page-type badge is rendered, never written | |
 
 ---
 

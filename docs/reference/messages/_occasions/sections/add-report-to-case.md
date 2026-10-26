@@ -4,18 +4,22 @@
 
 Adds a vulnerability report to the case named by the target.
 
-- **When…** the Case Owner links a further report to an existing case
-- **Send:** `Add(VulnerabilityReport)[target=VulnerabilityCase]`
-- **Send to:** the case manager
-- **Sent by:** the case owner
-- **Seen in:** [How to Initialize a Case](../../../../howto/activitypub/activities/initialize_case.md)
-- **Mapping status:** [none](../../index.md#mapping-status)
+=== "Details"
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    add_report_to_case,
-    json2md,
-)
+    - **When…** the Case Owner links a further report to an existing case
+    - **Send:** `Add(VulnerabilityReport)[target=VulnerabilityCase]`
+    - **Send to:** the case manager
+    - **Sent by:** the case owner
+    - **Seen in:** [How to Initialize a Case](../../../../howto/activitypub/activities/initialize_case.md)
+    - **Mapping status:** [none](../../index.md#mapping-status)
 
-print(json2md(add_report_to_case()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        add_report_to_case,
+        json2md,
+    )
+
+    print(json2md(add_report_to_case()))
+    ```

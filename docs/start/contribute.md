@@ -43,6 +43,9 @@ You want to run, change, or extend the Python code in this repository.
 This page is a reading path from running the demos to understanding why the codebase is built the way it is.
 Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
 
+[Run the demos](../tutorials/index.md){ .md-button .md-button--primary }
+[Read the architecture](../topics/reference_architecture.md){ .md-button }
+
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
 
 ## Run it

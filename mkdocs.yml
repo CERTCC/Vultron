@@ -305,6 +305,7 @@ theme:
   name: 'material'
   custom_dir: 'overrides'
   features:
+    - content.code.annotate
     - content.tabs.link
     - content.tooltips
     - navigation.footer

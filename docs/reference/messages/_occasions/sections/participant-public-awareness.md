@@ -4,22 +4,26 @@
 
 Announces, in the sender's own participant status, evidence that the vulnerability is known to the public.
 
-- **When…** a Participant learns that the public knows of the vulnerability
-- **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
-- **Send to:** the case manager
-- **Sent by:** the case manager or the case owner or the participant status's author
-- **Distinguished by:** `caseStatus.pxaState` = `Pxa`
-- **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
-- **Formal definition:** [Public Awareness (CP)](../../../formal_protocol/messages.md#cs-message-types)
-- **Mapping status:** [collapse](../../index.md#mapping-status)
+=== "Details"
 
-A participant status is a snapshot of every dimension the sender holds, so it can also carry an unchanged `vfState` or `dState`; the dimension that changed makes the occasion. The report is the sender's view of the case status, not a change to it. The Case Manager records the status on the sender's participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization. Only an adopted value changes the case status, and while an embargo is active or proposed, it ends or abandons the embargo.
+    - **When…** a Participant learns that the public knows of the vulnerability
+    - **Send:** `Add(ParticipantStatus)[target=CaseParticipant]`
+    - **Send to:** the case manager
+    - **Sent by:** the case manager or the case owner or the participant status's author
+    - **Distinguished by:** `caseStatus.pxaState` = `Pxa`
+    - **Seen in:** [How to Post a Status Update or a Case Note](../../../../howto/activitypub/activities/status_updates.md)
+    - **Formal definition:** [Public Awareness (CP)](../../../formal_protocol/messages.md#cs-message-types)
+    - **Mapping status:** [collapse](../../index.md#mapping-status)
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    add_public_awareness_to_participant,
-    json2md,
-)
+    A participant status is a snapshot of every dimension the sender holds, so it can also carry an unchanged `vfState` or `dState`; the dimension that changed makes the occasion. The report is the sender's view of the case status, not a change to it. The Case Manager records the status on the sender's participant record and chooses whether to adopt the reported `pxaState` for the case, by default only with the Case Owner's authorization. Only an adopted value changes the case status, and while an embargo is active or proposed, it ends or abandons the embargo.
 
-print(json2md(add_public_awareness_to_participant()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        add_public_awareness_to_participant,
+        json2md,
+    )
+
+    print(json2md(add_public_awareness_to_participant()))
+    ```

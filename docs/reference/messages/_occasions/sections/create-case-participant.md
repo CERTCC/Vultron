@@ -4,19 +4,23 @@
 
 Carries the new participant record in full: its roles, statuses, joined mark and consent rows.
 
-- **When…** the Case Manager creates a participant record, such as the inert record for the invitee of a stub Invite
-- **Send:** `Create(CaseParticipant)`
-- **Send to:** a participant
-- **Sent by:** internal to the case manager
-- **Mapping status:** [none](../../index.md#mapping-status)
+=== "Details"
 
-Each participant learns of it from the case ledger, so it is addressed to nobody.
+    - **When…** the Case Manager creates a participant record, such as the inert record for the invitee of a stub Invite
+    - **Send:** `Create(CaseParticipant)`
+    - **Send to:** a participant
+    - **Sent by:** internal to the case manager
+    - **Mapping status:** [none](../../index.md#mapping-status)
 
-```python exec="true" idprefix=""
-from vultron.wire.as2.vocab.examples.vocab_examples import (
-    create_participant,
-    json2md,
-)
+    Each participant learns of it from the case ledger, so it is addressed to nobody.
 
-print(json2md(create_participant()))
-```
+=== "Example activity"
+
+    ```python exec="true" idprefix=""
+    from vultron.wire.as2.vocab.examples.vocab_examples import (
+        create_participant,
+        json2md,
+    )
+
+    print(json2md(create_participant()))
+    ```
