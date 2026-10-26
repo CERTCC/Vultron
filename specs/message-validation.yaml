@@ -462,6 +462,8 @@ groups:
     - rel_type: depends_on
       spec_id: MV-04-003
       note: MV-04-003 decides which class an inline object resolves to; this requirement decides what happens to the keys that class does not declare.
+    - rel_type: refines
+      spec_id: ARCH-25-007
     adr:
     - ADR-0099
     - ADR-0032
@@ -553,6 +555,8 @@ groups:
       spec_id: SL-02-001
     - rel_type: depends_on
       spec_id: SL-02-002
+    - rel_type: refines
+      spec_id: ARCH-25-007
     adr:
     - ADR-0099
     - ADR-0086
@@ -587,6 +591,8 @@ groups:
       spec_id: ARCH-12-003
     - rel_type: refines
       spec_id: SDO-03-005
+    - rel_type: refines
+      spec_id: ARCH-25-007
     adr:
     - ADR-0099
   - id: MV-11-005

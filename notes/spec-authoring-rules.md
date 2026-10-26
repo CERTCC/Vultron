@@ -197,9 +197,9 @@ MS-02-002 prose writes "MUST NOT", but the enum uses underscores; `MUST NOT`
 ### Valid `rel_type` Values in Spec Relationships
 
 What each type means, and which end is upstream, is SR-13-001 through SR-13-011
-(`spec-dump --group SR-13`); do not keep a second copy here. Record a link once,
-on the end SR-13-012 names, never at both ends. A second copy written with an
-opposite verb closes a loop that spec-lint rejects (SR-13-014, SR-13-015).
+and SR-13-017 (`spec-dump --group SR-13`); do not keep a second copy here.
+Record a link once, on the end SR-13-012 names, never at both ends. A second
+copy written with an opposite verb closes a loop that spec-lint rejects (SR-13-014, SR-13-015).
 `spec-dump` and the docs "Related" column show only the links a requirement
 records. To find the links that name a requirement, filter
 `relation_graph.recorded_relationships()` on their target. To find what a change
@@ -208,9 +208,21 @@ graph turns each `constrains` arc to point at its recorder and has no arc for
 `conflicts`. A narrower case is `refines` on the
 narrower requirement, never `constrains` on the general one (SR-13-013).
 
-`related_to` is **not** valid and fails at load. For a loose link, omit the
-relationship: a `refines` that does not assert a narrower case misleads the
-graph walk "what does a change to this requirement affect?".
+`related_to` is **not** valid and fails at load. When no definition holds, record
+no link (SR-13-018): do not fall back to `depends_on`, which then becomes the new
+catch-all. A false link gives the impact walk a wrong answer; a missing one costs
+at most a missed answer, and the statement's prose still cites the other
+requirement (ADR-0160). Pick the type by its definition, not by habit:
+
+- `refines` only when meeting A in A's case meets B. A sibling in the same group
+  that adds a duty is `extends`; one that states how B is met is `implements`.
+- `depends_on` only when A cannot be met unless B is. A cited rationale, an
+  alternative path or a scope boundary is no link.
+- `uses_definition` when A uses a term B defines ("an active participant
+  (CM-10-004)"); a "see also" citation is no link.
+- `constrains`, on the general rule, when A must obey a rule it is not a case of.
+- A statement that says "X refines this" or "a test enforces X" already names the
+  type; record it on X, the downstream end.
 
 ### Link an ADR With `adr:`, Not `references:`
 

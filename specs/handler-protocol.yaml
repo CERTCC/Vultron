@@ -72,7 +72,7 @@ groups:
       `UseCaseResult` or a subtype; `DispatcherBase._handle()` raises when a
       handler returns anything other than a `HandlerResult`.
     relationships:
-    - rel_type: implements
+    - rel_type: refines
       spec_id: UCORG-05-002
     adr:
     - ADR-0095
@@ -165,6 +165,9 @@ groups:
       handler shows the CASE_MANAGER or entitled addressee still acts.
     adr:
     - ADR-0095
+    relationships:
+    - rel_type: constrains
+      spec_id: HP-01-010
   - id: HP-01-006
     priority: MUST
     kind: protocol
@@ -191,10 +194,8 @@ groups:
     - story_2022_035
     - story_2022_036
     relationships:
-    - rel_type: depends_on
+    - rel_type: derives_from
       spec_id: HP-00-001
-    - rel_type: refines
-      spec_id: HP-01-005
     adr:
     - ADR-0115
   - id: HP-01-007
@@ -217,7 +218,7 @@ groups:
       received use case with no entitlement declaration, and fails on a sender predicate
       defined outside the sender-entitlement module.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: HP-01-006
     adr:
     - ADR-0115
@@ -362,6 +363,10 @@ groups:
       spec_id: HP-01-005
     - rel_type: refines
       spec_id: CLP-10-010
+    - rel_type: uses_definition
+      spec_id: CM-10-004
+    - rel_type: constrains
+      spec_id: HP-09-001
 - id: HP-02
   title: Semantic Verification
   specs:
@@ -376,9 +381,6 @@ groups:
       when the semantics has no entry (SE-05-002);
       `test/test_semantic_registry.py::test_use_case_map_holds_exactly_the_handled_entries`
       pins the routing table to the registry entries that name a use case.
-    relationships:
-    - rel_type: depends_on
-      spec_id: DR-01-003
   - id: HP-02-002
     priority: MUST
     kind: architecture
@@ -391,7 +393,7 @@ groups:
       dispatcher keys on and the typed event the handler reads are the same registry row.
     relationships:
     - rel_type: refines
-      spec_id: DR-01-003
+      spec_id: HP-02-001
 - id: HP-03
   title: Handler Registration
   specs:
@@ -413,9 +415,6 @@ groups:
       asserts each key of `use_case_map()` routes to its own entry's handler, and
       `::test_each_use_case_accepts_the_event_class_its_semantics_route` asserts each key's
       handler accepts the event class registered under that same key.
-    relationships:
-    - rel_type: refines
-      spec_id: DR-02-002
 - id: HP-04
   title: Payload Access
   specs:
@@ -514,10 +513,8 @@ groups:
       asserts the one ERROR record for a dispatch that raised carries the activity id,
       the actor id, and the traceback.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: SL-03-001
-    - rel_type: depends_on
-      spec_id: SL-04-001
 - id: HP-07
   title: Idempotency
   specs:
@@ -526,7 +523,7 @@ groups:
     kind: architecture
     statement: Handlers SHOULD be idempotent to support retries
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: ID-04-001
   - id: HP-07-002
     priority: MUST
@@ -585,10 +582,8 @@ groups:
       DataLayer mutation call and pins the pre-existing sites in an exact
       `KNOWN_VIOLATIONS` set (ARCH-18-001).
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: CLP-10-005
-    - rel_type: refines
-      spec_id: BT-15-001
   - id: HP-08-003
     priority: MUST_NOT
     kind: project
@@ -622,9 +617,6 @@ groups:
       and
       `test/core/use_cases/received/test_status.py::TestStatusUseCases::test_add_participant_status_to_participant_appends_status`
       drive the appends through the handler's tree.
-    relationships:
-    - rel_type: depends_on
-      spec_id: CM-03-006
   - id: HP-08-006
     priority: MUST
     kind: project
@@ -678,7 +670,7 @@ groups:
       participants (#4831). Checking the stored record matches what the inbox
       routes (IO-03-004).
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: HP-08-006
     verification: >-
       `test/core/behaviors/case/nodes/test_carried_object_case.py` drives
@@ -705,8 +697,6 @@ groups:
       against one case while the status landed on another case's participant
       (#4961).
     relationships:
-    - rel_type: refines
-      spec_id: HP-08-007
     - rel_type: depends_on
       spec_id: IO-03-004
     verification: >-
@@ -737,6 +727,11 @@ groups:
     - story_2022_002
     - story_2022_012
     - story_2022_038
+    relationships:
+    - rel_type: refines
+      spec_id: HP-01-005
+    - rel_type: constrains
+      spec_id: HP-01-010
   - id: HP-09-002
     priority: MUST_NOT
     kind: protocol
@@ -745,9 +740,6 @@ groups:
       `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_offer_target_not_consulted_to_wins`
       and `::test_offer_target_set_but_not_in_to_no_case` set `target` to a case-eligible
       actor with and without that actor in `to` and assert eligibility follows `to` alone.
-    relationships:
-    - rel_type: depends_on
-      spec_id: VAM-01-008
     stories:
     - story_2022_002
     - story_2022_012
@@ -773,6 +765,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: HP-09-001
+    - rel_type: refines
+      spec_id: HP-01-005
     stories:
     - story_2022_002
     - story_2022_012
@@ -789,5 +783,5 @@ groups:
       `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics::test_receiving_actor_in_cc_logs_warning_no_case`
       asserts a WARNING record naming `cc`.
     relationships:
-    - rel_type: implements
+    - rel_type: extends
       spec_id: HP-10-001

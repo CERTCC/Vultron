@@ -745,16 +745,23 @@ def test_relationship_with_satisfies():
 
 
 # ---------------------------------------------------------------------------
-# RelationType definitions (SR-13-001..011, SR-13-016)
+# RelationType definitions (SR-13-001..011, SR-13-016, SR-13-017)
 # ---------------------------------------------------------------------------
 
 
 def _sr_13_definitions(registry) -> dict[str, str]:
-    """SR-13-001..011 statements keyed by the type each one defines."""
+    """SR-13 definition statements keyed by the type each one defines.
+
+    A definition is the SR-13 statement that opens by naming one type in
+    backticks and saying what a relationship of it recorded on A means.
+    """
     return {
         spec.statement.split("`")[1]: " ".join(spec.statement.split())
         for spec_id, spec in registry.all_specs.items()
-        if spec_id.startswith("SR-13-") and int(spec_id[-3:]) <= 11
+        if spec_id.startswith("SR-13-")
+        and spec.statement.startswith(("A `", "An `"))
+        and "relationship recorded on A naming B MUST mean"
+        in " ".join(spec.statement.split())
     }
 
 

@@ -127,7 +127,7 @@ groups:
     statement: >-
       `RelationType` MUST include at minimum: `implements`, `supersedes`, `extends`,
       `depends_on`, `conflicts`, `refines`, `derives_from`, `verifies`, `part_of`,
-      `constrains`, `satisfies`.
+      `constrains`, `satisfies`, `uses_definition`.
   - id: SR-02-005
     priority: MUST
     kind: project
@@ -1624,8 +1624,8 @@ groups:
     statement: >-
       The `RelationType` docstring MUST list each member's definition from one table
       in `vultron/metadata/specs/schema.py` that also records each member's upstream
-      end, and a test MUST fail when that table and SR-13-001 through SR-13-011
-      differ.
+      end, and a test MUST fail when that table and the definitions SR-13-001
+      through SR-13-011 and SR-13-017 differ.
     rationale: >-
       The definitions are needed both by readers of the specs and by the code that
       orients the graph. One table checked against the requirements keeps the two
@@ -1640,3 +1640,41 @@ groups:
       spec_id: SR-02-004
     tags:
     - tooling
+  - id: SR-13-017
+    priority: MUST
+    kind: process
+    statement: >-
+      A `uses_definition` relationship recorded on A naming B MUST mean that A uses
+      a term or notion that B defines, so that a change to what B defines changes
+      what A requires; B is the upstream requirement.
+    rationale: >-
+      A requirement that writes "an active participant (CM-10-004)" means whatever
+      CM-10-004 says active is, so a change to CM-10-004 changes it. No other type
+      says that: A can often be met without B being met, so `depends_on` does not
+      hold. The #5118 pilot found this the most common relation the earlier types
+      could not express (ADR-0160).
+    verification: >-
+      `test/metadata/specs/test_schema.py::test_relation_definitions_match_sr_13` fails when
+      this statement and the `RELATION_DEFINITIONS` entry for `uses_definition` differ.
+    adr:
+    - ADR-0160
+    tags:
+    - documentation
+    - tooling
+  - id: SR-13-018
+    priority: MUST_NOT
+    kind: process
+    verification_debt: '#2571'
+    statement: >-
+      Where no relationship type's definition holds between two requirements, a
+      relationship MUST NOT be recorded between them under any type.
+    rationale: >-
+      A link that asserts nothing true puts a false answer into "what does a change to
+      this requirement affect?". Leaving it out costs at most a missed answer, and the
+      statement's prose still cites the other requirement where a reader needs it. The
+      #5118 pilot found most wrong links were `refines` or `depends_on` recorded
+      between siblings or unrelated requirements as a loose "related to".
+    adr:
+    - ADR-0160
+    tags:
+    - documentation

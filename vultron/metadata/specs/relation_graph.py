@@ -2,7 +2,8 @@
 
 Every relationship is recorded once, on one of the two requirements it links
 (SR-13-012), and each type says which of its ends is upstream (SR-13-001 to
-SR-13-011, :data:`~vultron.metadata.specs.schema.RELATION_DEFINITIONS`).
+SR-13-011 and SR-13-017,
+:data:`~vultron.metadata.specs.schema.RELATION_DEFINITIONS`).
 Pointing every edge from its downstream end to its upstream end gives one
 graph in which "what does a change to this requirement affect?" is a walk
 against the arrows. That walk is only meaningful when the graph has no loops,

@@ -557,6 +557,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
+    - rel_type: extends
+      spec_id: CS-18-001
     verification: Every BT-bearing process area under `vultron/core/behaviors/` has a `nodes/` subpackage and does not retain
       a flat `nodes.py` module at the area root. Helper-only areas that do not define BT tree composition or BT leaf nodes
       are exempt.
@@ -593,6 +595,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-07-001
+    - rel_type: refines
+      spec_id: CS-18-004
     verification: For any `nodes/` subpackage, confirm that a matching `test/…/nodes/` directory exists with per-submodule
       test files.
   - id: BTND-07-003
