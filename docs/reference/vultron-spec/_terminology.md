@@ -70,7 +70,7 @@ itself:
 
 !!! note "The Observer role and the Case Observer capability set"
     *Observer* is a process role (defined above). The minimum conformance
-    capability set that **every** participant must provide is the **Case
+    capability set that **every** participant provides is the **Case
     Observer** capability set ([§13.2 Capability Sets](conformance.md#132-capability-sets)) — named to
     echo the least-privileged role, with a **Case** prefix that keeps the two
     distinct. They are not the same kind of thing: a role is a position in a case;
@@ -87,8 +87,12 @@ itself:
 
     The reference implementation happens to satisfy the role with an automated
     software actor it labels a *case actor*, provisioned by a *case actor
-    service*. Those are implementation labels with no protocol meaning. An
-    implementation MUST NOT infer authority from them.
+    service*. Those are implementation labels with no protocol meaning, and they
+    confer no authority: the requirements below tie authority to the role.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("BT-10-003", "BT-10-004"))
+```
 
 !!! note "Informative: Finder is not a protocol role"
     Earlier CVD models distinguish the *finder* of a vulnerability from its
