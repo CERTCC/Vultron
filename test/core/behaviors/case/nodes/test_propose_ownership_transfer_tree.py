@@ -175,6 +175,34 @@ def test_the_case_manager_makes_one_offer_and_ledgers_it(
     )
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "CM-21-021: a transferee off the roster is not refused yet. "
+        "Tracked by #5189."
+    ),
+)
+@pytest.mark.spec("CM-21-021")
+@pytest.mark.executes_as(CASE_ACTOR_ID)
+def test_a_transferee_that_is_not_an_active_participant_is_refused(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """No Offer, and so no case content, goes to an actor off the roster."""
+    _seed_case(bt_scenario)
+
+    bt_scenario.run(
+        _tree(), actor_id=CASE_ACTOR_ID, activity=_proposal_event()
+    )
+
+    assert _offers(bt_scenario) == []
+    assert not [
+        entry
+        for entry in bt_scenario.dl.list_objects("CaseLedgerEntry")
+        if isinstance(entry, CaseLedgerEntry)
+        and entry.semantic_type == "offer_case_ownership_transfer"
+    ]
+
+
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.spec("BT-17-008")
 def test_a_receiver_that_is_not_the_case_manager_makes_nothing(

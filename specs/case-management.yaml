@@ -3309,7 +3309,8 @@ groups:
       optionally, the deadline to answer as its `end_time` (CM-21-016). On admitting the
       proposal the CASE_MANAGER MUST check that the inner Offer's object is the
       proposal's case and that its `target` is an actor it can address (present, neither
-      itself nor the proposer), MUST ignore any id, `actor` or `to` inside it, and MUST
+      itself nor the proposer) and an active participant of the case (CM-21-021),
+      MUST ignore any id, `actor` or `to` inside it, and MUST
       make the one ownership-transfer `Offer(VulnerabilityCase)` itself: under an id it
       derives from the proposal, with `actor` itself and `attributed_to` the owner
       (CM-24-001, CM-24-002), addressed to the transferee. It MUST ledger that Offer
@@ -3744,6 +3745,45 @@ groups:
     - ADR-0115
     - ADR-0129
     - ADR-0148
+    stories:
+    - story_2022_050
+  - id: CM-21-021
+    priority: MUST
+    kind: protocol
+    statement: >-
+      The CASE_MANAGER MUST admit an ownership-transfer proposal (CM-21-005) only when
+      the transferee its inner Offer names is an active participant of the case
+      (CM-10-004), and MUST otherwise refuse it with no ledger commit and no Offer
+      made. It MUST admit the transferee's `Accept(Offer(VulnerabilityCase))`
+      (CM-21-011) only when the transferee is still an active participant when the
+      Accept is processed, and MUST otherwise refuse it with the case's
+      `attributed_to` and every participant's `CASE_OWNER` role unchanged. An owner
+      that means to transfer a case to an actor not active in it invites that actor
+      first.
+    rationale: >-
+      The ownership-transfer Offer carries the case inline, with its active embargo,
+      its participant records and its reports, so offering it to an actor not
+      entitled to case content would send that actor embargoed information it never
+      agreed to protect. `CASE_OWNER` is held on a participant record (CM-21-002), so
+      only a transferee with one can end the transfer as the single owner CM-21-001
+      requires. The second check covers a participant removed, or lapsed by an
+      embargo revision, between the Offer and its answer.
+    verification: >-
+      Tests marked `CM-21-021` deliver to the CASE_MANAGER a proposal naming an actor
+      off the roster, an invitee that has not accepted, a removed participant and a
+      participant that is not a signatory to the active embargo, and assert each is
+      `REFUSED` with no ledger entry and no Offer made; a test lets the transferee
+      stop being an active participant between the Offer and its Accept and asserts
+      the Accept is `REFUSED` with the owner unchanged.
+    relationships:
+    - rel_type: refines
+      spec_id: CM-21-005
+    - rel_type: refines
+      spec_id: CM-21-011
+    - rel_type: depends_on
+      spec_id: CM-10-004
+    adr:
+    - ADR-0159
     stories:
     - story_2022_050
 - id: CM-22
