@@ -10,15 +10,18 @@ description: >
 # EM Formal Model
 
 This page defines the Embargo Management (EM) process as a deterministic finite automaton (DFA).
-It is for readers who want the formal model behind the [EM process model](index.md), which describes each state and transition in practitioner terms.
+It is for readers who want the formal model behind the [EM process model](index.md).
+That page describes each state and transition in practitioner terms.
 The [formal protocol](../../../reference/formal_protocol/index.md) builds on the definitions given here.
 
 The normative EM states and transitions are specified in [§7 Embargo Management (EM) State Machine in the Vultron Protocol Specification](../../../reference/vultron-spec/tracking-models.md#7-embargo-management-em-state-machine-n).
 The states table in [§7.1 States](../../../reference/vultron-spec/tracking-models.md#71-states) and the transitions table in [§7.2 Transitions and Guards](../../../reference/vultron-spec/tracking-models.md#72-transitions-and-guards) are the authority.
-This page restates them in DFA notation and adds what the specification does not carry: the symbol set, a right-linear grammar, a regular expression for every history the transitions admit, and the shortest histories.
+This page restates them in DFA notation.
+It also adds four things that the specification does not carry: the symbol set, a right-linear grammar, a regular expression for every history the transitions admit, and the shortest histories.
 
 A case's EM state is never set directly.
-It is computed from the case's embargo register, one entry per embargo ever proposed ([§7.1.2 Deriving EM from the Register](../../../reference/vultron-spec/tracking-models.md#712-deriving-em-from-the-register)), and the transitions on this page are the rule every change to the register must obey (ADR-0130).
+It is computed from the case's embargo register, which holds one entry per embargo ever proposed ([§7.1.2 Deriving EM from the Register](../../../reference/vultron-spec/tracking-models.md#712-deriving-em-from-the-register)).
+Every change to the register must obey the transitions on this page (ADR-0130).
 
 {% include-markdown "./_em_state_names.md" %}
 
@@ -117,9 +120,11 @@ stateDiagram-v2
 ### Accept or reject an embargo proposal
 
 Once an embargo is proposed, it is accepted or rejected.
-A further proposal while the first is outstanding is added beside it, and both stay open, leaving the case at *Proposed*.
+A further proposal made while the first is outstanding is added beside it.
+Both proposals stay open, and the case stays at *Proposed*.
 Rejecting one of several open proposals leaves the others open, so the case stays at *Proposed*.
-Accepting one of several makes it the embargo in force and leaves the others open as revisions of it, so the case moves to *Revise* rather than *Active*.
+Accepting one of several proposals makes it the embargo in force.
+The others stay open as revisions of it, so the case moves to *Revise* rather than *Active*.
 The case reaches *None* or *Active* only when the last open proposal is rejected or accepted.
 
 ```mermaid
@@ -142,7 +147,7 @@ stateDiagram-v2
 
 ### Embargo revision
 
-An active embargo is renegotiated by proposing a new one.
+Participants renegotiate an active embargo by proposing a new one.
 The active embargo stays in force until an accepted revision replaces it.
 If the revision is accepted, it replaces the old terms.
 If the revision is rejected, the old terms stand and the case returns to *Active*, not to *None*.
@@ -201,12 +206,19 @@ stateDiagram-v2
                X \to ~\epsilon \\
         \end{cases}$
 
-The transitions above define the EM transition function $\delta^{em}$ as the production rules of a right-linear grammar, written in the one-letter shorthand in the box at right.
-The same machine in shorthand is shown below.
+The transitions above define the EM transition function $\delta^{em}$ as the production rules of a right-linear grammar.
+The box at right writes these rules in the one-letter shorthand.
+The diagram below shows the same machine in shorthand.
 
-Read on the symbol alone, four of these moves are not deterministic: *r* from *P* reaches *N* or stays at *P*, *a* from *P* reaches *A* or *R*, and *r* or *a* from *R* reaches *A* or stays at *R*.
+If you read only the symbol, four of these moves are not deterministic:
+
+- *r* from *P* reaches *N* or stays at *P*.
+- *a* from *P* reaches *A* or *R*.
+- *r* or *a* from *R* reaches *A* or stays at *R*.
+
 The register decides which move is taken.
-The case leaves *P* or *R* only when no proposal remains open, so the move that stays put is the one made while another proposal is still open.
+The case leaves *P* or *R* only when no proposal remains open.
+So the move that stays in the same state is the move made while another proposal is still open.
 
 ```mermaid
 stateDiagram-v2
@@ -230,12 +242,17 @@ stateDiagram-v2
 The machine has loops at *Proposed*, at *Revise*, and between *Active* and *Revise*.
 The grammar can therefore generate arbitrarily long histories.
 Every complete history the transition table admits matches the regular expression `(p[pr]*r)*(p[pr]*a[par]*t)?`.
-The first group is any number of negotiations that end with no embargo: one or more proposals, some rejected, ending in the rejection of the last one open.
-The optional second group is a negotiation that ends in an acceptance, followed by any number of further proposals, acceptances and rejections while the embargo is in force, followed by termination, which may come while revisions are still open.
+The first group is any number of negotiations that end with no embargo.
+Each of these negotiations has one or more proposals, some rejected, and ends with the rejection of the last open proposal.
+The optional second group is a negotiation that ends in an acceptance.
+Any number of further proposals, acceptances and rejections follow while the embargo is in force.
+Termination comes last, and it may come while revisions are still open.
 
 The table admits more than the register allows.
-A self-loop on *r* or *a* is legal only while another proposal is open, so a history such as *prr*, two rejections after one proposal, matches the expression but cannot happen.
-Which of these histories a case can actually follow depends on the number of open proposals, which the register keeps and the four symbols do not.
+A self-loop on *r* or *a* is legal only while another proposal is open.
+So a history such as *prr*, two rejections after one proposal, matches the expression but cannot happen.
+The histories that a case can follow depend on the number of open proposals.
+The register keeps this number, but the four symbols do not.
 
 Here is every complete non-empty history of five or fewer actions that the table admits:
 
@@ -251,9 +268,10 @@ EM is a scheduling process run by people, and people tolerate only so much churn
 Most histories in practice should therefore be near the short end of this list.
 [Reward Functions](../../measuring_cvd/reward_functions.md) sketches a reward function over EM histories.
 
-For example, it is usually better for a Vendor to accept the embargo the Reporter proposes and then propose a revision to their preferred timeline than for the two to trade proposals and rejections without ever establishing an embargo.
+For example, a Vendor can accept the embargo that the Reporter proposes, and then propose a revision to the Vendor's preferred timeline.
+This path is usually better than the alternative, where the two trade proposals and rejections and never establish an embargo.
 In the worst case, where the Reporter declines to extend, a short embargo is usually better than none.
-That implies a preference for histories beginning *pap* (propose, accept, propose a revision) over those beginning *ppa* or *prpa*.
+These points imply a preference for histories that begin with *pap* (propose, accept, propose a revision) over histories that begin with *ppa* or *prpa*.
 [Default Embargoes](defaults.md) and the [worked protocol example](../../../tutorials/worked_example.md#vendor-accepts-then-proposes-revision) return to this idea.
 
 ## Why the shortest proposal wins
@@ -262,8 +280,10 @@ That implies a preference for histories beginning *pap* (propose, accept, propos
 This section gives the argument formally.
 
 Suppose one Participant proposes an embargo of $n$ days and another prefers $m$ days.
-Treat the embargo as a series of one-day agreements, and represent each Participant as a vector of their willingness to keep the embargo on each day: $1$ if they are willing on that day, $0$ if not.
-Each Participant is assumed willing up to some point and not after, so each vector is zero or more $1$s followed by zero or more $0$s.
+Treat the embargo as a series of one-day agreements.
+Represent each Participant as a vector of their willingness to keep the embargo on each day: $1$ if they are willing on that day, $0$ if not.
+We assume that each Participant is willing up to some point and not after.
+So each vector is zero or more $1$s followed by zero or more $0$s.
 For example, $[1,1,1,1,0,0,0]$ is a willingness to keep a 4-day embargo.
 
 Let $\mathbf{x}$ and $\mathbf{y}$ be the two Participants' vectors, zero-indexed and of length $max(n,m)$:
@@ -319,7 +339,7 @@ $$\Sigma ( \mathbf{z} ) = min(n,m)$$
 
 ## EM DFA fully defined
 
-Taken together, the complete DFA specification for the EM process is shown below.
+The note below gives the complete DFA specification for the EM process.
 
 ???+ note "EM DFA $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{em}$ Fully Defined"
 
