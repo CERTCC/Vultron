@@ -33,7 +33,7 @@ On **How Vultron Works**:
 
 On **Coordinate Cases**:
 
-- [Standards Crosswalks](iso_crosswalks/index.md), including the [SSVC](ssvc_crosswalk.md) and [CSAF 2.1](csaf_crosswalk/overview.md) crosswalks
+- [Standards Crosswalks](iso_crosswalks/index.md), including the [Stakeholder-Specific Vulnerability Categorization (SSVC)](ssvc_crosswalk.md) and [Common Security Advisory Framework (CSAF) 2.1](csaf_crosswalk/overview.md) crosswalks
 
 On **Reference Implementation**:
 
