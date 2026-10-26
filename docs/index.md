@@ -65,10 +65,10 @@ On the right, each organization's own tracker speaks the Vultron protocol, so an
 title: Without Vultron — one account per partner portal
 ---
 flowchart LR
-    org(["Your\norganization"])
-    a1["Account on\nPortal A"]
-    a2["Account on\nPortal B"]
-    a3["Account on\nPortal C"]
+    org(["Your organization"])
+    a1["Account on Portal A"]
+    a2["Account on Portal B"]
+    a3["Account on Portal C"]
     org --> a1
     org --> a2
     org --> a3
@@ -79,9 +79,9 @@ flowchart LR
 title: With Vultron — one protocol, any tracker
 ---
 flowchart LR
-    yours(["Your\ntracker"])
-    pa(["Partner A's\ntracker"])
-    pb(["Partner B's\ntracker"])
+    yours(["Your tracker"])
+    pa(["Partner A tracker"])
+    pb(["Partner B tracker"])
     yours <-->|"Vultron"| pa
     yours <-->|"Vultron"| pb
 ```
