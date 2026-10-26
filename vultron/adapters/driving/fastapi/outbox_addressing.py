@@ -24,7 +24,9 @@ it is gone, because the handler no longer rewrites anything it delivers
 
 from typing import Any
 
+from vultron.core.models.actor import CoreActor, endpoint_uri
 from vultron.core.ports.datalayer import DataLayer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
 
 def _format_object(obj: object) -> str:
@@ -97,11 +99,10 @@ def _extract_recipients(body: dict[str, Any]) -> list[str]:
 
 def _held_inbox(dl: DataLayer, recipient_id: str) -> str | None:
     """The ``inbox`` the sender's held profile of *recipient_id* names, if any."""
-    inbox = getattr(dl.read(recipient_id), "inbox", None)
-    if inbox is None or isinstance(inbox, str):
-        return inbox
-    address = getattr(inbox, "id_", None)
-    return address if isinstance(address, str) else None
+    held = dl.read(recipient_id)
+    if not isinstance(held, (CoreActor, as_Actor)):
+        return None
+    return endpoint_uri(held.inbox)
 
 
 def held_inboxes(dl: DataLayer, recipients: list[str]) -> dict[str, str]:

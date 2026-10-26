@@ -32,8 +32,13 @@ def carried_actor(actor: as_Actor | CoreActor | str) -> as_Actor | CoreActor:
 
     A held profile (a wire actor, or the core record the sender's store
     holds) is returned unchanged, so it travels as held; an actor URI becomes
-    its :func:`actor_reference`.
+    its :func:`actor_reference`.  So does a record of the abstract
+    ``CoreActor`` class, the minimal peer recorded when only the URI was
+    known: its type names no wire actor a receiver could route by, so it
+    holds nothing more than the URI.
     """
     if isinstance(actor, str):
         return actor_reference(actor)
+    if type(actor) is CoreActor:
+        return actor_reference(actor.id_)
     return actor

@@ -27,7 +27,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from vultron.core.models.actor import VultronOrganization
+from vultron.core.models.actor import CoreActor, VultronOrganization
 from vultron.core.models.events.base import MessageSemantics
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.semantic_registry import extract_event
@@ -59,7 +59,7 @@ _INVENTED = ("published", "updated", "inbox", "outbox")
 #: activity field the actor lands in.
 _BUILDERS: dict[
     str,
-    tuple[Callable[[as_Actor | VultronOrganization | str], BaseModel], str],
+    tuple[Callable[[as_Actor | CoreActor | str], BaseModel], str],
 ] = {
     "recommend_actor_activity": (
         lambda peer: recommend_actor_activity(
@@ -103,7 +103,7 @@ _BUILDERS: dict[
 
 
 def _carried_actor(
-    name: str, peer: as_Actor | VultronOrganization | str
+    name: str, peer: as_Actor | CoreActor | str
 ) -> dict[str, Any]:
     """Return the actor as the activity built by *name* carries it."""
     build, field = _BUILDERS[name]
@@ -194,3 +194,17 @@ def test_the_activity_dispatches_to_the_same_semantic(
     event = extract_event(parse_activity(body))
 
     assert event.semantic_type is _SEMANTICS[name]
+
+
+@pytest.mark.spec("AKM-05-005")
+@pytest.mark.parametrize("name", sorted(_BUILDERS))
+def test_a_minimal_core_actor_record_travels_as_a_reference(name: str) -> None:
+    """A bare ``CoreActor`` names no wire type, so it travels as id and type."""
+    build, field = _BUILDERS[name]
+    minimal = CoreActor(id_=_PEER, published=None, updated=None)
+    dumped = build(minimal).model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    actor = dumped[field]
+    actor.pop("@context", None)
+    assert actor == {"id": _PEER, "type": "Actor"}

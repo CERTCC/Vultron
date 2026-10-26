@@ -163,10 +163,12 @@ def test_the_inbox_a_hosted_profile_states_accepts_post(dl):
     local_actor_id = canonical_actor_uri(_ACTOR_UUID)
     dl.create(
         object_to_record(
-            as_Organization(
-                name="Finder",
-                id_=local_actor_id,
-                **hosted_endpoints(local_actor_id),
+            as_Organization.model_validate(
+                {
+                    "name": "Finder",
+                    "id": local_actor_id,
+                    **hosted_endpoints(local_actor_id),
+                }
             )
         )
     )

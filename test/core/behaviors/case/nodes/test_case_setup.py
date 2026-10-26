@@ -39,6 +39,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.report.nodes import (
     UpdateActorOutbox as UpdateActorOutboxReport,
 )
+from vultron.core.models.actor import CoreActor
 
 # ---------------------------------------------------------------------------
 # P360-FIX-1: UpdateActorOutbox re-export tests
@@ -175,7 +176,7 @@ class TestEnsureCaseActorHostedNode:
         # The sending actor knows the CaseActor as a peer, by its id alone:
         # no name, time or endpoint this node would have to guess (AKM-02-006).
         peer = dl.read(case_actor_id)
-        assert peer is not None
+        assert isinstance(peer, CoreActor)
         assert (peer.name, peer.published, peer.updated) == (None, None, None)
         assert (peer.inbox, peer.outbox) == (None, None)
 
@@ -184,7 +185,7 @@ class TestEnsureCaseActorHostedNode:
         dl, case_actor_id = self._run(monkeypatch, "http://vendor:7999/api/v2")
 
         hosted = dl.clone_for_actor(case_actor_id).read(case_actor_id)
-        assert hosted is not None
+        assert isinstance(hosted, CoreActor)
         # The CaseActor this node hosts states the endpoints it routes for it.
         assert (hosted.inbox, hosted.outbox) == (
             f"{case_actor_id}/inbox",

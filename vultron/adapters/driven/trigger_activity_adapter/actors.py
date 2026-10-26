@@ -109,16 +109,11 @@ def _held_actor(
 ) -> as_Actor | CoreActor | str:
     """The actor *actor_id* as this sender holds it, else its URI.
 
-    A held profile travels as held, and a URI the factory carries as an actor
-    reference (AKM-05-005, ADR-0159).  A record of the abstract
-    ``CoreActor`` class, the minimal peer recorded when only the URI was known
-    (``_record_named_peer``), states no actor type a receiver could read, so
-    it holds nothing more than the URI and travels as a reference too.
+    The factory carries a held profile as held and a URI as an actor
+    reference (``carried_actor``, AKM-05-005, ADR-0159).
     """
     held = dl.read(actor_id)
-    if isinstance(held, as_Actor) or (
-        isinstance(held, CoreActor) and type(held) is not CoreActor
-    ):
+    if isinstance(held, (as_Actor, CoreActor)):
         return held
     return actor_id
 

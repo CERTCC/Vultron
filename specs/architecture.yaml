@@ -1381,8 +1381,8 @@ groups:
     rationale: >-
       An endpoint built from a URI is an address, not an object this process authored,
       so it has no creation time to state (ADR-0103 stamps what this process authors and
-      leaves an inbound omission absent; such an address is neither). Stamping it from the clock
-      made a stored actor read back unequal to itself whenever a wall-clock second
+      leaves an inbound omission absent; such an address is neither). Stamping it from
+      the clock made a stored actor read back unequal to itself whenever a wall-clock second
       passed between write and read, because the core actor keeps only the URI
       (ARCH-12-006) and each read minted a new stamp (#3732).
     verification: >-

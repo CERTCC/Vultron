@@ -918,6 +918,12 @@ def seed_containers_rcvv(
     Vendor1 and Vendor2 (Organizations).  Every actor is created on its own
     container, then registered as a peer on each of the other three.  The
     function is idempotent, as the other ``seed_containers_*`` are.
+
+    Args:
+        reporter_client, coordinator_client, vendor_client, vendor2_client:
+            DataLayerClients connected to each member's container.
+        reporter_actor_id, coordinator_actor_id, vendor_actor_id,
+        vendor2_actor_id: Optional deterministic URIs for each member.
         case_actor_client: Client for the dedicated case-actor container,
             whose address book gets every seeded actor
             (:func:`seed_case_actor_peers`).

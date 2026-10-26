@@ -133,6 +133,35 @@ class TestDeliverySuccess:
 
         assert mock_post.call_count == 2
 
+    @pytest.mark.spec("OX-12-009")
+    def test_posts_to_the_held_inbox_and_derives_only_the_rest(self):
+        """The held inbox wins; a recipient with none gets the derived one."""
+        adapter = HttpDeliveryAdapter(max_retries=0, initial_delay=0.0)
+        held = "https://example.org/actors/alice"
+        bare = "https://example.org/actors/bob"
+
+        mock_response = MagicMock()
+        mock_response.status_code = 202
+        mock_response.raise_for_status = MagicMock()
+
+        with patch(
+            "httpx2.AsyncClient.post", new_callable=AsyncMock
+        ) as mock_post:
+            mock_post.return_value = mock_response
+            asyncio.run(
+                adapter.emit(
+                    ACTIVITY_ID,
+                    BODY,
+                    [held, bare],
+                    inboxes={held: "https://boxes.example/alice-in"},
+                )
+            )
+
+        assert [call.args[0] for call in mock_post.call_args_list] == [
+            "https://boxes.example/alice-in",
+            f"{bare}/inbox/",
+        ]
+
 
 class TestDeliveryRetry:
     """Failed delivery is retried with exponential backoff (SYNC-05-001)."""

@@ -68,6 +68,7 @@ from vultron.config import get_config
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
+    endpoint_uri,
     hosted_endpoints,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -368,15 +369,6 @@ def register_peer(
     )
 
 
-def _endpoint_uri(endpoint: Any) -> str | None:
-    """The address an actor's ``inbox``/``outbox`` field holds, if any."""
-    if endpoint is None or isinstance(endpoint, str):
-        return endpoint
-    if isinstance(endpoint, dict):
-        return endpoint.get("id")
-    return getattr(endpoint, "id_", None)
-
-
 @router.get(
     "/{actor_id:path}/profile",
     summary="Get Actor Profile",
@@ -415,7 +407,7 @@ def get_actor_profile(
     own = hosted_endpoints(as_actor.id_)
     for field_name in ("inbox", "outbox"):
         profile[field_name] = (
-            _endpoint_uri(getattr(as_actor, field_name, None))
+            endpoint_uri(getattr(as_actor, field_name, None))
             or own[field_name]
         )
     return AS2JSONResponse(profile)

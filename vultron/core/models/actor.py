@@ -26,6 +26,31 @@ from vultron.core.models.embargo_policy import EmbargoPolicy
 from vultron.core.models.enums import VultronActorType
 
 
+def endpoint_uri(endpoint: Any) -> str | None:
+    """The address an actor's ``inbox``/``outbox`` value names, or ``None``.
+
+    Accepts every shape an endpoint arrives in: a URI string, a collection
+    dict, or a collection model.  ``None``, a blank string and a collection
+    without an id name no address.  A collection model whose ``id_`` was never
+    set (the parser expands an inline id-less collection before an actor
+    validates it) counts as having no id: its ``id_`` is a freshly minted
+    ``urn:uuid:`` nobody routes to.  No address is ever derived from the
+    actor's id (AKM-02-006).
+    """
+    if endpoint is None:
+        return None
+    if isinstance(endpoint, str):
+        return endpoint.strip() or None
+    if isinstance(endpoint, dict):
+        raw = endpoint.get("id_") or endpoint.get("id") or ""
+        return str(raw).strip() or None
+    fields_set = getattr(endpoint, "model_fields_set", None)
+    if fields_set is not None and "id_" not in fields_set:
+        return None
+    raw = getattr(endpoint, "id_", None) or getattr(endpoint, "id", None) or ""
+    return str(raw).strip() or None
+
+
 class CoreActor(CoreObject):
     """Base domain model for Vultron actors.
 
@@ -55,32 +80,16 @@ class CoreActor(CoreObject):
     @field_validator("inbox", "outbox", mode="before")
     @classmethod
     def _coerce_collection_to_uri(cls, v: Any) -> str | None:
-        """Coerce a collection object to its URI string.
+        """Hold an endpoint as the address it names (:func:`endpoint_uri`).
 
         When reading back from storage, inbox/outbox may be stored as a full
         collection dict (from wire-layer as_Service/as_Actor) rather than a
-        plain string URI. Extract the id_ or id field for backward compat.
-        ``None``, a blank string or a collection without an id reads as
-        ``None``: none of them names an address.  A collection model whose
-        ``id_`` was never set (the parser expands an inline id-less
-        collection before this runs) counts as having no id: its ``id_`` is a
-        freshly minted ``urn:uuid:`` nobody routes to.
+        plain string URI.  An arrival naming no address reads as ``None``, so
+        the field is never an empty string (CS-08-001): a blank is absence on
+        arrival, as a blank timestamp is on the wire, not a fault that would
+        refuse the whole message carrying the actor.
         """
-        if v is None:
-            return None
-        if isinstance(v, str):
-            return v.strip() or None
-        if isinstance(v, dict):
-            return str(v.get("id_") or v.get("id") or "").strip() or None
-        fields_set = getattr(v, "model_fields_set", None)
-        if fields_set is not None and "id_" not in fields_set:
-            return None
-        return (
-            str(
-                getattr(v, "id_", None) or getattr(v, "id", None) or ""
-            ).strip()
-            or None
-        )
+        return endpoint_uri(v)
 
     preferred_username: NonEmptyString | None = None
     endpoints: Any | None = None
@@ -235,5 +244,6 @@ __all__ = [
     "VultronOrganization",
     "VultronPerson",
     "VultronService",
+    "endpoint_uri",
     "hosted_endpoints",
 ]
