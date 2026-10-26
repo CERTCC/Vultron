@@ -76,6 +76,13 @@ _SAMPLES: dict[str, dict[str, Any]] = {
         "entry_id": f"{_URI}/entry",
         "activity_id": f"{_URI}/announce",
     },
+    "PendingObjectFetch": {
+        "object_id": f"{_URI}/embargo",
+        "source": "case_host",
+        "host_actor_id": f"{_URI}/case-actor",
+        "case_id": f"{_URI}/case",
+        "use": "store",
+    },
     "ReceivedActivityRecord": {
         "activity_id": f"{_URI}/a-1",
         "received_body": "{}",

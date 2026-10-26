@@ -38,7 +38,17 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from vultron.adapters.driven.http_object_fetch import (
+    HttpObjectFetcher,
+    ObjectFetcher,
+    ObjectFetchResult,
+)
 from vultron.adapters.driving.fastapi import inbox_port_factories
+from vultron.adapters.driving.fastapi.inbox_dereference import (
+    FastAPIDereferencePort,
+    open_fetches,
+    settle_fetch,
+)
 from vultron.adapters.driving.fastapi.inbox_handler import (
     dispatch,
     emit_processing_fault,
@@ -517,6 +527,11 @@ class _InboxRun:
             actor_id=actor_id,
             staging=self.staging,
         )
+        # Shares the staging too: an activity waiting on a fetch is held
+        # whole for its replay, as a deferred one is (AKM-05-007).
+        self.dereference = FastAPIDereferencePort(
+            actor_dl, actor_id, self.staging
+        )
         # The receiving actor's RSVP windows govern inbound embargo invites
         # (EP-07-001, EP-07-002); None applies the protocol defaults.
         self.actor_config = inbox_port_factories._resolve_actor_config()
@@ -532,6 +547,7 @@ class _InboxRun:
             self.staging,
             self.actor_config,
             self.max_attempts,
+            self.dereference,
         )
 
 
@@ -592,6 +608,7 @@ async def run_inbox_pipeline(
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
     emitter: ActivityEmitter | None,
+    fetcher: ObjectFetcher | None = None,
 ) -> None:
     """Adapter-layer background task: construct adapters and run pipeline.
 
@@ -599,7 +616,9 @@ async def run_inbox_pipeline(
     immediate payload, then replays every activity queued in the inbox
     (e.g., after bootstrap dispatch) with bounded retry and dead letter
     (:func:`~vultron.adapters.driving.fastapi.inbox_queue_drain.drain_inbox_queue`,
-    IE-06-004), and finally drains the outbox.
+    IE-06-004), and finally drains the outbox.  Last, it makes every fetch
+    an activity waits on and replays the activities each one settles
+    (:func:`resolve_open_fetches`, AKM-05-007).
     The synchronous BT work runs in a worker thread so the ASGI event loop
     keeps serving while a handler executes (IE-06-002, BT-11-002); only the
     outbox drain, which is async I/O, runs on the loop.
@@ -617,6 +636,8 @@ async def run_inbox_pipeline(
         actor_id: Canonical URI of the receiving actor.
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
+        fetcher: The object fetcher; ``None`` uses the HTTP one
+            (:func:`default_object_fetcher`).
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
 
@@ -632,6 +653,7 @@ async def run_inbox_pipeline(
             run.dispatch,
             run.queue,
             actor_config=run.actor_config,
+            dereference_port=run.dereference,
         )
         logger.debug(
             "run_inbox_pipeline: status=%s context_id=%s",
@@ -646,6 +668,57 @@ async def run_inbox_pipeline(
         run.drain_queue()
 
     await _run_serialised(actor_dl, actor_id, emitter, _process_and_replay)
+    await resolve_open_fetches(run, emitter, fetcher)
+
+
+#: Rounds of fetching one run makes: a replay a fetch released may itself
+#: wait on another object, and this bounds how far one run chases them.
+MAX_FETCH_ROUNDS = 4
+
+
+def default_object_fetcher() -> HttpObjectFetcher:
+    """The HTTP fetcher, bounded by the configured attempts (AKM-05-008)."""
+    config = get_config()
+    return HttpObjectFetcher(
+        max_attempts=config.max_object_fetch_attempts,
+        timeout=config.object_fetch_timeout_seconds,
+    )
+
+
+async def resolve_open_fetches(
+    run: _InboxRun,
+    emitter: ActivityEmitter | None,
+    fetcher: ObjectFetcher | None = None,
+) -> None:
+    """Make every open fetch of *run*'s actor, then replay what waited on it.
+
+    The fetches run on the event loop, outside the actor's inbox lock: a
+    fetch may wait out its retries, and the actor's deliveries must not wait
+    with it (IE-06-002).  Each result is settled under the lock, off the
+    loop, and the inbox queue drained, as for a delivery
+    (:func:`_run_serialised`, AKM-05-007, AKM-05-008).  A replay may open a
+    fetch of its own, so the open fetches are read again, up to
+    :data:`MAX_FETCH_ROUNDS` times; a fetch still open after that is made by
+    the actor's next inbox run.
+    """
+    active = fetcher
+    for _ in range(MAX_FETCH_ROUNDS):
+        pending = await asyncio.to_thread(open_fetches, run.actor_dl)
+        if not pending:
+            return
+        if active is None:
+            active = default_object_fetcher()
+        for fetch in pending:
+            result = await active.fetch(fetch.reference, run.actor_id)
+
+            def _settle(
+                object_id: str = fetch.object_id,
+                settled: ObjectFetchResult = result,
+            ) -> None:
+                settle_fetch(run.actor_dl, run.actor_id, object_id, settled)
+                run.drain_queue()
+
+            await _run_serialised(run.actor_dl, run.actor_id, emitter, _settle)
 
 
 async def replay_inbox_queue(
@@ -653,19 +726,24 @@ async def replay_inbox_queue(
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
     emitter: ActivityEmitter | None,
+    fetcher: ObjectFetcher | None = None,
 ) -> None:
     """Replay every item queued in *actor_id*'s inbox, with no delivery.
 
     The startup replay (IE-06-006): the same drain, bounded retry and dead
     letter as a replay after a delivery (IE-06-004), under the same
     per-actor lock as :func:`run_inbox_pipeline` and off the event loop
-    (IE-06-003), then the outbox drain.
+    (IE-06-003), then the outbox drain.  A fetch an earlier run left open
+    is made then, so an activity waiting on it does not wait for the next
+    delivery (AKM-05-007).
 
     Args:
         actor_dl: The receiving actor's DataLayer, which holds the queue.
         actor_id: Canonical URI of the receiving actor.
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
+        fetcher: The object fetcher; ``None`` uses the HTTP one.
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
     await _run_serialised(actor_dl, actor_id, emitter, run.drain_queue)
+    await resolve_open_fetches(run, emitter, fetcher)

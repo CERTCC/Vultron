@@ -88,16 +88,36 @@ def test_an_inline_profile_with_its_own_policy_parses():
 
 
 @pytest.mark.spec("CP-01-010")
-@pytest.mark.parametrize(
-    "actor",
-    [_VENDOR, {"type": "Link", "href": _VENDOR}],
-    ids=["bare-uri", "link"],
-)
-def test_an_actor_named_by_reference_is_refused(actor: Any):
+def test_an_actor_named_by_a_link_is_refused():
     with pytest.raises(
-        VultronParseValidationError, match=r"(?s)reference.*CP-01-010"
+        VultronParseValidationError, match=r"(?s)Link reference.*CP-01-010"
     ):
-        parse_activity(_body(actor))
+        parse_activity(_body({"type": "Link", "href": _VENDOR}))
+
+
+@pytest.mark.spec("CP-01-009")
+def test_the_proposers_bare_id_parses_for_the_inbox_to_dereference():
+    """A bare id naming the proposer is the profile by reference."""
+    activity = parse_activity(_body(_VENDOR))
+
+    assert activity.actor == _VENDOR
+
+
+@pytest.mark.spec("CP-01-009")
+@pytest.mark.spec("CP-01-010")
+def test_a_bare_id_naming_someone_else_is_refused():
+    with pytest.raises(
+        VultronParseValidationError, match=r"(?s)attributedTo.*CP-01-010"
+    ):
+        parse_activity(_body(_OTHER))
+
+
+@pytest.mark.spec("CP-01-009")
+def test_the_extractor_hands_the_proposers_bare_id_to_core():
+    """Core gets the normalised id, for the inbox to dereference."""
+    event = extract_event(parse_activity(_body(f"{_VENDOR}/")))
+
+    assert getattr(event, "proposer_profile", None) == _VENDOR
 
 
 @pytest.mark.spec("CP-01-010")

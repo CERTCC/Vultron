@@ -27,6 +27,7 @@ from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.enums.roles import CVDRole
+from vultron.primitives import NormalisedActorId
 
 
 class CreateCaseProposalReceivedEvent(VultronEvent):
@@ -44,11 +45,13 @@ class CreateCaseProposalReceivedEvent(VultronEvent):
     # inline (CP-01-008, EP-04-004); ``context`` is still the report until the
     # CASE_MANAGER rewrites it at case creation (EP-04-009).
     proposed_embargo: EmbargoEvent | None = None
-    # The proposer's actor profile, sent inline as the Create's ``actor``
-    # (CP-01-010).  Its ``embargo_policy`` is the CASE_OWNER's actor default
-    # for this case and no other (EP-04-003).  Required: the parse edge and
-    # the extractor refuse a Create(CaseProposal) without one (ADR-0032).
-    proposer_profile: CoreActor
+    # The proposer's actor profile: sent inline as the Create's ``actor``, or
+    # named by its id, which the inbox dereferences from the proposer before
+    # dispatch and swaps for the fetched profile (CP-01-009, AKM-05-007).  Its
+    # ``embargo_policy`` is the CASE_OWNER's actor default for this case and
+    # no other (CP-01-010, EP-04-003).  An id still here at dispatch is a
+    # fetch that failed, and the tree refuses the proposal for it.
+    proposer_profile: CoreActor | NormalisedActorId
     # The CVD roles the proposer states for itself on the proposal (CP-01-011,
     # ADR-0133), from its own ``default_case_roles`` (CP-01-013).  The parse
     # edge has already refused a claim to ``CASE_MANAGER`` (CP-01-012).  Empty

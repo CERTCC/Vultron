@@ -85,8 +85,8 @@ not need them; re-judge only if the protocol actually drops the CASE_MANAGER.
 
 **Inline-object requirements are `project` unless they serve a protocol
 purpose** (maintainer ruling, 2026-10-14, #4599). Forcing an object inline
-instead of by reference is a shortcut of this prototype, which does not yet
-dereference (AKM-05-003); it is not a Vultron rule. ActivityStreams allows either
+instead of by reference is a shortcut of this prototype, which dereferences
+only a few references (AKM-05-007); it is not a Vultron rule. ActivityStreams allows either
 form, and a receiver coping with both is `foundation` (SE-01-002). Split a
 protocol spec that demands inline (MS-12-010): the original ID keeps which object
 the message carries, its type and its meaning, worded "carried inline or by

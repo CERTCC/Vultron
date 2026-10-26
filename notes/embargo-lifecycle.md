@@ -27,6 +27,7 @@ related_specs:
   - specs/behavior-tree-integration.yaml
   - specs/handler-protocol.yaml
   - specs/case-ledger-processing.yaml
+  - specs/actor-knowledge-model.yaml
   - specs/idempotency.yaml
   - specs/status-dimension-objects.yaml
 related_notes:
@@ -213,9 +214,12 @@ messages, so they are separate `EmbargoLifecycle` operations (ADR-0122):
 ## A Case Never Points at an Embargo Its Store Cannot Read (EMB-18-003)
 
 The EP-05-001 comparison reads the revised and the replaced embargo, so every
-path that writes `active_embargo` must hold the record first. A replica lacking
-the replaced embargo is a broken invariant, not replication lag: build no
-catch-up fetch or deferral, refuse instead.
+path that writes `active_embargo` must hold the record first. The writers fail
+closed on an unreadable record. A replica lacking the replaced embargo of an
+announced revision fetches it from the CASE_MANAGER before dispatch and refuses
+only when the fetch fails (AKM-05-007, AKM-05-008); the CASE_MANAGER has nobody
+to fetch from, so there it is a broken invariant and refused. Build no other
+catch-up path.
 
 - **Seeding.** A sender carries `active_embargo` inline in every outbound case
   and refuses to build the activity if its own store cannot read it. Every

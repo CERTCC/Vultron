@@ -73,8 +73,9 @@ The entry hash covers the snapshot and nothing outside it, which is why the case
 
 ### What the reference implementation does
 
-The reference implementation does not yet dereference.
-It therefore carries every outbound `object` inline and refuses a bare URI where it needs the object (AKM-02-004, AKM-03-003).
+The reference implementation dereferences only a few references (AKM-05-007).
+A participant fetches a case object it lacks from the case manager when an activity cannot be classified without it, a replica fetches the embargo an announced revision replaces, and the case manager fetches a proposer's profile named by its URI.
+It still carries every outbound `object` inline, and a bare URI it cannot fetch is refused where the object is needed (AKM-02-004, AKM-03-003).
 That is a shortcut of the prototype, not a Vultron rule; an implementation that dereferences may send references wherever the protocol allows them.
 
 ---
@@ -109,7 +110,7 @@ The recipient will not be able to pattern-match it, will not be able to extract 
 
 The failure mode is silent in many frameworks: the activity serializes, is transmitted, and arrives looking syntactically valid.
 The failure only appears when the recipient tries to act on it.
-An implementation that cannot dereference, like the reference implementation, avoids it by constructing activities with full objects at the point of creation.
+An implementation that dereferences little or nothing, like the reference implementation, avoids it by constructing activities with full objects at the point of creation.
 
 ---
 
@@ -145,7 +146,7 @@ A receiver cannot tell an invented value from an asserted one.
 | Obtainable objects | An object the recipient cannot hold already travels inline, or by a reference it can dereference. |
 | Case in `target` | A case in `target` is its URI or a case stub, never the full case. |
 | Ledger snapshots | A ledger entry's payload snapshot carries its nested objects in full. |
-| Reference implementation | Inlines every outbound object, because it does not yet dereference. |
+| Reference implementation | Inlines every outbound object, because it dereferences only a few references. |
 | Co-located actors | Co-location does not relax the isolation rule. Use the wire protocol. |
 | Addressing | A URI is sufficient to address a peer. A local actor record is enrichment only. |
 | Actor references | An actor travels as the sender's held profile, or as an id-and-type reference when only its URI is known. |

@@ -19,6 +19,7 @@ related_specs:
   - specs/case-ledger-processing.yaml
   - specs/handler-protocol.yaml
   - specs/object-ids.yaml
+  - specs/actor-knowledge-model.yaml
 related_notes:
   - notes/activitystreams-semantics.md
   - notes/case-communication-model.md
@@ -98,12 +99,14 @@ writes and the emit in `proposal_admission_actions.py` (BTND-07-003).
 ## Wire Vocabulary: `as_CaseProposal`
 
 - The `actor` of `Create(as_CaseProposal)` is the proposer's full profile inline,
-  carrying its `embargoPolicy` when published (CP-01-010). The protocol also allows a
-  reference (CP-01-009); this prototype requires the inline form so case creation
-  never fetches. `refuse_malformed_case_proposal_envelope`
-  (`vultron/wire/as2/case_proposal_envelope.py`) refuses a bare-URI `actor` or a
-  profile whose `id` is not the proposal's `attributed_to`. The extractor hands it to
-  core as `proposer_profile`; [embargo-default-semantics](embargo-default-semantics.md)
+  carrying its `embargoPolicy` when published (CP-01-010); senders here always
+  inline it. A receiver also accepts the proposer's bare id (CP-01-009): the inbox
+  fetches the profile from `{actor}/profile` before dispatch, swaps it into the event
+  and never stores it, and a failed fetch refuses the proposal (AKM-05-007,
+  AKM-05-008). `refuse_malformed_case_proposal_envelope`
+  (`vultron/wire/as2/case_proposal_envelope.py`) refuses a `Link` `actor` or one
+  whose `id` is not the proposal's `attributed_to`. The extractor hands it to core as
+  `proposer_profile`; [embargo-default-semantics](embargo-default-semantics.md)
   covers how the default embargo is read from it.
 - `in_reply_to` carries the whole `Offer(VulnerabilityReport)` (CP-01-008) so a
   Reporter's `proposedEmbargo` reaches the case-actor, which never saw the Offer.

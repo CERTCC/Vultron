@@ -2539,20 +2539,23 @@ groups:
       `initialize_creation_embargo()`) MUST read the
       record of the embargo being activated, as well as the one it replaces
       (EP-05-001), and MUST fail
-      closed on an unreadable one before changing the register. An unreadable replaced embargo is a broken invariant,
-      reported as a refusal, not deferred.
+      closed on an unreadable one before changing the register. A participant replica
+      that cannot read the embargo an announced revision replaces MUST fetch it from the
+      case's CASE_MANAGER and defer the revision until the fetch settles (AKM-05-007),
+      and MUST refuse the revision only when the fetch fails (AKM-05-008). At the
+      CASE_MANAGER an unreadable replaced embargo is a broken invariant, reported as a
+      refusal, not deferred.
     note: >-
-      The refusal stands in for object dereference (AKM-05-003): it is conditional on an
-      implementation that cannot fetch the unreadable record by an API call, and lapses
-      where dereference exists (AKM-05-004).
+      The writers' fail-closed read still guards every activation; the fetch only gives
+      a replica the record before the writer reads it. The CASE_MANAGER holds the
+      canonical case, so it has nobody to fetch a record from.
     rationale: >-
       The EP-05-001 comparison reads the replaced embargo, so it holds only if
-      no case names an embargo its store cannot read. The ledger applies an
-      embargo's proposal before any activation that replaces it, but any
-      writer that accepts a bare id (an activation writer, or seeding a case
-      whose embargo arrived as a bare reference) lets a case name an
-      unreadable record. A deferral would wait for a record no path delivers.
-      Source: CONCERN-4004.
+      no case names an embargo its store cannot read. Any writer that accepts a
+      bare id (an activation writer, or seeding a case whose embargo arrived as
+      a bare reference) lets a case name an unreadable record. A replica can
+      fetch it from the CASE_MANAGER (AKM-05-003); at the CASE_MANAGER a
+      deferral waits for a record no path delivers. Source: CONCERN-4004.
     verification: >-
       Unit tests of `accept_embargo_invite()` and `activate_embargo()` in
       `test/core/services/embargo_lifecycle/` assert that an unreadable activated or replaced
@@ -2560,6 +2563,10 @@ groups:
       a received-Accept test asserts the handler reports `REFUSED`; a
       seeding test asserts a received case whose `active_embargo` is a bare
       reference the store lacks is refused rather than saved.
+      `test/adapters/driving/fastapi/test_inbox_dereference.py` checks a replica
+      lacking the replaced embargo fetches it and replays the revision, and
+      `test/core/services/test_dereference.py` checks the CASE_MANAGER fetches
+      nothing.
     testable: true
     relationships:
     - rel_type: refines

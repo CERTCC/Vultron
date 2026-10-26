@@ -197,8 +197,8 @@ def _stub_embargo(
             embargo, no embargo object is at hand (only its ID is known), or
             *embargo_obj* is not the case's active embargo.  A stub naming
             the embargo by ID alone would leave the invitee no way to read
-            the terms, since this prototype builds no fetch by ID
-            (CM-17-011), so it is not sent.
+            the terms, since the case host serves case objects only to active
+            participants (AKM-05-006, CM-17-011), so it is not sent.
     """
     if active_embargo is None:
         raise VultronActivityConstructionError(

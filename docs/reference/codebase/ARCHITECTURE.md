@@ -51,6 +51,9 @@ HTTP POST /actors/{actor_id}/inbox  (wire: AS2 JSON)
       a deferred activity is held whole in a `DeferredInboxActivity` for its replay)
   -> semantic extraction           `vultron/wire/as2/extractor/`
      (AS2 pattern -> MessageSemantics + VultronEvent)
+  -> dereference check             `vultron/core/behaviors/inbox/nodes/dereference.py`
+     (an object the receiver must fetch first defers the activity; the fetch runs after the
+      inbox run, off the actor's lock, in `vultron/adapters/driving/fastapi/inbox_dereference.py`, AKM-05-007)
   -> dispatcher                    `vultron/core/dispatcher.py` (port: `vultron/core/ports/dispatcher.py`)
   -> use_case_map() lookup         `vultron/semantic_registry/`
   -> *ReceivedUseCase.execute()    `vultron/core/use_cases/received/`

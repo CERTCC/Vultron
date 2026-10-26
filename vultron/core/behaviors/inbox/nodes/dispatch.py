@@ -75,7 +75,7 @@ def answers_with_internal_error_fault(event: VultronEvent) -> bool:
 
 
 class DispatchNode(_InboxNodeWithPorts):
-    """Step 5: dispatch the domain event and map the handler's verdict.
+    """Step 6: dispatch the domain event and map the handler's verdict.
 
     The returned ``HandlerResult`` decides the outcome (UCORG-05-011), not the
     absence of an exception: ``APPLIED``/``SKIPPED`` return SUCCESS so
@@ -261,7 +261,7 @@ class DispatchNode(_InboxNodeWithPorts):
 
 
 class BuildOutcomeNode(_InboxNodeWithPorts):
-    """Step 6: record the processed outcome on the blackboard.
+    """Step 7: record the processed outcome on the blackboard.
 
     Runs only when all preceding Sequence nodes succeeded — including
     :class:`DispatchNode`, which succeeds only for an ``APPLIED`` or
