@@ -1078,6 +1078,7 @@ groups:
       marker for a thread the page is not on, and two markers for one thread. The
       check does not confirm that the marker sits inside the named section; that is
       left to the author and the reviewer.
+    tracking_issue: '#5170'
     relationships:
     - rel_type: refines
       spec_id: DF-11-015
