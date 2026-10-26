@@ -3783,7 +3783,7 @@ groups:
     - rel_type: depends_on
       spec_id: CM-10-004
     adr:
-    - ADR-0159
+    - ADR-0160
     stories:
     - story_2022_050
 - id: CM-22

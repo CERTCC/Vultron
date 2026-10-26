@@ -13,7 +13,7 @@ stakeholder_type: [project-contributor]
 partially_supersedes:
   - 0053-ownership-transfer-routed-via-caseactor.md
 partially_superseded_by:
-  - 0159-an-ownership-transferee-must-be-an-active-participant.md
+  - 0160-an-ownership-transferee-must-be-an-active-participant.md
 ---
 
 # An Owner Proposes an Ownership-Transfer Offer and the CASE_MANAGER Makes It
