@@ -1555,6 +1555,55 @@ class TestInviteActorUseCases:
         assert isinstance(record, CaseParticipant)
         assert record.joined is True
 
+    @pytest.mark.spec("SYNC-03-009")
+    @pytest.mark.spec("CLP-07-015")
+    def test_a_backfill_held_back_at_a_broken_entry_keeps_nothing_of_the_join(
+        self, make_payload
+    ):
+        """A join backfill that holds back an entry fails its Accept whole.
+
+        The second stored entry no longer reproduces its hash, so the
+        backfill sends the first and stops (SYNC-03-009).  The node returns
+        ``FAILURE``, the act keeps nothing (CLP-07-015), and the invitee
+        stays inert.
+        """
+        from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+        from vultron.core.models.case_participant import CaseParticipant
+
+        lj = _seed_late_joiner_case()
+        dl, case, invitee_id = lj["dl"], lj["case"], lj["invitee_id"]
+        first, second = lj["first"], lj["second"]
+        dl.save(second.model_copy(update={"payload_snapshot": {"index": "x"}}))
+        sync_port = MagicMock()
+
+        accept = _accept_invite(lj["invite"], actor=invitee_id)
+        result = AcceptInviteActorToCaseReceivedUseCase(
+            dl,
+            make_payload(accept),
+            sync_port=sync_port,
+            trigger_activity=lj["trigger_activity"],
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        assert result.disposition is not HandlerDisposition.APPLIED, result
+        sent_to_invitee = [
+            call.kwargs["entry"].log_index
+            for call in sync_port.send_announce_log_entry.call_args_list
+            if call.kwargs["to"] == [invitee_id]
+        ]
+        assert sent_to_invitee == [0]
+        ledger = [
+            e.log_index
+            for e in dl.list_objects("CaseLedgerEntry")
+            if isinstance(e, CaseLedgerEntry) and e.case_id == case.id_
+        ]
+        assert sorted(ledger) == [first.log_index, second.log_index], (
+            "the Accept's own entry is rolled back with the backfill"
+        )
+        record = dl.read(case.actor_participant_index[invitee_id])
+        assert isinstance(record, CaseParticipant)
+        assert record.joined is False
+
     def test_accept_invite_backfill_runs_when_the_announce_cannot_be_sent(
         self, make_payload
     ):

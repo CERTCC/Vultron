@@ -50,8 +50,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from typing import NamedTuple
 
 from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
+from vultron.core.behaviors.sync.nodes.verified_send import (
+    send_verified_log_entry,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
@@ -66,9 +70,24 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 
 # Re-exported: replay, post-close and the pending-request reader import it here.
 from vultron.core.sync_helpers import sorted_case_ledger_entries
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronUnverifiedLedgerEntryError
 
 logger = logging.getLogger(__name__)
+
+
+class LedgerSuffixSend(NamedTuple):
+    """What :func:`send_ledger_suffix` queued.
+
+    ``sent`` rows were queued and ``already_pending`` rows the port declined
+    because it already held them for the peer (SYNC-15-012).  ``held_back``
+    is the error for the entry the send stopped at because its hash did not
+    verify, or ``None`` when every entry in range was checked and offered to
+    the port (SYNC-03-009).
+    """
+
+    sent: int
+    already_pending: int
+    held_back: VultronUnverifiedLedgerEntryError | None = None
 
 
 def send_ledger_suffix(
@@ -79,7 +98,7 @@ def send_ledger_suffix(
     actor_id: str,
     peer_id: str,
     through_index: int | None = None,
-) -> tuple[int, int]:
+) -> LedgerSuffixSend:
     """Send each entry with ``after_index < log_index <= through_index`` to *peer_id*.
 
     *entries* MUST be sorted ascending by ``log_index``; they go out in that
@@ -88,9 +107,12 @@ def send_ledger_suffix(
     The sync port declines to queue a row it already holds for this peer and
     says so (SYNC-15-012), so the result separates the two.
 
-    Returns:
-        ``(sent, already_pending)`` — the rows queued, and the rows the port
-        declined because they were already pending.
+    Each entry goes through :func:`send_verified_log_entry`.  The send stops
+    at the first entry whose hash does not verify: that entry and every
+    later one stay unsent, the hold-back is logged at ERROR, and the result
+    carries it in ``held_back`` so the calling node returns ``FAILURE``
+    (SYNC-03-009, BT-14-001).  A replica could hold an entry after the
+    broken one only as a forward gap (SYNC-14-001).
     """
     sent = 0
     skipped = 0
@@ -99,15 +121,26 @@ def send_ledger_suffix(
             continue
         if through_index is not None and log_entry.log_index > through_index:
             break
-        if sync_port.send_announce_log_entry(
-            entry=log_entry,
-            actor_id=actor_id,
-            to=[peer_id],
-        ):
+        try:
+            queued = send_verified_log_entry(
+                sync_port,
+                log_entry,
+                actor_id=actor_id,
+                to=[peer_id],
+            )
+        except VultronUnverifiedLedgerEntryError as exc:
+            logger.error(  # noqa: TRY400 -- the hold-back is the report, no trace
+                "ledger send to '%s' stopped after %d entries: %s",
+                peer_id,
+                sent,
+                exc,
+            )
+            return LedgerSuffixSend(sent, skipped, held_back=exc)
+        if queued:
             sent += 1
         else:
             skipped += 1
-    return sent, skipped
+    return LedgerSuffixSend(sent, skipped)
 
 
 def embargo_paused_from_index(
@@ -267,6 +300,14 @@ def backfill_admitted_peers(
 
     Returns:
         The peers backfilled, in index order.
+
+    Raises:
+        VultronUnverifiedLedgerEntryError: a peer's backfill stopped at an
+            entry whose hash does not verify (SYNC-03-009).  The entries
+            before it were queued and the hold-back logged at ERROR by
+            :func:`send_ledger_suffix`; that peer keeps its pause, and no
+            later peer is backfilled.
+        VultronError: *case* cannot be resolved to decide the gate.
     """
     # Admission is decided over the whole case, never from a caller's
     # withheld list: a fan-out collector filters (e.g. RM.CLOSED peers)
@@ -284,7 +325,7 @@ def backfill_admitted_peers(
             continue
         if entries is None:
             entries = sorted_case_ledger_entries(datalayer, case.id_)
-        sent, skipped = send_ledger_suffix(
+        sent, skipped, held_back = send_ledger_suffix(
             sync_port,
             entries,
             after_index=paused_from - 1,
@@ -292,6 +333,10 @@ def backfill_admitted_peers(
             actor_id=actor_id,
             peer_id=peer_id,
         )
+        if held_back is not None:
+            # SYNC-03-009: the pause stays, since the peer still lacks the
+            # held-back entry and everything after it.
+            raise held_back
         clear_embargo_pause(datalayer, case_id=case.id_, peer_id=peer_id)
         backfilled.append(peer_id)
         logger.info(

@@ -47,6 +47,9 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
     backfill_admitted_peers,
     record_embargo_pause,
 )
+from vultron.core.behaviors.sync.nodes.verified_send import (
+    send_verified_log_entry,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.participants.recipients import (
@@ -55,7 +58,11 @@ from vultron.core.participants.recipients import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.errors import VultronError, VultronWiringError
+from vultron.errors import (
+    VultronError,
+    VultronUnverifiedLedgerEntryError,
+    VultronWiringError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +165,12 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
        before this entry does;
     3. sends this entry to each recipient.
 
+    Every send goes through ``send_verified_log_entry``: an entry whose hash
+    does not verify is held back, logged at ERROR, and the node returns
+    ``FAILURE``, whether it is this entry or one the backfill in step 2 was
+    about to send (SYNC-03-009, BT-14-001).  A held-back backfill also stops
+    step 3, since this entry would reach that peer as a forward gap.
+
     Step 2 admits a peer whose admission preceded this entry's commit:
     ``terminate_embargo_bt`` ends the embargo, then commits the new case
     status. A received activity commits before its effect admits anyone, so
@@ -253,6 +266,12 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
         if self.datalayer is not None:
             try:
                 self._pause_and_backfill(entry, self._sync_port)
+            except VultronUnverifiedLedgerEntryError as exc:
+                # SYNC-03-009: a backfill held back at an earlier entry; the
+                # new entry would reach that peer as a forward gap, so it
+                # does not go out either.  Already logged at ERROR.
+                self.feedback_message = str(exc)
+                return Status.FAILURE
             except VultronError as exc:
                 self.feedback_message = str(exc)
                 self.logger.exception(
@@ -260,12 +279,24 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
                 )
                 return Status.FAILURE
 
-        for recipient_id in recipients:
-            self._sync_port.send_announce_log_entry(
-                entry=entry,
-                actor_id=self.actor_id,
-                to=[recipient_id],
+        try:
+            for recipient_id in recipients:
+                send_verified_log_entry(
+                    self._sync_port,
+                    entry,
+                    actor_id=self.actor_id,
+                    to=[recipient_id],
+                )
+        except VultronUnverifiedLedgerEntryError as exc:
+            # The first send checks the entry, so no recipient got it.
+            self.feedback_message = str(exc)
+            self.logger.error(  # noqa: TRY400 -- the hold-back is the report
+                "%s: %s; not sent to any of %s",
+                self.name,
+                exc,
+                recipients,
             )
+            return Status.FAILURE
         self.logger.info(
             "%s: fanned out log entry '%s' to %d recipients"
             " (%d joined but inactive, stream paused — CM-10-005)",

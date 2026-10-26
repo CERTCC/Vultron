@@ -43,7 +43,11 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
 )
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.errors import VultronError, VultronWiringError
+from vultron.errors import (
+    VultronError,
+    VultronUnverifiedLedgerEntryError,
+    VultronWiringError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,9 @@ class BackfillAdmittedParticipantsNode(DataLayerActionWithPorts):
     ``VultronWiringError``, as the fan-out does (SYNC-02-003, BT-14-001,
     #4126): a silent skip left an admitted peer with no backfill and nothing
     to report it.
+
+    A backfill held back at an entry whose hash does not verify returns
+    ``FAILURE`` (SYNC-03-009, BT-14-001).
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
@@ -103,6 +110,12 @@ class BackfillAdmittedParticipantsNode(DataLayerActionWithPorts):
                 sync_port=self._sync_port,
                 actor_id=self.actor_id,
             )
+        except VultronUnverifiedLedgerEntryError as exc:
+            # SYNC-03-009, BT-14-001: a backfill held back at an entry that
+            # does not verify is not delivered.  send_ledger_suffix already
+            # logged it at ERROR.
+            self.feedback_message = str(exc)
+            return Status.FAILURE
         except VultronError as exc:
             self.feedback_message = str(exc)
             self.logger.exception("%s: embargo gate undecidable", self.name)

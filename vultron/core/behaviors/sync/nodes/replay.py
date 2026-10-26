@@ -280,6 +280,11 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
     replay clears any recorded pause: it resends everything past the
     contiguous prefix the peer reports holding (SYNC-10-004), so nothing
     withheld is left to backfill.
+
+    The replay stops at the first entry whose hash does not verify
+    (SYNC-03-009): the entries before it are queued, it and every later one
+    are not, and the node returns ``FAILURE`` (BT-14-001).  The cooldown
+    still records a replay that queued at least one entry (SYNC-15-011).
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -416,7 +421,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         # The sync port declines to queue a row it already holds for this
         # peer and says so, so only rows actually queued count as sent
         # (SYNC-15-011, #3602).
-        replayed, skipped = send_ledger_suffix(
+        replayed, skipped, held_back = send_ledger_suffix(
             self._sync_port,
             entries,
             after_index=from_index,
@@ -449,6 +454,12 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             case_id,
             skipped,
         )
+        if held_back is not None:
+            # SYNC-03-009, BT-14-001: the replay stopped at an entry that
+            # does not verify, so it is not reported as delivered.
+            # send_ledger_suffix already logged the hold-back at ERROR.
+            self.feedback_message = str(held_back)
+            return Status.FAILURE
         return Status.SUCCESS
 
 
