@@ -1,0 +1,9 @@
+# Thread-order dependencies in docs/ that predate the DF-11-024 check.
+#
+# Maintained by vultron.metadata.docs.thread_order. One entry per line:
+#   <start page> | <docs/-relative page> | <glossary term> | <reason>
+# This list may only shrink. Fix an entry by linking the term's first use to
+# the page that introduces it (SG-11) or by reordering the thread, then run
+# `uv run docs-thread-order --prune-baseline`. Do not add entries by hand;
+# test_thread_order.py pins the exact set of entries.
+

@@ -150,7 +150,7 @@ class RelationType(StrEnum):
 
     The docstring's member list below is generated from
     :data:`RELATION_DEFINITIONS`, which a test checks against SR-13-001
-    through SR-13-011, the one statement of what each type means.
+    through SR-13-011 and SR-13-017, the one statement of what each type means.
     """
 
     IMPLEMENTS = "implements"
@@ -164,10 +164,11 @@ class RelationType(StrEnum):
     PART_OF = "part_of"
     CONSTRAINS = "constrains"
     SATISFIES = "satisfies"
+    USES_DEFINITION = "uses_definition"
 
     @property
     def definition(self) -> str:
-        """What a relationship of this type asserts (SR-13-001..011)."""
+        """What a relationship of this type asserts (SR-13-001..011, SR-13-017)."""
         return RELATION_DEFINITIONS[self][0]
 
     @property
@@ -177,8 +178,8 @@ class RelationType(StrEnum):
 
 
 #: The meaning of each relationship type and which end is upstream. The text
-#: is SR-13-001 through SR-13-011 verbatim; ``test_schema.py`` asserts the two
-#: agree and that every member has an entry.
+#: is SR-13-001 through SR-13-011 and SR-13-017 verbatim; ``test_schema.py``
+#: asserts the two agree and that every member has an entry.
 RELATION_DEFINITIONS: dict[RelationType, tuple[str, RelationEnd]] = {
     RelationType.IMPLEMENTS: (
         "An `implements` relationship recorded on A naming B MUST mean that A "
@@ -241,6 +242,13 @@ RELATION_DEFINITIONS: dict[RelationType, tuple[str, RelationEnd]] = {
     RelationType.SATISFIES: (
         "A `satisfies` relationship recorded on A naming B MUST mean that "
         "meeting A is sufficient to meet B; B is the upstream requirement.",
+        RelationEnd.TARGET,
+    ),
+    RelationType.USES_DEFINITION: (
+        "A `uses_definition` relationship recorded on A naming B MUST mean "
+        "that A uses a term or notion that B defines, so that a change to "
+        "what B defines changes what A requires; B is the upstream "
+        "requirement.",
         RelationEnd.TARGET,
     ),
 }

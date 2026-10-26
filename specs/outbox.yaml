@@ -50,7 +50,7 @@ groups:
       `test/architecture/test_outbox_drain_under_actor_lock.py` pins that every drain enters
       through `outbox_handler` and its lock.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: OX-01-002
     adr:
     - ADR-0112
@@ -93,7 +93,7 @@ groups:
       in-flight delivery per recipient and that a slow recipient does not delay the row
       queued behind it for a different recipient.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: OX-01-005
     adr:
     - ADR-0112
@@ -182,6 +182,9 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: 'For actors on the same server, delivery MUST use HTTP POST to the recipient actor''s inbox endpoint ({actor}/inbox/) in the same manner as remote delivery, per OX-12-001. Direct DataLayer writes that bypass the HTTP path are prohibited.'
+    relationships:
+    - rel_type: refines
+      spec_id: OX-12-001
   - id: OX-04-002
     priority: MUST
     kind: project
@@ -244,10 +247,8 @@ groups:
       `test/core/behaviors/sync/nodes/test_chain_timestamp_guard.py::test_create_log_entry_node_reuses_a_recorded_entry_past_the_staleness_window`
       asserts the rebuilt act reuses its recorded entry however old its claimed time.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: OX-06-001
-    - rel_type: depends_on
-      spec_id: ID-02-001
 - id: OX-07
   title: Outbound Body Sealing and Relay
   specs:
@@ -270,7 +271,7 @@ groups:
       fields (`actor`, `target`, `to`, ...) are URI strings or intentional stubs because the
       factory built them so; shaping them is the factory's responsibility, never the handler's.
     relationships:
-    - rel_type: depends_on
+    - rel_type: implements
       spec_id: VM-08-003
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_sealed_body_delivery.py` seals through the real
@@ -287,7 +288,7 @@ groups:
       `object` is a bare URI or `as_Link` on an initiating activity is a factory defect that the
       handler refuses (AKM-03-002), never repairs.
     relationships:
-    - rel_type: depends_on
+    - rel_type: refines
       spec_id: AKM-03-001
 - id: OX-08
   title: Outbox Addressing
@@ -399,7 +400,7 @@ groups:
     scope:
     - production
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: OX-10-001
   - id: OX-10-003
     priority: MUST
@@ -411,7 +412,7 @@ groups:
       the adapter
     rationale: Preserves the hexagonal layer boundary
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: OX-10-001
   - id: OX-10-004
     priority: MUST
@@ -449,7 +450,7 @@ groups:
     scope:
     - production
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: OX-11-001
   - id: OX-11-003
     priority: MUST
@@ -461,7 +462,7 @@ groups:
     scope:
     - production
     relationships:
-    - rel_type: depends_on
+    - rel_type: extends
       spec_id: OX-11-001
   - id: OX-11-004
     priority: MUST
@@ -494,9 +495,6 @@ groups:
     statement: >-
       All inter-actor activity delivery MUST occur over the REST inbox/outbox HTTP API
       (HTTP POST to {actor}/inbox/).
-    relationships:
-    - rel_type: supersedes
-      spec_id: ARCH-17-001
   - id: OX-12-005
     priority: MUST
     kind: project
@@ -528,9 +526,6 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The default production ActivityEmitter MUST be the HTTP delivery adapter.
-    relationships:
-    - rel_type: supersedes
-      spec_id: ARCH-17-002
   - id: OX-12-007
     priority: MUST_NOT
     kind: project
@@ -542,7 +537,7 @@ groups:
       Wiring ASGIEmitter as default restores the in-process shortcut prohibited by
       OX-12-001 and masks inter-actor delivery bugs. See ADR-0042.
     relationships:
-    - rel_type: refines
+    - rel_type: derives_from
       spec_id: OX-12-002
   - id: OX-12-008
     priority: MUST
@@ -553,8 +548,12 @@ groups:
       Retaining dead code invites accidental re-use and contradicts the ADR-0042
       decision to retire the in-process delivery path entirely.
     relationships:
-    - rel_type: refines
-      spec_id: OX-12-002
+    - rel_type: supersedes
+      spec_id: ARCH-17-001
+    - rel_type: supersedes
+      spec_id: ARCH-17-002
+    - rel_type: implements
+      spec_id: OX-12-006
   - id: OX-12-003
     priority: MUST
     kind: project
@@ -578,7 +577,7 @@ groups:
       for a peer known only by URI (AKM-05-001), and is used only when nothing better
       is known (AKM-02-006, ADR-0159).
     relationships:
-    - rel_type: refines
+    - rel_type: supersedes
       spec_id: OX-12-001
     adr:
     - ADR-0159
@@ -617,7 +616,7 @@ groups:
       A documented default makes the system's reliability envelope observable and
       predictable without requiring explicit per-deployment configuration.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: OX-13-002
     adr:
     - ADR-0066
@@ -631,11 +630,11 @@ groups:
     rationale: >-
       Moving exhausted activities to a dead-letter store preserves them for operator
       inspection and provides an observable signal for the terminal failure state.
-    relationships:
-    - rel_type: refines
-      spec_id: OX-13-002
     adr:
     - ADR-0066
+    relationships:
+    - rel_type: uses_definition
+      spec_id: OX-13-002
   - id: OX-13-009
     priority: MUST_NOT
     kind: project
@@ -645,11 +644,11 @@ groups:
     rationale: >-
       Requeuing an exhausted activity restarts the attempt counter, defeating the
       total-attempt bound and allowing indefinite retries.
-    relationships:
-    - rel_type: refines
-      spec_id: OX-13-002
     adr:
     - ADR-0066
+    relationships:
+    - rel_type: uses_definition
+      spec_id: OX-13-002
   - id: OX-13-003
     priority: MUST
     kind: project
@@ -658,11 +657,11 @@ groups:
       On activity exhaustion, the system MUST log at ERROR level, including the
       activity ID, the recipient(s) that could not be reached, and the total number of
       attempts made, so that the operator has a visible signal of the terminal failure.
-    relationships:
-    - rel_type: refines
-      spec_id: OX-13-002
     adr:
     - ADR-0066
+    relationships:
+    - rel_type: uses_definition
+      spec_id: OX-13-002
   - id: OX-13-004
     priority: MUST
     kind: project
@@ -708,7 +707,7 @@ groups:
       Independent per-activity tracking prevents a single bad activity from consuming
       the shared cap and blocking delivery of healthy activities in the same pass.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: OX-13-006
     adr:
     - ADR-0066
@@ -723,7 +722,7 @@ groups:
       Skipping rather than aborting keeps the drain loop running so that subsequent
       activities in the same pass are delivered on schedule.
     relationships:
-    - rel_type: refines
+    - rel_type: implements
       spec_id: OX-13-006
     adr:
     - ADR-0066
@@ -750,8 +749,6 @@ groups:
       delivered.
     relationships:
     - rel_type: refines
-      spec_id: OX-13-011
-    - rel_type: refines
       spec_id: OX-01-005
     adr:
     - ADR-0112
@@ -761,7 +758,7 @@ groups:
     statement: >-
       When the outbox refuses an activity's sealed body before any delivery attempt (a
       `to:` naming no recipient, OX-08-003, or an `object` that is not inline,
-      OX-07-001), the activity MUST be moved to the dead-letter store on that first
+      OX-07-002), the activity MUST be moved to the dead-letter store on that first
       refusal, with reason `undeliverable_body`, and MUST NOT be retried.
     rationale: >-
       The sealed body never changes (VM-08-003), so every retry is refused the same way.
@@ -773,10 +770,12 @@ groups:
       recipient and a body whose `object` is a bare URI, and asserts each is
       dead-lettered with reason `undeliverable_body` after one attempt, with no backoff.
     relationships:
-    - rel_type: refines
+    - rel_type: extends
       spec_id: OX-13-008
-    - rel_type: refines
-      spec_id: OX-13-005
+    - rel_type: extends
+      spec_id: OX-08-003
+    - rel_type: extends
+      spec_id: OX-07-002
     adr:
     - ADR-0066
 - id: OX-14

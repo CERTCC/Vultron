@@ -715,6 +715,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: DL-07-005
+    - rel_type: implements
+      spec_id: ARCH-13-003
     tags:
     - persistence
     - protocol

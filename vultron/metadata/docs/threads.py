@@ -23,7 +23,9 @@ in two:
   link back to the start page.
 
 ``uv run docs-threads`` is the thread check (DF-11-016), a pre-commit hook
-with ``test_the_committed_threads_pass`` as its CI backstop.
+with ``test_the_committed_threads_pass`` as its CI backstop. That no member
+runs ahead of its thread is ``docs-thread-order``'s check
+(:mod:`~vultron.metadata.docs.thread_order`, DF-11-024).
 """
 
 from __future__ import annotations
