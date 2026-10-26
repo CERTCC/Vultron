@@ -75,9 +75,13 @@ groups:
     priority: MUST
     kind: project
     statement: If the `object_` field of an activity remains a bare string URI after rehydration (i.e., the DataLayer does
-      not have a record for that URI), `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN`
+      not have a record for that URI), `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN`. The one
+      exception is `Read(CaseLedgerEntry)`, which a property other than its object identifies, its `ledgerPosition`
+      (SYNC-17-001); it MUST still be matched, so the CASE_MANAGER can log a position its ledger does not hold
+      (SYNC-17-005).
     rationale: Semantic dispatch depends on the object type. A bare string in `object_` makes the object type unknowable;
-      proceeding as if the pattern matches would route the activity to the wrong handler
+      proceeding as if the pattern matches would route the activity to the wrong handler. A position statement names an
+      entry the receiver may not hold by design, and its `ledgerPosition` says what it is without the object.
     verification: A unit test confirms that `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` when
       the activity's `object_` remains a bare string URI after rehydration because the DataLayer has no record
       for that URI.

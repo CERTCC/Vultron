@@ -37,6 +37,10 @@ from vultron.adapters.driving.fastapi.inbox_startup_replay import (
     finish_startup_inbox_replay,
     start_startup_inbox_replay,
 )
+from vultron.adapters.driving.fastapi.ledger_position_statements import (
+    finish_ledger_position_statements,
+    start_ledger_position_statements,
+)
 from vultron.adapters.driving.fastapi.ledger_stream import (
     SHUTDOWN_STATE_KEY,
     install_shutdown_signal_hook,
@@ -182,7 +186,8 @@ def _make_lifespan(*, configure_globals: bool = True):
             ``HttpDeliveryAdapter`` as the module-level default emitter,
             configures logging, starts the background ``OutboxMonitor``, and
             starts the startup replay of every hosted actor's inbox queue
-            (IE-06-006).
+            (IE-06-006) and each hosted participant's ledger position
+            statements (SYNC-17-007).
             When ``False`` (used by :func:`create_app` for isolated test apps),
             these global side-effects are skipped, the startup replay
             included, so that multiple apps
@@ -230,10 +235,20 @@ def _make_lifespan(*, configure_globals: bool = True):
             else None
         )
 
+        # State each hosted participant's ledger positions after the restart,
+        # and on the configured interval, so a lost last entry before a
+        # quiet period is recovered (SYNC-17-007).
+        position_statements = (
+            start_ledger_position_statements(application.state.emitter)
+            if configure_globals
+            else None
+        )
+
         yield {SHUTDOWN_STATE_KEY: ledger_stream_shutdown}
 
         ledger_stream_shutdown.set()
         undo_shutdown_hook()
+        await finish_ledger_position_statements(position_statements)
         await finish_startup_inbox_replay(startup_replay)
 
         if monitor is not None:

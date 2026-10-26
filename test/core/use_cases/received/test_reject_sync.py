@@ -36,7 +36,6 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.use_cases.received.sync import (
     RejectLedgerEntryReceivedUseCase,
 )
-from vultron.core.use_cases.triggers.sync import replay_missing_entries_trigger
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -148,90 +147,6 @@ class TestRejectLogEntryPattern:
         event = received_event(activity)
         assert isinstance(event, RejectLogEntryReceivedEvent)
         assert event.last_accepted_hash == ""
-
-
-class TestReplayMissingEntriesTrigger:
-    """replay_missing_entries_trigger queues Announce activities (SYNC-03-002)."""
-
-    @pytest.mark.spec("SYNC-03-002")
-    def test_replays_all_when_from_genesis(self, dl, entry0, entry1):
-        dl.save(entry0)
-        dl.save(entry1)
-
-        sync_port = MagicMock(spec=SyncActivityPort)
-        replayed = replay_missing_entries_trigger(
-            case_id=CASE_URI,
-            peer_id=PARTICIPANT_URI,
-            from_hash="",
-            case_actor_id=CASE_ACTOR_URI,
-            dl=dl,
-            sync_port=sync_port,
-        )
-        assert replayed == 2
-
-    @pytest.mark.spec("SYNC-03-002")
-    def test_replays_only_missing_entries(self, dl, entry0, entry1):
-        dl.save(entry0)
-        dl.save(entry1)
-
-        sync_port = MagicMock(spec=SyncActivityPort)
-        replayed = replay_missing_entries_trigger(
-            case_id=CASE_URI,
-            peer_id=PARTICIPANT_URI,
-            from_hash=entry0.entry_hash,
-            case_actor_id=CASE_ACTOR_URI,
-            dl=dl,
-            sync_port=sync_port,
-        )
-        assert replayed == 1
-
-    @pytest.mark.spec("SYNC-03-002")
-    def test_returns_zero_when_up_to_date(self, dl, entry0):
-        dl.save(entry0)
-
-        sync_port = MagicMock(spec=SyncActivityPort)
-        replayed = replay_missing_entries_trigger(
-            case_id=CASE_URI,
-            peer_id=PARTICIPANT_URI,
-            from_hash=entry0.entry_hash,
-            case_actor_id=CASE_ACTOR_URI,
-            dl=dl,
-            sync_port=sync_port,
-        )
-        assert replayed == 0
-
-    @pytest.mark.spec("SYNC-03-002")
-    def test_returns_zero_when_no_entries(self, dl):
-        sync_port = MagicMock(spec=SyncActivityPort)
-        replayed = replay_missing_entries_trigger(
-            case_id=CASE_URI,
-            peer_id=PARTICIPANT_URI,
-            from_hash="",
-            case_actor_id=CASE_ACTOR_URI,
-            dl=dl,
-            sync_port=sync_port,
-        )
-        assert replayed == 0
-
-    @pytest.mark.spec("SYNC-02-001")
-    @pytest.mark.spec("SYNC-02-003")
-    def test_announces_target_peer(self, dl, entry0):
-        dl.save(entry0)
-        sync_port = SyncActivityAdapter(dl)
-        replay_missing_entries_trigger(
-            case_id=CASE_URI,
-            peer_id=PARTICIPANT_URI,
-            from_hash="",
-            case_actor_id=CASE_ACTOR_URI,
-            dl=dl,
-            sync_port=sync_port,
-        )
-        # Check the announce was saved to the DataLayer (outbox queue
-        # goes to a per-actor table not accessible via the global dl.outbox_list())
-        announces = dl.by_type("Announce")
-        assert len(announces) == 1
-        announce = next(iter(announces.values()))
-        assert PARTICIPANT_URI in (announce.get("to") or [])
 
 
 def _seed_case(dl: SqliteDataLayer) -> None:

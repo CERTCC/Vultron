@@ -45,6 +45,7 @@ from vultron.core.use_cases._helpers import add_activity_to_outbox
 from vultron.wire.as2.factories import (
     announce_log_entry_activity,
     genesis_replay_reject_activity,
+    read_ledger_entry_activity,
     reject_log_entry_activity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -168,6 +169,34 @@ class SyncActivityAdapter:
             lambda: genesis_replay_reject_activity(
                 case_id, actor=actor_id, to=to, id_=reject_id
             ),
+        )
+
+    def send_read_ledger_entry(
+        self,
+        entry: CaseLedgerEntry,
+        actor_id: str,
+        to: list[str],
+    ) -> None:
+        """Build and queue a ``Read(CaseLedgerEntry)`` position statement.
+
+        The activity gets a fresh id: each statement is a new observation of
+        the participant's position, and the CASE_MANAGER must answer it even
+        when an earlier one named the same entry, because its ledger may have
+        grown since (SYNC-17-004).  A derived id would make the repeat a
+        redelivery the CASE_MANAGER skips.
+
+        Spec: SYNC-17-001.
+        """
+        read = read_ledger_entry_activity(entry, actor=actor_id, to=to)
+        self._dl.save(read)
+        seal_outbound_body(self._dl, read)
+        add_activity_to_outbox(actor_id, read.id_, self._dl)
+        logger.info(
+            "sync adapter: queued Read(CaseLedgerEntry) '%s' for entry '%s'"
+            " to %s",
+            read.id_,
+            entry.id_,
+            to,
         )
 
     def _queue_reject(

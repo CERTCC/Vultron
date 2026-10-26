@@ -272,6 +272,9 @@ INTRODUCES_NOTHING: dict[str, NoIntroduction] = {
     "rm_close_report_activity": _answers("offer"),
     # The entry it refuses is one the CASE_MANAGER holds.
     "reject_log_entry_activity": _held("entry"),
+    # Names, by reference, the entry it states it applied last: one the
+    # CASE_MANAGER holds (SYNC-17-001).
+    "read_ledger_entry_activity": _held("entry"),
     # Names no entry at all, only the case the CASE_MANAGER holds, as the
     # target of a request for a replay from genesis (SYNC-16-007).
     "genesis_replay_reject_activity": NoIntroduction(

@@ -15,7 +15,8 @@
 """Action nodes for SYNC log-replication replay.
 
 Replay is catch-up for one peer that has fallen behind, driven by an inbound
-``Reject(CaseLedgerEntry)``.  The fan-out nodes that used to live here — the
+``Reject(CaseLedgerEntry)`` or by the position a ``Read(CaseLedgerEntry)``
+states (SYNC-03-002, SYNC-17-004).  The fan-out nodes that used to live here — the
 distribution of a single entry to every recipient — now sit in ``fanout.py``
 alongside their RM.CLOSED-filtered variants (BTND-07-004), and the genesis
 pre-seed ``AnnounceCaseOnGenesisRejectNode`` sits in ``genesis_announce.py``
@@ -63,14 +64,16 @@ from vultron.errors import (
 logger = logging.getLogger(__name__)
 
 
-def rejected_case_id(activity: Any, node_name: str) -> str:
-    """Return the case a ``Reject(CaseLedgerEntry)`` asks to have replayed.
+def replay_case_id(activity: Any, node_name: str) -> str:
+    """Return the case whose ledger a peer's activity asks to have replayed.
 
-    The rejected entry's case, or the ``target`` of the Reject that names no
-    entry because its sender holds none (SYNC-16-007).  Raises
-    ``VultronError`` when the activity names neither (BT-HELPER-01).
+    The activity's ``replay_case_id``: for a ``Reject(CaseLedgerEntry)`` the
+    rejected entry's case, or the ``target`` of the Reject that names no
+    entry because its sender holds none (SYNC-16-007); for a
+    ``Read(CaseLedgerEntry)`` the case its ``context`` names (SYNC-17-001).
+    Raises ``VultronError`` when the activity names none (BT-HELPER-01).
     """
-    case_id = getattr(activity, "rejected_case_id", None)
+    case_id = getattr(activity, "replay_case_id", None)
     if isinstance(case_id, str) and case_id:
         return case_id
     return require_rejected_entry(activity, node_name).case_id
@@ -151,7 +154,7 @@ class FindCaseActorNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         assert self.datalayer is not None
-        case_id = rejected_case_id(self.activity, self.name)
+        case_id = replay_case_id(self.activity, self.name)
         self._set_output("case_id", case_id)
 
         # Regime 1 (ADR-0087): a peer is asking us to replay this case's log,
@@ -205,11 +208,11 @@ class CollectAndSortCaseLedgerEntriesNode(DataLayerActionWithPorts):
             return f
         assert self.datalayer is not None
         activity = self.activity
-        case_id = rejected_case_id(activity, self.name)
+        case_id = replay_case_id(activity, self.name)
         peer_id = activity.actor_id
         if not peer_id:
             raise VultronError(
-                f"{self.name}: Reject(CaseLedgerEntry) missing peer actor_id"
+                f"{self.name}: replay request missing peer actor_id"
             )
 
         entries = sorted_case_ledger_entries(
@@ -264,7 +267,10 @@ class FindDivergenceIndexNode(DataLayerActionWithPorts):
 
 
 class SendMissingEntriesNode(DataLayerActionWithPorts):
-    """Replay the ledger suffix a peer's ``Reject(CaseLedgerEntry)`` asks for.
+    """Replay the ledger suffix a peer's ``Reject`` or ``Read`` leaves it short of.
+
+    A ``Reject(CaseLedgerEntry)`` asks for it (SYNC-03-002); a
+    ``Read(CaseLedgerEntry)`` states a position behind the tail (SYNC-17-004).
 
     A peer that is not an active participant (CM-10-004) is sent nothing.
     When it is a joined participant that is not active (the active embargo

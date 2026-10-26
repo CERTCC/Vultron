@@ -635,6 +635,7 @@ def _serve_once(
     from fastapi.testclient import TestClient
 
     from vultron.adapters.driving.fastapi import (
+        app as app_module,
         inbox_startup_replay as startup,
     )
     from vultron.adapters.driving.fastapi.app import _make_lifespan
@@ -650,6 +651,12 @@ def _serve_once(
     )
     monkeypatch.setattr(startup, "get_datalayer", lambda _actor_id: dl)
     monkeypatch.setattr(io, "dispatch", _dispatch)
+    # The lifespan also states the hosted actors' ledger positions
+    # (SYNC-17-007), which drains their outboxes too; these tests count only
+    # the startup replay's drains.
+    monkeypatch.setattr(
+        app_module, "start_ledger_position_statements", lambda _emitter: None
+    )
 
     with TestClient(FastAPI(lifespan=_make_lifespan(configure_globals=True))):
         pass

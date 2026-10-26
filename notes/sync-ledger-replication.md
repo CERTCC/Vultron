@@ -81,10 +81,10 @@ everything after the last hash a participant reports.
   can disagree with the first and blame the wrong side (SYNC-03-010, #5095).
 - **The CASE_MANAGER holds back an entry it cannot verify** (SYNC-03-009). Every
   `send_announce_log_entry` call (fan-out, `Reject` replay, embargo backfill,
-  join-time backfill, replay trigger, and position-statement replay once SYNC-17-004
-  is built) goes through one core helper that checks first, so no send path can skip
-  it. The helper sits at the port call, below `send_ledger_suffix`, because three of
-  the four call sites bypass that loop. A replay stops at the broken entry: a replica
+  join-time backfill, and `Read` position-statement replay) goes through one core
+  helper that checks first, so no send path can skip it. The helper sits at the port
+  call, below `send_ledger_suffix`, because two of the three call sites bypass that
+  loop. A replay stops at the broken entry: a replica
   can only hold what follows as a forward gap. Fan-out checks the entry it built in
   memory, unless it reused a recorded one or backfills a paused peer, so a storage
   round-trip bug usually surfaces at replay, which reads the stored copy.
