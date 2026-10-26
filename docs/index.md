@@ -9,15 +9,15 @@ template: home.html
 hero:
   title: Open Protocol for Vulnerability Coordination
   tagline: >-
-    Your tracker speaks it, your partners' trackers speak it, and the case
-    moves between them as structured messages.
+    Coordinate a disclosure from the tracker you already use, with no account
+    on any partner's portal.
   buttons:
     - text: Find your way in
       url: "#where-to-start"
     - text: Read the Protocol Specification
-      url: reference/vultron-spec/index.md
+      url: reference/vultron-spec/
     - text: How Vultron works
-      url: start/how-vultron-works.md
+      url: start/how-vultron-works/
 ---
 
 # The Vultron Coordinated Vulnerability Disclosure Protocol
@@ -55,10 +55,10 @@ Your tracker speaks it, your partners' trackers speak it, and the case moves bet
 See [What Is Vultron?](topics/background/what-is-vultron.md) for the full answer.
 
 The diagrams below show the contrast.
-On the left, each organization holds a separate account on every partner's portal.
-On the right, each organization's own tracker speaks the Vultron protocol, so any two trackers can exchange case updates directly.
+Without Vultron, each organization holds a separate account on every partner's portal.
+With Vultron, each organization's own tracker speaks the protocol, so any two trackers can exchange case updates directly.
 
-<div class="grid two-col" markdown>
+<div class="grid" markdown>
 
 ```mermaid
 ---
