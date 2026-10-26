@@ -1615,9 +1615,11 @@ groups:
     adr:
     - ADR-0142
     verification: >-
-      `test/core/behaviors/sync/test_divergence_recovery.py` asserts the CASE_MANAGER
-      answers the fault from an active participant with the case, and refuses it from
-      any other sender.
+      `test/core/use_cases/received/test_case_diverged_reseed.py` asserts the
+      CASE_MANAGER answers the fault from an active participant with the case, and
+      refuses it, with nothing recorded or sent, from a stranger and from a
+      participant that is not active; `test/demo/test_sync_ledger_replication.py`
+      shows a diverged replica converging across two isolated actor apps.
     stories:
     - story_2022_045
     - story_2022_088
@@ -1639,8 +1641,8 @@ groups:
     adr:
     - ADR-0142
     verification: >-
-      `test/core/behaviors/sync/test_divergence_recovery.py` asserts a second fault
-      within the cooldown sends no case, and one after it does.
+      `test/core/use_cases/received/test_case_diverged_reseed.py` asserts a second
+      fault within the cooldown sends no case, and one after it does.
     stories:
     - story_2022_045
   - id: SYNC-16-005
@@ -1782,7 +1784,8 @@ groups:
     adr:
     - ADR-0142
     verification: >-
-      `test/core/behaviors/sync/test_divergence_recovery.py` asserts the ERROR record.
+      `test/core/use_cases/received/test_case_diverged_reseed.py` asserts the ERROR
+      record, and its absence for an entry past the last re-seed.
     stories:
     - story_2022_045
 - id: SYNC-17

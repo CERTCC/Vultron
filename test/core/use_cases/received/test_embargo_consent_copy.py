@@ -21,13 +21,12 @@ goes to gap handling and is never patched over (ADR-0124), and the replica
 reports the divergence to the CASE_MANAGER (SYNC-16-001).
 """
 
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
 from test.support.inbox_replay import held_depth
 from test.support.ledger import committed_semantic_types, fail_commits
-from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -36,16 +35,13 @@ from vultron.core.behaviors.embargo import copy_commit
 from vultron.core.behaviors.embargo.copy_commit import (
     PlannedEmbargoEntry,
     commit_and_apply_embargo_entries,
-    consent_row_entry,
 )
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
-    ConsentRowVerb,
 )
-from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
@@ -74,90 +70,48 @@ def _net(name: str) -> LedgerNetwork:
 
 
 def _record(net: LedgerNetwork, holder: str, actor_id: str) -> CaseParticipant:
-    case = net.case(holder)
-    return cast(
-        CaseParticipant,
-        net.stores[holder].read(case.actor_participant_index[actor_id]),
-    )
+    return net.record(holder, actor_id)
 
 
 def _row_change(
     net: LedgerNetwork, actor_id: str, state: EmbargoConsentState
 ) -> ConsentRowChange:
-    return ConsentRowChange(
-        verb=ConsentRowVerb.UPDATE,
-        row=EmbargoConsent(
-            embargo_id=net.initial_embargo_id,
-            state=state,
-            attributed_to=actor_id,
-        ),
-    )
+    return net.consent_row_change(actor_id, state)
 
 
 def _entry(
     net: LedgerNetwork, change: ConsentRowChange
 ) -> PlannedEmbargoEntry:
-    dl = net.stores[MANAGER]
-    return consent_row_entry(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        actor_id=MANAGER,
-        case_id=net.case_id,
-        change=change,
-        cause_id=_CAUSE,
-        sync_port=SyncActivityAdapter(dl),
-    )
+    return net.planned_consent_entry(change, _CAUSE)
 
 
 def _announcements(net: LedgerNetwork, replica: str) -> list[dict[str, Any]]:
     """The ``Announce(CaseLedgerEntry)`` bodies queued for *replica*."""
-    bodies = []
-    for activity in net.queued(MANAGER, to=replica, type_="Announce"):
-        body = read_sealed_body_dict(net.stores[MANAGER], activity.id_)
-        if ((body or {}).get("object") or {}).get("type") == "CaseLedgerEntry":
-            bodies.append(cast(dict[str, Any], body))
-    return bodies
+    return net.sealed_bodies(
+        MANAGER, to=replica, type_="Announce", object_type="CaseLedgerEntry"
+    )
 
 
 def _drop_row(net: LedgerNetwork, holder: str, actor_id: str) -> None:
-    """Make *holder*'s copy of *actor_id*'s record lose its consent row.
-
-    A diverged replica: an ``Update`` of that row then has no row to start
-    from, whatever state it carries.
-    """
-    record = _record(net, holder, actor_id)
-    record.embargo_consents = [
-        row
-        for row in record.embargo_consents
-        if row.embargo_id != net.initial_embargo_id
-    ]
-    net.stores[holder].save(record)
+    net.drop_consent_row(holder, actor_id)
 
 
-def _diverged_announcement(net: LedgerNetwork) -> dict[str, Any]:
+def _diverged_announcement(
+    net: LedgerNetwork, member: str = BYSTANDER
+) -> dict[str, Any]:
     """The CASE_MANAGER's announce of an entry the bystander has diverged from.
 
-    The bystander's replica lost its consent row, so the committed entry
-    updating that row extends its chain but does not apply to its case.
+    The bystander's replica lost *member*'s consent row, so the committed
+    entry updating that row extends its chain but does not apply to its case.
     """
-    _drop_row(net, BYSTANDER, BYSTANDER)
-    commit_and_apply_embargo_entries(
-        net.stores[MANAGER],
-        net.case_id,
-        [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
-    )
-    (body,) = _announcements(net, BYSTANDER)
-    return body
+    return net.diverged_announcement(BYSTANDER, member, _CAUSE)
 
 
 def _faults(net: LedgerNetwork) -> list[dict[str, Any]]:
     """The sealed ``Create(ProcessingFault)`` bodies the bystander queued."""
-    bodies = []
-    for activity in net.queued(BYSTANDER, to=MANAGER, type_="Create"):
-        body = read_sealed_body_dict(net.stores[BYSTANDER], activity.id_)
-        if ((body or {}).get("object") or {}).get("type") == "ProcessingFault":
-            bodies.append(cast(dict[str, Any], body))
-    return bodies
+    return net.sealed_bodies(
+        BYSTANDER, to=MANAGER, type_="Create", object_type="ProcessingFault"
+    )
 
 
 def _rows(record: CaseParticipant) -> list[dict[str, Any]]:
@@ -484,9 +438,12 @@ class TestReplicaCopies:
     @pytest.mark.spec("CLP-04-007")
     def test_no_case_ledger_gains_an_entry_for_a_divergence_fault(self):
         """Neither the replica sending the fault nor the CASE_MANAGER
-        receiving it commits it to a case ledger."""
+        receiving it commits it to a case ledger, though the CASE_MANAGER
+        answers it with a fresh case copy (SYNC-16-003)."""
         net = _net("cc-diverged-unledgered")
-        body = _diverged_announcement(net)
+        # The owner's row diverges, so the bystander stays an active
+        # participant and the CASE_MANAGER re-seeds it (SYNC-16-003).
+        body = _diverged_announcement(net, OWNER)
         manager_before = committed_semantic_types(
             net.stores[MANAGER], net.case_id
         )
@@ -498,7 +455,7 @@ class TestReplicaCopies:
         verdicts = net.deliver(BYSTANDER, to=MANAGER, type_="Create")
 
         ((_, verdict),) = verdicts
-        assert verdict.disposition is HandlerDisposition.SKIPPED
+        assert verdict.disposition is HandlerDisposition.APPLIED
         assert (
             committed_semantic_types(net.stores[MANAGER], net.case_id)
             == manager_before

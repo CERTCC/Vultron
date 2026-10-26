@@ -1,8 +1,10 @@
 """Use case for received Create(ProcessingFault) NACK messages.
 
-A sender receives this when their status assertion was refused by a receiver
-(ADR-0080, ASK-07-001).  Ask-register integration (AC-8) is deferred to
-issue #2883 (outstanding-request register).
+A sender receives this when a receiver could not process its activity
+(ADR-0080, ASK-07-001).  The response depends on the fault's failure class:
+a replica's case-diverged fault makes the CASE_MANAGER re-seed it
+(SYNC-16-003, ADR-0142); every other class is archived and skipped until the
+outstanding-request register correlates it to its ask (#2883).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -19,9 +21,17 @@ issue #2883 (outstanding-request register).
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from types import MappingProxyType
 from typing import ClassVar
 
-from vultron.core.behaviors.bridge import BTBridge
+import py_trees
+
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.case.intake_only_received_tree import (
+    create_intake_only_received_tree,
+)
 from vultron.core.behaviors.case.nodes.refusal_notice import (
     ClearRefusedAssertionNode,
 )
@@ -29,15 +39,24 @@ from vultron.core.behaviors.case.refusal_notice_received_tree import (
     refusal_notice_received_tree,
 )
 from vultron.core.behaviors.sender_entitlement import (
-    SenderEntitlement,
     SenderEntitlementKind,
     SenderRule,
     any_of,
-    exempt,
 )
+from vultron.core.behaviors.sync.divergence_tree import (
+    create_case_diverged_fault_tree,
+)
+from vultron.core.behaviors.sync.nodes.reseed import (
+    ReseedPeerNode,
+    announced_ledger_entry,
+)
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.fault import (
     CreateProcessingFaultReceivedEvent,
     RefusalNoticeReceivedEvent,
+)
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -50,30 +69,171 @@ from vultron.core.ports.wire_render import WireRenderPort
 from vultron.core.use_cases._helpers import resolve_receiving_actor_id
 from vultron.core.use_cases.received._bt_verdict import (
     applied_or_raise,
+    case_manager_verdict,
+    door_refusal,
     find_node,
     verdict_from_bt,
 )
-from vultron.core.use_cases.received._intake_only import run_intake_only
+from vultron.errors import VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
 
-class CreateProcessingFaultReceivedUseCase:
-    """Log a received Create(ProcessingFault) NACK.
+#: Builds the one tree a fault's delivery runs, from the entry the fault
+#: reports refusing (``None`` when it names none this store sent), the
+#: fault's sender and the use case's declared sender rule.
+type FaultTreeBuilder = Callable[
+    [CaseLedgerEntry | None, str, SenderRule], py_trees.behaviour.Behaviour
+]
 
-    Full ask-register correlation (AC-8) is deferred to issue #2883.
+#: Reads the verdict of a finished run, given the tree, its result, the
+#: store and the entry the tree was built from.
+type FaultVerdictReader = Callable[
+    [
+        py_trees.behaviour.Behaviour,
+        BTExecutionResult,
+        CasePersistence,
+        CaseLedgerEntry | None,
+    ],
+    HandlerResult,
+]
 
-    No sender check gates anything yet: the handler archives the fault, as
-    every received tree does before its guards (CLP-10-018), logs it and
-    reports ``SKIPPED``, committing, writing and sending nothing.  The
-    CASE_MANAGER's re-seed on a case-diverged fault (SYNC-16-003) is the first
-    effect a fault will have, and its sender rule lands with it in #4799.
+
+@dataclass(frozen=True)
+class FaultResponse:
+    """How the receiver answers a fault of one failure class.
+
+    ``build_tree`` builds the delivery's one tree (CLP-10-005);
+    ``read_verdict`` turns its run into the handler's verdict (HP-01-003).
     """
 
-    sender_entitlement: ClassVar[SenderEntitlement] = exempt(
-        "#4799",
-        "a fault changes nothing until the case-diverged re-seed (SYNC-16-003)"
-        " acts on it; that issue declares the sender rule",
+    build_tree: FaultTreeBuilder
+    read_verdict: FaultVerdictReader
+
+
+def _archive_tree(
+    refused_entry: CaseLedgerEntry | None, sender_id: str, rule: SenderRule
+) -> py_trees.behaviour.Behaviour:
+    """The intake-only tree: a fault with no effect is only archived."""
+    del refused_entry, sender_id, rule  # nothing here depends on them
+    return create_intake_only_received_tree("CreateProcessingFaultReceivedBT")
+
+
+def _archive_verdict(
+    tree: py_trees.behaviour.Behaviour,
+    result: BTExecutionResult,
+    dl: CasePersistence,
+    refused_entry: CaseLedgerEntry | None,
+) -> HandlerResult:
+    """``SKIPPED``: nothing correlates the fault to its ask yet (#2883)."""
+    del dl, refused_entry
+    verdict = applied_or_raise(
+        tree, result, label="CreateProcessingFaultReceivedBT"
+    )
+    if verdict.disposition is HandlerDisposition.REFUSED:
+        return verdict  # a door guard refused: the case is fully closed
+    return HandlerResult.skipped(
+        "ask-register correlation not implemented (#2883)"
+    )
+
+
+def _case_diverged_tree(
+    refused_entry: CaseLedgerEntry | None, sender_id: str, rule: SenderRule
+) -> py_trees.behaviour.Behaviour:
+    return create_case_diverged_fault_tree(
+        refused_entry, sender_id=sender_id, sender_rule=rule
+    )
+
+
+def _reseed_verdict(
+    tree: py_trees.behaviour.Behaviour,
+    result: BTExecutionResult,
+    dl: CasePersistence,
+    refused_entry: CaseLedgerEntry | None,
+) -> HandlerResult:
+    """The verdict on a case-diverged fault (SYNC-16-003, SYNC-16-004).
+
+    ``APPLIED`` when a case copy was queued; ``SKIPPED`` when the re-seed
+    cooldown held it back; ``REFUSED`` for a fault that names no
+    ``Announce(CaseLedgerEntry)`` this actor sent, for a sender that is not
+    an active participant, and at any receiver that is not the case's
+    CASE_MANAGER (HP-01-005).
+    """
+    label = "CaseDivergedFaultReceivedBT"
+    if refused_entry is None:
+        if (refusal := door_refusal(tree)) is not None:
+            return refusal
+        applied_or_raise(tree, result, label=label)
+        return HandlerResult.refused(
+            "the fault names no Announce(CaseLedgerEntry) this actor sent, so"
+            " it names no case to re-seed (SYNC-16-003, ASK-07-004)"
+        )
+    verdict = case_manager_verdict(
+        tree,
+        verdict_from_bt(tree, result, label=label),
+        dl,
+        refused_entry.case_id,
+    )
+    if verdict.disposition is not HandlerDisposition.APPLIED:
+        return verdict
+    reseed = find_node(tree, ReseedPeerNode)
+    if reseed is not None and reseed.reseeded:
+        return verdict
+    return HandlerResult.skipped(
+        f"the sender was re-seeded with case '{refused_entry.case_id}'"
+        " within the cooldown; no case copy sent (SYNC-16-004)"
+    )
+
+
+#: A failure class with no entry in a use case's ``responses``.
+ARCHIVE_ONLY = FaultResponse(
+    build_tree=_archive_tree, read_verdict=_archive_verdict
+)
+
+
+class CreateProcessingFaultReceivedUseCase:
+    """Answer a received ``Create(ProcessingFault)`` by its failure class.
+
+    Every fault is logged at WARNING, naming its sender, class and failed
+    activity.  The response is then chosen by the fault's class, one
+    :class:`FaultResponse` in :attr:`responses` per class that has an effect:
+
+    - ``LedgerEntryRefused/CaseDiverged`` — at the case's CASE_MANAGER,
+      re-seed the replica with ``Announce(VulnerabilityCase)`` of the current
+      case, rate-bounded per peer, ledgering nothing (SYNC-16-002,
+      SYNC-16-003, SYNC-16-004, SYNC-16-008).
+
+    A class with no entry is only archived, as every received tree archives
+    what arrived (CLP-10-018), and reports ``SKIPPED``: correlating it to the
+    ask it answers is #2883 (:data:`ARCHIVE_ONLY`).  A new class's effect is
+    a new entry; ``execute`` builds and runs exactly one tree whatever the
+    class (CLP-10-005).
+
+    A fault carries no case (ASK-07-006).  When its ``inReplyTo`` names an
+    ``Announce(CaseLedgerEntry)`` this actor sent, the entry that announce
+    carried is read from this store and handed to the response, so the case
+    is the entry's.
+
+    The sender rule is declared once, below, and the receive-tree factory
+    composes it into the tree of every class that has an effect: at the
+    CASE_MANAGER the sender must be an active participant of the case the
+    fault concerns (CM-10-004, SYNC-16-003), and at a participant the fault
+    must come from the CASE_MANAGER (PCR-03-001).  A class that is only
+    archived runs no guard, because nothing it does is gated on a sender's
+    standing.
+    """
+
+    sender_entitlement: ClassVar[SenderRule] = SenderRule.to_case_manager(
+        SenderEntitlementKind.ACTIVE_PARTICIPANT
+    )
+
+    #: The response to each failure class that has an effect.
+    responses: ClassVar[Mapping[str, FaultResponse]] = MappingProxyType(
+        {
+            VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED: FaultResponse(
+                build_tree=_case_diverged_tree, read_verdict=_reseed_verdict
+            ),
+        }
     )
 
     def __init__(
@@ -85,39 +245,60 @@ class CreateProcessingFaultReceivedUseCase:
         trigger_activity: "TriggerActivityPort | None" = None,
     ) -> None:
         self._dl = dl
-        # The received baseline supplies the trigger port to every use case;
-        # this one runs no tree that builds an activity, so it is unused.
-        del trigger_activity
         self._wire_render_port = wire_render_port
         self._sync_port = sync_port
+        self._trigger_activity = trigger_activity
         self._request = request
 
     def execute(self) -> HandlerResult:
         request = self._request
-        tree, result = run_intake_only(
-            self._dl,
-            request,
-            name="CreateProcessingFaultReceivedBT",
-            sync_port=self._sync_port,
-            wire_render_port=self._wire_render_port,
-        )
-        verdict = applied_or_raise(
-            tree, result, label="CreateProcessingFaultReceivedBT"
-        )
-        if verdict.disposition is HandlerDisposition.REFUSED:
-            return verdict  # the case is fully closed (CM-23-013)
         logger.warning(
             "ProcessingFault received from '%s': failed activity '%s'"
-            " (fault: '%s', carried by Create: '%s')",
+            " (failure class: '%s', fault: '%s', carried by Create: '%s')",
             request.actor_id,
             # A fault may omit inReplyTo; say so rather than print 'None'.
             request.failed_activity_id or "<not named: no inReplyTo>",
+            request.failure_class,
             request.fault_id,
             request.activity_id,
         )
-        return HandlerResult.skipped(
-            "ask-register correlation not implemented (#2883)"
+        response = self.responses.get(request.failure_class, ARCHIVE_ONLY)
+        refused_entry = self._refused_entry()
+        tree = response.build_tree(
+            refused_entry, request.actor_id, self.sender_entitlement
         )
+        result = BTBridge(
+            datalayer=self._dl,
+            trigger_activity=self._trigger_activity,
+            wire_render_port=self._wire_render_port,
+            sync_port=self._sync_port,
+        ).execute_with_setup(
+            tree=tree,
+            actor_id=resolve_receiving_actor_id(
+                self._dl, request.receiving_actor_id
+            ),
+            activity=request,
+        )
+        verdict = response.read_verdict(tree, result, self._dl, refused_entry)
+        if verdict.disposition is HandlerDisposition.REFUSED:
+            logger.warning(
+                "ProcessingFault '%s' from '%s' refused: %s",
+                request.fault_id,
+                request.actor_id,
+                verdict.reason,
+            )
+        return verdict
+
+    def _refused_entry(self) -> CaseLedgerEntry | None:
+        """The entry the fault's ``inReplyTo`` announce carried, if this
+        store sent it; read-only."""
+        failed_id = self._request.failed_activity_id
+        if failed_id is None:
+            return None
+        try:
+            return announced_ledger_entry(self._dl, failed_id)
+        except VultronNotFoundError:
+            return None
 
 
 class RefusalNoticeReceivedUseCase:

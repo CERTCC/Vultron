@@ -30,6 +30,8 @@ Submodules:
 - ``position_statement``: the ``Read(CaseLedgerEntry)`` position check and
   the participant's position statements (SYNC-17)
 - ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-002)
+- ``reseed``: the rate-bounded re-seed of a diverged peer with a fresh case
+  copy, and the ERROR for a divergence a re-seed already covered (SYNC-16)
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
 - ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)
 - ``fanout``: Fan-out action nodes; RM.CLOSED participants are skipped
@@ -163,6 +165,10 @@ from vultron.core.behaviors.sync.nodes.replay import (
 from vultron.core.behaviors.sync.nodes.replay_held import (
     ReplayHeldSuccessorNode,
 )
+from vultron.core.behaviors.sync.nodes.reseed import (
+    ReportRepeatDivergenceNode,
+    ReseedPeerNode,
+)
 from vultron.core.behaviors.sync.nodes.role_grant_effect import (
     ApplyCaseParticipantRoleGrantFromLedgerNode,
     IsAcceptCaseParticipantRoleEventNode,
@@ -246,6 +252,9 @@ __all__ = [
     "StateLedgerPositionsNode",
     # replay
     "AnnounceCaseOnGenesisRejectNode",
+    # reseed (SYNC-16)
+    "ReportRepeatDivergenceNode",
+    "ReseedPeerNode",
     "FindCaseActorNode",
     "CollectAndSortCaseLedgerEntriesNode",
     "FindDivergenceIndexNode",

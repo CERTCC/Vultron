@@ -37,7 +37,16 @@ from test.support.ledger_rebuild import (
 )
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
+)
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.behaviors.embargo.copy_commit import (
+    PlannedEmbargoEntry,
+    commit_and_apply_embargo_entries,
+    consent_row_entry,
+)
 from vultron.core.models._helpers import _as_id
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
@@ -46,6 +55,10 @@ from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.dimensions import EmDimension, PxaDimension
+from vultron.core.models.embargo_apply import (
+    ConsentRowChange,
+    ConsentRowVerb,
+)
 from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.participant_status import ParticipantStatus
 from vultron.core.models.use_case_result import HandlerDisposition
@@ -311,6 +324,91 @@ class LedgerNetwork:
             actor=member,
             to=[MANAGER],
         )
+
+    def sealed_bodies(
+        self, sender: str, *, to: str, type_: str, object_type: str
+    ) -> list[dict[str, Any]]:
+        """The sealed bodies of *sender*'s queued *type_* of *object_type*."""
+        bodies = []
+        for activity in self.queued(sender, to=to, type_=type_):
+            body = read_sealed_body_dict(self.stores[sender], activity.id_)
+            if ((body or {}).get("object") or {}).get("type") == object_type:
+                bodies.append(cast(dict[str, Any], body))
+        return bodies
+
+    def record(self, holder: str, actor_id: str) -> CaseParticipant:
+        """*holder*'s copy of *actor_id*'s participant record."""
+        case = self.case(holder)
+        return cast(
+            CaseParticipant,
+            self.stores[holder].read(case.actor_participant_index[actor_id]),
+        )
+
+    def drop_consent_row(self, holder: str, actor_id: str) -> None:
+        """Make *holder*'s copy of *actor_id*'s record lose its consent row.
+
+        A diverged replica: an ``Update`` of that row then has no row to
+        start from, whatever state it carries.
+        """
+        record = self.record(holder, actor_id)
+        record.embargo_consents = [
+            row
+            for row in record.embargo_consents
+            if row.embargo_id != self.initial_embargo_id
+        ]
+        self.stores[holder].save(record)
+
+    def consent_row_change(
+        self, actor_id: str, state: EmbargoConsentState
+    ) -> ConsentRowChange:
+        """An update of *actor_id*'s row for the initial embargo to *state*."""
+        return ConsentRowChange(
+            verb=ConsentRowVerb.UPDATE,
+            row=EmbargoConsent(
+                embargo_id=self.initial_embargo_id,
+                state=state,
+                attributed_to=actor_id,
+            ),
+        )
+
+    def planned_consent_entry(
+        self, change: ConsentRowChange, cause_id: str
+    ) -> PlannedEmbargoEntry:
+        """The CASE_MANAGER's planned entry for *change*, caused by *cause_id*."""
+        dl = self.stores[MANAGER]
+        return consent_row_entry(
+            datalayer=dl,
+            trigger_activity=TriggerActivityAdapter(dl),
+            actor_id=MANAGER,
+            case_id=self.case_id,
+            change=change,
+            cause_id=cause_id,
+            sync_port=SyncActivityAdapter(dl),
+        )
+
+    def diverged_announcement(
+        self, replica: str, member: str, cause_id: str
+    ) -> dict[str, Any]:
+        """The CASE_MANAGER's announce of an entry *replica* diverged from.
+
+        *replica*'s copy of *member*'s record loses its consent row, then the
+        CASE_MANAGER commits *member*'s decline of the embargo: the entry
+        extends *replica*'s chain but does not apply to its case.
+        """
+        self.drop_consent_row(replica, member)
+        change = self.consent_row_change(member, EmbargoConsentState.DECLINED)
+        commit_and_apply_embargo_entries(
+            self.stores[MANAGER],
+            self.case_id,
+            [self.planned_consent_entry(change, cause_id)],
+        )
+        (body,) = self.sealed_bodies(
+            MANAGER,
+            to=replica,
+            type_="Announce",
+            object_type="CaseLedgerEntry",
+        )
+        return body
 
     def case(self, actor_id: str) -> VulnerabilityCase:
         return cast(

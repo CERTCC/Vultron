@@ -365,6 +365,18 @@ same entry forever (ADR-0142).
 - **Never ledger it.** A fault about applying an entry is replication signalling,
   like the gap Reject; the replica that sent it could not apply its entry
   (SYNC-16-002).
+- **Find the case through the refused `Announce`.** The fault carries no case
+  (ASK-07-006); its `inReplyTo` names the `Announce(CaseLedgerEntry)` the
+  CASE_MANAGER stored when it sent it, so `announced_ledger_entry()` reads the
+  entry, and with it the case and index, from there (SYNC-16-003).
+- **One response per failure class.** `CreateProcessingFaultReceivedUseCase`
+  maps each class with an effect to its own method in `responses`; a new class
+  adds an entry, never a branch in `execute()`. Every acting class shares the one
+  declared sender rule (HP-01-007).
+- **Re-seed only through `ReseedPeerNode`.** It holds the CM-10-004 gate, the
+  per-peer cooldown and the record of the copy's position, so any other trigger
+  for a fresh copy (SYNC-18-005) composes it rather than sending its own
+  `Announce(VulnerabilityCase)` (SYNC-16-004).
 - **A case stores the ledger position it is a projection of.** Only
   `store_ledger_entry()` moves it, in the transaction that stores the entry, on
   every commit and replica store. A node that saves or snapshots a case it read

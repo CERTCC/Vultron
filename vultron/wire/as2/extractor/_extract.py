@@ -40,6 +40,7 @@ from vultron.wire.as2.extractor._builders import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
+from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
 
 logger = logging.getLogger(__name__)
 
@@ -168,13 +169,7 @@ def extract_intent(
             )
         extra_kwargs["proposer_case_roles"] = list(obj.proposer_case_roles)
 
-    if "failed_activity_id" in event_class.model_fields:
-        # Create(ProcessingFault): the fault object's inReplyTo names the
-        # activity that failed (ASK-07-004).  Extracted here at the parse edge
-        # so core never reads the wire object for it (ADR-0032, ADR-0035).
-        extra_kwargs["failed_activity_id"] = _get_id(
-            getattr(obj, "in_reply_to", None)
-        )
+    extra_kwargs.update(_fault_kwargs(activity, obj, event_class))
 
     return cast(
         AnyReceivedEvent,
@@ -199,6 +194,38 @@ def extract_intent(
             **extra_kwargs,
         ),
     )
+
+
+def _fault_kwargs(
+    activity: as_Activity, obj: object, event_class: type[VultronEvent]
+) -> dict[str, object]:
+    """The fault fields a ``Create(ProcessingFault)`` event carries.
+
+    Empty for every other event class.
+    """
+    fields = event_class.model_fields
+    extra_kwargs: dict[str, object] = {}
+    if "failed_activity_id" in fields:
+        # Create(ProcessingFault): the fault object's inReplyTo names the
+        # activity that failed (ASK-07-004).  Extracted here at the parse edge
+        # so core never reads the wire object for it (ADR-0032, ADR-0035).
+        extra_kwargs["failed_activity_id"] = _get_id(
+            getattr(obj, "in_reply_to", None)
+        )
+    if "failure_class" in fields:
+        # The receiver's response depends on the fault's class (ASK-07-005,
+        # SYNC-16-003), so it is carried to core here.  The pattern matches
+        # only an inline ProcessingFault, whose failureClass is required; any
+        # other object is refused rather than read as a fault of no class
+        # (ADR-0032).
+        if not isinstance(obj, as_ProcessingFault):
+            raise VultronParseValidationError(
+                f"Create(ProcessingFault) {activity.id_!r} carries no parsed"
+                f" ProcessingFault (got {type(obj).__name__}); its"
+                " failureClass cannot be read (ASK-07-005)"
+            )
+        extra_kwargs["failure_class"] = obj.failure_class
+    return extra_kwargs
 
 
 def _activity_end_time(activity: object) -> datetime | None:

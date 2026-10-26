@@ -1117,7 +1117,7 @@ groups:
     when: a Participant has received a message it cannot process
     send: Create(ProcessingFault)
     send_to: the case manager
-    sent_by: not yet checked
+    sent_by: an active participant
     semantics: create_processing_fault
     status: evolved
     description: Tells the sender that its message was received but not understood, or understood
