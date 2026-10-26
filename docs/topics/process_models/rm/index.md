@@ -42,7 +42,7 @@ Three other pages cover the rest of the RM model:
 
 The RM model describes a report lifecycle of seven states: *Start*, *Received*, *Invalid*, *Valid*, *Accepted*, *Deferred*, and *Closed*.
 The diagram below shows all seven states and the transitions between them.
-The key beside it gives each state's shorthand, the capital letter in its name, which this and other pages use.
+The table with it gives each state's shorthand, the capital letter in its name, which this and other pages use.
 
 <div class="grid two-col" markdown>
 

@@ -648,7 +648,6 @@ def test_section_is_anchored_by_the_occasion_id(table):
     assert "print(json2md(add_fix_readiness_to_participant()))" in section
 
 
-@pytest.mark.spec("MSM-08-004")
 def test_section_puts_facts_and_example_in_tabs_below_its_heading(table):
     _, row = _rows(table)["fix-readiness"]
     head, details, example = gen.render_section(row).split("\n\n=== ")
