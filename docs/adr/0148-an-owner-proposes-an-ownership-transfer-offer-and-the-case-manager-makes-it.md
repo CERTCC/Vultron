@@ -2,12 +2,13 @@
 status: proposed
 date: 2026-10-20
 created: 2026-10-20
-updated: 2026-10-20
-revision: 1
+updated: 2026-10-26
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0039, ADR-0053, ADR-0109, ADR-0113;
-  notes/ownership-transfer.md, notes/datalayer-design.md; issue #4911
+  ADR-0114; notes/ownership-transfer.md, notes/datalayer-design.md;
+  issues #4911, #5186, #5189
 informed: []
 stakeholder_type: [project-contributor]
 partially_supersedes:
@@ -32,6 +33,13 @@ There are then two Offers for one transfer, and three things follow:
 
 How should the owner's request and the Offer the transferee answers relate, so that a transfer has exactly one Offer?
 
+Revision 2 adds a second question.
+The check revision 1 named on the transferee was only that it is an actor the CASE_MANAGER can address, neither the CASE_MANAGER nor the proposer, and that leaves two gaps.
+The Offer carries the case inline, with its active embargo, its participant records and its reports, so an actor outside the case is sent embargoed case content just by being offered the case, which the entitlement rule forbids (CM-10-004, ADR-0114).
+And an actor with no participant record cannot be granted `CASE_OWNER`, since that role lives on the participant record (CM-21-002), so an accepted transfer to such an actor leaves the case with no owner.
+
+Who may be offered ownership of a case?
+
 ## Decision Drivers
 
 - One transfer, one Offer: the Offer that is ledgered, answered, closed and expired is the same activity.
@@ -39,6 +47,9 @@ How should the owner's request and the Offer the transferee answers relate, so t
 - The owner's request and the CASE_MANAGER's Offer are told apart by their shape, not by who sent them (ADR-0039).
 - The same propose-then-execute shape the case invitation and the embargo relay already use (ADR-0109, ADR-0113).
 - No new vocabulary type where the ActivityStreams vocabulary already says it.
+- No actor receives case content before it is entitled to it, and while an embargo is active that means agreeing to the embargo first (CM-10-004).
+- A transfer must end with exactly one participant holding `CASE_OWNER` (CM-21-001).
+- Taking over a case requires the embargo negotiation that joining it requires, so the transfer should not run a second path around it.
 
 ## Considered Options
 
@@ -47,24 +58,38 @@ How should the owner's request and the Offer the transferee answers relate, so t
 - **C. A dedicated proposal object.** The owner offers a new ownership-transfer-proposal object to the CASE_MANAGER, which emits the Offer.
 - **D. The owner offers the Offer.** The owner sends `Offer(Offer(VulnerabilityCase))` to the CASE_MANAGER; the inner Offer is the template, and the CASE_MANAGER emits its own `Offer(VulnerabilityCase)` from it.
 
+For who may be offered ownership (revision 2):
+
+- **T1. Any actor the CASE_MANAGER can address.** The rule as revision 1 wrote it.
+- **T2. Any listed participant.** The transferee must have a participant record on the case, whether or not it has joined.
+- **T3. A listed participant, offered without case content.** As T2, with the Offer carrying the case by reference only, so an invitee that has not joined can be offered the case.
+- **T4. An active participant.** The transferee must be an active participant (CM-10-004) both when the owner proposes the transfer and when the transferee accepts it.
+
 ## Decision Outcome
 
 Chosen option: **D. The owner offers the Offer**, because it is the only option with one Offer per transfer, authored by the CASE_MANAGER under its own id, whose request is told apart from the Offer by shape without a new type.
 
+For who may be offered ownership, chosen option: **T4. An active participant**, because it is the only option under which the Offer's case content goes only to an actor already entitled to it, and it reuses the entitlement rule the protocol already has rather than adding a new one (revision 2).
+
 An actor that works through the CASE_MANAGER proposes, and the CASE_MANAGER executes the act under its own identity, with `attributedTo` the proposer.
 For ownership transfer:
 
+0. **The owner invites first.**
+   To hand a case to an actor not yet in it, the owner invites that actor, and offers the case once the actor has joined and agreed to any active embargo.
 1. **The owner proposes.**
    The Case Owner sends `Offer(Offer(VulnerabilityCase))` to the CASE_MANAGER.
    The inner Offer carries what the owner decides: the case as its object, the transferee as its `target`, and the optional answer deadline as its `endTime` (CM-21-016).
 2. **The CASE_MANAGER makes the Offer.**
    It admits the proposal only from the Case Owner and only while no other Offer for the case is open (CM-21-014, CM-21-019).
-   It validates the inner Offer rather than copying it: the object is this case and the target is an actor it can address.
+   It validates the inner Offer rather than copying it: the object is this case and the target is an actor it can address and an active participant of the case, other than itself and the proposer (CM-21-021).
+   Otherwise it refuses the proposal, makes no Offer and commits no ledger entry.
    It mints its own id for the `Offer(VulnerabilityCase)` it emits, sets `actor` to itself and `attributedTo` to the owner, and ignores any id, `actor` or `to` the owner put inside.
    That emitted Offer is the one the ledger records.
 3. **The transferee answers that Offer.**
    Its `Accept` or `Reject` names the CASE_MANAGER's Offer by its id, and the open-Offer check reads that id.
    No back-link is resolved.
+   A transferee can stop being active between the Offer and its answer: it can be removed, or lapse when an embargo revision it has not agreed to comes into force.
+   So the CASE_MANAGER admits an `Accept` only if the transferee is still an active participant, and otherwise refuses it with no role change (CM-21-021).
 4. **The owner withdraws its proposal.**
    The owner sends `Undo` of its own proposal; the CASE_MANAGER withdraws the Offer it made from it and ledgers the withdrawal (CM-21-015).
    The owner needs nothing it learned from the ledger to withdraw.
@@ -77,6 +102,9 @@ For ownership transfer:
 - Good, because ownership transfer joins the propose-then-execute shape of the case invitation and the embargo relay.
 - Bad, because the wire flow changes for an existing message: the owner's message gains a nesting level, and its pattern, extractor branch, trigger and received use case change with it.
 - Bad, because the CASE_MANAGER must validate a nested activity it will not send as is, a check the forward did not need.
+- Good, because the Offer carries case content only to an actor entitled to it, and the transferee always has a participant record, so an accepted transfer always ends with one `CASE_OWNER` (T4).
+- Good, because the embargo negotiation happens once, through the invitation, before ownership is offered (T4).
+- Bad, because handing a case to an actor outside it takes two steps, an invitation and then an Offer (T4).
 - Neutral, because the CASE_MANAGER's Offer keeps `actor` and `attributedTo` as CM-24-001 and CM-24-002 require; only its origin changes from a forward to an act.
 
 ## Validation
@@ -86,6 +114,8 @@ For ownership transfer:
 - A test sends an inner Offer naming another case, or an inner id that collides with a stored object, and asserts the CASE_MANAGER refuses it or ignores the id.
 - A test sends the proposal from a participant that is not the Case Owner, and another while an Offer for the case is open, and asserts each is refused with no ledger commit and no outbound Offer (CM-21-019, CM-21-014).
 - A test sends the owner's `Undo` of its proposal and asserts the CASE_MANAGER ledgers the withdrawal of the Offer it made from it, which closes that Offer (CM-21-015).
+- A test delivers a proposal naming an actor off the roster, an invitee that has not joined, a removed participant and a participant that is not a signatory to the active embargo, and asserts each is refused with no ledger entry and no Offer made (CM-21-021).
+- A test lets the transferee stop being active between the Offer and its `Accept`, and asserts the `Accept` is refused with no role change, and a test asserts that no admitted `Accept` leaves the case with no participant holding `CASE_OWNER` (CM-21-021).
 - An architecture test or grep asserts `VultronOwnershipTransferOfferRecord` no longer exists.
 
 ## Pros and Cons of the Options
@@ -112,8 +142,31 @@ For ownership transfer:
 - Good, because it needs no new type.
 - Bad, because the CASE_MANAGER must validate the nested template.
 
+### T1. Any actor the CASE_MANAGER can address
+
+- Good, because an owner can hand a case to anyone in one step.
+- Bad, because the Offer sends the embargo, the reports and the participant list to an actor that has agreed to nothing.
+- Bad, because an actor with no participant record cannot hold `CASE_OWNER`, so an accepted transfer leaves the case with no owner.
+
+### T2. Any listed participant
+
+- Good, because the transferee has a participant record, so the role can always be granted.
+- Bad, because an invitee that has not joined is not entitled to case content, and the Offer still sends it the whole case.
+
+### T3. A listed participant, offered without case content
+
+- Good, because an invitee could be offered the case before it joins without seeing case content.
+- Bad, because the transfer and the embargo negotiation then run in parallel, and an accepted Offer from an actor that later declines the embargo has to be reconciled.
+- Bad, because it changes the Offer's shape option D settles, for a step the invitation already provides.
+
+### T4. An active participant (chosen)
+
+- Good, because it uses the existing entitlement rule (CM-10-004) and closes both gaps.
+- Bad, because it adds a step for a transferee outside the case.
+
 ## More Information
 
 This record partially supersedes ADR-0053: the routing of the Offer and its answers through the CASE_MANAGER stands, and the forward of the owner's Offer is replaced by the CASE_MANAGER's own Offer.
 The requirements that change with it are CM-21-005 (the forward), CM-21-014 (the open-Offer gate, now applied to the proposal), CM-21-015 (the withdrawal, now an `Undo` of the proposal), CM-21-016 (the deadline, now carried on the inner Offer), CM-21-018 (the back-link, retired) and CM-21-019 (sender standing for the proposal and for the Offer at the transferee); each is amended in the implementation change that makes the code match.
 The same shape for the case proposal, `Offer(Create(VulnerabilityCase))` in place of `Offer(CaseProposal)`, is not decided here; it is captured for later consideration in #4936.
+Revision 2 (#5186) adds the transferee rule, CM-21-021, and the active-participant condition in CM-21-005; #5189 builds it.
