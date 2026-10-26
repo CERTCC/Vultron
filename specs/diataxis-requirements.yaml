@@ -901,23 +901,23 @@ groups:
       Every page that is a member of a thread, and every start page, MUST show one box
       per thread it is on, titled by the reader's situation rather than by
       `stakeholder_type` (DF-11-009), naming the stage the page belongs to (a start
-      page's box names none) and holding a table with the columns start, previous, current and next. Each cell MUST be a
-      list: start holds the thread's start page, previous the set of thread pages
-      immediately before the page, current the page itself as text and not a link, and
-      next the set immediately after it; an empty set is shown as `---`. On a start
-      page, start and current are the start page as text, previous is `---`, and next
-      is the first stage's entry pages. The set before a member page is the preceding
-      member of its chain, or else the previous stage's exit pages; the set after it is
-      the next member of its chain, or else the next stage's entry pages. A set stage's
-      entry and exit pages are all its members; a chain's entry page is its first
-      member and its exit page its last. The rendered page MUST be the same for every
-      reader.
+      page's box names none) and holding a table with the columns start, previous,
+      current and next. Each cell MUST be a list: start holds the thread's start page,
+      previous the set of thread pages immediately before the page, current the page
+      itself as text and not a link, and next the set immediately after it; an empty set
+      is shown as `---`. On a start page, start and current are the start page as text,
+      previous is `---`, and next is the first stage's entry pages. The set before a
+      member page is the preceding member of its chain, or else the previous stage's
+      exit pages; the set after it is the next member of its chain, or else the next
+      stage's entry pages. A set stage's entry and exit pages are all its members; a
+      chain's entry page is its first member and its exit page its last. The rendered
+      page MUST be the same for every reader.
     rationale: >-
       A reader who followed a thread into a page needs directions onward without being
-      forced down one next page, so predecessors and successors are sets. The start column
-      gives a deep-linked reader the way back, and the same table on the start page
-      shows the first step. A page on several threads shows each, so it never needs to
-      know which thread a reader is on: no query parameter, script or referrer is
+      forced down one next page, so predecessors and successors are sets. The start
+      column gives a deep-linked reader the way back, and the same table on the start
+      page shows the first step. A page on several threads shows each, so it never needs
+      to know which thread a reader is on: no query parameter, script or referrer is
       involved, the page renders the same on a deep link, and it still stands alone
       (DF-11-007).
     verification: >-
