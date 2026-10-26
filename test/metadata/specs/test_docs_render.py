@@ -21,6 +21,7 @@ from vultron.metadata.docs.requirement_catalog import (
     FULL_PAGE,
     CatalogPage,
     NotInCatalogError,
+    kind_page,
 )
 from vultron.metadata.docs.site_urls import url_path
 from vultron.metadata.specs.docs_render import (
@@ -1084,27 +1085,54 @@ def test_callout_refuses_a_repeated_id(catalog_registry):
 
 
 _DOCS = Path(__file__).resolve().parents[3] / "docs"
-_CALLOUT_LINE_RE = re.compile(
-    r"^\s*.*\brequirement_callout\(.*$", re.MULTILINE
+_EXEC_FENCE_RE = re.compile(
+    r'^(?P<indent>\s*)(?P<fence>`{3,}|~{3,})python\b[^\n]*\bexec="true"'
 )
 _INCLUDE_RE = re.compile(r'\{%\s*include-markdown\s+"([^"]+)"')
 _CALLOUT_LINK_RE = re.compile(r"\]\((?P<href>[^)\s]+)\)")
 
 
-def _callout_ids(line: str) -> list[list[str]]:
-    """Return the positional ID arguments of each callout call on *line*."""
+def _exec_blocks(text: str) -> list[str]:
+    """Return the code of each ``markdown-exec`` Python block in *text*.
+
+    Only an exec block prints a callout, so prose or a plain code fence that
+    names the helper is not one, and a block may spread a call over several
+    lines.
+    """
+    blocks: list[str] = []
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        opener = _EXEC_FENCE_RE.match(lines[i])
+        i += 1
+        if opener is None:
+            continue
+        fence, indent = opener.group("fence"), len(opener.group("indent"))
+        body: list[str] = []
+        while i < len(lines) and not (
+            lines[i].strip().startswith(fence[0] * len(fence))
+            and set(lines[i].strip()) == {fence[0]}
+        ):
+            body.append(lines[i][indent:])
+            i += 1
+        i += 1
+        blocks.append("\n".join(body))
+    return blocks
+
+
+def _callout_ids(code: str) -> list[list[str]]:
+    """Return the positional ID arguments of each callout call in *code*."""
     calls = [
         node
-        for node in ast.walk(ast.parse(line.strip()))
+        for node in ast.walk(ast.parse(code))
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
         and node.func.id == "requirement_callout"
     ]
-    assert calls, line
     found: list[list[str]] = []
     for call in calls:
         ids = [a.value for a in call.args if isinstance(a, ast.Constant)]
-        assert len(ids) == len(call.args), f"non-literal callout ID in {line}"
+        assert len(ids) == len(call.args), f"non-literal callout ID in {code}"
         found.append([str(i) for i in ids])
     return found
 
@@ -1170,9 +1198,7 @@ def test_docs_callouts_link_existing_rows():
     """
     registry = load_registry()
     target_ids = {
-        f"reference/specs/{kind.value}.md": anchor_ids_in(
-            render_for_kind(kind.value, registry)
-        )
+        kind_page(kind): anchor_ids_in(render_for_kind(kind.value, registry))
         for kind in SpecKind
     }
     target_ids.update(
@@ -1189,13 +1215,12 @@ def test_docs_callouts_link_existing_rows():
     for source in sorted(_DOCS.rglob("*.md")):
         path = source.relative_to(_DOCS).as_posix()
         text = source.read_text(encoding="utf-8")
-        for line in _CALLOUT_LINE_RE.findall(text):
-            if "import requirement_callout" not in line:
-                continue  # prose that names the helper, not a callout
-            assert hosts.get(path), (
+        for code in _exec_blocks(text):
+            callouts = _callout_ids(code)
+            assert not callouts or hosts.get(path), (
                 f"docs/{path}: no page renders this callout"
             )
-            for ids in _callout_ids(line):
+            for ids in callouts:
                 for page in sorted(hosts[path]):
                     rendered += 1
                     dangling.extend(
@@ -1230,6 +1255,36 @@ def test_callout_ids_reads_positional_literals_only():
         'print(requirement_callout("VM-10-001", "ID-01-001", title="Context"))'
     )
     assert _callout_ids(line) == [["VM-10-001", "ID-01-001"]]
+
+
+def test_exec_blocks_find_callouts_only_where_they_print():
+    """A callout spread over lines, or nested in an admonition, is read;
+    prose and a plain code fence that name the helper are not callouts."""
+    text = "\n".join(
+        [
+            'Use `requirement_callout("X-01-001")` to show a rule.',
+            "",
+            "```python",
+            'requirement_callout("X-02-001")',
+            "```",
+            "",
+            '```python exec="true" idprefix=""',
+            "from vultron.metadata.specs.docs_render import (",
+            "    requirement_callout,",
+            ")",
+            "",
+            'print(requirement_callout("VM-10-001"))',
+            "```",
+            "",
+            '!!! note "Nested"',
+            "",
+            '    ````python exec="true"',
+            '    print(requirement_callout("ID-01-001", "SYNC-03-003"))',
+            "    ````",
+        ]
+    )
+    found = [ids for code in _exec_blocks(text) for ids in _callout_ids(code)]
+    assert found == [["VM-10-001"], ["ID-01-001", "SYNC-03-003"]]
 
 
 def test_renderers_default_to_the_repository_registry(monkeypatch):
