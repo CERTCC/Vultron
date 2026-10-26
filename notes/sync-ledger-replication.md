@@ -91,8 +91,11 @@ everything after the last hash a participant reports.
 - **A held-back send fails its node, and an act around it keeps nothing.** The
   sending node returns `FAILURE` (BT-14-001). The `Reject` and `Read` replays commit
   nothing, so the entries queued before the broken one stay queued. A fan-out or
-  backfill inside an act's transaction fails the act whole (CLP-07-015): while an
-  entry stays broken, an Accept whose join backfill reaches it cannot commit.
+  backfill inside an act's transaction fails the act whole (CLP-07-015). While an
+  entry stays broken, an Accept whose join backfill reaches it cannot commit. A
+  held-back backfill keeps the peer's pause, so once an admitted, paused peer's
+  backfill reaches the entry, every later commit's fan-out fails the same way
+  and the case commits nothing more until the entry is repaired.
 - **A hash refusal is reported, not recovered.** The replica sends
   `LedgerEntryRefused/HashMismatch`; the CASE_MANAGER logs it at ERROR and checks its
   own copy, and does nothing else. Replay and re-seed resend the same content, so

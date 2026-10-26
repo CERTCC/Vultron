@@ -1585,6 +1585,9 @@ class TestInviteActorUseCases:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
+        print(
+            "DISPOSITION", result.disposition, repr(result), dl.outbox_list()
+        )
         assert result.disposition is not HandlerDisposition.APPLIED, result
         sent_to_invitee = [
             call.kwargs["entry"].log_index

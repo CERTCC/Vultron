@@ -37,6 +37,7 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import (
+    LedgerSuffixSend,
     clear_embargo_pause,
     closed_peer_cutoff,
     peer_is_inactive_joined,
@@ -284,7 +285,8 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
     The replay stops at the first entry whose hash does not verify
     (SYNC-03-009): the entries before it are queued, it and every later one
     are not, and the node returns ``FAILURE`` (BT-14-001).  The cooldown
-    still records a replay that queued at least one entry (SYNC-15-011).
+    still records a replay that queued at least one entry (SYNC-15-011), and
+    a recorded pause stays, since the suffix was not all sent.
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -421,7 +423,7 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
         # The sync port declines to queue a row it already holds for this
         # peer and says so, so only rows actually queued count as sent
         # (SYNC-15-011, #3602).
-        replayed, skipped, held_back = send_ledger_suffix(
+        sent = send_ledger_suffix(
             self._sync_port,
             entries,
             after_index=from_index,
@@ -429,17 +431,34 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             peer_id=peer_id,
             through_index=cutoff,
         )
+        return self._record_replay_outcome(
+            sent, case_id=case_id, peer_id=peer_id, from_hash=from_hash
+        )
+
+    def _record_replay_outcome(
+        self,
+        sent: LedgerSuffixSend,
+        *,
+        case_id: str,
+        peer_id: str,
+        from_hash: str,
+    ) -> Status:
+        """Update the pause and the cooldown for a replay, and report it."""
+        datalayer = cast(CasePersistence, self.datalayer)
         # An admitted peer's replay ends any pause. A suffix past the paused
         # index needs no resend either: the Reject reports a contiguous prefix
         # through from_index (SYNC-10-004), so the replica already holds every
-        # entry withheld below it.
-        clear_embargo_pause(datalayer, case_id=case_id, peer_id=peer_id)
+        # entry withheld below it.  A replay held back at a broken entry
+        # (SYNC-03-009) has not sent the suffix, so the pause stays, as it
+        # does for a held-back admission backfill.
+        if sent.held_back is None:
+            clear_embargo_pause(datalayer, case_id=case_id, peer_id=peer_id)
 
         # Record the position only when entries actually went out; a
         # zero-entry replay must not start a cooldown (SYNC-15-003).
-        if replayed:
+        if sent.sent:
             record_replay(
-                cast(CasePersistence, self.datalayer),
+                datalayer,
                 case_id=case_id,
                 peer_id=peer_id,
                 from_hash=from_hash,
@@ -449,16 +468,16 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
             "%s: replayed %d entries to peer '%s' for case '%s'"
             " (%d already pending in outbox, not re-queued — SYNC-15-012)",
             self.name,
-            replayed,
+            sent.sent,
             peer_id,
             case_id,
-            skipped,
+            sent.already_pending,
         )
-        if held_back is not None:
+        if sent.held_back is not None:
             # SYNC-03-009, BT-14-001: the replay stopped at an entry that
             # does not verify, so it is not reported as delivered.
             # send_ledger_suffix already logged the hold-back at ERROR.
-            self.feedback_message = str(held_back)
+            self.feedback_message = str(sent.held_back)
             return Status.FAILURE
         return Status.SUCCESS
 

@@ -43,7 +43,11 @@ active — the active embargo withholds it, or it was removed (CM-31-001) — ha
 its stream paused (``inactive_joined_participants``).
 
 Helpers here raise on a broken invariant and never return ``None`` in place of
-a failure (BT-HELPER-01).
+a failure (BT-HELPER-01).  :func:`send_ledger_suffix` is the one that reports
+a hold-back in its result instead (``LedgerSuffixSend.held_back``): the
+entries queued before the broken one stay queued, and a replay needs their
+count to record its cooldown (SYNC-15-011), so the result carries both.
+Every caller turns a ``held_back`` into ``FAILURE`` or a raise.
 """
 
 from __future__ import annotations
@@ -130,7 +134,8 @@ def send_ledger_suffix(
             )
         except VultronUnverifiedLedgerEntryError as exc:
             logger.error(  # noqa: TRY400 -- the hold-back is the report, no trace
-                "ledger send to '%s' stopped after %d entries: %s",
+                "'%s' stopped its ledger send to '%s' after %d entries: %s",
+                actor_id,
                 peer_id,
                 sent,
                 exc,

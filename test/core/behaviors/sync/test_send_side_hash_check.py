@@ -20,12 +20,12 @@ own test in ``nodes/test_send_side_hash_check_sites.py``.
 """
 
 import logging
-from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import cast
 
 import pytest
 
+from test.support.broken_ledger_entry import BreakEntry, broken_entries
 from vultron.core.behaviors.sync.nodes.embargo_pause import send_ledger_suffix
 from vultron.core.behaviors.sync.nodes.verified_send import (
     send_verified_log_entry,
@@ -75,22 +75,10 @@ def _chain(length: int) -> list[CaseLedgerEntry]:
     return entries
 
 
-def _tampered(entry: CaseLedgerEntry) -> CaseLedgerEntry:
-    """Content no longer reproduces the stated hash."""
-    return entry.model_copy(
-        update={"payload_snapshot": {"log_index": "tampered"}}
-    )
-
-
-def _hashless(entry: CaseLedgerEntry) -> CaseLedgerEntry:
-    """The entry states no hash, so there is nothing to check."""
-    return entry.model_copy(update={"entry_hash": ""})
-
-
 @pytest.mark.spec("SYNC-03-009")
-@pytest.mark.parametrize("break_entry", [_tampered, _hashless])
+@broken_entries
 def test_replay_stops_at_an_entry_that_does_not_verify(
-    break_entry: Callable[[CaseLedgerEntry], CaseLedgerEntry],
+    break_entry: BreakEntry,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Entries before the broken one go out; it and everything after do not."""
@@ -135,9 +123,9 @@ def test_an_intact_suffix_is_sent_unchanged() -> None:
 
 
 @pytest.mark.spec("SYNC-03-009")
-@pytest.mark.parametrize("break_entry", [_tampered, _hashless])
+@broken_entries
 def test_the_verified_send_raises_and_queues_nothing(
-    break_entry: Callable[[CaseLedgerEntry], CaseLedgerEntry],
+    break_entry: BreakEntry,
 ) -> None:
     """The error names the case, the entry, its log_index and the recipients."""
     entry = break_entry(_chain(1)[0])
