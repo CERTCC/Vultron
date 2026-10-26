@@ -221,6 +221,7 @@ as the recovery signal. (SYNC-03-001, SYNC-08-005)
 Before that check, a receiver MUST recompute the entry's hash from its content and compare it with the stated `entry_hash`.
 An entry that states no hash, or whose content does not reproduce it, MUST be refused and logged, and is not buffered, applied or stored.
 It is not answered with `Reject(CaseLedgerEntry)`, because a replay would resend the same entry. (SYNC-03-006)
+The receiver MUST instead send `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` to the CASE_MANAGER, naming the refused `Announce(CaseLedgerEntry)` by reference, and the fault's id is derived from that `Announce` and the failure class. (SYNC-03-007)
 
 ### 5.2 Sender Retry
 
@@ -270,7 +271,7 @@ while still preventing amplification.
 ### 5.5 Divergence Recovery
 
 A participant can refuse an entry whose predecessor it already holds, because the entry's starting state does not match its case.
-An entry whose content is invalid in itself, such as an impossible participant status, takes its own fault instead (RSH-09-006).
+An entry whose content is invalid in itself takes its own fault instead: an impossible participant status takes `StatusAssertionRefused/ImpossibleState` (RSH-09-006), and an entry whose content does not reproduce its hash takes `LedgerEntryRefused/HashMismatch` (SYNC-03-007).
 No replay fills that gap: the participant's case has diverged from the CASE_MANAGER's, and a replay resends the same refused entry.
 
 - The participant MUST send `Create(ProcessingFault)` with failure class `LedgerEntryRefused/CaseDiverged` to the CASE_MANAGER, and MUST keep holding the refused entry. (SYNC-16-001)

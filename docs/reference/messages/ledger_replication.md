@@ -27,6 +27,7 @@ For the acknowledgment semantics see
    `Announce(CaseLedgerEntry)` → each participant.
 2. A participant first recomputes the entry's hash from its content.
    An entry that does not reproduce its `entry_hash` is refused and logged, with no `Reject` (SYNC-03-006, CLP-04-008).
+   The participant sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead (SYNC-03-007).
 3. A participant whose local `prev_log_hash` matches the incoming entry's
    `prev_log_hash` silently accepts — hash-chain continuity is the implicit
    positive acknowledgment (MSM-05-002).
@@ -43,6 +44,8 @@ An embargo act's entry carries its whole step on the embargo register: a termina
 Each consent row the CASE_MANAGER changes as a consequence of an act is its own CASE_MANAGER `Create(EmbargoConsent)` or `Update(EmbargoConsent)` entry after the act's entry, and a replica copies that row rather than deciding the change itself (CLP-07-013, EP-09-007).
 The same holds for participants: an act that moves a participant's RM state, such as a report verdict, an engagement decision or a Leave, is followed by an `add_participant_status_to_participant` entry for each status the CASE_MANAGER wrote, and a record the CASE_MANAGER creates is its own `Create(CaseParticipant)` entry; a replica copies each, ids and times included (CLP-07-013, CM-23-016).
 An embargo or consent entry whose starting state does not match the replica's case is not patched over: the `Announce` that carried it is held as a `HeldLedgerAnnounce`.
+When the entry extends the replica's chain and the case is not already past it, the replica's case has diverged, and the replica sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/CaseDiverged` (SYNC-16-001).
+Neither fault is committed to a case ledger, by the replica or by the CASE_MANAGER (SYNC-16-002).
 
 ## Occasions
 

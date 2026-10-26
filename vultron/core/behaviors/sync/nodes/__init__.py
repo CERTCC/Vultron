@@ -33,6 +33,8 @@ Submodules:
 - ``fanout``: Fan-out action nodes; RM.CLOSED participants are skipped
   except for the entries recording their own closure (CM-23-004)
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
+- ``ledger_entry_fault``: the replica's ``Create(ProcessingFault)`` about a
+  refused ledger entry, sent to the CASE_MANAGER and never ledgered (SYNC-16-002)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, copying
   the status the entry carries (CM-23-016)
 - ``offer_report_effect``, ``ownership_effects``,
@@ -102,6 +104,9 @@ from vultron.core.behaviors.sync.nodes.genesis_announce import (
 )
 from vultron.core.behaviors.sync.nodes.ledger_authority import (
     DeclineForeignLedgerCommitNode,
+)
+from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
+    EmitLedgerEntryFaultNode,
 )
 from vultron.core.behaviors.sync.nodes.note_effect import (
     ApplyNoteFromLedgerNode,
@@ -193,6 +198,8 @@ __all__ = [
     "ApplyCaseParticipantUpdateFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",
     "ApplyInviteRejectFromLedgerNode",
+    # ledger_entry_fault (RSH-09-006, SYNC-03-007, SYNC-16-001)
+    "EmitLedgerEntryFaultNode",
     # participant_status_effect
     "ApplyParticipantStatusFromLedgerNode",
     "EmitImpossibleStateFaultNode",
