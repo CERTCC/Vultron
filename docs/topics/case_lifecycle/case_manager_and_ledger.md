@@ -9,7 +9,7 @@ introduces: [CASE_MANAGER, Case Ledger Entry, Ledger Admission, Participant Case
 
 # The CASE_MANAGER and the Case Ledger
 
-A vulnerability case is coordinated by organizations that do not share a database.
+Organizations that do not share a database coordinate a vulnerability case.
 Each one keeps its own copy of the case.
 This page explains who is allowed to change the case, where the authoritative history of the case lives, and how every participant's copy is kept up to date.
 
@@ -29,15 +29,20 @@ Knowledge travels only in messages — see the [Actor Knowledge Model](../actor-
 
 One peer is different.
 Whichever participant holds the `CASE_MANAGER` role is the case's **single-writer authority** — the **CASE_MANAGER**.
-It keeps the **case ledger**: the append-only history that is authoritative for the case, and it is the only peer that appends to that history ([CLP-01-003](../../reference/specs/protocol.md#clp-01-003)).
-In the prototype this authority is enacted by a dedicated service actor (the **Case Actor**), but the authority derives from the role, never from that actor's name or URL ([ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
+
+It keeps the **case ledger**: the append-only history that is authoritative for the case.
+It is the only peer that appends to that history ([CLP-01-003](../../reference/specs/protocol.md#clp-01-003)).
+In the prototype, a dedicated service actor (the **Case Actor**) acts as this authority.
+But the authority comes from the role, never from that actor's name or URL ([ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
 
 The flow of a change is always the same:
 
 1. A participant sends the CASE_MANAGER an assertion — *I accept the embargo*, *my report is now validated*, *here is a note*.
 2. The CASE_MANAGER judges the assertion.
    If it admits the assertion, it appends an entry recording it.
-   Each change the act causes beyond what the assertion itself states then follows as its own CASE_MANAGER-authored entry, carrying the changed record in full: a participant's new RM status after *my report is now validated*, for example ([CLP-07-013](../../reference/specs/protocol.md#clp-07-013)).
+   The act can cause changes beyond what the assertion itself states.
+   Each such change then follows as its own CASE_MANAGER-authored entry, carrying the changed record in full.
+   An example is a participant's new RM status after *my report is now validated* ([CLP-07-013](../../reference/specs/protocol.md#clp-07-013)).
    If it refuses the assertion, it appends nothing and records the refusal in its structured logs instead.
 3. The CASE_MANAGER sends each new entry to every participant as `Announce(CaseLedgerEntry)`.
 4. Each participant records each entry and copies what it carries into its own replica, ids and times included, deriving nothing of its own ([CM-23-016](../../reference/specs/protocol.md#cm-23-016)).
@@ -72,7 +77,13 @@ The hash chain is computed over the same entries ([CLP-04-003](../../reference/s
 Each entry names the entry before it as its predecessor, with nothing in between.
 
 Each entry — a **Case Ledger Entry** — is immutable once written ([SYNC-01-001](../../reference/specs/protocol.md#sync-01-001)).
-It carries its position in the case history, the time the CASE_MANAGER recorded it, a copy of the assertion it records, and two hashes: one of its own content and one of the entry before it ([SYNC-01-002](../../reference/specs/protocol.md#sync-01-002), [SYNC-01-003](../../reference/specs/protocol.md#sync-01-003)).
+It carries these fields ([SYNC-01-002](../../reference/specs/protocol.md#sync-01-002), [SYNC-01-003](../../reference/specs/protocol.md#sync-01-003)):
+
+- its position in the case history
+- the time the CASE_MANAGER recorded it
+- a copy of the assertion it records
+- two hashes: one of its own content and one of the entry before it
+
 The hashes link the entries into a chain, so a participant can tell whether a new entry belongs at the end of the history it already holds.
 
 ---
@@ -92,6 +103,7 @@ An active embargo is the one exception to sending every entry at once.
 The ledger is case content, so the CASE_MANAGER sends no entry to a participant that has not accepted the active embargo ([CM-10-004](../../reference/specs/protocol.md#cm-10-004), [CM-10-005](../../reference/specs/protocol.md#cm-10-005)).
 It also answers that participant's request for missing entries with nothing.
 It records the first entry it held back.
+
 When the participant accepts the embargo, or the embargo ends, the CASE_MANAGER sends it every entry from that one on, in order ([CM-10-006](../../reference/specs/protocol.md#cm-10-006)).
 Embargo invitations are not ledger entries, so they still reach that participant.
 
@@ -102,7 +114,8 @@ Receiving the same entry twice changes nothing ([SYNC-03-003](../../reference/sp
 
 Messages can still arrive in the wrong order, because the transport makes no promise about order.
 An entry that arrives ahead of a missing one is held rather than discarded ([SYNC-14-001](../../reference/specs/protocol.md#sync-14-001)).
-How a replica holds that early entry until the one before it arrives, and why the order of the ledger is the order of the case, is the subject of [Case Ledger Synchronization](case_ledger_sync.md).
+[Case Ledger Synchronization](case_ledger_sync.md) explains how a replica holds that early entry until the one before it arrives.
+It also explains why the order of the ledger is the order of the case.
 
 ---
 

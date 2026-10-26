@@ -42,7 +42,9 @@ On receiving `Accept(Invite)`, the CASE_MANAGER MUST perform these four steps in
 this order (CM-17-004):
 
 1. Commit a ledger entry recording the acceptance, and send that entry to every active participant.
-2. Record the acceptance's effect on the participant: its RM state stays `Received`, and its consent row for the active embargo, if any, becomes `AGREED`, unless the participant had declined that embargo.
+2. Record the acceptance's effect on the participant.
+   Its RM state stays `Received`.
+   Its consent row for the active embargo, if any, becomes `AGREED`, unless the participant had declined that embargo.
 3. When the participant is now active, send `Announce(VulnerabilityCase)` carrying the full case snapshot, then replay the ledger entries committed before this participant joined, oldest first.
 4. Send the full-case Invite, which asks the participant to judge the case.
 
@@ -72,18 +74,25 @@ Each cascade below starts from a step on the case's embargo register ([§7.1.1 T
   No consent to the embargo in force changes: the prior embargo is still in force and every signatory to it remains one (EP-05-002).
   The CASE_MANAGER records the proposer's row for the revision as `AGREED`, because proposing terms is consenting to them.
 - **The case owner activates the revision.**
-  The register activates the revision's entry and supersedes the entry in force, in one step; EM returns to `Active`, or stays at `Revised` while another revision is open (EMB-18-005).
+  The register activates the revision's entry and supersedes the entry in force, in one step.
+  EM returns to `Active`, or stays at `Revised` while another revision is open (EMB-18-005).
   The owner's row for the revision becomes `AGREED` unless it already is.
-  If the revision ends no later than the embargo it replaces, the CASE_MANAGER applies `CARRY_OVER` to the revision's row of every participant whose row for the replaced embargo is `AGREED`, a `DECLINED` row for the revision included (EP-05-001, MSM-07-005).
-  If it ends later, no row is written: a signatory to the replaced terms whose row for the revision is not `AGREED` has lapsed, which is read from its rows and the register ([§9.3 Signatory and Lapsed](tracking-models.md#93-signatory-and-lapsed)).
+  If the revision ends no later than the embargo it replaces, the CASE_MANAGER applies `CARRY_OVER` (EP-05-001, MSM-07-005).
+  It applies it to the revision's row of every participant whose row for the replaced embargo is `AGREED`.
+  This applies also when that participant's row for the revision is `DECLINED`.
+  If the revision ends later, no row is written.
+  In that case, a signatory to the replaced terms whose row for the revision is not `AGREED` has lapsed.
+  That lapse is read from its rows and the register ([§9.3 Signatory and Lapsed](tracking-models.md#93-signatory-and-lapsed)).
   A participant that has already agreed to the revision is its signatory by lookup.
 - **The case owner rejects the revision.**
-  The register rejects the revision's entry; EM returns to `Active` once no other revision is open.
+  The register rejects the revision's entry.
+  EM returns to `Active` once no other revision is open.
   No consent row changes, the owner's included, and the prior terms stand (MSM-07-009).
 - **The embargo is terminated** (EM enters `Exited`).
   The register terminates the entry in force and cancels every open proposal in the same step (EP-08-004).
   No consent row is written (CM-18-016, MSM-07-006).
-  With no `ACTIVE` entry, no participant is a signatory and none has lapsed, and every row for the terminated and canceled entries is frozen as it stood, so an accept that arrives afterwards records nothing (EMB-17-004).
+  With no `ACTIVE` entry, no participant is a signatory and none has lapsed.
+  Every row for the terminated and canceled entries is frozen as it stood, so an accept that arrives afterwards records nothing (EMB-17-004).
 - **After a teardown.**
   The termination's own ledger entry, fanned out as `Announce(CaseLedgerEntry)`, records the end (EP-09-009).
   The CASE_MANAGER then sends `Announce(EmbargoEvent)` to every other active participant (EMB-19-001), and a direct `Remove(EmbargoEvent)` notice to each signatory the ledger fan-out does not reach (CM-31-009).
@@ -97,7 +106,10 @@ Each cascade below starts from a step on the case's embargo register ([§7.1.1 T
 Every one of these changes reaches the case ledger, and every replica applies it by copying (CM-23-016).
 The act's own activity carries its whole register step: a termination's entry also cancels every open proposal, and an activation's entry also supersedes the embargo it replaces (CLP-07-013).
 Where the act's activity states a row itself, as the owner's `Accept` states the owner's agreement, the act's entry carries that row (CLP-07-013).
-Each other consent row the CASE_MANAGER writes as a consequence of the act, such as an `UNINVITED` row, the proposer's `AGREED` row or a `CARRY_OVER`, is its own CASE_MANAGER entry after the act's entry, a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoConsent)` for a changed one, carrying the row in full (EP-09-007).
+
+Each other consent row that the CASE_MANAGER writes as a consequence of the act is its own CASE_MANAGER entry after the act's entry.
+Examples are an `UNINVITED` row, the proposer's `AGREED` row or a `CARRY_OVER`.
+That entry is a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoConsent)` for a changed one, and it carries the row in full (EP-09-007).
 A replica copies those rows and never decides a carry-over, an expiry or a lapse itself.
 
 ### 11.3 Status Adoption: The Two-Seam Model
@@ -139,11 +151,10 @@ whether to adopt it as canonical:
 - The component that records the claim MUST NOT execute side-effects.
 
 !!! warning "The default is Case Owner authorization, not automatic adoption"
-    A permissive default would mean that any admitted participant — including a
-    hostile or malfunctioning one admitted as an external monitor — could force
-    a canonical PXA change and, through it, an embargo teardown, with no Case
-    Owner confirmation. A conservative default makes that a protocol guarantee
-    rather than a deployment posture.
+    With a permissive default, any admitted participant could force a canonical PXA change with no Case Owner confirmation.
+    Through that change, it could also force an embargo teardown.
+    This includes a hostile or malfunctioning participant admitted as an external monitor.
+    A conservative default makes that a protocol guarantee rather than a deployment posture.
 
 #### Seam 2 — Side-effects
 
@@ -154,10 +165,9 @@ state requires:
   Exploit Public, or Attacks Observed
   ([§8.2 PXA — Public Aware, Exploit Public, Attacks Observed](tracking-models.md#82-pxa-public-aware-exploit-public-attacks-observed)).
 - If any of those is now set, the CASE_MANAGER MUST evaluate embargo teardown.
-- **This check MUST run after the canonical write, never before.** What is
-  written is the `CaseStatus` record holding the case's shared EM and PXA
-  values; the check reads that written record, so that the side-effect always
-  follows from canonical state rather than from an unadopted claim.
+- **This check MUST run after the canonical write, never before.**
+  What is written is the `CaseStatus` record that holds the case's shared EM and PXA values.
+  The check reads that written record, so the side-effect always follows from canonical state, not from an unadopted claim.
 - Executing the teardown MUST also require Case Owner authorization by default,
   on the same terms as adoption above.
 

@@ -11,15 +11,23 @@ page_type: explanation
 # A Case Under Vultron
 
 This page explains what a Coordinated Vulnerability Disclosure (CVD) case looks like from your seat when the organizations in it coordinate through Vultron.
-It covers who owns the case, who keeps its record, what you see of it, how your own part of it moves, and what an embargo invitation asks of you.
-It is written for people who handle vulnerability reports and coordinate cases, and it stops short of the message formats and the record-keeping machinery, which have their own pages.
+It covers these topics:
+
+- Who owns the case, and who keeps its record.
+- What you see of the case.
+- How your own part of the case moves.
+- What an embargo invitation asks of you.
+
+This page is for people who handle vulnerability reports and coordinate cases.
+It does not cover the message formats or the record-keeping machinery, which have their own pages.
 If you have not yet read [What Is Vultron?](../background/what-is-vultron.md), start there.
 
 ---
 
 ## Your seat in the case
 
-A **case** is the coordination context around one vulnerability: the participants, the shared state, the messages they exchange, and any embargo agreement ([§2.1 Actors, Participants and Cases in the Vultron Protocol Specification](../../reference/vultron-spec/introduction.md#21-actors-participants-and-cases)).
+A **case** is the coordination context around one vulnerability.
+It holds the participants, the shared state, the messages they exchange, and any embargo agreement ([§2.1 Actors, Participants and Cases in the Vultron Protocol Specification](../../reference/vultron-spec/introduction.md#21-actors-participants-and-cases)).
 You take part in it as a **participant**, through the system your organization runs.
 Vultron does not replace that system.
 It gives it a way to exchange the case with the systems your partners run, in the way that mail servers exchange mail.
@@ -38,9 +46,11 @@ The roles are the ones the CVD process already uses ([§2.2 Roles](../../referen
 
 Roles are not exclusive.
 A vendor that finds a vulnerability in its own product is both Reporter and Vendor.
+
 Roles also belong to the case, not to your organization: you may be the Reporter in one case and a Vendor in the next.
 Vultron records who holds which role, so every participant reads the same answer.
-Roles are assigned through the case, never claimed: you do not become a Coordinator by saying so ([§12.1 Role Assignment](../../reference/vultron-spec/interactions.md#121-role-assignment-n)).
+Roles are assigned through the case, never claimed.
+You do not become a Coordinator by saying so ([§12.1 Role Assignment](../../reference/vultron-spec/interactions.md#121-role-assignment-n)).
 
 ---
 
@@ -51,25 +61,32 @@ Two further roles describe authority over the case itself rather than a part in 
 The **Case Owner** is the participant whose disclosure decision the case exists to serve.
 It decides who is admitted to the case, which roles they hold, and whether embargo terms are accepted or torn down ([§2.2 Roles](../../reference/vultron-spec/introduction.md#22-roles)).
 When you open a case, you are its owner.
-Ownership can move: a vendor that opened a case can hand it to a coordinator, and every participant learns who decides for the case now ([Case Ownership Transfer](ownership_transfer.md)).
+Ownership can move.
+A vendor that opened a case can give it to a coordinator, and every participant learns who decides for the case now ([Case Ownership Transfer](ownership_transfer.md)).
 
-The **Case Manager** keeps the case's authoritative history and passes case messages between participants, acting on the Case Owner's behalf ([The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md)).
+The **Case Manager** keeps the case's authoritative history and passes case messages between participants.
+It acts for the Case Owner ([The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md)).
 It is the one participant that writes the shared record of the case.
 Every other participant holds a copy of that record, and the Case Manager sends each admitted change to all of them.
-In practice the Case Owner's own system usually holds this role, and the owner may delegate it, for example to a coordinator that hosts cases for others ([§12.1 Role Assignment](../../reference/vultron-spec/interactions.md#121-role-assignment-n)).
 
-The practical consequence is the one that matters to a practitioner: there is exactly one history of what happened in the case, and everyone in the case holds the same copy of it.
+In practice, the Case Owner's own system usually holds the Case Manager role.
+The owner may delegate it, for example to a coordinator that hosts cases for others ([§12.1 Role Assignment](../../reference/vultron-spec/interactions.md#121-role-assignment-n)).
+
+The practical consequence is the one that matters to a practitioner.
+There is exactly one history of what happened in the case, and everyone in the case holds the same copy of it.
 No participant reconciles competing versions, and nobody edits the record directly, not even the organization that opened the case.
 
 This is not a central clearinghouse.
-The Case Manager role is held per case, so a different case can route through a different organization, and no service sees every case ([§3.2 What a Deployment Looks Like](../../reference/vultron-spec/introduction.md#32-what-a-deployment-looks-like)).
+The Case Manager role is held per case, so a different case can go through a different organization.
+No service sees every case ([§3.2 What a Deployment Looks Like](../../reference/vultron-spec/introduction.md#32-what-a-deployment-looks-like)).
 
 ---
 
 ## What you see
 
 Your system holds its own copy of the case, assembled from the messages that have reached it ([§3.1 Coordination Model](../../reference/vultron-spec/introduction.md#31-coordination-model)).
-Because every admitted change comes from the Case Manager and goes to every participant, your copy and your partners' copies show the same case history, once the messages have arrived.
+Every admitted change comes from the Case Manager and goes to every participant.
+So after the messages have arrived, your copy and your partners' copies show the same case history.
 
 The table below lists what that copy tells you, whose state each item is, and who can change it.
 
@@ -84,12 +101,15 @@ The table below lists what that copy tells you, whose state each item is, and wh
 | What is publicly known: the vulnerability, an exploit, attacks | The case's | Any participant may report it; the Case Manager records it |
 
 Every message in a case states that something has already happened.
-An acceptance says *we accepted this report*; it does not instruct you to accept it too ([§3.2 What a Deployment Looks Like](../../reference/vultron-spec/introduction.md#32-what-a-deployment-looks-like)).
+An acceptance says *we accepted this report*.
+It does not tell you to accept it too ([§3.2 What a Deployment Looks Like](../../reference/vultron-spec/introduction.md#32-what-a-deployment-looks-like)).
 The one exception is a proposal, such as an embargo invitation, which asks for a decision.
 
 Two things stay as they are today.
-You still talk to your partners by mail, phone, or a shared channel; the protocol carries only the traffic that changes the case ([§3.2 What a Deployment Looks Like](../../reference/vultron-spec/introduction.md#32-what-a-deployment-looks-like)).
-And you see nothing of a case you have not joined: an invitation carries a minimal description of the case, and the vulnerability detail follows only after you accept ([§12.2 Invitation and Acceptance](../../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
+You still talk to your partners by mail, phone, or a shared channel.
+The protocol carries only the traffic that changes the case ([§3.2 What a Deployment Looks Like](../../reference/vultron-spec/introduction.md#32-what-a-deployment-looks-like)).
+And you see nothing of a case you have not joined.
+An invitation carries a minimal description of the case, and the vulnerability detail follows only after you accept ([§12.2 Invitation and Acceptance](../../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
 
 ---
 
@@ -106,7 +126,8 @@ When you move it, your system tells the other participants, and their copies of 
 A vendor learns that a coordinator has accepted a report from the coordinator's message, not by asking.
 
 Nothing here decides for you.
-Whether a report is credible, how urgent it is, and when an advisory is ready to publish remain your organization's judgment calls; the protocol only records the answers.
+Whether a report is credible, how urgent it is, and when an advisory is ready to publish remain your organization's judgment calls.
+The protocol only records the answers.
 The [Capability Model](../capability_model/index.md) lists every such decision and where your own process supplies it.
 
 ---
@@ -116,10 +137,14 @@ The [Capability Model](../capability_model/index.md) lists every such decision a
 {% include-markdown "../process_models/em/_embargo_defn.md" %}
 
 A case has at most one embargo at a time, and its state belongs to the case as a whole ([Embargo Management Process Model](../process_models/em/index.md)).
-Whether *you* have agreed to the current terms is a separate question, recorded per participant as [embargo consent](../behavior_logic/use-cases/embargo-lifecycle.md), because a participant that joined late or declined is in the case without being bound ([§9 Participant Embargo Consent (PEC) State Machine](../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
+Whether *you* have agreed to the current terms is a separate question.
+Vultron records that answer per participant as [embargo consent](../behavior_logic/use-cases/embargo-lifecycle.md).
+The reason is that a participant that joined late or declined is in the case without being bound ([§9 Participant Embargo Consent (PEC) State Machine](../../reference/vultron-spec/tracking-models.md#9-participant-embargo-consent-pec-state-machine-n)).
 
 An embargo invitation reaches you in one of two ways.
-If you are invited to a case that already has an embargo, the invitation states the terms you would be agreeing to, and accepting it both seats you in the case and records your consent ([§12.2 Invitation and Acceptance](../../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
+You may be invited to a case that already has an embargo.
+Then the invitation states the terms you would agree to.
+When you accept it, you join the case and your consent is recorded ([§12.2 Invitation and Acceptance](../../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
 If you are already in a case and a participant proposes an embargo or a change to one, you receive the proposed terms and are asked to answer.
 
 In either form, the invitation asks for one decision, and the table below shows what follows from each answer.

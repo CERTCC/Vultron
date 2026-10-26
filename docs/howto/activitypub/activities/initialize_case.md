@@ -62,11 +62,14 @@ flowchart LR
     {% include-markdown "../../../reference/messages/_occasions/embeds/create-case.md" %}
 
 2. Attach the report with `Add(VulnerabilityReport)`, targeting the case.
-   Only the Case Owner may send it, and the receiving actor must be the case's CASE_MANAGER, so mint the case through the create-case trigger (which seats the creator as Case Owner and CASE_MANAGER) rather than as a bare `Create(VulnerabilityCase)`.
+   Only the Case Owner may send it, and the receiving actor must be the case's CASE_MANAGER.
+   So mint the case through the create-case trigger, not as a bare `Create(VulnerabilityCase)`.
+   The trigger seats the creator as Case Owner and CASE_MANAGER.
 
     {% include-markdown "../../../reference/messages/_occasions/embeds/add-report-to-case.md" %}
 
-3. Seat each participant you already know by asking the CASE_MANAGER to invite it, naming its roles; it joins when it accepts.
+3. Seat each participant you already know: ask the CASE_MANAGER to invite it, and name its roles.
+   The participant joins when it accepts.
    See [How to Seat a Participant on an Existing Case](initialize_participant.md).
    `Add(CaseParticipant)` does not seat a member: it reinstates one the Case Owner removed.
 4. If the case needs opening context, post it as a note with one `Add(Note)` that targets the case and carries the note inline.
@@ -95,7 +98,8 @@ If a participant becomes known later, invite it the same way — see [How to Inv
 | `Accept(Invite(Actor))` | The case roster holds the participant with its roles. |
 | `Add(Note)` | The note appears on the case. |
 
-Every one of these is committed to the case ledger by the CASE_MANAGER and fanned out to each participant, so each participant's replica should show the same roster.
+The CASE_MANAGER commits every one of these to the case ledger and sends each one to every participant.
+So each participant's replica should show the same roster.
 
 ---
 
