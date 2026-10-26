@@ -7,11 +7,11 @@ moves, and how a participant is removed.
 
 ### 12.1 Role Assignment [N]
 
-A role is granted through the case's authority chain. An actor does not acquire a
-case role by declaring that it holds one, because the other participants act on
-role claims: they send a Vendor the report content and treat a Coordinator's
-routing decisions as authoritative. A self-declared role would let an actor take
-on authority the Case Owner never granted.
+A role is granted through the case's authority chain.
+An actor does not acquire a case role by declaring that it holds one.
+The reason is that the other participants act on role claims.
+They send a Vendor the report content and treat a Coordinator's routing decisions as authoritative.
+A self-declared role would let an actor take on authority the Case Owner never granted.
 
 1. A case begins with a **Case Owner** — the actor whose disclosure decision the
    case exists to serve. Case ownership is not delegated, though it may be
@@ -21,15 +21,16 @@ on authority the Case Owner never granted.
    The Case Manager records the offer and forwards it to the receiving actor, which answers the Case Manager with `Accept` or `Reject` ([CM-33-004](../specs/protocol.md#cm-33-004)).
    The Case Manager records the answer and grants the role on an `Accept` ([CM-33-006](../specs/protocol.md#cm-33-006)).
    Only the Case Owner may make a role offer ([CM-33-002](../specs/protocol.md#cm-33-002)).
-   The Case Owner and Case Manager roles cannot be offered ([CM-33-003](../specs/protocol.md#cm-33-003)): ownership moves by transfer, and how the Case Manager role is handed to another actor is not yet specified.
+   The Case Owner and Case Manager roles cannot be offered ([CM-33-003](../specs/protocol.md#cm-33-003)).
+   Ownership moves by transfer.
+   How the Case Manager role is handed to another actor is not yet specified.
 3. The Case Manager records each actor's roles on that actor's
    `CaseParticipant` entry in the case.
 
-An actor MUST NOT be recorded as holding a role it did not accept, and a
-participant MUST NOT be recorded as holding a role the Case Owner did not grant.
-When an actor accepts a role offer, the roles it receives MUST be taken from the
-offer the case sent, not from the accepting actor's reply — otherwise an actor
-could widen its own grant on the way back.
+An actor MUST NOT be recorded as holding a role it did not accept.
+A participant MUST NOT be recorded as holding a role the Case Owner did not grant.
+When an actor accepts a role offer, the roles it receives MUST be taken from the offer the case sent, not from the accepting actor's reply.
+Otherwise, an actor could widen its own grant on the way back.
 
 An implementation MAY verify that an actor has the capability prerequisites for a
 role ([§13.3.1 Process Roles](conformance.md#1331-process-roles)) before completing the assignment.
@@ -38,10 +39,9 @@ role ([§13.3.1 Process Roles](conformance.md#1331-process-roles)) before comple
 
 ### 12.2 Invitation and Acceptance [N]
 
-Bringing a new actor into a case has a problem to solve: the actor cannot decide
-whether to join until it knows something about the case, but it must not receive
-case content before it has been admitted and its embargo consent resolved
-([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
+Bringing a new actor into a case has a problem to solve.
+The actor cannot decide whether to join until it knows something about the case.
+However, it must not receive case content before it has been admitted and its embargo consent resolved ([§9.7 Gating Full Case Delivery](tracking-models.md#97-gating-full-case-delivery)).
 
 The protocol solves this with a **case stub**: a minimal stand-in for the case that carries enough for the invitee to decide, and no vulnerability detail.
 The stub is its own object, of type `VulnerabilityCaseStub`, and is not the case ([CM-11-013](../specs/protocol.md#cm-11-013)).
@@ -58,7 +58,9 @@ It carries exactly these fields ([CM-17-010](../specs/protocol.md#cm-17-010)):
   The stub may carry the embargo inline or name it by an identifier the invitee can ask the inviter to resolve.
   This implementation always carries the full embargo inline, because it does not build that lookup ([CM-17-011](../specs/project.md#cm-17-011)).
 - `summary`: required human-readable context saying what the invitee is being asked to join ([MV-10-001](../specs/protocol.md#mv-10-001)).
-  The sender chooses it: it may be the case name, or a deliberately less revealing string, because the case name itself can be sensitive to share with an actor not yet bound by the embargo.
+  The sender chooses it.
+  It may be the case name, or a deliberately less revealing string.
+  The case name itself can be sensitive to share with an actor not yet bound by the embargo.
 
 The stub does not name the case's coordinator or Case Owner.
 The `Invite` that carries the stub already identifies who is asking: its `actor` is the CASE_MANAGER, and its `attributedTo` can name the Case Owner.
@@ -103,10 +105,10 @@ the associated protocol responsibilities.
     `CASE_MANAGER` role to a different actor, therefore does not by itself
     re-key the ledger.
 
-    What remains open is key handover. A future case-encryption design must
-    define how the keys protecting existing case content pass to the new role
-    holder, and what a participant does with ledger entries it can no longer
-    decrypt. This specification states no rule for either.
+    What remains open is key handover.
+    A future case-encryption design must define how the keys protecting existing case content pass to the new role holder.
+    It must also define what a participant does with ledger entries it can no longer decrypt.
+    This specification states no rule for either.
 
 ### 12.4 Participant Removal [N]
 
@@ -117,14 +119,20 @@ A removed participant is inert: it receives no case content, and it has no autho
 
 Only the Case Owner requests a removal.
 It sends `Remove(CaseParticipant)[target=VulnerabilityCase]` to the CASE_MANAGER, which applies it ([CM-31-004](../specs/protocol.md#cm-31-004)).
-The CASE_MANAGER MUST refuse the request when the sender does not hold the Case Owner role, when it names the CASE_MANAGER's or the Case Owner's participant, or when it names no participant of the case.
+The CASE_MANAGER MUST refuse the request in each of these cases:
+
+- the sender does not hold the Case Owner role;
+- the request names the CASE_MANAGER's or the Case Owner's participant;
+- the request names no participant of the case.
+
 A second removal of an already-removed participant is a no-op, and the CASE_MANAGER reports it as skipped.
 The CASE_MANAGER MUST NOT remove a participant on its own initiative.
 A participant that wants to stop taking part leaves the case with `Leave(VulnerabilityCase)`; that is not removal.
 
 An accepted removal is one ledger entry: the Case Owner's received `Remove(CaseParticipant)`, committed by the CASE_MANAGER as received ([CM-31-005](../specs/protocol.md#cm-31-005)).
 The CASE_MANAGER commits no second entry of its own for the same removal.
-After the commit, the CASE_MANAGER sends the removed participant a direct `Remove(CaseParticipant)` that names it, with `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner ([CM-31-006](../specs/protocol.md#cm-31-006)).
+After the commit, the CASE_MANAGER sends the removed participant a direct `Remove(CaseParticipant)` that names it.
+The notice has `actor` set to the CASE_MANAGER and `attributedTo` set to the Case Owner ([CM-31-006](../specs/protocol.md#cm-31-006)).
 This notice is delivery, not a record, and is not ledgered.
 
 The removal entry's fan-out selects its recipients before the removal is applied, so the removed participant receives that entry too.
@@ -138,13 +146,26 @@ A removed participant receives no Invite of any kind: not a stub Invite, not a f
 
 Removal is reversible.
 The Case Owner reinstates a removed participant by sending `Add(CaseParticipant)[target=VulnerabilityCase]` to the CASE_MANAGER ([CM-31-011](../specs/protocol.md#cm-31-011)).
-The request follows the removal pipeline: only the Case Owner may send it, the received `Add` is the one ledger entry, the CASE_MANAGER sends the participant a direct `Add(CaseParticipant)` notice naming it, and every replica applies the reinstatement from the ledger entry.
+The request follows the removal pipeline:
+
+- only the Case Owner may send it;
+- the received `Add` is the one ledger entry;
+- the CASE_MANAGER sends the participant a direct `Add(CaseParticipant)` notice that names it;
+- every replica applies the reinstatement from the ledger entry.
+
 Reinstatement clears the removal fact.
 The participant does not accept again, because it never withdrew.
-The CASE_MANAGER MUST refuse an `Add` that names a participant that is not removed or that never joined the case: `Add` does not seat a new member, and an actor joins only by accepting its stub Invite.
-For the same reason the CASE_MANAGER does not send `Add(CaseParticipant)` when an invitee accepts its stub Invite; the ledger holds the messages exchanged (the Invite, the CASE_MANAGER's creation of the inert record, then the invitee's Accept, which is the entry for its consent and `joined` mark), and every replica applies what the entries carry ([CM-31-012](../specs/protocol.md#cm-31-012)).
 
-When the reinstated participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order, so its copy of the ledger joins the chain with no gap ([CM-10-006](../specs/protocol.md#cm-10-006)).
+The CASE_MANAGER MUST refuse an `Add` that names a participant that is not removed or that never joined the case.
+`Add` does not seat a new member, and an actor joins only by accepting its stub Invite.
+
+For the same reason, the CASE_MANAGER does not send `Add(CaseParticipant)` when an invitee accepts its stub Invite ([CM-31-012](../specs/protocol.md#cm-31-012)).
+The ledger holds the messages exchanged: the Invite, the CASE_MANAGER's creation of the inert record, then the invitee's Accept.
+That Accept is the entry for the invitee's consent and `joined` mark.
+Every replica applies what the entries carry.
+
+When the reinstated participant is active again, the CASE_MANAGER sends it every ledger entry committed after its removal entry, in log order.
+Its copy of the ledger then joins the chain with no gap ([CM-10-006](../specs/protocol.md#cm-10-006)).
 A participant reinstated into a case whose active embargo it has not accepted stays inert.
 The CASE_MANAGER sends it that embargo's Invite, and its catch-up waits until it accepts.
 

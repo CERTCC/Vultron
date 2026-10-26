@@ -5,7 +5,8 @@ kind: guidance
 description: >
   Rules for moving, extracting, or republishing content under docs/: a moved
   claim must be re-verified against its authority, shared content belongs in
-  an include-markdown fragment, and a table that mirrors a code or spec
+  an include-markdown fragment (copies are listed by the advisory
+  docs-duplicates command), and a table that mirrors a code or spec
   inventory keeps only the columns a test can hold.
 related_notes:
   - notes/diataxis-framework.md
@@ -53,7 +54,7 @@ behavior, verb attributions, state transitions) and budget time to check them.
 
 When the same content belongs on two pages, make an `{% include-markdown %}`
 fragment instead of copying prose — one source, many render points
-(DF-10-002). Three mechanics matter:
+(DF-10-002). These mechanics matter:
 
 - **Placement.** Put a fragment beside its hosts as `_<slug>.md` (e.g.
   `docs/topics/process_models/cs/_events_sigma.md`). Reserve `docs/includes/`
@@ -72,6 +73,10 @@ fragment instead of copying prose — one source, many render points
   (DF-10-002). Pick the wording that is correct against its
   authority and verify it at the merge (DF-10-001); two near-copies are twice
   the upkeep and already disagree (SG-43).
+- **Finding copies.** `uv run docs-duplicates` lists exact and drifted
+  paragraph copies across pages; `lint-docs` reads it and the author judges each
+  cluster, because a page's own opening is never a copy (SG-44). It is advisory
+  and never blocks: whether a repeat is intentional is the author's call.
 
 ## Mirrored tables rot in the column no test can hold
 

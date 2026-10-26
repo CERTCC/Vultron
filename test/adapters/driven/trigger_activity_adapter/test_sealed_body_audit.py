@@ -763,3 +763,30 @@ def test_suggested_roles_survive_into_the_sealed_body(world):
         roles=["deployer"],
     )
     assert json.loads(blob)["suggestedRoles"] == ["deployer"]
+
+
+#: Where each role-delegation recipe carries the delegate actor in its sealed
+#: body: the Offer's ``target``, or the ``target`` of the Offer an answer
+#: embeds.
+_ROLE_DELEGATE_PATHS: dict[str, tuple[str, ...]] = {
+    "offer_case_participant_role": ("target",),
+    "accept_case_participant_role": ("object", "target"),
+    "reject_case_participant_role": ("object", "target"),
+}
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="AKM-02-006: the adapter wraps a delegate known only by URI in a"
+    " made-up actor with clock times and derived endpoints. Tracked by #5177.",
+)
+@pytest.mark.spec("AKM-02-006")
+@pytest.mark.parametrize("method", sorted(_ROLE_DELEGATE_PATHS))
+def test_a_role_delegate_given_by_uri_carries_no_invented_field(world, method):
+    _, blob = RECIPES[method](world)
+    delegate: Any = json.loads(blob)
+    for key in _ROLE_DELEGATE_PATHS[method]:
+        delegate = delegate[key]
+    assert isinstance(delegate, dict)
+    invented = ("published", "updated", "inbox", "outbox")
+    assert [key for key in invented if key in delegate] == []

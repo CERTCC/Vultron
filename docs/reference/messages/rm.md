@@ -8,24 +8,20 @@ description: >
 
 # Report Management (RM) Messages
 
-The RM shorthands inform other Participants of the sender's report-handling
-state. Receipt of a *Report Submission* is the only RM message whose receipt
-directly triggers an RM state change in the receiver; all others convey the
-sender's status.
+The RM shorthands inform other Participants of the sender's report-handling state.
+*Report Submission* is the only RM message whose receipt directly triggers an RM state change in the receiver.
+All other RM messages convey the sender's status.
 
-The RM state ladder has **two** wire expressions: the dedicated report-scoped
-activities listed below, and the `rmState` field of an
-`Add(ParticipantStatus)` broadcast (see [Case State (CS)](cs.md)). *Report/Case
-Accepted* (`RA`) and *Report/Case Deferred* (`RD`) additionally take case-scoped
-verbs — `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)` — because
-engaging or deferring is a case-participation decision rather than a
-report-validity judgment (MSM-01-004, MSM-01-005).
+The RM state ladder has **two** wire expressions: the dedicated report-scoped activities listed below, and the `rmState` field of an `Add(ParticipantStatus)` broadcast (see [Case State (CS)](cs.md)).
+*Report/Case Accepted* (`RA`) and *Report/Case Deferred* (`RD`) also take case-scoped verbs: `Join(VulnerabilityCase)` and `Ignore(VulnerabilityCase)`.
+The reason is that engaging or deferring is a case-participation decision, not a report-validity judgment (MSM-01-004, MSM-01-005).
 
 The CASE_MANAGER applies one rule to an RM state whichever of these expressions carries it (RSH-06-006).
 The state is recorded for the sender, never for the receiver (RSH-08-001), and only when the sender is a participant of the case.
 A forward move is recorded even when it skips states, and the CASE_MANAGER then asks the sender in a note which path it took (RSH-06-001, RSH-06-004).
 A backward move is refused and the recorded state stands (RSH-06-002), and the CASE_MANAGER tells the sender in a note that it refused the move (RSH-06-004).
-Either note is recorded on the case as a [case ledger entry](../glossary.md#sync-authority-replication).
+
+Each of these notes is recorded on the case as a [case ledger entry](../glossary.md#sync-authority-replication).
 The sender receives it from the ledger, as every [active participant](../glossary.md#cvd-roles-and-participants) does, not as a message addressed to it alone (RSH-06-004).
 An activity and an `Add(ParticipantStatus)` that report the same move record it once (RSH-08-002).
 
@@ -46,13 +42,15 @@ The CASE_MANAGER sends no notice when the sender is not a participant of the cas
 
 - **Triggering transition:** emitted when the sender is Accepted (sender ∈ A).
 - **Receiver:** the receiver does not refuse a new report on the sender's standing; it acts only when it is in the Offer's `to` (HP-01-010, HP-09-001).
-- **Proposed embargo terms:** the Offer may carry `proposedEmbargo`, an inline `EmbargoEvent` whose `context` is the report; the case owner compares it with its own default at case creation and the shorter wins (EP-04-003, EP-04-004).
+- **Proposed embargo terms:** the Offer may carry `proposedEmbargo`, an inline `EmbargoEvent` whose `context` is the report.
+  At case creation, the case owner compares it with its own default, and the shorter embargo wins (EP-04-003, EP-04-004).
 
 {% include-markdown "./_occasions/sections/report-acknowledgment.md" %}
 
 - **Triggering transition:** receipt of `RS`; Vultron sends `RK` only to acknowledge a report submission (RMB-08-003).
 - **Receiver:** the reporter, which holds the Offer, accepts `RK` only from one of the Offer's addressees and refuses any other sender (RMB-08-004).
-  `RK` may go to the reporter at any time after the report arrives, whether or not a case exists, but never to the CASE_MANAGER, and it writes no ledger entry (RMB-08-003, PCR-08-001).
+  `RK` may go to the reporter at any time after the report arrives, whether or not a case exists (RMB-08-003).
+  `RK` never goes to the CASE_MANAGER, and it writes no ledger entry (RMB-08-003, PCR-08-001).
 - **Object:** the report's original `Offer`, not the report itself; a bare `Read(VulnerabilityReport)` matches no pattern.
   `RK` survives as a dedicated wire activity because report submission is not ledger-replicated (MSM-01-008).
 

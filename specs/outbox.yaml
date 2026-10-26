@@ -563,6 +563,25 @@ groups:
       Application code MUST NOT construct httpx.ASGITransport directly. The sole
       exception is FastAPI's TestClient, which uses ASGITransport internally to drive a
       single application's own endpoints and is not an inter-actor delivery mechanism.
+  - id: OX-12-009
+    priority: MUST
+    kind: project
+    verification_debt: '#2575'
+    statement: >-
+      Delivery MUST POST to the `inbox` named by the sender's held profile of the
+      recipient when that profile names one, and MUST fall back to the address
+      `{actor}/inbox/` derived from the recipient's URI only when it holds no inbox for
+      that recipient.
+    rationale: >-
+      An actor's profile states where its inbox is, and a peer on another node need
+      not follow this codebase's URL layout. The derived address is a reasonable guess
+      for a peer known only by URI (AKM-05-001), and is used only when nothing better
+      is known (AKM-02-006, ADR-0159).
+    relationships:
+    - rel_type: refines
+      spec_id: OX-12-001
+    adr:
+    - ADR-0159
 - id: OX-13
   title: Delivery Terminal State
   rationale: >-

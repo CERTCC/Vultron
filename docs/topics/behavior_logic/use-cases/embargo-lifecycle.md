@@ -10,7 +10,8 @@ description: >
 # Embargo Lifecycle
 
 An embargo is an agreement that Participants will not disclose a vulnerability before an agreed moment.
-The protocol tracks it twice, at two different scopes, and almost every mistake in this area comes from conflating them.
+The protocol tracks it twice, at two different scopes.
+Almost every mistake in this area comes from confusing the two scopes.
 
 This page explains the two-scope model, the negotiation steps and what each one commits, where the judgment sits, and the one condition that overrides every other consideration.
 
@@ -26,18 +27,27 @@ The case carries **one** embargo, and each Participant carries its **own stance*
 | Participant Embargo Consent (PEC) | One Participant's answer to each embargo in the register | one row per embargo: `UNINVITED`, `INVITED`, `AGREED`, `DECLINED`, `TIMED_OUT` |
 
 The distinction is not bookkeeping.
-"The case is under embargo" and "this Participant is bound by it" are different facts, and a case routinely holds both at once: an active embargo with one Participant who declined it.
-The case keeps one embargo register entry for every embargo ever proposed on it, and the EM state is a read of the entries' statuses ([§7.1.1 The Embargo Register in the specification](../../../reference/vultron-spec/tracking-models.md#711-the-embargo-register)).
+"The case is under embargo" and "this Participant is bound by it" are different facts.
+A case routinely holds both at once: an active embargo with one Participant who declined it.
+The case keeps one embargo register entry for every embargo ever proposed on it.
+The EM state is a read of the entries' statuses ([§7.1.1 The Embargo Register in the specification](../../../reference/vultron-spec/tracking-models.md#711-the-embargo-register)).
 A Participant is a signatory when its consent row for the register's `ACTIVE` entry is `AGREED`.
-That is a lookup, not a second record, so the embargo and the Participant's position can never drift apart ([ADR-0122](../../../adr/0122-per-embargo-participant-consent.md)).
+Signatory status is a lookup, not a second record, so the embargo and the Participant's position can never drift apart ([ADR-0122](../../../adr/0122-per-embargo-participant-consent.md)).
 A Participant has lapsed when it agreed to an embargo that has since been replaced by one it has not agreed to.
-That too is read from the rows and the register (CM-18-001): an entry is `ACTIVE`, the Participant's row for it is neither `AGREED` nor `DECLINED`, and, following the chain of replaced embargoes back from it, the first row that is `AGREED` or `DECLINED` is `AGREED`.
+Lapsed status is also read from the rows and the register, and it needs three conditions (CM-18-001):
+
+- An entry is `ACTIVE`.
+- The Participant's row for that entry is neither `AGREED` nor `DECLINED`.
+- On the chain of replaced embargoes back from that entry, the first row that is `AGREED` or `DECLINED` is `AGREED`.
+
 Neither signatory nor lapsed is a consent state.
 
 Every row is written.
-Proposing an embargo gives every current Participant an `UNINVITED` row for it, and a new Participant record gets an `UNINVITED` row for every embargo already in the register (CM-18-001).
-`UNINVITED` means *not asked about this embargo*, not "has not answered yet", and a missing row is a defect: reading one raises.
-An actor may agree or decline directly from `UNINVITED`, with no intervening invitation ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md), CM-18-003).
+Proposing an embargo gives every current Participant an `UNINVITED` row for it (CM-18-001).
+A new Participant record gets an `UNINVITED` row for every embargo already in the register (CM-18-001).
+`UNINVITED` means *not asked about this embargo*, not "has not answered yet".
+A missing row is a defect: a read of a missing row raises an error.
+An actor may agree or decline directly from `UNINVITED`, without an invitation first ([ADR-0048](../../../adr/0048-pec-no-embargo-is-absence-not-pre-consent.md), CM-18-003).
 
 ---
 
@@ -46,50 +56,73 @@ An actor may agree or decline directly from `UNINVITED`, with no intervening inv
 Five different things put an actor on this path.
 
 **Case creation.** A case begins embargoed.
-When a case is opened with no explicit proposal on the table, the receiving side applies its published default and the case goes straight to `EM.ACTIVE` — not `EM.PROPOSED` (EP-04-001).
-The intermediate `PROPOSED` state is never persisted or observable (EP-04-002).
-This is why a normal case trace shows no proposal exchange at all: submitting a report without a counter-proposal is tacit acceptance of the receiver's default.
+When a case opens with no explicit proposal, the receiving side applies its published default.
+The case then goes straight to `EM.ACTIVE`, not `EM.PROPOSED` (EP-04-001).
+The intermediate `PROPOSED` state is never stored, and no actor can observe it (EP-04-002).
+For this reason, a normal case trace shows no proposal exchange at all.
+A report submitted without a counter-proposal tacitly accepts the receiver's default.
 
 **A local decision to negotiate.** The `propose_embargo`, `propose_embargo_revision`, and `terminate_embargo` triggers.
 
 **An inbound overture.** Either an Embargo Proposal (EP) carrying terms, or an `Invite(EmbargoEvent)` asking one actor for its consent.
 These are the two flows the response decision handles (EMB-15).
-An answer to an invitation, `Accept` or `Reject` of the `Invite(EmbargoEvent)`, is always the sender's own consent and moves only that sender's row, the case owner's included (MSM-07-003, MSM-07-004).
+An answer to an invitation is an `Accept` or `Reject` of the `Invite(EmbargoEvent)`.
+The answer is always the sender's own consent.
+It moves only the row of the sender, even when the sender is the case owner (MSM-07-003, MSM-07-004).
 The case's embargo moves only when the case owner decides it, with `Accept(EmbargoEvent)[target=VulnerabilityCase]` or `Reject(EmbargoEvent)[target=VulnerabilityCase]` (MSM-07-008, MSM-07-009).
 
-**A deadline passing.** An invitation carries a respond-by instant, and an unanswered invitation eventually times out, which is not a refusal — see [Inaction is an answer](#inaction-is-an-answer) below.
+**A deadline passing.** An invitation carries a respond-by instant.
+An unanswered invitation eventually times out.
+A time-out is not a refusal, as [Inaction is an answer](#inaction-is-an-answer) below explains.
 
 **An end time passing.** An embargo in force does not end by itself when its end time passes.
-The case manager ends it with the reason `END_TIME_REACHED` the next time it handles the case, whether for an incoming message or one of its own triggers, so no scheduler is needed.
-The check runs as part of handling the message or trigger, after the case manager confirms that the sender may send it, so a sender with no standing in the case cannot end the embargo.
-A request to end the embargo early made after its end time is recorded as `END_TIME_REACHED` too — see [When the End Time Passes](../../process_models/em/early_termination.md#when-the-end-time-passes).
+The case manager ends it with the reason `END_TIME_REACHED` the next time it handles the case.
+That handling can be for an incoming message or for one of its own triggers, so no scheduler is needed.
+The end-time check runs as part of the message or trigger handling.
+It runs after the case manager confirms that the sender may send the message or trigger, so a sender with no standing in the case cannot end the embargo.
+A request to end the embargo early made after its end time is also recorded as `END_TIME_REACHED`.
+See [When the End Time Passes](../../process_models/em/early_termination.md#when-the-end-time-passes).
 
 ---
 
 ## The mechanical path
 
-Every EM transition runs through the embargo lifecycle service, or through the single function that applies a committed ledger entry, which the case manager and every replica share (ADR-0124).
-Termination and activation take the second path: the case manager commits the `Remove`, or the owner's `Accept`, first, then applies it.
-The `Accept` records the whole activation, including the replaced embargo's supersession and the owner's own agreement, and each signatory carried over to shorter terms gets its own ledger entry after it.
-An invitation that expires unanswered is recorded the same way: the case manager commits the expiry, then the participant's changed consent, and only then writes it.
+Every EM transition runs through one of two paths: the embargo lifecycle service, or the single function that applies a committed ledger entry.
+The case manager and every replica share that function (ADR-0124).
+Termination and activation take the second path.
+The case manager first commits the `Remove` or the owner's `Accept`, and then applies it.
+The `Accept` records the whole activation, including the supersession of the replaced embargo and the owner's own agreement.
+After the `Accept`, each signatory carried over to shorter terms gets its own ledger entry.
+
+The case manager records an invitation that expires unanswered in the same way.
+It commits the expiry, then the participant's changed consent, and only then writes those changes.
 A behavior tree node never assigns `case.current_status.em` and saves the case as a shortcut (EMB-18-001).
-The reason is that a transition is not a field write.
-It has to be validated against the state machine, and a failed validation must stop the node rather than log a warning and write anyway (EMB-18-002).
+This rule exists because a transition is not a field write.
+Each transition has to pass validation against the state machine.
+A failed validation must stop the node, not log a warning and write anyway (EMB-18-002).
+
 A case also never names an embargo whose record its store does not hold (EMB-18-003).
-Activating an embargo reads both the record being activated and the one it replaces, and refuses before any write if either cannot be read.
-A sender carries the embargo record inline with the case, and a receiver stores that record before the case that names it, so a case naming an embargo the receiver lacks is refused rather than stored.
-A receiver refuses an inline embargo record whose context is neither the case nor one of its reports, so a sender cannot plant one case's embargo under another's id.
-It checks the record it already holds under that id the same way, whether the case or ledger entry carries the embargo inline or names it by id only (EMB-18-004).
+Activation of an embargo reads two records: the record it activates and the record it replaces.
+If either read fails, the activation refuses before any write.
+A sender carries the embargo record inline with the case.
+A receiver stores that record before the case that names it.
+A receiver therefore refuses, and does not store, a case that names an embargo the receiver lacks.
+
+A receiver refuses an inline embargo record whose context is neither the case nor one of its reports.
+This check stops a sender from planting one case's embargo under the id of another case.
+The receiver checks the record it already holds under that id in the same way.
+This check applies whether the case or ledger entry carries the embargo inline or names it only by id (EMB-18-004).
 An embargo whose context is one of the case's own reports counts as the case's, because a reporter's proposal names its report until the case exists (EP-04-009).
 
 A receiver also checks who sent each embargo message before it changes anything (ADR-0115).
 The case manager takes a proposal only from an active participant, and takes an acceptance or rejection only from the actor the recorded invitation was addressed to.
-It takes an embargo record being created, added or removed only from the case owner or from itself.
+It takes a message that creates, adds or removes an embargo record only from the case owner or from itself.
 Every other participant takes an embargo message only from the case manager.
 A message from any other sender is refused and changes no state.
 
 Each message that changes the case's embargo is one step on the embargo register, and the EM state follows from the register.
-Every step must move EM along a transition of the EM state machine, and a step that would not is refused with nothing written (EMB-18-005, EMB-18-006).
+Every step must move EM along a transition of the EM state machine.
+A step that would not is refused, and nothing is written (EMB-18-005, EMB-18-006).
 The transitions themselves are small and fixed:
 
 | Message received | Register step | EM result |
@@ -100,18 +133,23 @@ The transitions themselves are small and fixed:
 | Embargo Rejection (ER) or Revision Rejection (EJ), the case owner's `Reject(EmbargoEvent)[target=VulnerabilityCase]` | the named entry becomes `REJECTED` | `PROPOSED` to `NONE`, or `REVISE` to `ACTIVE`, once no other proposal is open; otherwise unchanged (EMB-06-001) |
 | Embargo Termination (ET), `Remove(EmbargoEvent)` | the `ACTIVE` entry becomes `TERMINATED`, and every open proposal `CANCELLED` | `ACTIVE` or `REVISE` to `EXITED`, immediately |
 
-The formal protocol has each receiver acknowledge these with EK; in this implementation the case manager's commit and announcement of the received activity is that acknowledgment, and no EK message exists (EP-09-009, MSM-02-009).
+The formal protocol has each receiver acknowledge these messages with EK.
+In this implementation, the case manager's commit and announcement of the received activity is that acknowledgment, and no EK message exists (EP-09-009, MSM-02-009).
 
 `EM.REVISE` is worth a second look.
-A revision under negotiation does not suspend the embargo — the existing terms remain binding until the revision is accepted, and every signatory to them remains a signatory.
-That is what makes renegotiation safe, and it is why the recommended practice is to accept and then revise rather than to counter-propose.
+A revision under negotiation does not suspend the embargo.
+The existing terms remain binding until the case owner accepts the revision, and every signatory to them remains a signatory.
+This continuity makes renegotiation safe.
+It is also why the recommended practice is to accept and then revise, not to counter-propose.
 
 ---
 
 ## Which messages move consent
 
 Consent has no messages of its own (MSM-07-001).
-Every Participant Embargo Consent change is a side effect of an EM activity or a deadline, and the case manager records it; a Participant never declares its own consent state.
+Every Participant Embargo Consent change is a side effect of an EM activity or a deadline.
+The case manager records each change.
+A Participant never declares its own consent state.
 
 | Activity | Effect on the case's EM state | Effect on consent |
 |---|---|---|
@@ -127,20 +165,31 @@ Every Participant Embargo Consent change is a side effect of an EM activity or a
 
 One activity can therefore move both scopes at once: the case owner's `Accept(EmbargoEvent)[target=VulnerabilityCase]` activates the embargo *and* makes the owner a signatory.
 
-Only the case manager records an answer; a Participant handed an Accept or Reject meant for the case manager refuses it, and a Reject of terms that are neither in force nor still proposed is refused rather than recorded.
-A Participant asked about the embargo already in force, such as one relayed a proposal that was activated before it answered, or a lapsed signatory, answers that Invite by naming it (EP-09-012).
-A signatory leaves the embargo in force with `Leave(EmbargoEvent)`, not with a Reject: the case manager refuses a signatory's Reject of the active embargo (MSM-07-004, MSM-07-010).
-A signatory that rejects a *proposed* revision is refusing those terms only: it stays a signatory to the embargo in force.
-In neither case does the case's embargo change: an answer to an Invite changes no embargo register entry (MSM-07-003, MSM-07-004).
+Only the case manager records an answer.
+A Participant that receives an Accept or Reject meant for the case manager refuses it.
+A Reject of terms that are neither in force nor still proposed is refused, not recorded.
+
+Sometimes an Invite asks a Participant about the embargo already in force.
+One example is a Participant that received a relayed proposal that was activated before the Participant answered.
+Another example is a lapsed signatory.
+That Participant answers the Invite by naming that Invite (EP-09-012).
+
+A signatory leaves the embargo in force with `Leave(EmbargoEvent)`, not with a Reject.
+The case manager refuses a signatory's Reject of the active embargo (MSM-07-004, MSM-07-010).
+A signatory that rejects a *proposed* revision refuses only those terms.
+It stays a signatory to the embargo in force.
+In both cases, the case's embargo does not change, because an answer to an Invite changes no embargo register entry (MSM-07-003, MSM-07-004).
+
 The protocol-level view of consent is in [§9.2 Transitions and Guards in the specification](../../../reference/vultron-spec/tracking-models.md#92-transitions-and-guards).
 
 ---
 
 ## What each act commits
 
-Every change the case manager makes to the embargo register or to a consent row is recorded in the case ledger before the case changes (CLP-07-013, [ADR-0124](../../../adr/0124-case-is-a-projection-of-its-ledger.md)).
+The case manager records every change it makes to the embargo register or to a consent row in the case ledger before the case changes (CLP-07-013, [ADR-0124](../../../adr/0124-case-is-a-projection-of-its-ledger.md)).
 One ledger entry records one activity and its object.
 An act therefore commits its own entry first.
+
 Each other object the act changes then follows as its own case manager entry, in the order the case manager changes them.
 For embargo acts, those other objects are consent rows.
 Each is a `Create(EmbargoConsent)` for a new row or an `Update(EmbargoConsent)` for a changed one, and it carries the row in full.
@@ -170,15 +219,17 @@ An act whose entry fails to commit changes nothing.
 
 A Participant joining through its stub invitation agrees to the embargo in force with that same `Accept`, so the joiner's `AGREED` row has no entry of its own either.
 
-Every replica, and the case manager itself, writes each register step and consent row an entry carries by copying it through one shared apply function (CM-23-016).
+Every replica, and the case manager itself, uses one shared apply function to copy each register step and consent row that an entry carries (CM-23-016).
 That includes the row a Participant's own answer states, such as a joiner's `AGREED` or `DECLINED` row from its reply to the stub invitation.
 That function checks that the entry fits the case as it stands, then writes what the entry carries.
 It runs no embargo lifecycle logic, creates no ids, and reads no clock.
 
-An entry that does not fit is held as a gap until the missing entries arrive, never patched over.
-The result is that a store rebuilt from the case manager's ledger alone holds the same participant records, consent rows and embargo register as the case manager.
+An entry that does not fit is held as a gap until the missing entries arrive.
+The gap is never patched over.
+As a result, a store rebuilt from the case manager's ledger alone holds the same participant records, consent rows and embargo register as the case manager.
 
-The `Remove` entry carries what ended the embargo, `EARLY` or `END_TIME_REACHED`, and the structured cause behind an early end, such as a threat signal.
+The `Remove` entry carries what ended the embargo: `EARLY` or `END_TIME_REACHED`.
+For an early end, it also carries the structured cause, such as a threat signal.
 A replica copies both onto its own register, so its record of the termination matches the case manager's.
 
 When the owner rejects the last open revision after the case went public, the case manager records the rejection and then ends the embargo in the same act (EMB-04-002, MSM-07-009).
@@ -192,25 +243,33 @@ If the termination is refused, neither entry is committed.
 
 If the vulnerability is public, an exploit is public, or attacks have been observed, there is nothing left to embargo.
 
-This is not a preference the negotiation weighs.
+This condition is not a preference that the negotiation weighs.
 It is mandatory, and it applies at every point in the lifecycle:
 
 - A proposal MUST be refused with ER, regardless of any other assessment (EMB-01-002).
-- An EA MUST NOT move the case to `ACTIVE`; the actor emits ER instead (EMB-02-002).
-- An EV arriving while the case is public MUST be refused, not adopted, and the embargo ends because the case is public, not because the proposal arrived: the proposal is at most how the actor notices (EMB-03-003).
+- An EA MUST NOT move the case to `ACTIVE`.
+  The actor emits ER instead (EMB-02-002).
+- An EV arriving while the case is public MUST be refused, not adopted (EMB-03-003).
+  The embargo ends because the case is public, not because the proposal arrived.
+  The proposal is at most how the actor notices.
 - An actor sitting at `EM.PROPOSED` that *observes* the case go public MUST abandon the proposal, return to `EM.NONE`, and emit ER (EMB-16-001).
-  The case manager makes that abandonment for the case, and its committed entries are what notify everyone else.
+  The case manager makes that abandonment for the case.
+  Its committed entries notify everyone else.
   It rejects each proposal it received with `Reject(Invite(EmbargoEvent))`, which cancels the proposal.
   It then withdraws each invitation it relayed for that proposal with `Undo(Invite(EmbargoEvent))`.
   When the case manager made the proposal itself, withdrawing that proposal with `Undo(Invite(EmbargoEvent))` is the cancel.
-  A replica tells the case manager's `Reject` from a Participant's by who sent it: the case manager's cancels the proposal, and a Participant's declines it.
+  A replica tells the case manager's `Reject` from a Participant's `Reject` by its sender.
+  A `Reject` from the case manager cancels the proposal.
+  A `Reject` from a Participant declines it.
   Only the case owner, or the case manager it delegates to, decides that abandonment.
-  Any other participant's status report already tells the case manager the case went public, so it sends no ER as the abandonment, which the case manager would read as that participant declining the proposal (EMB-16-002).
+  Any other participant's status report already tells the case manager that the case went public.
+  That participant therefore sends no ER as the abandonment.
+  The case manager would read such an ER as that participant declining the proposal (EMB-16-002).
   That rule covers only proposals already open on the case.
-  A proposal, Invite or revision a participant *receives* while it believes the case is public is still answered with ER by that participant, as the first item above requires (EMB-01-002).
+  A participant still answers with ER when it *receives* a proposal, Invite or revision while it believes the case is public, as the first item above requires (EMB-01-002).
 - An actor at `EM.EXITED` MUST NOT seek or accept a new embargo for a public case (EMB-13-002).
 
-EMB-16-001 is the one implementations forget, because it is not triggered by a message.
+EMB-16-001 is the rule that implementations forget, because no message triggers it.
 Nothing arrives to prompt it.
 The actor's own state changed, and the obligation follows from that.
 
@@ -218,76 +277,102 @@ The actor's own state changed, and the obligation follows from that.
 
 ## Where judgment enters
 
-This is the richest call-out surface in the protocol, because almost every embargo question is a policy question.
-Each point below names its capability shape from the [ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md) taxonomy, and each is answered by an injected backend rather than by logic inside the tree ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
+The embargo lifecycle is the richest call-out surface in the protocol, because almost every embargo question is a policy question.
+Each point below names its capability shape from the [ADR-0024](../../../adr/0024-coordination-agent-taxonomy.md) taxonomy.
+An injected backend answers each point, and logic inside the tree does not ([ADR-0025](../../../adr/0025-call-out-point-abstraction-layer.md)).
 Their service contracts are cataloged in the [Capability Model](../../capability_model/index.md#embargo-management).
 
-**Deciding to negotiate.** `WantToProposeEmbargo` (Evaluator) asks whether to propose at all; `SelectEmbargoOfferTerms` (Composer) asks what terms; `StopProposingEmbargo` (Evaluator) asks whether to give up after a refusal.
+**Deciding to negotiate.** `WantToProposeEmbargo` (Evaluator) asks whether to propose at all.
+`SelectEmbargoOfferTerms` (Composer) asks what terms to propose.
+`StopProposingEmbargo` (Evaluator) asks whether to give up after a refusal.
 Their deterministic defaults differ, and the differences encode a recommended posture: propose by default, and do not give up by default.
 
 **Responding to an overture.** `EvaluateEmbargoProposal` (Evaluator) asks whether the terms are acceptable.
-Its default is to accept (EMB-15-001, EMB-15-005) — the protocol's position is that a well-formed overture deserves agreement unless there is a reason otherwise.
+Its default is to accept (EMB-15-001, EMB-15-005).
+The protocol's position is that a well-formed overture deserves agreement unless there is a reason against it.
 
-`WillingToCounterEmbargoProposal` (Evaluator) asks whether to counter instead. Its default is *not* to counter (EMB-15-003), which is the same recommendation in a different form: accept and then revise, rather than trade proposals. Countering introduces no new mechanism — it re-uses the ordinary proposal path and leaves the case at `PROPOSED`.
+`WillingToCounterEmbargoProposal` (Evaluator) asks whether to counter instead.
+Its default is *not* to counter (EMB-15-003).
+This default is the same recommendation in a different form: accept and then revise, rather than trade proposals.
+Countering introduces no new mechanism.
+It reuses the ordinary proposal path and leaves the case at `PROPOSED`.
 
 **Staying in.** `CurrentEmbargoAcceptable` (Evaluator) asks whether the active embargo is still acceptable as circumstances change.
 
 **Getting out early.** `ExitEmbargoWhenFixReady`, `ExitEmbargoWhenDeployed`, and `ExitEmbargoForOtherReason` (all Evaluators) each ask whether a condition now warrants ending the embargo.
 All three default to *no*, and the defaults are ordered.
 A fix being deployed is a more plausible reason to exit than a fix merely being ready, and "some other reason" is the least plausible of all.
-An implementer reading only the code sees three similar nodes; the probabilities are where the editorial judgment is recorded.
+An implementer who reads only the code sees three similar nodes.
+The probabilities record the editorial judgment.
 When an Evaluator says *yes*, the node after it records the termination's cause: `FIX_DEPLOYED`, `FIX_READY` with the Vendors whose fix is ready, or `OTHER` (EMB-14-001, EMB-14-004).
-When no Vendor's fix is ready, the `FIX_READY` branch fails and the next reason is tried.
+When no Vendor's fix is ready, the `FIX_READY` branch fails, and the tree tries the next reason.
 The termination message and the ended embargo's register entry record that cause.
 
 **Authorizing the response.** Deciding how the *case* responds to an overture is not every Participant's call.
-The response seam puts a case-owner check first: when the deciding actor holds `CVDRole.CASE_OWNER`, its stated response is authoritative and no approval is sought (EMB-15-002, EMB-15-006).
-A non-owner — typically a case manager handling the overture on the owner's behalf — routes through `CaseOwnerApprovesEmbargoResponse` (Evaluator, EMB-15-007).
+The response seam puts a case-owner check first.
+When the deciding actor holds `CVDRole.CASE_OWNER`, its stated response is authoritative, and the seam seeks no approval (EMB-15-002, EMB-15-006).
+A non-owner routes through `CaseOwnerApprovesEmbargoResponse` (Evaluator, EMB-15-007).
+This non-owner is typically a case manager that handles the overture for the owner.
 
 **Reacting to the outcome.** `OnEmbargoAccept`, `OnEmbargoReject`, and `OnEmbargoExit` are Actuators.
-They are notification and integration hooks that fire after the transition and confirm a side effect, producing nothing the protocol reads.
+They are notification and integration hooks that fire after the transition and confirm a side effect.
+They produce nothing that the protocol reads.
 
 !!! note "A default is not a requirement"
 
-    Every "defaults to accept" above describes the stub backend a deployment gets
-    when it wires nothing (BT-23-001). None of them is a protocol obligation to
-    accept. The one place the protocol *does* mandate an answer is the
-    public/exploit/attacks condition, and that is enforced independently of any
-    call-out outcome (EMB-15-004, EMB-15-008).
+    Every "defaults to accept" above describes the stub backend that a deployment gets when it wires nothing (BT-23-001).
+    None of them is a protocol obligation to accept.
+    The one place where the protocol *does* mandate an answer is the public/exploit/attacks condition.
+    That condition is enforced independently of any call-out outcome (EMB-15-004, EMB-15-008).
 
 ---
 
 ## Inaction is an answer
 
-An `Invite(EmbargoEvent)` carries a respond-by instant, and silence past it ends the invitation — the **pocket veto**.
-A Participant whose row is `INVITED` and that does not answer within the window has that row moved to `TIMED_OUT`, not `DECLINED`: silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-004, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
-The deadline belongs to one invitation and is recorded on that invitation's `INVITED` row, so a Participant can hold several open invitations with different deadlines, and one passing times out only its own row (CM-28-013).
+An `Invite(EmbargoEvent)` carries a respond-by instant.
+Silence past that instant ends the invitation, which is the **pocket veto**.
+When a Participant with an `INVITED` row does not answer within the window, its row moves to `TIMED_OUT`, not `DECLINED`.
+Silence is not a decision, and `DECLINED` records only an explicit refusal (CM-28-004, [ADR-0118](../../../adr/0118-pec-expired-and-unbound-exited-states.md)).
+The deadline belongs to one invitation and is recorded on that invitation's `INVITED` row.
+A Participant can therefore hold several open invitations with different deadlines.
+When one deadline passes, it times out only its own row (CM-28-013).
 
-The window has two forms and they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
+The window has two forms, but they are one mechanism, not two ([ADR-0065](../../../adr/0065-embargo-invite-rsvp-deadline.md)).
 When the invitation carries an explicit `Invite.end_time`, that value governs (CM-28-002).
-When it does not, the policy default applies — seven days, measured from the invitation's `published` timestamp (EP-07-001).
+When it does not, the policy default applies: seven days, measured from the invitation's `published` timestamp (EP-07-001).
 The case manager stamps `Invite.end_time` on every invitation it relays.
-It then records the invitee's `INVITED` consent row, deadline included, as its own ledger entry right after the Invite's, and every replica copies that row from the entry (CM-28-012, CM-28-013).
+It then records the invitee's `INVITED` consent row, deadline included, as its own ledger entry right after the Invite's entry.
+Every replica copies that row from the entry (CM-28-012, CM-28-013).
 A Participant that receives an invitation derives no deadline of its own.
 
-There is a floor. An inviting actor must not send a window shorter than the minimum, which defaults to 72 hours (EP-07-002) and is configurable (EP-07-008).
-The case manager, as the actor that stamps the relayed invitation, clamps a too-short window up to the minimum and logs the clamp; it does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).
+There is a floor.
+An inviting actor must not send a window shorter than the minimum (EP-07-002).
+The minimum defaults to 72 hours (EP-07-002) and is configurable (EP-07-008).
+As the actor that stamps the relayed invitation, the case manager clamps a too-short window up to the minimum and logs the clamp.
+It does **not** reject the proposal as malformed (EP-07-003, EP-07-004, EP-07-005).
 Refusing a too-short invitation would punish the invitee for the inviter's error.
 
 There is also a ceiling: the deadline never falls after the invited embargo ends (EP-07-006, CM-28-011).
-A deadline past that end, whether sent explicitly or computed from the policy window, is lowered to the end and the clamp is logged.
+A deadline past that end is lowered to the end, and the clamp is logged.
+This rule applies whether the deadline was sent explicitly or computed from the policy window.
 The floor gives way to the ceiling: the minimum is 72 hours or the time left in the embargo, whichever is shorter (EP-07-002).
 On day 28 of a 30-day embargo, the invitee has until day 30 to answer, not seven days.
 
-The case manager runs no timer; it notices a passed deadline the next time it handles an embargo activity for the case.
+The case manager runs no timer.
+It notices a passed deadline the next time it handles an embargo activity for the case.
 At that point it moves each overdue `INVITED` row on an open proposal or the embargo in force to `TIMED_OUT`, and records each move in the case ledger (CM-28-015).
 It does so before it records the case owner's decision on a proposal, and before every other embargo activity it receives or sends.
 The case owner learns of each expiry from that ledger entry, so it decides on the embargo knowing who never answered.
-The case manager checks only once it knows the sender may send the activity, and before it judges the activity itself, so the expiry is recorded even when the activity is then refused.
-One exception: when the case manager refuses an Invite or an `Accept` because the vulnerability is already public, exploited or attacked (EMB-02-002), it does not check for overdue invitations; the next embargo activity it admits does.
+
+The case manager checks for overdue invitations only after it knows that the sender may send the activity.
+It checks before it judges the activity itself, so the expiry is recorded even when the case manager then refuses the activity.
+There is one exception.
+Sometimes the case manager refuses an Invite or an `Accept` because the vulnerability is already public, exploited or attacked (EMB-02-002).
+In that case, it does not check for overdue invitations, and the next embargo activity that it admits does the check.
 
 A late `Accept` is never refused merely for being late (EMB-17-001).
-The case manager instead asks whether the accepted embargo is still the case's current one, and the three answers are all different:
+Instead, the case manager asks whether the accepted embargo is still the case's current one.
+The three possible answers are all different:
 
 | What the late Accept refers to | What the case manager does |
 |---|---|
@@ -295,7 +380,7 @@ The case manager instead asks whether the accepted embargo is still the case's c
 | A superseded embargo | Send a fresh invitation carrying the current terms, relayed like any other on behalf of the current embargo's proposer. Do **not** record consent to terms the actor never saw (EMB-17-003, EMB-17-005) |
 | An embargo the case no longer has | Nothing: the `Accept` changes nothing, so record no entry, send no reply, and change no consent. Do not invite, and do not remove the actor from the case (EMB-17-004, EMB-17-007, EMB-17-008) |
 
-Note what none of the three rows does: remove the accepting actor.
+None of the three rows removes the accepting actor.
 Answering late is not a protocol violation.
 
 ---
@@ -306,7 +391,8 @@ Embargo messages route through the case manager like every other case-scoped mes
 A Participant does not announce its embargo stance to the other Participants itself.
 
 Teardown is the exception worth naming, because its addressing is prescribed.
-The `Announce(EmbargoEvent)` that follows a teardown the Case Owner asked for must be authored by the actor holding `CVDRole.CASE_MANAGER` and addressed to every active Participant *except* the announcing actor — never to the case manager itself (EMB-19-001).
+The `Announce(EmbargoEvent)` that follows a teardown the Case Owner asked for must be authored by the actor holding `CVDRole.CASE_MANAGER`.
+It must be addressed to every active Participant *except* the announcing actor, and never to the case manager itself (EMB-19-001).
 A Closed Participant is left out, as it is from all case content (CM-23-004).
 A teardown the case manager starts itself, including one at the embargo's end time, sends no announcement.
 When the case manager is the only Participant, the announcement is skipped rather than sent with an empty recipient list (EMB-19-002).
@@ -322,10 +408,12 @@ That copy is **read-only**: `CaseStatus.em` is a frozen field and `EmDimension` 
 Every in-place write path raises a `ValidationError` at runtime: `status.em = …`, `status.em.state = …`, and the retired flat spelling `status.em_state = …`, which `CaseStatus` no longer defines (SDO-03-003).
 
 The only writer is the case itself.
-When its embargo register changes — through any `EmbargoLifecycle` operation or the function that applies a committed entry — the case replaces its current status with the copy `CaseStatus.with_em` makes, carrying the new `EmDimension`.
+Its embargo register can change through any `EmbargoLifecycle` operation or through the function that applies a committed entry.
+When the register changes, the case replaces its current status with the copy that `CaseStatus.with_em` makes, which carries the new `EmDimension`.
 The copy's `name` label is derived again from its states, so it never names the EM it replaced.
 Nothing else may write that copy.
-A status with a different EM state is built by construction or by `CaseStatus.with_em`; assignment through an existing instance always raises.
+A status with a different EM state is built by construction or by `CaseStatus.with_em`.
+Assignment through an existing instance always raises.
 
 ---
 

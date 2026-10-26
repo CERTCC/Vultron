@@ -9,15 +9,15 @@ description: >
 
 # Case Ledger Synchronization
 
-A vulnerability case is coordinated by organizations that do not share a
-database. Each one keeps its own copy of the case. This page explains how
-those copies stay in agreement, and it answers two questions:
+Organizations that do not share a database coordinate a vulnerability case.
+Each one keeps its own copy of the case.
+This page explains how those copies stay in agreement, and it answers two questions:
 
 - Who decides the order in which things happened?
 - What happens when messages arrive in the wrong order?
 
-Vultron answers the first question with a single writer. It answers the second
-by holding an early message until the message it depends on arrives.
+Vultron answers the first question with a single writer.
+It answers the second by holding an early message until the message it depends on arrives.
 
 ---
 
@@ -31,8 +31,8 @@ This page takes those as given and explains ordering and recovery.
 
 ## What a ledger entry carries
 
-Each entry is a small, immutable record. These are the fields that carry the
-ordering and integrity guarantees this page is about.
+Each entry is a small, immutable record.
+These are the fields that carry the ordering and integrity guarantees this page is about.
 
 | Field | Meaning |
 |---|---|
@@ -43,13 +43,11 @@ ordering and integrity guarantees this page is about.
 | `entryHash` | Hash of this entry's own content |
 | `payloadSnapshot` | A copy of the assertion the entry records |
 
-`prevLogHash` and `entryHash` link the entries into a chain, like the teeth of
-a zipper. Each entry names its predecessor, so a
-receiver can tell whether an entry belongs at the end of the history it already
-holds. The first entry in a
-case names the **genesis hash**, a value derived from the case object itself,
-so the chain is anchored to the case it describes.
-The hash is computed from the case id, its creation time and its owner (`attributed_to`), so a case its owner creates and one the CASE_MANAGER creates from the owner's proposal start from the same anchor ([CLP-08-002](../../reference/specs/protocol.md#clp-08-002), [ADR-0117](../../adr/0117-genesis-hash-is-anchored-to-the-case-owner.md)).
+`prevLogHash` and `entryHash` link the entries into a chain, like the teeth of a zipper.
+Each entry names its predecessor, so a receiver can tell whether an entry belongs at the end of the history it already holds.
+The first entry in a case names the **genesis hash**, a value derived from the case object itself, so the chain is anchored to the case it describes.
+The hash is computed from the case id, its creation time and its owner (`attributed_to`).
+So a case its owner creates and one the CASE_MANAGER creates from the owner's proposal start from the same anchor ([CLP-08-002](../../reference/specs/protocol.md#clp-08-002), [ADR-0117](../../adr/0117-genesis-hash-is-anchored-to-the-case-owner.md)).
 
 `entryHash` also lets a receiver check the entry's content, not just its place.
 Before a replica holds, applies or stores an entry, it recomputes the hash from the entry's fields and compares it with `entryHash` ([SYNC-03-006](../../reference/specs/protocol.md#sync-03-006)).
@@ -60,38 +58,32 @@ The replica sends no `Reject(CaseLedgerEntry)` for it, because a replay would re
 
 ## Log index is the causal order
 
-The `log_index` sequence *is* the causal order of the case. If the CASE_MANAGER
-observed event A before event B, then A has the lower `log_index`
-([CLP-14-001](../../reference/specs/protocol.md#clp-14-001), ADR-0079). Anything
-that needs to know what happened first compares log indexes. It does not
-compare clocks.
+The `log_index` sequence *is* the causal order of the case.
+If the CASE_MANAGER observed event A before event B, then A has the lower `log_index` ([CLP-14-001](../../reference/specs/protocol.md#clp-14-001), ADR-0079).
+Anything that needs to know what happened first compares log indexes.
+It does not compare clocks.
 
-This matters because clocks disagree. Two organizations on different
-continents, running different software, will not agree on the millisecond at
-which an event occurred. Sorting a shared history by wall-clock time would make
-the order depend on whose clock was fast. Sorting by `log_index` does not.
+This matters because clocks disagree.
+Two organizations on different continents, running different software, will not agree on the millisecond at which an event occurred.
+Sorting a shared history by wall-clock time would make the order depend on whose clock was fast.
+Sorting by `log_index` does not.
 
-Timestamps are still recorded, and they are still useful — as corroborating
-evidence, and for spotting a participant whose clock is wrong. They are not
-the order.
+Timestamps are still recorded, and they are still useful — as supporting evidence, and to find a participant whose clock is wrong.
+They are not the order.
 
 ### What the ledger claims, and what it does not
 
-The ledger is authoritative **from the CASE_MANAGER's point of view**. It is a
-postmark, not a forensic reconstruction. It records the sequence in which the
-CASE_MANAGER observed and processed events, and it makes no claim about when
-those events happened inside another organization
-([CLP-15-005](../../reference/specs/protocol.md#clp-15-005)).
+The ledger is authoritative **from the CASE_MANAGER's point of view**.
+It is a postmark, not a forensic reconstruction.
+It records the sequence in which the CASE_MANAGER observed and processed events.
+It makes no claim about when those events happened inside another organization ([CLP-15-005](../../reference/specs/protocol.md#clp-15-005)).
 
-- For events the CASE_MANAGER generates itself, causal order is known by
-  construction: the entries are written one after another on a single path.
-- For events reported by participants, the CASE_MANAGER's own receive-and-commit
-  order is the order. The CASE_MANAGER cannot verify a causal claim about
-  something it did not see.
+- For events the CASE_MANAGER generates itself, causal order is known by construction: the entries are written one after another on a single path.
+- For events reported by participants, the CASE_MANAGER's own receive-and-commit order is the order.
+  The CASE_MANAGER cannot verify a causal claim about something it did not see.
 
-The CASE_MANAGER never reorders entries to match timestamps supplied by someone
-else. Doing so would let external data override the one thing the CASE_MANAGER
-knows first-hand.
+The CASE_MANAGER never reorders entries to match timestamps supplied by someone else.
+Doing so would let external data override the one thing the CASE_MANAGER knows first-hand.
 
 ### Rules the CASE_MANAGER follows
 
@@ -105,193 +97,162 @@ knows first-hand.
 | No entry predates the case it belongs to | [CLP-14-006](../../reference/specs/protocol.md#clp-14-006) |
 | Index numbers have no holes: the genesis entry is 0 and each later entry is one more than the entry before it | [CLP-14-010](../../reference/specs/protocol.md#clp-14-010) |
 
-Because the index run has no holes, a hole means an entry is missing. Suppose
-a receiver gets an entry that does not extend its chain, and whose `log_index`
-is greater than its tail index plus one. The receiver asks the CASE_MANAGER to
-replay what it missed, and it may hold the early entry aside until the missing
-ones arrive ([SYNC-14-001](../../reference/specs/protocol.md#sync-14-001), [SYNC-14-002](../../reference/specs/protocol.md#sync-14-002)). A replica
-must hold every entry from genesis through the position it has acknowledged
-before it takes new protocol-significant actions on the case
-([SYNC-10-004](../../reference/specs/protocol.md#sync-10-004)). Refused assertions
-do not use up an index, because the ledger records only admitted entries.
+Because the index run has no holes, a hole means an entry is missing.
+Suppose a receiver gets an entry that does not extend its chain, and whose `log_index` is greater than its tail index plus one.
+The receiver asks the CASE_MANAGER to replay what it missed, and it may hold the early entry aside until the missing ones arrive ([SYNC-14-001](../../reference/specs/protocol.md#sync-14-001), [SYNC-14-002](../../reference/specs/protocol.md#sync-14-002)).
+A replica must hold every entry from genesis through the position it has acknowledged before it takes new protocol-significant actions on the case ([SYNC-10-004](../../reference/specs/protocol.md#sync-10-004)).
+Refused assertions do not use up an index, because the ledger records only admitted entries.
 
-The CASE_MANAGER should also refuse an assertion whose own timestamp is far in
-the future or far in the past compared to its clock — by default, more than
-five minutes ahead or more than seven days old
-([CLP-14-007](../../reference/specs/protocol.md#clp-14-007),
-[CLP-14-008](../../reference/specs/protocol.md#clp-14-008)). A deployment that knows
-its own clock conditions may tune both thresholds
-([CLP-14-009](../../reference/specs/project.md#clp-14-009)). These are sanity
-checks, not proof of honesty; a participant with a badly wrong clock can still
-produce a well-formed but misleading assertion.
-A retry of an assertion the ledger already holds is answered with the entry recorded for it, however old its timestamp, because it records nothing new ([OX-06-002](../../reference/specs/project.md#ox-06-002)).
+The CASE_MANAGER should also refuse an assertion whose own timestamp is far from its clock.
+By default, that is more than five minutes ahead or more than seven days old ([CLP-14-007](../../reference/specs/protocol.md#clp-14-007), [CLP-14-008](../../reference/specs/protocol.md#clp-14-008)).
+A deployment that knows its own clock conditions may tune both thresholds ([CLP-14-009](../../reference/specs/project.md#clp-14-009)).
+These are sanity checks, not proof of honesty.
+A participant with a badly wrong clock can still produce a well-formed but misleading assertion.
+
+A retry of an assertion the ledger already holds gets the entry recorded for it as its answer, however old its timestamp.
+That is because the retry records nothing new ([OX-06-002](../../reference/specs/project.md#ox-06-002)).
 
 ### Two timestamps, two different rules
 
-An entry carries two timestamps, and the rules above do not all apply to the
-same one:
+An entry carries two timestamps, and the rules above do not all apply to the same one:
 
 | Timestamp | Written by | Rules it answers to |
 |---|---|---|
 | `published` on the entry | the CASE_MANAGER, at commit time | CLP-14-002, CLP-14-003, CLP-14-006 read across the whole ledger |
 | `published` inside `payloadSnapshot` | the asserting participant | CLP-14-006 at the commit boundary, CLP-14-007, CLP-14-008, CLP-15-003, CLP-15-006 |
 
-The distinction matters most for the "never move backwards" rule. Across the
-CASE_MANAGER's own commit timestamps it holds because one writer stamps every
-entry from one clock. Applied to *participants'* timestamps it would be wrong:
-two participants' clocks are not synchronized, so an assertion recorded later by
-one of them can legitimately claim an earlier time than an assertion recorded
-earlier by the other. The CASE_MANAGER therefore compares a participant's claimed
-timestamp only against that same participant's previous assertion, and allows a
-small tolerance when comparing it against the case's creation time.
+The distinction matters most for the "never move backwards" rule.
+Across the CASE_MANAGER's own commit timestamps, the rule holds because one writer stamps every entry from one clock.
+Applied to *participants'* timestamps, the rule would be wrong, because two participants' clocks are not synchronized.
+An assertion that one participant records later can legitimately claim an earlier time than an assertion that the other records earlier.
+
+So the CASE_MANAGER compares a participant's claimed timestamp only against that same participant's previous assertion.
+It allows a small tolerance when it compares the timestamp against the case's creation time.
 
 ---
 
 ## What participants must do
 
-The CASE_MANAGER can only record the order it sees. That places an obligation on
-each participant: send events in the order they happened.
+The CASE_MANAGER can only record the order it sees.
+So each participant has an obligation: send events in the order they happened.
 
-- If A caused B, send A first
-  ([CLP-15-001](../../reference/specs/protocol.md#clp-15-001)).
-- Do not collect several related events and send them in an arbitrary order
-  ([CLP-15-002](../../reference/specs/protocol.md#clp-15-002)).
-- Give B a timestamp no earlier than A's
-  ([CLP-15-003](../../reference/specs/protocol.md#clp-15-003)).
-- Timestamp an event with when it happened, not when the batch went out or a
-  retry was attempted
-  ([CLP-15-004](../../reference/specs/protocol.md#clp-15-004)).
+- If A caused B, send A first ([CLP-15-001](../../reference/specs/protocol.md#clp-15-001)).
+- Do not collect several related events and send them in an arbitrary order ([CLP-15-002](../../reference/specs/protocol.md#clp-15-002)).
+- Give B a timestamp no earlier than A's ([CLP-15-003](../../reference/specs/protocol.md#clp-15-003)).
+- Timestamp an event with when it happened, not when the batch went out or a retry was attempted ([CLP-15-004](../../reference/specs/protocol.md#clp-15-004)).
 
-A participant that breaks these rules produces a malformed assertion. That is
-a fault on the sending side, not a CASE_MANAGER failure.
+A participant that breaks these rules produces a malformed assertion.
+That is a fault on the sending side, not a CASE_MANAGER failure.
 
-The CASE_MANAGER cannot police these at the moment an assertion arrives, and it
-must not try: it may not reconstruct an order it did not observe
-([CLP-15-005](../../reference/specs/protocol.md#clp-15-005)). It sees the order messages
-*arrived* in, which is not the order they were *sent* in — the transport makes no
-such promise.
+The CASE_MANAGER cannot enforce these rules at the moment an assertion arrives, and it must not try.
+It may not reconstruct an order it did not observe ([CLP-15-005](../../reference/specs/protocol.md#clp-15-005)).
+It sees the order messages *arrived* in, which is not the order they were *sent* in — the transport makes no such promise.
 
-So when an assertion's claimed time falls behind the same participant's previous
-assertion, the CASE_MANAGER records it and says so, rather than refusing it. A small
-regression is reported quietly; one beyond the configured tolerance is reported as
-a warning. Refusing would throw the message away — the ledger commit happens
-before any of the receiving work, so a refusal loses the whole thing — and the
-CASE_MANAGER cannot tell a participant that really did misorder its events from two
-messages that simply arrived out of order.
+So when an assertion's claimed time falls behind the same participant's previous assertion, the CASE_MANAGER records it and says so, and does not refuse it.
+It reports a small regression quietly, and one beyond the configured tolerance as a warning.
+A refusal would throw the message away.
+The ledger commit happens before any of the receiving work, so a refusal loses the whole message.
+Also, the CASE_MANAGER cannot tell a participant that really did misorder its events from two messages that simply arrived out of order.
 
-The two ordering rules are visible only across a whole case, by comparing the
-causal links a scenario declares against the order the ledger recorded; the
-conformance suite checks them there.
+The two ordering rules are visible only across a whole case.
+They show when the causal links a scenario declares are compared against the order the ledger recorded.
+The conformance suite checks them there.
 
-One thing the CASE_MANAGER does refuse outright: an activity that arrives with no
-`published` time at all. Because the field is optional in ActivityStreams, a
-receiver that filled in the blank with its own clock could no longer tell what
-the sender claimed from what it invented — and every check above would then be
-comparing the CASE_MANAGER's clock against itself. A message without a claimed time
-is therefore refused at the door
-([CLP-15-006](../../reference/specs/protocol.md#clp-15-006)).
+The CASE_MANAGER does refuse one thing outright: an activity that arrives with no `published` time at all.
+Because the field is optional in ActivityStreams, a receiver could fill in the blank with its own clock.
+That receiver could no longer tell what the sender claimed from what it invented.
+Every check above would then compare the CASE_MANAGER's clock against itself.
+So the CASE_MANAGER refuses a message without a claimed time at the door ([CLP-15-006](../../reference/specs/protocol.md#clp-15-006)).
 
-A field that is present but empty carries no claimed time either. A blank
-`published` — an empty string, or one holding only whitespace — is refused the
-same way as an omitted one, and reports the same reason
-([MV-03-002](../../reference/specs/protocol.md#mv-03-002)).
+A field that is present but empty carries no claimed time either.
+A blank `published` — an empty string, or one holding only whitespace — is refused the same way as an omitted one, and reports the same reason ([MV-03-002](../../reference/specs/protocol.md#mv-03-002)).
 
-A value that is present and not blank but unreadable as a timestamp is a
-different fault. The CASE_MANAGER reports it as malformed data, not as a missing
-field, so a sender is never told to supply something it already sent.
+A value that is present and not blank but unreadable as a timestamp is a different fault.
+The CASE_MANAGER reports it as malformed data, not as a missing field, so a sender is never told to supply something it already sent.
 
 ---
 
 ## When entries arrive out of order
 
-Ledger entries travel over ordinary message transport, which gives no ordering
-guarantee. Vultron may also not be the only implementation on the wire. So a
-replica can receive entry 7 before entry 6.
+Ledger entries travel over ordinary message transport, which gives no ordering guarantee.
+Vultron may also not be the only implementation on the wire.
+So a replica can receive entry 7 before entry 6.
 
-The naive response is to reject entry 7, on the grounds that it does not extend
-the chain, and wait for the CASE_MANAGER to send it again. That does not work.
-The replay travels the same unordered transport and can arrive out of order
-again, so under repeated reordering an entry can be lost indefinitely. In an
-earlier version of this implementation, that is what stalled a late-joining
-vendor at case closure.
+The naive response is to reject entry 7, because it does not extend the chain, and wait for the CASE_MANAGER to send it again.
+That does not work.
+The replay travels the same unordered transport and can arrive out of order again.
+So under repeated reordering, an entry can be lost indefinitely.
+In an earlier version of this implementation, that is what stalled a late-joining vendor at case closure.
 
-Instead, a replica **keeps** an early entry
-([ADR-0037](../../adr/0037-buffer-out-of-order-ledger-entries.md),
-[SYNC-14-001](../../reference/specs/protocol.md#sync-14-001)). It puts the entry
-in a holding area and waits for the predecessor. Convergence then no longer
-depends on delivery order at all.
+Instead, a replica **keeps** an early entry ([ADR-0037](../../adr/0037-buffer-out-of-order-ledger-entries.md), [SYNC-14-001](../../reference/specs/protocol.md#sync-14-001)).
+It puts the entry in a holding area and waits for the predecessor.
+Convergence then no longer depends on delivery order at all.
 
 ### What gets held, and what does not
 
-A replica holds an entry when the entry does not extend its chain but
-belongs *later* in the history — its `log_index` is more than one past the end
-of what the replica holds. That is a forward gap: the predecessor has not
-arrived yet.
+A replica holds an entry when the entry does not extend its chain but belongs *later* in the history.
+That is, its `log_index` is more than one past the end of what the replica holds.
+That is a forward gap: the predecessor has not arrived yet.
 
 Two kinds of entry are not held:
 
-- An entry at or behind the end of the chain. That is a duplicate or a stale
-  replay, not a gap.
-- An entry exactly one past the end of the chain whose `prevLogHash` does not
-  match the hash of the replica's last recorded entry. Nothing is missing in
-  front of it, so it is not a gap — it is a fork, a claim about a history the
-  replica does not share.
+- An entry at or behind the end of the chain.
+  That is a duplicate or a stale replay, not a gap.
+- An entry exactly one past the end of the chain whose `prevLogHash` does not match the hash of the replica's last recorded entry.
+  Nothing is missing in front of it, so it is not a gap — it is a fork, a claim about a history the replica does not share.
 
 Both go to the ordinary duplicate and divergence handling instead.
 
-Even when it does hold an entry, the replica still sends
-`Reject(CaseLedgerEntry)` naming the last entry it applied
-([SYNC-14-002](../../reference/specs/protocol.md#sync-14-002)). Holding solves
-reordering; it cannot solve loss. If the missing entry was never delivered at
-all, the reject is what prompts the CASE_MANAGER to send it again.
+Even when it does hold an entry, the replica still sends `Reject(CaseLedgerEntry)` naming the last entry it applied ([SYNC-14-002](../../reference/specs/protocol.md#sync-14-002)).
+Holding solves reordering, but it cannot solve loss.
+If the missing entry was never delivered at all, the reject is what prompts the CASE_MANAGER to send it again.
 
 The CASE_MANAGER also does not replay for just anyone.
 It acts on a `Reject(CaseLedgerEntry)` only from an active participant in the case, and reports `REFUSED` to any other sender ([SYNC-03-005](../../reference/specs/protocol.md#sync-03-005)).
 
 The CASE_MANAGER does not replay on demand without limit.
 If a peer keeps rejecting from the same position, the CASE_MANAGER waits out a short cooldown before replaying to it again ([SYNC-15-003](../../reference/specs/protocol.md#sync-15-003)).
-Without that bound, a peer that cannot anchor its chain rejects every entry it is sent, each reject triggers another full replay, and the two feed each other into a storm.
+Without that bound, a peer that cannot anchor its chain rejects every entry it is sent.
+Each reject triggers another full replay, and the two feed each other into a storm.
+
 Each further replay from that same position doubles the wait, up to a ceiling, so a peer that never catches up is retried less and less often ([SYNC-15-013](../../reference/specs/protocol.md#sync-15-013)).
 A reject from a position that *has* advanced always triggers a replay, so a peer making progress is never held back.
 
 The holding area should also be bounded, so that a hostile or broken peer streaming far-future entries cannot exhaust the replica's storage.
 When it is full, the replica discards the held `Announce` farthest ahead of the gap and logs a warning ([SYNC-14-006](../../reference/specs/project.md#sync-14-006)).
-Discarding is safe because the reject for that gap has already been sent — but the eviction itself sends nothing, so recovery waits on the replay that reject triggers, or on the next entry that fails to match the tail.
+Discarding is safe because the replica already sent the reject for that gap.
+But the eviction itself sends nothing.
+
+Recovery therefore waits on the replay that reject triggers, or on the next entry that fails to match the tail.
 The cooldown above may delay either.
 
-The holding area is deliberately **not** the ledger
-([SYNC-14-005](../../reference/specs/project.md#sync-14-005)). Across Vultron,
-the presence of an entry in an actor's own store means *this entry is committed
-and its effects are applied*
-([SYNC-13-001](../../reference/specs/project.md#sync-13-001)). A held entry is
-neither, so storing it would break that meaning.
+The holding area is deliberately **not** the ledger ([SYNC-14-005](../../reference/specs/project.md#sync-14-005)).
+Across Vultron, the presence of an entry in an actor's own store means *this entry is committed and its effects are applied* ([SYNC-13-001](../../reference/specs/project.md#sync-13-001)).
+A held entry is neither, so storing it would break that meaning.
 
 ### Entries that arrive before the case
 
-The same holding area covers a related race: an entry can arrive before the
-participant has the case object at all. Without the case, the replica cannot
-compute the genesis hash and so cannot anchor the chain.
+The same holding area covers a related race: an entry can arrive before the participant has the case object at all.
+Without the case, the replica cannot compute the genesis hash and so cannot anchor the chain.
 
-A replica holds these entries too
-([SYNC-15-004](../../reference/specs/protocol.md#sync-15-004)), with no gap
-comparison — there is no chain yet to compare against, so every entry for the
-unknown case is held, including entry 0. When the case is later delivered, the
-replica drains the holding area for that case
-([SYNC-15-005](../../reference/specs/protocol.md#sync-15-005)). Seeding the case
-is enough, because the genesis hash is derived from the case object; the
-genesis ledger entry does not have to be re-sent
-([ADR-0059](../../adr/0059-buffer-pre-genesis-ledger-entries.md)).
+A replica holds these entries too, with no gap comparison ([SYNC-15-004](../../reference/specs/protocol.md#sync-15-004)).
+There is no chain yet to compare against, so the replica holds every entry for the unknown case, including entry 0.
+When the case is later delivered, the replica drains the holding area for that case ([SYNC-15-005](../../reference/specs/protocol.md#sync-15-005)).
+Seeding the case is enough, because the genesis hash is derived from the case object.
+The genesis ledger entry does not have to be re-sent ([ADR-0059](../../adr/0059-buffer-pre-genesis-ledger-entries.md)).
 
 ### Draining the held entries
 
 Each held entry is filed under the hash of the predecessor it is waiting for.
-So after the replica commits a new last entry, finding the successor is a
-single lookup: the held entry whose `prevLogHash` equals the hash of the entry
-just committed.
+So after the replica commits a new last entry, it finds the successor with a single lookup.
+The successor is the held entry whose `prevLogHash` equals the hash of the entry just committed.
 
 The drain then repeats until no held entry extends the chain ([SYNC-14-003](../../reference/specs/protocol.md#sync-14-003)).
-Each step is a delivery of its own: the replica replays the `Announce(CaseLedgerEntry)` that carried the successor, the one it received and held as it arrived, through its own inbox ([SYNC-14-009](../../reference/specs/project.md#sync-14-009)).
+Each step is a delivery of its own.
+The replica replays the `Announce(CaseLedgerEntry)` that carried the successor through its own inbox ([SYNC-14-009](../../reference/specs/project.md#sync-14-009)).
+That `Announce` is the one it received and held as it arrived.
 The replica never builds an `Announce` of its own for a held entry, so nothing is attributed to a sender that did not send it.
+
 The replica does not process the successor inside the delivery that committed its predecessor.
 When that delivery commits the successor, it replays *its* successor in turn.
 A run of ten entries that arrived in reverse order clicks into place in one cascade, in `log_index` order.
@@ -300,61 +261,46 @@ Three properties make the drain safe:
 
 - **Same path.** A drained entry goes through the same processing as an entry that arrived in order — no separate code path with its own behavior ([SYNC-14-008](../../reference/specs/protocol.md#sync-14-008)).
   In this implementation that holds by construction, because each held entry reaches the announce receive behavior tree as an ordinary inbox delivery.
-- **Effects before storage.** The entry's consequences — an embargo ending, a
-  participant joining, a status changing — are applied first, and the entry is
-  stored only if they all succeed
-  ([SYNC-12-001](../../reference/specs/protocol.md#sync-12-001),
-  [SYNC-14-004](../../reference/specs/protocol.md#sync-14-004)).
-- **Applied once.** An entry already in the local ledger is skipped entirely,
-  so a replay or a duplicate cannot apply the same effects twice
-  ([SYNC-12-003](../../reference/specs/protocol.md#sync-12-003),
-  [SYNC-14-007](../../reference/specs/protocol.md#sync-14-007)).
+- **Effects before storage.** The entry's consequences — an embargo ending, a participant joining, a status changing — are applied first, and the entry is stored only if they all succeed ([SYNC-12-001](../../reference/specs/protocol.md#sync-12-001), [SYNC-14-004](../../reference/specs/protocol.md#sync-14-004)).
+- **Applied once.** An entry already in the local ledger is skipped entirely, so a replay or a duplicate cannot apply the same effects twice ([SYNC-12-003](../../reference/specs/protocol.md#sync-12-003), [SYNC-14-007](../../reference/specs/protocol.md#sync-14-007)).
 
-Because held entries are replayed through the ordinary path, the
-reject-and-replay recovery becomes order-tolerant as well, at no extra cost.
+Because held entries are replayed through the ordinary path, the reject-and-replay recovery becomes order-tolerant as well, at no extra cost.
 
 ---
 
 ## Why state checks wait for the drain
 
-Holding an entry has a consequence that is easy to get wrong. Case State (CS)
-has ordering rules of its own: an **ephemeral** state cannot be a resting
-place, so it has exactly one permitted successor and must be followed by it;
-the recorded history must remain a valid sequence throughout; and a move to
-public awareness must be recorded before the embargo termination that it
-triggers.
+Holding an entry has a consequence that is easy to get wrong.
+Case State (CS) has ordering rules of its own:
 
-If a replica checked those rules at the moment an entry *arrived*, an
-out-of-order entry would look like a violation. An entry naming a state that is
-only reachable from its predecessor would appear to arrive from nowhere.
+- An **ephemeral** state cannot be a resting place.
+  So it has exactly one permitted successor and must be followed by it.
+- The recorded history must remain a valid sequence throughout.
+- A move to public awareness must be recorded before the embargo termination that it triggers.
 
-That is why the checks run at drain time instead
-([CSB-19-001](../../reference/specs/protocol.md#csb-19-001)). A held entry is
-parked before any case-state effect is applied, so the state machine is never
-touched at arrival time. When the gap closes, the entries replay in
-`log_index` order — which is causal order — and the guards see them in the
-sequence they were meant to be seen in.
+If a replica checked those rules at the moment an entry *arrived*, an out-of-order entry would look like a violation.
+An entry naming a state that is only reachable from its predecessor would appear to arrive from nowhere.
 
-An entry waiting in the holding area therefore raises no state violation at
-all ([CSB-19-002](../../reference/specs/protocol.md#csb-19-002)). An entry naming an
-ephemeral state is perfectly well-formed on its own; it would only be a real
-violation if the entry that resolves it never arrived. Flagging it on arrival
-would be a false alarm, and rejecting it would prevent the replica from ever
-converging.
+That is why the checks run at drain time instead ([CSB-19-001](../../reference/specs/protocol.md#csb-19-001)).
+A held entry is parked before any case-state effect is applied, so the state machine is never touched at arrival time.
+When the gap closes, the entries replay in `log_index` order, which is causal order.
+So the guards see them in the sequence they were meant to be seen in.
 
-The public-awareness-before-embargo-termination ordering survives reordering
-for free ([CSB-19-003](../../reference/specs/protocol.md#csb-19-003)). The CASE_MANAGER
-commits the public-awareness entry first, so it holds the lower `log_index`.
-The drain works in `log_index` order, so it can never present the termination
-entry first. No receiver-side re-check of the timing is needed; the order in
-the ledger is sufficient.
+So an entry waiting in the holding area raises no state violation at all ([CSB-19-002](../../reference/specs/protocol.md#csb-19-002)).
+An entry naming an ephemeral state is perfectly well-formed on its own.
+It would only be a real violation if the entry that resolves it never arrived.
+Flagging it on arrival would be a false alarm, and rejecting it would prevent the replica from ever converging.
+
+The public-awareness-before-embargo-termination ordering survives reordering for free ([CSB-19-003](../../reference/specs/protocol.md#csb-19-003)).
+The CASE_MANAGER commits the public-awareness entry first, so it holds the lower `log_index`.
+The drain works in `log_index` order, so it can never present the termination entry first.
+No receiver-side re-check of the timing is needed, because the order in the ledger is sufficient.
 
 ---
 
 ## What a replica guarantees
 
-Taken together, the ledger rules and the holding area give each participant
-these properties:
+Taken together, the ledger rules and the holding area give each participant these properties:
 
 | Property | Meaning |
 |---|---|
@@ -365,13 +311,13 @@ these properties:
 | Reject on divergence | An entry that does not extend the chain is not silently applied |
 | Order-independent convergence | Delivery order does not affect the final state |
 
-The result is eventual consistency with a strong bound: given the same
-entries, every replica reaches the same state as the CASE_MANAGER, no matter what
-order those entries arrived in.
+The result is eventual consistency with a strong bound.
+Given the same entries, every replica reaches the same state as the CASE_MANAGER, no matter what order those entries arrived in.
 
 The holding area is kept in the replica's store, apart from its ledger, so a restart keeps what it holds.
 Nothing in it is committed, so it never stands in for an applied entry ([SYNC-14-005](../../reference/specs/project.md#sync-14-005)).
-An entry it does not hold comes back the same way an evicted one does — the next entry that does not match the replica's tail produces a `Reject`, and the CASE_MANAGER replays from the position that reject names.
+An entry it does not hold comes back the same way an evicted one does.
+The next entry that does not match the replica's tail produces a `Reject`, and the CASE_MANAGER replays from the position that reject names.
 
 A `Reject` needs a later entry to arrive.
 When the lost entry is the last one before a quiet period, nothing follows it, so the replica has no gap to see and sends no `Reject`.
@@ -380,11 +326,16 @@ The CASE_MANAGER records that position and replays every entry after it, under t
 The reference participant sends one for each case it holds after every restart, the moment it is most likely to have missed an entry.
 
 A replica that already holds the case also receives fresh copies of it, as `Announce(VulnerabilityCase)`.
-Each copy names the **ledger position** it reflects, the last entry its case file is a projection of, so the replica can tell a current copy from a stale one ([SYNC-16-005](../../reference/specs/protocol.md#sync-16-005)).
-A copy the replica's chain is already past changes nothing, and a copy that names a different entry at a position the replica holds is refused as a conflict ([SYNC-16-006](../../reference/specs/protocol.md#sync-16-006)).
+Each copy names the **ledger position** it reflects, the last entry its case file is a projection of.
+So the replica can tell a current copy from a stale one ([SYNC-16-005](../../reference/specs/protocol.md#sync-16-005)).
+A copy the replica's chain is already past changes nothing.
+A copy that names a different entry at a position the replica holds is refused as a conflict ([SYNC-16-006](../../reference/specs/protocol.md#sync-16-006)).
+
 Any other copy replaces the replica's case.
-When that copy is ahead of the replica's chain, the replica asks for the missing entries with a `Reject`, and stores each entry the copy already reflects without applying it again or moving its position back ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
-An entry at the copy's position that is not the entry the copy names comes from a different chain, so the replica refuses it as a conflict and does not store it ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
+When that copy is ahead of the replica's chain, the replica asks for the missing entries with a `Reject`.
+It also stores each entry the copy already reflects, without applying it again or moving its position back ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
+An entry at the copy's position that is not the entry the copy names comes from a different chain.
+So the replica refuses it as a conflict and does not store it ([SYNC-16-007](../../reference/specs/protocol.md#sync-16-007)).
 
 ---
 

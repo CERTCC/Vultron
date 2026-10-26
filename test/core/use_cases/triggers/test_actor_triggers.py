@@ -2364,6 +2364,38 @@ class TestActorDiscoveryCallOut:
         assert recorded is not None
         assert str(recorded.id_) == missing_id
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="AKM-02-006: the minimal peer gets clock times and endpoints"
+        " derived from its id. Tracked by #5177.",
+    )
+    @pytest.mark.spec("AKM-02-006")
+    def test_minimal_peer_holds_no_value_nobody_asserted(self):
+        """A peer known only by URI is recorded with nothing invented."""
+        actor, dl = _make_actor_dl("Coordinator")
+        missing_id = "https://example.org/actors/unreachable3"
+        case = _make_case_with_case_manager(dl, actor.id_, _CASE_MANAGER_ID)
+
+        request = InviteActorToCaseTriggerRequest(
+            actor_id=actor.id_,
+            case_id=case.id_,
+            invitee_id=missing_id,
+        )
+        SvcInviteActorToCaseUseCase(
+            dl,
+            request,
+            trigger_activity=TriggerActivityAdapter(dl),
+            sync_port=SyncActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+        ).execute()
+
+        recorded = dl.read(missing_id)
+        assert recorded is not None
+        invented = ("published", "updated", "inbox", "outbox")
+        assert [
+            key for key in invented if getattr(recorded, key, None) is not None
+        ] == []
+
     @pytest.mark.spec("BT-18-011")
     def test_running_backend_degrades_gracefully(self, caplog):
         """A RUNNING backend violates BT-18-011; this procedural path degrades.

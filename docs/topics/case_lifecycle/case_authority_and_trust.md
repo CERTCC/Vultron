@@ -25,6 +25,7 @@ It is the only node whose record of the case is authoritative ([CM-02-002](../..
 
 An actor is the authority for a case if and only if it holds the `CASE_MANAGER` role in that case's participant list ([CM-02-011](../../reference/specs/architecture.md#cm-02-011)).
 Authority does not come from where an actor is hosted, from its name, or from the shape of its URL.
+
 The reference implementation runs a dedicated service actor, the **Case Actor**, to hold the role.
 That name, and a URL that ends in `actors/case-actor`, are provisioning conveniences with no protocol meaning ([CM-02-013](../../reference/specs/architecture.md#cm-02-013), [ADR-0088](../../adr/0088-consolidate-case-authority-determination.md)).
 Your node must not treat either as evidence of authority ([ARCH-24-004](../../reference/specs/architecture.md#arch-24-004)).
@@ -159,6 +160,7 @@ It sends its own request to the CASE_MANAGER, and the CASE_MANAGER sends the inv
 
 Being on the participant list does not entitle a participant to the case content.
 The CASE_MANAGER sends case content only to **active participants** ([CM-10-004](../../reference/specs/protocol.md#cm-10-004), [ADR-0114](../../adr/0114-joining-a-case-stub-invite-inert-participant.md)).
+
 An active participant was seated when the case was created or accepted its invitation, and has not been removed.
 While an embargo is active, it has also agreed to that embargo.
 Every other participant is inert.
@@ -169,7 +171,8 @@ It still receives the invitations that ask it to join or to consent, but no ledg
 A CASE_MANAGER makes two checks before it acts on a message, and they answer different questions.
 
 Every node first asks whether the message was addressed to it at all.
-A message is addressed to a node that sent it, that its `to` names, or that is an active participant of a case participants collection its `to` names ([HP-01-012](../../reference/specs/architecture.md#hp-01-012)).
+A message is addressed to a node that sent it or that its `to` names.
+It is also addressed to a node that is an active participant of a case participants collection its `to` names ([HP-01-012](../../reference/specs/architecture.md#hp-01-012)).
 Any other node holds a misaddressed copy, so it refuses the copy and answers nothing ([HP-01-005](../../reference/specs/project.md#hp-01-005)).
 
 The first check is about the receiver: *am I the CASE_MANAGER of this case?*
@@ -178,6 +181,7 @@ It does not treat the message as a harmless duplicate.
 
 The second check is about the sender: *may this sender make this assertion?*
 The first check tells nothing about the second ([HP-01-006](../../reference/specs/protocol.md#hp-01-006), [ADR-0115](../../adr/0115-received-handlers-check-sender-entitlement.md)).
+
 Each kind of message has its own sender rule.
 The CASE_MANAGER admits a reply to an invitation only from the actor that the invitation named ([CM-11-017](../../reference/specs/protocol.md#cm-11-017)).
 It accepts a reply to an ownership offer only from the named transferee.
@@ -228,6 +232,7 @@ It carries the whole case and every participant record, inline or by reference (
 The reference implementation embeds them in full rather than as bare links, because it cannot yet fetch an object by reference ([CBT-01-012](../../reference/specs/project.md#cbt-01-012)).
 It names the Case Owner and the CASE_MANAGER as distinct participants ([CBT-01-003](../../reference/specs/protocol.md#cbt-01-003)).
 It includes the reporter at RM `ACCEPTED`, set directly ([CBT-01-008](../../reference/specs/protocol.md#cbt-01-008)).
+
 A receiver that finds a required participant missing rejects the whole bootstrap.
 It does not fill the gap from what it thinks the participant should be ([CBT-05-008](../../reference/specs/protocol.md#cbt-05-008)).
 The reference implementation also counts a participant present only as a bare link as missing, because it cannot fetch it ([CBT-05-009](../../reference/specs/project.md#cbt-05-009)).
@@ -236,6 +241,7 @@ The report receiver, not the CASE_MANAGER, sends the reporter's bootstrap ([ADR-
 The CASE_MANAGER sends its own `Create(VulnerabilityCase)` to the Case Owner only ([CBT-01-010](../../reference/specs/protocol.md#cbt-01-010)).
 The report receiver then sends the reporter a `Create(VulnerabilityCase)` as itself, and that message names the CASE_MANAGER the receiver delegated to.
 The reporter never addressed the CASE_MANAGER, so it trusts the introduction because it came from the actor the reporter chose.
+
 A case snapshot that names its own sender as CASE_MANAGER is never an anchor.
 A participant refuses a bootstrap from an actor that no record it wrote names, and stores nothing from it ([CBT-01-011](../../reference/specs/protocol.md#cbt-01-011)).
 When the Case Owner also holds the `CASE_MANAGER` role, the reporter gets only the receiver's message.
@@ -299,6 +305,7 @@ The participant holds such a message for a short time and does not apply it ([CB
 Holding a message does not make its sender trusted: only an invitation or the bootstrap creates a trust anchor ([PCR-03-004](../../reference/specs/protocol.md#pcr-03-004)).
 If the bootstrap arrives in time, normal checks resume.
 If it does not, the participant drops the held message, and the sender must send that message again after the bootstrap ([CBT-03-003](../../reference/specs/protocol.md#cbt-03-003)).
+
 The reference implementation logs a warning when it drops one ([CBT-03-006](../../reference/specs/project.md#cbt-03-006)).
 The participant should also ask the case creator, with a `Question`, to send the bootstrap again ([CBT-03-004](../../reference/specs/project.md#cbt-03-004)).
 The reference implementation holds a message for 300 seconds by default ([CBT-03-005](../../reference/specs/project.md#cbt-03-005)).
@@ -453,10 +460,14 @@ There is no rejoin: making `CLOSED` reversible would need a second lifecycle for
 
 A participant whose closure is recorded also has no further say in the case.
 The CASE_MANAGER refuses every later activity from it, with two exceptions ([CM-23-018](../../reference/specs/protocol.md#cm-23-018)).
+
 Its request for missing ledger entries is still answered, but only with the entries that record its own closure.
 A repeat of an act that closed it, such as a second `Leave(VulnerabilityCase)`, changes nothing, so the CASE_MANAGER reports it as skipped.
-The Case Owner's second `Leave` is the exception while the case is not fully closed: its `Leave` also closes the case, so a repeat completes a closure that a failed first delivery left unfinished.
-A `Close(Report)` closes no one once a case holds the report: the CASE_MANAGER refuses it from every sender, and the Case Owner closes the case with `Leave(VulnerabilityCase)` ([CM-23-019](../../reference/specs/protocol.md#cm-23-019)).
+The Case Owner's second `Leave` is the exception while the case is not fully closed.
+The Case Owner's `Leave` also closes the case, so a repeat completes a closure that a failed first delivery left unfinished.
+
+A `Close(Report)` closes no one once a case holds the report.
+The CASE_MANAGER refuses it from every sender, and the Case Owner closes the case with `Leave(VulnerabilityCase)` ([CM-23-019](../../reference/specs/protocol.md#cm-23-019)).
 
 A participant that expects to come back should move to RM `DEFERRED` instead ([RMB-14-007](../../reference/specs/protocol.md#rmb-14-007)).
 `DEFERRED` can resume to `ACCEPTED` or go on to `CLOSED` later.

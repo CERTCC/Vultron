@@ -24,14 +24,17 @@ That approach is wrong.
 In ActivityStreams 2.0, `Create(X)` means "I created X."
 A report receiver that sends `Create(VulnerabilityCase)` is claiming to be the authoritative creator of the case.
 The report receiver is not.
-The CASE_MANAGER is — it is the single-writer authority for the canonical ledger, the only peer that appends to the case history.
+The CASE_MANAGER is.
+It is the single-writer authority for the canonical ledger, the only peer that appends to the case history.
+
 Putting the report receiver as the `actor` on a `Create(VulnerabilityCase)` violates that meaning.
 It assigns the wrong creator in every downstream replica.
 
 The `CaseProposal` object solves this.
 The report receiver *proposes* that the case actor service create the case.
 The service decides whether to take the case.
-If it does, it creates the case and sends `Create(VulnerabilityCase)` with itself as `actor`, so the creator every replica records is the participant that really does hold the case's history ([ADR-0041](../../adr/0041-caseactor-authoritative-case-initialization.md)).
+If it does, it creates the case and sends `Create(VulnerabilityCase)` with itself as `actor`.
+So the creator that every replica records is the participant that really does hold the case's history ([ADR-0041](../../adr/0041-caseactor-authoritative-case-initialization.md)).
 
 ---
 
@@ -52,9 +55,11 @@ These are the entries [CLP-07-013](../../reference/specs/protocol.md#clp-07-013)
 | 6 | `add_case_status_to_case`, once per case status | `Add(CaseStatus)` with the status in full |
 
 A case with no embargo has no `create_embargo_event` entry, and a case with no linked report has no `add_report_to_case` entry.
-Participants are taken in roster order, so a case created from a proposal has entries for the CASE_MANAGER, the Case Owner and the reporter, and a case an actor creates for itself has one, for the creator.
+Participants are taken in roster order.
+So a case created from a proposal has entries for the CASE_MANAGER, the Case Owner and the reporter.
+A case that an actor creates for itself has one participant entry, for the creator.
 
-Each commit fans its entry out to the case's other participants, and a participant must hold the case before the first entry about it arrives ([CP-09-009](../../reference/specs/protocol.md#cp-09-009)).
+Each commit sends its entry to the case's other participants, and a participant must hold the case before the first entry about it arrives ([CP-09-009](../../reference/specs/protocol.md#cp-09-009)).
 The entries are committed after the `Create(VulnerabilityCase)` is queued, on both creation paths.
 That queued `Create` is the genesis entry itself, so the activity the case's first participant receives is the one every ledger records ([CLP-07-011](../../reference/specs/protocol.md#clp-07-011)).
 A ledger entry records a completed act, and a message is sent once it is in the sender's outbox ([SYNC-09-002](../../reference/specs/protocol.md#sync-09-002)).
@@ -70,7 +75,7 @@ A redelivered proposal then creates the case from the beginning.
 
 ## Where to go next
 
-- [Propose Case](../behavior_logic/use-cases/propose-case.md) — the proposal exchange: what the proposal carries and where it is addressed, the admission decision, what the service does on acceptance, and how a lost reply is recovered
+- [Propose Case](../behavior_logic/use-cases/propose-case.md) — the proposal exchange: what the proposal carries, where it is addressed, the admission decision, the steps on acceptance, and lost-reply recovery
 - [Case Proposal Messages](../../reference/messages/case_proposal.md) — the `Create`, `Accept`, and `Reject` activities on the wire
 - [The Case Model](case_model.md) — `VulnerabilityCase`, participants, and roles
 - [Ownership Transfer](ownership_transfer.md) — how the `CASE_OWNER` role moves between participants
