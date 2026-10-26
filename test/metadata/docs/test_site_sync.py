@@ -884,14 +884,10 @@ class TestSiteSync:
 
     def test_committed_generated_pages_are_the_decided_set(self):
         """Pins the indexes decided as ``contents: generated`` (#3617); the
-        decision table is archived in ``plan/history/2610/note/``."""
+        decision table is archived in ``plan/history/2610/note/``. The old
+        Diátaxis section indexes left the nav with the tabs (#4684)."""
         indexes = discover_section_indexes(repo_root())
         assert {p.path for p in indexes.generated} == {
-            "tutorials/index.md",
-            "topics/index.md",
-            "howto/index.md",
-            "reference/index.md",
-            "research/index.md",
             "topics/background/index.md",
             "topics/case_lifecycle/index.md",
             "topics/process_models/rm/index.md",
@@ -914,7 +910,6 @@ class TestSiteSync:
             "howto/activitypub/activities/index.md",
             "reference/specs/index.md",
             "reference/vultron-spec/index.md",
-            "start/index.md",
         }
         assert set(indexes.rendered) == {"topics/scenarios/index.md"}
 

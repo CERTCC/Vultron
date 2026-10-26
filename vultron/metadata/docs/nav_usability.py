@@ -616,8 +616,10 @@ def _resolve_href(current: str, href: str) -> str | None:
 def read_page(site: Path, rel: str, text_limit: int = 2500) -> PageView:
     """Read the built page *rel* (site-relative) as text and numbered links.
 
-    Links to assets, external sites and the search page are dropped, and
-    each target is listed once, at its first label.
+    Links to assets, external sites and the search page are dropped. Each
+    target is listed once, at its first position, with every distinct label
+    the page gives it: a tab and a card's "Start here" naming one page are
+    one link with both names.
 
     Raises:
         FileNotFoundError: If the page is not in the built site.
@@ -627,8 +629,7 @@ def read_page(site: Path, rel: str, text_limit: int = 2500) -> PageView:
         raise FileNotFoundError(f"{rel} is not a page of the built site")
     reader = _PageReader()
     reader.feed(path.read_text("utf-8"))
-    seen: set[str] = set()
-    links: list[tuple[str, str]] = []
+    labels: dict[str, list[str]] = {}
     for label, href in reader.links:
         target = _resolve_href(rel, href)
         if (
@@ -636,11 +637,12 @@ def read_page(site: Path, rel: str, text_limit: int = 2500) -> PageView:
             or not target.endswith(".html")
             or target.startswith(("search", "assets/"))
             or target == rel
-            or target in seen
         ):
             continue
-        seen.add(target)
-        links.append((label, target))
+        seen = labels.setdefault(target, [])
+        if label not in seen:
+            seen.append(label)
+    links = [(" / ".join(names), target) for target, names in labels.items()]
     raw = "".join(reader.text)
     paragraphs = [" ".join(line.split()) for line in raw.split("\n")]
     text = "\n".join(p for p in paragraphs if p)

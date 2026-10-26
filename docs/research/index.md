@@ -5,25 +5,16 @@ description: >
 stakeholder_type: [process-researcher]
 level: 500
 page_type: routing
-contents: generated
 ---
 
 # Studying the CVD Process
 
-These pages treat the Vultron case state model as an object of study rather
-than as something to implement.
-They ask how well coordinated vulnerability disclosure (CVD) works across many
-cases, how skill can be told apart from luck, and what else the model can
-describe.
-Nothing here is needed to adopt Vultron or to build a system that speaks it.
-The [Case State model](../topics/process_models/cs/index.md) is the one
-prerequisite.
+!!! note "This section has moved"
 
-## In this section
+    The site is now organized by what you came to do, in tabs across the top, rather than by kind of page.
 
-<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+This material is now its own tab, **Research**, which opens on [a reading path for studying the process](../start/study-the-process.md).
+Its two groups are:
 
 - [Measuring CVD](../topics/measuring_cvd/index.md)
 - [Other Uses of Vultron](../topics/other_uses/index.md)
-
-<!-- END GENERATED SECTION CONTENTS -->

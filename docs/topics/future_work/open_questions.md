@@ -6,7 +6,7 @@ description: >
   Every unresolved design question in the Future Work section, collected in one place with the issue or epic that records it.
 ---
 
-# Open questions
+# Open Design Questions
 
 This page collects each unresolved design question in the Future Work section.
 Each question is also at the point in the text where it first applies.

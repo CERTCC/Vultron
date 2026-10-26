@@ -3,24 +3,9 @@ site_url: 'https://certcc.github.io/Vultron/'
 site_description: 'A protocol for coordinated vulnerability disclosure'
 site_author: 'CERT Coordination Center'
 nav:
-  - Home: 'https://certcc.github.io/'
-  - Vultron: 'index.md'
-  - Start Here:
-    - 'start/index.md'
-    - Coordinate cases with other organizations: 'start/coordinate-cases.md'
-    - Connect your vulnerability tracker to your partners: 'start/connect-your-tracker.md'
-    - Study how vulnerability disclosure works: 'start/study-the-process.md'
-    - Work on the reference implementation: 'start/contribute.md'
-  - Tutorials:
-    - 'tutorials/index.md'
-    - Submit a Report to a Vultron Actor: 'tutorials/submit-a-report.md'
-    - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
-    - Run the rv Demo: 'tutorials/rv-demo.md'
-    - Run the RVV Demo: 'howto/demos/rvv-demo.md'
-    - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
-    - Running the Other Demos: 'tutorials/other_demos.md'
-  - Explanation:
-    - 'topics/index.md'
+  - Home: 'index.md'
+  - How Vultron Works:
+    - Overview: 'start/how-vultron-works.md'
     - Background:
       - 'topics/background/index.md'
       - What Is Vultron?: 'topics/background/what-is-vultron.md'
@@ -60,49 +45,27 @@ nav:
         - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
         - RM, EM, CS Interactions: 'topics/process_models/model_interactions/rm_em_cs.md'
     - Capability Model: 'topics/capability_model/index.md'
-    - Protocol Event Flow: 'topics/protocol_flow.md'
-    - Worked Example: 'tutorials/worked_example.md'
-    - Message Semantics: 'topics/message_semantics.md'
-    - Actor Knowledge Model: 'topics/actor-knowledge-model.md'
-    - Behavior Logic:
-      - 'topics/behavior_logic/index.md'
-      - Behavior Tree Notation: 'topics/behavior_logic/bt_notation.md'
-      - Use-Case Behavior:
-        - 'topics/behavior_logic/use-cases/index.md'
-        - Validate Report: 'topics/behavior_logic/use-cases/validate-report.md'
-        - Prioritize Report: 'topics/behavior_logic/use-cases/prioritize-report.md'
-        - Propose Case: 'topics/behavior_logic/use-cases/propose-case.md'
-        - Embargo Lifecycle: 'topics/behavior_logic/use-cases/embargo-lifecycle.md'
-    - Demo Scenarios:
-      - 'topics/scenarios/index.md'
-      - rv: 'topics/scenarios/rv.md'
-      - RVV: 'topics/scenarios/rvv.md'
-      - RCV: 'topics/scenarios/rcv.md'
-      - RCV-reject: 'topics/scenarios/rcv-reject.md'
-      - RCVCV: 'topics/scenarios/rcvcv.md'
-      - RVCV-extension: 'topics/scenarios/rvcv-extension.md'
-      - RVCV-handoff: 'topics/scenarios/rvcv-handoff.md'
-      - RCCV-extension: 'topics/scenarios/rccv-extension.md'
-      - RCCV-handoff: 'topics/scenarios/rccv-handoff.md'
-      - RCV-embargo: 'topics/scenarios/rcv-embargo.md'
-      - RCVV-embargo: 'topics/scenarios/rcvv-embargo.md'
-    - Activity Vocabulary Design: 'topics/activity_vocabulary_design.md'
-    - Reference Implementation Architecture: 'topics/reference_architecture.md'
-    - Future Work:
-      - 'topics/future_work/index.md'
-      - Federation: 'topics/future_work/federation.md'
-      - Open Questions: 'topics/future_work/open_questions.md'
-  - How-to Guides:
-      - 'howto/index.md'
-      - Adopt Vultron in Your CVD Program: 'howto/adopt_vultron.md'
-      - Measuring Your CVD Program: 'howto/measure_your_cvd_program.md'
-      - Process Implementation: 'howto/process_implementation.md'
-      - Vultron ActivityPub:
-          - 'howto/activitypub/index.md'
-          - Vultron AS Activity Guides: 'howto/activitypub/activities/index.md'
-      - Wiring a Capability: 'howto/wire_capability.md'
-  - Reference:
-    - 'reference/index.md'
+    - Concept Taxonomy: 'reference/vultron-taxonomy.md'
+    - Glossary: 'reference/glossary.md'
+    - Documentation Conventions: 'reference/conventions.md'
+  - Coordinate Cases:
+    - Start Here: 'start/coordinate-cases.md'
+    - Adopt Vultron in Your CVD Program: 'howto/adopt_vultron.md'
+    - Measuring Your CVD Program: 'howto/measure_your_cvd_program.md'
+    - Standards Crosswalks:
+      - 'reference/iso_crosswalks/index.md'
+      - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
+      - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'
+      - ISO 5895: 'reference/iso_crosswalks/iso_5895_2022.md'
+      - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
+      - CSAF 2.1 Crosswalk:
+        - CSAF 2.1 and Vultron: 'reference/csaf_crosswalk/overview.md'
+        - Proposals: 'reference/csaf_crosswalk/proposals.md'
+        - Conclusions: 'reference/csaf_crosswalk/conclusion.md'
+        - Concept Mapping: 'reference/csaf_crosswalk/concept_mapping.md'
+        - Coverage Differences: 'reference/csaf_crosswalk/coverage.md'
+  - Implement the Protocol:
+    - Start Here: 'start/connect-your-tracker.md'
     - Protocol Specification:
       - 'reference/vultron-spec/index.md'
       - Introduction and Overview: 'reference/vultron-spec/introduction.md'
@@ -120,37 +83,10 @@ nav:
         - Annex F Behavior Trees as an Implementation Pattern: 'reference/vultron-spec/annex-f-behavior-trees.md'
         - Annex G Capability Shapes: 'reference/vultron-spec/annex-g-capability-shapes.md'
       - Open Questions: 'reference/vultron-spec/open-questions.md'
-    - Protocol Quick Reference: 'reference/quick_reference.md'
-    - Conformance Matrix: 'reference/conformance_matrix.md'
-    - Glossary: 'reference/glossary.md'
-    - Documentation Conventions: 'reference/conventions.md'
-    - Versioning: 'reference/versioning.md'
-    - User Stories: 'reference/user_stories/index.md'
-    - Standards Crosswalks:
-      - 'reference/iso_crosswalks/index.md'
-      - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
-      - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'
-      - ISO 5895: 'reference/iso_crosswalks/iso_5895_2022.md'
-      - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
-      - CSAF 2.1 Crosswalk:
-        - CSAF 2.1 and Vultron: 'reference/csaf_crosswalk/overview.md'
-        - Proposals: 'reference/csaf_crosswalk/proposals.md'
-        - Conclusions: 'reference/csaf_crosswalk/conclusion.md'
-        - Concept Mapping: 'reference/csaf_crosswalk/concept_mapping.md'
-        - Coverage Differences: 'reference/csaf_crosswalk/coverage.md'
-    - Concept Taxonomy: 'reference/vultron-taxonomy.md'
-    - Vultron AS Objects: 'reference/activitypub/objects.md'
-    - rv Demo Protocol: 'reference/rv-demo-protocol.md'
-    - Trigger API: 'reference/trigger-api.md'
-    - Notation: 'reference/notation.md'
-    - Case Model Fields: 'reference/case_model_fields.md'
-    - Formal Protocol:
-      - 'reference/formal_protocol/index.md'
-      - Protocol Definition: 'reference/formal_protocol/protocol_definition.md'
-      - States: 'reference/formal_protocol/states.md'
-      - Messages: 'reference/formal_protocol/messages.md'
-      - Transitions: 'reference/formal_protocol/transitions.md'
-      - Protocol Summary: 'reference/formal_protocol/conclusion.md'
+    - Protocol Requirements:
+      - 'reference/specs/index.md'
+      - Protocol: 'reference/specs/protocol.md'
+      - Foundation: 'reference/specs/foundation.md'
     - Messages:
       - 'reference/messages/index.md'
       - Report Management (RM): 'reference/messages/rm.md'
@@ -161,13 +97,75 @@ nav:
       - Case Management: 'reference/messages/case_management.md'
       - Case Proposal: 'reference/messages/case_proposal.md'
       - Ledger Replication: 'reference/messages/ledger_replication.md'
-    - Specifications:
-      - 'reference/specs/index.md'
-      - Protocol: 'reference/specs/protocol.md'
-      - Foundation: 'reference/specs/foundation.md'
+    - Protocol Quick Reference: 'reference/quick_reference.md'
+    - Conformance Matrix: 'reference/conformance_matrix.md'
+    - Formal Protocol:
+      - 'reference/formal_protocol/index.md'
+      - Protocol Definition: 'reference/formal_protocol/protocol_definition.md'
+      - States: 'reference/formal_protocol/states.md'
+      - Messages: 'reference/formal_protocol/messages.md'
+      - Transitions: 'reference/formal_protocol/transitions.md'
+      - Protocol Summary: 'reference/formal_protocol/conclusion.md'
+    - Learn the Protocol by Example:
+      - Worked Example: 'tutorials/worked_example.md'
+      - Submit a Report to a Vultron Actor: 'tutorials/submit-a-report.md'
+      - Walk a Case Through the rv Demo: 'tutorials/rv-demo.md'
+    - Put Vultron on the Wire:
+      - Vultron and ActivityPub:
+        - 'howto/activitypub/index.md'
+        - Vultron AS Activity Guides: 'howto/activitypub/activities/index.md'
+      - Vultron AS Objects: 'reference/activitypub/objects.md'
+      - Process Implementation: 'howto/process_implementation.md'
+    - Protocol Design:
+      - Protocol Event Flow: 'topics/protocol_flow.md'
+      - Message Semantics: 'topics/message_semantics.md'
+      - Actor Knowledge Model: 'topics/actor-knowledge-model.md'
+      - Activity Vocabulary Design: 'topics/activity_vocabulary_design.md'
+      - Behavior Logic:
+        - 'topics/behavior_logic/index.md'
+        - Behavior Tree Notation: 'topics/behavior_logic/bt_notation.md'
+        - Use-Case Behavior:
+          - 'topics/behavior_logic/use-cases/index.md'
+          - Validate Report: 'topics/behavior_logic/use-cases/validate-report.md'
+          - Prioritize Report: 'topics/behavior_logic/use-cases/prioritize-report.md'
+          - Propose Case: 'topics/behavior_logic/use-cases/propose-case.md'
+          - Embargo Lifecycle: 'topics/behavior_logic/use-cases/embargo-lifecycle.md'
+    - Future Work:
+      - 'topics/future_work/index.md'
+      - Federation: 'topics/future_work/federation.md'
+      - Open Design Questions: 'topics/future_work/open_questions.md'
+  - Reference Implementation:
+    - Start Here: 'start/contribute.md'
+    - Run the Demos:
+      - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
+      - Run the RVV Demo: 'howto/demos/rvv-demo.md'
+      - Running the Multi-Actor Container Demos: 'tutorials/container_demos.md'
+      - Running the Other Demos: 'tutorials/other_demos.md'
+      - rv Demo Protocol Trace: 'reference/rv-demo-protocol.md'
+    - Demo Scenarios:
+      - 'topics/scenarios/index.md'
+      - rv: 'topics/scenarios/rv.md'
+      - RVV: 'topics/scenarios/rvv.md'
+      - RCV: 'topics/scenarios/rcv.md'
+      - RCV-reject: 'topics/scenarios/rcv-reject.md'
+      - RCVCV: 'topics/scenarios/rcvcv.md'
+      - RVCV-extension: 'topics/scenarios/rvcv-extension.md'
+      - RVCV-handoff: 'topics/scenarios/rvcv-handoff.md'
+      - RCCV-extension: 'topics/scenarios/rccv-extension.md'
+      - RCCV-handoff: 'topics/scenarios/rccv-handoff.md'
+      - RCV-embargo: 'topics/scenarios/rcv-embargo.md'
+      - RCVV-embargo: 'topics/scenarios/rcvv-embargo.md'
+    - Reference Implementation Architecture: 'topics/reference_architecture.md'
+    - Extend It:
+      - Wiring a Capability: 'howto/wire_capability.md'
+      - Trigger API: 'reference/trigger-api.md'
+      - Case Model Fields: 'reference/case_model_fields.md'
+    - Implementation Requirements:
       - Architecture: 'reference/specs/architecture.md'
+    - User Stories: 'reference/user_stories/index.md'
+    - Pull Requests and the Project Record: 'about/project_record.md'
   - Research:
-    - 'research/index.md'
+    - Start Here: 'start/study-the-process.md'
     - Measuring CVD:
       - 'topics/measuring_cvd/index.md'
       - What a Case Records: 'topics/measuring_cvd/what_a_case_records.md'
@@ -194,12 +192,15 @@ nav:
       - CVD Action Rules: 'topics/other_uses/action_rules.md'
       - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
       - Situation Awareness: 'topics/other_uses/situation_awareness.md'
-  - About:
-    - FAQ: 'about/faq.md'
+  - Project:
+    - Versioning: 'reference/versioning.md'
     - What's New: 'about/whats_new.md'
-    - Acknowledgements: 'about/acknowledgements.md'
+    - Open Questions: 'project/open_questions.md'
+    - Proposing a Change: 'project/proposing_a_change.md'
+    - FAQ: 'about/faq.md'
     - License: 'about/license.md'
-    - Working on This Implementation: 'about/project_record.md'
+    - Acknowledgements: 'about/acknowledgements.md'
+  - CERT/CC: 'https://certcc.github.io/'
 not_in_nav: |
   _*.md
   reference/vultron-spec/includes/*
@@ -212,6 +213,18 @@ not_in_nav: |
   ns/index.md
   # Withdrawn from the site: a tombstone that answers a live URL. See #3551.
   reference/ontology/index.md
+  # The section indexes of the Diátaxis-type top level the tabs replaced
+  # (ADR-0136). They keep their URLs as routing pages that send a reader to
+  # where each part of the old section now sits (#4684).
+  start/index.md
+  tutorials/index.md
+  topics/index.md
+  howto/index.md
+  reference/index.md
+  research/index.md
+  # Annex C of the Protocol Specification is the notation's nav entry; this
+  # older page keeps its URL for inbound links (#4684).
+  reference/notation.md
   # A redirect stub: the case object moved to topics/case_lifecycle/case_model.md,
   # but older pages still link here.
   howto/case_object.md

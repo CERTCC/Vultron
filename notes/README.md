@@ -369,6 +369,11 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   reading-path threads.
   **Load when**: changing `docs/` structure, nav, page frontmatter, landing pages,
   or threads.
+- **`nav-usability-test.md`** · `guidance`
+  How to run the agent usability test that gates a nav change, the rerun policy,
+  and the current verdict; its personas and tasks are in `nav-usability/`.
+  **Load when**: changing the nav's tabs or second-level groups, or rerunning the
+  test.
 
 ---
 

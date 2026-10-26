@@ -2,6 +2,15 @@ Pick the description that matches your situation.
 
 <div class="grid cards" markdown>
 
+- :material-sitemap:{ .lg .middle } **You want to understand how a vulnerability case runs under Vultron**
+
+    ---
+
+    What a case is, who takes part, and the process models that move it from report to publication.
+    Every other path builds on this one.
+
+    [:octicons-arrow-right-24: Start here](../start/how-vultron-works.md)
+
 - :material-shield-search:{ .lg .middle } **You handle vulnerability reports and coordinate cases with other organizations**
 
     ---

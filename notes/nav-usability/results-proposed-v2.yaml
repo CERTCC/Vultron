@@ -1,0 +1,286 @@
+nav: proposed
+nav_hash: 81783b3c5276
+source: 'task/4687-nav-usability-test (draft #4684, revision 2)'
+model: claude-haiku-5-5
+results:
+- task: T01
+  persona: psirt-lead
+  run: 1
+  stage: 1
+  outcome: fail
+  answer: start/how-vultron-works.md
+  label_path:
+  - How Vultron Works
+  - Start Here
+  stalled_at_home: false
+  why: As a first-time reader with operational CVD experience, I'd start with the recommended
+    entry for new learners.
+- task: T02
+  persona: psirt-lead
+  run: 1
+  stage: 1
+  outcome: success
+  answer: topics/process_models/em/defaults.md
+  label_path:
+  - How Vultron Works
+  - Process Models
+  - Embargo Management
+  - Default Embargoes
+  stalled_at_home: false
+  why: This directly addresses automatic embargo periods that activate when a case opens.
+- task: T03
+  persona: psirt-lead
+  run: 1
+  stage: 1
+  outcome: fail
+  answer: topics/case_lifecycle/a_case_under_vultron.md
+  label_path:
+  - How Vultron Works
+  - Case Lifecycle
+  - A Case Under Vultron
+  stalled_at_home: false
+  why: This describes what happens to a case overall, though it might be general; the report-specific
+    path would be under RM but the task asks about reporting flow through stages.
+- task: T04
+  persona: psirt-lead
+  run: 1
+  stage: 1
+  outcome: fail
+  answer: topics/case_lifecycle/case_model.md
+  label_path:
+  - How Vultron Works
+  - Case Lifecycle
+  - The Case Model
+  stalled_at_home: false
+  why: This explains the complete case model and what attributes are tracked together.
+- task: T22
+  persona: psirt-lead
+  run: 1
+  stage: 1
+  outcome: near
+  label_path:
+  - Coordinate Cases
+  - Standards Crosswalks
+  - CSAF 2.1 Crosswalk
+  stalled_at_home: false
+  why: This section is explicitly about how CSAF compares to the protocol and the differences
+    between them.
+- task: T05
+  persona: tracker-developer
+  run: 1
+  stage: 1
+  outcome: success
+  answer: start/connect-your-tracker.md
+  label_path:
+  - Implement the Protocol
+  - Start Here
+  stalled_at_home: false
+  why: Starting to implement a new protocol naturally begins at the implementation section's
+    Start Here entry.
+- task: T06
+  persona: tracker-developer
+  run: 1
+  stage: 1
+  outcome: success
+  answer: reference/messages/index.md
+  label_path:
+  - Implement the Protocol
+  - Messages
+  stalled_at_home: false
+  why: To see every message type and what each looks like on the wire, the Messages section
+    organized by type is the direct reference.
+- task: T07
+  persona: tracker-developer
+  run: 1
+  stage: 1
+  outcome: success
+  answer: reference/vultron-spec/conformance.md
+  label_path:
+  - Implement the Protocol
+  - Protocol Specification
+  - Conformance
+  stalled_at_home: false
+  why: Conformance definition and how to prove it is explicitly in the Conformance section.
+- task: T08
+  persona: tracker-developer
+  run: 1
+  stage: 1
+  outcome: success
+  answer: tutorials/container_demos.md
+  label_path:
+  - Reference Implementation
+  - Run the Demos
+  - Running the Multi-Actor Container Demos
+  stalled_at_home: false
+  why: Multi-actor demos directly support testing integration with multiple independent participants
+    exchanging messages.
+- task: T23
+  persona: tracker-developer
+  run: 1
+  stage: 1
+  outcome: fail
+  answer: tutorials/worked_example.md
+  label_path:
+  - Implement the Protocol
+  - Learn the Protocol by Example
+  - Worked Example
+  stalled_at_home: false
+  why: A worked example section in Learn by Example provides a concrete single message to
+    copy and understand.
+- task: T09
+  persona: cvd-researcher
+  run: 1
+  stage: 1
+  outcome: fail
+  answer: topics/background/cvd-coordination-problem.md
+  label_path:
+  - How Vultron Works
+  - Background
+  - CVD as a Coordination Problem
+  stalled_at_home: false
+  why: As a CVD researcher unfamiliar with Vultron, I need foundation on CVD coordination
+    first before tackling formal models.
+- task: T10
+  persona: cvd-researcher
+  run: 1
+  stage: 1
+  outcome: success
+  answer: topics/measuring_cvd/timing_metrics.md
+  label_path:
+  - Research
+  - Measuring CVD
+  - Timing Metrics Within a Case
+  stalled_at_home: false
+  why: This section specifically addresses timing measurements that a case record enables,
+    directly matching the task.
+- task: T11
+  persona: cvd-researcher
+  run: 1
+  stage: 1
+  outcome: success
+  answer: reference/formal_protocol/index.md
+  label_path:
+  - Implement the Protocol
+  - Formal Protocol
+  stalled_at_home: false
+  why: The Formal Protocol section collects message types, state machines, and transition
+    rules in one place for precise reasoning.
+- task: T12
+  persona: cvd-researcher
+  run: 1
+  stage: 1
+  outcome: fail
+  answer: topics/measuring_cvd/possible_histories.md
+  label_path:
+  - Research
+  - Measuring CVD
+  - Foundations
+  - Possible Histories
+  stalled_at_home: false
+  why: This section covers enumeration of possible case histories based on the model that
+    tracks events and milestones.
+- task: T13
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 1
+  outcome: fail
+  answer: start/how-vultron-works.md
+  label_path:
+  - How Vultron Works
+  - Start Here
+  stalled_at_home: false
+  why: A 'Start Here' section is designed to guide newcomers unfamiliar with the topic.
+- task: T14
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 1
+  outcome: success
+  answer: howto/adopt_vultron.md
+  label_path:
+  - Coordinate Cases
+  - Adopt Vultron in Your CVD Program
+  stalled_at_home: false
+  why: This explicitly offers step-by-step guidance for organizational adoption and preparation.
+- task: T15
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 1
+  outcome: success
+  answer: reference/iso_crosswalks/iso_29147_2018.md
+  label_path:
+  - Coordinate Cases
+  - Standards Crosswalks
+  - ISO 29147
+  stalled_at_home: false
+  why: The ISO 29147 entry under Standards Crosswalks directly addresses one required standard;
+    ISO 30111 is also listed nearby.
+- task: T16
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 1
+  outcome: fail
+  answer: reference/vultron-spec/considerations.md
+  label_path:
+  - Implement the Protocol
+  - Protocol Specification
+  - Considerations and References
+  stalled_at_home: false
+  why: A 'Considerations and References' section in the specification likely covers scope
+    limitations and what is outside the protocol.
+- task: T21
+  persona: national-csirt-coordinator
+  run: 1
+  stage: 1
+  outcome: gave-up
+  label_path: []
+  stalled_at_home: false
+  why: No label in the navigation explicitly discusses platform integration or whether Vultron
+    replaces existing coordination platforms like VINCE.
+- task: T17
+  persona: oss-contributor
+  run: 1
+  stage: 1
+  outcome: fail
+  answer: about/project_record.md
+  label_path:
+  - Reference Implementation
+  - Contributing and the Project Record
+  stalled_at_home: false
+  why: A new contributor seeking to start with the project would look for contribution guidance
+    in the Reference Implementation section, and this entry directly addresses where to begin.
+- task: T18
+  persona: oss-contributor
+  run: 1
+  stage: 1
+  outcome: success
+  answer: about/project_record.md
+  label_path:
+  - Reference Implementation
+  - Contributing and the Project Record
+  stalled_at_home: false
+  why: This entry explicitly covers the contribution process, PR requirements, and project
+    standards.
+- task: T19
+  persona: oss-contributor
+  run: 1
+  stage: 1
+  outcome: success
+  answer: topics/reference_architecture.md
+  label_path:
+  - Reference Implementation
+  - Reference Implementation Architecture
+  stalled_at_home: false
+  why: This entry directly addresses codebase organization, architectural layers, and how
+    pieces connect together.
+- task: T20
+  persona: oss-contributor
+  run: 1
+  stage: 1
+  outcome: success
+  answer: reference/versioning.md
+  label_path:
+  - Project
+  - Versioning
+  stalled_at_home: false
+  why: The release versioning scheme explanation is directly under the Project section's Versioning
+    entry.

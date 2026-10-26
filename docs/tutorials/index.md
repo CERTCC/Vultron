@@ -1,41 +1,29 @@
 ---
+description: >
+  Where the tutorials that used to be listed here now sit, by what each
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
 page_type: routing
-contents: generated
 ---
 
 # Vultron Protocol Tutorials
 
-## Available tutorials
+!!! note "This section has moved"
 
-<!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
+    The site is now organized by what you came to do, in tabs across the top, rather than by kind of page.
 
-- [Submit a Report to a Vultron Actor](submit-a-report.md) — Start the reference implementation, construct a `Create(VulnerabilityReport)` message by hand, post it to an actor's inbox, and confirm the actor received it.
-- [Run the Receive-Report Demo](receive_report_demo.md) — Start the Vultron demo environment with Docker Compose and run three vulnerability-report workflows end to end.
-- [Run the rv Demo](rv-demo.md) — Step through a complete Coordinated Vulnerability Disclosure (CVD) case with the Reporter + Vendor (rv) scenario, from report submission through fix readiness, public disclosure, embargo teardown, and case closure.
-- [Running the Multi-Actor Container Demos](container_demos.md) — Run any of the multi-actor demo scenarios, from the two-party Reporter + Vendor (rv) baseline to the five-party coordination cases, across isolated participant containers with Docker Compose.
-- [Running the Other Demos](other_demos.md) — Explore case initialization, actor management, embargo negotiation, acknowledgment, status updates, trigger endpoints, and the full Report Management (RM) case lifecycle using the remaining `vultron-demo` sub-commands.
-- [Run the RVV Demo](../howto/demos/rvv-demo.md) — Run the three-actor Reporter, Vendor, Vendor (RVV) demo, in which two vendors each advance an independent fix path with no coordinator.
+Tutorials now sit on the tab of what they teach.
+Each still has its own page, at the same address as before.
 
-<!-- END GENERATED SECTION CONTENTS -->
+On **Implement the Protocol**, under *Learn the Protocol by Example*, the tutorials that teach protocol behavior:
 
-## Further reading
+- [Worked Example](worked_example.md)
+- [Submit a Report to a Vultron Actor](submit-a-report.md)
+- [Walk a Case Through the rv Demo](rv-demo.md)
 
-- If you are unfamiliar with the Vultron Protocol, we recommend that you
-  start with [Explanation](../topics/index.md).
-- If you are familiar enough with the Vultron Protocol that you're
-  interested in implementing it, see [How-to Guides](../howto/index.md).
-- For technical reference material, see [Reference](../reference/index.md).
-- And finally, if you're just trying to understand the CVD process, we
-  recommend that you start with the
-  [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
+On **Reference Implementation**, under *Run the Demos*, the tutorials about running the code:
 
-You might also want to check out:
-
-- [SEI Blog: Vultron: A Protocol for Coordinated Vulnerability Disclosure](https://insights.sei.cmu.edu/blog/vultron-a-protocol-for-coordinated-vulnerability-disclosure/){:target="_blank"}
-  — the blog post that introduced the Vultron Protocol
-- [SEI Podcast Series: Improving Interoperability in Coordinated Vulnerability
-  Disclosure with Vultron](https://youtu.be/8WiSmhxJ2OM){:target="_blank"}
-  — a podcast about the Vultron Protocol with Allen Householder and
-  Suzanne Miller
+- [Run the Receive-Report Demo](receive_report_demo.md)
+- [Run the RVV Demo](../howto/demos/rvv-demo.md)
+- [Running the Multi-Actor Container Demos](container_demos.md)
+- [Running the Other Demos](other_demos.md)

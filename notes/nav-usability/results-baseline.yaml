@@ -282,3 +282,283 @@ results:
   stalled_at_home: false
   why: This is the reference section entry specifically about versioning, where release tagging
     schemes and compatibility promises would be explained.
+- task: T01
+  persona: psirt-lead
+  run: 2
+  stage: 1
+  outcome: near
+  answer: start/index.md
+  label_path:
+  - Start Here
+  stalled_at_home: false
+  why: As a newcomer to the protocol seeking a reading path, Start Here is the obvious entry
+    point.
+- task: T02
+  persona: psirt-lead
+  run: 2
+  stage: 1
+  outcome: success
+  answer: topics/process_models/em/defaults.md
+  label_path:
+  - Explanation
+  - Process Models
+  - Embargo Management
+  - Default Embargoes
+  stalled_at_home: false
+  why: The section explicitly named 'Default Embargoes' directly addresses automatic embargo
+    periods.
+- task: T03
+  persona: psirt-lead
+  run: 2
+  stage: 1
+  outcome: success
+  answer: topics/process_models/rm/index.md
+  label_path:
+  - Explanation
+  - Process Models
+  - Report Management
+  stalled_at_home: false
+  why: Report Management should cover the stages and decisions involved in handling incoming
+    reports, though 'RM Participant Interactions' might be more specific.
+- task: T04
+  persona: psirt-lead
+  run: 2
+  stage: 1
+  outcome: fail
+  answer: topics/case_lifecycle/case_model.md
+  label_path:
+  - Explanation
+  - Case Lifecycle
+  - The Case Model
+  stalled_at_home: false
+  why: The Case Model should explain all the data tracked in a case at once, though 'A Case
+    Under Vultron' or the glossary might also work.
+- task: T22
+  persona: psirt-lead
+  run: 2
+  stage: 1
+  outcome: near
+  label_path:
+  - Reference
+  - Standards Crosswalks
+  - CSAF 2.1 Crosswalk
+  stalled_at_home: false
+  why: This section directly compares Vultron to CSAF 2.1, explaining differences and integration.
+- task: T05
+  persona: tracker-developer
+  run: 2
+  stage: 1
+  outcome: success
+  answer: start/connect-your-tracker.md
+  label_path:
+  - Start Here
+  - Connect your vulnerability tracker to your partners
+  stalled_at_home: false
+  why: This directly addresses integrating an internal tracker with external partners.
+- task: T06
+  persona: tracker-developer
+  run: 2
+  stage: 1
+  outcome: fail
+  answer: reference/formal_protocol/messages.md
+  label_path:
+  - Reference
+  - Formal Protocol
+  - Messages
+  stalled_at_home: false
+  why: Messages section organizes all message types; it's where wire format specs would live.
+- task: T07
+  persona: tracker-developer
+  run: 2
+  stage: 1
+  outcome: fail
+  answer: reference/conformance_matrix.md
+  label_path:
+  - Reference
+  - Conformance Matrix
+  stalled_at_home: false
+  why: Conformance is explicitly about proving protocol compliance; the matrix should show
+    how to verify it.
+- task: T08
+  persona: tracker-developer
+  run: 2
+  stage: 1
+  outcome: success
+  answer: tutorials/container_demos.md
+  label_path:
+  - Tutorials
+  - Running the Multi-Actor Container Demos
+  stalled_at_home: false
+  why: Multi-actor demos would show the reference implementation with independent participants
+    exchanging messages end to end.
+- task: T23
+  persona: tracker-developer
+  run: 2
+  stage: 1
+  outcome: fail
+  answer: reference/formal_protocol/messages.md
+  label_path:
+  - Reference
+  - Formal Protocol
+  - Messages
+  stalled_at_home: false
+  why: Messages section likely contains example message formats, though not guaranteed to
+    show a literal wire-format example.
+- task: T09
+  persona: cvd-researcher
+  run: 2
+  stage: 1
+  outcome: fail
+  answer: topics/background/cvd-coordination-problem.md
+  label_path:
+  - Explanation
+  - Background
+  - CVD as a Coordination Problem
+  stalled_at_home: false
+  why: Formal models of CVD coordination are conceptual foundations, so Background section
+    about the coordination problem is the natural entry point for understanding protocol formalism.
+- task: T10
+  persona: cvd-researcher
+  run: 2
+  stage: 1
+  outcome: success
+  answer: topics/measuring_cvd/timing_metrics.md
+  label_path:
+  - Research
+  - Measuring CVD
+  - Timing Metrics Within a Case
+  stalled_at_home: false
+  why: The Research section explicitly covers 'Measuring CVD' and includes a subsection on
+    'Timing Metrics Within a Case' which directly addresses what timing measurements are possible.
+- task: T11
+  persona: cvd-researcher
+  run: 2
+  stage: 1
+  outcome: success
+  answer: reference/formal_protocol/index.md
+  label_path:
+  - Reference
+  - Formal Protocol
+  stalled_at_home: false
+  why: The Formal Protocol section under Reference promises protocol definition, states, messages,
+    transitions, and summary—exactly the normative definitions needed.
+- task: T12
+  persona: cvd-researcher
+  run: 2
+  stage: 1
+  outcome: fail
+  answer: topics/measuring_cvd/process_model_desiderata.md
+  label_path:
+  - Research
+  - Measuring CVD
+  - Desiderata from the Process Models
+  stalled_at_home: false
+  why: Under Measuring CVD, 'Desiderata' and the presence of 'Possible Histories' suggest
+    model-driven case tracking, though 'Possible Histories' under Foundations might also fit.
+- task: T13
+  persona: national-csirt-coordinator
+  run: 2
+  stage: 1
+  outcome: fail
+  answer: howto/adopt_vultron.md
+  label_path:
+  - How-to Guides
+  - Adopt Vultron in Your CVD Program
+  stalled_at_home: false
+  why: As a national CSIRT evaluating the protocol, this guide is designed to help organizations
+    like yours understand how to adopt it in your program.
+- task: T14
+  persona: national-csirt-coordinator
+  run: 2
+  stage: 1
+  outcome: success
+  answer: howto/adopt_vultron.md
+  label_path:
+  - How-to Guides
+  - Adopt Vultron in Your CVD Program
+  stalled_at_home: false
+  why: This guide should provide step-by-step instructions for preparing organizational roles,
+    policy changes, and operational commitments.
+- task: T15
+  persona: national-csirt-coordinator
+  run: 2
+  stage: 1
+  outcome: success
+  answer: reference/iso_crosswalks/iso_29147_2018.md
+  label_path:
+  - Reference
+  - Standards Crosswalks
+  - ISO 29147
+  stalled_at_home: false
+  why: You need to check both ISO standards, and this section directly addresses the mapping
+    of the protocol to ISO 29147; ISO 30111 appears as a separate option.
+- task: T16
+  persona: national-csirt-coordinator
+  run: 2
+  stage: 1
+  outcome: fail
+  answer: topics/capability_model/index.md
+  label_path:
+  - Explanation
+  - Capability Model
+  stalled_at_home: false
+  why: This section should explain what capabilities the protocol provides and, by implication,
+    what decisions are left to individual organizations like scope of triage and advisory
+    functions.
+- task: T21
+  persona: national-csirt-coordinator
+  run: 2
+  stage: 1
+  outcome: gave-up
+  label_path: []
+  stalled_at_home: false
+  why: No navigation entry explicitly addresses the relationship between this protocol and
+    existing coordination platforms like VINCE.
+- task: T17
+  persona: oss-contributor
+  run: 2
+  stage: 1
+  outcome: success
+  answer: start/contribute.md
+  label_path:
+  - Start Here
+  - Work on the reference implementation
+  stalled_at_home: false
+  why: As a new contributor to the reference implementation, 'Work on the reference implementation'
+    under 'Start Here' is the most direct entry point.
+- task: T18
+  persona: oss-contributor
+  run: 2
+  stage: 1
+  outcome: fail
+  answer: howto/process_implementation.md
+  label_path:
+  - How-to Guides
+  - Process Implementation
+  stalled_at_home: false
+  why: This seems most likely to cover the contribution process, though the label is somewhat
+    ambiguous between project process and code contribution process.
+- task: T19
+  persona: oss-contributor
+  run: 2
+  stage: 1
+  outcome: success
+  answer: topics/reference_architecture.md
+  label_path:
+  - Explanation
+  - Reference Implementation Architecture
+  stalled_at_home: false
+  why: This directly addresses understanding codebase organization, layers, and architectural
+    boundaries.
+- task: T20
+  persona: oss-contributor
+  run: 2
+  stage: 1
+  outcome: success
+  answer: reference/versioning.md
+  label_path:
+  - Reference
+  - Versioning
+  stalled_at_home: false
+  why: The 'Versioning' entry under 'Reference' is the explicit place to find the release
+    versioning scheme.

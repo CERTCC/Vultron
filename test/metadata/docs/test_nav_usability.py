@@ -271,10 +271,14 @@ def _site(tmp_path: Path) -> Path:
 
 
 class TestWalk:
-    def test_page_view_drops_search_external_and_repeats(self, tmp_path):
+    def test_page_view_drops_search_external_and_merges_repeats(
+        self, tmp_path
+    ):
         view = nu.read_page(_site(tmp_path), "index.html")
         assert view.title == "Front"
-        assert view.links == [("Embargo", "topics/em/index.html")]
+        assert view.links == [
+            ("Embargo / Embargo again", "topics/em/index.html")
+        ]
         assert "Body & text." in view.text and "var x" not in view.text
 
     def test_missing_page_fails(self, tmp_path):

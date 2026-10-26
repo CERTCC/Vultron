@@ -48,7 +48,8 @@ thread:
 
 You work on Coordinated Vulnerability Disclosure (CVD) as a process: how cases unfold, how to measure them, and how to make the ecosystem healthier.
 Vultron grew out of that research, and its protocol is built on formal models you can reuse on their own.
-This page is a reading path through the models, the measurements, and the formal definition.
+This tab holds the research built on those models: measuring disclosure across many cases, and the model's uses outside the protocol.
+This page is a reading path through the models, the measurements, and the formal definition, on this tab and the others.
 Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
 
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->

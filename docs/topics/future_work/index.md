@@ -23,7 +23,7 @@ Where the design is open, this section says so.
 <!-- BEGIN GENERATED SECTION CONTENTS — do not edit; change the mkdocs.yml nav or a listed page's description: frontmatter, then run `uv run docs-site --write` -->
 
 - [Federation](federation.md) — The federation model for organizations that each operate their own coordination service: what the services interchange, who has authority for a case, and how trust is built.
-- [Open Questions](open_questions.md) — Every unresolved design question in the Future Work section, collected in one place with the issue or epic that records it.
+- [Open Design Questions](open_questions.md) — Every unresolved design question in the Future Work section, collected in one place with the issue or epic that records it.
 
 <!-- END GENERATED SECTION CONTENTS -->
 

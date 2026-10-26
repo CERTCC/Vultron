@@ -303,9 +303,13 @@ protocol and implementation pages needs a per-page `subject` key and waits for
 the tabbed nav; until then the rule is a review rule (#4946).
 
 **Edge placements decided so far:** Behavior Logic and Federation
-(`platform-developer`) are Engineering; the Concept Taxonomy and Documentation
-Conventions are lobby signage, out of the basement; User Stories are basement;
-Measuring Your Program is Offices.
+(`platform-developer`) are Engineering; the Concept Taxonomy, the Glossary and
+Documentation Conventions are lobby signage, out of the basement; User Stories,
+Case Model Fields and the rv demo's protocol trace are basement; Measuring Your
+Program and the standards crosswalks are Offices. **Process Models and Case
+Lifecycle stay whole in lobby signage**, formal-model and 400-level pages
+included: three tabs depend on them, and splitting a model's formal page from
+its explanation sends the reader between tabs for one subject.
 
 **Open Questions pages:** the specification's
 (`reference/vultron-spec/open-questions.md`) is Engineering, beside the
@@ -325,12 +329,17 @@ a test bench. One about running, configuring or extending the code is basement.
 | `tutorials/receive_report_demo.md` | basement | running the demo environment |
 | `tutorials/container_demos.md` | basement | running the multi-actor containers |
 | `tutorials/other_demos.md` | basement | running the remaining demos |
+| `howto/demos/rvv-demo.md` | basement | running the three-actor demo |
 
 ### Inside a tab: topics, landing pages, threads
 
 Groups inside a tab are named by topic, never by Diátaxis type ("Run the
 Demos", not "Tutorials"). Every tab opens on a landing page. Large groups go
 behind a routing page (DF-11-006) rather than nesting deeper.
+
+Every tab's first entry is labelled **Start Here**, whatever its page's
+situation title: in the tree test, agents passed over situation-titled first
+entries looking for a place to start, and found "Start Here" (#4687).
 
 Each reader tab's landing page starts a **thread**: a reading path that may
 cross tabs; lobby signage has a shared thread. The nav is the structure and the
@@ -574,6 +583,10 @@ independent of the design. How to run it:
    where they would look for each task.
 2. **Walkthrough.** Agents get the built site as HTML only: no repository, no
    site search, a click budget, and an explicit option to give up.
+
+The commands, scoring, and the current verdict are in
+[nav-usability-test.md](nav-usability-test.md); the personas and tasks are in
+`notes/nav-usability/suite.yaml`.
 
 Brief about five personas, each with explicit "you don't know X" constraints;
 an agent that knows the repo will find anything. Draw tasks from the user
