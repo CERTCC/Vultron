@@ -1192,6 +1192,15 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+    if args.list_compound and (
+        args.changed_since is not None
+        or args.check_closing_pr is not None
+        or args.check_debt_owners
+        or args.list_unverified
+    ):
+        # --list-compound runs nothing else, so a combined check would pass
+        # without having run.
+        parser.error("--list-compound runs alone; drop the other flags")
     spec_dir = Path(args.spec_dir)
     if not spec_dir.is_dir():
         print(

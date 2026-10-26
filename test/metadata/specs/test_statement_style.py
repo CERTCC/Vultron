@@ -36,6 +36,7 @@ from vultron.metadata.specs.statement_style import (
     compound_listing,
     is_compound,
     long_sentences,
+    unexcused_compound_statements,
 )
 
 _ONE = "The CASE_MANAGER MUST send the case."
@@ -88,6 +89,13 @@ class TestLongSentences:
         text = f"The tool {span} " + " ".join(["runs"] * 23) + "."
         (found,) = long_sentences(text)
         assert found.words == 2 + 1 + 23
+
+    @pytest.mark.parametrize("abbreviation", ["e.g.", "i.e.", "U.S.", "etc."])
+    def test_an_abbreviation_ends_no_sentence(self, abbreviation):
+        half = " ".join(["send"] * 12)
+        text = f"It MUST {half}, {abbreviation} Then {half}."
+        (found,) = long_sentences(text)
+        assert found.words == 2 + 12 + 1 + 1 + 12
 
     def test_punctuation_alone_is_not_a_word(self):
         text = _words(SENTENCE_WORD_LIMIT - 1)[:-1] + " — end."
@@ -265,7 +273,67 @@ class TestListCompound:
             "1 compound requirement(s) in 1 spec file(s) (MS-03-001)",
         ]
 
+    def test_a_suppression_without_a_reason_is_still_listed(self, tmp_path):
+        _write_specs(
+            tmp_path,
+            [_row("TST-01-001", _TWO, lint_suppress=["compound_statement"])],
+            reason=False,
+        )
+        lines = compound_listing(
+            load_registry(tmp_path / "specs"), tmp_path / "specs"
+        )
+        assert "  TST-01-001  2 keywords" in lines
+
+    @pytest.mark.parametrize(
+        "other",
+        [
+            ("--changed-since", "base"),
+            ("--check-closing-pr", "1"),
+            ("--check-debt-owners",),
+            ("--list-unverified",),
+        ],
+    )
+    def test_the_cli_refuses_another_check_beside_it(
+        self, tmp_path, monkeypatch, capsys, other
+    ):
+        _write_specs(tmp_path, [_row("TST-01-001", _TWO)])
+        assert _run(monkeypatch, tmp_path, "--list-compound", *other) == 2
+        assert "--list-compound runs alone" in capsys.readouterr().err
+
     def test_the_cli_exits_0(self, tmp_path, monkeypatch, capsys):
         _write_specs(tmp_path, [_row("TST-01-001", _TWO)])
         assert _run(monkeypatch, tmp_path, "--list-compound") == 0
         assert "  TST-01-001  2 keywords" in capsys.readouterr().out
+
+
+@pytest.mark.spec("MS-03-007")
+class TestGuardItems:
+    """The items the PR-only growth guard compares across the merge base."""
+
+    def test_a_reworded_compound_statement_is_a_new_item(self, tmp_path):
+        _write_specs(tmp_path, [_row("TST-01-001", _TWO)])
+        before = unexcused_compound_statements(tmp_path)
+        _write_specs(tmp_path, [_row("TST-01-001", _TWO + " Then stop.")])
+        assert unexcused_compound_statements(tmp_path) - before
+
+    def test_a_change_outside_the_statement_keeps_the_item(self, tmp_path):
+        _write_specs(tmp_path, [_row("TST-01-001", _TWO)])
+        before = unexcused_compound_statements(tmp_path)
+        _write_specs(
+            tmp_path, [_row("TST-01-001", _TWO, rationale="It keeps order.")]
+        )
+        assert unexcused_compound_statements(tmp_path) == before
+
+    def test_only_unexcused_compound_statements_are_items(self, tmp_path):
+        _write_specs(
+            tmp_path,
+            [
+                _row("TST-01-001", _ONE),
+                _row("TST-01-002", _QUOTED),
+                _row("TST-01-003", _TWO, lint_suppress=["compound_statement"]),
+                _row("TST-01-004", _TWO),
+            ],
+        )
+        assert unexcused_compound_statements(tmp_path) == {
+            f"TST-01-004: {_TWO}"
+        }

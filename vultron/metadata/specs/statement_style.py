@@ -25,7 +25,9 @@ The corpus has a backlog of both, so neither fails ``spec-lint`` corpus-wide.
 ``spec-lint --changed-since REF`` checks each requirement whose ``statement:``
 the branch added or changed (MS-03-007): a compound one is an error, a long
 sentence a warning. A change to any other field leaves the check alone, so a
-rationale backfill or a link audit is not forced to split what it touches.
+rationale backfill or a link audit is not forced to split what it touches. A
+PR-only growth guard under ``test/architecture/`` holds the same rule in CI
+(:func:`unexcused_compound_statements`).
 ``spec-lint --list-compound`` lists the whole backlog by spec file.
 
 A requirement that must keep two keywords carries
@@ -44,7 +46,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vultron.metadata.rfc2119 import keywords_in, strip_code_spans
-from vultron.metadata.specs.registry import SpecRegistry
+from vultron.metadata.specs.registry import SpecRegistry, load_registry
 from vultron.metadata.specs.schema import (
     BehavioralSpec,
     LintWarningCode,
@@ -64,8 +66,12 @@ _CODE = LintWarningCode.COMPOUND_STATEMENT
 Spec = BehavioralSpec | StatementSpec
 
 #: A sentence ends at ``.``, ``!`` or ``?`` before a capital or an opening
-#: mark; a lower-case word after ``e.g.`` or ``i.e.`` does not start one.
+#: mark.
 _SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z(\"'])")
+#: Abbreviations whose final dot ends no sentence, even before a capital.
+_ABBREVIATION_RE = re.compile(
+    r"(?<![\w.])(?:e\.g|i\.e|etc|vs|cf|U\.S|No|Fig|Sec)\.(?=\s)"
+)
 _WORD_RE = re.compile(r"\w")
 _PREVIEW_WORDS = 8
 
@@ -94,8 +100,10 @@ def long_sentences(
     statement: str, limit: int = SENTENCE_WORD_LIMIT
 ) -> list[LongSentence]:
     """The sentences of *statement* with more than *limit* words."""
-    # A code span is one word, and its dots must not end a sentence.
+    # A code span is one word, and its dots must not end a sentence; nor
+    # does an abbreviation's.
     prose = strip_code_spans(statement, "code")
+    prose = _ABBREVIATION_RE.sub(lambda m: m.group(0).replace(".", ""), prose)
     found: list[LongSentence] = []
     for number, sentence in enumerate(
         _SENTENCE_END_RE.split(prose.strip()), start=1
@@ -122,11 +130,16 @@ def _is_suppressed(spec: Spec) -> bool:
     return _CODE in set(spec.lint_suppress or [])
 
 
-def _reason(
-    spec_id: str, items: Mapping[str, tuple[Path, SpecItem]]
-) -> str | None:
+def _excused(
+    spec_id: str, spec: Spec, items: Mapping[str, tuple[Path, SpecItem]]
+) -> bool:
+    """Whether *spec* suppresses the check and gives its reason."""
     entry = items.get(spec_id)
-    return suppression_reason(entry[1], _CODE) if entry else None
+    return (
+        _is_suppressed(spec)
+        and entry is not None
+        and suppression_reason(entry[1], _CODE) is not None
+    )
 
 
 def _compound_problem(
@@ -139,12 +152,13 @@ def _compound_problem(
     statement = spec.statement
     if not is_compound(statement):
         return None
+    if _excused(spec_id, spec, items):
+        return None
     if _is_suppressed(spec):
-        if _reason(spec_id, items) is not None:
-            return None
         return (
-            f"{spec_id}: lint_suppress: [{_CODE}] gives no reason. Put it in "
-            f"a YAML comment on the entry or the line before it (MS-03-007)."
+            f"{spec_id}: lint_suppress: [{_CODE}] gives no reason. Write the "
+            f"list one entry per line and put the reason in a YAML comment on "
+            f"the {_CODE} entry or the line before it (MS-03-007)."
         )
     keywords = ", ".join(keywords_in(statement))
     return (
@@ -197,6 +211,24 @@ def check_changed_statements(
     return StatementReport(errors, warnings)
 
 
+def unexcused_compound_statements(repo_root: Path) -> frozenset[str]:
+    """Each compound statement under *repo_root* with no reasoned suppression.
+
+    One item per requirement, as ``"<ID>: <statement>"``: the PR-only growth
+    guard (MS-03-007) compares the merge base with the working tree, so a
+    statement added or reworded is new there, and a change to any other field
+    leaves its item as it was.
+    """
+    spec_dir = repo_root / "specs"
+    registry = load_registry(spec_dir)
+    items = spec_items(spec_dir)
+    return frozenset(
+        f"{spec_id}: {spec.statement}"
+        for spec_id, spec in registry.all_specs.items()
+        if is_compound(spec.statement) and not _excused(spec_id, spec, items)
+    )
+
+
 def compound_listing(registry: SpecRegistry, spec_dir: Path) -> list[str]:
     """Every compound requirement in the corpus, grouped by spec file.
 
@@ -208,7 +240,7 @@ def compound_listing(registry: SpecRegistry, spec_dir: Path) -> list[str]:
     for spec_id, spec in registry.all_specs.items():
         if not is_compound(spec.statement):
             continue
-        if _is_suppressed(spec) and _reason(spec_id, items) is not None:
+        if _excused(spec_id, spec, items):
             continue
         path = items[spec_id][0].name if spec_id in items else "(unknown)"
         count = len(keywords_in(spec.statement))
@@ -235,4 +267,5 @@ __all__ = [
     "is_compound",
     "long_sentences",
     "spec_items",
+    "unexcused_compound_statements",
 ]

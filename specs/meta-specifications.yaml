@@ -191,7 +191,9 @@ groups:
       reword a compound statement, quote a second keyword in backticks, suppress
       the check with and without a reason, and change only a compound
       requirement's `rationale:` or `relationships:`, and checks which of them
-      fail.
+      fail. In CI, `test/architecture/test_spec_statement_guard.py` fails a pull
+      request that adds or rewords a compound statement with no reasoned
+      suppression.
     rationale: >-
       The corpus holds a backlog of compound requirements, so a corpus-wide error
       would fail every branch. Checking only the statements a branch writes holds

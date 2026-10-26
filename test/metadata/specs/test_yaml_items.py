@@ -364,9 +364,11 @@ class TestSuppressionReason:
             "    lint_suppress:\n    # one choice\n    - compound_statement\n",
             "    lint_suppress:\n    - compound_statement  # one choice\n",
             "    lint_suppress:  # one choice\n    - compound_statement\n",
-            "    lint_suppress: [missing_tags, compound_statement]  # one choice\n",
+            "    lint_suppress: [compound_statement]  # one choice\n",
+            "    lint_suppress:  # tags later\n"
+            "    - missing_tags\n    - compound_statement  # one choice\n",
         ],
-        ids=["comment-before", "same-line", "header", "flow"],
+        ids=["comment-before", "same-line", "header", "flow", "own-of-two"],
     )
     def test_reads_the_reason(self, suppress):
         (item,) = _items(f"  - id: TST-01-001\n{suppress}    kind: process\n")
@@ -379,8 +381,21 @@ class TestSuppressionReason:
             "    lint_suppress: [compound_statement]\n",
             "    lint_suppress:\n    - missing_tags  # one choice\n",
             "    lint_suppress:\n    - compound_statement  #\n",
+            "    lint_suppress:  # tags later\n"
+            "    - missing_tags\n    - compound_statement\n",
+            "    lint_suppress: [missing_tags, compound_statement]  # tags later\n",
+            "    lint_suppress: [missing_tags,  # tags later\n"
+            "      compound_statement]\n",
         ],
-        ids=["block", "flow", "other-code", "empty-comment"],
+        ids=[
+            "block",
+            "flow",
+            "other-code",
+            "empty-comment",
+            "shared-header",
+            "shared-flow",
+            "multi-line-flow",
+        ],
     )
     def test_no_reason_is_none(self, suppress):
         (item,) = _items(f"  - id: TST-01-001\n{suppress}    kind: process\n")
