@@ -43,7 +43,11 @@ from vultron.core.participants.ownership_offer import recorded_ownership_offer
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.sync_helpers import at_stored_position
 from vultron.enums.roles import CVDRole
-from vultron.errors import VultronError, VultronNotFoundError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronError,
+    VultronNotFoundError,
+)
 
 if TYPE_CHECKING:
     from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -90,8 +94,13 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
     must be kept in sync (CM-21-002).
 
     The entries are recorded in that order so no replica holds two owners
-    between them (CM-21-001).  A participant record the case does not index
-    is not changed, so it has no entry.
+    between them (CM-21-001).  A previous owner whose record the case does
+    not index is not changed, so it has no entry.  A new owner with no
+    record is a fault, not a skip: the strip would leave the case with no
+    ``CASE_OWNER`` holder at all, so the node raises before it changes
+    anything (CM-21-001, CM-21-004).  The Accept's guards admit only an
+    active transferee (CM-21-021), so reaching it means the store lost the
+    record the guards read.
 
     Idempotent: when the case is already owned by the new owner, returns
     ``SUCCESS`` without mutation.
@@ -100,7 +109,8 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
     found, when the new owner cannot be named, or when an entry cannot be
     built or does not commit; ``SUCCESS`` otherwise.  A missing
     trigger-activity port raises before this node changes anything: without
-    it no entry can be built (ARCH-15-001).  The node is an effect of the
+    it no entry can be built (ARCH-15-001).  So does a new owner with no
+    participant record (``VultronBTInternalError``, above).  The node is an effect of the
     received ``Accept``, so that entry is already committed by then.
 
     Subclasses name the new owner through :meth:`_new_owner_id`, and the act
@@ -162,6 +172,26 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
             return None
         return participant
 
+    def _require_new_owner(
+        self, new_owner_id: str, case: VulnerabilityCase
+    ) -> CaseParticipant:
+        """Return the new owner's ``CaseParticipant``; there must be one.
+
+        Raises:
+            VultronBTInternalError: *case* holds no record for the new
+                owner, so granting it ``CASE_OWNER`` is impossible and the
+                strip would leave the case with no owner (CM-21-001).
+        """
+        participant = self._resolve_participant(new_owner_id, case)
+        if participant is None:
+            raise VultronBTInternalError(
+                f"{self.name}: new owner '{new_owner_id}' has no"
+                f" CaseParticipant record in case '{self.case_id}'; moving"
+                " ownership would leave the case with no CASE_OWNER"
+                " (CM-21-001, CM-21-004)"
+            )
+        return participant
+
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
             self.logger.error("%s: DataLayer not available", self.name)
@@ -200,7 +230,7 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
         if current_owner_id is not None:
             old_participant = self._resolve_participant(current_owner_id, case)
 
-        new_participant = self._resolve_participant(new_owner_id, case)
+        new_participant = self._require_new_owner(new_owner_id, case)
 
         # --- Mutate phase: all changes in memory, nothing written yet --------
 
@@ -222,16 +252,15 @@ class _TransferCaseOwnershipNode(DataLayerActionWithPorts, StateWriteCapable):
         to_save.append(case)
 
         # CM-21-002: grant CASE_OWNER to the new owner.
-        if new_participant is not None:
-            new_participant.add_role(CVDRole.CASE_OWNER)
-            to_save.append(new_participant)
-            self.logger.info(
-                "%s: will grant CVDRole.CASE_OWNER to participant '%s'"
-                " (case '%s') — CM-21-002",
-                self.name,
-                case.actor_participant_index.get(new_owner_id),
-                self.case_id,
-            )
+        new_participant.add_role(CVDRole.CASE_OWNER)
+        to_save.append(new_participant)
+        self.logger.info(
+            "%s: will grant CVDRole.CASE_OWNER to participant '%s'"
+            " (case '%s') — CM-21-002",
+            self.name,
+            new_participant.id_,
+            self.case_id,
+        )
 
         # --- Record phase: one entry per changed object, before the change
         # is saved (CLP-07-013) ---------------------------------------------

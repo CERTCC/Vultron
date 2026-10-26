@@ -13,33 +13,38 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""The CASE_MANAGER's guards for ownership transfer (CM-21-005, CM-21-014).
+"""The CASE_MANAGER's guards on an ownership-transfer proposal (CM-21-005, CM-21-014).
 
 Provides:
 
-- :class:`OfferParty` — which party to an Offer sent the reply a guard
-  checks.
 - :class:`OwnershipProposalAdmissibleNode` — precondition guard that refuses
-  a proposal whose inner Offer names another case or no actor the
-  CASE_MANAGER can address (ADR-0148).
+  a proposal whose inner Offer names another case, no actor the
+  CASE_MANAGER can address, or a transferee that is not an active
+  participant (ADR-0148, CM-21-021).
 - :class:`NoOpenOwnershipOfferNode` — precondition guard that refuses a new
   proposal while an earlier ownership-transfer Offer for the case is open.
 - :func:`case_manager_admits_ownership_proposal_guard` — both behind the
   CASE_MANAGER gate, for the received proposal tree's
   ``precondition_guards``.
-- :class:`OwnershipOfferOpenNode` — precondition guard that refuses a reply
-  to an ownership-transfer Offer that is no longer open, and recognises a
-  redelivery of the reply that closed it.
-- :func:`case_manager_ownership_offer_open_guard` — that guard behind the
-  CASE_MANAGER gate, for the reply trees' ``precondition_guards``.
+
+The guards on a reply to the Offer (:class:`OfferParty`,
+:class:`OwnershipOfferOpenNode`, :class:`OwnershipTransfereeActiveNode`,
+:func:`case_manager_ownership_offer_open_guard`) live in
+:mod:`~vultron.core.behaviors.case.nodes.ownership_reply_guard` and are
+re-exported here.
 """
 
 from datetime import datetime
-from enum import Enum
 
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.behaviors.case.nodes.ownership_reply_guard import (
+    OfferParty,
+    OwnershipOfferOpenNode,
+    OwnershipTransfereeActiveNode,
+    case_manager_ownership_offer_open_guard,
+)
 from vultron.core.behaviors.case.nodes.role_gates import (
     create_case_manager_gated_tree,
 )
@@ -47,23 +52,11 @@ from vultron.core.behaviors.helpers import DataLayerConditionWithPorts
 from vultron.core.behaviors.idempotency import FlaggedRepeatGuardMixin
 from vultron.core.models._helpers import now_utc
 from vultron.core.participants.ownership_offer import (
-    RecordedOwnershipOffer,
     offer_made_from_proposal,
     open_ownership_offer,
-    recorded_ownership_offer,
 )
+from vultron.core.participants.recipients import why_may_not_act_on_case
 from vultron.core.predicates.addressing import same_actor_id
-from vultron.errors import VultronBTInternalError, VultronNotFoundError
-
-
-class OfferParty(Enum):
-    """The party to an ownership-transfer Offer whose reply is checked."""
-
-    TRANSFEREE = "transferee"
-    """Answers the Offer: Accept or Reject (CM-21-011)."""
-
-    OFFERER = "offerer"
-    """Withdraws the Offer: Undo (CM-21-015)."""
 
 
 class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
@@ -75,7 +68,13 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
     CASE_MANAGER itself, since a received tree emits nothing whose only
     recipient is the executing actor (BT-17-008, ADR-0109; CM-33-003 refuses
     the role offer on the same ground), nor the proposing owner, who already
-    owns the case.  Anything else in the inner
+    owns the case.  The transferee must also be an active participant whose
+    closure is not recorded (CM-21-021, CM-10-004): the Offer carries the case
+    inline, so only an actor entitled to its content may be offered it, and
+    an owner that means to transfer to anyone else invites it first.  The
+    test is :func:`~vultron.core.participants.recipients.may_act_on_case`,
+    the one the transferee's Accept passes again (:class:`OwnershipTransfereeActiveNode`).
+    Anything else in the inner
     Offer (its id, ``actor`` and ``to``) is the sender's and is never read,
     so the Offer the CASE_MANAGER makes carries its own id (CM-21-005).
 
@@ -83,7 +82,7 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
     gate (:func:`case_manager_admits_ownership_proposal_guard`): a refused
     proposal leaves no entry and sends nothing.
 
-    Spec: CM-21-005, CM-21-019, BT-17-008.
+    Spec: CM-21-005, CM-21-019, CM-21-021, BT-17-008.
     """
 
     def __init__(
@@ -109,8 +108,10 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
         self._transferee_id = transferee_id
         self._proposer_id = proposer_id
 
-    def _refuse(self, reason: str) -> Status:
-        self.feedback_message = f"{reason} — REFUSED (CM-21-005, ADR-0148)"
+    def _refuse(
+        self, reason: str, spec: str = "CM-21-005, ADR-0148"
+    ) -> Status:
+        self.feedback_message = f"{reason} — REFUSED ({spec})"
         self.logger.warning("%s: %s", self.name, self.feedback_message)
         return Status.FAILURE
 
@@ -135,6 +136,18 @@ class OwnershipProposalAdmissibleNode(DataLayerConditionWithPorts):
             return self._refuse(
                 f"the inner Offer names the proposer '{transferee}', which"
                 f" already owns case '{self._case_id}'"
+            )
+        assert self.datalayer is not None
+        case, failure = self._require_case(self._case_id)
+        if failure is not None:
+            return failure  # Regime 1: the gate found this store's case
+        why = why_may_not_act_on_case(case, self.datalayer, transferee)
+        if why is not None:
+            return self._refuse(
+                f"the transferee '{transferee}' {why}, so it is not an active"
+                f" participant of case '{self._case_id}' and may not be"
+                " offered it; the owner invites it first",
+                "CM-21-021, CM-10-004",
             )
         return Status.SUCCESS
 
@@ -269,193 +282,12 @@ def case_manager_admits_ownership_proposal_guard(
     )
 
 
-#: The requirement a refusal of a reply to a closed Offer cites, per party.
-_CLOSED_SPEC: dict[OfferParty, str] = {
-    OfferParty.TRANSFEREE: "CM-21-011",
-    OfferParty.OFFERER: "CM-21-015",
-}
-
-#: The requirements a refusal of a reply after the deadline cites, per party:
-#: the deadline binds an answer (CM-21-016), and an expired Offer is closed
-#: (CM-21-017), so it cannot be withdrawn (CM-21-015).
-_LATE_SPEC: dict[OfferParty, str] = {
-    OfferParty.TRANSFEREE: "CM-21-016",
-    OfferParty.OFFERER: "CM-21-015, CM-21-017",
-}
-
-
-class OwnershipOfferOpenNode(
-    FlaggedRepeatGuardMixin, DataLayerConditionWithPorts
-):
-    """Guard: the ownership-transfer Offer a reply names is still open.
-
-    Runs right after the reply's sender check, which has established that
-    the sender is the party to the Offer the reply needs
-    (:class:`~vultron.core.behaviors.sender_entitlement.SenderIsOwnershipOfferPartyNode`),
-    so only a sender with standing learns the Offer's state.  The Offer is
-    read from this store's ledger (CLP-11-001).
-
-    - A **redelivery** of the reply that already closed the Offer is not a
-      refusal (HP-01-003), but it must change nothing: by then ownership may
-      have moved on through a later Offer, and re-applying the old reply
-      would hand it back with no ledger entry.  The guard sets
-      :attr:`is_redelivery` and fails, so nothing downstream runs, and the
-      handler reports the run as ``SKIPPED``.
-    - A reply to an Offer an answer or withdrawal already closed is refused
-      (CM-21-014).
-    - A reply after the Offer's ``end_time`` is refused (CM-21-016).
-
-    The deadline is the ``end_time`` the ledgered Offer carries, and nothing
-    records its passing (CM-21-017, ADR-0152): the CASE_MANAGER compares it
-    with its own clock here, so the guard runs behind the CASE_MANAGER gate
-    (:func:`case_manager_ownership_offer_open_guard`).  A replica changes
-    nothing on an expiry, so it never evaluates one.
-
-    Spec: CM-21-011, CM-21-013, CM-21-014, CM-21-015, CM-21-016, HP-01-003.
-    """
-
-    _REPEAT_FLAG = "is_redelivery"
-
-    def __init__(
-        self,
-        case_id: str,
-        offer_id: str | None,
-        reply_id: str,
-        sender_id: str,
-        party: OfferParty,
-        now: datetime | None = None,
-        name: str | None = None,
-    ) -> None:
-        """Create the guard.
-
-        Args:
-            case_id: The case the reply names.
-            offer_id: The Offer the reply names.
-            reply_id: The reply's own id, so a redelivery is recognised.
-            sender_id: The reply's sender, named in a refusal; the sender
-                check has already established its standing.
-            party: The party whose reply it is; it picks the requirements a
-                refusal cites.
-            now: The instant the deadline is compared against.  ``None``
-                reads the clock when the guard runs.
-            name: Optional node name.
-        """
-        super().__init__(name=name or self.__class__.__name__)
-        self._case_id = case_id
-        self._offer_id = offer_id
-        self._reply_id = reply_id
-        self._sender_id = sender_id
-        self._party = party
-        self._now = now
-        self.is_redelivery = False
-        """``True`` when the last run found the reply already ledgered as
-        the one that closed the Offer: a benign no-op, not a refusal."""
-
-    def _refuse(self, reason: str, spec: str) -> Status:
-        self.feedback_message = f"{reason} — REFUSED ({spec})"
-        self.logger.warning("%s: %s", self.name, self.feedback_message)
-        return Status.FAILURE
-
-    def _refuse_late(self, offer: RecordedOwnershipOffer) -> Status:
-        deadline = (
-            offer.end_time.isoformat() if offer.end_time is not None else "?"
-        )
-        return self._refuse(
-            f"Ownership-transfer Offer '{offer.offer_id}' for case"
-            f" '{self._case_id}' expired at its end_time {deadline}; reply"
-            f" '{self._reply_id}' from '{self._sender_id}' came too late",
-            _LATE_SPEC[self._party],
-        )
-
-    def _recorded_offer(self) -> RecordedOwnershipOffer:
-        """The Offer the reply names, as the CASE_MANAGER recorded it.
-
-        Raises:
-            VultronNotFoundError: The reply names no Offer, or the
-                CASE_MANAGER recorded no such Offer.
-        """
-        assert self.datalayer is not None
-        if self._offer_id is None:
-            raise VultronNotFoundError(
-                "ownership-transfer Offer", f"None (case '{self._case_id}')"
-            )
-        return recorded_ownership_offer(
-            self.datalayer, self._case_id, self._offer_id
-        )
-
-    def update(self) -> Status:
-        """Check the Offer is open; see the class docstring.
-
-        Raises:
-            VultronBTInternalError: The Offer the sender check found is not
-                recorded, a local anomaly rather than the sender's refusal.
-        """
-        self.is_redelivery = False
-        if (f := self._require_datalayer()) is not None:
-            return f
-        _case, failure = self._require_case(self._case_id)
-        if failure is not None:
-            return failure  # Regime 1: the gate found this store's case
-        try:
-            offer = self._recorded_offer()
-        except VultronNotFoundError as exc:
-            # The sender check ran first and found this Offer, so its absence
-            # now is a local anomaly, not the sender's refusal: raise, so the
-            # bridge flags an internal error instead of a REFUSED verdict.
-            raise VultronBTInternalError(
-                f"{self.name}: the Offer the sender check found is gone"
-                f" ({exc})"
-            ) from exc
-        if offer.answer_id == self._reply_id:
-            self.is_redelivery = True
-            self.feedback_message = (
-                f"Reply '{self._reply_id}' already closed ownership-transfer"
-                f" Offer '{offer.offer_id}' — redelivery, nothing to apply"
-                " (HP-01-003)"
-            )
-            self.logger.info("%s: %s", self.name, self.feedback_message)
-            return Status.FAILURE
-        if offer.is_answered_other_than(self._reply_id):
-            return self._refuse(
-                f"Ownership-transfer Offer '{offer.offer_id}' for case"
-                f" '{self._case_id}' was already closed by"
-                f" '{offer.answer_id}' ({offer.closed_by_semantic_type})",
-                f"{_CLOSED_SPEC[self._party]}, CM-21-014",
-            )
-        if offer.is_past_deadline(self._now or now_utc()):
-            return self._refuse_late(offer)
-        return Status.SUCCESS
-
-
-def case_manager_ownership_offer_open_guard(
-    case_id: str,
-    offer_id: str | None,
-    reply_id: str,
-    sender_id: str,
-    party: OfferParty,
-    now: datetime | None = None,
-) -> py_trees.behaviour.Behaviour:
-    """Precondition guard: at the CASE_MANAGER, the replied-to Offer is open.
-
-    A replica skips it as ``SUCCESS``: it takes the change from the
-    CASE_MANAGER alone, which the sender check establishes (PCR-03-001),
-    and changes nothing when an Offer expires (CM-21-017).  A
-    receiver that does not hold the case is not its CASE_MANAGER (ADR-0087
-    Regime 3).
-    """
-    return create_case_manager_gated_tree(
-        name="OwnershipOfferOpenIfCaseManager",
-        case_id=case_id,
-        body_name="OwnershipOfferOpen",
-        children=[
-            OwnershipOfferOpenNode(
-                case_id=case_id,
-                offer_id=offer_id,
-                reply_id=reply_id,
-                sender_id=sender_id,
-                party=party,
-                now=now,
-            )
-        ],
-        case_may_be_absent=True,
-    )
+__all__ = [
+    "NoOpenOwnershipOfferNode",
+    "OfferParty",
+    "OwnershipOfferOpenNode",
+    "OwnershipProposalAdmissibleNode",
+    "OwnershipTransfereeActiveNode",
+    "case_manager_admits_ownership_proposal_guard",
+    "case_manager_ownership_offer_open_guard",
+]

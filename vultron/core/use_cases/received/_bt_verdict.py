@@ -67,6 +67,8 @@ from vultron.core.behaviors.case.nodes.intake import (
 )
 from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
     NoOpenOwnershipOfferNode,
+)
+from vultron.core.behaviors.case.nodes.ownership_reply_guard import (
     OwnershipOfferOpenNode,
 )
 from vultron.core.behaviors.case.nodes.post_close import (
@@ -417,7 +419,7 @@ def ownership_answer_verdict(
     """Report a redelivered reply to an ownership-transfer Offer as ``SKIPPED``.
 
     The reply's open-Offer guard — an
-    :class:`~vultron.core.behaviors.case.nodes.ownership_offer_guard.OwnershipOfferOpenNode`,
+    :class:`~vultron.core.behaviors.case.nodes.ownership_reply_guard.OwnershipOfferOpenNode`,
     run right after the sender check, for the transferee's Accept or Reject
     or the offerer's withdrawal — fails with ``is_redelivery`` set when the
     reply is the one already ledgered as closing its Offer, so nothing is

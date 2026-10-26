@@ -39,6 +39,11 @@ from test.support.received import (
     assert_held_only_as_received,
     received_record,
 )
+from test.support.transferee import (
+    INACTIVE_STANDINGS,
+    TransfereeStanding,
+    make_inactive,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -840,6 +845,9 @@ class TestOwnershipOfferNamingNoCase:
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _VENDOR_ID = "https://example.org/users/vendor"
 _COORDINATOR_ID = "https://example.org/users/coordinator"
+#: A second participant the case may be offered to; only an active
+#: participant may be (CM-21-021).
+_VENDOR2_ID = "https://example.org/users/vendor2"
 _MALLORY_ID = "https://example.org/users/mallory"
 
 
@@ -903,7 +911,8 @@ def _ownership_offer_harness(make_payload, case_id: str):
     """A CASE_MANAGER store holding one case, and a function delivering a proposal.
 
     The roster holds the CASE_MANAGER, the vendor as Case Owner and the
-    coordinator as a plain participant.  Returns ``(dl, deliver,
+    coordinator and a second vendor as plain participants, either of which
+    may be offered the case (CM-21-021).  Returns ``(dl, deliver,
     trigger_activity)``; ``deliver(transferee_id, proposal_id, end_time=None,
     offerer=_VENDOR_ID, attributed_to=None)`` delivers the *offerer*'s
     proposal and returns its disposition with the Offer the CASE_MANAGER
@@ -920,6 +929,7 @@ def _ownership_offer_harness(make_payload, case_id: str):
     seed_case_manager_participant(dl, case, _CASE_ACTOR_ID)
     seed_case_owner_participant(dl, case, _VENDOR_ID)
     seed_case_participant(dl, case, _COORDINATOR_ID)
+    seed_case_participant(dl, case, _VENDOR2_ID)
     dl.create(case)
     trigger_activity = MagicMock(wraps=TriggerActivityAdapter(dl))
 
@@ -1052,7 +1062,7 @@ def test_second_offer_while_first_is_unanswered_is_refused(make_payload):
     )
     entries_after_first = _semantic_types(dl)
     second, _ = deliver(
-        "https://example.org/users/vendor2",
+        _VENDOR2_ID,
         "https://example.org/activities/offer_one_open_2",
     )
 
@@ -1079,7 +1089,7 @@ def test_new_offer_after_the_first_is_answered_is_admitted(make_payload):
 
     # The coordinator now owns the case and offers it on.
     second, _ = deliver(
-        "https://example.org/users/vendor2",
+        _VENDOR2_ID,
         "https://example.org/activities/offer_reoffer_2",
         offerer=_COORDINATOR_ID,
     )
@@ -1139,7 +1149,7 @@ def test_redelivered_proposal_of_an_answered_offer_is_skipped_while_a_newer_one_
         is HandlerDisposition.APPLIED
     )
     newer, _ = deliver(
-        "https://example.org/users/vendor2",
+        _VENDOR2_ID,
         "https://example.org/activities/offer_late_copy_2",
         offerer=_COORDINATOR_ID,
     )
@@ -1274,7 +1284,7 @@ def test_new_offer_after_an_expired_one_ledgers_no_expiry(make_payload):
     _wait_past(deadline)
 
     second, _ = deliver(
-        "https://example.org/users/vendor2",
+        _VENDOR2_ID,
         "https://example.org/activities/offer_expired_2",
     )
 
@@ -1669,7 +1679,7 @@ class TestProposalIsAdmittedOnlyFromTheCaseOwner:
         before = self._before(dl, case_id)
 
         disposition, offer = deliver(
-            "https://example.org/users/vendor2",
+            _VENDOR2_ID,
             "https://example.org/activities/offer_participant",
             offerer=_COORDINATOR_ID,
         )
@@ -2335,7 +2345,7 @@ class TestWithdrawalOfOwnershipTransfer:
         case_id = "https://example.org/cases/case_ot_undo_not_owner"
         dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
         _, offer = deliver(
-            "https://example.org/users/vendor2",
+            _VENDOR2_ID,
             "https://example.org/activities/offer_undo_not_owner",
         )
         # The offerer loses the role while its Offer is open.
@@ -2575,7 +2585,7 @@ class TestWithdrawalOfOwnershipTransfer:
         )
 
         second, offer = deliver(
-            "https://example.org/users/vendor2",
+            _VENDOR2_ID,
             "https://example.org/activities/offer_undo_re_2",
         )
 
@@ -2586,7 +2596,7 @@ class TestWithdrawalOfOwnershipTransfer:
                 dl,
                 make_payload,
                 offer,
-                sender="https://example.org/users/vendor2",
+                sender=_VENDOR2_ID,
             ).disposition
             is HandlerDisposition.APPLIED
         )
@@ -2780,23 +2790,9 @@ class TestStandingIsCheckedBeforeTheOfferState:
 
 def _close_coordinator(dl, case_id: str) -> None:
     """Record the coordinator's closure: it left the case (RM ``CLOSED``)."""
-    from vultron.core.models.case_participant import CaseParticipant
-    from vultron.core.models.dimensions import RmDimension
-    from vultron.core.models.participant_status import ParticipantStatus
-    from vultron.core.states.rm import RM
-
-    case = dl.read(case_id)
-    assert isinstance(case, VulnerabilityCase)
-    record = dl.read(case.actor_participant_index[_COORDINATOR_ID])
-    assert isinstance(record, CaseParticipant)
-    record.participant_statuses.append(
-        ParticipantStatus(
-            context=case_id,
-            attributed_to=_COORDINATOR_ID,
-            rm=RmDimension(state=RM.CLOSED),
-        )
+    make_inactive(
+        _read_case(dl, case_id), dl, _COORDINATOR_ID, TransfereeStanding.CLOSED
     )
-    dl.save(record)
 
 
 @pytest.mark.spec("CM-23-018")
@@ -2825,6 +2821,105 @@ def test_a_closed_transferees_answer_is_refused(make_payload, answer):
     assert _owner(dl, case_id) == _VENDOR_ID
     assert _semantic_types(dl) == entries_before
     assert list(dl.outbox_list()) == outbox_before
+
+
+@pytest.mark.spec("CM-21-021")
+@pytest.mark.spec("CM-21-005")
+@pytest.mark.parametrize("standing", INACTIVE_STANDINGS, ids=lambda s: s.name)
+def test_a_proposal_naming_a_transferee_that_is_not_active_is_refused(
+    make_payload, standing: TransfereeStanding
+):
+    """The CASE_MANAGER offers the case only to an active participant.
+
+    A proposal naming any other transferee is REFUSED before the commit: no
+    entry, no Offer made, and so no case content sent to it.
+    """
+    case_id = f"https://example.org/cases/case_ot_inactive_{standing.name}"
+    dl, deliver, trigger_activity = _ownership_offer_harness(
+        make_payload, case_id
+    )
+    make_inactive(_read_case(dl, case_id), dl, _VENDOR2_ID, standing)
+    entries_before = _semantic_types(dl)
+
+    disposition, _ = deliver(_VENDOR2_ID, f"{case_id}/proposal")
+
+    assert disposition is HandlerDisposition.REFUSED
+    trigger_activity.offer_case_ownership_transfer.assert_not_called()
+    assert _semantic_types(dl) == entries_before
+    assert _owner(dl, case_id) == _VENDOR_ID
+
+
+@pytest.mark.spec("CM-21-021")
+@pytest.mark.spec("CM-21-011")
+@pytest.mark.parametrize("standing", INACTIVE_STANDINGS, ids=lambda s: s.name)
+def test_an_accept_from_a_transferee_no_longer_active_is_refused(
+    make_payload, standing: TransfereeStanding
+):
+    """A transferee that lapses between the Offer and its Accept takes nothing.
+
+    It was active when the case was offered to it, so the Offer was made;
+    by the Accept it is not, so the Accept is REFUSED: no answer is ledgered,
+    ``attributed_to`` and every ``CASE_OWNER`` role are unchanged, and no
+    case content is sent.  A closed transferee is refused by its sender
+    check instead (CM-23-018); every other one by the active-transferee
+    guard.
+    """
+    case_id = f"https://example.org/cases/case_ot_lapsed_{standing.name}"
+    dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+    disposition, offer = deliver(_COORDINATOR_ID, f"{case_id}/offer")
+    assert disposition is HandlerDisposition.APPLIED
+    make_inactive(_read_case(dl, case_id), dl, _COORDINATOR_ID, standing)
+    roles_before = _owner_roles(dl, case_id)
+    entries_before = _semantic_types(dl)
+    outbox_before = list(dl.outbox_list())
+
+    result = _accept(dl, make_payload, offer)
+
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    expected = (
+        "CM-23-018" if standing is TransfereeStanding.CLOSED else "CM-21-021"
+    )
+    assert expected in (result.reason or ""), result.reason
+    _assert_nothing_changed(dl, case_id, roles_before, entries_before)
+    # At most the refusal notice of its own Accept goes back to it; no
+    # case content does.
+    assert _announces(dl, outbox_before) == []
+
+
+@pytest.mark.spec("CM-21-021")
+@pytest.mark.spec("HP-01-003")
+def test_a_redelivered_accept_is_skipped_after_the_new_owner_lapses(
+    make_payload,
+):
+    """The Accept that moved ownership, delivered again, is still a duplicate.
+
+    The open-Offer guard recognises it before the active-transferee guard
+    runs, so the new owner's later removal does not turn the redelivery into
+    a refusal.
+    """
+    case_id = "https://example.org/cases/case_ot_lapsed_redelivery"
+    dl, deliver, _ = _ownership_offer_harness(make_payload, case_id)
+    _, offer = deliver(_COORDINATOR_ID, f"{case_id}/offer")
+    accept = accept_case_ownership_transfer_activity(
+        offer, actor=_COORDINATOR_ID, to=[_CASE_ACTOR_ID]
+    )
+    assert (
+        _accept(dl, make_payload, offer, accept=accept).disposition
+        is HandlerDisposition.APPLIED
+    )
+    make_inactive(
+        _read_case(dl, case_id),
+        dl,
+        _COORDINATOR_ID,
+        TransfereeStanding.REMOVED,
+    )
+    entries_before = _semantic_types(dl)
+
+    again = _accept(dl, make_payload, offer, accept=accept)
+
+    assert again.disposition is HandlerDisposition.SKIPPED, again.reason
+    assert _semantic_types(dl) == entries_before
+    assert _owner(dl, case_id) == _COORDINATOR_ID
 
 
 @pytest.mark.spec("OID-01-006")

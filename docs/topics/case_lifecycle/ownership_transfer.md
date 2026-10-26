@@ -42,7 +42,8 @@ Case Actor inbox receives the proposal:
      (anyone else: refused, nothing written).        ← CM-21-019
   1. Checks no offer for the case is open,           ← CM-21-014
      and the inner Offer names this case and a
-     transferee it can address.                      ← CM-21-005
+     transferee it can address                       ← CM-21-005
+     that is an active participant.                  ← CM-21-021
   2. Commits CaseLedgerEntry (the proposal).
   3. Makes the offer and queues it to the transferee:
        Offer(VulnerabilityCase)
@@ -66,6 +67,11 @@ It refuses a proposal from anyone else before it writes or sends anything ([CM-2
 The CASE_MANAGER checks the inner offer and does not copy it.
 The inner offer must name the proposal's case.
 Its `target` must be an actor the CASE_MANAGER can address, and must be neither the CASE_MANAGER nor the owner.
+The `target` must also be an active participant of the case ([CM-21-021](../../reference/specs/protocol.md#cm-21-021)).
+An active participant has joined the case, has not been removed or left it, and has agreed to the active embargo while one is in force ([CM-10-004](../../reference/specs/protocol.md#cm-10-004)).
+The offer carries the case in full, with its embargo and participant records, so the CASE_MANAGER offers it only to an actor that may already see that content.
+So an owner that wants to hand the case to an actor that is not an active participant invites that actor first, and proposes the transfer once the actor has joined.
+The owner's `offer-case-ownership-transfer` trigger makes the same check on the owner's own copy of the case, and refuses such a transferee before it sends anything.
 The CASE_MANAGER ignores any `id`, `actor` or `to` the owner put inside the inner offer.
 
 The CASE_MANAGER then makes the offer itself.
@@ -77,7 +83,7 @@ Every message the CASE_MANAGER sends on a participant's behalf follows this dele
 The CASE_MANAGER records the proposal and then the offer in the ledger, so every participant learns that a transfer is on offer.
 That offer is the one offer of the transfer: the one the proposed new owner answers, and the one the ledger closes.
 The offer carries the proposed new owner (`target`) as a full actor object, not as an `id` alone.
-The CASE_MANAGER need not already know that actor, so the offer carries it in full, and the ledger entry records the offer as sent ([CLP-07-006](../../reference/specs/protocol.md#clp-07-006)).
+The CASE_MANAGER holds that actor's participant record but need not hold its actor record, so the offer carries the actor in full, and the ledger entry records the offer as sent ([CLP-07-006](../../reference/specs/protocol.md#clp-07-006)).
 The proposed new owner takes the offer only from the CASE_MANAGER.
 
 ## The answer
@@ -89,7 +95,8 @@ Accepting actor sends trigger: accept-case-ownership-transfer
 
 Case Actor inbox receives Accept:
   0. Checks the sender is the proposed owner of an open
-     offer it recorded (anyone else: refused).          ← CM-21-011
+     offer it recorded (anyone else: refused),          ← CM-21-011
+     and is still an active participant.                ← CM-21-021
   1. Commits CaseLedgerEntry (ownership-transferred).   ← CM-21-007
   2. Announce(CaseLedgerEntry) → all participants.
   3. Applies the CASE_OWNER role change (CM-21-001 through CM-21-004).
@@ -103,6 +110,8 @@ Case Actor inbox receives Accept:
 The proposed owner answers the CASE_MANAGER, not the participant who made the offer.
 The CASE_MANAGER acts on an acceptance only when its sender is the proposed owner named in an offer it recorded for the case ([CM-21-011](../../reference/specs/protocol.md#cm-21-011)).
 That offer must also still be open, with no other answer to it recorded.
+The proposed owner must also still be an active participant when its acceptance arrives ([CM-21-021](../../reference/specs/protocol.md#cm-21-021)).
+A proposed owner that was removed or left the case after the offer, or has not agreed to an embargo that became active since, is refused, and ownership stays where it was.
 
 The answer names the CASE_MANAGER's offer by its `id`, the same `id` the ledger records.
 So the CASE_MANAGER needs no other link to find the offer.

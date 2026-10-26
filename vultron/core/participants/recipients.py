@@ -60,7 +60,8 @@ the roster, and every one of them is seated at case initialization.
 
 The sender check reads the same records: :func:`may_act_on_case` is the one
 predicate behind the ``ACTIVE_PARTICIPANT`` sender standing (CM-23-020), so a
-sender may act on a case exactly when it would be sent its content.
+sender may act on a case exactly when it would be sent its content;
+:func:`why_may_not_act_on_case` names the ground a refusal by it cites.
 
 This module is the one place in ``vultron/core/`` that lists roster actor
 IDs for addressing; ``test/architecture/test_active_participant_recipient_selection.py``
@@ -587,6 +588,36 @@ def may_act_on_case(
     """
     record = _listed_record(case, dl, actor_id)
     return record is not None and _receives_case_content(case, record)
+
+
+def why_may_not_act_on_case(
+    case: VulnerabilityCase, dl: CasePersistence, actor_id: str
+) -> str | None:
+    """Why *actor_id* fails :func:`may_act_on_case`, or ``None`` if it passes.
+
+    For a refusal that names its ground.  The verdict is
+    :func:`may_act_on_case`'s, so the two cannot disagree; the reason only
+    describes the first condition the actor's record misses.  The ownership
+    transfer checks it for the transferee, which the Offer sends the case to
+    and which then acts as its owner (CM-21-021).
+    """
+    if may_act_on_case(case, dl, actor_id):
+        return None
+    if actor_id not in case.actor_participant_index:
+        return "is not a participant of the case"
+    record = _listed_record(case, dl, actor_id)
+    if record is None:
+        return "has no participant record the case can resolve"
+    if not record.joined:
+        return "has not joined the case (its invitation is not accepted)"
+    if record.removed:
+        return "was removed from the case (CM-31-001)"
+    if record.rm_closed:
+        return "has left the case (RM CLOSED, CM-23-004)"
+    return (
+        f"has not agreed to the active embargo '{case.active_embargo_id}'"
+        " (CM-18-001)"
+    )
 
 
 def _listed_record(
