@@ -13,14 +13,17 @@ finding) from content one authority owns that was copied onto a second page.
 
 Targets come from :func:`~vultron.metadata.docs.page_frontmatter.classify_docs_tree`,
 so an include fragment is never read on its own: a block sourced from one
-fragment that several pages include is the fix, not a copy. Also skipped are
+fragment that several pages include is the fix, not a copy. The cost is that
+prose hand-copied from a fragment onto a page that does not include it is not
+seen either; ``lint-docs`` still judges that case by reading. Also skipped are
 decision records, generated pages (:data:`SKIPPED_PATTERNS`, and any page
 carrying :data:`GENERATED_FILE_MARKER`), ``_``-prefixed files, and the
 generated sections inside hand-written pages. Project history lives under
 ``plan/history/``, outside ``docs/``, so the target set never holds it.
 
-A paragraph is a run of non-blank lines with fenced code, HTML comments and
-``{% %}`` directives removed. One shorter than :data:`MIN_CHARS` is too short to
+A paragraph is a run of non-blank lines, ended by a blank line or a heading,
+with frontmatter, fenced code, HTML comments and ``{% %}`` directives removed.
+Fences are removed first, so a ``<!--`` or ``{%`` inside one is code. One shorter than :data:`MIN_CHARS` is too short to
 say anything worth sourcing once, and a heading alone is not a paragraph.
 
 * **Exact copies.** Each paragraph is keyed by its text with whitespace
@@ -50,11 +53,13 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from pathspec.gitignore import GitIgnoreSpec
 
 from vultron.metadata.base import repo_root as _find_repo_root
 from vultron.metadata.docs.page_frontmatter import classify_docs_tree
+from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.markdown_tables import fenced_lines
 
 #: ``docs/``-relative pages that are never copies an author wrote: decision
@@ -134,7 +139,7 @@ class Cluster:
         variants: The wordings, each with its hosts. An exact cluster has one.
     """
 
-    kind: str
+    kind: Literal["exact", "drifted"]
     variants: tuple[Variant, ...]
 
     @property
@@ -181,18 +186,20 @@ def paragraphs(
 ) -> Iterator[Paragraph]:
     """Yield each paragraph of a page's source long enough to report."""
     fenced = fenced_lines(text)
-    lines = _blank_non_prose(text).splitlines()
+    unfenced = "\n".join(
+        "" if number in fenced else line
+        for number, line in enumerate(text.splitlines(), start=1)
+    )
+    lines = _blank_non_prose(unfenced).splitlines()
     block: list[str] = []
     start = 0
     for number, line in enumerate([*lines, ""], start=1):
-        if number in fenced or not line.strip():
+        if not line.strip() or _HEADING_RE.match(line.lstrip()):
             if block:
                 collapsed = " ".join(" ".join(block).split())
                 if len(collapsed) >= min_chars:
                     yield Paragraph(docs_path, start, collapsed)
                 block = []
-            continue
-        if _HEADING_RE.match(line.lstrip()):
             continue
         if not block:
             start = number
@@ -201,7 +208,7 @@ def paragraphs(
 
 def sentences(text: str) -> frozenset[str]:
     """The paragraph's sentences, case and punctuation dropped."""
-    found = set()
+    found: set[str] = set()
     for sentence in _SENTENCE_END_RE.split(text):
         normalized = " ".join(_WORD_RE.findall(sentence.lower()))
         if len(normalized) >= _MIN_SENTENCE_CHARS:
@@ -221,6 +228,11 @@ def _hosts_by_text(
 
 def _on_several_pages(hosts: Iterable[Paragraph]) -> bool:
     return len({p.path for p in hosts}) > 1
+
+
+def _overlap(left: frozenset[str], right: frozenset[str]) -> float:
+    """Jaccard overlap of two non-empty sentence sets."""
+    return len(left & right) / len(left | right)
 
 
 def _drift_edges(
@@ -244,8 +256,7 @@ def _drift_edges(
             if other > number
         }
         for other in sorted(candidates):
-            union = found | sentence_sets[other]
-            if len(found & sentence_sets[other]) / len(union) >= threshold:
+            if _overlap(found, sentence_sets[other]) >= threshold:
                 yield number, other
 
 
@@ -301,19 +312,22 @@ def duplicate_report(
     """Read every target page under *root*'s ``docs/`` and cluster its copies.
 
     Raises:
-        ValueError: when no target page resolves (DF-09-009).
+        MetadataLoadError: when no target page resolves (DF-09-009).
     """
     docs_dir = root / "docs"
+    pages = classify_docs_tree(root).pages if docs_dir.is_dir() else ()
     texts: Mapping[str, str] = {
         page: (docs_dir / page).read_text(encoding="utf-8", errors="replace")
-        for page in classify_docs_tree(root).pages
+        for page in pages
     }
     targets = {
         page: text for page, text in texts.items() if is_target(page, text)
     }
     if not targets:
-        raise ValueError(
-            f"docs-duplicates: no target pages resolved under {docs_dir}"
+        raise MetadataLoadError(
+            "docs-duplicates resolved no target page to read; an empty "
+            "target set is a failure, not a pass (DF-09-009)",
+            path="docs",
         )
     found = [
         paragraph
@@ -333,6 +347,13 @@ def format_cluster(cluster: Cluster) -> str:
             lines.append(f"  docs/{host.path}:{host.line}")
         lines.append(f"    > {variant.text}")
     return "\n".join(lines)
+
+
+def _min_chars(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return number
 
 
 def _threshold(value: str) -> float:
@@ -358,7 +379,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--min-chars",
-        type=int,
+        type=_min_chars,
         default=MIN_CHARS,
         help=f"shortest paragraph reported (default {MIN_CHARS})",
     )

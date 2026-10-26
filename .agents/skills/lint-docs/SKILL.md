@@ -176,8 +176,10 @@ is one wording on several pages. A `drifted` cluster is several wordings that
 share most of their sentences. Read every cluster before reporting it, and drop
 the ones SG-44 exempts: the clustered paragraph is a page's own opening, in its
 own words, describing that page. Report each remaining cluster as one SG-43
-finding naming every host's `path:line`. The tool reads paragraphs only; a
-copied table or diagram still needs judgment.
+finding naming every host's `path:line`. The tool reads paragraphs on pages
+only. A copied table or diagram still needs judgment, and so does prose
+hand-copied from an include fragment onto a page that does not include it: the
+tool never reads a fragment, so it cannot see that copy.
 
 The cross-page checks are read against `notes/site-information-architecture.md`
 (ADR-0102), not re-derived per page. They are all page-scoped, so a fragment is

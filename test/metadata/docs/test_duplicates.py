@@ -15,7 +15,9 @@ from vultron.metadata.docs.duplicates import (
     find_clusters,
     format_cluster,
     paragraphs,
+    sentences,
 )
+from vultron.metadata.file_loading import MetadataLoadError
 
 FRONTMATTER = (
     "---\nstakeholder_type: [cvd-practitioner]\nlevel: 200\n"
@@ -44,6 +46,17 @@ UNRELATED = (
     "Embargo proposals are relayed to every invited participant at once. "
     "A participant may answer the proposal with an accept or a reject."
 )
+_S = [
+    "The first sentence names the case manager and its single role.",
+    "The second sentence says every change becomes a ledger entry.",
+    "The third sentence says each replica replays the entries in order.",
+    "The fourth sentence says a lagging replica asks for what it missed.",
+    "The fifth sentence says the manager answers that request at once.",
+]
+# A~B and B~C at 2/4 each; A and C share one sentence of five (1/5).
+CHAIN_A = " ".join(_S[0:3])
+CHAIN_B = " ".join(_S[1:4])
+CHAIN_C = " ".join(_S[2:5])
 FRAGMENT_TEXT = (
     "This block is sourced once from an include fragment, so every page "
     "that renders it shows the same words and an edit lands everywhere."
@@ -169,6 +182,11 @@ class TestDuplicateReport:
             "reference/case_states/state.md",
             "topics/states_table.md",
             "topics/flow_diagram.md",
+            "_acronyms/index.md",
+            "ns/vocab.md",
+            "reference/behaviors/tree.md",
+            "reference/codebase/STRUCTURE.md",
+            "reference/user_stories/story_2022_001.md",
         ],
     )
     def test_skipped_content_class_is_not_read(self, tmp_path, skipped):
@@ -212,10 +230,56 @@ class TestDuplicateReport:
         )
         assert duplicate_report(root).clusters == ()
 
+    def test_chained_drift_is_one_cluster(self, tmp_path):
+        root = make_repo(
+            tmp_path,
+            {
+                "topics/a.md": page(CHAIN_A),
+                "topics/b.md": page(CHAIN_B),
+                "topics/c.md": page(CHAIN_C),
+            },
+        )
+        report = duplicate_report(root)
+        assert [(c.kind, c.files) for c in report.clusters] == [
+            ("drifted", ("topics/a.md", "topics/b.md", "topics/c.md"))
+        ]
+
+    def test_frontmatter_is_not_read(self, tmp_path):
+        def described() -> str:
+            return f"---\ndescription: >\n  {SHARED}\n---\n# Page\n"
+
+        root = make_repo(
+            tmp_path, {"topics/a.md": described(), "topics/b.md": described()}
+        )
+        assert duplicate_report(root).clusters == ()
+
+    def test_html_comment_is_not_read(self, tmp_path):
+        comment = f"<!--\n{SHARED}\n-->"
+        root = make_repo(
+            tmp_path,
+            {"topics/a.md": page(comment), "topics/b.md": page(comment)},
+        )
+        assert duplicate_report(root).clusters == ()
+
+    def test_short_paragraph_threshold_is_configurable(self, tmp_path):
+        short = "A copied pointer to the index page, shared by two pages."
+        root = make_repo(
+            tmp_path, {"topics/a.md": page(short), "topics/b.md": page(short)}
+        )
+        assert duplicate_report(root).clusters == ()
+        (cluster,) = duplicate_report(root, min_chars=20).clusters
+        assert cluster.kind == "exact"
+
+    def test_missing_docs_directory_fails(self, tmp_path):
+        with pytest.raises(MetadataLoadError, match="DF-09-009") as info:
+            duplicate_report(tmp_path)
+        assert info.value.path == "docs"
+
     def test_empty_target_set_fails(self, tmp_path):
         root = make_repo(tmp_path, {"adr/0001-decision.md": page(SHARED)})
-        with pytest.raises(ValueError, match="no target pages resolved"):
+        with pytest.raises(MetadataLoadError, match="no target page") as info:
             duplicate_report(root)
+        assert info.value.path == "docs"
 
 
 class TestParagraphs:
@@ -233,28 +297,56 @@ class TestParagraphs:
         (found,) = paragraphs(text, "a.md")
         assert found.text == SHARED
 
+    def test_heading_ends_the_paragraph_before_it(self):
+        text = page(f"{SHARED}\n## Section\n{DRIFTED_A}")
+        assert [p.text for p in paragraphs(text, "a.md")] == [
+            SHARED,
+            DRIFTED_A,
+        ]
+
+    def test_comment_marker_inside_a_fence_is_code(self):
+        text = page(SHARED, "```html\n<!-- unclosed\n```", DRIFTED_A, "-->")
+        assert [p.text for p in paragraphs(text, "a.md")] == [
+            SHARED,
+            DRIFTED_A,
+        ]
+
+    def test_directive_marker_inside_a_fence_is_code(self):
+        text = page(SHARED, "```jinja\n{% if x\n```", DRIFTED_A, "%}")
+        assert [p.text for p in paragraphs(text, "a.md")] == [
+            SHARED,
+            DRIFTED_A,
+        ]
+
     def test_line_is_the_paragraph_start_in_the_file(self):
         text = page(SHARED)
         (found,) = paragraphs(text, "a.md")
         assert text.splitlines()[found.line - 1] == SHARED
 
 
-_real_sentences = duplicates.sentences
+class TestSentences:
+    def test_case_and_punctuation_are_dropped(self):
+        assert sentences("The Case Manager, alone, commits each entry!") == {
+            "the case manager alone commits each entry"
+        }
+
+    def test_short_sentence_cannot_link_paragraphs(self):
+        assert sentences(
+            "See below. The case manager commits each entry in order."
+        ) == {"the case manager commits each entry in order"}
 
 
 @pytest.fixture
 def scored(monkeypatch) -> list[tuple[frozenset[str], frozenset[str]]]:
-    """Every pair of sentence sets the clusterer intersects, in call order."""
+    """Every pair of sentence sets the clusterer scores, in call order."""
     calls: list[tuple[frozenset[str], frozenset[str]]] = []
+    real = duplicates._overlap
 
-    class Spy(frozenset):
-        def __and__(self, other):
-            calls.append((self, other))
-            return frozenset(self).__and__(other)
+    def spy(left: frozenset[str], right: frozenset[str]) -> float:
+        calls.append((left, right))
+        return real(left, right)
 
-    monkeypatch.setattr(
-        duplicates, "sentences", lambda t: Spy(_real_sentences(t))
-    )
+    monkeypatch.setattr(duplicates, "_overlap", spy)
     return calls
 
 
@@ -325,12 +417,18 @@ def test_main_fails_distinctly_on_an_empty_target_set(
     with pytest.raises(SystemExit) as info:
         duplicates.main([])
     assert info.value.code == 1
-    assert (
-        "docs-duplicates: no target pages resolved" in capsys.readouterr().err
-    )
+    assert "docs-duplicates resolved no target page" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("value", ["0", "1.5", "-0.2"])
 def test_threshold_outside_unit_interval_is_refused(value):
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as info:
         duplicates.main(["--threshold", value])
+    assert info.value.code == 2
+
+
+@pytest.mark.parametrize("value", ["0", "-5"])
+def test_min_chars_below_one_is_refused(value):
+    with pytest.raises(SystemExit) as info:
+        duplicates.main(["--min-chars", value])
+    assert info.value.code == 2
