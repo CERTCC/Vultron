@@ -1985,7 +1985,9 @@ groups:
           `maturity` frontmatter key. Every markdown page under
           `docs/topics/scenarios/` other than the index MUST be a registered
           scenario's narrative page as derived by DEMOCI-11-003; a page whose stem
-          names no registered scenario MUST fail the check.
+          names no registered scenario MUST fail the check. A `_`-prefixed
+          `{% include-markdown %}` fragment that the narrative pages share is not
+          a page (DF-09-007) and is not checked.
         rationale: >-
           All ten pages declared `status: stable`, an ungated template default,
           while two of their scenarios were failing (ISSUE-3555). A page cannot
