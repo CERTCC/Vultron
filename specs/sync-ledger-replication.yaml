@@ -2146,3 +2146,100 @@ groups:
       replication state and queues no entry.
     stories:
     - story_2022_045
+- id: SYNC-19
+  title: Arrival-Order Independence and Eventual Consistency
+  description: >-
+    The transport promises no delivery order (ADR-0037), and other implementations may
+    share the wire, so every message a case actor receives can arrive before, between or
+    after the messages it relates to. The protocol's guarantee is eventual consistency:
+    the case ledger's `log_index` is the causal order (CLP-14-001), and hash-chain
+    apply plus gap repair bring every replica to the CASE_MANAGER's case file. No
+    decision may lean on an arrival order the ledger does not define. Rationale:
+    ADR-0161.
+  specs:
+  - id: SYNC-19-001
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      A coordination decision MUST NOT depend on an arrival order that the case ledger
+      does not define. The CASE_MANAGER's observation order is the case's causal order
+      (CLP-14-001): when it takes concurrent assertions from different senders in the
+      order it observes them, its ledger records that order and every replica learns
+      the same outcome. Every other decision MUST be the same whatever order its
+      messages arrive in: what a participant applies, stores or answers, given a
+      message the CASE_MANAGER sent outside the ledger and the ledger entries it relates
+      to; and what the CASE_MANAGER records, given two assertions one sender sent before
+      the first was committed.
+    rationale: >-
+      Arrival order differs between recipients, between implementations and between
+      runs. A decision that reads it gives different coordination outcomes for the same
+      messages, and the ledger cannot explain the difference. The CASE_MANAGER cannot
+      observe the order one sender sent two messages in, so that order is lost unless
+      the decision does not need it.
+    relationships:
+    - rel_type: depends_on
+      spec_id: CLP-14-001
+    adr:
+    - ADR-0161
+    - ADR-0037
+    verification: >-
+      `test/core/use_cases/received/test_arrival_order.py` delivers an embargo revision's
+      proposal entry, its relayed `Invite(EmbargoEvent)` and the Invite's emission
+      entry to a participant in every order and asserts one final case file, one
+      proposal index and one answer; its strict-`xfail` tests reproduce each order
+      dependency still open.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-19-002
+    priority: MUST
+    kind: protocol
+    statement: >-
+      Eventual consistency MUST be the ordering guarantee the protocol makes: every
+      active participant's replica that receives the CASE_MANAGER's committed ledger
+      entries, in any order, MUST reach the CASE_MANAGER's case file through hash-chain
+      apply (SYNC-03-001, SYNC-14) and gap repair (SYNC-00-007, SYNC-00-008, SYNC-16,
+      SYNC-17). A message the CASE_MANAGER sends outside `Announce(CaseLedgerEntry)` MUST
+      NOT leave a replica in a final state that the ledger entries it relates to do not
+      determine.
+    rationale: >-
+      Replicas see the case at different times, so a stronger guarantee would need a
+      delivery order the transport does not give. A direct message that wrote state the
+      ledger later cannot correct would let two replicas holding the same ledger
+      disagree for good.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-08-002
+    adr:
+    - ADR-0161
+    verification: >-
+      `test/core/use_cases/received/test_arrival_order.py` asserts that a participant
+      that receives a revision Invite and its ledger entries in every order ends with
+      no difference from the CASE_MANAGER's case file.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-19-003
+    priority: MUST_NOT
+    kind: protocol
+    statement: >-
+      Per-recipient delivery order MUST NOT be a protocol guarantee. A receiver MUST NOT
+      rely on a sender delivering its messages in the order it sent them, and a sender
+      MUST NOT rely on its own ordered delivery for a receiver's correctness. An
+      implementation MAY deliver in order per recipient as an optimization (OX-01-005).
+    rationale: >-
+      Another implementation may share the wire with no ordered outbox, and even an
+      ordered outbox loses that order when an `Announce` is lost and replayed later, so a
+      rule that holds only under ordered delivery fails in exactly the cases recovery
+      exists for.
+    relationships:
+    - rel_type: constrains
+      spec_id: OX-01-005
+    adr:
+    - ADR-0161
+    - ADR-0112
+    verification: >-
+      `test/core/use_cases/received/test_arrival_order.py` delivers the CASE_MANAGER's
+      messages for one revision in orders other than the one its outbox sends.
+    stories:
+    - story_2022_045

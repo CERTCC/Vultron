@@ -314,6 +314,23 @@ Taken together, the ledger rules and the holding area give each participant thes
 The result is eventual consistency with a strong bound.
 Given the same entries, every replica reaches the same state as the CASE_MANAGER, no matter what order those entries arrived in.
 
+### Eventual consistency is the guarantee
+
+Eventual consistency is the ordering guarantee the protocol makes, and the only one ([SYNC-19-002](../../reference/specs/protocol.md#sync-19-002), [ADR-0161](../../adr/0161-eventual-consistency-is-the-protocols-ordering-guarantee.md)).
+No decision in the protocol depends on the order messages arrive in, except the order the CASE_MANAGER observes, which the ledger records ([SYNC-19-001](../../reference/specs/protocol.md#sync-19-001)).
+
+That covers more than ledger entries.
+The CASE_MANAGER also sends some messages directly, outside the ledger: a relayed embargo Invite, a copy of the case, a refusal notice, an invitation to join.
+A participant can receive one of these before, between, or after the ledger entries it relates to.
+Whatever the order, the participant must end with the same case file and give the same answer.
+Most direct messages are only stored, and the participant takes their effect from the ledger entry, so their order cannot matter.
+
+The CASE_MANAGER cannot see the order in which one participant sent two messages either.
+So a decision must not depend on that order.
+
+A sender may deliver its messages to each recipient in order, and this implementation does ([OX-01-005](../../reference/specs/project.md#ox-01-005)).
+That is an optimization, not a guarantee another implementation must give, and no participant may rely on it ([SYNC-19-003](../../reference/specs/protocol.md#sync-19-003)).
+
 The holding area is kept in the replica's store, apart from its ledger, so a restart keeps what it holds.
 Nothing in it is committed, so it never stands in for an applied entry ([SYNC-14-005](../../reference/specs/project.md#sync-14-005)).
 An entry it does not hold comes back the same way an evicted one does.
@@ -345,4 +362,5 @@ So the replica refuses it as a conflict and does not store it ([SYNC-16-007](../
 - [ADR-0037](../../adr/0037-buffer-out-of-order-ledger-entries.md) — hold out-of-order entries instead of discarding them
 - [ADR-0059](../../adr/0059-buffer-pre-genesis-ledger-entries.md) — hold entries that arrive before the case
 - [Federation](../future_work/federation.md#the-case-ledger-and-the-delivery-log) and [Convergence of the replicas](../future_work/federation.md#convergence-of-the-replicas) — future work on the ledger when each organization runs its own service
-- [Open questions: history and delivery](../future_work/open_questions.md#history-and-delivery) — unresolved questions about a distributed ledger and fan-out ordering
+- [ADR-0161](../../adr/0161-eventual-consistency-is-the-protocols-ordering-guarantee.md) — eventual consistency is the protocol's ordering guarantee
+- [Open questions: history and delivery](../future_work/open_questions.md#history-and-delivery) — unresolved questions about a distributed ledger

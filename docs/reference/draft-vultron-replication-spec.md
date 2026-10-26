@@ -375,6 +375,19 @@ the actor's own acknowledged prefix is contiguous from genesis. (SYNC-10-005)
 
 ---
 
+### 6.7 Eventual Consistency and Arrival-Order Independence
+
+Eventual consistency is the ordering guarantee this protocol makes.
+Every active participant's replica that receives the CASE_MANAGER's committed entries, in any order, MUST reach the CASE_MANAGER's case file through hash-chain apply and gap repair.
+A message the CASE_MANAGER sends outside `Announce(CaseLedgerEntry)` MUST NOT leave a replica in a final state that the entries it relates to do not determine. (SYNC-19-002)
+
+A coordination decision MUST NOT depend on an arrival order that the ledger does not define.
+The CASE_MANAGER's observation order is the case's causal order, so its ledger records the order in which it takes concurrent assertions from different senders.
+Every other decision MUST be the same whatever order its messages arrive in: a participant's handling of a direct message and the entries it relates to, and the CASE_MANAGER's record of two assertions one sender sent before the first was committed. (SYNC-19-001)
+
+Per-recipient delivery order MUST NOT be a protocol guarantee.
+An implementation MAY deliver in order per recipient as an optimization, but neither a sender nor a receiver may rely on it. (SYNC-19-003)
+
 ## 7. Commit Discipline [N]
 
 ### 7.1 Commit Semantics
@@ -595,6 +608,9 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-16-006 | §5.5 | Participant MUST NOT replace its case with a stale or conflicting copy |
 | SYNC-16-007 | §5.5 | After replacement, participant MUST backfill to the copy's position |
 | SYNC-16-008 | §5.5 | CASE_MANAGER SHOULD log divergence after a re-seed as an error |
+| SYNC-19-001 | §6.7 | A coordination decision MUST NOT depend on an arrival order the ledger does not define |
+| SYNC-19-002 | §6.7 | Eventual consistency is the guarantee; every replica reaches the CASE_MANAGER's case file |
+| SYNC-19-003 | §6.7 | Per-recipient delivery order MUST NOT be a protocol guarantee |
 
 ---
 

@@ -67,8 +67,6 @@ Four more acronyms occur across the entries below:
 
 {% include-markdown "./_oq-distributed-ledger.md" %}
 
-{% include-markdown "./_oq-fanout-ordering.md" %}
-
 {% include-markdown "./_oq-delivery-receipts.md" %}
 
 {% include-markdown "../../reference/vultron-spec/_oq-negative-ack.md" %}

@@ -63,6 +63,11 @@ class CreateReportReceivedUseCase:
    `UseCase` Protocol (received: `execute() -> HandlerResult`)
 5. Add tests: pattern matching (`test/test_semantic_activity_patterns.py`),
    routing (`test/test_semantic_registry.py`), use-case logic (`test/core/use_cases/`)
+6. If the CASE_MANAGER sends the message outside `Announce(CaseLedgerEntry)`, state
+   in the PR its arrival-order verdict against the ledger entries it relates to
+   (SYNC-19-001, ADR-0161; rules in `notes/sync-ledger-replication.md` § "No
+   Decision Depends on Arrival Order"). If it can race them, add its scenario to
+   `test/core/use_cases/received/test_arrival_order.py`, delivered in every order.
 
 ---
 
