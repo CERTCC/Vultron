@@ -1607,8 +1607,11 @@ groups:
     rationale: >-
       The CASE_MANAGER's case is authoritative (PCR-03-001), and a copy carrying its
       ledger position (SYNC-16-005) lets the replica replace its case file and backfill
-      (SYNC-16-006, SYNC-16-007). The sender gate is the one the gap Reject uses
-      (SYNC-03-005).
+      (SYNC-16-006, SYNC-16-007). The sender gate is the active-participant standing
+      (CM-10-004, CM-23-020), not the gap Reject's (SYNC-03-005): that one admits a
+      closed participant, but a copy of the current case would cross the closure
+      cutoff such a participant is held to (CM-23-004), so its diverged replica is not
+      repaired this way.
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-16-005

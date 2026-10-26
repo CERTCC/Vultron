@@ -38,7 +38,6 @@ like the replay it resembles (SYNC-16-002).
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import cast
 
 from py_trees.common import Status
@@ -48,18 +47,29 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
-from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
-from vultron.core.models._helpers import now_utc
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    _read_state,
+    cooldown_elapsed,
+    update_replication_state,
+)
+from vultron.core.models._helpers import _as_id, now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.errors import VultronNotFoundError
+from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronError,
+    VultronNotFoundError,
+)
+from vultron.primitives import same_actor_id
 
 __all__ = [
     "RESEED_COOLDOWN_SECONDS",
     "ReportRepeatDivergenceNode",
     "ReseedPeerNode",
+    "announce_case_to_peer",
     "announced_ledger_entry",
     "record_reseed",
     "should_reseed",
@@ -81,10 +91,10 @@ def should_reseed(
     Spec: SYNC-16-004.
     """
     state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
-    if state is None or state.last_reseeded_at is None:
-        return True
-    elapsed = now_utc() - state.last_reseeded_at
-    return elapsed >= timedelta(seconds=RESEED_COOLDOWN_SECONDS)
+    return cooldown_elapsed(
+        None if state is None else state.last_reseeded_at,
+        RESEED_COOLDOWN_SECONDS,
+    )
 
 
 def record_reseed(
@@ -100,32 +110,54 @@ def record_reseed(
     record, so the bound survives a restart (SYNC-04-002, SYNC-16-004).
     """
     now = now_utc()
-    state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
-    if state is None:
-        state = VultronReplicationState(case_id=case_id, peer_id=peer_id)
-    state.last_reseeded_at = now
-    state.last_reseed_position = position
-    state.updated_at = now
-    datalayer.save(state)
+
+    def _record(state: VultronReplicationState) -> None:
+        state.last_reseeded_at = now
+        state.last_reseed_position = position
+
+    update_replication_state(
+        datalayer, case_id=case_id, peer_id=peer_id, change=_record
+    )
+
+
+def announce_case_to_peer(
+    factory: TriggerActivityPort, *, actor_id: str, case_id: str, peer_id: str
+) -> str:
+    """Build and store *actor_id*'s ``Announce(VulnerabilityCase)`` of
+    *case_id* to *peer_id* alone; return its id.
+
+    The one case-copy send the genesis pre-seed (SYNC-15-002) and the
+    re-seed (SYNC-16-003) share.  The copy names the case's ledger position
+    (SYNC-16-005).  Queueing it is the caller's.
+    """
+    return factory.announce_vulnerability_case(
+        case_id=case_id, actor=actor_id, context_id=case_id, to=[peer_id]
+    )
 
 
 def announced_ledger_entry(
-    datalayer: CasePersistence, announce_id: str
+    datalayer: CasePersistence, announce_id: str, announcer_id: str
 ) -> CaseLedgerEntry:
-    """The ``CaseLedgerEntry`` this store's ``Announce`` *announce_id* carried.
+    """The ``CaseLedgerEntry`` *announcer_id*'s ``Announce`` *announce_id* carried.
 
     A fault about a refused ledger entry names the refused
     ``Announce(CaseLedgerEntry)`` by reference and carries no case
-    (ASK-07-004, ASK-07-006); the CASE_MANAGER sent that ``Announce`` and
-    stored it, so the entry, and with it the case and its index, is read
-    from there.
+    (ASK-07-004, ASK-07-006).  The CASE_MANAGER stored that ``Announce``
+    when it sent it, so the entry, and with it the case and its index, is
+    read from there.  Only an ``Announce`` *announcer_id* sent counts: one
+    this store merely received names nothing *announcer_id* sent the peer.
 
     Raises:
         VultronNotFoundError: This store holds no ``Announce`` of a
-            ``CaseLedgerEntry`` under *announce_id*.
+            ``CaseLedgerEntry`` by *announcer_id* under *announce_id*.
     """
     activity = datalayer.read(announce_id)
-    if getattr(activity, "type_", None) != "Announce":
+    sender = _as_id(getattr(activity, "actor", None))
+    if (
+        getattr(activity, "type_", None) != "Announce"
+        or not isinstance(sender, str)
+        or not same_actor_id(sender, announcer_id)
+    ):
         raise VultronNotFoundError("Announce(CaseLedgerEntry)", announce_id)
     entry: object = getattr(activity, "object_", None)
     if isinstance(entry, str):
@@ -138,13 +170,19 @@ def announced_ledger_entry(
 class ReseedPeerNode(_EmitSingleActivityBase):
     """Send *peer_id* ``Announce(VulnerabilityCase)`` of *case_id*, rate-bounded.
 
-    Returns SUCCESS whether or not it sends: a peer that is not an active
-    participant is sent no case content (CM-10-004), and a peer re-seeded
-    within the cooldown is sent nothing (SYNC-16-004).  ``reseeded`` says
-    whether this run queued a copy.  Once queued, the copy's ledger position
-    is recorded in the peer's replication state (:func:`record_reseed`).
-    A copy the trigger-activity port cannot build is a FAILURE, with nothing
-    recorded.
+    Returns SUCCESS whether or not it sends, and says which it was:
+    ``withheld`` when the peer is not an active participant, so it is sent
+    no case content (CM-10-004); ``rate_limited`` when the peer was
+    re-seeded within the cooldown (SYNC-16-004); ``reseeded`` when this run
+    queued a copy.  The copy, its outbox entry and the record of its ledger
+    position (:func:`record_reseed`) are written in one transaction, so a
+    copy is never queued unrecorded nor recorded unqueued.
+
+    Returns FAILURE when the gate cannot be decided because this store holds
+    no such case.  A copy the trigger-activity port cannot build is this
+    actor's own fault, never the peer's, so it raises
+    :class:`~vultron.errors.VultronBTInternalError` with nothing written
+    (BT-14-001).
 
     Authored as the executing actor; it belongs inside a CASE_MANAGER gate
     (BT-17-008).
@@ -160,16 +198,26 @@ class ReseedPeerNode(_EmitSingleActivityBase):
         self.peer_id = peer_id
         self.reseeded = False
         """True when the last run queued the case copy."""
-        self._position: LedgerPosition | None = None
+        self.withheld = False
+        """True when the last run found the peer not an active participant."""
+        self.rate_limited = False
+        """True when the last run found the peer inside the cooldown."""
 
     def update(self) -> Status:
-        self.reseeded = False
+        self.reseeded = self.withheld = self.rate_limited = False
         if (f := self._require_datalayer_and_actor()) is not None:
             return f
+        assert self.actor_id is not None
         datalayer = cast(CasePersistence, self.datalayer)
-        if peer_is_withheld(
-            datalayer, case_id=self.case_id, peer_id=self.peer_id
-        ):
+        try:
+            self.withheld = peer_is_withheld(
+                datalayer, case_id=self.case_id, peer_id=self.peer_id
+            )
+        except VultronError as exc:
+            self.feedback_message = str(exc)
+            self.logger.exception("%s: embargo gate undecidable", self.name)
+            return Status.FAILURE
+        if self.withheld:
             self.logger.info(
                 "%s: peer '%s' is not an active participant of case '%s';"
                 " sending it no case copy (CM-10-004)",
@@ -181,6 +229,7 @@ class ReseedPeerNode(_EmitSingleActivityBase):
         if not should_reseed(
             datalayer, case_id=self.case_id, peer_id=self.peer_id
         ):
+            self.rate_limited = True
             self.logger.info(
                 "%s: peer '%s' was re-seeded with case '%s' less than %.0fs"
                 " ago; not re-seeding it again yet (SYNC-16-004)",
@@ -193,33 +242,29 @@ class ReseedPeerNode(_EmitSingleActivityBase):
         case, failure = self._require_case(self.case_id)
         if failure is not None:
             return failure
-        self._position = case.ledger_position
-        return super().update()
-
-    def _call_factory(self) -> tuple[str, str]:
         factory = self._require_trigger_activity_port()
-        assert self.actor_id is not None
-        activity_id = factory.announce_vulnerability_case(
-            case_id=self.case_id,
-            actor=self.actor_id,
-            context_id=self.case_id,
-            to=[self.peer_id],
-        )
-        # The port returns the id only; no captured body to pass on.
-        return activity_id, ""
-
-    def _record_sent(self, activity_id: str, activity_blob: str) -> None:
-        assert self._position is not None  # set before super().update()
-        record_reseed(
-            cast(CasePersistence, self.datalayer),
-            case_id=self.case_id,
-            peer_id=self.peer_id,
-            position=self._position,
-        )
+        position = case.ledger_position
+        try:
+            with datalayer.transaction():
+                activity_id = announce_case_to_peer(
+                    factory,
+                    actor_id=self.actor_id,
+                    case_id=self.case_id,
+                    peer_id=self.peer_id,
+                )
+                self._emit_through_seam(activity_id, "")
+                record_reseed(
+                    datalayer,
+                    case_id=self.case_id,
+                    peer_id=self.peer_id,
+                    position=position,
+                )
+        except VultronError as exc:
+            raise VultronBTInternalError(
+                f"{self.name}: could not re-seed peer '{self.peer_id}' with"
+                f" case '{self.case_id}': {exc}"
+            ) from exc
         self.reseeded = True
-
-    def _on_success(self, activity_id: str, activity_blob: str) -> None:
-        assert self._position is not None
         self.logger.info(
             "%s: re-seeded peer '%s' with Announce(VulnerabilityCase) '%s' of"
             " case '%s' at ledger position %d (SYNC-16-003)",
@@ -227,8 +272,9 @@ class ReseedPeerNode(_EmitSingleActivityBase):
             self.peer_id,
             activity_id,
             self.case_id,
-            self._position.log_index,
+            position.log_index,
         )
+        return Status.SUCCESS
 
 
 class ReportRepeatDivergenceNode(DataLayerActionWithPorts):

@@ -306,18 +306,20 @@ def test_a_divergence_past_the_last_reseed_is_routine(
 
 
 @pytest.mark.spec("SYNC-16-004")
-def test_a_copy_the_port_cannot_build_records_no_reseed(
+@pytest.mark.spec("BT-14-001")
+def test_a_copy_the_port_cannot_build_is_an_internal_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No copy queued means no re-seed recorded, so the next fault retries.
+    """The CASE_MANAGER's own failure is raised, never blamed on the sender.
 
-    A cooldown started by a copy that was never sent would strand the peer
-    for its length (the reasoning SYNC-15-003 applies to replay).
+    Nothing is queued or recorded, so the next fault re-seeds: a cooldown
+    started by a copy that was never sent would strand the peer for its
+    length (the reasoning SYNC-15-003 applies to replay).
     """
     from vultron.adapters.driven.trigger_activity_adapter import (
         TriggerActivityAdapter,
     )
-    from vultron.errors import VultronValidationError
+    from vultron.errors import VultronBTInternalError, VultronValidationError
 
     def _fail(*args: Any, **kwargs: Any) -> str:
         raise VultronValidationError("the case cannot be rendered")
@@ -327,9 +329,9 @@ def test_a_copy_the_port_cannot_build_records_no_reseed(
         patched.setattr(
             TriggerActivityAdapter, "announce_vulnerability_case", _fail
         )
-        verdict = _report(net)
+        with pytest.raises(VultronBTInternalError, match="could not re-seed"):
+            _report(net)
 
-    assert verdict.disposition is not HandlerDisposition.APPLIED
     assert _seeds(net) == []
     state = _state(net, BYSTANDER)
     assert state is None or state.last_reseeded_at is None
@@ -338,3 +340,123 @@ def test_a_copy_the_port_cannot_build_records_no_reseed(
 
     assert retried.disposition is HandlerDisposition.APPLIED, retried.reason
     assert len(_seeds(net)) == 1
+
+
+@pytest.mark.spec("SYNC-16-004")
+def test_a_record_that_fails_withdraws_the_queued_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The copy, its outbox entry and its record land together or not at all,
+    so no copy is ever queued without starting the cooldown."""
+    from vultron.core.behaviors.sync.nodes import reseed
+    from vultron.errors import VultronBTInternalError, VultronValidationError
+
+    def _fail(*args: Any, **kwargs: Any) -> None:
+        raise VultronValidationError("the replication state is unwritable")
+
+    net, _ = _diverged("reseed-record-fails")
+    outbox_before = list(net.stores[MANAGER].outbox_list())
+    with monkeypatch.context() as patched:
+        patched.setattr(reseed, "record_reseed", _fail)
+        with pytest.raises(VultronBTInternalError):
+            _report(net)
+
+    assert list(net.stores[MANAGER].outbox_list()) == outbox_before
+    assert _seeds(net) == []
+
+
+@pytest.mark.spec("CM-23-013")
+@pytest.mark.spec("SYNC-16-003")
+def test_a_fault_on_a_fully_closed_case_is_dropped() -> None:
+    """Past the post-close boundary nothing is sent or recorded."""
+    from test.support.ledger import commit_case_manager_closure
+
+    from ._ledger_network import NETWORKS
+
+    net, _ = _diverged("reseed-closed")
+    # The closure entry is a bare stand-in written outside any act, which
+    # neither the label check nor a rebuild can read: leave it unchecked.
+    NETWORKS.remove(net)
+    commit_case_manager_closure(net.stores[MANAGER], net.case_id)
+
+    verdict = _report(net)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert _seeds(net) == []
+    state = _state(net, BYSTANDER)
+    assert state is None or state.last_reseeded_at is None
+
+
+@pytest.mark.spec("SYNC-16-003")
+def test_a_fault_naming_an_announce_this_actor_did_not_send_is_refused() -> (
+    None
+):
+    """An Announce held here but sent by another actor names no copy this
+    actor sent the peer, so it names no case either."""
+    from vultron.wire.as2.factories import announce_log_entry_activity
+    from vultron.wire.as2.vocab.objects.case_ledger_entry import (
+        as_CaseLedgerEntry,
+    )
+
+    net, _ = _diverged("reseed-foreign-announce")
+    (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
+    foreign = announce_log_entry_activity(
+        entry=as_CaseLedgerEntry.model_validate(entry.model_dump(mode="json")),
+        actor=OWNER,
+        to=[MANAGER],
+    )
+    net.stores[MANAGER].save(foreign)
+
+    verdict = _fault_from(net, BYSTANDER, foreign.id_)
+
+    assert verdict.disposition is HandlerDisposition.REFUSED
+    assert "names no case" in (verdict.reason or "")
+    assert _seeds(net) == []
+
+
+def _run_reseed(net: LedgerNetwork, node: Any) -> Any:
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.core.behaviors.bridge import BTBridge
+
+    dl = net.stores[MANAGER]
+    return BTBridge(
+        datalayer=dl, trigger_activity=TriggerActivityAdapter(dl)
+    ).execute_with_setup(tree=node, actor_id=MANAGER)
+
+
+@pytest.mark.spec("CM-10-004")
+def test_the_reseed_node_sends_no_case_to_a_peer_not_active() -> None:
+    """Its own content gate, for callers without the fault's sender guard."""
+    from py_trees.common import Status
+
+    from vultron.core.behaviors.sync.nodes.reseed import ReseedPeerNode
+
+    net = LedgerNetwork("https://example.org/cases/reseed-node-withheld")
+    node = ReseedPeerNode(case_id=net.case_id, peer_id=_STRANGER)
+
+    result = _run_reseed(net, node)
+
+    assert result.status is Status.SUCCESS
+    assert node.withheld and not node.reseeded
+    assert _seeds(net, _STRANGER) == []
+    assert _state(net, _STRANGER) is None
+
+
+@pytest.mark.spec("CM-10-004")
+def test_the_reseed_node_fails_when_its_gate_is_undecidable() -> None:
+    """A case this store does not hold cannot be judged, so nothing is sent."""
+    from py_trees.common import Status
+
+    from vultron.core.behaviors.sync.nodes.reseed import ReseedPeerNode
+
+    net = LedgerNetwork("https://example.org/cases/reseed-node-no-case")
+    node = ReseedPeerNode(
+        case_id="https://example.org/cases/unknown", peer_id=BYSTANDER
+    )
+
+    result = _run_reseed(net, node)
+
+    assert result.status is Status.FAILURE
+    assert not node.reseeded

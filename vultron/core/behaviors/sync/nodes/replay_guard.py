@@ -48,7 +48,8 @@ convergence.
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from typing import cast
 
 from vultron.core.models._helpers import now_utc
@@ -137,6 +138,32 @@ def _read_state(
     return cast(VultronReplicationState, existing)
 
 
+def cooldown_elapsed(since: datetime | None, seconds: float) -> bool:
+    """True when nothing was sent (*since* is ``None``) or *seconds* have
+    passed since *since*: the rate-limit test every per-peer bound shares."""
+    return since is None or now_utc() - since >= timedelta(seconds=seconds)
+
+
+def update_replication_state(
+    datalayer: CasePersistence,
+    *,
+    case_id: str,
+    peer_id: str,
+    change: Callable[[VultronReplicationState], None],
+) -> None:
+    """Apply *change* to *peer_id*'s replication state and save it.
+
+    The stored record, or a fresh one when the peer has none; ``updated_at``
+    is stamped after *change* runs (SYNC-04-002).
+    """
+    state = _read_state(
+        datalayer, case_id=case_id, peer_id=peer_id
+    ) or VultronReplicationState(case_id=case_id, peer_id=peer_id)
+    change(state)
+    state.updated_at = now_utc()
+    datalayer.save(state)
+
+
 def should_replay(
     datalayer: CasePersistence,
     *,
@@ -192,7 +219,7 @@ def should_replay(
     cooldown = replay_cooldown_seconds(
         from_hash, replays_at_position=state.replays_at_position
     )
-    if now_utc() - state.last_replayed_at >= timedelta(seconds=cooldown):
+    if cooldown_elapsed(state.last_replayed_at, cooldown):
         return True
     if log is not None:
         log.info(
@@ -230,24 +257,17 @@ def record_replay(
     Spec: SYNC-15-003, SYNC-15-013.
     """
     now = now_utc()
-    state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
-    if state is None:
-        datalayer.save(
-            VultronReplicationState(
-                case_id=case_id,
-                peer_id=peer_id,
-                last_replayed_from_hash=from_hash,
-                last_replayed_at=now,
-                replays_at_position=1,
-            )
+
+    def _record(state: VultronReplicationState) -> None:
+        state.replays_at_position = (
+            state.replays_at_position + 1
+            if state.last_replayed_at is not None
+            and state.last_replayed_from_hash == from_hash
+            else 1
         )
-        return
-    state.replays_at_position = (
-        state.replays_at_position + 1
-        if state.last_replayed_from_hash == from_hash
-        else 1
+        state.last_replayed_from_hash = from_hash
+        state.last_replayed_at = now
+
+    update_replication_state(
+        datalayer, case_id=case_id, peer_id=peer_id, change=_record
     )
-    state.last_replayed_from_hash = from_hash
-    state.last_replayed_at = now
-    state.updated_at = now
-    datalayer.save(state)

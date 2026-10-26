@@ -787,6 +787,17 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
         case_actor_dl, manager_case
     )
     assert peer_case.ledger_position == manager_case.ledger_position
+    # The whole case file: the case and every participant record, each
+    # carrying its consent rows for the register's embargo (ADR-0122).
+    assert peer_case.model_dump(mode="json") == manager_case.model_dump(
+        mode="json"
+    )
+    for participant_id in manager_case.case_participants:
+        assert cast(
+            CaseParticipant, peer_dl.read(str(participant_id))
+        ).model_dump(mode="json") == cast(
+            CaseParticipant, case_actor_dl.read(str(participant_id))
+        ).model_dump(mode="json")
     assert (
         cast(
             CaseParticipant, peer_dl.read(peer_participant.id_)

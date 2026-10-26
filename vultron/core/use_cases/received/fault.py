@@ -74,7 +74,7 @@ from vultron.core.use_cases.received._bt_verdict import (
     find_node,
     verdict_from_bt,
 )
-from vultron.errors import VultronNotFoundError
+from vultron.errors import VultronBTInternalError, VultronNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +109,8 @@ class FaultResponse:
 
     build_tree: FaultTreeBuilder
     read_verdict: FaultVerdictReader
+    reads_refused_entry: bool = True
+    """Whether the response needs the entry the fault reports refusing."""
 
 
 def _archive_tree(
@@ -177,8 +179,17 @@ def _reseed_verdict(
     if verdict.disposition is not HandlerDisposition.APPLIED:
         return verdict
     reseed = find_node(tree, ReseedPeerNode)
-    if reseed is not None and reseed.reseeded:
+    if reseed is None:
+        raise VultronBTInternalError(f"{label}: tree has no re-seed node")
+    if reseed.reseeded:
         return verdict
+    if reseed.withheld:
+        # Unreachable behind the ACTIVE_PARTICIPANT sender guard, which asks
+        # the same predicate; refused the same way if it is ever reached.
+        return HandlerResult.refused(
+            f"the sender is not an active participant of case"
+            f" '{refused_entry.case_id}'; no case copy sent (CM-10-004)"
+        )
     return HandlerResult.skipped(
         f"the sender was re-seeded with case '{refused_entry.case_id}'"
         " within the cooldown; no case copy sent (SYNC-16-004)"
@@ -187,7 +198,9 @@ def _reseed_verdict(
 
 #: A failure class with no entry in a use case's ``responses``.
 ARCHIVE_ONLY = FaultResponse(
-    build_tree=_archive_tree, read_verdict=_archive_verdict
+    build_tree=_archive_tree,
+    read_verdict=_archive_verdict,
+    reads_refused_entry=False,
 )
 
 
@@ -263,7 +276,9 @@ class CreateProcessingFaultReceivedUseCase:
             request.activity_id,
         )
         response = self.responses.get(request.failure_class, ARCHIVE_ONLY)
-        refused_entry = self._refused_entry()
+        refused_entry = (
+            self._refused_entry() if response.reads_refused_entry else None
+        )
         tree = response.build_tree(
             refused_entry, request.actor_id, self.sender_entitlement
         )
@@ -296,7 +311,13 @@ class CreateProcessingFaultReceivedUseCase:
         if failed_id is None:
             return None
         try:
-            return announced_ledger_entry(self._dl, failed_id)
+            return announced_ledger_entry(
+                self._dl,
+                failed_id,
+                resolve_receiving_actor_id(
+                    self._dl, self._request.receiving_actor_id
+                ),
+            )
         except VultronNotFoundError:
             return None
 

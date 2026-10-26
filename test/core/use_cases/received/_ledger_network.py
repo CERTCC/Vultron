@@ -336,6 +336,22 @@ class LedgerNetwork:
                 bodies.append(cast(dict[str, Any], body))
         return bodies
 
+    def ledger_announcements(self, replica: str) -> list[dict[str, Any]]:
+        """The ``Announce(CaseLedgerEntry)`` bodies queued for *replica*."""
+        return self.sealed_bodies(
+            MANAGER,
+            to=replica,
+            type_="Announce",
+            object_type="CaseLedgerEntry",
+        )
+
+    def processing_faults(self, sender: str) -> list[dict[str, Any]]:
+        """The ``Create(ProcessingFault)`` bodies *sender* queued for the
+        CASE_MANAGER."""
+        return self.sealed_bodies(
+            sender, to=MANAGER, type_="Create", object_type="ProcessingFault"
+        )
+
     def record(self, holder: str, actor_id: str) -> CaseParticipant:
         """*holder*'s copy of *actor_id*'s participant record."""
         case = self.case(holder)

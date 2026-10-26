@@ -178,3 +178,30 @@ def test_received_fault_is_logged_naming_its_sender_and_fault(
     assert any(fault.id_ in msg for msg in warning_messages), (
         f"fault id {fault.id_!r} not in log: {caplog.text}"
     )
+
+
+@pytest.mark.spec("ASK-07-005")
+def test_a_create_without_a_parsed_fault_is_refused_at_the_parse_edge():
+    """Never read as a fault of no class: the class picks the response."""
+    from vultron.core.models.events import MessageSemantics
+    from vultron.core.models.events.fault import (
+        CreateProcessingFaultReceivedEvent,
+    )
+    from vultron.wire.as2.errors import VultronParseValidationError
+    from vultron.wire.as2.extractor._extract import extract_intent
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+
+    activity = as_Create(
+        actor=_EMITTER,
+        object_="https://example.org/objects/not-a-fault",
+        to=[_RECEIVER],
+    )
+
+    with pytest.raises(VultronParseValidationError, match="ASK-07-005"):
+        extract_intent(
+            activity,
+            MessageSemantics.CREATE_PROCESSING_FAULT,
+            CreateProcessingFaultReceivedEvent,
+        )
