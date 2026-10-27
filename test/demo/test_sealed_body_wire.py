@@ -39,9 +39,12 @@ the only faithful probe of what arrived.
 
 import json
 import re
+from collections.abc import Iterator, Mapping
+from typing import Any
 
 import pytest
 
+from test.demo._helpers import make_testclient_call
 from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from test.demo.test_remote_case_actor_invite import (
     _bootstrap,
@@ -49,6 +52,9 @@ from test.demo.test_remote_case_actor_invite import (
     _Topology,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body
+from vultron.demo.helpers.seeding import seed_case_actor_peers
+from vultron.demo.utils import DataLayerClient, seed_peer
+from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
 _UNSAFE_IN_HOST = re.compile(r"[^a-z0-9-]+")
 
@@ -61,11 +67,15 @@ class _RecordingRouter(_TestClientRouter):
         self.delivered: list[tuple[str, str, str]] = []
 
     async def emit(
-        self, activity_id: str, json_body: str, recipients: list[str]
+        self,
+        activity_id: str,
+        json_body: str,
+        recipients: list[str],
+        inboxes: Mapping[str, str] | None = None,
     ) -> None:
         for recipient in recipients:
             self.delivered.append((activity_id, json_body, recipient))
-        await super().emit(activity_id, json_body, recipients)
+        await super().emit(activity_id, json_body, recipients, inboxes)
 
 
 @pytest.fixture
@@ -161,3 +171,90 @@ class TestTheWireCarriesTheSealedBody:
             f" to (CM-17-002). target={target!r}"
         )
         assert "caseStatus" in target
+
+
+#: The ActivityStreams actor types an inline actor carries.
+_ACTOR_TYPES = frozenset(
+    {"Actor", "Application", "Group", "Organization", "Person", "Service"}
+)
+
+
+def _inline_actors(value: Any) -> Iterator[dict[str, Any]]:
+    """Every inline actor object anywhere in a decoded body."""
+    if isinstance(value, dict):
+        if value.get("type") in _ACTOR_TYPES and "id" in value:
+            yield value
+        for nested in value.values():
+            yield from _inline_actors(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            yield from _inline_actors(nested)
+
+
+def _seed_like_the_demos(topo, monkeypatch) -> None:
+    """Register every actor as a peer on every other node, as the demos do.
+
+    The demo seeders register each actor on each other actor's node
+    (:func:`~vultron.demo.utils.seed_peer`) and, on the dedicated case-actor
+    node, in the CaseActor's address book
+    (:func:`~vultron.demo.helpers.seeding.seed_case_actor_peers`).
+    """
+    nodes = {
+        f"{app.base_url}/api/v2": app.client
+        for app in (topo.ca_host, topo.owner, topo.invitee)
+    }
+    calls = {
+        base: make_testclient_call(client, base)
+        for base, client in nodes.items()
+    }
+    monkeypatch.setattr(
+        DataLayerClient,
+        "call",
+        lambda self, method, path, **kw: calls[self.base_url](
+            self, method, path, **kw
+        ),
+    )
+    owner = as_Organization(id_=topo.owner_actor_id, name="Owner")
+    invitee = as_Organization(id_=topo.invitee_actor_id, name="Invitee")
+    seed_peer(
+        DataLayerClient(base_url=f"{topo.owner.base_url}/api/v2"),
+        local_actor_id=topo.owner_actor_id,
+        peer_id=invitee.id_,
+        name="Invitee",
+    )
+    seed_case_actor_peers(
+        DataLayerClient(base_url=f"{topo.ca_host.base_url}/api/v2"),
+        [owner, invitee],
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.spec("AKM-05-005")
+def test_every_actor_a_seeded_demo_names_travels_as_its_profile(
+    recorded_topology, monkeypatch
+):
+    """No actor in a seeded demo's traffic travels as a bare reference.
+
+    The demos seed every peer they name, the CaseActor's address book among
+    them, so each actor an activity carries inline is the seeded profile the
+    sender holds, never an id-and-type actor reference (ADR-0159).
+    """
+    topo, router = recorded_topology
+    case_id = "urn:uuid:sealed-body-seeded-profiles"
+    _bootstrap(topo, case_id)
+    _seed_like_the_demos(topo, monkeypatch)
+
+    _invite(topo, case_id)
+
+    carried = [
+        actor
+        for _, body, _ in router.delivered
+        for actor in _inline_actors(json.loads(body))
+    ]
+    invitee = [a for a in carried if a["id"] == topo.invitee_actor_id]
+    assert invitee, "the Invite must carry the invitee inline"
+    references = [a for a in carried if "name" not in a]
+    assert references == [], (
+        "a seeded demo sent an actor as a bare reference, not its profile"
+    )
+    assert {a["name"] for a in invitee} == {"Invitee"}

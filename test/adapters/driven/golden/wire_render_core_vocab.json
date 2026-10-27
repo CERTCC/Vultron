@@ -3,7 +3,6 @@
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "caseId": "urn:test:case_id:1",
     "entryHash": "",
-    "semanticType": "urn:test:semantic_type:1",
     "id": "urn:test:case_id:1/log/-1",
     "logIndex": -1,
     "logObjectId": "urn:test:log_object_id:1",
@@ -11,6 +10,7 @@
     "prevLogHash": "",
     "published": "2026-01-02T03:04:05+00:00",
     "receivedAt": "<clock>",
+    "semanticType": "urn:test:semantic_type:1",
     "type": "CaseLedgerEntry",
     "updated": "2026-01-02T03:04:05+00:00"
   },
@@ -176,8 +176,6 @@
   "VultronApplication": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "id": "urn:test:vultronapplication:golden",
-    "inbox": "urn:test:vultronapplication:golden/inbox",
-    "outbox": "urn:test:vultronapplication:golden/outbox",
     "published": "2026-01-02T03:04:05+00:00",
     "type": "Application",
     "updated": "2026-01-02T03:04:05+00:00"
@@ -193,8 +191,6 @@
   "VultronGroup": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "id": "urn:test:vultrongroup:golden",
-    "inbox": "urn:test:vultrongroup:golden/inbox",
-    "outbox": "urn:test:vultrongroup:golden/outbox",
     "published": "2026-01-02T03:04:05+00:00",
     "type": "Group",
     "updated": "2026-01-02T03:04:05+00:00"
@@ -218,8 +214,6 @@
   "VultronOrganization": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "id": "urn:test:vultronorganization:golden",
-    "inbox": "urn:test:vultronorganization:golden/inbox",
-    "outbox": "urn:test:vultronorganization:golden/outbox",
     "published": "2026-01-02T03:04:05+00:00",
     "type": "Organization",
     "updated": "2026-01-02T03:04:05+00:00"
@@ -227,8 +221,6 @@
   "VultronPerson": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "id": "urn:test:vultronperson:golden",
-    "inbox": "urn:test:vultronperson:golden/inbox",
-    "outbox": "urn:test:vultronperson:golden/outbox",
     "published": "2026-01-02T03:04:05+00:00",
     "type": "Person",
     "updated": "2026-01-02T03:04:05+00:00"
@@ -236,8 +228,6 @@
   "VultronService": {
     "@context": "https://certcc.github.io/Vultron/ns/context.jsonld",
     "id": "urn:test:vultronservice:golden",
-    "inbox": "urn:test:vultronservice:golden/inbox",
-    "outbox": "urn:test:vultronservice:golden/outbox",
     "published": "2026-01-02T03:04:05+00:00",
     "type": "Service",
     "updated": "2026-01-02T03:04:05+00:00"

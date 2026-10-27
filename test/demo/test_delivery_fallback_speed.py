@@ -27,6 +27,7 @@ deliveries and the HTTP adapter never attempts one.  It used to assert an
 (#4365, #4693).
 """
 
+from collections.abc import Mapping
 from unittest.mock import patch
 
 import httpx2 as httpx
@@ -74,15 +75,17 @@ def test_demo_routes_every_delivery_through_the_test_router(
         activity_id: str,
         json_body: str,
         recipients: list[str],
+        inboxes: Mapping[str, str] | None = None,
     ) -> None:
         routed.append(list(recipients))
-        await route(self, activity_id, json_body, recipients)
+        await route(self, activity_id, json_body, recipients, inboxes)
 
     async def record_http_attempt(
         self: HttpDeliveryAdapter,
         client: httpx.AsyncClient,
         json_body: str,
         recipient_id: str,
+        inbox_url: str,
         activity_id: str | None,
     ) -> None:
         http_attempts.append(recipient_id)

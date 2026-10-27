@@ -24,6 +24,10 @@ it is gone, because the handler no longer rewrites anything it delivers
 
 from typing import Any
 
+from vultron.core.models.actor import CoreActor, endpoint_uri
+from vultron.core.ports.datalayer import DataLayer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
 
 def _format_object(obj: object) -> str:
     """Return a concise one-line summary of an AS2 object for log messages.
@@ -91,3 +95,22 @@ def _extract_recipients(body: dict[str, Any]) -> list[str]:
             seen.add(actor_id)
             recipients.append(actor_id)
     return recipients
+
+
+def _held_inbox(dl: DataLayer, recipient_id: str) -> str | None:
+    """The ``inbox`` the sender's held profile of *recipient_id* names, if any."""
+    held = dl.read(recipient_id)
+    if not isinstance(held, (CoreActor, as_Actor)):
+        return None
+    return endpoint_uri(held.inbox)
+
+
+def held_inboxes(dl: DataLayer, recipients: list[str]) -> dict[str, str]:
+    """Map each recipient to the inbox the sender's held profile names (OX-12-009).
+
+    *dl* is the sending actor's store.  A recipient the sender holds no inbox
+    for is left out, so the emitter falls back to the address derived from the
+    recipient's URI for it, and only for it (AKM-05-001, ADR-0159).
+    """
+    found = {rid: _held_inbox(dl, rid) for rid in recipients}
+    return {rid: inbox for rid, inbox in found.items() if inbox}

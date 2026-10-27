@@ -235,6 +235,7 @@ def _phase_report_submission(
             reporter_actor_id=reporter_id,
             coordinator_actor_id=coordinator_id,
             vendor_actor_id=vendor_id,
+            case_actor_client=case_actor_client,
         )
 
     coordinator_in_coordinator = get_actor_by_id(

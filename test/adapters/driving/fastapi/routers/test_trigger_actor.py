@@ -49,7 +49,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 
 class _NoopEmitter:
-    async def emit(self, activity_id, json_body, recipients):
+    async def emit(self, activity_id, json_body, recipients, inboxes=None):
         pass
 
 

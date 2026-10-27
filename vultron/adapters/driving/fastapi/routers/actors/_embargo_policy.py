@@ -47,7 +47,7 @@ from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
 from vultron.adapters.driving.fastapi.routers.actors._lookup import (
     _resolve_actor_or_404,
 )
-from vultron.core.models.actor import CoreActor
+from vultron.core.models.actor import CoreActor, hosted_endpoints
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.embargo_policy import (
     EMBARGO_POLICY_PATH_SUFFIX,
@@ -116,9 +116,10 @@ def publish_embargo_policy(
 ) -> tuple[EmbargoPolicy, bool]:
     """Publish *terms* as *actor*'s ``EmbargoPolicy`` on its own profile.
 
-    ``actor_id`` and ``inbox`` come from the actor's record (EP-01-005); the
-    record's own validator has already derived a blank ``inbox`` from its id,
-    so nothing is manufactured here.
+    ``actor_id`` and ``inbox`` come from the actor's record (EP-01-005).  The
+    actor is one this node hosts, so a record that states no ``inbox`` is
+    given the one this node routes for it (:func:`hosted_endpoints`), not a
+    guess.
 
     The policy is written into the profile's ``embargo_policy`` field and the
     profile is saved to *dl*, the actor's own store (EP-01-004).  An actor has
@@ -142,7 +143,7 @@ def publish_embargo_policy(
     policy = EmbargoPolicy(
         id_=EmbargoPolicy.build_id(actor.id_),
         actor_id=actor.id_,
-        inbox=actor.inbox,
+        inbox=actor.inbox or hosted_endpoints(actor.id_)["inbox"],
         preferred_duration=terms.preferred_duration,
         minimum_duration=terms.minimum_duration,
         maximum_duration=terms.maximum_duration,

@@ -50,8 +50,6 @@ from test.support.core_vocab import import_all_core_models
 #: Fields where ``""`` is a documented sentinel, never a reference.  Each entry
 #: names the meaning its own field description or writer gives the blank:
 #:
-#: - ``CoreActor.inbox`` / ``outbox``: "not supplied"; the model validator
-#:   ``_derive_endpoints_from_id`` replaces it before the instance is returned.
 #: - ``HashChainLedgerRecord`` / ``CaseLedgerEntry.prev_log_hash``: "first entry"
 #:   until the per-case genesis hash is assigned (CLP-08-001).
 #: - ``HashChainLedgerRecord`` / ``CaseLedgerEntry.entry_hash``: "not yet
@@ -66,8 +64,6 @@ from test.support.core_vocab import import_all_core_models
 #: permanent: CS-08-001 (a documented "not yet" sentinel is not a reference), #3877
 BLANK_SENTINEL_FIELDS: frozenset[str] = frozenset(
     {
-        "CoreActor.inbox",
-        "CoreActor.outbox",
         "HashChainLedgerRecord.prev_log_hash",
         "HashChainLedgerRecord.entry_hash",
         "CaseLedgerEntry.prev_log_hash",

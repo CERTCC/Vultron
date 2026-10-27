@@ -41,12 +41,13 @@ Categories".
 
 ## Delivery Transport: Uniform HTTP (ADR-0042)
 
-All inter-actor activity delivery goes over the REST inbox/outbox HTTP API
-(HTTP POST to `{actor}/inbox/`). **Actors are treated as if every recipient
-were remote** — there is no in-process shortcut for co-located actors. This
-keeps co-located and remote delivery on one code path, so demos faithfully
-model autonomous peers and inter-actor delivery bugs surface in-process
-instead of being masked (ADR-0042, `outbox.yaml` OX-12).
+All inter-actor activity delivery goes over the REST inbox/outbox HTTP API: an
+HTTP POST to the `inbox` the sender's held profile of the recipient names, or to
+`{actor}/inbox/` only when it holds none (OX-12-009). **Actors are treated as if
+every recipient were remote** — there is no in-process shortcut for co-located
+actors. This keeps co-located and remote delivery on one code path, so demos
+faithfully model autonomous peers and inter-actor delivery bugs surface
+in-process instead of being masked (ADR-0042, `outbox.yaml` OX-12).
 
 - The production default `ActivityEmitter` is the HTTP delivery adapter.
 - An activity whose recipient is the sender's own inbox (a participant-role
