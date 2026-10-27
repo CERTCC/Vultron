@@ -405,7 +405,9 @@ holds (often `refines` or `depends_on`); when none holds, record no link
 (SR-13-018). Two keywords that state one obligation, and cannot be split
 without losing meaning, may stay: add `lint_suppress: [compound_statement]`
 with the reason in a YAML comment on the entry or the line before it. A
-suppression without a reason still fails.
+suppression without a reason still fails. Removing a suppression or its reason
+is not a statement change, so `--changed-since` passes it, but the CI guard
+`test_spec_statement_guard.py` fails it.
 
 Write the statement plainly, without losing meaning: at most 25 words per
 sentence (MS-03-003, a `--changed-since` warning), active voice that names the

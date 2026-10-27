@@ -16,8 +16,9 @@ The corpus holds a backlog of compound requirements, so the rule cannot fail
 corpus-wide. ``spec-lint --changed-since`` holds it before a pull request's
 first push; this guard holds it in CI, so a later fix commit cannot reword a
 statement past it. Each item is a requirement's ID with its statement text, so
-a statement added or reworded is new since the merge base and a change to any
-other field is not.
+a statement added or reworded is new since the merge base. So is a compound
+statement whose reasoned suppression the branch removes, which
+``--changed-since`` does not check; a change to any other field is not new.
 """
 
 from __future__ import annotations

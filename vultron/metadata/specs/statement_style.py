@@ -216,8 +216,9 @@ def unexcused_compound_statements(repo_root: Path) -> frozenset[str]:
 
     One item per requirement, as ``"<ID>: <statement>"``: the PR-only growth
     guard (MS-03-007) compares the merge base with the working tree, so a
-    statement added or reworded is new there, and a change to any other field
-    leaves its item as it was.
+    statement added or reworded is new there. Removing a compound statement's
+    reasoned suppression makes it new too, though ``--changed-since`` reads
+    only statement changes; any other field change leaves its item as it was.
     """
     spec_dir = repo_root / "specs"
     registry = load_registry(spec_dir)

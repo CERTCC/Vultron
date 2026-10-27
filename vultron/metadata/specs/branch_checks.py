@@ -27,8 +27,8 @@ them corpus-wide. Scoped to the branch, they hold for everything it touches:
   field of the requirement does not count.
 
 ``create-pr`` runs this before a Pull Request's first push (PAD-20-003). The
-first two rules also run corpus-wide as growth guards under
-``test/architecture/``, so CI holds them too. The base is required: a ref that
+first two rules and MS-03-007's one-obligation rule also run as growth guards
+under ``test/architecture/``, so CI holds them too. The base is required: a ref that
 does not resolve is an error (exit 2), never a pass.
 
 Requirements: specs/meta-specifications.yaml MS-10-011, MS-03-007;

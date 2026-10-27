@@ -324,6 +324,21 @@ class TestGuardItems:
         )
         assert unexcused_compound_statements(tmp_path) == before
 
+    @pytest.mark.parametrize("drop", ["reason", "suppression"])
+    def test_a_lost_excuse_is_a_new_item(self, tmp_path, drop):
+        suppressed = _row(
+            "TST-01-001", _TWO, lint_suppress=["compound_statement"]
+        )
+        _write_specs(tmp_path, [suppressed])
+        before = unexcused_compound_statements(tmp_path)
+        if drop == "reason":
+            _write_specs(tmp_path, [suppressed], reason=False)
+        else:
+            _write_specs(tmp_path, [_row("TST-01-001", _TWO)])
+        assert unexcused_compound_statements(tmp_path) - before == {
+            f"TST-01-001: {_TWO}"
+        }
+
     def test_only_unexcused_compound_statements_are_items(self, tmp_path):
         _write_specs(
             tmp_path,
