@@ -37,9 +37,6 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
-from vultron.core.behaviors.sync.hash_mismatch_tree import (
-    create_hash_mismatch_fault_tree,
-)
 from vultron.core.behaviors.sync.nodes.hash_mismatch import (
     OwnCopyCheck,
     ReportHashMismatchNode,
@@ -270,9 +267,10 @@ def _manager(
 
 
 def _fault(
-    dl: SqliteDataLayer, sender: str, announce_id: str
+    dl: SqliteDataLayer, sender: str, announce_id: str | None
 ) -> HandlerResult:
-    """Deliver *sender*'s hash-mismatch fault naming *announce_id*."""
+    """Deliver *sender*'s hash-mismatch fault naming *announce_id* (none
+    when ``None``)."""
     activity = create_processing_fault_activity(
         actor=sender,
         fault=as_ProcessingFault(
@@ -436,21 +434,18 @@ def test_a_hash_mismatch_fault_at_a_participant_is_refused(caplog) -> None:
 
 
 @pytest.mark.spec("SYNC-03-008")
-@pytest.mark.parametrize("missing", ["entry", "announce"])
-def test_a_fault_naming_no_sent_announce_builds_an_intake_only_tree(
-    missing: str,
-) -> None:
-    """With no entry, or no ``Announce`` to name, the tree only archives."""
-    tree = create_hash_mismatch_fault_tree(
-        None if missing == "entry" else _ledger_entry("0" * 64),
-        announce_id=None if missing == "announce" else "urn:x:announce",
-        sender_id=_PARTICIPANT_ID,
-        sender_rule=CreateProcessingFaultReceivedUseCase.sender_entitlement,
-    )
+def test_a_hash_mismatch_fault_naming_no_announce_is_refused(caplog) -> None:
+    """A fault with no ``inReplyTo`` names no case: it is only archived and
+    refused, with no report and no self-check."""
+    dl, _, _ = _manager()
 
-    assert not any(
-        isinstance(node, ReportHashMismatchNode) for node in tree.iterate()
-    )
+    with caplog.at_level(logging.ERROR, logger="vultron"):
+        result = _fault(dl, _PARTICIPANT_ID, None)
+
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    assert "names no case to report on (SYNC-03-008" in (result.reason or "")
+    assert outbox_ids(_CASE_ACTOR_ID, dl) == set()
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
 @pytest.mark.spec("SYNC-03-010")

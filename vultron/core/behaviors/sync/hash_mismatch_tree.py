@@ -23,9 +23,6 @@ SYNC-03-010).
 
 import py_trees
 
-from vultron.core.behaviors.case.intake_only_received_tree import (
-    create_intake_only_received_tree,
-)
 from vultron.core.behaviors.case.receive_activity_tree import (
     create_receive_activity_tree,
 )
@@ -40,19 +37,20 @@ __all__ = ["create_hash_mismatch_fault_tree"]
 
 
 def create_hash_mismatch_fault_tree(
-    refused_entry: CaseLedgerEntry | None,
+    refused_entry: CaseLedgerEntry,
     *,
-    announce_id: str | None,
+    announce_id: str,
     sender_id: str,
     sender_rule: SenderRule,
 ) -> py_trees.composites.Sequence:
     """Create the BT that reports a replica's hash-mismatch fault.
 
     *refused_entry* is the entry the fault's ``inReplyTo`` ``Announce``
-    (*announce_id*) carried; its case is the case the fault concerns.
-    ``None`` when the fault names no ``Announce(CaseLedgerEntry)`` this store
-    sent: there is no case to answer for, so the tree only archives the fault
-    and the handler refuses it.  At that case's CASE_MANAGER the tree logs
+    (*announce_id*) carried; its case is the case the fault concerns.  A
+    fault that names no ``Announce(CaseLedgerEntry)`` this store sent has no
+    case to answer for: the use case archives it with the intake-only tree
+    and refuses it, never calling this factory (ADR-0032).  At that case's
+    CASE_MANAGER the tree logs
     the fault at ERROR with a re-check of the CASE_MANAGER's own copy of the
     entry (:class:`ReportHashMismatchNode`, SYNC-03-010), in
     ``manager_effects`` (BT-17-008); any other receiver does nothing.
@@ -66,16 +64,11 @@ def create_hash_mismatch_fault_tree(
     post-close boundary, as every received tree does (CM-23-013).
 
     Args:
-        refused_entry: The ``CaseLedgerEntry`` the replica refused, or
-            ``None`` when the fault names none this store sent.
+        refused_entry: The ``CaseLedgerEntry`` the replica refused.
         announce_id: The fault's ``inReplyTo``: the refused ``Announce``.
         sender_id: The fault's ``actor``: the replica that refused it.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
-    # The use case reads the entry from the Announce *announce_id* names, so
-    # an entry never arrives without one; the second test is defensive.
-    if refused_entry is None or announce_id is None:
-        return create_intake_only_received_tree("HashMismatchFaultReceivedBT")
     case_id = refused_entry.case_id
     return create_receive_activity_tree(
         name="HashMismatchFaultReceivedBT",

@@ -238,9 +238,17 @@ def _hash_mismatch_tree(
     fault: CreateProcessingFaultReceivedEvent,
     rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
+    """The hash-mismatch tree, or the intake-only one for a fault that names
+    no ``Announce(CaseLedgerEntry)`` this actor sent (ADR-0032: the tree
+    receives the entry and its ``Announce`` id, never ``None``)."""
+    announce_id = fault.failed_activity_id
+    # The entry is read from the Announce announce_id names, so the second
+    # test only narrows the event's optional field for the type checker.
+    if refused_entry is None or announce_id is None:
+        return create_intake_only_received_tree("HashMismatchFaultReceivedBT")
     return create_hash_mismatch_fault_tree(
         refused_entry,
-        announce_id=fault.failed_activity_id,
+        announce_id=announce_id,
         sender_id=fault.actor_id,
         sender_rule=rule,
     )
@@ -327,7 +335,7 @@ class CreateProcessingFaultReceivedUseCase:
     The sender rule is declared once, below, and the receive-tree factory
     composes it into the tree of every class that has an effect: at the
     CASE_MANAGER the sender must be an active participant of the case the
-    fault concerns (CM-10-004, SYNC-16-003), and at a participant the fault
+    fault concerns (CM-10-004, SYNC-16-003, SYNC-03-008), and at a participant the fault
     must come from the CASE_MANAGER (PCR-03-001).  A class that is only
     archived runs no guard, because nothing it does is gated on a sender's
     standing.
