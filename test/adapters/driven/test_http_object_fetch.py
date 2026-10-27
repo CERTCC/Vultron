@@ -73,18 +73,18 @@ def _fetch(
 
 
 class TestFetchUrl:
-    def test_a_case_object_is_read_from_the_case_hosts_case_object_route(
+    def test_a_case_object_is_read_from_the_case_hosts_objects_route(
         self,
     ):
+        """The case goes in the path by its surrogate key and the object as a
+        query parameter, since either id may carry slashes."""
         url = urlsplit(fetch_url(_CASE_REF))
 
         assert (
-            f"{url.scheme}://{url.netloc}{url.path}" == f"{_HOST}/case-object"
+            f"{url.scheme}://{url.netloc}{url.path}"
+            == f"{_HOST}/cases/c-1/objects"
         )
-        assert parse_qs(url.query) == {
-            "case_id": [_CASE],
-            "object_id": [_OBJECT],
-        }
+        assert parse_qs(url.query) == {"object_id": [_OBJECT]}
 
     def test_a_profile_is_read_from_the_actors_profile_route(self):
         reference = ObjectReference(

@@ -19,7 +19,8 @@ One ``GET`` per attempt, to the object's source
 (:class:`~vultron.core.models.object_fetch.ObjectFetchSource`):
 
 - a case object, from the case host's case-scoped read,
-  ``{host}/case-object?case_id=…&object_id=…`` (AKM-05-006);
+  ``{host}/cases/{case key}/objects?object_id=…`` (AKM-05-006), the case
+  named by its surrogate key, the last segment of its id;
 - an actor's profile, from ``{actor}/profile`` (AR-10-001).
 
 The request names the fetching actor in the :data:`REQUESTER_HEADER` header.
@@ -51,6 +52,7 @@ from vultron.adapters.driven.http_retry import (
     TerminalAttemptError,
     retry_with_backoff,
 )
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models.object_fetch import ObjectFetchSource, ObjectReference
 
 logger = logging.getLogger(__name__)
@@ -92,14 +94,20 @@ class ObjectFetcher(Protocol):
 
 
 def fetch_url(reference: ObjectReference) -> str:
-    """The URL a fetch of *reference* is sent to."""
+    """The URL a fetch of *reference* is sent to.
+
+    A case is named in the path by its surrogate key (``strip_id_prefix``),
+    since a full case id may carry slashes no path segment can; the object
+    id, any URI, travels as a query parameter.
+    """
     host = reference.host_actor_id.rstrip("/")
     if reference.source is ObjectFetchSource.ACTOR_PROFILE:
         return f"{host}/profile"
-    query = urllib.parse.urlencode(
-        {"case_id": reference.case_id, "object_id": reference.object_id}
+    case_key = urllib.parse.quote(
+        strip_id_prefix(reference.case_id or ""), safe=""
     )
-    return f"{host}/case-object?{query}"
+    query = urllib.parse.urlencode({"object_id": reference.object_id})
+    return f"{host}/cases/{case_key}/objects?{query}"
 
 
 class HttpObjectFetcher:

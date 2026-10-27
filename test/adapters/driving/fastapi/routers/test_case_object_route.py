@@ -10,18 +10,15 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""The case host's object read, ``GET {actor}/case-object`` (AKM-05-006)."""
+"""The case host's read, ``GET {actor}/cases/{case_key}/objects`` (AKM-05-006)."""
 
 from collections.abc import Iterator
 from datetime import timedelta
 
 import pytest
-from fastapi import FastAPI, status
+from fastapi import status
 from fastapi.testclient import TestClient
 
-from test.adapters.driving.fastapi.routers.conftest import (
-    _in_memory_actor_dl_override,
-)
 from test.support.case_manager import make_case_with_case_manager
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer_sqlite import (
@@ -30,8 +27,7 @@ from vultron.adapters.driven.datalayer_sqlite import (
     reset_datalayer,
 )
 from vultron.adapters.driven.http_object_fetch import REQUESTER_HEADER
-from vultron.adapters.driving.fastapi.deps import get_actor_dl
-from vultron.adapters.driving.fastapi.routers import actors as actors_router
+from vultron.adapters.utils import strip_id_prefix
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_participant import CaseParticipant
@@ -58,12 +54,9 @@ def host() -> Iterator[tuple[SqliteDataLayer, VulnerabilityCase]]:
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
-    app = FastAPI()
-    app.include_router(actors_router.router)
-    app.dependency_overrides[get_actor_dl] = _in_memory_actor_dl_override()
-    yield TestClient(app)
-    app.dependency_overrides = {}
+def client(client_actors: TestClient) -> TestClient:
+    """The actors router over in-memory stores, one per actor."""
+    return client_actors
 
 
 def _get(
@@ -71,8 +64,8 @@ def _get(
 ):
     headers = {REQUESTER_HEADER: requester} if requester else {}
     return client.get(
-        f"/actors/{_SLUG}/case-object",
-        params={"case_id": case_id, "object_id": object_id},
+        f"/actors/{_SLUG}/cases/{strip_id_prefix(case_id)}/objects",
+        params={"object_id": object_id},
         headers=headers,
     )
 
@@ -130,3 +123,45 @@ def test_a_case_the_host_does_not_hold_is_404(client, host):
     )
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.spec("AKM-05-006")
+def test_the_case_may_be_named_by_its_full_id(client, host):
+    _, case = host
+
+    response = client.get(
+        f"/actors/{_SLUG}/cases/{case.id_}/objects",
+        params={"object_id": case.id_},
+        headers={REQUESTER_HEADER: _PARTICIPANT},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["id"] == case.id_
+
+
+@pytest.mark.spec("AKM-05-006")
+def test_a_case_id_with_slashes_is_named_by_its_surrogate_key(client):
+    """A case id under a base URL cannot be one path segment (OID-01-003)."""
+    host_id = canonical_actor_uri(_SLUG)
+    reset_datalayer(host_id)
+    dl = get_datalayer(host_id, db_url="sqlite:///:memory:")
+    case = VulnerabilityCase(
+        id_="https://example.org/api/v2/cases/c-123",
+        attributed_to="https://example.org/actors/owner",
+        name="URL-keyed case",
+    )
+    dl.save(case)
+    from test.support.case_manager import add_case_manager_participant
+
+    add_case_manager_participant(dl, case, host_id)
+    participant = CaseParticipant(attributed_to=_PARTICIPANT, context=case.id_)
+    case.add_participant(participant)
+    dl.save(case)
+    dl.create(participant)
+    try:
+        response = _get(client, case.id_, case.id_, _PARTICIPANT)
+    finally:
+        reset_datalayer(host_id)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["id"] == case.id_

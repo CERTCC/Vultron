@@ -291,14 +291,17 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      This codebase's CASE_MANAGER MUST serve, at `GET {actor}/case-object` with
-      `case_id` and `object_id` query parameters, an object a case it manages names (the
-      case itself, an embargo in its register, or a participant, status, report or note
-      it lists) or an object whose `context` is that case, to an active participant of
-      the case (CM-10-004) that has not closed on it (CM-23-004). It MUST answer 403 to
-      a requester that is not one, 401 to a request naming no requester, and 404 for a
-      case it does not manage or an object the case does not name. The requester is the
-      actor the request names in its `X-Vultron-Actor` header.
+      This codebase's CASE_MANAGER MUST serve, at `GET {actor}/cases/{case}/objects`
+      with an `object_id` query parameter, an object a case it manages names (the case
+      itself, an embargo in its register, or a participant, status, report or note it
+      lists) or an object whose `context` is that case, to an active participant of the
+      case (CM-10-004) that has not closed on it (CM-23-004). The `{case}` segment is
+      the case's id, or its surrogate key (the last segment of its id) when the id
+      carries slashes; a key that matches more than one case names none. It MUST answer
+      403 to a requester that is not such a participant, 401 to a request naming no
+      requester, and 404 for a case it does not manage or an object the case does not
+      name. The requester is the actor the request names in its `X-Vultron-Actor`
+      header.
     rationale: >-
       A replica dereferences a case object from the actor that holds the canonical case
       (ADR-0107), and only an active participant is entitled to case content
