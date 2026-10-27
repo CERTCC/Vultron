@@ -75,6 +75,34 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: SE-01-002
+  - id: SE-01-006
+    priority: MUST
+    kind: project
+    statement: >-
+      An `ActivityPattern`'s `object_` type constraint MUST NOT be satisfied by a bare
+      URI that is still unresolved after rehydration. A pattern MAY match a bare `object`
+      only when a field other than the object's type tells it apart from every other
+      pattern of its verb, as `ledgerPosition` does for `Read(CaseLedgerEntry)`. A bare
+      URI in `target`, `context` or `to` MAY still satisfy a type constraint, except
+      where SE-08-004 requires `strict=True`.
+    rationale: >-
+      Rehydration resolves every object the receiver holds, so a bare `object` at match
+      time names an object the receiver lacks. A pattern that ignores its type routes it
+      to the first pattern of its verb: an `Announce` of an embargo by id was read as
+      `ANNOUNCE_VULNERABILITY_CASE` (CONCERN-5243). Left unmatched, it is
+      `UNKNOWN_UNRESOLVABLE_OBJECT`, and the receiver fetches the object (AKM-05-003). A
+      case in `target` is its URI or a stub by rule, so `target` stays lenient.
+    verification: >-
+      `test/test_semantic_activity_patterns.py` checks that an activity of each
+      registered verb with a bare `object` matches no pattern whose only test of the
+      object is its type, and that the patterns which admit a bare `object` are exactly
+      those with another discriminator; `vultron/wire/as2/extractor/_pattern.py` keeps
+      `target_` matching lenient unless the pattern sets `strict=True`.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-01-005
+    lint_suppress:
+    - missing_story_reference
 - id: SE-02
   title: Semantic Type Assignment
   specs:
