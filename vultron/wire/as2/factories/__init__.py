@@ -24,6 +24,11 @@ AF-02-004.
 """
 
 from vultron.wire.as2.factories._held import embedded_as_received
+from vultron.wire.as2.factories._ledger_position import (
+    ledger_position_case_ids,
+    object_states_its_own_position,
+    stamp_ledger_position,
+)
 from vultron.wire.as2.factories.actor import (
     accept_actor_recommendation_activity,
     accept_case_participant_offer_activity,
@@ -87,11 +92,6 @@ from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.factories.fault import (
     create_processing_fault_activity,
     refusal_notice_activity,
-)
-from vultron.wire.as2.factories.ledger_position import (
-    ledger_position_case_ids,
-    object_states_its_own_position,
-    stamp_ledger_position,
 )
 from vultron.wire.as2.factories.report import (
     parse_submit_report_offer,
