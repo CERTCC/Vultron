@@ -42,12 +42,16 @@ _Activity = TypeVar("_Activity", bound=as_Activity)
 #: ``(activity type, object type)`` pairs whose object states its own ledger
 #: position, so the activity carries none (SYNC-18-001): a ledger entry names
 #: its own index and hash, and a case copy its ``ledgerPosition``
-#: (SYNC-16-005).  ``Create(VulnerabilityCase)`` is the creator's first copy.
+#: (SYNC-16-005).  ``Create(VulnerabilityCase)`` is the creator's first copy
+#: and ``Update(VulnerabilityCase)`` the CASE_MANAGER's copy recording a new
+#: owner.  ``Join``, ``Ignore``, ``Leave`` and ``Offer`` carry the case inline
+#: too, but they are acts on the case, not copies of it, so they are stamped.
 _STATES_ITS_OWN_POSITION: frozenset[tuple[str, str]] = frozenset(
     {
         ("Announce", "CaseLedgerEntry"),
         ("Announce", "VulnerabilityCase"),
         ("Create", "VulnerabilityCase"),
+        ("Update", "VulnerabilityCase"),
     }
 )
 
@@ -60,8 +64,9 @@ def _type_name(value: object) -> str | None:
 def object_states_its_own_position(activity: as_Activity) -> bool:
     """Whether *activity*'s object already states a ledger position.
 
-    True for ``Announce(CaseLedgerEntry)``, ``Announce(VulnerabilityCase)``
-    and ``Create(VulnerabilityCase)`` with the object carried inline.
+    True for ``Announce(CaseLedgerEntry)``, ``Announce(VulnerabilityCase)``,
+    ``Create(VulnerabilityCase)`` and ``Update(VulnerabilityCase)`` with the
+    object carried inline.
     """
     obj = getattr(activity, "object_", None)
     pair = (_type_name(activity), _type_name(obj))

@@ -33,8 +33,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 def is_genesis_replay_reject(activity: object) -> bool:
     """Whether *activity* is the objectless genesis-replay ``Reject``.
 
-    It is a plain ``Reject`` with no ``object``, a ``ledgerPosition`` that
-    names no entry and a ``target`` that names the case.
+    It is a plain ``Reject`` with no ``object``, the empty chain's
+    ``ledgerPosition`` (index -1) and a ``target`` that names the case.
     """
     return isinstance(activity, as_Reject) and activity.asks_for_genesis_replay
 

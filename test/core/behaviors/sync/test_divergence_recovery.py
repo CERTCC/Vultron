@@ -574,6 +574,9 @@ def test_a_reject_naming_no_entry_but_a_hash_is_refused_at_parse() -> None:
     named = {"logIndex": 0, "entryHash": "ab" * 32}
     with pytest.raises(VultronParseValidationError, match="names no object"):
         parse_activity({**body, "ledgerPosition": named})
+    unstated = {k: v for k, v in body.items() if k != "ledgerPosition"}
+    with pytest.raises(VultronParseValidationError, match="names no object"):
+        parse_activity(unstated)
     untargeted = {k: v for k, v in body.items() if k != "target"}
     with pytest.raises(VultronParseValidationError, match="names no object"):
         parse_activity(untargeted)

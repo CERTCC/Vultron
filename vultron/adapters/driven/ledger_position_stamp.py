@@ -29,7 +29,10 @@ import logging
 from typing import TypeVar, cast
 
 from vultron.core.ports.case_persistence import CasePersistence
-from vultron.core.sync_helpers import holds_case_ledger, ledger_tail_position
+from vultron.core.sync_helpers import (
+    first_case_with_ledger,
+    ledger_tail_position,
+)
 from vultron.wire.as2.factories import (
     ledger_position_case_ids,
     stamp_ledger_position,
@@ -47,25 +50,27 @@ def with_sender_ledger_position(
     """Return *activity* stamped with the tail of the case it is about.
 
     The case is the first one :func:`ledger_position_case_ids` names whose
-    ledger *dl* holds (:func:`holds_case_ledger`).  *activity* is returned
+    ledger *dl* holds (:func:`first_case_with_ledger`).  *activity* is returned
     unchanged when it is no activity, already states a position, has an
     object that states its own, or names no case *dl* holds: its sender
     holds no ledger to state yet (SYNC-18-001).
     """
     if not isinstance(activity, as_Activity):
         return activity
-    for case_id in ledger_position_case_ids(activity):
-        if holds_case_ledger(case_id, dl):
-            position = ledger_tail_position(case_id, dl)
-            logger.debug(
-                "Stamped activity '%s' with ledger position %d of case '%s'"
-                " (SYNC-18-001)",
-                activity.id_,
-                position.log_index,
-                case_id,
-            )
-            return cast(_Model, stamp_ledger_position(activity, position))
-    return activity
+    case_id = first_case_with_ledger(
+        list(ledger_position_case_ids(activity)), dl
+    )
+    if case_id is None:
+        return activity
+    position = ledger_tail_position(case_id, dl)
+    logger.debug(
+        "Stamped activity '%s' with ledger position %d of case '%s'"
+        " (SYNC-18-001)",
+        activity.id_,
+        position.log_index,
+        case_id,
+    )
+    return cast(_Model, stamp_ledger_position(activity, position))
 
 
 __all__ = ["with_sender_ledger_position"]

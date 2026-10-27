@@ -242,9 +242,11 @@ def test_a_malformed_ledger_position_is_refused_and_writes_nothing():
         ledgerPosition={"logIndex": "first", "entryHash": ""},
     )
 
-    with pytest.raises(VultronParseValidationError):
+    with pytest.raises(VultronParseValidationError) as refusal:
         net.receive(MANAGER, body)
 
+    assert body["id"] in str(refusal.value)
+    assert "ledgerPosition" in str(refusal.value)
     assert _note_entries(net) == []
 
 

@@ -1,6 +1,7 @@
 """Shared helpers for SYNC log-replication workflows."""
 
 import logging
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
@@ -220,22 +221,33 @@ def reconstruct_tail_hash(
     return last.entry_hash, last.log_index
 
 
-def holds_case_ledger(case_id: str, dl: CasePersistence) -> bool:
-    """Whether *dl* holds a ledger for *case_id* whose tail it can state.
+def first_case_with_ledger(
+    case_ids: Sequence[str], dl: CasePersistence
+) -> str | None:
+    """The first of *case_ids* whose ledger *dl* holds, or ``None`` for none.
 
-    It does once it stores an entry of the case's chain, or the case with its
-    per-case genesis hash, the anchor of an empty chain (CLP-08-004): the
-    CASE_MANAGER from creating the case, a participant from its first copy
-    or entry.  Before that it has no tail to state, so its activities about
-    the case carry no ``ledgerPosition`` (SYNC-18-001), and
-    :func:`ledger_tail_position` would raise.
+    *dl* holds a case's ledger once it stores the case with its per-case
+    genesis hash, the anchor of an empty chain (CLP-08-004), or an entry of
+    its chain: the CASE_MANAGER from creating the case, a participant from
+    its first copy or entry.  Before that it has no tail to state, so its
+    activities about the case carry no ``ledgerPosition`` (SYNC-18-001), and
+    :func:`ledger_tail_position` would raise.  ``None`` is an answer, not a
+    failure: the sender holds no ledger for any of them.
+
+    Each id is first read as a case (one keyed read); the stored entries are
+    listed at most once, only when no id names a case *dl* holds.
     """
-    if _get_case_genesis_hash(case_id, dl):
-        return True
-    return any(
-        isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+    for case_id in case_ids:
+        if _get_case_genesis_hash(case_id, dl):
+            return case_id
+    if not case_ids:
+        return None
+    chained = {
+        obj.case_id
         for obj in dl.list_objects("CaseLedgerEntry")
-    )
+        if isinstance(obj, CaseLedgerEntry)
+    }
+    return next((case_id for case_id in case_ids if case_id in chained), None)
 
 
 def ledger_tail_position(case_id: str, dl: CasePersistence) -> LedgerPosition:

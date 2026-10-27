@@ -484,7 +484,8 @@ def _receivers_case_position(
         or stored.get("type") != "VulnerabilityCase"
     ):
         return None
-    position = stored.get("ledgerPosition") or stored.get("ledger_position")
+    # The DataLayer route renders the stored record by alias.
+    position = stored.get("ledgerPosition")
     return LedgerPosition.model_validate(position) if position else None
 
 

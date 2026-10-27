@@ -104,7 +104,7 @@ It replays that `Announce` when the predecessor arrives (ADR-0037, SYNC-14-009).
 A participant that holds no entry has none to reject.
 If its case is replaced by a copy ahead of its chain, it sends a `Reject` with no `object`, the `ledgerPosition` of its empty chain (`logIndex` -1) and the case as its `target`.
 That `Reject` asks for a replay from genesis (SYNC-16-007).
-A `Reject` with no `object` whose `ledgerPosition` names an entry is refused when it is parsed.
+A `Reject` with no `object` that states no `ledgerPosition`, or one that names an entry, is refused when it is parsed.
 
 Buffering takes priority over rejection (ADR-0037).
 A participant sends a `Reject` only for an entry that is really missing from the chain, never for one that is only out of order.

@@ -179,8 +179,9 @@ def test_reply_to_something_that_is_not_a_full_case_invite_is_refused(
     participant,
 ) -> None:
     actor, dl, case_id, _genesis = participant
-    # A stub Invite names the case through its stub and carries no ledger
-    # position, so it is no full-case Invite.
+    # A stub Invite names the case through its stub, so it is no full-case
+    # Invite and sets no floor, though it states its sender's ledger
+    # position like every case activity (SYNC-18-001).
     stub_like = rm_invite_to_case_activity(
         actor, target=case_stub(case_id), actor=_MANAGER, to=[actor.id_]
     )

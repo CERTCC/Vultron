@@ -20,6 +20,7 @@ from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.ledger_position_stamp import (
     with_sender_ledger_position,
 )
+from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
@@ -30,6 +31,7 @@ from vultron.core.models.ledger_position import (
     EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
 )
+from vultron.errors import VultronValidationError
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
@@ -140,3 +142,40 @@ def test_the_stored_activity_and_its_sealed_body_carry_one_position(
     assert getattr(stored, "ledger_position", None) == LedgerPosition(
         **body["ledgerPosition"]
     )
+
+
+@pytest.mark.spec("SYNC-16-007")
+def test_a_genesis_replay_request_needs_the_case_it_names(dl) -> None:
+    """The objectless Reject states the empty chain's position, which only a
+    store holding the case can state: one that does not raises before it
+    writes or queues anything (SYNC-18-001)."""
+    with pytest.raises(VultronValidationError):
+        SyncActivityAdapter(dl).send_genesis_replay_reject(
+            case_id=_CASE,
+            copy_tail_hash="ab" * 32,
+            actor_id=_ACTOR,
+            to=["https://example.org/users/manager"],
+        )
+
+    assert list(dl.outbox_list()) == []
+
+
+@pytest.mark.spec("SYNC-16-007")
+def test_a_genesis_replay_request_states_the_empty_chain(dl) -> None:
+    case = VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR)
+    dl.create(case)
+
+    SyncActivityAdapter(dl).send_genesis_replay_reject(
+        case_id=_CASE,
+        copy_tail_hash="ab" * 32,
+        actor_id=_ACTOR,
+        to=["https://example.org/users/manager"],
+    )
+
+    (reject_id,) = dl.outbox_list()
+    body = read_sealed_body_dict(dl, reject_id)
+    assert body is not None
+    assert body["ledgerPosition"] == {
+        "logIndex": EMPTY_LEDGER_LOG_INDEX,
+        "entryHash": case.genesis_hash,
+    }

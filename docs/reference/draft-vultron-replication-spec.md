@@ -304,7 +304,7 @@ A re-delivery of the same announcement is judged the same way: current while the
 A replica stores an entry the copy reflects without applying it, but still stores each record the entry carries that the copy names by id only, such as a note, a case status or a proposed embargo.
 The `Reject(CaseLedgerEntry)` names the last entry the replica's chain stores.
 A replica whose chain stores no entry has none to name, so its `Reject` names no entry, states the `ledgerPosition` of its empty chain (`logIndex` -1) and names the case as its `target`; the CASE_MANAGER answers it with a replay from genesis. (SYNC-16-007)
-A `Reject` that names no entry but states a position naming one is refused when it arrives.
+A `Reject` that names no entry and states no position, or a position naming an entry, is refused when it arrives.
 
 A divergence fault for an entry the last re-seed already reflected, from a participant whose acknowledged position is at or past that re-seed's position, means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
 Without that acknowledgement the copy may have been lost or may still be in flight, so the CASE_MANAGER SHOULD log the fault below error and leave it to the rate-bounded re-seed. (SYNC-16-008)
@@ -490,7 +490,7 @@ restart. (SYNC-04-002)
 
 Every activity about a case whose ledger its sender holds, from any sender, MUST state the sender's ledger tail as the activity's `ledgerPosition`: the `logIndex` and `entryHash` of the last entry it had committed or stored when it built the activity. (SYNC-18-001)
 The position MUST be the tail when the sender builds the activity, and a resend MUST carry the position it was first sent with. (SYNC-18-002)
-An activity sent before its sender holds the case's ledger, an activity whose object states its own position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`), and `Create(ProcessingFault)` carry none. (SYNC-18-001)
+An activity sent before its sender holds the case's ledger, an activity whose object states its own position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`, `Update(VulnerabilityCase)`), and `Create(ProcessingFault)` carry none. (SYNC-18-001)
 A receiver MUST refuse an activity in that scope whose `ledgerPosition` is missing or does not parse. (SYNC-18-003)
 The stamp lets the CASE_MANAGER see that a participant is behind without waiting for an explicit sync request.
 

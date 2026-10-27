@@ -423,9 +423,9 @@ class as_Reject(as_TransitiveActivity):
     def asks_for_genesis_replay(self) -> bool:
         """Whether this is the objectless genesis-replay ``Reject``.
 
-        A plain ``Reject`` with no ``object``, whose ``ledgerPosition`` names
-        no entry (absent, or index -1: an empty chain), and a ``target`` that
-        names the case (SYNC-16-007, SYNC-18-001): its id, or an inline
+        A plain ``Reject`` with no ``object``, whose ``ledgerPosition`` is the
+        empty chain's (index -1), and a ``target`` that names the case
+        (SYNC-16-007, SYNC-18-001): its id, or an inline
         ``VulnerabilityCase``; an inline object of any other type names no
         case.  The one rule the parser and the router both read.
         """
@@ -434,10 +434,8 @@ class as_Reject(as_TransitiveActivity):
         return (
             self.object_ is None
             and str(self.type_) == str(TA_type.REJECT)
-            and (
-                position is None
-                or position.log_index == EMPTY_LEDGER_LOG_INDEX
-            )
+            and position is not None
+            and position.log_index == EMPTY_LEDGER_LOG_INDEX
             and bool(_as_id(self.target))
             and (
                 target_type is None or str(target_type) == "VulnerabilityCase"
@@ -451,8 +449,9 @@ class as_Reject(as_TransitiveActivity):
             return self
         raise ValueError(
             f"{self.type_} names no object.  Only a Reject(CaseLedgerEntry)"
-            " asking for a replay from genesis may: its ledgerPosition names"
-            " no entry and it names the case as its target (SYNC-16-007)"
+            " asking for a replay from genesis may: it states the empty"
+            " chain's ledgerPosition (index -1) and names the case as its"
+            " target (SYNC-16-007)"
         )
 
 

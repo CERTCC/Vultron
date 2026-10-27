@@ -24,8 +24,10 @@ from vultron.wire.as2.factories import (
     ledger_position_case_ids,
     object_states_its_own_position,
     rm_accept_invite_to_case_activity,
+    rm_engage_case_activity,
     rm_invite_to_case_activity,
     stamp_ledger_position,
+    update_case_activity,
 )
 from vultron.wire.as2.factories.sync import announce_log_entry_activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
@@ -134,8 +136,12 @@ def test_a_stub_invite_and_its_reply_name_the_case_the_stub_stands_for() -> (
             as_VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR),
             actor=_ACTOR,
         ),
+        lambda: update_case_activity(
+            as_VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR),
+            actor=_ACTOR,
+        ),
     ],
-    ids=["announce-entry", "announce-case", "create-case"],
+    ids=["announce-entry", "announce-case", "create-case", "update-case"],
 )
 def test_an_activity_whose_object_states_its_position_names_no_case(
     build,
@@ -144,6 +150,16 @@ def test_an_activity_whose_object_states_its_position_names_no_case(
 
     assert object_states_its_own_position(activity)
     assert list(ledger_position_case_ids(activity)) == []
+
+
+@pytest.mark.spec("SYNC-18-001")
+def test_an_act_on_an_inline_case_names_it_to_be_stamped() -> None:
+    join = rm_engage_case_activity(
+        as_VulnerabilityCase(id_=_CASE, attributed_to=_ACTOR), actor=_ACTOR
+    )
+
+    assert not object_states_its_own_position(join)
+    assert list(ledger_position_case_ids(join)) == [_CASE]
 
 
 @pytest.mark.spec("SYNC-18-001")

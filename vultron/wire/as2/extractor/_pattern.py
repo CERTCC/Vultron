@@ -116,7 +116,7 @@ class LedgerEntryRejectPattern(ActivityPattern):
     """``Reject(CaseLedgerEntry)``, or the objectless genesis-replay form.
 
     Matches what the base pattern matches, and also a plain ``Reject`` that
-    names no entry, states a position naming no entry and names the case
+    names no entry, states the empty chain's position and names the case
     as its ``target``: a replica with no stored entry asking for a replay
     from genesis (SYNC-16-007).  The parser refuses any other ``Reject``
     without an object, so nothing else reaches the second branch.
