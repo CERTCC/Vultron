@@ -68,7 +68,7 @@ def repo(tmp_path: Path) -> Path:
 
 
 def _errors(root: Path) -> list[str]:
-    return check_branch(load_registry(root / "specs"), root, "base")
+    return check_branch(load_registry(root / "specs"), root, "base").errors
 
 
 @pytest.mark.spec("MS-10-011")

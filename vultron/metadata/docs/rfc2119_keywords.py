@@ -50,6 +50,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vultron.metadata.markdown_tables import fenced_lines
+from vultron.metadata.rfc2119 import keywords_in
 
 RECONCILED_FRAGMENTS: tuple[str, ...] = (
     "reference/vultron-spec/_abstract.md",
@@ -83,10 +84,6 @@ CONVENTIONS_FRAGMENT = "reference/vultron-spec/_introduction.md"
 
 # Every RFC 2119 keyword, as RFC 8174 defines them: upper case only. The
 # negated forms ("MUST NOT", "NOT RECOMMENDED") contain a listed word.
-_KEYWORD_RE = re.compile(
-    r"\b(?:MUST|SHALL|SHOULD|MAY|REQUIRED|RECOMMENDED|OPTIONAL)\b"
-)
-_CODE_SPAN_RE = re.compile(r"(?<!`)(`+)(?!`).+?(?<!`)\1(?!`)")
 _CONVENTIONS_HEADING_RE = re.compile(
     r"^#{1,6}\s+1\.4\s+Document Conventions\b"
 )
@@ -157,10 +154,9 @@ def fragment_keyword_faults(path: str, text: str) -> list[KeywordFault]:
     for number, line in enumerate(lines, start=1):
         if number in skipped:
             continue
-        prose = _CODE_SPAN_RE.sub("", line)
         faults.extend(
-            KeywordFault(path, number, match.group(0))
-            for match in _KEYWORD_RE.finditer(prose)
+            KeywordFault(path, number, keyword)
+            for keyword in keywords_in(line)
         )
     return faults
 

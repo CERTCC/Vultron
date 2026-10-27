@@ -108,9 +108,14 @@ groups:
   - id: MS-03-001
     priority: MUST
     kind: process
-    verification_debt: '#2571'
     statement: Each spec entry MUST contain exactly one normative statement; compound or multi-condition requirements MUST
       be split into separate entries.
+    verification: >-
+      `spec-lint --changed-since <ref>` fails each requirement whose statement the
+      branch adds or changes and that holds more than one RFC 2119 keyword outside
+      backticks (MS-03-007), and `spec-lint --list-compound` lists the corpus
+      backlog by spec file. `test/metadata/specs/test_statement_style.py` covers
+      both.
     rationale: Atomic requirements are independently testable and traceable.
     tags:
     - documentation
@@ -122,6 +127,84 @@ groups:
     rationale: IDs enable stable cross-referencing.
     tags:
     - documentation
+  - id: MS-03-003
+    priority: SHOULD
+    kind: process
+    statement: Each sentence of a requirement's `statement:` SHOULD hold at most 25 words.
+    verification: >-
+      `spec-lint --changed-since <ref>` warns on each longer sentence in a
+      statement the branch adds or changes, counting a code span as one word;
+      `test/metadata/specs/test_statement_style.py` checks the count and the
+      warning.
+    rationale: >-
+      A short sentence is read once and understood. A long one hides its actor,
+      its condition or its obligation, and an implementer who misreads a
+      requirement builds the wrong behavior.
+    tags:
+    - documentation
+  - id: MS-03-004
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A `statement:` SHOULD use the active voice and name the actor that holds
+      the obligation, such as the CASE_MANAGER, a participant, `spec-lint`, or
+      this codebase.
+    rationale: >-
+      A passive requirement does not say who must act, so each reader supplies
+      an actor, and two implementations can each leave the obligation to the
+      other.
+    tags:
+    - documentation
+  - id: MS-03-005
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A `statement:` SHOULD state an action with its plain verb, such as
+      "remove", not with a noun phrase such as "the removal of".
+    rationale: >-
+      A noun phrase buries the action and adds words, which makes the sentence
+      longer and its obligation harder to find.
+    tags:
+    - documentation
+  - id: MS-03-006
+    priority: SHOULD
+    kind: process
+    statement: >-
+      A plain-language rewrite of a `statement:` SHOULD keep its domain terms and
+      its RFC 2119 keywords as written.
+    rationale: >-
+      Domain terms are defined in the glossary and RFC 2119 keywords set the
+      requirement's priority. A simpler word in their place changes what the
+      requirement means, which a rewrite for plain language must not do.
+    tags:
+    - documentation
+  - id: MS-03-007
+    priority: MUST
+    kind: process
+    statement: >-
+      `spec-lint --changed-since <ref>` MUST fail each requirement whose
+      `statement:` the branch adds or changes and that holds more than one RFC
+      2119 keyword outside backticks. A requirement whose `lint_suppress:` lists
+      `compound_statement` with its reason in a YAML comment is exempt.
+    verification: >-
+      `test/metadata/specs/test_statement_style.py` builds branches that add or
+      reword a compound statement, quote a second keyword in backticks, suppress
+      the check with and without a reason, and change only a compound
+      requirement's `rationale:` or `relationships:`, and checks which of them
+      fail. In CI, `test/architecture/test_spec_statement_guard.py` fails a pull
+      request that adds or rewords a compound statement with no reasoned
+      suppression.
+    rationale: >-
+      The corpus holds a backlog of compound requirements, so a corpus-wide error
+      would fail every branch. Checking only the statements a branch writes holds
+      new text to MS-03-001 without forcing a branch that edits another field to
+      split a requirement it did not reword.
+    tags:
+    - documentation
+    - tooling
+    relationships:
+    - rel_type: verifies
+      spec_id: MS-03-001
 - id: MS-04
   title: Requirement IDs
   specs:

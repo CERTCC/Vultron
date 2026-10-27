@@ -407,6 +407,7 @@ class LintWarningCode(StrEnum):
     PHANTOM_SYMBOL_REF = "phantom_symbol_ref"
     MISSING_STORY_REFERENCE = "missing_story_reference"
     PROTOCOL_KIND_WITH_CODE_REFERENCE = "protocol_kind_with_code_reference"
+    COMPOUND_STATEMENT = "compound_statement"
 
 
 class Relationship(BaseModel):
