@@ -1,0 +1,495 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""Every CASE_MANAGER send path holds back an entry it cannot verify (SYNC-03-009).
+
+One case per send site: the ``Reject``/``Read`` replay
+(``SendMissingEntriesNode``), the fan-out of a new entry and its admission
+backfill (``SendLogEntryToEachNode``), the admission backfill node
+(``BackfillAdmittedParticipantsNode``) and the join-time backfill
+(``BackfillCanonicalLedgerToInviteeNode``).  Each runs with an intact ledger,
+one with a tampered entry and one with an entry that states no hash: the
+entries before the broken one are queued, it and every later one are not,
+the hold-back is logged at ERROR, and the node returns ``FAILURE``
+(BT-14-001).  The one exception is the fan-out's catch-up of a let-back-in,
+paused peer: that peer keeps its pause and is skipped for the new entry,
+everyone else gets it, and the fan-out returns ``SUCCESS`` (decided on #5120).
+"""
+
+import logging
+from unittest.mock import MagicMock
+
+import pytest
+from py_trees.common import Status
+
+from test.core.behaviors.sync.nodes.conftest import CASE_ID
+from test.support.broken_ledger_entry import (
+    BreakEntry,
+    broken_entries,
+    tampered,
+)
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
+    BackfillCanonicalLedgerToInviteeNode,
+)
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
+)
+from vultron.core.behaviors.sync.nodes.embargo_backfill import (
+    BackfillAdmittedParticipantsNode,
+)
+from vultron.core.behaviors.sync.nodes.embargo_pause import (
+    record_embargo_pause,
+)
+from vultron.core.behaviors.sync.nodes.fanout import FanOutLogEntryNode
+from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
+from vultron.core.models._helpers import now_utc
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.ports.sync_activity import SyncActivityPort
+
+from ._embargo_gate_support import (
+    MANAGER_ID,
+    NON_SIGNATORY_ID,
+    SIGNATORY_ID,
+    accept_embargo,
+    manager_datalayer,
+    paused_from,
+    replay,
+    seed_case,
+    seed_ledger,
+    sends,
+)
+
+_INVITEE_ID = "https://example.org/actors/invitee"
+
+
+@pytest.fixture
+def datalayer():
+    """The CASE_MANAGER's store, shadowing the package's participant store."""
+    return manager_datalayer()
+
+
+def _break_stored(datalayer, entries: list, index: int, break_entry) -> None:
+    entries[index] = break_entry(entries[index])
+    datalayer.save(entries[index])
+
+
+def _assert_held_back(
+    caplog: pytest.LogCaptureFixture, entry: CaseLedgerEntry, peer_id: str
+) -> None:
+    """Exactly one ERROR reports the hold-back.
+
+    It names the case, the entry, its log_index and the recipient.
+    """
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.ERROR and entry.id_ in record.getMessage()
+    ]
+    assert len(messages) == 1, messages
+    message = messages[0]
+    assert entry.case_id in message
+    assert f"log_index={entry.log_index}" in message
+    assert peer_id in message
+
+
+def _paused_from_one_then_admitted(datalayer) -> list:
+    """The finder was paused from entry 1 and has since accepted."""
+    seed_case(datalayer, embargo_active=True)
+    entries = seed_ledger(datalayer, 4)
+    record_embargo_pause(
+        datalayer, case_id=CASE_ID, peer_id=NON_SIGNATORY_ID, from_index=1
+    )
+    accept_embargo(datalayer, NON_SIGNATORY_ID)
+    return entries
+
+
+# --- Reject / Read replay ---------------------------------------------------
+
+
+@pytest.mark.spec("SYNC-03-002")
+def test_replay_of_an_intact_ledger_sends_every_entry(
+    bridge: BTBridge, datalayer
+) -> None:
+    seed_case(datalayer, embargo_active=False)
+    entries = seed_ledger(datalayer, 4)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = replay(
+        bridge,
+        entries,
+        peer_id=SIGNATORY_ID,
+        from_index=-1,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    assert [index for index, _ in sends(sync_port)] == [0, 1, 2, 3]
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("SYNC-15-011")
+@broken_entries
+def test_replay_stops_at_a_broken_entry_and_fails(
+    bridge: BTBridge,
+    datalayer,
+    break_entry: BreakEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Entries before it go out and the cooldown records that replay."""
+    seed_case(datalayer, embargo_active=False)
+    entries = seed_ledger(datalayer, 4)
+    entries[2] = break_entry(entries[2])
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    with caplog.at_level(logging.ERROR):
+        result = replay(
+            bridge,
+            entries,
+            peer_id=SIGNATORY_ID,
+            from_index=-1,
+            sync_port=sync_port,
+        )
+
+    assert result.status == Status.FAILURE
+    assert sends(sync_port) == [(0, [SIGNATORY_ID]), (1, [SIGNATORY_ID])]
+    _assert_held_back(caplog, entries[2], SIGNATORY_ID)
+    state = _read_state(datalayer, case_id=CASE_ID, peer_id=SIGNATORY_ID)
+    assert state is not None
+    assert state.last_replayed_from_hash is not None
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("SYNC-15-011")
+@broken_entries
+def test_replay_held_back_at_its_first_entry_records_no_cooldown(
+    bridge: BTBridge,
+    datalayer,
+    break_entry: BreakEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A replay that queues nothing records no position (SYNC-15-011)."""
+    seed_case(datalayer, embargo_active=False)
+    entries = seed_ledger(datalayer, 4)
+    entries[2] = break_entry(entries[2])
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    with caplog.at_level(logging.ERROR):
+        result = replay(
+            bridge,
+            entries,
+            peer_id=SIGNATORY_ID,
+            from_index=1,
+            sync_port=sync_port,
+        )
+
+    assert result.status == Status.FAILURE
+    assert sends(sync_port) == []
+    _assert_held_back(caplog, entries[2], SIGNATORY_ID)
+    state = _read_state(datalayer, case_id=CASE_ID, peer_id=SIGNATORY_ID)
+    assert state is None or state.last_replayed_from_hash is None
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("CM-10-006")
+@broken_entries
+def test_a_held_back_replay_keeps_an_admitted_peers_pause(
+    bridge: BTBridge, datalayer, break_entry: BreakEntry
+) -> None:
+    """The suffix was not all sent, so the pause is not cleared."""
+    entries = _paused_from_one_then_admitted(datalayer)
+    entries[2] = break_entry(entries[2])
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = replay(
+        bridge,
+        entries,
+        peer_id=NON_SIGNATORY_ID,
+        from_index=0,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.FAILURE
+    assert sends(sync_port) == [(1, [NON_SIGNATORY_ID])]
+    assert paused_from(datalayer) == 1
+
+
+@pytest.mark.spec("CM-10-006")
+def test_an_intact_replay_clears_an_admitted_peers_pause(
+    bridge: BTBridge, datalayer
+) -> None:
+    entries = _paused_from_one_then_admitted(datalayer)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = replay(
+        bridge,
+        entries,
+        peer_id=NON_SIGNATORY_ID,
+        from_index=0,
+        sync_port=sync_port,
+    )
+
+    assert result.status == Status.SUCCESS
+    assert [i for i, _ in sends(sync_port)] == [1, 2, 3]
+    assert paused_from(datalayer) is None
+
+
+# --- Fan-out ----------------------------------------------------------------
+
+
+def _fan_out(bridge: BTBridge, entry: CaseLedgerEntry, sync_port):
+    return bridge.execute_with_setup(
+        tree=FanOutLogEntryNode(case_id=CASE_ID),
+        actor_id=MANAGER_ID,
+        log_entry=entry,
+        sync_port=sync_port,
+    )
+
+
+@pytest.mark.spec("SYNC-03-009")
+@broken_entries
+def test_fanout_holds_back_a_new_entry_that_does_not_verify(
+    bridge: BTBridge,
+    datalayer,
+    break_entry: BreakEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    seed_case(datalayer, embargo_active=False)
+    entries = seed_ledger(datalayer, 2)
+    _break_stored(datalayer, entries, 1, break_entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    with caplog.at_level(logging.ERROR):
+        result = _fan_out(bridge, entries[1], sync_port)
+
+    assert result.status == Status.FAILURE
+    assert sends(sync_port) == []
+    _assert_held_back(caplog, entries[1], SIGNATORY_ID)
+    _assert_held_back(caplog, entries[1], NON_SIGNATORY_ID)
+
+
+@pytest.mark.spec("CM-10-006")
+def test_fanout_backfill_of_an_intact_ledger_sends_it_all(
+    bridge: BTBridge, datalayer
+) -> None:
+    entries = _paused_from_one_then_admitted(datalayer)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = _fan_out(bridge, entries[3], sync_port)
+
+    assert result.status == Status.SUCCESS
+    to_finder = [i for i, to in sends(sync_port) if to == [NON_SIGNATORY_ID]]
+    assert to_finder == [1, 2, 3]
+    assert paused_from(datalayer) is None
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("CM-10-006")
+@broken_entries
+def test_fanout_skips_a_peer_whose_catch_up_is_held_back_and_sends_the_rest(
+    bridge: BTBridge,
+    datalayer,
+    break_entry: BreakEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """One broken old entry stalls only the peer whose catch-up reaches it.
+
+    The let-back-in peer gets the entries before the broken one, stays
+    paused and is skipped for the new entry, which it could hold only as a
+    forward gap.  Every other recipient gets the new entry and the fan-out
+    succeeds, so the commit stands (decided on #5120).
+    """
+    entries = _paused_from_one_then_admitted(datalayer)
+    _break_stored(datalayer, entries, 2, break_entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    with caplog.at_level(logging.WARNING):
+        result = _fan_out(bridge, entries[3], sync_port)
+
+    assert result.status == Status.SUCCESS
+    assert sends(sync_port) == [(1, [NON_SIGNATORY_ID]), (3, [SIGNATORY_ID])]
+    _assert_held_back(caplog, entries[2], NON_SIGNATORY_ID)
+    assert paused_from(datalayer) == 1
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("CM-10-006")
+def test_a_commit_stands_when_a_peers_catch_up_is_held_back(
+    bridge: BTBridge, datalayer, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The whole commit tree, not just the node: the new entry is kept."""
+    entries = _paused_from_one_then_admitted(datalayer)
+    _break_stored(datalayer, entries, 2, tampered)
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/after-the-break",
+        semantic_type="add_note_to_case",
+        payload_snapshot={
+            "type": "Add",
+            "actor": MANAGER_ID,
+            "published": now_utc().isoformat(),
+            "object": {
+                "type": "Note",
+                "id": "https://example.org/notes/after-the-break",
+                "context": CASE_ID,
+            },
+            "context": CASE_ID,
+        },
+        check_freshness=False,
+    )
+
+    with caplog.at_level(logging.ERROR):
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=MANAGER_ID, sync_port=sync_port
+        )
+
+    assert result.status == Status.SUCCESS, result.feedback_message
+    stored = sorted(
+        entry.log_index
+        for entry in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(entry, CaseLedgerEntry)
+    )
+    assert stored == [0, 1, 2, 3, 4]
+    assert sends(sync_port) == [(1, [NON_SIGNATORY_ID]), (4, [SIGNATORY_ID])]
+    _assert_held_back(caplog, entries[2], NON_SIGNATORY_ID)
+    assert paused_from(datalayer) == 1
+
+
+# --- Admission backfill node --------------------------------------------------
+
+
+def _admission_backfill(bridge: BTBridge, sync_port):
+    return bridge.execute_with_setup(
+        tree=BackfillAdmittedParticipantsNode(case_id=CASE_ID),
+        actor_id=MANAGER_ID,
+        sync_port=sync_port,
+    )
+
+
+@pytest.mark.spec("CM-10-006")
+def test_admission_backfill_of_an_intact_ledger_sends_it_all(
+    bridge: BTBridge, datalayer
+) -> None:
+    _paused_from_one_then_admitted(datalayer)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = _admission_backfill(bridge, sync_port)
+
+    assert result.status == Status.SUCCESS
+    assert [i for i, _ in sends(sync_port)] == [1, 2, 3]
+    assert paused_from(datalayer) is None
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("CM-10-006")
+@broken_entries
+def test_admission_backfill_stops_at_a_broken_entry_and_keeps_the_pause(
+    bridge: BTBridge,
+    datalayer,
+    break_entry: BreakEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    entries = _paused_from_one_then_admitted(datalayer)
+    _break_stored(datalayer, entries, 2, break_entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    with caplog.at_level(logging.ERROR):
+        result = _admission_backfill(bridge, sync_port)
+
+    assert result.status == Status.FAILURE
+    assert sends(sync_port) == [(1, [NON_SIGNATORY_ID])]
+    _assert_held_back(caplog, entries[2], NON_SIGNATORY_ID)
+    assert paused_from(datalayer) == 1
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("CM-10-006")
+@broken_entries
+def test_admission_backfill_holds_back_one_peer_and_backfills_the_other(
+    bridge: BTBridge,
+    datalayer,
+    break_entry: BreakEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Each peer's backfill is its own send.
+
+    The finder's backfill from entry 1 reaches the broken entry 2 and keeps
+    its pause; the signatory's, from entry 3, is intact and clears its pause.
+    """
+    entries = _paused_from_one_then_admitted(datalayer)
+    record_embargo_pause(
+        datalayer, case_id=CASE_ID, peer_id=SIGNATORY_ID, from_index=3
+    )
+    _break_stored(datalayer, entries, 2, break_entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    with caplog.at_level(logging.ERROR):
+        result = _admission_backfill(bridge, sync_port)
+
+    assert result.status == Status.FAILURE
+    assert sorted(sends(sync_port)) == [
+        (1, [NON_SIGNATORY_ID]),
+        (3, [SIGNATORY_ID]),
+    ]
+    _assert_held_back(caplog, entries[2], NON_SIGNATORY_ID)
+    assert paused_from(datalayer) == 1
+    assert paused_from(datalayer, SIGNATORY_ID) is None
+
+
+# --- Join-time backfill ---------------------------------------------------------
+
+
+def _join_backfill(bridge: BTBridge, sync_port):
+    return bridge.execute_with_setup(
+        tree=BackfillCanonicalLedgerToInviteeNode(
+            case_id=CASE_ID, invitee_id=_INVITEE_ID
+        ),
+        actor_id=MANAGER_ID,
+        sync_port=sync_port,
+    )
+
+
+@pytest.mark.spec("CM-17-004")
+def test_join_backfill_of_an_intact_ledger_sends_it_all(
+    bridge: BTBridge, datalayer
+) -> None:
+    seed_ledger(datalayer, 3)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    result = _join_backfill(bridge, sync_port)
+
+    assert result.status == Status.SUCCESS
+    assert [i for i, _ in sends(sync_port)] == [0, 1, 2]
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("CM-17-004")
+@broken_entries
+def test_join_backfill_stops_at_a_broken_entry_and_fails(
+    bridge: BTBridge,
+    datalayer,
+    break_entry: BreakEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    entries = seed_ledger(datalayer, 3)
+    _break_stored(datalayer, entries, 1, break_entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    with caplog.at_level(logging.ERROR):
+        result = _join_backfill(bridge, sync_port)
+
+    assert result.status == Status.FAILURE
+    assert sends(sync_port) == [(0, [_INVITEE_ID])]
+    _assert_held_back(caplog, entries[1], _INVITEE_ID)

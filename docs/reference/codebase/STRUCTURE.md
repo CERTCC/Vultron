@@ -56,7 +56,8 @@ stakeholder_type: [project-contributor]
     An unverified `MUST`/`MUST_NOT` requirement without its own `verification_debt` marker is a hard error.
     The marked ones are printed as one line per kind, `--list-unverified` names the IDs, `--check-debt-owners` reports an owner issue that is closed, and `--check-closing-pr N` fails a PR that closes an owner still in use (both run in `verification-debt-owners.yml`).
     It also prints one `[INFO]` line per MS-12 `lint_suppress` code, giving the live total of specs that carry it.
-    `--changed-since REF` adds the checks scoped to what the branch changed (MS-10-011, PD-10-002), which `create-pr` runs before the first push.
+    `--changed-since REF` adds the checks scoped to what the branch changed (MS-10-011, PD-10-002, MS-03-007), which `create-pr` runs before the first push.
+    `--list-compound` prints only the compound-requirement backlog, by spec file (MS-03-001).
   - `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `spec-backstop` → `vultron.metadata.specs.backstop:main` (spec groups governing the changed code, checked against a Spec manifest)
   - `spec-rationale` → `vultron.metadata.specs.rationale:main`.
@@ -156,7 +157,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 | `vultron/adapters/outbox_sealed_body.py` | Seals the outbound activity JSON at emission so delivery relays it byte for byte (VM-08-003) |
 | `vultron/wire/as2/unknown_keys.py` | Inbound unknown-key disposition at the parse edge (MV-11) |
 | `vultron/metadata/specs/kind_classification.py`, `vultron/metadata/specs/yaml_items.py` | MS-12 kind-tree enforcement for `spec-lint`, and the spec-YAML item slicer shared by `scripts/` |
-| `vultron/metadata/specs/growth_guard.py` | PR-only growth guard: runs a per-item extractor at the merge base and on the working tree and reports only the items the branch added; backs the protocol-coverage (SR-05-005), `missing_story_reference` (MS-12-007) and missing-rationale (MS-10-014) guards |
+| `vultron/metadata/specs/growth_guard.py` | PR-only growth guard: runs a per-item extractor at the merge base and on the working tree and reports only the items the branch added; backs the protocol-coverage (SR-05-005), `missing_story_reference` (MS-12-007), missing-rationale (MS-10-014) and compound-statement (MS-03-007) guards |
 | `vultron/metadata/specs/rationale.py` | `spec-rationale`: the missing-rationale extractor behind the MS-10-014 guard, and the advisory history-narration and candidate-`adr:`-link worklists (MS-10-015) |
 | `vultron/demo/exchange/report_with_embargo_demo.py` + `vultron/demo/helpers/embargo_outcome.py` | Exchange demo where the Reporter proposes embargo terms with the report, and its creation-time embargo checks |
 

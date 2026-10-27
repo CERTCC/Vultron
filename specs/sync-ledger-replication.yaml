@@ -399,9 +399,10 @@ groups:
       a replica refuses it (SYNC-03-006) and reports it (SYNC-03-007), and broken content
       never leaves the CASE_MANAGER. Holding the entry back stalls the replica at it, as
       sending it would. The replica's `Reject` loop stays bounded without the replay
-      cooldown: a replay held back at the broken entry sends nothing, so it records no
-      position (SYNC-15-011), and the replica sends one `Reject` per later fan-out, with
-      nothing replayed to amplify it. A later entry is not sent because the replica could
+      cooldown: a replay that starts at the broken entry, as the replica's stalled
+      `Reject` makes it, sends nothing, so it records no position (SYNC-15-011), and
+      the replica sends one `Reject` per later fan-out, with nothing replayed to amplify
+      it. A later entry is not sent because the replica could
       only hold it as a forward gap (SYNC-14-001). The receiver's check stays, because a
       fault in rendering or parsing the wire form still shows up first at the receiver.
     relationships:
@@ -419,8 +420,13 @@ groups:
       `test/core/behaviors/sync/test_send_side_hash_check.py` gives a send a ledger with
       an entry whose content does not reproduce its hash, and one with an entry that
       states no hash, and asserts that the entries before it are queued, that it and
-      every later entry are not, and that the hold-back is logged at ERROR. #5120 adds
-      the same cases for each send path.
+      every later entry are not, and that the hold-back is logged at ERROR.
+      `test/core/behaviors/sync/nodes/test_send_side_hash_check_sites.py` runs the same
+      cases through each send path and asserts that the sending node returns `FAILURE`,
+      except the fan-out's held-back catch-up of a paused peer, which skips that peer
+      and returns `SUCCESS` (decided on #5120), and
+      `test/architecture/test_send_announce_log_entry_has_one_caller.py` asserts no other
+      code in `vultron/core/` calls `send_announce_log_entry`.
     stories:
     - story_2022_045
 - id: SYNC-04

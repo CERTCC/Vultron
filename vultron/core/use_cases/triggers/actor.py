@@ -371,7 +371,9 @@ def _record_named_peer(
             field,
             actor_id,
         )
-    dl.create(CoreActor(id_=actor_id))
+    # Only the URI is known: no clock time and no endpoint derived from the
+    # id, since the peer stated neither (AKM-02-006, ADR-0159).
+    dl.create(CoreActor(id_=actor_id, published=None, updated=None))
 
 
 class SvcAcceptCaseInviteUseCase(SvcActivityTriggerBase):

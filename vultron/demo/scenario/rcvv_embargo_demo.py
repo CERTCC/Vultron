@@ -256,6 +256,7 @@ def _phase_report_submission(
             coordinator_actor_id=coordinator_id,
             vendor_actor_id=vendor_id,
             vendor2_actor_id=vendor2_id,
+            case_actor_client=case_actor_client,
         )
 
     opened, vendor_in_vendor = open_case_with_vendor(

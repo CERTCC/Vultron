@@ -15,10 +15,13 @@ This page lists the constraints on how the [Report Management (RM)](../rm/index.
 The RM process is specific to each Participant.
 The EM process is global to the case.
 For this reason, most constraints describe which RM states a Participant should be in when it takes part in an EM transition.
-Formulas on this page use $q^{rm}$ for a Participant's RM state and $q^{em}$ for the case's EM state, with the single-letter state abbreviations from each model.
+
+Formulas on this page use $q^{rm}$ for the RM state of a Participant and $q^{em}$ for the EM state of the case.
+The formulas use the single-letter state abbreviations from each model.
 The [RM process model](../rm/index.md#rm-states) introduces the RM abbreviations.
 The [EM formal model](../em/formal_model.md#em-states) defines the EM abbreviations.
 You do not need the rest of the EM formal model to read this page.
+
 For how an embargo runs from start to finish, see the [Embargo Lifecycle](../../behavior_logic/use-cases/embargo-lifecycle.md) explanation.
 
 ## Start Embargo Negotiations As Early as Possible
@@ -47,11 +50,13 @@ Two mechanisms give the Sender what they need instead:
 
 !!! info "This Guidance Changed"
 
-    Earlier versions of this page stated that the EM process MAY begin, with the initial _propose_ transition $q^{em} \in N \xrightarrow{p} P$, before the report was sent to a potential Participant ($q^{rm} \in S$).
+    Earlier versions of this page let the EM process begin before the Sender sent the report to a potential Participant ($q^{rm} \in S$).
+    The first step was the _propose_ transition $q^{em} \in N \xrightarrow{p} P$.
     [ADR-0096: A Protocol Default Embargo Replaces the Pre-Case Phase](../../../adr/0096-protocol-default-embargo.md) withdrew that.
 
     The **motivation** was sound, and the sections above keep it.
     A Participant may want to ensure acceptable embargo terms before it shares a report with a potential recipient.
+
     The **mechanism** was not.
     EM is a global per-case state machine.
     A $N \xrightarrow{p} P$ transition before any case exists therefore names a machine instance that cannot exist.
@@ -91,6 +96,7 @@ A case still at EM *None* after creation was not embargo-eligible.
 No embargo may be proposed for that case while it is still not embargo-eligible (VP-06-001).
 A proposal from *None* ($q^{em} \in N \xrightarrow{p} P$) would need a case at *None* to become embargo-eligible after creation.
 Nothing in the protocol does that today ([ADR-0096](../../../adr/0096-protocol-default-embargo.md)).
+
 The constraints below apply to either kind of proposal.
 The diagrams show the *None* to *Proposed* step.
 Every rule on this page that mentions EM *Proposed* governs only that later step.
@@ -159,7 +165,9 @@ The [RM state subsets](../rm/formal_model.md#rm-state-subsets) define the active
 The diagram below shows the revision cycle running while the report is valid yet unclosed.
 Accepting a revision returns the case to *Active* under the new terms.
 Rejecting a revision normally keeps the prior terms in force and returns to *Active*.
-When CS is already public, exploited, or attacked, the Case Manager follows the Case Owner's rejection of the last open revision with a termination in the same act.
+
+Sometimes the CS is already public, exploited, or attacked when the Case Owner rejects the last open revision.
+In that condition, the Case Manager follows the rejection with a termination in the same act.
 EM then ends in *eXited*, not in *Active* (MSM-07-009, EMB-04-002).
 
 ```mermaid
@@ -305,7 +313,8 @@ stateDiagram-v2
 
 ## Report Closure, Deferral, and Active Embargoes
 
-Each Participant's RM process can interact with the case-level EM process in several ways, described below.
+The RM process of each Participant can interact with the case-level EM process in several ways.
+The sections below describe them.
 
 !!! note ""
 
@@ -380,7 +389,8 @@ However,
     Participants MAY choose to terminate their compliance with an embargo at any time.
 
 This choice is usually an undesirable development.
-The Participant must still communicate this choice to other Participants, so that they can make informed decisions about the viability of the extant embargo.
+The Participant must still tell the other Participants about this choice.
+The other Participants can then decide whether the extant embargo is still viable.
 
 !!! note ""
 

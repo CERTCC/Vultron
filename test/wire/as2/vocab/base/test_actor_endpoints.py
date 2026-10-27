@@ -4,11 +4,13 @@
 An actor's inbox and outbox are *addresses* (ActivityPub publishes them as
 URIs); the AS2 ``as_Actor`` branch wraps each in an ``as_OrderedCollection``,
 and ``CoreActor`` — which the Vultron actor types now are on the wire too
-(ADR-0099) — reduces it to the URL.  Each arrival shape — a full collection
-dict, a bare URI, ``None``, absent, a blank string, an id-less collection —
-must end up at the actor's inbox URL (ISSUE-3563 AC-5), and the serialized
-form must not change as a side effect of registering the collection types
-(ARCH-23-003, ISSUE-3564 AC-5).
+(ADR-0099) — reduces it to the URL.  An arrival shape that names an address —
+a full collection dict or a bare URI — ends up at that URL (ISSUE-3563 AC-5);
+one that names none — ``None``, absent, a blank string, an id-less
+collection — leaves the endpoint absent, because an address derived from the
+actor's id would be a value nobody asserted (AKM-02-006, ADR-0159).  The
+serialized form must not change as a side effect of registering the
+collection types (ARCH-23-003, ISSUE-3564 AC-5).
 """
 
 #  Copyright (c) 2026 Carnegie Mellon University and Contributors.
@@ -39,6 +41,7 @@ from vultron.core.models.actor import (
     VultronOrganization,
     VultronPerson,
     VultronService,
+    hosted_endpoints,
 )
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import (
@@ -95,21 +98,19 @@ def _arrival_shapes(field_name: str) -> dict[str, dict[str, Any]]:
 
 
 _SHAPES = list(_arrival_shapes("inbox"))
+#: The shapes that name an address; every other shape names none.
+_ADDRESSED = ["collection-dict", "bare-uri"]
+_UNADDRESSED = [shape for shape in _SHAPES if shape not in _ADDRESSED]
 _ARRIVED_AT = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
 
 @pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-@pytest.mark.parametrize("shape", _SHAPES)
-def test_every_arrival_shape_resolves_to_the_actor_endpoint_url(
+@pytest.mark.parametrize("shape", _ADDRESSED)
+def test_an_addressed_arrival_resolves_to_its_url(
     actor_cls, field_name, shape
 ):
-    """Each arrival shape yields a wire collection at ``{actor_id}/{field}``.
-
-    ``absent`` and ``none`` previously produced a random ``urn:uuid:``:
-    the field's default factory gave the collection an id, so the
-    ``id_ is None`` test meant to derive it from the actor never fired.
-    """
+    """A shape naming an address yields a wire collection at that URL."""
     data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
     actor = actor_cls.model_validate(data)
@@ -119,19 +120,36 @@ def test_every_arrival_shape_resolves_to_the_actor_endpoint_url(
     assert collection.id_ == f"{ACTOR_ID}/{field_name}"
 
 
-@pytest.mark.parametrize("actor_cls", _CORE_ACTOR_CLASSES)
+@pytest.mark.spec("AKM-02-006")
+@pytest.mark.parametrize("actor_cls", _ALL_WIRE_ACTOR_CLASSES)
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-@pytest.mark.parametrize("shape", _SHAPES)
-def test_core_actor_reduces_every_arrival_shape_to_the_url(
+@pytest.mark.parametrize("shape", _UNADDRESSED)
+def test_a_wire_actor_derives_no_endpoint_it_was_not_given(
     actor_cls, field_name, shape
 ):
-    """``CoreActor`` holds every arrival shape as the ``{actor_id}/{field}`` URL.
+    """A shape naming no address leaves the endpoint absent (ADR-0159).
+
+    Deriving ``{actor_id}/{field}`` would publish an address the actor never
+    stated, as if it had.
+    """
+    data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
+
+    actor = actor_cls.model_validate(data)
+
+    assert getattr(actor, field_name) is None
+    assert field_name not in json.loads(actor.to_json())
+
+
+@pytest.mark.parametrize("actor_cls", _CORE_ACTOR_CLASSES)
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+@pytest.mark.parametrize("shape", _ADDRESSED)
+def test_core_actor_reduces_an_addressed_arrival_to_the_url(
+    actor_cls, field_name, shape
+):
+    """``CoreActor`` holds an addressed arrival as its URL.
 
     Core models an endpoint as an address, not a list: a collection dict
-    reduces to its ``id``, and an absent or ``None`` endpoint is derived from
-    the actor's ``id_``.  The Vultron actor types are the wire form too
-    (ADR-0099), so without the derivation they would publish ``null`` where
-    ActivityPub requires an inbox and outbox (ISSUE-3616).
+    reduces to its ``id``.
     """
     data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
@@ -140,14 +158,33 @@ def test_core_actor_reduces_every_arrival_shape_to_the_url(
     assert getattr(actor, field_name) == f"{ACTOR_ID}/{field_name}"
 
 
+@pytest.mark.spec("AKM-02-006")
+@pytest.mark.parametrize("actor_cls", _CORE_ACTOR_CLASSES)
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-def test_core_actor_serializes_derived_endpoints(field_name):
-    """A constructed actor with no endpoints publishes the derived URLs.
+@pytest.mark.parametrize("shape", _UNADDRESSED)
+def test_core_actor_derives_no_endpoint_it_was_not_given(
+    actor_cls, field_name, shape
+):
+    """A record of a peer holds only what the peer's profile supplied."""
+    data = {"id": ACTOR_ID, **_arrival_shapes(field_name)[shape]}
 
-    Checked under ``exclude_unset`` too: the derived value is recorded as set,
-    so a dump that drops defaults still carries the address (ISSUE-3616).
+    actor = actor_cls.model_validate(data)
+
+    assert getattr(actor, field_name) is None
+    assert field_name not in actor.model_dump(exclude_none=True)
+
+
+@pytest.mark.parametrize("field_name", _ENDPOINTS)
+def test_a_hosted_actor_publishes_the_endpoints_it_states(field_name):
+    """A hosted actor states its endpoints, so its profile carries both.
+
+    ActivityPub requires an actor to publish an inbox and an outbox
+    (ISSUE-3616); the actor this node hosts states the ones this node routes
+    for it (``hosted_endpoints``).
     """
-    actor = VultronOrganization(id_=ACTOR_ID, name="Alice")
+    actor = VultronOrganization(
+        id_=ACTOR_ID, name="Alice", **hosted_endpoints(ACTOR_ID)
+    )
 
     expected = f"{ACTOR_ID}/{field_name}"
     assert json.loads(actor.model_dump_json(by_alias=True))[field_name] == (
@@ -158,34 +195,20 @@ def test_core_actor_serializes_derived_endpoints(field_name):
 
 @pytest.mark.parametrize("empty", [None, "", "   "])
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-def test_core_actor_never_holds_an_empty_endpoint(field_name, empty):
-    """No arrival or assignment leaves an actor without an endpoint.
-
-    ActivityPub requires both, so ``None``, ``""`` and blank strings — at
-    construction or by later assignment — all resolve to the derived URL.
-    """
+def test_core_actor_reads_an_empty_endpoint_as_absent(field_name, empty):
+    """``None``, ``""`` and blank strings name no address, built or assigned."""
     built = VultronOrganization.model_validate(
         {"id": ACTOR_ID, field_name: empty}
     )
-    assert getattr(built, field_name) == f"{ACTOR_ID}/{field_name}"
+    assert getattr(built, field_name) is None
 
-    actor = VultronOrganization(id_=ACTOR_ID, name="Alice")
+    actor = VultronOrganization(
+        id_=ACTOR_ID, name="Alice", **hosted_endpoints(ACTOR_ID)
+    )
 
     setattr(actor, field_name, empty)
 
-    assert getattr(actor, field_name) == f"{ACTOR_ID}/{field_name}"
-
-
-@pytest.mark.parametrize("field_name", _ENDPOINTS)
-def test_wire_actor_serializes_derived_endpoints_under_exclude_unset(
-    field_name,
-):
-    """The AS2 branch records a derived endpoint as set, as ``CoreActor`` does."""
-    actor = as_Service(id_=ACTOR_ID)
-
-    dumped = actor.model_dump(exclude_unset=True, by_alias=True)
-
-    assert dumped[field_name]["id"] == f"{ACTOR_ID}/{field_name}"
+    assert getattr(actor, field_name) is None
 
 
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
@@ -204,15 +227,15 @@ def test_padded_endpoint_uri_is_stripped(field_name):
 
 
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-def test_inline_idless_collection_through_the_parser_derives_the_url(
+def test_inline_idless_collection_through_the_parser_names_no_address(
     field_name,
 ):
-    """An inline actor whose endpoint collection has no ``id`` gets its URL.
+    """An inline actor whose endpoint collection has no ``id`` has no endpoint.
 
     The parser expands the inline dict into an ``as_OrderedCollection``
     before the actor validates it, and that collection's default id is a
     fresh ``urn:uuid:``; reading it would publish an address nobody routes
-    to.
+    to, and deriving one from the actor's id would invent it (AKM-02-006).
     """
     activity = parse_activity(
         {
@@ -228,7 +251,7 @@ def test_inline_idless_collection_through_the_parser_derives_the_url(
         }
     )
 
-    assert getattr(activity.actor, field_name) == f"{ACTOR_ID}/{field_name}"
+    assert getattr(activity.actor, field_name) is None
 
 
 @pytest.mark.spec("ARCH-23-003")
@@ -264,15 +287,15 @@ def test_serialized_endpoints_carry_only_address_type_and_items():
 
 @pytest.mark.parametrize("actor_cls", _ACTOR_CLASSES)
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-@pytest.mark.parametrize("shape", _SHAPES)
+@pytest.mark.parametrize("shape", _ADDRESSED)
 def test_endpoint_without_arrived_stamp_carries_no_clock_stamp(
     actor_cls, field_name, shape
 ):
     """An endpoint is an address, so no arrival shape gets a clock stamp.
 
     ``as_Object`` mints ``published`` and ``updated`` from ``now_utc()`` on
-    every construction.  An endpoint — derived from a bare URI or the actor's
-    own ``id_``, or arriving as a collection dict with no stamps of its own —
+    every construction.  An endpoint — built from a bare URI, or arriving as
+    a collection dict with no stamps of its own —
     is not an object this process authored, and a clock value minted there
     can never round-trip: ``CoreActor`` keeps only the URI (ARCH-12-006), so
     an actor stored and read back through the datalayer compared unequal to
@@ -290,36 +313,37 @@ def test_endpoint_without_arrived_stamp_carries_no_clock_stamp(
 
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
 def test_constructed_actor_endpoints_carry_no_clock_stamp(field_name):
-    """The endpoints ``set_collections`` derives for a new actor are unstamped.
+    """The endpoints a new actor states are unstamped.
 
-    This is the shape ``as_Person(name=...)`` stores, and the one that must
+    This is the shape a hosted ``as_Service`` stores, and the one that must
     equal what the datalayer hands back (#3732, #3726).
     """
-    collection = getattr(as_Service(id_=ACTOR_ID, name="Alice"), field_name)
+    collection = getattr(
+        as_Service.model_validate(
+            {"id": ACTOR_ID, "name": "Alice", **hosted_endpoints(ACTOR_ID)}
+        ),
+        field_name,
+    )
 
     assert collection.id_ == f"{ACTOR_ID}/{field_name}"
     assert collection.published is None
     assert collection.updated is None
 
 
-@pytest.mark.parametrize("with_id", [True, False], ids=["addressed", "idless"])
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-def test_endpoint_collection_keeps_the_time_it_arrived_with(
-    field_name, with_id
-):
-    """Not stamping a derived address never means discarding a stated time.
+def test_endpoint_collection_keeps_the_time_it_arrived_with(field_name):
+    """Not stamping an address never means discarding a stated time.
 
     A collection that arrives carrying ``published``/``updated`` keeps them as
-    received — with or without an ``id`` of its own — because that value is
-    the sender's claim, not this process's clock (ADR-0103).
+    received, because that value is the sender's claim, not this process's
+    clock (ADR-0103).
     """
     collection: dict[str, Any] = {
         "type": "OrderedCollection",
+        "id": f"{ACTOR_ID}/{field_name}",
         "published": _ARRIVED_AT.isoformat(),
         "updated": _ARRIVED_AT.isoformat(),
     }
-    if with_id:
-        collection["id"] = f"{ACTOR_ID}/{field_name}"
 
     endpoint = getattr(
         as_Service.model_validate({"id": ACTOR_ID, field_name: collection}),
@@ -364,7 +388,7 @@ def test_actor_round_trips_across_a_clock_tick(actor_cls, dump, monkeypatch):
     URI-only form the datalayer hands back and the ``to_json()`` form a peer
     receives.
     """
-    actor = actor_cls(id_=ACTOR_ID, name="Alice")
+    actor = actor_cls(id_=ACTOR_ID, name="Alice", **hosted_endpoints(ACTOR_ID))
     as_stored = dump(actor)
     monkeypatch.setattr(
         _helpers,
@@ -375,11 +399,8 @@ def test_actor_round_trips_across_a_clock_tick(actor_cls, dump, monkeypatch):
     assert actor_cls.model_validate(as_stored) == actor
 
 
-@pytest.mark.parametrize("with_id", [True, False], ids=["addressed", "idless"])
 @pytest.mark.parametrize("field_name", _ENDPOINTS)
-def test_inbound_rule_reaches_an_item_nested_in_an_endpoint_dict(
-    field_name, with_id
-):
+def test_inbound_rule_reaches_an_item_nested_in_an_endpoint_dict(field_name):
     """The inbound context survives the endpoint coercion into nested items.
 
     ``_coerce_uri_to_collection`` validates a collection dict itself, so it
@@ -390,10 +411,9 @@ def test_inbound_rule_reaches_an_item_nested_in_an_endpoint_dict(
     """
     collection: dict[str, Any] = {
         "type": "OrderedCollection",
+        "id": f"{ACTOR_ID}/{field_name}",
         "items": [{"type": "Note", "id": "https://example.org/notes/1"}],
     }
-    if with_id:
-        collection["id"] = f"{ACTOR_ID}/{field_name}"
 
     actor = as_Service.model_validate(
         {"id": ACTOR_ID, field_name: collection},
@@ -416,6 +436,7 @@ def test_unmodelled_actor_collections_are_tolerated_and_not_echoed(actor_cls):
     actor = actor_cls.model_validate(
         {
             "id": ACTOR_ID,
+            "inbox": f"{ACTOR_ID}/inbox",
             "followers": f"{ACTOR_ID}/followers",
             "following": f"{ACTOR_ID}/following",
             "liked": f"{ACTOR_ID}/liked",

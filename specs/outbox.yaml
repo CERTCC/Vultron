@@ -565,7 +565,14 @@ groups:
   - id: OX-12-009
     priority: MUST
     kind: project
-    verification_debt: '#2575'
+    verification: >-
+      `test/adapters/driven/test_delivery_inbox_url.py` asserts that the inbox a held
+      profile names is posted to in place of the derived address, that only a recipient
+      with no held inbox falls back to `{actor}/inbox/`, that `held_inboxes` reads the
+      sender's store, and that the inbox a hosted profile states accepts a POST;
+      `test_handle_outbox_item_hands_over_the_held_inbox` in
+      `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py` asserts the
+      outbox handler hands the held inbox to the emitter.
     statement: >-
       Delivery MUST POST to the `inbox` named by the sender's held profile of the
       recipient when that profile names one, and MUST fall back to the address

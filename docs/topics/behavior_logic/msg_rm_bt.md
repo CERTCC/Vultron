@@ -14,7 +14,7 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_legacy_diagram_note.md" %}
 
-The Process RM Messages Behavior Tree is shown below.
+The figure below shows the Process RM Messages Behavior Tree.
 
 ```mermaid
 ---
@@ -68,35 +68,27 @@ flowchart LR
     fb --> emit_RE
 ```
 
-This tree is a child of the fallback node started in [Receiving Messages Behavior](msg_intro_bt.md).
-Beginning with a precondition check for any RM message type, the tree proceeds to a fallback node.
-RM acknowledgment messages (*RK*) receive no further attention and return *Success*.
+This tree is a child of the fallback node that starts in [Receiving Messages Behavior](msg_intro_bt.md).
+The tree starts with a precondition check for any RM message type and then goes to a fallback node.
+RM acknowledgment messages (*RK*) get no more processing and return *Success*.
 
 Next comes the main RM message processing sequence.
 A fallback node covers three major cases:
 
-- (A) First comes a sequence that handles new reports (*RS* when
-    $q^{rm} \in S$). This branch changes the recipient's
-    RM state
-    regardless of the Participant's role. If the Participant happens to
-    be a Vendor and the Vendor was previously unaware of the
-    vulnerability described by the report, the Vendor would also note
-    the CS
-    transition from $q^{cs} \in vfd \xrightarrow{\mathbf{V}} Vfd$ and
-    emit a corresponding *CV* message.
+- (A) The first case is a sequence that handles new reports (*RS* when $q^{rm} \in S$).
+    This branch changes the RM state of the recipient, whatever the role of the Participant is.
+    The Participant can be a Vendor that did not know about the vulnerability in the report before.
+    In that case, the Vendor also records the CS transition $q^{cs} \in vfd \xrightarrow{\mathbf{V}} Vfd$ and emits a related *CV* message.
 
-- (B) Next, we see that an RM Error (*RE*) results in the emission
-    of a general inquiry (*GI*) for Participants to sort out what the
-    problem is, along with an *RK* to acknowledge receipt of the error.
+- (B) The second case is an RM Error (*RE*).
+    The recipient emits a general inquiry (*GI*), so that the Participants can find the cause of the problem.
+    The recipient also emits an *RK* to acknowledge receipt of the error.
 
-- (C) Finally, recall that the RM process is unique to each
-    CVD
-    Participant, so most of the remaining RM messages are informational
-    messages about other Participants' statuses that do not directly
-    affect the receiver's status. Therefore, if there is already an
-    associated case ($q^{rm} \not\in S$), the recipient might update
-    their record of the sender's state, but no further action is needed.
+- (C) The third case covers most of the remaining RM messages.
+    Each CVD Participant has its own RM process.
+    Thus, most of these messages give information about the status of other Participants and do not directly change the status of the receiver.
+    If a case already exists ($q^{rm} \not\in S$), the recipient can update its record of the sender state.
+    No other action is necessary.
 
-For all three cases, an *RK* message acknowledges receipt of the
-message. Any unhandled message results in an *RE* response, indicating
-an error.
+For all three cases, an *RK* message acknowledges receipt of the message.
+The tree replies with an *RE* message to any message that it does not handle, to show an error.

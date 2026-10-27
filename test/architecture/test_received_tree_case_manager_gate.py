@@ -93,6 +93,7 @@ _OUTBOX_SEAMS = frozenset(
 _LEDGER_REPLICATION_SEAMS = frozenset(
     {
         "send_announce_log_entry",
+        "send_verified_log_entry",
         "send_reject_log_entry",
         "send_read_ledger_entry",
         "send_ledger_suffix",

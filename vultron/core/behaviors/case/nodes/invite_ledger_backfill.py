@@ -32,8 +32,12 @@ from vultron.core.behaviors.helpers import (
     PortInformation,
     _EmitSingleActivityBase,
 )
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.behaviors.sync.nodes.embargo_pause import (
+    send_ledger_suffix,
+)
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
+from vultron.core.sync_helpers import sorted_case_ledger_entries
 from vultron.errors import VultronWiringError
 
 logger = logging.getLogger(__name__)
@@ -51,6 +55,11 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
 
     A missing ``sync_port`` is a wiring fault and raises
     ``VultronWiringError``, as the fan-out does (SYNC-02-003, #4126).
+
+    The entries go out through ``send_ledger_suffix``, the replay's own
+    send, so the backfill stops at the first entry whose hash does not
+    verify and the node returns ``FAILURE`` (SYNC-03-009, BT-14-001).  The
+    act then fails as a whole and keeps nothing (CLP-07-015).
     """
 
     def __init__(
@@ -91,29 +100,31 @@ class BackfillCanonicalLedgerToInviteeNode(DataLayerActionWithPorts):
                 " (SYNC-02-003, #4126)"
             )
 
-        entries: list[CaseLedgerEntry] = sorted(
-            (
-                obj
-                for obj in self.datalayer.list_objects("CaseLedgerEntry")
-                if isinstance(obj, CaseLedgerEntry)
-                and obj.case_id == self.case_id
-            ),
-            key=lambda log_entry: log_entry.log_index,
+        entries = sorted_case_ledger_entries(
+            cast(CasePersistence, self.datalayer), self.case_id
         )
-        for entry in entries:
-            self._sync_port.send_announce_log_entry(
-                entry=entry,
-                actor_id=self.actor_id,
-                to=[self.invitee_id],
-            )
+        sent, already_pending, held_back = send_ledger_suffix(
+            self._sync_port,
+            entries,
+            after_index=-1,
+            actor_id=self.actor_id,
+            peer_id=self.invitee_id,
+        )
         self.logger.info(
-            "%s: join-time backfill sent %d ledger entries to '%s' in case"
-            " '%s'",
+            "%s: join-time backfill queued %d ledger entries to '%s' in case"
+            " '%s' (%d already pending in outbox — SYNC-15-012)",
             self.name,
-            len(entries),
+            sent,
             self.invitee_id,
             self.case_id,
+            already_pending,
         )
+        if held_back is not None:
+            # SYNC-03-009, BT-14-001: the backfill stopped at an entry that
+            # does not verify, so the join is not reported as delivered.
+            # send_ledger_suffix already logged the hold-back at ERROR.
+            self.feedback_message = str(held_back)
+            return Status.FAILURE
         return Status.SUCCESS
 
 

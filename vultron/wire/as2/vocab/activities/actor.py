@@ -24,7 +24,7 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Offer,
     as_Reject,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.actors import as_CarriedActor
 from vultron.wire.as2.vocab.objects.case_participant import as_CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
     as_VulnerabilityCaseRef,
@@ -41,7 +41,7 @@ class _RecommendActorActivity(as_Offer):
     recommendation for carrying a bare string (AKM-03-003).
     """
 
-    object_: as_Actor = Field(
+    object_: as_CarriedActor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseRef = None

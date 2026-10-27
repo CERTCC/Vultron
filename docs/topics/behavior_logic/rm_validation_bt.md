@@ -15,8 +15,8 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_legacy_diagram_note.md" %}
 
-A Report Validation Behavior Tree is shown in the next figure. To begin with (A), if the report is already
-*Valid*, no further action is needed from this behavior.
+The next figure shows a Report Validation Behavior Tree.
+To begin with (A), if the report is already *Valid*, this behavior does nothing more.
 
 ```mermaid
 ---
@@ -54,33 +54,32 @@ flowchart LR
     fb -->|D| ri_to_i
 ```
 
-(B) When the report has already been designated as *Invalid*, the necessary
-actions depend on whether further information is necessary, or not. If
-the current information available in the report is sufficient, no
-further action is necessary and the entire behavior returns *Success*.
-However, a previous validation pass might have left some indicator that
-more information was needed. In that case, execution proceeds to the
-sequence in which the *gather info* task runs. If nothing new is found,
-the entire branch returns *Success*, and the report remains *Invalid*.
-If new information *is* found, though, the branch fails, driving
-execution over to the main validation sequence.
+(B) The report can already have the *Invalid* designation.
+In that case, the necessary actions depend on whether the behavior needs more information.
+If the information in the report is sufficient, no more action is necessary, and the entire behavior returns *Success*.
 
-(C) The main validation sequence follows when none of the above conditions
-have been met. In other words, the validation sequence is triggered when
-the report is in *Received* and its validity has never been evaluated or
-when the report was originally determined to be *Invalid* but new
-information is available to prompt reconsideration. The validation
-process shown here is comprised of two main steps: a credibility check
-followed by a validity check as outlined in our introduction of
-the [Received (R) state](../process_models/rm/index.md#the-received-r-state).
+However, a previous validation pass can leave an indicator that more information is necessary.
+In that case, execution goes to the sequence that runs the *gather info* task.
+If the task finds nothing new, the entire branch returns *Success*, and the report stays *Invalid*.
+If the task *does* find new information, the branch fails, and execution goes to the main validation sequence.
 
-As a reminder, a report might be in one of three categories: (a) neither
-credible nor valid, (b) credible but invalid, or (c) both credible and
-valid. Assuming the report passes both the credibility and validity
-checks, it is deemed *Valid*, moved to $q^{rm} \xrightarrow{v} V$, and
-an $RV$ message is emitted.
+(C) The main validation sequence runs when none of the conditions above are true.
+Two conditions trigger the validation sequence.
+In the first, the report is in *Received* and no one has evaluated its validity.
+In the second, an earlier evaluation found the report *Invalid*, and new information is now available that calls for a new evaluation.
 
-(D) Should either check fail, the validation sequence fails, the report is
-deemed *Invalid* and moves (or remains in) $q^{rm} \in I$. In that case,
-an $RI$ message is sent when appropriate to update other Participants on
-the corresponding state change.
+The validation process shown here has two main steps: a credibility check and then a validity check.
+Our introduction of the [Received (R) state](../process_models/rm/index.md#the-received-r-state) describes these steps.
+
+As a reminder, a report can be in one of three categories:
+
+- (a) neither credible nor valid
+- (b) credible but invalid
+- (c) both credible and valid
+
+If the report passes both the credibility check and the validity check, the report is *Valid*.
+The tree then moves the report with $q^{rm} \xrightarrow{v} V$ and emits an $RV$ message.
+
+(D) If either check fails, the validation sequence fails.
+The report is then *Invalid* and moves to (or stays in) $q^{rm} \in I$.
+In that case, the Participant sends an $RI$ message when applicable, to tell other Participants about the related state change.

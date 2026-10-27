@@ -16,20 +16,30 @@
 Verifies that ``HttpDeliveryAdapter``'s inbox URL derivation formula
 (``{actor_id}/inbox/``) produces URLs that are routable by the FastAPI
 actors router registered in
-``vultron/adapters/driving/fastapi/routers/actors.py``.
+``vultron/adapters/driving/fastapi/routers/actors.py``, that the inbox a
+held profile names is used in its place (OX-12-009), and that the inbox a
+hosted actor's profile states is routable too.
 
 Spec: notes/multi-actor-architecture.md §4 G6,
-      specs/multi-actor-demo.yaml DEMOMA-01-002.
+      specs/multi-actor-demo.yaml DEMOMA-01-002, specs/outbox.yaml OX-12-009.
 """
 
 from urllib.parse import urlparse
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from vultron.adapters.driven.datalayer import get_datalayer
 from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.driven.http_delivery import inbox_url_for
+from vultron.adapters.driving.fastapi.outbox_addressing import held_inboxes
 from vultron.adapters.driving.fastapi.routers import actors as actors_router
+from vultron.core.models.actor import (
+    CoreActor,
+    VultronOrganization,
+    hosted_endpoints,
+)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
@@ -43,8 +53,8 @@ _ACTOR_ID = f"{_CONTAINER_BASE}/actors/{_ACTOR_UUID}"
 
 
 def _derive_inbox_url(actor_id: str) -> str:
-    """Mirror of the HttpDeliveryAdapter inbox URL derivation logic."""
-    return actor_id.rstrip("/") + "/inbox/"
+    """The inbox HttpDeliveryAdapter posts to when it holds none."""
+    return inbox_url_for(actor_id)
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +96,100 @@ def test_inbox_url_contains_actor_uuid():
 # ---------------------------------------------------------------------------
 # FastAPI route consistency tests
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("OX-12-009")
+def test_a_held_inbox_is_used_in_place_of_the_derived_one():
+    """The inbox the held profile names wins over the derived address."""
+    held = "https://elsewhere.example/boxes/finder-in"
+    assert inbox_url_for(_ACTOR_ID, {_ACTOR_ID: held}) == held
+
+
+@pytest.mark.spec("OX-12-009")
+def test_a_recipient_with_no_held_inbox_gets_the_derived_one():
+    """Only a recipient the sender holds no inbox for falls back."""
+    other = "https://elsewhere.example/actors/other"
+    assert inbox_url_for(other, {_ACTOR_ID: "https://x.example/in"}) == (
+        f"{other}/inbox/"
+    )
+
+
+@pytest.mark.spec("OX-12-009")
+def test_held_inboxes_reads_the_sender_store(dl):
+    """A held profile's inbox is mapped; a peer known by URI only is not."""
+    stated = "https://elsewhere.example/actors/stated"
+    bare = "https://elsewhere.example/actors/bare"
+    unknown = "https://elsewhere.example/actors/unknown"
+    dl.create(
+        VultronOrganization(
+            id_=stated,
+            name="Stated",
+            inbox="https://elsewhere.example/boxes/stated-in",
+        )
+    )
+    dl.create(CoreActor(id_=bare, published=None, updated=None))
+
+    assert held_inboxes(dl, [stated, bare, unknown]) == {
+        stated: "https://elsewhere.example/boxes/stated-in"
+    }
+
+
+@pytest.mark.spec("OX-12-009")
+def test_held_inboxes_reads_a_wire_profile_inbox_collection():
+    """A held wire profile's inbox collection maps to its address."""
+    from unittest.mock import MagicMock
+
+    stated = "https://elsewhere.example/actors/wire"
+    held = as_Organization.model_validate(
+        {"id": stated, "inbox": "https://elsewhere.example/boxes/wire-in"}
+    )
+    dl = MagicMock()
+    dl.read.side_effect = {stated: held}.get
+
+    assert held_inboxes(dl, [stated]) == {
+        stated: "https://elsewhere.example/boxes/wire-in"
+    }
+
+
+@pytest.mark.spec("OX-12-009")
+def test_the_inbox_a_hosted_profile_states_accepts_post(dl):
+    """A sender holding a hosted actor's profile posts to its stated inbox.
+
+    ``hosted_endpoints`` states ``{id}/inbox`` without the trailing slash the
+    derived address carries, so both must answer a POST.
+    """
+    from vultron.adapters.driven.actor_hosts import canonical_actor_uri
+
+    local_actor_id = canonical_actor_uri(_ACTOR_UUID)
+    dl.create(
+        object_to_record(
+            as_Organization.model_validate(
+                {
+                    "name": "Finder",
+                    "id": local_actor_id,
+                    **hosted_endpoints(local_actor_id),
+                }
+            )
+        )
+    )
+    app = FastAPI()
+    app.include_router(actors_router.router)
+    app.dependency_overrides[get_datalayer] = lambda: dl
+    app.dependency_overrides[actors_router.get_actor_dl] = lambda: dl
+    client = TestClient(app, raise_server_exceptions=False)
+
+    stated = hosted_endpoints(local_actor_id)["inbox"]
+    base_path = urlparse(local_actor_id).path.removesuffix(
+        f"/actors/{_ACTOR_UUID}"
+    )
+    path = urlparse(stated).path.removeprefix(base_path)
+    payload = as_Activity(actor=_ACTOR_ID).model_dump(
+        by_alias=True, exclude_none=True, mode="json"
+    )
+
+    resp = client.post(path, json=payload)
+
+    assert resp.status_code == 202, (resp.status_code, path)
 
 
 def test_derived_inbox_path_matches_fastapi_route(dl):
