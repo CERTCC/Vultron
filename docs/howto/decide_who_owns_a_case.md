@@ -44,6 +44,7 @@ So whoever receives the report owns the case.
 **An invitation adds a participant, not an owner.**
 When the Case Owner invites an actor, that actor joins with the roles the invitation names ([§12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
 A case has one owner at a time, and the Case Owner role moves only through an [ownership transfer](../topics/case_lifecycle/ownership_transfer.md) ([CM-21-001](../reference/specs/protocol.md#cm-21-001), [CM-21-002](../reference/specs/protocol.md#cm-21-002)).
+The Case Manager refuses an offer of the Case Owner role made any other way ([CM-33-003](../reference/specs/protocol.md#cm-33-003)).
 If you create a case and invite the vendor, you still make the case's decisions.
 
 **Anyone who reports is the Reporter.**
@@ -76,7 +77,7 @@ Choose this path when you are content for the receiver to decide whether a case 
 This is the usual path for a finder that reports to a vendor or a coordinator.
 
 1. Send the report to the receiver as an `Offer(VulnerabilityReport)`.
-   [Submit a Report to a Vultron Actor](../tutorials/submit-a-report.md) shows the message.
+   [How to Report a Vulnerability](activitypub/activities/report_vulnerability.md#submit-a-report) shows the message.
 2. Optionally, propose embargo terms in the report ([EP-04-004](../reference/specs/protocol.md#ep-04-004)).
 3. Wait for the receiver's decision.
    If it opens a case, it is the Case Owner and you join as the Reporter.
@@ -134,8 +135,8 @@ The table below compares what each one leaves in your hands.
 |---|---|---|
 | Who decides whether a case exists | X | You |
 | Who makes the early decisions, such as embargo terms and invitations | X, as the Case Owner, with your proposed embargo terms weighed against its own | You, until X accepts the transfer |
-| What happens if X declines | X invalidates or closes your report, or opens no case, and any case that exists is X's, not yours | X rejects the transfer, and you keep the case, its history and its participants ([CM-21-012](../reference/specs/protocol.md#cm-21-012)) |
-| What you can do next if X declines | Report to yourself and run a case of your own ([CP-05-008](../reference/specs/protocol.md#cp-05-008)) | Propose a transfer to another participant at once ([CM-21-014](../reference/specs/protocol.md#cm-21-014)) |
+| What happens if X declines | X opens no case, or opens one and then invalidates or closes the report; any case is X's, not yours | X rejects the transfer, and you keep the case, its history and its participants ([CM-21-012](../reference/specs/protocol.md#cm-21-012)) |
+| What you can do next if X declines | Report to yourself and run a case of your own; if X opened a case for the report, yours is a separate case ([CP-05-008](../reference/specs/protocol.md#cp-05-008)) | Propose a transfer to another participant at once ([CM-21-014](../reference/specs/protocol.md#cm-21-014)) |
 
 Apply this test to choose.
 Submit directly when you are content for X to decide, and you would not want to own the case if X declines.
