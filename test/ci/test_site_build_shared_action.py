@@ -1,4 +1,4 @@
-"""CI verification test — every site build is the same build, and one workflow publishes.
+"""CI verification test — every site build is the same build; one workflow publishes.
 
 Implements DOCBW-06-004 and DOCBW-06-001 from ``specs/docs-build-workflow.yaml``
 (#4167).
@@ -19,6 +19,7 @@ that uploads there.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,6 @@ import pytest
 
 from test.ci._workflows import (
     BUILD_SITE_ACTION,
-    MKDOCS_BUILD,
     REPO_ROOT,
     WORKFLOWS_DIR,
     expanded_steps,
@@ -47,11 +47,15 @@ PAGES_UPLOAD_ACTIONS = (
     "actions/upload-pages-artifact",
     "actions/deploy-pages",
 )
+# A mkdocs command that builds the site: ``build`` or ``gh-deploy`` (which
+# builds and pushes), with any global options before the subcommand, so
+# ``mkdocs -v build`` and ``python -m mkdocs gh-deploy`` count too.
+MKDOCS_SITE_BUILD = re.compile(r"\bmkdocs(?:\s+-\S+)*\s+(?:build|gh-deploy)\b")
 
 
 # Parsed workflow YAML is untyped by nature; ``Any`` here is the YAML boundary.
 def _own_builds(step_list: list[dict[str, Any]]) -> list[str]:
-    """Return the name of every step in *step_list* that runs ``mkdocs build``.
+    """Return the name of every step in *step_list* that builds the site.
 
     Only the steps as written are read, not the actions they call, so a step
     reaching the build through the shared action is not reported.
@@ -59,7 +63,7 @@ def _own_builds(step_list: list[dict[str, Any]]) -> list[str]:
     return [
         str(step.get("name", step["run"]))
         for step in step_list
-        if MKDOCS_BUILD in str(step.get("run", ""))
+        if MKDOCS_SITE_BUILD.search(str(step.get("run", "")))
     ]
 
 
@@ -234,6 +238,26 @@ def test_own_builds_finds_a_direct_build_but_not_the_shared_action():
         {"name": "Rebuild", "run": "uv run mkdocs build --strict"},
     ]
     assert _own_builds(step_list) == ["Rebuild"]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "uv run mkdocs build --strict",
+        "uv run mkdocs -v build",
+        "python -m mkdocs gh-deploy --force",
+        "mkdocs build",
+    ],
+)
+def test_own_builds_finds_every_form_of_a_site_build(command: str):
+    assert _own_builds([{"run": command}]) == [command]
+
+
+@pytest.mark.parametrize(
+    "command", ["uv run mkdocs serve", "echo mkdocs-build-strict.sh"]
+)
+def test_own_builds_ignores_commands_that_build_nothing(command: str):
+    assert _own_builds([{"run": command}]) == []
 
 
 # --- DOCBW-06-001: only the publication workflow uploads to Pages ------------

@@ -54,7 +54,9 @@ jobs:
       - name: Build Site
         uses: ./.github/actions/build-site
 
+      # Runs even when the build failed, so one run reports both (EH-07-001).
       - name: ADR index in sync, and no ADR in the nav
+        if: ${{ !cancelled() }}
         run: |
           # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
           # distinguishable by shellcheck, which flags the bare form as SC1007.

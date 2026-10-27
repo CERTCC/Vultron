@@ -47,8 +47,9 @@ def _build_commands(workflow: Path) -> list[str]:
     """Return every ``mkdocs build`` command the workflow's steps run.
 
     Local actions are expanded, so the command inside the shared build action
-    (DOCBW-06-004) counts for every workflow that calls it. Backslash continuations are joined first, so a flag on a continued line is
-    still part of its command.
+    (DOCBW-06-004) counts for every workflow that calls it. Backslash
+    continuations are joined first, so a flag on a continued line is still
+    part of its command.
     """
     return [
         line.strip()
