@@ -88,14 +88,16 @@ everything after the last hash a participant reports.
   can only hold what follows as a forward gap. Fan-out checks the entry it built in
   memory, unless it reused a recorded one or backfills a paused peer, so a storage
   round-trip bug usually surfaces at replay, which reads the stored copy.
-- **A held-back send fails its node, and an act around it keeps nothing.** The
-  sending node returns `FAILURE` (BT-14-001). The `Reject` and `Read` replays commit
-  nothing, so the entries queued before the broken one stay queued. A fan-out or
-  backfill inside an act's transaction fails the act whole (CLP-07-015). While an
-  entry stays broken, an Accept whose join backfill reaches it cannot commit. A
-  held-back backfill keeps the peer's pause, so once an admitted, paused peer's
-  backfill reaches the entry, every later commit's fan-out fails the same way
-  and the case commits nothing more until the entry is repaired.
+- **A held-back send fails its node, except a fan-out's catch-up.** The node
+  that holds back an entry returns `FAILURE` (BT-14-001), and inside an act's
+  transaction the act then keeps nothing (CLP-07-015). So a broken *new* entry
+  refuses its commit, and an Accept whose join backfill reaches a broken entry
+  cannot commit. The `Reject` and `Read` replays commit nothing, so the entries
+  queued before the broken one stay queued. The one exception is the fan-out's
+  catch-up of a let-back-in, paused peer: that peer keeps its pause and is skipped
+  for the new entry, every other recipient gets it, and the fan-out succeeds.
+  Failing there would refuse every later commit in the case, since the peer's
+  pause brings the same catch-up back each time (decided on #5120).
 - **A hash refusal is reported, not recovered.** The replica sends
   `LedgerEntryRefused/HashMismatch`; the CASE_MANAGER logs it at ERROR and checks its
   own copy, and does nothing else. Replay and re-seed resend the same content, so

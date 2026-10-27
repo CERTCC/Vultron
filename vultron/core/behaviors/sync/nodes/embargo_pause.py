@@ -47,7 +47,8 @@ a failure (BT-HELPER-01).  :func:`send_ledger_suffix` is the one that reports
 a hold-back in its result instead (``LedgerSuffixSend.held_back``): the
 entries queued before the broken one stay queued, and a replay needs their
 count to record its cooldown (SYNC-15-011), so the result carries both.
-Every caller turns a ``held_back`` into ``FAILURE`` or a raise.
+Every caller acts on ``held_back``: the nodes return ``FAILURE``, except the
+fan-out, which skips a peer whose catch-up was held back (decided on #5120).
 """
 
 from __future__ import annotations
@@ -278,6 +279,19 @@ def peer_is_inactive_joined(
     return peer_id in inactive_joined_participants(case, datalayer)
 
 
+class AdmissionBackfill(NamedTuple):
+    """What :func:`backfill_admitted_peers` did, peer by peer.
+
+    ``backfilled`` peers were sent everything withheld from them and their
+    pause was cleared.  ``held_back`` peers had their backfill stopped at an
+    entry whose hash does not verify (SYNC-03-009): each keeps its pause, and
+    the hold-back was logged at ERROR by :func:`send_ledger_suffix`.
+    """
+
+    backfilled: list[str]
+    held_back: list[str]
+
+
 def backfill_admitted_peers(
     datalayer: CasePersistence,
     case: VulnerabilityCase,
@@ -285,7 +299,7 @@ def backfill_admitted_peers(
     sync_port: SyncActivityPort,
     actor_id: str,
     through_index: int | None = None,
-) -> list[str]:
+) -> AdmissionBackfill:
     """Backfill every paused peer the gate now admits, then clear its pause.
 
     For each active participant of *case* (other than *actor_id*) whose
@@ -303,15 +317,15 @@ def backfill_admitted_peers(
             index just before the entry it is about to send, so the backfill
             arrives in order *before* it.
 
+    Each peer's backfill is its own send: one held back at an entry whose
+    hash does not verify (SYNC-03-009) keeps its pause and is reported in
+    ``held_back``, and the other peers are still backfilled.  The caller
+    decides what a hold-back means for its node.
+
     Returns:
-        The peers backfilled, in index order.
+        The peers backfilled and the peers held back, each in index order.
 
     Raises:
-        VultronUnverifiedLedgerEntryError: a peer's backfill stopped at an
-            entry whose hash does not verify (SYNC-03-009).  The entries
-            before it were queued and the hold-back logged at ERROR by
-            :func:`send_ledger_suffix`; that peer keeps its pause, and no
-            later peer is backfilled.
         VultronError: *case* cannot be resolved to decide the gate.
     """
     # Admission is decided over the whole case, never from a caller's
@@ -320,6 +334,7 @@ def backfill_admitted_peers(
     # as admitted.
     entries: list[CaseLedgerEntry] | None = None
     backfilled: list[str] = []
+    held: list[str] = []
     for peer_id in case_content_recipients(
         case, datalayer, excluding={actor_id}
     ):
@@ -341,7 +356,8 @@ def backfill_admitted_peers(
         if held_back is not None:
             # SYNC-03-009: the pause stays, since the peer still lacks the
             # held-back entry and everything after it.
-            raise held_back
+            held.append(peer_id)
+            continue
         clear_embargo_pause(datalayer, case_id=case.id_, peer_id=peer_id)
         backfilled.append(peer_id)
         logger.info(
@@ -354,4 +370,4 @@ def backfill_admitted_peers(
             paused_from,
             skipped,
         )
-    return backfilled
+    return AdmissionBackfill(backfilled, held)

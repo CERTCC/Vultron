@@ -165,11 +165,14 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
        before this entry does;
     3. sends this entry to each recipient.
 
-    Every send goes through ``send_verified_log_entry``: an entry whose hash
-    does not verify is held back, logged at ERROR, and the node returns
-    ``FAILURE``, whether it is this entry or one the backfill in step 2 was
-    about to send (SYNC-03-009, BT-14-001).  A held-back backfill also stops
-    step 3, since this entry would reach that peer as a forward gap.
+    Every send goes through ``send_verified_log_entry`` (SYNC-03-009).  When
+    this entry does not verify, it is held back from every recipient, logged
+    at ERROR, and the node returns ``FAILURE`` (BT-14-001).  When step 2's
+    backfill to a peer is held back at an older entry, that peer keeps its
+    pause and is skipped in step 3, since it could hold this entry only as a
+    forward gap; every other recipient still gets it and the node returns
+    ``SUCCESS``, so one broken old entry does not stop the case committing
+    (decided on #5120).
 
     Step 2 admits a peer whose admission preceded this entry's commit:
     ``terminate_embargo_bt`` ends the embargo, then commits the new case
@@ -224,7 +227,12 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
 
     def _pause_and_backfill(
         self, entry: CaseLedgerEntry, sync_port: SyncActivityPort
-    ) -> None:
+    ) -> list[str]:
+        """Pause the withheld peers and backfill the admitted ones.
+
+        Returns the peers whose backfill was held back at an entry that does
+        not verify (SYNC-03-009); each keeps its pause.
+        """
         assert self.datalayer is not None
         assert self.actor_id is not None
         datalayer = cast(CasePersistence, self.datalayer)
@@ -242,13 +250,13 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
             raise VultronError(
                 f"{self.name}: case '{entry.case_id}' vanished during fan-out"
             )
-        backfill_admitted_peers(
+        return backfill_admitted_peers(
             datalayer,
             case_obj,
             sync_port=sync_port,
             actor_id=self.actor_id,
             through_index=entry.log_index - 1,
-        )
+        ).held_back
 
     def update(self) -> Status:
         if self.actor_id is None:
@@ -263,21 +271,31 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
                 f" log entry '{entry.id_}' (SYNC-02-003)"
             )
 
+        held_back: list[str] = []
         if self.datalayer is not None:
             try:
-                self._pause_and_backfill(entry, self._sync_port)
-            except VultronUnverifiedLedgerEntryError as exc:
-                # SYNC-03-009: a backfill held back at an earlier entry; the
-                # new entry would reach that peer as a forward gap, so it
-                # does not go out either.  Already logged at ERROR.
-                self.feedback_message = str(exc)
-                return Status.FAILURE
+                held_back = self._pause_and_backfill(entry, self._sync_port)
             except VultronError as exc:
                 self.feedback_message = str(exc)
                 self.logger.exception(
                     "%s: embargo gate undecidable", self.name
                 )
                 return Status.FAILURE
+
+        if held_back:
+            # SYNC-03-009, decided on #5120: a peer whose catch-up stopped at
+            # a broken older entry stays paused and is skipped for this one,
+            # which it could hold only as a forward gap.  Everyone else still
+            # gets it, so the case keeps committing.  send_ledger_suffix
+            # already logged the hold-back at ERROR.
+            self.logger.warning(
+                "%s: skipping %s for log entry '%s': their catch-up was held"
+                " back at an entry that does not verify (SYNC-03-009)",
+                self.name,
+                held_back,
+                entry.id_,
+            )
+            recipients = [r for r in recipients if r not in held_back]
 
         try:
             for recipient_id in recipients:

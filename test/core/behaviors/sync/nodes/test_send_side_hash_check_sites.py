@@ -32,10 +32,17 @@ import pytest
 from py_trees.common import Status
 
 from test.core.behaviors.sync.nodes.conftest import CASE_ID
-from test.support.broken_ledger_entry import BreakEntry, broken_entries
+from test.support.broken_ledger_entry import (
+    BreakEntry,
+    broken_entries,
+    tampered,
+)
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.invite_ledger_backfill import (
     BackfillCanonicalLedgerToInviteeNode,
+)
+from vultron.core.behaviors.sync.commit_tree import (
+    create_commit_log_entry_tree,
 )
 from vultron.core.behaviors.sync.nodes.embargo_backfill import (
     BackfillAdmittedParticipantsNode,
@@ -45,6 +52,7 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
 )
 from vultron.core.behaviors.sync.nodes.fanout import FanOutLogEntryNode
 from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
+from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
 
@@ -287,22 +295,72 @@ def test_fanout_backfill_of_an_intact_ledger_sends_it_all(
 @pytest.mark.spec("SYNC-03-009")
 @pytest.mark.spec("CM-10-006")
 @broken_entries
-def test_fanout_backfill_stops_at_a_broken_entry_and_sends_no_new_entry(
+def test_fanout_skips_a_peer_whose_catch_up_is_held_back_and_sends_the_rest(
     bridge: BTBridge,
     datalayer,
     break_entry: BreakEntry,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The new entry would reach the backfilled peer as a forward gap."""
+    """One broken old entry stalls only the peer whose catch-up reaches it.
+
+    The let-back-in peer gets the entries before the broken one, stays
+    paused and is skipped for the new entry, which it could hold only as a
+    forward gap.  Every other recipient gets the new entry and the fan-out
+    succeeds, so the commit stands (decided on #5120).
+    """
     entries = _paused_from_one_then_admitted(datalayer)
     _break_stored(datalayer, entries, 2, break_entry)
     sync_port = MagicMock(spec=SyncActivityPort)
 
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.WARNING):
         result = _fan_out(bridge, entries[3], sync_port)
 
-    assert result.status == Status.FAILURE
-    assert sends(sync_port) == [(1, [NON_SIGNATORY_ID])]
+    assert result.status == Status.SUCCESS
+    assert sends(sync_port) == [(1, [NON_SIGNATORY_ID]), (3, [SIGNATORY_ID])]
+    _assert_held_back(caplog, entries[2], NON_SIGNATORY_ID)
+    assert paused_from(datalayer) == 1
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("CM-10-006")
+def test_a_commit_stands_when_a_peers_catch_up_is_held_back(
+    bridge: BTBridge, datalayer, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The whole commit tree, not just the node: the new entry is kept."""
+    entries = _paused_from_one_then_admitted(datalayer)
+    _break_stored(datalayer, entries, 2, tampered)
+    sync_port = MagicMock(spec=SyncActivityPort)
+    tree = create_commit_log_entry_tree(
+        case_id=CASE_ID,
+        object_id="https://example.org/activities/after-the-break",
+        semantic_type="add_note_to_case",
+        payload_snapshot={
+            "type": "Add",
+            "actor": MANAGER_ID,
+            "published": now_utc().isoformat(),
+            "object": {
+                "type": "Note",
+                "id": "https://example.org/notes/after-the-break",
+                "context": CASE_ID,
+            },
+            "context": CASE_ID,
+        },
+        check_freshness=False,
+    )
+
+    with caplog.at_level(logging.ERROR):
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=MANAGER_ID, sync_port=sync_port
+        )
+
+    assert result.status == Status.SUCCESS, result.feedback_message
+    stored = sorted(
+        entry.log_index
+        for entry in datalayer.list_objects("CaseLedgerEntry")
+        if isinstance(entry, CaseLedgerEntry)
+    )
+    assert stored == [0, 1, 2, 3, 4]
+    assert sends(sync_port) == [(1, [NON_SIGNATORY_ID]), (4, [SIGNATORY_ID])]
     _assert_held_back(caplog, entries[2], NON_SIGNATORY_ID)
     assert paused_from(datalayer) == 1
 
