@@ -313,3 +313,5 @@ An exploit can come to be known for two distinct reasons, which the CS model sep
 A hidden *exploit exists* event is a causal predecessor of both.
 Even so, the model asserts no causal relationship between *Exploit Public* and *Attacks Observed*.
 The choice favors observability: *exploit exists* is hard to observe on its own, and its occurrence is nearly always inferred from one of the other two.
+
+{% include-markdown "../../../start/_paths/study-the-process/topics__process_models__cs__cs_model.md" %}

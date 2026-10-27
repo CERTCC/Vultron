@@ -60,7 +60,8 @@ the roster, and every one of them is seated at case initialization.
 
 The sender check reads the same records: :func:`may_act_on_case` is the one
 predicate behind the ``ACTIVE_PARTICIPANT`` sender standing (CM-23-020), so a
-sender may act on a case exactly when it would be sent its content.
+sender may act on a case exactly when it would be sent its content;
+:func:`why_may_not_act_on_case` names the ground a refusal by it cites.
 
 This module is the one place in ``vultron/core/`` that lists roster actor
 IDs for addressing; ``test/architecture/test_active_participant_recipient_selection.py``
@@ -548,7 +549,7 @@ def is_case_content_recipient(
     sends a closed peer with :func:`closed_participant_ledger_cutoff`
     instead (CM-23-004).
     """
-    record = _listed_record(case, dl, actor_id)
+    record = listed_participant_record(case, dl, actor_id)
     return record is not None and case.is_active_participant(record)
 
 
@@ -585,17 +586,50 @@ def may_act_on_case(
     An actor the case does not list, or whose record does not resolve, may
     not act: the case cannot vouch for it.
     """
-    record = _listed_record(case, dl, actor_id)
+    record = listed_participant_record(case, dl, actor_id)
     return record is not None and _receives_case_content(case, record)
 
 
-def _listed_record(
+def why_may_not_act_on_case(
+    case: VulnerabilityCase, dl: CasePersistence, actor_id: str
+) -> str | None:
+    """Why *actor_id* fails :func:`may_act_on_case`, or ``None`` if it passes.
+
+    For a refusal that names its ground.  The verdict is
+    :func:`may_act_on_case`'s, so the two cannot disagree; the reason only
+    describes the first condition the actor's record misses.  The ownership
+    transfer checks it for the transferee, which the Offer sends the case to
+    and which then acts as its owner (CM-21-021).
+    """
+    if may_act_on_case(case, dl, actor_id):
+        return None
+    if actor_id not in case.actor_participant_index:
+        return "is not a participant of the case"
+    record = listed_participant_record(case, dl, actor_id)
+    if record is None:
+        return "has no participant record the case can resolve"
+    if not record.joined:
+        return "has not joined the case (its invitation is not accepted)"
+    if record.removed:
+        return "was removed from the case (CM-31-001)"
+    if record.rm_closed:
+        return "has left the case (RM CLOSED, CM-23-004)"
+    return (
+        f"has not agreed to the active embargo '{case.active_embargo_id}'"
+        " (CM-18-001)"
+    )
+
+
+def listed_participant_record(
     case: VulnerabilityCase, dl: CasePersistence, actor_id: str
 ) -> CaseParticipant | None:
     """The record *case*'s roster lists for *actor_id*, or ``None``.
 
     ``None`` when the roster does not list the actor or its record does not
-    resolve (:func:`_resolve_record`).
+    resolve (:func:`_resolve_record`: the stored record first, an inline copy
+    as the fallback).  The one lookup behind :func:`may_act_on_case`, so a
+    writer that must change the record an entitlement check admitted reads it
+    here too (CM-21-021).
     """
     participant_id = case.actor_participant_index.get(actor_id)
     if participant_id is None:
@@ -614,5 +648,5 @@ def closure_recorded(
     (ID-05-003).  An actor the case does not list, or whose record does not
     resolve, has no recorded closure.
     """
-    record = _listed_record(case, dl, actor_id)
+    record = listed_participant_record(case, dl, actor_id)
     return record is not None and record.rm_closed

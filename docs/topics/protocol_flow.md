@@ -249,3 +249,5 @@ It also sets a limit: **a request must not contain anything that cannot be shown
 - [Behavior Logic](behavior_logic/index.md) — how an actor decides what to do when a message arrives
 - [Capability Model](capability_model/index.md) — how external services supply the judgments an actor cannot make alone
 - [The Case Model](case_lifecycle/case_model.md) — the shared record that actors coordinate around
+
+{% include-markdown "../start/_paths/connect-your-tracker/topics__protocol_flow.md" %}

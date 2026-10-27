@@ -59,7 +59,7 @@ an Offer can also close without an answer (#4490):
     it: it stays `SKIPPED` even after a later Offer moved ownership on
     (HP-01-003).
   - **Closed and redelivered.** The reply trees share the open-Offer guard
-    (`OwnershipOfferOpenNode`, `case/nodes/ownership_offer_guard.py`), which runs
+    (`OwnershipOfferOpenNode`, `case/nodes/ownership_reply_guard.py`), which runs
     right after the sender check: a withdrawal of a closed Offer is `REFUSED` and a
     redelivery of the Undo that closed it is `SKIPPED` (HP-01-003). A sender with
     no standing is refused before the Offer's state is read (#4437).

@@ -3,7 +3,7 @@
 The conventions this specification uses for state names and case-state notation are stated at [§1.4 Document Conventions](introduction.md#14-document-conventions).
 This annex collects the mathematical and diagram notation used in the formal treatment, and the notation for writing a Wire Activity.
 
-{% include-markdown "../notation.md" start="<!-- notation-math-start -->" end="<!-- notation-math-end -->" heading-offset=1 %}
+{% include-markdown "../_notation-math.md" heading-offset=1 %}
 
 ### Wire Activity Notation
 

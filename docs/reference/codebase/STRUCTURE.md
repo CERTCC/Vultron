@@ -79,7 +79,7 @@ stakeholder_type: [project-contributor]
     It fails when a `docs/` page uses a glossary term that a higher-level page declares in `introduces:`, unless the page links that introducing page at or before the first use or the use itself links to the glossary (DF-11-002).
     Working-record pages and pages with no level are skipped, and include fragments are checked at their lowest host's level.
     Pre-existing violations sit in a shrink-only baseline, pinned by key in its test, where each entry names a reason; `--prune-baseline` drops entries that are no longer violations.
-  - `docs-site` → `vultron.metadata.docs.site_sync:main`.
+  - `docs-site` → `vultron.metadata.docs.site_sync:main` (`--write` also writes the reading-path box fragments under `docs/start/_paths/` and deletes stale ones; `--check` reports both, DF-11-023; it also writes the listing on the cross-tab lookup page `docs/lookup.md` and checks that the home page and every start page link it, DF-11-021).
     `--write` regenerates the contents listing of each section landing page whose `index.md` declares `contents: generated`, at any nav depth, from the `mkdocs.yml` nav and each listed page's `description:` frontmatter.
     It also checks that a `contents: routing` index links every member of its section, directly or through a fragment it includes uncut (DF-11-005), and regenerates `docs/includes/stakeholder_types.md` from the page schema (DF-11-011) and `notes/site-coverage-matrix.md` (DF-11-008).
     It regenerates each start page's reading-path listing from the page's `thread:` frontmatter (DF-11-014).
@@ -89,7 +89,7 @@ stakeholder_type: [project-contributor]
   - `docs-thread-order` → `vultron.metadata.docs.thread_order:main`.
     It fails when a thread member, or a fragment it renders, uses a term a later member introduces without linking out for it first (DF-11-024).
     It reuses the `docs-level-order` scan, and its shrink-only baseline is `vultron/metadata/docs/thread_order_baseline.txt`.
-  - `docs-withheld` → `vultron.metadata.docs.withheld:main` (a withheld artifact produces no `site/` files), `docs-links` → `vultron.metadata.docs.links:main` (every internal reference in the built `site/` resolves), `docs-legacy-urls` → `vultron.metadata.docs.legacy_urls:main` (a URL the site once published still answers)
+  - `docs-withheld` → `vultron.metadata.docs.withheld:main` (a withheld artifact produces no `site/` files), `docs-links` → `vultron.metadata.docs.links:main` (every internal reference in the built `site/` resolves), `docs-path-boxes` → `vultron.metadata.docs.path_boxes:main` (every member page and start page renders its reading-path boxes, DF-11-023), `docs-legacy-urls` → `vultron.metadata.docs.legacy_urls:main` (a URL the site once published still answers)
   - `docs-duplicates` → `vultron.metadata.docs.duplicates:main`.
     It lists paragraphs repeated across `docs/` pages, as exact copies or as drifted copies that share most of their sentences, for `lint-docs` to report as SG-43 findings.
     It is advisory and exits 0 whatever it finds, except that it fails when it resolves no target pages (DF-09-009).

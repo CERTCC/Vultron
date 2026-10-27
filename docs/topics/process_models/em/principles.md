@@ -202,3 +202,5 @@ CVD case is addressed in [Adding Participants](working_with_others.md).
 
 - [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — propose, accept and activate an embargo.
 - [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — change or end an active embargo.
+
+{% include-markdown "../../../start/_paths/coordinate-cases/topics__process_models__em__principles.md" %}

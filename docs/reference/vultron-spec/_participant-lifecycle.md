@@ -92,10 +92,17 @@ The suggested-actor path adds one round-trip, because the Case Owner's decision 
 
 ### 12.3 Case Ownership Transfer [N]
 
-The Case Owner MAY transfer ownership to another actor via
+The Case Owner MAY transfer ownership to another participant via
 `Offer(VulnerabilityCase)` / `Accept` handshake routed through the CASE_MANAGER
 (ADR-0053).
 The Case Owner proposes the transfer to the CASE_MANAGER as `Offer(Offer(VulnerabilityCase))`, and the CASE_MANAGER makes the one `Offer(VulnerabilityCase)` the receiving actor answers ([CM-21-005](../specs/protocol.md#cm-21-005), ADR-0148).
+The Offer carries the case, so the receiving actor is one already entitled to the case's content: an active participant ([CM-10-004](../specs/protocol.md#cm-10-004)).
+An owner that means to transfer a case to any other actor invites that actor first.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-21-021"))
+```
+
 On acceptance, the receiving actor acquires Case Owner authority and
 the associated protocol responsibilities.
 

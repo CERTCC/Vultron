@@ -120,6 +120,28 @@ class TestScoreTree:
         assert results[1].outcome is nu.Outcome.FAIL
         assert results[1].stalled_at_home
 
+    def test_home_page_opening_a_group_is_still_a_stall(self, tmp_path):
+        """The home page opens a group once the lookup page sits beside it
+        (DF-11-021); stopping on it is still stopping at the front door."""
+        nav = {
+            "nav": [
+                {"Vultron": ["index.md", {"Look Something Up": "lookup.md"}]},
+                *_NAV["nav"][2:],
+            ]
+        }
+        nodes = nu.nav_tree(yaml.safe_dump(nav), _docs(tmp_path))
+        answers = [{"task": "T2", "path": ["Vultron"]}]
+        results = nu.score_tree_answers(_suite(tmp_path), "p1", nodes, answers)
+        assert results[1].outcome is nu.Outcome.FAIL
+        assert results[1].stalled_at_home
+
+    def test_unlabelled_mailto_entry_is_external_not_a_page(self, tmp_path):
+        """Any URI scheme is external, as the landing pages treat it; a
+        ``mailto:`` entry is not looked up as a page under ``docs/``."""
+        nav = {"nav": ["mailto:cert@example.org"]}
+        (node,) = nu.nav_tree(yaml.safe_dump(nav), _docs(tmp_path))
+        assert node.label == node.path == "mailto:cert@example.org"
+
     def test_stray_task_fails(self, tmp_path):
         with pytest.raises(MetadataLoadError, match="not given"):
             self._score(tmp_path, [{"task": "T9", "path": ["Home"]}])
