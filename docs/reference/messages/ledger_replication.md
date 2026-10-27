@@ -24,6 +24,7 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
 2. A participant first recomputes the entry's hash from its content.
    An entry that does not reproduce its `entry_hash` is refused and logged, with no `Reject` (SYNC-03-006, CLP-04-008).
    The participant sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead (SYNC-03-007).
+   The CASE_MANAGER sends nothing back for it, because a replay would resend the same content (SYNC-03-008).
 3. A participant whose local `prev_log_hash` matches the incoming entry's `prev_log_hash` accepts it and sends nothing.
    An unbroken hash chain is the implied positive acknowledgment (MSM-05-002).
 4. A participant whose hashes do not match sends `Reject(CaseLedgerEntry)` with `context` = its last accepted hash.

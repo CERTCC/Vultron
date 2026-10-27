@@ -223,6 +223,8 @@ Before that check, a receiver MUST recompute the entry's hash from its content a
 An entry that states no hash, or whose content does not reproduce it, MUST be refused and logged, and is not buffered, applied or stored.
 It is not answered with `Reject(CaseLedgerEntry)`, because a replay would resend the same entry. (SYNC-03-006)
 The receiver MUST instead send `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` to the CASE_MANAGER, naming the refused `Announce(CaseLedgerEntry)` by reference, and the fault's id is derived from that `Announce` and the failure class. (SYNC-03-007)
+A CASE_MANAGER that receives that fault from an active participant of the case MUST NOT send anything because of it, not even a fresh case copy (§5.5), and MUST NOT record replication state for it, since a replay or a fresh copy would resend the same content.
+From any other sender it MUST refuse the fault. (SYNC-03-008)
 
 ### 5.2 Sender Retry
 
@@ -568,6 +570,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-03-003 | §5.3 | Replication MUST be idempotent |
 | SYNC-03-004 | §9 | Participants SHOULD include last accepted hash in context |
 | SYNC-03-006 | §5.1 | Receiver MUST refuse an entry whose content does not reproduce its hash |
+| SYNC-03-008 | §5.1 | CASE_MANAGER MUST change nothing for a hash-mismatch fault from an active participant, and refuse it from any other sender |
 | SYNC-04-001 | §9 | Leader MUST track per-peer last acknowledged hash |
 | SYNC-04-002 | §9 | Per-peer state MUST be persisted across leader restart |
 | SYNC-05-001 | §10 | Sender SHOULD retry with exponential backoff |
