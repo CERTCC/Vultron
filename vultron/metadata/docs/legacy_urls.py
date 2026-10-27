@@ -284,7 +284,9 @@ def built_pages(ref: str, root: Path | None = None) -> set[str]:
     """
     listing = _git(root, "ls-tree", "-r", "--name-only", ref, "--", "docs/")
     unbuilt = unbuilt_docs_spec(
-        parse_mkdocs_config(_git(root, "show", f"{ref}:mkdocs.yml"))
+        parse_mkdocs_config(
+            _git(root, "show", f"{ref}:mkdocs.yml"), shown=f"{ref}:mkdocs.yml"
+        )
     )
     pages = (
         name.removeprefix("docs/")

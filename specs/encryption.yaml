@@ -39,6 +39,10 @@ groups:
     statement: >-
       Each actor MUST publish its public key in its ActivityPub actor profile using the
       `publicKey` property per ActivityPub HTTP Signatures conventions
+    rationale: >-
+      Peers need an actor's public key to verify its HTTP Signatures and to encrypt
+      messages to it. The `publicKey` property of the actor profile is where ActivityPub
+      implementations already look, so no separate key-exchange channel is needed.
     verification: Inspection of the actor profile endpoint confirms the `publicKey` field is populated with the actor's
       public key per ActivityPub HTTP Signatures conventions.
     scope:
@@ -52,6 +56,11 @@ groups:
     statement: >-
       The actor enacting the `CASE_MANAGER` role MUST share its public key with each case
       participant when they are added to the case
+    rationale: >-
+      A new participant needs the CASE_MANAGER's key to encrypt messages to it
+      (ENC-02-001) and to verify its signatures from the first message of the case.
+      Delivering the key with the add gives the participant the key from the actor it
+      already deals with for the case, without a separate fetch.
     verification: Integration tests confirm that when a participant is added to a case, the outbound activity includes
       the CASE_MANAGER's public key.
     scope:
@@ -64,6 +73,11 @@ groups:
     verification_debt: '#3612'
     statement: >-
       Private keys MUST be stored securely and MUST NOT be logged or included in API responses
+    rationale: >-
+      Anyone who obtains an actor's private key can read messages encrypted to it,
+      including embargoed vul details, and can forge activities in its name. Logs and
+      API responses are copied and retained widely, so a key that appears in them must
+      be treated as disclosed.
     scope:
     - production
     stories:
@@ -109,6 +123,10 @@ groups:
     statement: >-
       Case participants MAY encrypt messages sent to the CASE_MANAGER using the CASE_MANAGER's
       published public key
+    rationale: >-
+      Messages to the CASE_MANAGER can carry embargoed vul details that intermediaries
+      must not read in transit. Encryption is optional because transport security can be
+      enough for a deployment and no encryption scheme is yet standardized (ENC-02-002).
     scope:
     - production
     relationships:
@@ -143,6 +161,10 @@ groups:
     statement: >-
       Decryption of inbound encrypted activities MUST occur in the inbox handler before the
       activity is passed to semantic extraction or dispatch
+    rationale: >-
+      Semantic extraction and dispatch read the activity's type and objects, which an
+      encrypted body hides. Decrypting first lets structure validation (IE-04-001) and
+      every later stage work on the plaintext activity unchanged.
     verification: Inspection of `vultron/core/` confirms the inbox handler invokes the decryption step before calling
       semantic extraction or the dispatch pipeline.
     scope:
@@ -160,6 +182,11 @@ groups:
     statement: >-
       If decryption fails, the inbox handler MUST return HTTP 400 with a structured error
       indicating decryption failure
+    rationale: >-
+      An activity that cannot be decrypted cannot be validated or processed. A distinct
+      error tells the sender that the failure was in decryption, for example a wrong or
+      stale key, and not in the activity's content, so it can correct the cause and
+      resend.
     verification: A unit test confirms that the inbox handler returns HTTP 400 with a structured error body when the
       decryption step raises a failure.
     scope:
@@ -178,5 +205,10 @@ groups:
     statement: >-
       The decryption layer MUST be separate from semantic extraction logic; the two concerns
       MUST NOT be mixed
+    rationale: >-
+      Kept apart, extraction stays a mapping from plaintext AS2 to semantics that can be
+      tested without keys, and the encryption scheme can change (ENC-02-002) without
+      touching pattern matching. Mixed together, every pattern would have to handle both
+      encrypted and plaintext forms.
     scope:
     - production

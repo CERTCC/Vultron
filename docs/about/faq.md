@@ -5,6 +5,7 @@ description: >
 stakeholder_type: ALL
 level: 100
 page_type: explanation
+subject: neutral
 ---
 
 # Vultron Protocol Frequently Asked Questions

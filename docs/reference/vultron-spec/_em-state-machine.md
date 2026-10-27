@@ -96,7 +96,7 @@ The case's status carries a copy of the derived EM, stamped from the register.
 A received status can report EM but can never move it.
 An asserted EM that differs from the derived one is refused.
 
-Because EM aggregates over every entry, the case leaves Proposed or Revised only when no proposal remains open.
+Because EM aggregates over every entry, the case moves from Proposed or Revised to None or Active only when no proposal remains open.
 Rejecting one of several open proposals leaves the others open, so EM stays where it was.
 Activating one of several open proposals leaves the rest open as revisions of the embargo now in force, so EM moves to Revised rather than Active.
 An `ACTIVE` entry leaves that status only when another entry supersedes it or when it is terminated.

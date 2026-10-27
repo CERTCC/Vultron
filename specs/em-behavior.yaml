@@ -2644,14 +2644,17 @@ groups:
       open proposals with no embargo in force, is `reject`, and a termination is
       `terminate`. The EM transitions are `propose`: N→P, P→P, A→R, R→R;
       `reject`: P→N, P→P, R→A, R→R; `accept`: P→A, P→R, R→A, R→R; and
-      `terminate`: A→X, R→X. EM leaves Proposed or Revise only when no
-      proposal remains open.
+      `terminate`: A→X, R→X. A rejection leaves Proposed, and a rejection or an
+      acceptance leaves Revise, only when no proposal remains open; an acceptance
+      from Proposed moves to Active, or to Revise while another proposal stays
+      open.
     rationale: >-
       EM is computed from the embargo register (ADR-0122), not replaced by it:
       the EM state machine remains the protocol's model, and the register is a
       layer beneath it. With several proposals open, rejecting or activating one
-      leaves the others open, so EM stays in Proposed or Revise until the last
-      one is off the table (ADR-0130).
+      leaves the others open: a rejection keeps EM in Proposed or Revise until the
+      last one is off the table, and an activation from Proposed puts the embargo
+      in force with the others pending as revisions, in Revise (ADR-0130).
     verification: >-
       A property test enumerates register states, applies every legal register
       step, and asserts each (trigger, EM before, EM after) is one of these

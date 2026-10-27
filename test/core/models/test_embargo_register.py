@@ -204,7 +204,26 @@ REFUSED: dict[
 }
 
 
-@pytest.mark.parametrize("case", list(REFUSED), ids=list(REFUSED))
+#: The refused steps that would leave two entries ``ACTIVE`` (VP-04-002).
+_TWO_ACTIVE = {
+    "activating beside an ACTIVE entry (invariant 1)",
+    "two activations in one step (invariant 1)",
+}
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        pytest.param(
+            case,
+            id=case,
+            marks=(
+                [pytest.mark.spec("VP-04-002")] if case in _TWO_ACTIVE else []
+            ),
+        )
+        for case in REFUSED
+    ],
+)
 def test_refused_step_raises(case: str) -> None:
     """Each combination is refused, and by the rule it breaks."""
     before, changes, rule = REFUSED[case]
@@ -564,7 +583,10 @@ def test_construction_stamps_the_register_em_onto_the_status() -> None:
 @pytest.mark.parametrize(
     "entries",
     [
-        [_entry(A, S.ACTIVE), _entry(B, S.ACTIVE)],
+        pytest.param(
+            [_entry(A, S.ACTIVE), _entry(B, S.ACTIVE)],
+            marks=pytest.mark.spec("VP-04-002"),
+        ),
         [_entry(A, S.TERMINATED), _entry(B, S.PROPOSED)],
         [_entry(A, S.PROPOSED), _entry(A, S.PROPOSED)],
         [_entry(B, S.ACTIVE, replaces=A)],

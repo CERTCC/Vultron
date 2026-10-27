@@ -275,12 +275,14 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
         )
         assert isinstance(obj.object_, _RecommendActorActivity)
 
+    @pytest.mark.spec("RF-02-003")
     def test_accept_case_ownership_transfer_accepts_typed(self):
         obj = _AcceptCaseOwnershipTransferActivity(
             actor=_ACTOR.id_, object_=_OFFER_TRANSFER
         )
         assert isinstance(obj.object_, _OfferCaseOwnershipTransferActivity)
 
+    @pytest.mark.spec("RF-03-003")
     def test_reject_case_ownership_transfer_accepts_typed(self):
         obj = _RejectCaseOwnershipTransferActivity(
             actor=_ACTOR.id_, object_=_OFFER_TRANSFER
@@ -322,14 +324,17 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
         obj = _EmUndoEmbargoInviteActivity(actor=_ACTOR.id_, object_=_PROPOSE)
         assert isinstance(obj.object_, _EmProposeEmbargoActivity)
 
+    @pytest.mark.spec("RF-02-003")
     def test_rm_validate_report_accepts_typed(self):
         obj = _RmValidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
         assert isinstance(obj.object_, _RmSubmitReportActivity)
 
+    @pytest.mark.spec("RF-04-003")
     def test_rm_invalidate_report_accepts_typed(self):
         obj = _RmInvalidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
         assert isinstance(obj.object_, _RmSubmitReportActivity)
 
+    @pytest.mark.spec("RF-03-003")
     def test_rm_close_report_accepts_typed(self):
         obj = _RmCloseReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
         assert isinstance(obj.object_, _RmSubmitReportActivity)
@@ -624,6 +629,7 @@ if __name__ == "__main__":
 
 @pytest.mark.spec("RF-02-004")
 @pytest.mark.spec("RF-02-005")
+@pytest.mark.spec("RF-02-003")
 @pytest.mark.parametrize(
     ("accept_cls", "offered_object"),
     [
@@ -640,3 +646,30 @@ def test_accept_refuses_the_offered_object_in_place_of_the_offer(
     """An Accept carries the Offer or Invite itself, not what it offered."""
     with pytest.raises(ValidationError):
         accept_cls(actor=_ACTOR.id_, object_=offered_object)
+
+
+@pytest.mark.spec("RF-03-003")
+@pytest.mark.parametrize(
+    ("reject_cls", "offered_object"),
+    [
+        (_RejectCaseOwnershipTransferActivity, _CASE),
+        (_RmRejectInviteToCaseActivity, _CASE),
+        (_EmRejectEmbargoActivity, _EMBARGO),
+        (_RmCloseReportActivity, _REPORT),
+    ],
+)
+def test_reject_refuses_the_offered_object_in_place_of_the_offer(
+    reject_cls, offered_object
+):
+    """A Reject carries the Offer or Invite itself, not what it offered."""
+    with pytest.raises(ValidationError):
+        reject_cls(actor=_ACTOR.id_, object_=offered_object)
+
+
+@pytest.mark.spec("RF-04-003")
+def test_tentative_reject_refuses_the_offered_object_in_place_of_the_offer():
+    """A TentativeReject carries the Offer itself, not the offered report."""
+    with pytest.raises(ValidationError):
+        _RmInvalidateReportActivity(
+            actor=_ACTOR.id_, object_=cast(Any, _REPORT)
+        )

@@ -598,3 +598,221 @@ def test_lost_last_entry_is_recovered_by_a_position_statement(
         key=lambda e: e.log_index,
     )
     assert peer_tail.entry_hash == entry2.entry_hash
+
+
+def _drain_outbox(iso, actor_id: str, dl) -> None:
+    """Deliver everything *actor_id* has queued, through the shared router."""
+    anyio.run(
+        functools.partial(
+            outbox_handler,
+            actor_id,
+            dl,
+            emitter=getattr(iso.app.state, "emitter", None),
+        )
+    )
+
+
+@pytest.mark.spec("SYNC-16-001")
+@pytest.mark.spec("SYNC-16-003")
+@pytest.mark.spec("SYNC-16-007")
+@pytest.mark.parametrize("divergence", ["register_entry", "consent_row"])
+def test_a_diverged_replica_converges_after_the_case_managers_reseed(
+    two_app_setup, divergence: str
+) -> None:
+    """A replica whose embargo state diverged is repaired by a re-seed.
+
+    The peer's replica loses either the embargo register's entry for the
+    proposed embargo or its own consent row for it (the per-entry record of
+    that register, ADR-0122).  Either way the CASE_MANAGER's next copied
+    entry, which updates that row, extends the peer's chain but does not
+    apply to its case.  Every hop is a delivery
+    between the two isolated apps: the peer holds the entry and sends a
+    case-diverged fault (SYNC-16-001); the CASE_MANAGER answers with
+    ``Announce(VulnerabilityCase)`` naming its ledger position (SYNC-16-003);
+    the peer replaces its case and stores the held entry as the no-op the
+    copy reflects (SYNC-16-007).  The peer ends with the CASE_MANAGER's case
+    file and chain tail, and neither ledger records the fault (SYNC-16-002).
+    """
+    from test.support.embargo_register import propose, write_consent_rows
+    from test.support.inbox_replay import held_depth
+    from test.support.ledger import chain_tail, ledger_entries
+    from vultron.adapters.driven.trigger_activity_adapter import (
+        TriggerActivityAdapter,
+    )
+    from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+    from vultron.core.behaviors.embargo.copy_commit import (
+        commit_and_apply_embargo_entries,
+        consent_row_entry,
+    )
+    from vultron.core.models._helpers import days_from_now_utc
+    from vultron.core.models.case import VulnerabilityCase
+    from vultron.core.models.case_participant import CaseParticipant
+    from vultron.core.models.embargo_apply import (
+        ConsentRowChange,
+        ConsentRowVerb,
+    )
+    from vultron.core.models.embargo_consent import EmbargoConsent
+    from vultron.core.models.fault_classes import (
+        VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
+    )
+    from vultron.core.states.participant_embargo_consent import (
+        EmbargoConsentState,
+    )
+    from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
+
+    case_actor_iso, peer_iso, case_actor_tc, peer_tc = two_app_setup
+    case_actor_id = _create_actor(
+        case_actor_tc,
+        f"{case_actor_iso.base_url}/api/v2",
+        "case-actor-sync-1603",
+        "Service",
+    )
+    peer_actor_id = _create_actor(
+        peer_tc,
+        f"{peer_iso.base_url}/api/v2",
+        "peer-sync-1603",
+        "Organization",
+    )
+    case_actor_dl = case_actor_iso.store_for(case_actor_id)
+    peer_dl = peer_iso.store_for(peer_actor_id)
+    _register_peer(
+        case_actor_tc, "case-actor-sync-1603", peer_actor_id, "peer-sync-1603"
+    )
+    _register_peer(
+        peer_tc,
+        "peer-sync-1603",
+        case_actor_id,
+        "case-actor-sync-1603",
+        "Service",
+    )
+
+    case = as_VulnerabilityCase(
+        name="SYNC-16 divergence recovery case", attributed_to=_OWNER_ID
+    )
+    embargo = as_EmbargoEvent(
+        id_=f"{case.id_}/embargo_events/e1",
+        context=case.id_,
+        end_time=days_from_now_utc(45),
+    )
+    manager_participant = as_CaseParticipant(
+        attributed_to=case_actor_id,
+        context=case.id_,
+        case_roles=[CVDRole.CASE_MANAGER],
+    )
+    peer_participant = as_CaseParticipant(
+        attributed_to=peer_actor_id, context=case.id_
+    )
+    for participant in (manager_participant, peer_participant):
+        case.case_participants.append(participant.id_)
+        case.actor_participant_index[str(participant.attributed_to)] = (
+            participant.id_
+        )
+    # An open proposal and no embargo in force, so both are active
+    # participants and every case-content send reaches the peer (CM-10-004).
+    propose(case, embargo.id_)
+    case_actor_dl.save(embargo)
+    case_actor_dl.save(manager_participant)
+    case_actor_dl.save(peer_participant)
+    case_actor_dl.save(case)
+    case_actor_dl.save(VultronService(id_=case_actor_id, context=case.id_))
+    write_consent_rows(
+        case_actor_dl, cast(VulnerabilityCase, case_actor_dl.read(case.id_))
+    )
+    # The peer's replica holds the same case file, then diverges: its case
+    # loses the register entry, or its own record the consent row, that the
+    # next entry's row update needs.
+    for obj_id in (
+        case.id_,
+        embargo.id_,
+        manager_participant.id_,
+        peer_participant.id_,
+    ):
+        peer_dl.save(case_actor_dl.read(obj_id))
+    if divergence == "register_entry":
+        diverged_case = cast(VulnerabilityCase, peer_dl.read(case.id_))
+        diverged_case.embargo_register = []
+        peer_dl.save(diverged_case)
+    else:
+        diverged = cast(CaseParticipant, peer_dl.read(peer_participant.id_))
+        diverged.embargo_consents = []
+        peer_dl.save(diverged)
+
+    commit_and_apply_embargo_entries(
+        case_actor_dl,
+        case.id_,
+        [
+            consent_row_entry(
+                datalayer=case_actor_dl,
+                trigger_activity=TriggerActivityAdapter(case_actor_dl),
+                actor_id=case_actor_id,
+                case_id=case.id_,
+                change=ConsentRowChange(
+                    verb=ConsentRowVerb.UPDATE,
+                    row=EmbargoConsent(
+                        embargo_id=embargo.id_,
+                        state=EmbargoConsentState.INVITED,
+                        attributed_to=peer_actor_id,
+                    ),
+                ),
+                cause_id=f"{case.id_}/activities/invite",
+                sync_port=SyncActivityAdapter(case_actor_dl),
+            )
+        ],
+    )
+    manager_ledger = ledger_entries(case_actor_dl, case.id_)
+    assert len(manager_ledger) == 1
+
+    # Each app's inbox delivers what it queues in answer, so draining the
+    # CASE_MANAGER's outbox, then each again, runs every hop to quiescence.
+    _drain_outbox(case_actor_iso, case_actor_id, case_actor_dl)
+    _drain_outbox(peer_iso, peer_actor_id, peer_dl)
+    _drain_outbox(case_actor_iso, case_actor_id, case_actor_dl)
+
+    sealed = (
+        read_sealed_body_dict(peer_dl, create.id_) or {}
+        for create in peer_dl.list_objects("Create")
+    )
+    faults = [
+        body
+        for body in sealed
+        if (body.get("object") or {}).get("failureClass")
+        == VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED
+    ]
+    assert len(faults) == 1, "the peer reported the divergence once"
+
+    state = cast(
+        VultronReplicationState,
+        case_actor_dl.read(
+            VultronReplicationState(
+                case_id=case.id_, peer_id=peer_actor_id
+            ).id_
+        ),
+    )
+    assert state is not None and state.last_reseeded_at is not None
+    assert held_depth(peer_dl, case.id_) == 0
+    manager_case = cast(VulnerabilityCase, case_actor_dl.read(case.id_))
+    peer_case = cast(VulnerabilityCase, peer_dl.read(case.id_))
+    assert chain_tail(peer_dl, peer_case) == chain_tail(
+        case_actor_dl, manager_case
+    )
+    assert peer_case.ledger_position == manager_case.ledger_position
+    # The whole case file: the case and every participant record, each
+    # carrying its consent rows for the register's embargo (ADR-0122).
+    assert peer_case.model_dump(mode="json") == manager_case.model_dump(
+        mode="json"
+    )
+    for participant_id in manager_case.case_participants:
+        assert cast(
+            CaseParticipant, peer_dl.read(str(participant_id))
+        ).model_dump(mode="json") == cast(
+            CaseParticipant, case_actor_dl.read(str(participant_id))
+        ).model_dump(mode="json")
+    assert (
+        cast(
+            CaseParticipant, peer_dl.read(peer_participant.id_)
+        ).embargo_consents
+        == cast(
+            CaseParticipant, case_actor_dl.read(peer_participant.id_)
+        ).embargo_consents
+    )
+    assert ledger_entries(case_actor_dl, case.id_) == manager_ledger

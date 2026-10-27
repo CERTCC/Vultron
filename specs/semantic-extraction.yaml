@@ -75,6 +75,47 @@ groups:
     relationships:
     - rel_type: depends_on
       spec_id: SE-01-002
+  - id: SE-01-006
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      An `ActivityPattern`'s `object_` type constraint MUST NOT be satisfied by a bare
+      URI that is still unresolved after rehydration, except in a pattern that a field
+      other than the object's type tells apart from every other pattern of its verb, as
+      `ledgerPosition` does for `Read(CaseLedgerEntry)`.
+    rationale: >-
+      A bare `object` at match time names an object the receiver could not resolve, so
+      its type is unknown. A pattern that ignores the type routes it to the first
+      pattern of its verb: an `Announce` of an embargo by id was read as
+      `ANNOUNCE_VULNERABILITY_CASE` (CONCERN-5243). Left unmatched, it is
+      `UNKNOWN_UNRESOLVABLE_OBJECT`, the outcome a receiver can answer by fetching the
+      object (AKM-05-003).
+    verification: >-
+      `test_bare_object_satisfies_no_object_type_constraint` in
+      `test/test_semantic_activity_patterns.py` checks every registered pattern whose
+      `object_` is a type, except `Read(CaseLedgerEntry)`, and fails if any of them
+      accepts a bare URI as its object.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-01-005
+  - id: SE-01-007
+    priority: MAY
+    kind: project
+    statement: >-
+      A bare URI in an activity's `target`, `context` or `to` MAY satisfy an
+      `ActivityPattern`'s type constraint on that field, except where SE-08-004 requires
+      `strict=True`.
+    rationale: >-
+      A case in `target` or `context` travels as its URI or a stub by rule (MV-10-001),
+      so a pattern that refused a bare case URI there would refuse well-formed
+      activities. Only the `object` names the thing the activity acts on.
+    verification: >-
+      `test_bare_case_uri_in_target_or_context_satisfies_the_pattern` in
+      `test/test_semantic_activity_patterns.py` matches activities whose `target` or
+      `context` is a bare case URI and checks their semantic type.
+    relationships:
+    - rel_type: refines
+      spec_id: SE-01-005
 - id: SE-02
   title: Semantic Type Assignment
   specs:

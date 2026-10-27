@@ -2,9 +2,12 @@
 stakeholder_type: [platform-developer]
 level: 300
 page_type: explanation
+subject: protocol
 ---
 
 # Protocol Event Flow
+
+{% include-markdown "../includes/specification_governs.md" %}
 
 ## Overview
 

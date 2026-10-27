@@ -2,12 +2,15 @@
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
 page_type: explanation
+subject: protocol
 introduces: [Embargo Grammar]
 description: >
   The EM process as a formal state machine, with its grammar and every possible history.
 ---
 
 # EM Formal Model
+
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 This page defines the Embargo Management (EM) process as a deterministic finite automaton (DFA).
 It is for readers who want the formal model behind the [EM process model](index.md).
@@ -217,7 +220,7 @@ If you read only the symbol, four of these moves are not deterministic:
 - *r* or *a* from *R* reaches *A* or stays at *R*.
 
 The register decides which move is taken.
-The case leaves *P* or *R* only when no proposal remains open.
+The case moves from *P* or *R* to *N* or *A* only when no proposal remains open.
 The move that stays in the same state is therefore the move made while another proposal is still open.
 
 ```mermaid

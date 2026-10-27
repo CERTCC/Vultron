@@ -2,11 +2,14 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 page_type: explanation
+subject: protocol
 description: >
   The federation model for organizations that each operate their own coordination service: what the services interchange, who has authority for a case, and how trust is built.
 ---
 
 # Federation
+
+{% include-markdown "../../includes/specification_governs.md" %}
 
 Vultron has a design for a world in which each organization operates its own coordination service.
 This page gives the federation model for those services.

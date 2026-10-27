@@ -250,7 +250,8 @@ _BOOKKEEPING = (
 )
 _REPLICATION = (
     "writes the CASE_MANAGER's per-peer replication state (pause, replay"
-    " position), not a record of the case (CM-10-005, SYNC-15-003)"
+    " position, last re-seed), not a record of the case (CM-10-005,"
+    " SYNC-15-003, SYNC-16-004)"
 )
 _PROPOSAL_INDEX = (
     "records which Invite proposed an embargo to this replica, a per-replica"
@@ -358,6 +359,7 @@ WRITES_NO_CASE_STATE: dict[tuple[str, str], str] = {
         "ReplayHeldSuccessorNode",
     ): _HELD_ANNOUNCE,
     (f"{_B}.sync.nodes.replay", "SendMissingEntriesNode"): _REPLICATION,
+    (f"{_B}.sync.nodes.reseed", "ReseedPeerNode"): _REPLICATION,
 }
 
 

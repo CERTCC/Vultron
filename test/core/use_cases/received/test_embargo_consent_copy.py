@@ -21,31 +21,23 @@ goes to gap handling and is never patched over (ADR-0124), and the replica
 reports the divergence to the CASE_MANAGER (SYNC-16-001).
 """
 
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
 from test.support.inbox_replay import held_depth
 from test.support.ledger import committed_semantic_types, fail_commits
-from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.behaviors.embargo import copy_commit
 from vultron.core.behaviors.embargo.copy_commit import (
-    PlannedEmbargoEntry,
     commit_and_apply_embargo_entries,
-    consent_row_entry,
 )
 from vultron.core.behaviors.sync import commit_tree
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_participant import CaseParticipant
-from vultron.core.models.embargo_apply import (
-    ConsentRowChange,
-    ConsentRowVerb,
-)
-from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
@@ -73,93 +65,6 @@ def _net(name: str) -> LedgerNetwork:
     return LedgerNetwork(f"https://example.org/cases/{name}")
 
 
-def _record(net: LedgerNetwork, holder: str, actor_id: str) -> CaseParticipant:
-    case = net.case(holder)
-    return cast(
-        CaseParticipant,
-        net.stores[holder].read(case.actor_participant_index[actor_id]),
-    )
-
-
-def _row_change(
-    net: LedgerNetwork, actor_id: str, state: EmbargoConsentState
-) -> ConsentRowChange:
-    return ConsentRowChange(
-        verb=ConsentRowVerb.UPDATE,
-        row=EmbargoConsent(
-            embargo_id=net.initial_embargo_id,
-            state=state,
-            attributed_to=actor_id,
-        ),
-    )
-
-
-def _entry(
-    net: LedgerNetwork, change: ConsentRowChange
-) -> PlannedEmbargoEntry:
-    dl = net.stores[MANAGER]
-    return consent_row_entry(
-        datalayer=dl,
-        trigger_activity=TriggerActivityAdapter(dl),
-        actor_id=MANAGER,
-        case_id=net.case_id,
-        change=change,
-        cause_id=_CAUSE,
-        sync_port=SyncActivityAdapter(dl),
-    )
-
-
-def _announcements(net: LedgerNetwork, replica: str) -> list[dict[str, Any]]:
-    """The ``Announce(CaseLedgerEntry)`` bodies queued for *replica*."""
-    bodies = []
-    for activity in net.queued(MANAGER, to=replica, type_="Announce"):
-        body = read_sealed_body_dict(net.stores[MANAGER], activity.id_)
-        if ((body or {}).get("object") or {}).get("type") == "CaseLedgerEntry":
-            bodies.append(cast(dict[str, Any], body))
-    return bodies
-
-
-def _drop_row(net: LedgerNetwork, holder: str, actor_id: str) -> None:
-    """Make *holder*'s copy of *actor_id*'s record lose its consent row.
-
-    A diverged replica: an ``Update`` of that row then has no row to start
-    from, whatever state it carries.
-    """
-    record = _record(net, holder, actor_id)
-    record.embargo_consents = [
-        row
-        for row in record.embargo_consents
-        if row.embargo_id != net.initial_embargo_id
-    ]
-    net.stores[holder].save(record)
-
-
-def _diverged_announcement(net: LedgerNetwork) -> dict[str, Any]:
-    """The CASE_MANAGER's announce of an entry the bystander has diverged from.
-
-    The bystander's replica lost its consent row, so the committed entry
-    updating that row extends its chain but does not apply to its case.
-    """
-    _drop_row(net, BYSTANDER, BYSTANDER)
-    commit_and_apply_embargo_entries(
-        net.stores[MANAGER],
-        net.case_id,
-        [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
-    )
-    (body,) = _announcements(net, BYSTANDER)
-    return body
-
-
-def _faults(net: LedgerNetwork) -> list[dict[str, Any]]:
-    """The sealed ``Create(ProcessingFault)`` bodies the bystander queued."""
-    bodies = []
-    for activity in net.queued(BYSTANDER, to=MANAGER, type_="Create"):
-        body = read_sealed_body_dict(net.stores[BYSTANDER], activity.id_)
-        if ((body or {}).get("object") or {}).get("type") == "ProcessingFault":
-            bodies.append(cast(dict[str, Any], body))
-    return bodies
-
-
 def _rows(record: CaseParticipant) -> list[dict[str, Any]]:
     return [row.model_dump(mode="json") for row in record.embargo_consents]
 
@@ -171,8 +76,12 @@ class TestCaseManagerCommitsThenApplies:
     def test_each_changed_row_is_its_own_entry_and_is_applied(self):
         net = _net("cc-commit")
         entries = [
-            _entry(net, _row_change(net, BYSTANDER, _S.DECLINED)),
-            _entry(net, _row_change(net, OWNER, _S.DECLINED)),
+            net.planned_consent_entry(
+                net.consent_row_change(BYSTANDER, _S.DECLINED), _CAUSE
+            ),
+            net.planned_consent_entry(
+                net.consent_row_change(OWNER, _S.DECLINED), _CAUSE
+            ),
         ]
         before = committed_semantic_types(net.stores[MANAGER], net.case_id)
 
@@ -185,28 +94,32 @@ class TestCaseManagerCommitsThenApplies:
             after[len(before) :] == [UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE] * 2
         )
         for actor_id in (BYSTANDER, OWNER):
-            record = _record(net, MANAGER, actor_id)
+            record = net.record(MANAGER, actor_id)
             assert record.consent_for(net.initial_embargo_id) == _S.DECLINED
 
     @pytest.mark.spec("CLP-07-013")
     def test_a_refused_trial_commits_nothing_and_changes_nothing(self):
         net = _net("cc-trial")
         dl = net.stores[MANAGER]
-        held = _rows(_record(net, MANAGER, BYSTANDER))
+        held = _rows(net.record(MANAGER, BYSTANDER))
         before = committed_semantic_types(dl, net.case_id)
         entries = [
-            _entry(net, _row_change(net, OWNER, _S.DECLINED)),
+            net.planned_consent_entry(
+                net.consent_row_change(OWNER, _S.DECLINED), _CAUSE
+            ),
             # AGREED → TIMED_OUT is no consent transition, so the trial
             # refuses the act before its first entry is committed.
-            _entry(net, _row_change(net, BYSTANDER, _S.TIMED_OUT)),
+            net.planned_consent_entry(
+                net.consent_row_change(BYSTANDER, _S.TIMED_OUT), _CAUSE
+            ),
         ]
 
         with pytest.raises(VultronEntryRefusedError):
             commit_and_apply_embargo_entries(dl, net.case_id, entries)
 
         assert committed_semantic_types(dl, net.case_id) == before
-        assert _rows(_record(net, MANAGER, BYSTANDER)) == held
-        owner = _record(net, MANAGER, OWNER)
+        assert _rows(net.record(MANAGER, BYSTANDER)) == held
+        owner = net.record(MANAGER, OWNER)
         assert owner.consent_for(net.initial_embargo_id) == _S.AGREED
 
     @pytest.mark.spec("CLP-07-015")
@@ -218,7 +131,7 @@ class TestCaseManagerCommitsThenApplies:
         (ADR-0146)."""
         net = _net("cc-fail")
         dl = net.stores[MANAGER]
-        held = {a: _rows(_record(net, MANAGER, a)) for a in (BYSTANDER, OWNER)}
+        held = {a: _rows(net.record(MANAGER, a)) for a in (BYSTANDER, OWNER)}
         before = committed_semantic_types(dl, net.case_id)
         queued = dl.outbox_list()
         failed = fail_commits(
@@ -230,8 +143,12 @@ class TestCaseManagerCommitsThenApplies:
             ),
         )
         entries = [
-            _entry(net, _row_change(net, BYSTANDER, _S.DECLINED)),
-            _entry(net, _row_change(net, OWNER, _S.DECLINED)),
+            net.planned_consent_entry(
+                net.consent_row_change(BYSTANDER, _S.DECLINED), _CAUSE
+            ),
+            net.planned_consent_entry(
+                net.consent_row_change(OWNER, _S.DECLINED), _CAUSE
+            ),
         ]
 
         with pytest.raises(RuntimeError):
@@ -245,7 +162,7 @@ class TestCaseManagerCommitsThenApplies:
         for activity_id in failed:
             assert dl.read(activity_id) is None
         for actor_id, rows in held.items():
-            assert _rows(_record(net, MANAGER, actor_id)) == rows
+            assert _rows(net.record(MANAGER, actor_id)) == rows
 
     @pytest.mark.spec("CLP-07-015")
     def test_a_save_that_fails_after_the_commits_keeps_no_entry(
@@ -255,7 +172,7 @@ class TestCaseManagerCommitsThenApplies:
         transaction: a failed save undoes the committed entries too."""
         net = _net("cc-fail-save")
         dl = net.stores[MANAGER]
-        held = _rows(_record(net, MANAGER, BYSTANDER))
+        held = _rows(net.record(MANAGER, BYSTANDER))
         before = committed_semantic_types(dl, net.case_id)
 
         def _fail(*_args: object) -> None:
@@ -267,11 +184,15 @@ class TestCaseManagerCommitsThenApplies:
             commit_and_apply_embargo_entries(
                 dl,
                 net.case_id,
-                [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+                [
+                    net.planned_consent_entry(
+                        net.consent_row_change(BYSTANDER, _S.DECLINED), _CAUSE
+                    )
+                ],
             )
 
         assert committed_semantic_types(dl, net.case_id) == before
-        assert _rows(_record(net, MANAGER, BYSTANDER)) == held
+        assert _rows(net.record(MANAGER, BYSTANDER)) == held
 
     @pytest.mark.spec("CLP-07-015")
     @pytest.mark.spec("CM-23-016")
@@ -283,11 +204,15 @@ class TestCaseManagerCommitsThenApplies:
             net.stores[MANAGER],
             net.case_id,
             [
-                _entry(net, _row_change(net, BYSTANDER, _S.DECLINED)),
-                _entry(net, _row_change(net, OWNER, _S.DECLINED)),
+                net.planned_consent_entry(
+                    net.consent_row_change(BYSTANDER, _S.DECLINED), _CAUSE
+                ),
+                net.planned_consent_entry(
+                    net.consent_row_change(OWNER, _S.DECLINED), _CAUSE
+                ),
             ],
         )
-        bodies = _announcements(net, BYSTANDER)
+        bodies = net.ledger_announcements(BYSTANDER)
         assert len(bodies) == 2
 
         for body in bodies:
@@ -297,10 +222,10 @@ class TestCaseManagerCommitsThenApplies:
             )
 
         for actor_id in (BYSTANDER, OWNER):
-            replica_rows = _rows(_record(net, BYSTANDER, actor_id))
-            assert replica_rows == _rows(_record(net, MANAGER, actor_id))
+            replica_rows = _rows(net.record(BYSTANDER, actor_id))
+            assert replica_rows == _rows(net.record(MANAGER, actor_id))
             assert (
-                _record(net, BYSTANDER, actor_id).consent_for(
+                net.record(BYSTANDER, actor_id).consent_for(
                     net.initial_embargo_id
                 )
                 == _S.DECLINED
@@ -309,17 +234,21 @@ class TestCaseManagerCommitsThenApplies:
     def test_a_first_commit_that_fails_changes_nothing(self, monkeypatch):
         net = _net("cc-fail-first")
         dl = net.stores[MANAGER]
-        held = _rows(_record(net, MANAGER, BYSTANDER))
+        held = _rows(net.record(MANAGER, BYSTANDER))
         fail_commits(monkeypatch, commit_tree)
 
         with pytest.raises(RuntimeError):
             commit_and_apply_embargo_entries(
                 dl,
                 net.case_id,
-                [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+                [
+                    net.planned_consent_entry(
+                        net.consent_row_change(BYSTANDER, _S.DECLINED), _CAUSE
+                    )
+                ],
             )
 
-        assert _rows(_record(net, MANAGER, BYSTANDER)) == held
+        assert _rows(net.record(MANAGER, BYSTANDER)) == held
 
 
 class TestReplicaCopies:
@@ -331,17 +260,21 @@ class TestReplicaCopies:
         commit_and_apply_embargo_entries(
             net.stores[MANAGER],
             net.case_id,
-            [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+            [
+                net.planned_consent_entry(
+                    net.consent_row_change(BYSTANDER, _S.DECLINED), _CAUSE
+                )
+            ],
         )
 
-        for body in _announcements(net, BYSTANDER):
+        for body in net.ledger_announcements(BYSTANDER):
             verdict = net.receive(BYSTANDER, body)
             assert verdict.disposition is HandlerDisposition.APPLIED, (
                 verdict.reason
             )
 
-        assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(
-            _record(net, MANAGER, BYSTANDER)
+        assert _rows(net.record(BYSTANDER, BYSTANDER)) == _rows(
+            net.record(MANAGER, BYSTANDER)
         )
 
     @pytest.mark.spec("CM-23-016")
@@ -354,14 +287,18 @@ class TestReplicaCopies:
         """
         net = _net("cc-gap")
         replica = net.stores[BYSTANDER]
-        _drop_row(net, BYSTANDER, BYSTANDER)
-        diverged = _record(net, BYSTANDER, BYSTANDER)
+        net.drop_consent_row(BYSTANDER, BYSTANDER)
+        diverged = net.record(BYSTANDER, BYSTANDER)
         commit_and_apply_embargo_entries(
             net.stores[MANAGER],
             net.case_id,
-            [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+            [
+                net.planned_consent_entry(
+                    net.consent_row_change(BYSTANDER, _S.DECLINED), _CAUSE
+                )
+            ],
         )
-        (body,) = _announcements(net, BYSTANDER)
+        (body,) = net.ledger_announcements(BYSTANDER)
         entry_id = body["object"]["id"]
 
         verdict = net.receive(BYSTANDER, body)
@@ -370,7 +307,7 @@ class TestReplicaCopies:
         assert "its Announce is held" in verdict.reason
         assert replica.read(entry_id) is None, "a refused entry is not stored"
         assert held_depth(replica, net.case_id) == 1
-        assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(diverged)
+        assert _rows(net.record(BYSTANDER, BYSTANDER)) == _rows(diverged)
 
     @pytest.mark.spec("SYNC-16-001")
     @pytest.mark.spec("ASK-07-004")
@@ -385,14 +322,14 @@ class TestReplicaCopies:
         """
         net = _net("cc-diverged")
         replica = net.stores[BYSTANDER]
-        body = _diverged_announcement(net)
+        body = net.diverged_announcement(BYSTANDER, BYSTANDER, _CAUSE)
 
         verdict = net.receive(BYSTANDER, body)
 
         assert verdict.disposition is HandlerDisposition.DEFERRED
         assert held_depth(replica, net.case_id) == 1
         assert replica.read(body["object"]["id"]) is None
-        (fault,) = _faults(net)
+        (fault,) = net.processing_faults(BYSTANDER)
         assert fault["id"] == derived_activity_id(
             "processing-fault", BYSTANDER, body["id"], _CASE_DIVERGED
         )
@@ -403,7 +340,9 @@ class TestReplicaCopies:
 
         net.receive(BYSTANDER, body)
 
-        assert [f["id"] for f in _faults(net)] == [fault["id"]]
+        assert [f["id"] for f in net.processing_faults(BYSTANDER)] == [
+            fault["id"]
+        ]
 
     @pytest.mark.spec("SYNC-16-001")
     @pytest.mark.spec("SYNC-14-006")
@@ -417,13 +356,13 @@ class TestReplicaCopies:
             held_ledger_announces, "DEFAULT_HELD_LEDGER_ANNOUNCES_MAX", 0
         )
         net = _net("cc-diverged-full")
-        body = _diverged_announcement(net)
+        body = net.diverged_announcement(BYSTANDER, BYSTANDER, _CAUSE)
 
         verdict = net.receive(BYSTANDER, body)
 
         assert verdict.disposition is HandlerDisposition.REFUSED
         assert held_depth(net.stores[BYSTANDER], net.case_id) == 0
-        (fault,) = _faults(net)
+        (fault,) = net.processing_faults(BYSTANDER)
         assert fault["object"]["failureClass"] == _CASE_DIVERGED
 
     @pytest.mark.spec("SYNC-16-001")
@@ -435,14 +374,14 @@ class TestReplicaCopies:
         a redelivery to a correctly wired replica runs the act again.
         """
         net = _net("cc-diverged-no-port")
-        body = _diverged_announcement(net)
+        body = net.diverged_announcement(BYSTANDER, BYSTANDER, _CAUSE)
 
         with pytest.raises(VultronBTInternalError):
             net.receive(
                 BYSTANDER, body, without=frozenset({"trigger_activity"})
             )
 
-        assert _faults(net) == []
+        assert net.processing_faults(BYSTANDER) == []
         assert held_depth(net.stores[BYSTANDER], net.case_id) == 0
 
     @pytest.mark.spec("SYNC-16-001")
@@ -462,7 +401,7 @@ class TestReplicaCopies:
             raise VultronValidationError("the outbox refused the fault")
 
         net = _net("cc-diverged-port-fails")
-        body = _diverged_announcement(net)
+        body = net.diverged_announcement(BYSTANDER, BYSTANDER, _CAUSE)
         with monkeypatch.context() as patched:
             patched.setattr(
                 TriggerActivityAdapter, "emit_processing_fault", _fail
@@ -470,23 +409,26 @@ class TestReplicaCopies:
             with pytest.raises(VultronBTInternalError):
                 net.receive(BYSTANDER, body)
 
-        assert _faults(net) == []
+        assert net.processing_faults(BYSTANDER) == []
         assert held_depth(net.stores[BYSTANDER], net.case_id) == 0
 
         verdict = net.receive(BYSTANDER, body)
 
         assert verdict.disposition is HandlerDisposition.DEFERRED
         assert held_depth(net.stores[BYSTANDER], net.case_id) == 1
-        (fault,) = _faults(net)
+        (fault,) = net.processing_faults(BYSTANDER)
         assert fault["object"]["failureClass"] == _CASE_DIVERGED
 
     @pytest.mark.spec("SYNC-16-002")
     @pytest.mark.spec("CLP-04-007")
     def test_no_case_ledger_gains_an_entry_for_a_divergence_fault(self):
         """Neither the replica sending the fault nor the CASE_MANAGER
-        receiving it commits it to a case ledger."""
+        receiving it commits it to a case ledger, though the CASE_MANAGER
+        answers it with a fresh case copy (SYNC-16-003)."""
         net = _net("cc-diverged-unledgered")
-        body = _diverged_announcement(net)
+        # The owner's row diverges, so the bystander stays an active
+        # participant and the CASE_MANAGER re-seeds it (SYNC-16-003).
+        body = net.diverged_announcement(BYSTANDER, OWNER, _CAUSE)
         manager_before = committed_semantic_types(
             net.stores[MANAGER], net.case_id
         )
@@ -498,7 +440,7 @@ class TestReplicaCopies:
         verdicts = net.deliver(BYSTANDER, to=MANAGER, type_="Create")
 
         ((_, verdict),) = verdicts
-        assert verdict.disposition is HandlerDisposition.SKIPPED
+        assert verdict.disposition is HandlerDisposition.APPLIED
         assert (
             committed_semantic_types(net.stores[MANAGER], net.case_id)
             == manager_before
@@ -523,21 +465,25 @@ class TestReplicaCopies:
         )
         net = _net("cc-gap-full")
         replica = net.stores[BYSTANDER]
-        _drop_row(net, BYSTANDER, BYSTANDER)
-        diverged = _record(net, BYSTANDER, BYSTANDER)
+        net.drop_consent_row(BYSTANDER, BYSTANDER)
+        diverged = net.record(BYSTANDER, BYSTANDER)
         commit_and_apply_embargo_entries(
             net.stores[MANAGER],
             net.case_id,
-            [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+            [
+                net.planned_consent_entry(
+                    net.consent_row_change(BYSTANDER, _S.DECLINED), _CAUSE
+                )
+            ],
         )
-        (body,) = _announcements(net, BYSTANDER)
+        (body,) = net.ledger_announcements(BYSTANDER)
 
         verdict = net.receive(BYSTANDER, body)
 
         assert verdict.disposition is HandlerDisposition.REFUSED
         assert replica.read(body["object"]["id"]) is None
         assert held_depth(replica, net.case_id) == 0
-        assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(diverged)
+        assert _rows(net.record(BYSTANDER, BYSTANDER)) == _rows(diverged)
 
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("SYNC-16-007")
@@ -553,13 +499,17 @@ class TestReplicaCopies:
         """
         net = _net("cc-gap-retry")
         replica = net.stores[BYSTANDER]
-        _drop_row(net, BYSTANDER, BYSTANDER)
+        net.drop_consent_row(BYSTANDER, BYSTANDER)
         commit_and_apply_embargo_entries(
             net.stores[MANAGER],
             net.case_id,
-            [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+            [
+                net.planned_consent_entry(
+                    net.consent_row_change(BYSTANDER, _S.DECLINED), _CAUSE
+                )
+            ],
         )
-        (body,) = _announcements(net, BYSTANDER)
+        (body,) = net.ledger_announcements(BYSTANDER)
         entry_id = body["object"]["id"]
         assert (
             net.receive(BYSTANDER, body).disposition
@@ -584,8 +534,8 @@ class TestReplicaCopies:
         )
 
         assert replica.read(entry_id) is not None
-        assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(
-            _record(net, MANAGER, BYSTANDER)
+        assert _rows(net.record(BYSTANDER, BYSTANDER)) == _rows(
+            net.record(MANAGER, BYSTANDER)
         )
         assert held_depth(replica, net.case_id) == 0
 
@@ -598,14 +548,16 @@ class TestReplicaCopies:
         """
         net = _net("cc-replay")
         replica = net.stores[BYSTANDER]
-        change = _row_change(net, BYSTANDER, _S.DECLINED)
-        applied = _record(net, BYSTANDER, BYSTANDER)
+        change = net.consent_row_change(BYSTANDER, _S.DECLINED)
+        applied = net.record(BYSTANDER, BYSTANDER)
         applied.copy_consent_row(change.row)
         replica.save(applied)
         commit_and_apply_embargo_entries(
-            net.stores[MANAGER], net.case_id, [_entry(net, change)]
+            net.stores[MANAGER],
+            net.case_id,
+            [net.planned_consent_entry(change, _CAUSE)],
         )
-        (body,) = _announcements(net, BYSTANDER)
+        (body,) = net.ledger_announcements(BYSTANDER)
 
         verdict = net.receive(BYSTANDER, body)
 
@@ -614,6 +566,6 @@ class TestReplicaCopies:
         )
         assert replica.read(body["object"]["id"]) is not None
         assert held_depth(replica, net.case_id) == 0
-        assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(
-            _record(net, MANAGER, BYSTANDER)
+        assert _rows(net.record(BYSTANDER, BYSTANDER)) == _rows(
+            net.record(MANAGER, BYSTANDER)
         )

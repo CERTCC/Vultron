@@ -17,6 +17,11 @@ from vultron.wire.as2.extractor import (
     UndoCaseOwnershipTransferActivityPattern,
 )
 from vultron.wire.as2.extractor._instances import RefusalNoticePattern
+from vultron.wire.as2.extractor._pattern import (
+    InlineActivityObjectPattern,
+    LedgerPositionReadPattern,
+    _match_activity_field,
+)
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
     accept_case_participant_role_activity,
@@ -1319,3 +1324,62 @@ def test_wire_form_examples_map_to_their_semantics(
     module: str, example: str, semantics: MessageSemantics
 ) -> None:
     assert _example_semantics(module, example) == semantics
+
+
+def _object_check_admits_bare_uri(pattern: ActivityPattern) -> bool:
+    """True if *pattern*'s ``object_`` type check accepts a bare URI string."""
+    if isinstance(pattern, InlineActivityObjectPattern):
+        # Overrides match() and requires an inline activity.
+        return False
+    return _match_activity_field(
+        pattern.object_, "https://example.org/objects/unheld", pattern.strict
+    )
+
+
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.xfail(
+    strict=True,
+    reason="#5264: object_ matching is not yet strict by default",
+)
+def test_bare_object_satisfies_no_object_type_constraint() -> None:
+    """Only a pattern told apart by another field admits a bare ``object``.
+
+    ``Read(CaseLedgerEntry)`` is told apart by its ``ledgerPosition``
+    (``LedgerPositionReadPattern``); every other pattern whose ``object_``
+    is a type must refuse a bare, unresolved URI there (SE-01-006).
+    """
+    admitting = sorted(
+        {
+            str(entry.semantics)
+            for entry in SEMANTIC_REGISTRY
+            if entry.pattern is not None
+            and entry.pattern.object_ is not None
+            and not isinstance(entry.pattern, LedgerPositionReadPattern)
+            and _object_check_admits_bare_uri(entry.pattern)
+        }
+    )
+    assert admitting == []
+
+
+@pytest.mark.spec("SE-01-007")
+@pytest.mark.parametrize(
+    ("example", "expected"),
+    [
+        ("activate_embargo", MessageSemantics.ACTIVATE_EMBARGO_ON_CASE),
+        (
+            "withdraw_from_embargo",
+            MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE,
+        ),
+    ],
+)
+def test_bare_case_uri_in_target_or_context_satisfies_the_pattern(
+    example: str, expected: MessageSemantics
+) -> None:
+    """A case named by its bare URI in ``target``/``context`` still matches."""
+    activity = getattr(
+        importlib.import_module("vultron.wire.as2.vocab.examples.embargo"),
+        example,
+    )()
+    qualifiers = [activity.target, activity.context]
+    assert any(isinstance(q, str) for q in qualifiers)
+    assert find_matching_semantics(activity) == expected

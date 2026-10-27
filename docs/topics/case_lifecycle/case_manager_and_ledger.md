@@ -4,10 +4,13 @@ description: >
 stakeholder_type: [platform-developer]
 level: 300
 page_type: explanation
+subject: protocol
 introduces: [CASE_MANAGER, Case Ledger Entry, Ledger Admission, Participant Case Replica, Canonical Recorded Log, Single-Writer Regime, Ledger Fanout]
 ---
 
 # The CASE_MANAGER and the Case Ledger
+
+{% include-markdown "../../includes/specification_governs.md" %}
 
 Organizations that do not share a database coordinate a vulnerability case.
 Each one keeps its own copy of the case.

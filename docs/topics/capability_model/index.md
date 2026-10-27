@@ -5,9 +5,12 @@ description: >
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
 page_type: explanation
+subject: protocol
 ---
 
 # Capability Model
+
+{% include-markdown "../../includes/specification_governs.md" %}
 
 Vultron does not decide whether a report is credible, how urgent a case is, or when an advisory is ready to publish.
 Each of those decisions is a **call-out point**: a place where the protocol stops and asks a system you run.

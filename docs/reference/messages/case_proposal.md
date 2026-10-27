@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 page_type: reference
+subject: protocol
 description: >
   The pre-case bootstrap exchange (ADR-0023).
 ---

@@ -27,6 +27,7 @@ from typing import cast
 
 import pytest
 
+from test.support.received import delivered_body
 from vultron.wire.as2.extractor._instances import AckReportPattern
 from vultron.wire.as2.factories import (
     VultronActivityConstructionError,
@@ -38,6 +39,8 @@ from vultron.wire.as2.factories import (
     rm_submit_report_activity,
     rm_validate_report_activity,
 )
+from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.base import ACTIVITY_STREAMS_NS
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
@@ -309,6 +312,7 @@ def test_rm_validate_report_malformed_offer_raises(sample_actor):
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-02-005")
 @pytest.mark.spec("MSM-01-002")
+@pytest.mark.spec("RF-04-001")
 def test_rm_invalidate_report_returns_tentative_reject(
     sample_offer, sample_actor
 ):
@@ -462,3 +466,28 @@ def test_all_report_factories_importable_from_package():
         rm_submit_report_activity,
         rm_validate_report_activity,
     )
+
+
+# ---------------------------------------------------------------------------
+# Response activities conform to AS2 (RF-01-001)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.spec("RF-01-001")
+@pytest.mark.parametrize(
+    ("factory", "wire_type", "cls"),
+    [
+        (rm_validate_report_activity, "Accept", as_Accept),
+        (rm_close_report_activity, "Reject", as_Reject),
+        (rm_invalidate_report_activity, "TentativeReject", as_TentativeReject),
+    ],
+)
+def test_response_round_trips_through_the_as2_parser(
+    factory, wire_type, cls, sample_offer, sample_actor
+):
+    """A response's delivered body is AS2 that the inbound parser accepts."""
+    body = delivered_body(factory(offer=sample_offer, actor=sample_actor))
+
+    assert ACTIVITY_STREAMS_NS in str(body["@context"])
+    assert body["type"] == wire_type
+    assert isinstance(parse_activity(body), cls)

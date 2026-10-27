@@ -27,6 +27,7 @@ from pydantic import Field, model_validator
 
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.base import NonEmptyString, with_record_id
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.retired_stored_fields import (
     RetiredFieldsRecord,
     RetiredStoredField,
@@ -45,6 +46,10 @@ class VultronReplicationState(RetiredFieldsRecord):
     from the participant record alone (CM-17-012).  The three
     ``join_backfill_*`` fields that once recorded it are retired (#5074), so a
     stored row that still carries one is refused.
+
+    The ``last_reseed*`` fields record the CASE_MANAGER's last re-seed of
+    the peer, which bounds the re-seed rate and tells a repeated divergence
+    from a first one (SYNC-16-004, SYNC-16-008).
 
     Spec: SYNC-04-001, SYNC-04-002; the embargo pause is CM-10-005/006.
     """
@@ -127,6 +132,31 @@ class VultronReplicationState(RetiredFieldsRecord):
         ),
         validation_alias="embargoPausedFromIndex",
         serialization_alias="embargoPausedFromIndex",
+    )
+
+    last_reseeded_at: datetime | None = Field(
+        default=None,
+        description=(
+            "When the CASE_MANAGER last re-seeded this peer with"
+            " Announce(VulnerabilityCase) in answer to its case-diverged"
+            " fault; a fault inside the re-seed cooldown after it re-seeds"
+            " nothing. None means the peer has never been re-seeded"
+            " (SYNC-16-004)"
+        ),
+        validation_alias="lastReseededAt",
+        serialization_alias="lastReseededAt",
+    )
+    last_reseed_position: LedgerPosition | None = Field(
+        default=None,
+        description=(
+            "The ledger position the last re-seed's case copy named: a"
+            " divergence fault for an entry at or before it, once the peer"
+            " has acknowledged this position, means the CASE_MANAGER's case"
+            " disagrees with its own ledger (SYNC-16-004, SYNC-16-008). None"
+            " means the peer has never been re-seeded"
+        ),
+        validation_alias="lastReseedPosition",
+        serialization_alias="lastReseedPosition",
     )
 
     @model_validator(mode="before")

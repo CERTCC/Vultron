@@ -32,10 +32,13 @@ from vultron.core.behaviors.sync.nodes.canonical_entry import (
     _validate_canonical_entry,
 )
 from vultron.core.behaviors.sync.nodes.replay import replay_case_id
-from vultron.core.models._helpers import now_utc
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    update_replication_state,
+)
 from vultron.core.models.case_ledger import HashChainLedgerRecord
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
+from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.sync_helpers import (
     _find_equivalent_recorded_entry,
     _find_prev_actor_published,
@@ -187,19 +190,17 @@ class UpdateReplicationStateNode(DataLayerActionWithPorts):
                 f"{self.name}: replication position missing peer actor_id"
             )
 
-        state = VultronReplicationState(
+        acknowledged = activity.last_accepted_hash
+
+        def _acknowledge(state: VultronReplicationState) -> None:
+            state.last_acknowledged_hash = acknowledged
+
+        update_replication_state(
+            cast(CasePersistence, self.datalayer),
             case_id=case_id,
             peer_id=peer_id,
-            last_acknowledged_hash=activity.last_accepted_hash,
+            change=_acknowledge,
         )
-        existing = self.datalayer.read(state.id_)
-        if existing is not None:
-            existing_state = cast(VultronReplicationState, existing)
-            existing_state.last_acknowledged_hash = activity.last_accepted_hash
-            existing_state.updated_at = now_utc()
-            self.datalayer.save(existing_state)
-        else:
-            self.datalayer.save(state)
         return Status.SUCCESS
 
 

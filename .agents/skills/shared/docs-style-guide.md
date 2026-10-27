@@ -310,16 +310,27 @@ applies.
 in sentence case. Sections separated by `---` where the page has more than
 three of them, following the corpus.
 
-**SG-40 — Frontmatter declares audience, level, page type, and introductions.**
-Every reader-facing page declares `stakeholder_type`, a `level` from 100–500
-(DF-11-001) and a `page_type` (DF-11-018): its Diátaxis quadrant, or `routing`
-for a page that mainly gives directions. A working-record page declares
-`stakeholder_type: [project-contributor]` and no `level` (DF-11-012) or
-`page_type`. An include fragment declares none of them, because it takes its
-hosts' declarations (DF-11-010). A page that is
+**SG-40 — Frontmatter declares audience, level, page type, subject, and
+introductions.** Every reader-facing page declares `stakeholder_type`, a `level`
+from 100–500 (DF-11-001), a `page_type` (DF-11-018): its Diátaxis quadrant, or
+`routing` for a page that mainly gives directions, and a `subject` (DF-11-025):
+`protocol`, `implementation` or `neutral`. A working-record page declares
+`stakeholder_type: [project-contributor]` and no `level` (DF-11-012),
+`page_type` or `subject` (DF-11-026). An include fragment declares none of
+them, because it takes its hosts' declarations (DF-11-010). A page that is
 the canonical introduction of a glossary term lists it under `introduces:`
-(SG-11). `docs-frontmatter`, `docs-level-order` and `docs-thread-order`
-enforce these. Where `title`
+(SG-11). `docs-frontmatter`, `docs-nav-subjects`, `docs-level-order` and
+`docs-thread-order` enforce these.
+
+`subject` says what the page is **about**: the protocol (its specification,
+requirements, messages, models and design, including a tutorial that teaches
+protocol behavior on the reference implementation), CERT/CC's reference
+implementation (its code, demos, architecture and project record, however
+protocol-shaped), or neither. `neutral` pages may sit in any nav section, but
+`docs-nav-subjects` fails a nav section that holds both a `protocol` and an
+`implementation` page (DF-11-020), so a page belongs in a section of its own
+subject. Fix a failure by moving the page, or by correcting a wrong `subject`,
+never by declaring `neutral` to get past it. Where `title`
 and `description` are present, keep them accurate, but do not add other keys
 that nothing reads.
 

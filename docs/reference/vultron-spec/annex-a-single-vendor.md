@@ -5,6 +5,7 @@ description: >
 stakeholder_type: [platform-developer]
 level: 400
 page_type: explanation
+subject: protocol
 ---
 
 # Annex A Worked Example: Single-Vendor CVD

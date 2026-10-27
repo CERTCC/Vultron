@@ -5,8 +5,9 @@ kind: guidance
 description: >
   Rules for organizing reader-facing documentation: the argument the site must
   win, stakeholder types versus CVD roles, the invisible 100-500 prerequisite
-  levels and their check, the three normative-status banners, the working
-  record's door, generated landing pages, reading-path threads and coverage
+  levels and their check, the protocol/implementation `subject` key and its
+  nav-section check, the three normative-status banners, the working record's
+  door, generated landing pages, reading-path threads and coverage
   matrix, and how docs remediation is partitioned.
 related_notes:
   - notes/agentic-workflow.md
@@ -269,7 +270,12 @@ the seven tabs.
 So **the protocol and the reference implementation never share a section**
 (DF-11-020). A
 page about CERT/CC's codebase, such as the Trigger API or a demo, is basement
-material however protocol-shaped its subject is.
+material however protocol-shaped its subject is. Each reader-facing page says
+which it is in a `subject:` key — `protocol`, `implementation` or `neutral`
+(DF-11-025) — and `docs-nav-subjects` fails any nav group, at any depth, that
+holds both a `protocol` and an `implementation` page. `neutral` (CVD practice,
+research, routing, project pages) sits anywhere; it is not an escape hatch for
+a page that fails the check.
 
 **The normative protocol is the Protocol Specification plus the Protocol and
 Foundation requirement tiers**, all on Engineering; *Protocol Requirements* there
@@ -299,9 +305,10 @@ disclaim standing. The normative set is declared once, in `NORMATIVE_PAGES` in
 frontmatter: it is a short fixed list, and a key on hundreds of pages would be
 one more thing to drift (#4945). When the Requirements Catalog replaces the two
 tier pages (ADR-0147), the check fails on the missing pages until the list is
-updated. Machine-checking that no nav section mixes
-protocol and implementation pages needs a per-page `subject` key (#4946);
-until it lands the rule is a review rule.
+updated. The protocol-design pages that carry `specification_governs.md` are
+declared the same way, in `SPECIFICATION_GOVERNS_PAGES`: `subject: protocol`
+does not single them out from the protocol-floor companions, which carry
+`not_normative.md`.
 
 **Edge placements decided so far:** Behavior Logic and Federation
 (`platform-developer`) are Engineering; the Concept Taxonomy, the Glossary and

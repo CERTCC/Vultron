@@ -58,7 +58,10 @@ from vultron.core.behaviors.sender_entitlement import (
     SenderEntitlementKind,
     SenderRule,
 )
+from vultron.core.behaviors.sync.nodes.chain import _to_persistable_entry
 from vultron.core.models.case import VulnerabilityCase
+from vultron.core.models.case_ledger import HashChainLedgerRecord
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.note import VultronNote
@@ -88,6 +91,17 @@ def _domain_values() -> dict[type, Any]:
             end_time=datetime(2030, 1, 1, tzinfo=UTC),
         ),
         LedgerPosition: LedgerPosition(log_index=0, entry_hash="0" * 64),
+        # The entry a replica refused, which a fault about it names (SYNC-16).
+        CaseLedgerEntry: _to_persistable_entry(
+            HashChainLedgerRecord(
+                case_id=_CASE_ID,
+                log_index=0,
+                object_id=_CASE_ID,
+                semantic_type="ratchet",
+                payload_snapshot={"semantic_type": "ratchet"},
+                prev_log_hash="0" * 64,
+            )
+        ),
         # A clock reading a clock decision compares a deadline against.
         datetime: datetime(2030, 1, 1, tzinfo=UTC),
         RM: RM.ACCEPTED,

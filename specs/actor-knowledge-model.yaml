@@ -27,6 +27,12 @@ groups:
     statement: >-
       Each Actor's DataLayer is private to that Actor and MUST NOT be accessible to any other
       Actor.
+    rationale: >-
+      If one actor could read another's DataLayer, it would act on case data it was
+      never sent, so its knowledge would not be bounded by the activities it
+      received (AKM-02-001), and co-located actors would behave differently from the
+      same actors on separate servers. A private store also keeps one actor's embargoed
+      case data from reaching another actor that shares the deployment.
   - id: AKM-01-002
     priority: MUST_NOT
     kind: protocol
@@ -38,6 +44,12 @@ groups:
       Actors that are co-located on the same server or within the same process MUST still
       exchange protocol messages through each other's inboxes, and MUST NOT communicate by
       reading or writing each other's local state or by calling into each other directly.
+    rationale: >-
+      A direct shortcut between co-located actors bypasses the inbox pipeline, so its
+      exchanges skip validation, the addressee and entitlement gates, and the case
+      ledger, and leave nothing a remote participant would receive. Delivery through
+      inboxes makes co-location invisible to the protocol: the same actors behave the
+      same whether or not they share a process.
 - id: AKM-02
   title: Knowledge Boundaries
   specs:
@@ -48,6 +60,10 @@ groups:
     statement: >-
       An Actor MUST NOT assume that a recipient has knowledge of any object that has not been
       explicitly included in a prior activity sent to that recipient.
+    rationale: >-
+      A recipient holds only what it has been sent. An activity that relies on an object
+      the recipient never received cannot be processed, or is processed against a guess,
+      so a sender must reason from what it has actually delivered to that recipient.
     stories:
     - story_2022_053
   - id: AKM-02-002
@@ -62,6 +78,11 @@ groups:
       Actors MUST NOT name an object the recipient cannot be expected to hold already by a
       reference the recipient cannot dereference (AKM-05-003, AKM-05-004). Such an object
       is carried inline, or by a reference the recipient can fetch.
+    rationale: >-
+      A reference the recipient can neither match to an object it holds nor fetch leaves
+      it unable to read what the activity acts on, so it must refuse the activity or
+      guess. Carrying such an object inline, or by a reference the recipient can fetch,
+      keeps every activity processable by its addressee.
   - id: AKM-02-004
     priority: MUST
     kind: project
@@ -93,6 +114,11 @@ groups:
       addressed about it, as in the full-case Invite of CM-11-010); or the case stub
       (`VulnerabilityCaseStub`, CM-11-013) the stub Invite sends to an actor that does
       not yet hold the case. A full case MUST NOT travel in `target`.
+    rationale: >-
+      A participant or CASE_MANAGER addressed about a case already holds it and needs
+      only its URI, while an actor that does not yet hold the case needs only the stub
+      to decide whether to join. A full case in `target` would either repeat what the
+      recipient holds or hand case contents to an actor that has not joined.
     verification: >-
       `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks
       every trigger-port activity's `target`: a case there is a URI or an object of type
@@ -133,7 +159,7 @@ groups:
       A receiver cannot tell an invented value from an asserted one, so it records the
       invention as the object's own claim, and the case ledger then carries it in its
       snapshots. A value read from the sender's clock also differs on every build, so a
-      rebuild of one activity under the same id no longer matches the first build
+      rebuild of one activity under the same id does not match the first build
       (OX-06-002).
     note: >-
       Delivery to an inbox address derived from a recipient's id, when no inbox is held,
@@ -162,6 +188,11 @@ groups:
       Outbound initiating activities (Create, Offer, Invite, Announce, Add, Remove, Update,
       Join, Ignore, Leave) MUST carry, as their `object`, the domain object they act on,
       inline or by reference.
+    rationale: >-
+      A receiver identifies what an initiating activity does from its type together with
+      the type of its `object`. Without the object it cannot select the use case or
+      apply the change. Inline or by reference leaves the form to the implementation
+      (AKM-05-003).
     verification: Integration tests in `test/demo/` confirm that outbound initiating activities carry the domain
       object they act on in their `object` field.
     stories:
@@ -202,6 +233,12 @@ groups:
     statement: >-
       The outbox handler MUST enforce object integrity at delivery time as a last-resort runtime
       guard.
+    rationale: >-
+      The activity factories enforce inline objects at construction (AKM-03-003), but an
+      activity built on another path could still reach the outbox with a bare URI.
+      Checking at delivery keeps such an activity from reaching a receiver that cannot
+      resolve it, and reports the defect at the sender instead of as a misrouted
+      activity at the receiver.
     verification: A unit test confirms that the outbox handler rejects an activity whose `object` field is a bare URI
       reference rather than a fully inline typed domain object.
 - id: AKM-04
@@ -213,6 +250,11 @@ groups:
     statement: >-
       A future implementation MAY track which objects have been shared with each participant
       (e.g., via `CaseLedgerEntry` hash-chain records) to avoid redundant full-object transmission.
+    rationale: >-
+      Carrying every object inline on every activity repeats data the recipient already
+      holds, and messages grow with the case. Knowing what each participant has been
+      sent would let a sender use a reference for those objects safely (AKM-02-002).
+      Nothing depends on it, so it is a MAY.
     scope:
     - production
 - id: AKM-05
@@ -229,6 +271,11 @@ groups:
       addressing an outbound activity to that peer. The peer's deliverable http(s) URI is
       sufficient for addressing; a fully resolved actor record is an enrichment (directory
       service), not a precondition for protocol participation.
+    rationale: >-
+      An actor often first learns of a peer only as a URI, for example in a
+      recommendation or a report. If addressing required a local record, the actor could
+      not invite or answer that peer until a directory had been consulted, which would
+      make a directory service a precondition for taking part in a CVD case.
     tags:
     - activitypub
   - id: AKM-05-002
@@ -240,6 +287,11 @@ groups:
       (Retriever call-out, ADR-0024, ADR-0025) before minting a minimal record.
       A FAILURE result from the backend SHOULD produce an explicit WARNING rather than
       a silent default.
+    rationale: >-
+      A discovery backend can supply a peer's inbox and profile, so a minimal record
+      minted without asking it holds less than is available. A failed lookup that falls
+      back silently looks like success, so operators would not learn that discovery is
+      broken; the WARNING makes the degraded path visible.
     scope:
     - production
   - id: AKM-05-003
@@ -277,6 +329,11 @@ groups:
     statement: >-
       A production implementation MUST support object dereference (AKM-05-003): given a URI
       it has not seen, it MUST be able to fetch the object through an API call.
+    rationale: >-
+      A production deployment exchanges cases with independently built implementations,
+      which may name objects by reference instead of inline. Without dereference it
+      cannot process such an activity, and the refusals that stand in for dereference
+      (AKM-05-003) would block legitimate traffic.
     verification: >-
       A production deployment is given a URI it holds no record for and fetches the
       object it names through an API call; the fetch returns the typed object.

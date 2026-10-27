@@ -69,13 +69,17 @@ stakeholder_type: [project-contributor]
   - `adr-back-edges` → `vultron.metadata.adr.back_edges:main`.
     It reports each live decision record that no requirement's `adr:` edge and no `specs/` or `notes/` citation points back to, unless it is in the record-only exemption set, and each exemption that is no longer needed.
   - `docs-frontmatter` → `vultron.metadata.docs.page_frontmatter:main`.
-    It validates the `stakeholder_type`, `level` (DF-11-001) and `page_type` (DF-11-018) every reader-facing `docs/` page declares, and refuses `level` and `page_type` on working-record pages and every key on include fragments.
+    It validates the `stakeholder_type`, `level` (DF-11-001), `page_type` (DF-11-018) and `subject` (DF-11-025) every reader-facing `docs/` page declares, and refuses `level`, `page_type` and `subject` on working-record pages and every key on include fragments.
     It also fails a working-record page that is in the nav or matched by no `not_in_nav` pattern (DF-11-003).
     It validates the `thread:` each start page under `docs/start/` declares, and refuses the key on any other page (DF-11-013).
   - `docs-normative-banner` → `vultron.metadata.docs.normative_banner:main`.
     It fails when a normative-set page does not include `docs/includes/normative.md` itself, or when any other page or fragment includes it, naming that include's `path:line` (DF-12-006).
     It also fails when a listed page or the banner does not exist, or when the docs tree or the normative set is empty (DF-09-009).
-    `docs/reference/conventions.md` is exempt, because it shows the banner as an example.
+    It applies the same rules to `docs/includes/specification_governs.md` and the protocol-design pages it declares, and also fails a declared protocol-design page whose `subject` is not `protocol` or that carries the not-normative banner too (DF-12-007).
+    `docs/reference/conventions.md` is exempt, because it shows the banners as examples.
+  - `docs-nav-subjects` → `vultron.metadata.docs.nav_subjects:main`.
+    It fails when a `mkdocs.yml` nav group, at any depth, holds both a `subject: protocol` page and a `subject: implementation` page, naming the group's label trail and the pages of its less numerous subject (DF-11-020).
+    It also fails on a nav entry naming a missing file, and when the nav resolves no section or no page (DF-09-009).
   - `docs-level-order` → `vultron.metadata.docs.level_order:main`.
     It fails when a `docs/` page uses a glossary term that a higher-level page declares in `introduces:`, unless the page links that introducing page at or before the first use or the use itself links to the glossary (DF-11-002).
     Working-record pages and pages with no level are skipped, and include fragments are checked at their lowest host's level.

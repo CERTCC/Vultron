@@ -22,6 +22,11 @@ groups:
     statement: >-
       Participants SHOULD track the state of other Participants in a case to inform their
       own decision making
+    rationale: >-
+      A participant's next move depends on where the others stand: whether a vendor has
+      a fix, whether anyone has published, whether a coordinator has left. Without
+      tracking their states a participant acts on a stale picture and may, for example,
+      publish before a vendor is ready.
     stories:
     - story_2022_031
     - story_2022_032
@@ -36,6 +41,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD track the RM states of the other Participants in the case
+    rationale: >-
+      RM state says whether each participant is still engaged with the report. Knowing
+      it tells a participant who will still act on the case, whose replies to expect,
+      and when a vendor has stopped work.
     stories:
     - story_2022_061
     - story_2022_074
@@ -48,6 +57,11 @@ groups:
     statement: >-
       Correct operation of the protocol MUST NOT depend on perfect information across all
       Participants
+    rationale: >-
+      Participants in a distributed CVD case never all see the same state at the same
+      moment: messages are delayed, lost, or withheld by embargo scope. A protocol that
+      needed perfect shared information would stall or misbehave in every real case, so
+      each step must be safe on the partial view a participant actually holds.
     stories:
     - story_2022_106
 - id: VP-02
@@ -59,6 +73,10 @@ groups:
     statement: >-
       Coordinators MUST have a formally documented, publicly available mechanism for receiving
       reports
+    rationale: >-
+      A reporter can coordinate only with a coordinator it can reach. Taking reports
+      from anyone is the coordinator's role, so an undocumented or private intake path
+      leaves reporters no way in and pushes them toward uncoordinated public disclosure.
     verification: >-
       Inspection of `vultron/core/use_cases/received/` confirms that a
       report-reception use-case handler is defined for participant actors.
@@ -77,20 +95,22 @@ groups:
     statement: >-
       Participants MUST assign Valid cases a higher processing priority than
       Received (untriaged) cases and Closed cases in their case-management workflow.
-    verification: >-
-      Integration tests in `test/demo/test_workflow_rm_triage.py` confirm that
-      the RM triage workflow only advances to Accepted from the Valid state,
-      enforcing priority ordering over Received and Closed cases.
+    rationale: >-
+      Valid reports are the ones known to need work, so effort spent on them is what
+      reduces harm. Received reports are not yet judged and Closed reports need nothing
+      more; letting either crowd out Valid work delays fixes for confirmed vuls.
+    verification_debt: '#3612'
     stories:
     - story_2022_086
   - id: VP-02-003
     priority: MUST
     kind: protocol
     statement: Participants initiating CVD with others MUST do so from the Accepted state
-    verification: >-
-      Integration tests in `test/demo/test_initialize_case_demo.py` confirm
-      that `RmInviteToCaseActivity` is only emitted when the initiating
-      participant's RM state is Accepted.
+    rationale: >-
+      Accepted is the RM state in which a participant has committed to work on the
+      report. Drawing others into a case from an earlier state would commit them to
+      coordination the initiator has not itself agreed to pursue.
+    verification_debt: '#3612'
     stories:
     - story_2022_006
     - story_2022_013
@@ -99,12 +119,21 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: Participants MUST NOT close cases or reports from the Valid state
+    rationale: >-
+      Valid means the report is real and in scope but no engage-or-defer decision has
+      been made. Closing straight from Valid would let a confirmed vul be dropped
+      without that prioritization decision ever being taken or announced, so the report
+      must pass through Accepted or Deferred first.
   - id: VP-02-005
     priority: SHOULD
     kind: protocol
     statement: >-
       Vendors SHOULD have a clearly defined and publicly available mechanism for receiving
       reports
+    rationale: >-
+      Reporters can disclose privately to a vendor only if they can reach it. Without a
+      known intake channel, reports are lost, sent to the wrong place, or published
+      without coordination.
     stories:
     - story_2022_001
     - story_2022_003
@@ -116,6 +145,10 @@ groups:
     statement: >-
       Participants SHOULD subject each Received report to a validation process resulting in
       a valid or invalid designation
+    rationale: >-
+      Not every report describes a real vul in the recipient's scope. Validation
+      separates real reports from noise, so that case creation, embargo commitments and
+      coordination effort go only where they are warranted.
     stories:
     - story_2022_006
     - story_2022_101
@@ -125,6 +158,10 @@ groups:
     statement: >-
       Participants SHOULD have a clearly defined process for validating reports in the Received
       state
+    rationale: >-
+      A defined validation process makes valid and invalid decisions consistent and
+      explainable to reporters. It also lets other participants trust what a Valid or
+      Invalid announcement means.
     stories:
     - story_2022_101
   - id: VP-02-008
@@ -133,10 +170,17 @@ groups:
     statement: >-
       Participants SHOULD have a clearly defined process for transitioning reports from the
       Received state to the Valid or Invalid states
+    rationale: >-
+      Other participants read RM transitions as signals. If the move out of Received
+      follows no defined process, those signals carry no reliable meaning and reports
+      can sit in Received indefinitely.
   - id: VP-02-009
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD proceed only after validating the reports they receive
+    rationale: >-
+      Acting on an unvalidated report spends embargo commitments, coordination effort
+      and other participants' attention on something that may not be a vul at all.
     stories:
     - story_2022_101
   - id: VP-02-010
@@ -145,12 +189,20 @@ groups:
     statement: >-
       Participants SHOULD transition all valid reports to the Valid state and all invalid
       reports to the Invalid state
+    rationale: >-
+      The RM state is how a participant tells others what it concluded about a report. A
+      report left in Received, or put in the wrong state, misinforms every participant
+      that tracks it (VP-01-002).
   - id: VP-02-011
     priority: SHOULD
     kind: protocol
     statement: >-
       Once a Vendor confirms that a reported vulnerability affects one or more of their products
       or services, the Vendor SHOULD designate the report as Valid
+    rationale: >-
+      The vendor's confirmation that its product is affected answers the question
+      validation asks. Designating the report Valid then moves it on to prioritization
+      and tells other participants the vendor has a real vul to fix.
     stories:
     - story_2022_103
     - story_2022_111
@@ -160,12 +212,20 @@ groups:
     statement: >-
       Participants SHOULD temporarily hold reports that they cannot validate pending additional
       information
+    rationale: >-
+      Many reports cannot be judged on first read because details are missing. Holding
+      them, rather than marking them Invalid, keeps a real vul from being discarded only
+      because the reporter has not yet supplied enough information.
   - id: VP-02-013
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD provide Reporters an opportunity to update their report with additional
       information before closing it
+    rationale: >-
+      Reporters can often supply the missing detail if asked. Closing without giving
+      them that chance throws away real vuls and discourages reporters from using the
+      coordinated channel next time.
     stories:
     - story_2022_103
   - id: VP-02-014
@@ -174,6 +234,10 @@ groups:
     statement: >-
       For Valid reports, the Participant SHOULD perform a prioritization evaluation to decide
       whether to accept or defer the report
+    rationale: >-
+      A valid report still competes with all other work for limited capacity. An
+      explicit prioritization decision turns "this is real" into "we will work on it
+      now" or "later", and gives the participant a decision to announce (VP-02-024).
     stories:
     - story_2022_006
     - story_2022_086
@@ -184,6 +248,10 @@ groups:
     statement: >-
       Participants SHOULD create a case from reports entering the Valid state to track the
       report's progress through the CVD process
+    rationale: >-
+      A case is the object that carries participants, embargo and CS state through the
+      rest of the CVD process. Without one, work on a valid report has nothing to record
+      progress against or to coordinate around.
     stories:
     - story_2022_012
     - story_2022_111
@@ -193,6 +261,9 @@ groups:
     statement: >-
       Participants SHOULD have a bias toward accepting rather than deferring Valid cases up
       to their work capacity limits
+    rationale: >-
+      Deferring a valid report leaves a known vul unaddressed and its reporter waiting.
+      Accepting when capacity allows keeps real vuls moving toward a fix.
     stories:
     - story_2022_006
   - id: VP-02-017
@@ -201,16 +272,28 @@ groups:
     statement: >-
       Reports SHOULD exit the Deferred state when work is resumed (to Accepted) or when the
       Participant has determined no further action will be taken (to Closed)
+    rationale: >-
+      Deferred is meant as a pause, not a resting place. Leaving reports there
+      indefinitely hides whether work will ever resume, so the participant moves them on
+      once that is known.
   - id: VP-02-018
     priority: SHOULD
     kind: protocol
     statement: 'Reports SHOULD be moved to the Closed state once a Participant has completed all outstanding work tasks and has determined that no further action will be taken on the report'
+    rationale: >-
+      Closed tells other participants that this participant will do no more on the
+      report. Closing before outstanding work is done, or keeping finished reports open,
+      misinforms the participants who track RM state.
   - id: VP-02-019
     priority: SHOULD
     kind: protocol
     statement: >-
       CVD Participants SHOULD announce their RM state transitions to the other Participants
       in a case
+    rationale: >-
+      Other participants plan their own work around who is engaged with a case
+      (VP-01-002). Announcing RM transitions is how they learn of them; an unannounced
+      close or defer leaves them expecting work that will not happen.
     stories:
     - story_2022_062
     - story_2022_107
@@ -218,30 +301,51 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD create a case for all Valid reports
+    rationale: >-
+      Every valid report needs a place to track its participants, embargo and progress.
+      A valid report without a case can fall out of view and gives other participants
+      nothing to join.
   - id: VP-02-021
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD act in accordance with their own policy and process when deciding
       when to transition RM states
+    rationale: >-
+      Organizations differ in capacity, risk tolerance and published disclosure policy,
+      and the protocol cannot know those. Leaving transition decisions to each
+      participant's own policy keeps the protocol usable across them, while other
+      requirements still make the decisions visible.
     stories:
     - story_2022_006
   - id: VP-02-022
     priority: SHOULD_NOT
     kind: protocol
     statement: Participants SHOULD NOT mark duplicate reports as invalid
+    rationale: >-
+      A duplicate still describes a real vul. Marking it Invalid would tell its
+      reporter, and every participant tracking the state, that the report was wrong, and
+      would discard any new detail it carries.
   - id: VP-02-023
     priority: SHOULD
     kind: protocol
     statement: >-
       Duplicate reports SHOULD pass through the Valid state, although they MAY be subsequently
       deferred in favor of the original
+    rationale: >-
+      Passing through Valid records that the duplicate describes a real vul. Deferring
+      it in favor of the first report of the same vul then avoids working it twice while
+      keeping the duplicate's reporter informed.
   - id: VP-02-024
     priority: SHOULD
     kind: protocol
     statement: >-
       Vendors SHOULD communicate their prioritization choices when making either a defer or
       accept transition out of the Valid, Deferred, or Accepted states
+    rationale: >-
+      Reporters and other participants plan around whether a vendor will act now or
+      later. Stating the prioritization choice lets them adjust, for example by seeking
+      a coordinator or different embargo terms, instead of guessing from silence.
     stories:
     - story_2022_086
     - story_2022_087
@@ -251,6 +355,10 @@ groups:
     statement: >-
       Participants MAY perform a more technical report validation process before exiting the
       Received state
+    rationale: >-
+      Some reports cannot be judged credible without reproducing or examining them.
+      Allowing deeper technical checks before leaving Received keeps the Valid
+      designation meaningful.
     stories:
     - story_2022_077
     - story_2022_101
@@ -260,18 +368,30 @@ groups:
     priority: MAY
     kind: protocol
     statement: Participants MAY create a case object to track any report in the Received state
+    rationale: >-
+      Some participants need a record of a report and its correspondence from the moment
+      it arrives, for example to show response times. A case at Received gives them that
+      record without forcing it on everyone.
   - id: VP-02-027
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY set a timer to move reports from Invalid to Closed after a set period
       of inactivity
+    rationale: >-
+      Invalid reports that receive no new information need no further work. A timer
+      moves them to Closed so they do not pile up as open items, while still leaving the
+      reporter a window to respond.
   - id: VP-02-028
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY choose to perform a shallow technical analysis on Valid reports to
       prioritize further effort
+    rationale: >-
+      Prioritization is better informed when the participant knows roughly how severe or
+      widespread the vul is. A shallow analysis gives that without committing to full
+      work.
     stories:
     - story_2022_102
   - id: VP-02-029
@@ -280,38 +400,66 @@ groups:
     statement: >-
       A report MAY enter and exit the Accepted state a number of times as a Participant resumes
       or pauses work
+    rationale: >-
+      Work on a report is often paused and resumed as priorities change. Allowing
+      repeated entry into Accepted lets the RM state follow the real work instead of
+      forcing a single pass.
   - id: VP-02-030
     priority: MAY
     kind: protocol
     statement: >-
       A report MAY enter and exit the Deferred state a number of times as a Participant pauses
       or resumes work
+    rationale: >-
+      Work on a report is often paused and resumed as priorities change. Allowing
+      repeated entry into Deferred lets the RM state follow the real work instead of
+      forcing a single pass.
   - id: VP-02-031
     priority: MAY
     kind: protocol
     statement: >-
       CVD Participants MAY set a policy timer on reports in the Deferred state to ensure they
       are moved to Closed after a set period of inactivity
+    rationale: >-
+      Deferred reports are easily forgotten. A policy timer moves them to Closed after
+      inactivity, so open work lists reflect reality and other participants learn this
+      participant has stopped work.
   - id: VP-02-032
     priority: MAY
     kind: protocol
     statement: Participants MAY create a case for Invalid reports
+    rationale: >-
+      A case for an invalid report keeps the decision and correspondence on record. That
+      record helps if the report is later revalidated (VP-02-033) or a duplicate
+      arrives.
   - id: VP-02-033
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY periodically revalidate Invalid reports to determine if they have become
       Valid
+    rationale: >-
+      A report judged Invalid may become valid as new information, product versions or
+      exploitation evidence appears. Periodic revalidation stops an early wrong call
+      from becoming permanent.
   - id: VP-02-034
     priority: MAY
     kind: protocol
     statement: Participants MAY re-prioritize Accepted or Deferred cases
+    rationale: >-
+      Priorities change as information arrives, such as exploitation evidence or newly
+      affected products. Re-prioritizing lets a participant's work, and the RM state it
+      announces, follow that change.
     stories:
     - story_2022_086
   - id: VP-02-035
     priority: MAY
     kind: protocol
     statement: Participants MAY close Accepted or Deferred cases or Invalid reports
+    rationale: >-
+      Accepted or deferred work ends, whether fixed, out of scope or abandoned, and
+      invalid reports may need nothing more. Closing marks that end so other
+      participants know no further action is coming from this participant.
 - id: VP-03
   title: RM Messaging
   specs:
@@ -321,6 +469,11 @@ groups:
     statement: >-
       Participants MUST be in RM Accepted to send a Report Submission ($RS$) message to someone
       else
+    rationale: >-
+      An $RS$ hands a report to someone else and draws them into coordination. Requiring
+      Accepted means only a participant that has committed to work on the report can
+      pass it on, so reports are not forwarded by someone who has not judged them worth
+      pursuing.
     verification: >-
       A unit test confirms that the RS message precondition guard raises an
       error when the sender's RM state is not Accepted.
@@ -333,10 +486,12 @@ groups:
     statement: >-
       Vendor Recipients receiving a new Report Submission MUST transition their CVD Case State
       to Vendor Aware ($q^{cs} \xrightarrow{\mathbf{V}} Vfd\cdots$)
-    verification: >-
-      Integration tests in `test/demo/test_receive_report_demo.py` confirm
-      that processing an RS message sets the recipient vendor's CS state to
-      the Vendor Aware substates.
+    rationale: >-
+      Vendor awareness is the first CS event and starts the vendor's response timeline.
+      If receiving a report did not set it, the case would understate what the vendor
+      knows, and every later CS-based decision, including embargo eligibility and fix
+      tracking, would start from a wrong state.
+    verification_debt: '#3612'
     stories:
     - story_2022_002
     - story_2022_038
@@ -346,6 +501,10 @@ groups:
     statement: >-
       Participants SHOULD send $RI$ when the report validation process ends in an invalid
       determination
+    rationale: >-
+      The reporter and other participants need to know a report was judged invalid, so
+      they can supply more detail or pursue other channels. Without $RI$ they cannot
+      tell an invalid finding from no response at all.
     stories:
     - story_2022_101
     - story_2022_109
@@ -354,6 +513,10 @@ groups:
     kind: protocol
     statement: >-
       Participants SHOULD send $RV$ when the report validation process ends in a valid determination
+    rationale: >-
+      $RV$ tells the reporter and other participants that the report is real and in
+      scope. That is what lets them plan the next steps, such as embargo terms and fix
+      timing.
     stories:
     - story_2022_101
   - id: VP-03-005
@@ -362,6 +525,9 @@ groups:
     statement: >-
       Participants SHOULD send $RD$ when the report prioritization process ends in a deferred
       decision
+    rationale: >-
+      $RD$ tells others that this participant will not work the report now. They can
+      then adjust embargo expectations or seek another route instead of waiting.
     stories:
     - story_2022_062
   - id: VP-03-006
@@ -370,18 +536,28 @@ groups:
     statement: >-
       Participants SHOULD send $RA$ when the report prioritization process ends in an accept
       decision
+    rationale: >-
+      $RA$ tells others that this participant has committed to work on the report, which
+      is what they need to plan fix and publication timing.
     stories:
     - story_2022_062
   - id: VP-03-007
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD send $RC$ when the report is closed
+    rationale: >-
+      $RC$ tells others this participant has stopped work. They stop expecting fixes or
+      replies from it and can judge whether its exit affects the embargo.
     stories:
     - story_2022_062
   - id: VP-03-008
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD send $RE$ regardless of state when any error is encountered
+    rationale: >-
+      A protocol message that cannot be processed otherwise fails silently. Sending $RE$
+      in any state tells the sender something went wrong, so it can correct or ask
+      instead of assuming the message took effect.
     stories:
     - story_2022_007
     - story_2022_008
@@ -396,11 +572,11 @@ groups:
       $RK$; once a case exists, its acknowledgment is the CASE_MANAGER's ledger entry
       for it, fanned out to the participants.
     rationale: >-
-      The 2022 formal protocol reads "Recipients SHOULD send $RK$ in acknowledgment of
-      any $R*$ message except $RK$ itself". Once a case exists, every $R*$ message goes
-      to the CASE_MANAGER (PCR-08-001), and its ledger entry already acknowledges it to
-      every participant, so a separate $RK$ would only add a message. Narrowed by the
-      maintainer on #4325.
+      Before a case exists there is no ledger, so the reporter learns that its report
+      arrived only from an $RK$ (RMB-08-003). Once a case exists, every $R*$ message
+      goes to the CASE_MANAGER (PCR-08-001), and the ledger entry it commits already
+      tells every participant the message was received; a separate $RK$ would only add
+      traffic and a second acknowledgment that could disagree with the ledger.
     verification: >-
       Tests marked `VP-03-009` confirm that the ack-report trigger addresses $RK$ to
       the reporter alone, and that an $RK$ snapshot is refused as a ledger entry.
@@ -413,6 +589,11 @@ groups:
       Recipients who receive an $R*$ message (other than $RS$) while in RM Start ($q^{rm}
       \in S$) SHOULD respond with both $RE$ to signal the error and $GI$ to find out what
       the sender expected
+    rationale: >-
+      An $R*$ message from a party the recipient has no report from means the two
+      disagree about whether a report was sent. $RE$ flags the mismatch and $GI$ asks
+      what the sender expected, so the missing report can be recovered rather than
+      silently ignored.
   - id: VP-03-011
     priority: SHOULD
     kind: protocol
@@ -422,10 +603,10 @@ groups:
       acknowledgment is the CASE_MANAGER's ledger entry for it, fanned out to the
       participants.
     rationale: >-
-      The 2022 formal protocol reads "Recipients SHOULD acknowledge $RE$ messages
-      ($RK$) and inquire ($GI$) as to the nature of the error". $RK$ now acknowledges
-      only $RS$ (RMB-08-003), and the ledger entry acknowledges a case event, so only
-      the inquiry remains. Narrowed by the maintainer on #4325.
+      An $RE$ says something went wrong but not what, so asking ($GI$) is how the two
+      sides find and fix the problem. No $RK$ is needed: $RK$ acknowledges only $RS$
+      (VP-03-009), and once a case exists the CASE_MANAGER's ledger entry already
+      acknowledges the case event.
     stories:
     - story_2022_077
   - id: VP-03-012
@@ -434,6 +615,11 @@ groups:
     statement: >-
       Participants whose state changes in the RM, EM, or CVD Case State Models SHOULD send
       a message to other Participants for each transition
+    rationale: >-
+      Each participant decides from its picture of the others' states (VP-01-001).
+      Announcing every RM, EM and CS transition keeps those pictures current; an
+      unannounced transition, such as a fix becoming ready, leaves others acting on
+      stale information.
     stories:
     - story_2022_039
     - story_2022_041
@@ -459,10 +645,12 @@ groups:
       any
       later inbound message for the case (CM-23-013).
     rationale: >-
-      The 2022 rule was read as scoped to $R*$ messages, so a note ($GI$) sent after
-      close had no rule and the reference note handler persisted it (CONCERN-1894).
-      ADR-0085 chose a hard kill switch over a selective gate, because no principled
-      line separates note-like traffic from the rest.
+      A closed case has no further work, so a recipient gains nothing by processing late
+      traffic of any class. The CASE_MANAGER, as the single writer of canonical case
+      state, must go further: anything it recorded after close would extend a case every
+      participant has been told is over, and no principled line separates note-like
+      traffic ($GI$) from state-changing traffic, so the boundary covers every message
+      (ADR-0085).
     verification: >-
       A test sends a $GI$ `Add(Note, target=Case)` to the CASE_MANAGER after the
       owner has closed the case, and confirms it is refused and the case ledger gains
@@ -478,6 +666,10 @@ groups:
     statement: >-
       Every accepted embargo MUST specify an end time (`endTime`); an embargo without
       one MUST NOT be accepted.
+    rationale: >-
+      An embargo with no end time never frees participants to publish, so it can keep a
+      vul secret indefinitely and leave users exposed. A required end time also gives
+      every participant the same date to plan releases around.
     verification: >-
       Inspection of `vultron/core/models/embargo_event.py` confirms that
       `end_time` is a required `datetime` field with no `None` default, and a
@@ -491,6 +683,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: A CVD case SHALL NOT have more than one active embargo at a time
+    rationale: >-
+      Participants must know which terms bind them. Two active embargoes on one case
+      would give conflicting end times, and nobody could say when publication is
+      allowed.
     verification: >-
       The embargo register refuses any step, and any constructed case, that
       would leave more than one entry `ACTIVE` (ADR-0122,
@@ -505,6 +701,10 @@ groups:
     priority: MAY
     kind: protocol
     statement: An embargo MAY be proposed
+    rationale: >-
+      An embargo is how participants agree to keep a vul private while fixes are
+      prepared. Proposing one is how that agreement starts; without proposals
+      participants could only disclose with no coordination window.
     stories:
     - story_2022_010
     - story_2022_014
@@ -512,6 +712,10 @@ groups:
     priority: MAY
     kind: protocol
     statement: Once proposed, an embargo MAY be accepted or rejected
+    rationale: >-
+      An embargo binds only those who agree to it. Letting a proposal be accepted or
+      rejected makes that agreement explicit and lets a participant refuse terms it
+      cannot meet.
     stories:
     - story_2022_010
   - id: VP-04-005
@@ -519,6 +723,10 @@ groups:
     kind: protocol
     statement: >-
       Once accepted, revisions MAY be proposed, which MAY in turn be accepted or rejected
+    rationale: >-
+      Circumstances change during a case: fixes slip, vendors join, exploitation
+      appears. Revisions let participants change the terms without first ending the
+      embargo and leaving a gap with no terms in force.
     stories:
     - story_2022_014
 - id: VP-05
@@ -528,6 +736,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: An embargo SHALL specify an unambiguous date and time as its endpoint
+    rationale: >-
+      Participants in different time zones and organizations must all stop withholding
+      at the same moment. A date without a time, or a vague endpoint, lets them read the
+      deadline differently and publish at different times.
     verification: >-
       Inspection of `vultron/core/models/embargo_event.py` confirms that
       `end_time` is typed as `datetime` (not a date-only or free-form string),
@@ -542,14 +754,19 @@ groups:
       An embargo end time SHOULD NOT be more than one year (P1Y) from the date of
       acceptance. Embargo durations exceeding 90 days (P90D) SHOULD include documented
       justification agreed to by all Participants.
+    rationale: >-
+      Long embargoes keep users exposed to a vul that attackers may find independently.
+      A one-year ceiling bounds that exposure, and requiring agreed justification beyond
+      90 days makes a long embargo a deliberate exception rather than a default.
   - id: VP-05-003
     priority: MUST
     kind: protocol
     statement: An embargo SHALL begin at the moment it is accepted
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that the EM state transitions to Active with the acceptance timestamp as
-      the effective start, not a future date.
+    rationale: >-
+      Participants need to know from what moment they are bound. Starting the embargo at
+      acceptance leaves no gap in which a participant has agreed but is not yet bound,
+      and no future start that could be read as permission to disclose now.
+    verification_debt: '#3612'
     stories:
     - story_2022_014
     - story_2022_074
@@ -559,10 +776,11 @@ groups:
     statement: >-
       Adding Participants to an existing embargo SHALL NOT constitute release or publication
       so long as those Participants accept the terms of the embargo
-    verification: >-
-      Integration tests in `test/demo/test_manage_participants_demo.py` confirm
-      that inviting a participant to a case with an Active embargo leaves the
-      EM state unchanged.
+    rationale: >-
+      Cases often need new vendors or coordinators after an embargo is in place. If
+      telling them counted as release, no one could be added without ending the embargo;
+      requiring that they accept the terms keeps the information inside it.
+    verification_debt: '#3612'
     stories:
     - story_2022_013
     - story_2022_052
@@ -570,6 +788,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: Embargo termination SHALL NOT be construed as an obligation to publish
+    rationale: >-
+      The end of an embargo only removes the duty to withhold. Reading it as a duty to
+      publish would force participants who are not ready, or have nothing to say, to
+      release information.
     verification: >-
       Inspection of `vultron/core/states/em.py` confirms that the
       embargo-termination transition does not trigger any publication action
@@ -584,6 +806,11 @@ groups:
       until all proposed embargoes have been explicitly rejected, no proposed embargo has
       been explicitly accepted in a timely manner, the expiration date/time of an accepted
       embargo has passed, or an accepted embargo has been terminated prior to expiration
+    rationale: >-
+      Releasing information while an embargo may still form or is still in force
+      undermines the agreement other participants rely on, and can expose users before
+      fixes exist. The listed conditions are the points at which no embargo binds the
+      participant, so they are the only safe times to release knowingly.
     stories:
     - story_2022_017
     - story_2022_023
@@ -599,6 +826,9 @@ groups:
     statement: >-
       Embargo participation SHOULD be limited to the smallest possible set of individuals
       and organizations needed to adequately address the vulnerability report
+    rationale: >-
+      Every additional party is another chance of a leak. Keeping participation to those
+      needed to fix or coordinate limits that risk.
     stories:
     - story_2022_023
     - story_2022_026
@@ -610,12 +840,19 @@ groups:
     statement: >-
       Embargo duration SHOULD be limited to the shortest duration possible to adequately address
       the vulnerability report
+    rationale: >-
+      While an embargo runs, users remain unaware of a vul that attackers may also find.
+      Keeping it as short as the work allows limits that exposure.
     stories:
     - story_2022_078
   - id: VP-05-009
     priority: SHOULD
     kind: protocol
     statement: Embargoes SHOULD be of short duration, from a few days to a few months
+    rationale: >-
+      Long embargoes raise the chance of independent discovery and exploitation while
+      users have no information. Days to months is long enough for most fix work and
+      short enough to bound that risk.
     stories:
     - story_2022_078
   - id: VP-05-010
@@ -624,6 +861,10 @@ groups:
     statement: >-
       Participants stopping work on a case SHOULD notify remaining Participants of their intent
       to adhere to or disregard any existing embargo associated with the case
+    rationale: >-
+      Remaining participants need to know whether a departing participant will keep the
+      information private. That tells them whether the embargo still holds or must be
+      revisited.
     stories:
     - story_2022_066
     - story_2022_067
@@ -634,6 +875,10 @@ groups:
     statement: >-
       Participants SHOULD continue to comply with any active embargoes to which they have
       been a party, even if they stop work on the case
+    rationale: >-
+      Information received under an embargo stays sensitive after a participant stops
+      work. If leaving freed it to disclose, any participant could end the embargo for
+      everyone by stepping away.
     stories:
     - story_2022_066
     - story_2022_067
@@ -643,6 +888,10 @@ groups:
     statement: >-
       Participants who leave an Active embargo SHOULD be removed by the remaining Participants
       from further communication about the case
+    rationale: >-
+      A participant that has left an active embargo is not bound to keep new information
+      private. Continuing to send it case updates would leak information outside the
+      embargo.
     stories:
     - story_2022_066
     - story_2022_068
@@ -652,6 +901,10 @@ groups:
     statement: >-
       Participants SHOULD consider other Participants' history of cooperation when evaluating
       the terms of a proposed embargo
+    rationale: >-
+      A participant's record of keeping or breaking past embargoes is the best guide to
+      whether it will keep this one. Considering it lets participants set terms, or
+      decline, according to the actual risk.
     stories:
     - story_2022_027
     - story_2022_094
@@ -663,6 +916,9 @@ groups:
     statement: >-
       Participants SHOULD NOT publish information about the vulnerability when there is an
       active embargo
+    rationale: >-
+      Publishing while an embargo is active breaks the agreement other participants rely
+      on and can expose users before fixes are ready.
     stories:
     - story_2022_015
     - story_2022_025
@@ -672,32 +928,54 @@ groups:
     statement: >-
       Additional Participants MAY be added to an existing embargo upon accepting the terms
       of that embargo
+    rationale: >-
+      Affected vendors and needed coordinators are often found after an embargo starts.
+      Letting newcomers join by accepting the terms brings them in without renegotiating
+      or ending the embargo.
   - id: VP-05-016
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY propose a new embargo or revision to an existing embargo at any time
       within the constraints outlined in the Negotiating Embargoes guidance
+    rationale: >-
+      Needs change as a case develops. Allowing proposals at any time, within the
+      negotiation guidance, lets participants adjust the embargo when they learn
+      something new.
   - id: VP-05-017
     priority: MAY
     kind: protocol
     statement: Participants MAY reject proposed embargo terms for any reason
+    rationale: >-
+      An embargo binds only participants who agree. A participant must be free to refuse
+      terms it cannot keep, rather than be held to terms it never accepted.
   - id: VP-05-018
     priority: MAY
     kind: protocol
     statement: Participants in an embargo MAY exit the embargo at any time
+    rationale: >-
+      Embargo participation is voluntary. A participant that cannot or will not keep an
+      embargo does less harm by saying so and leaving than by staying in and breaking
+      it.
   - id: VP-05-019
     priority: MAY
     kind: protocol
     statement: >-
       A Participant's refusal to accept embargo terms MAY result in that Participant being
       left out of the CVD case entirely
+    rationale: >-
+      Sharing a vul with someone who has not agreed to keep it private puts the embargo
+      at risk for everyone. Leaving out a participant that refuses the terms protects
+      the others.
   - id: VP-05-020
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY publish information about the vulnerability when there is no active
       embargo
+    rationale: >-
+      With no active embargo there is no agreement to withhold, and users benefit from
+      learning about the vul. Participants need clear permission to publish then.
     stories:
     - story_2022_020
     - story_2022_037
@@ -715,6 +993,10 @@ groups:
       about the vulnerability is already known to the public ($q^{cs} \in \cdots P \cdots$),
       an exploit is publicly available ($q^{cs} \in \cdots X \cdot$), or the vulnerability
       is being actively exploited ($q^{cs} \in \cdots A$)
+    rationale: >-
+      Once the vul is public, an exploit is public, or attacks are under way, secrecy
+      protects no one: attackers already have what they need and defenders need the
+      information. An embargo at that point only delays defenders.
     stories:
     - story_2022_007
   - id: VP-06-002
@@ -723,10 +1005,18 @@ groups:
     statement: >-
       CVD Participants SHOULD NOT propose or accept a new embargo when the fix for a vulnerability
       has already been deployed ($q^{cs} \in VFDpxa$)
+    rationale: >-
+      Once the fix is deployed there is nothing left to prepare in private. A new
+      embargo would only delay telling users about a vul they are already protected
+      against.
   - id: VP-06-003
     priority: SHOULD
     kind: protocol
     statement: Receivers SHOULD accept any embargo proposed by Reporters
+    rationale: >-
+      Reporters hold the vul and can disclose it on their own. Accepting their proposed
+      embargo keeps them in the coordinated process and secures time to fix; refusing
+      risks the reporter publishing without coordination.
   - id: VP-06-004
     priority: SHOULD
     kind: protocol
@@ -734,12 +1024,20 @@ groups:
       Participants SHOULD explicitly accept or reject embargo proposals within the
       period defined in their VDP or within 14 calendar days of receipt, whichever
       is shorter.
+    rationale: >-
+      An open proposal leaves everyone unsure whether information may be shared. A
+      bounded reply time, never more than 14 days, makes the outcome known soon enough
+      for participants to plan.
     stories:
     - story_2022_014
   - id: VP-06-004b
     priority: SHOULD_NOT
     kind: protocol
     statement: Embargo agreement or rejection SHOULD NOT be tacit.
+    rationale: >-
+      Silence can be read as either yes or no, so a tacit answer leaves participants
+      disagreeing about whether an embargo binds them. An explicit answer gives them all
+      the same record.
     relationships:
     - rel_type: refines
       spec_id: VP-06-004
@@ -749,6 +1047,10 @@ groups:
     statement: >-
       Participants SHOULD make reasonable attempts to retry embargo negotiations when prior
       proposals have been rejected or otherwise failed to achieve acceptance
+    rationale: >-
+      A case without an embargo leaves users exposed and fixes unprepared at disclosure.
+      Retrying after a failed proposal gives coordination another chance before
+      participants fall back to no embargo.
     stories:
     - story_2022_014
   - id: VP-06-006
@@ -756,16 +1058,21 @@ groups:
     kind: protocol
     statement: >-
       Participants SHOULD remain flexible in adjusting embargo terms as the case evolves
+    rationale: >-
+      Fix timelines, affected vendors and threat conditions change during a case. Terms
+      that cannot adjust either expire before fixes are ready or keep holding after the
+      need for them has passed.
   - id: VP-06-007
     priority: MUST
     kind: protocol
     statement: >-
       Submitting a report when an embargo proposal is pending ($q^{em} \in P$) SHALL be construed
       as the Sender's acceptance of the proposed terms
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that sending RS while EM is in the Proposed state causes EM to advance
-      to Active.
+    rationale: >-
+      Sending the report while a proposal is pending shows the sender is willing to
+      share under those terms. Treating the submission as acceptance avoids a report
+      being shared with no embargo in force.
+    verification_debt: '#3612'
     stories:
     - story_2022_014
     - story_2022_002
@@ -775,12 +1082,19 @@ groups:
     statement: >-
       CVD Participants MAY propose or accept a new embargo when
       $q^{cs} \in VFdpxa$.
+    rationale: >-
+      With a fix ready but not deployed, a short window can still help users by letting
+      participants line up publication and deployment. An embargo is therefore allowed
+      here, though not required.
   - id: VP-06-008b
     priority: SHOULD
     kind: protocol
     statement: >-
       Any embargo accepted when $q^{cs} \in VFdpxa$ SHOULD be brief and used only
       to allow Participants to prepare for timely publication or deployment.
+    rationale: >-
+      At this point only release preparation remains. A long embargo would delay the
+      deployment of a fix that already exists.
     relationships:
     - rel_type: refines
       spec_id: VP-06-008
@@ -790,30 +1104,52 @@ groups:
     statement: >-
       CVD Participants MAY propose or accept an embargo in all other case states ($q^{cs}
       \in \cdots pxa$)
+    rationale: >-
+      Before the fix is ready, and while nothing is public or exploited, an embargo is
+      what gives vendors time to prepare fixes in private. This is the case the EM
+      process exists for.
   - id: VP-06-010
     priority: MAY
     kind: protocol
     statement: Participants MAY accept or reject any proposed embargo as they see fit
+    rationale: >-
+      An embargo binds only those who agree. Each participant knows its own ability to
+      keep the terms and must be free to accept or refuse.
   - id: VP-06-011
     priority: MAY
     kind: protocol
     statement: Receivers MAY propose embargo terms they find more favorable
+    rationale: >-
+      The receiver may need more or less time than the reporter suggested. A
+      counter-proposal lets it say so while keeping the negotiation going, rather than
+      rejecting outright.
   - id: VP-06-012
     priority: MAY
     kind: protocol
     statement: Participants MAY withdraw their own unaccepted Proposed embargo
+    rationale: >-
+      A proposer may learn that its proposal does not fit the case after all.
+      Withdrawing it before acceptance stops others from accepting terms the proposer
+      has stopped supporting.
   - id: VP-06-013
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY interpret another Participant's failure to respond to an embargo proposal
       in a timely manner as a rejection of that proposal
+    rationale: >-
+      A proposer cannot wait forever for an answer. Reading silence as rejection lets it
+      move on (VP-06-014) instead of being stuck undecided while the vul stays
+      unaddressed.
   - id: VP-06-014
     priority: MAY
     kind: protocol
     statement: >-
       In the absence of an explicit accept or reject response from a Receiver in a timely
       manner, the Sender MAY proceed consistent with an EM state of None ($q^{em} \in N$)
+    rationale: >-
+      Without an answer, no embargo binds the receiver, so the sender may act as if none
+      exists. That stops an unresponsive party from blocking the sender indefinitely.
   - id: VP-06-015
     priority: MAY
     kind: protocol
@@ -821,12 +1157,19 @@ groups:
       In a case where the embargo state is None and for which an embargo has been proposed
       and either explicitly or tacitly rejected, Participants MAY take any action they choose
       with the report, including immediate publication
+    rationale: >-
+      When negotiation has failed, there is no agreement to keep the information
+      private. Participants then need to be free to act in users' interest, which may
+      mean publishing.
   - id: VP-06-016
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY withhold a report from a Recipient until an initial embargo has been
       accepted
+    rationale: >-
+      A recipient given the report before agreeing to an embargo is free to disclose it.
+      Waiting for acceptance protects the information.
   - id: VP-06-017
     priority: MAY
     kind: protocol
@@ -834,6 +1177,10 @@ groups:
       Participants MAY use short embargo periods to cover their report validation process
       and subsequently revise the embargo terms pending the outcome of their validation or
       prioritization processes
+    rationale: >-
+      A recipient often cannot judge how much time it needs until it has validated the
+      report. A short initial embargo protects the report meanwhile and can be revised
+      once the needs are known.
 - id: VP-07
   title: Embargo Default Policies
   specs:
@@ -844,6 +1191,12 @@ groups:
       If neither Sender nor Receiver proposes an embargo and no actor default applies, the
       protocol default embargo of EP-04-005 SHALL apply. No embargo SHALL exist only where the
       case is not embargo-eligible, that is where any of P/X/A is set (EP-04-008).
+    rationale: >-
+      A case with no embargo leaves the vul unprotected, and reaching that state only
+      because nobody proposed terms is the least deliberate way to get there. A bounded
+      protocol default gives every eligible case protection; a case where the vul is
+      already public, exploited or attacked gains nothing from secrecy, so only there does
+      no embargo exist.
     note: >-
       Amended by ADR-0096. This requirement previously read "no embargo SHALL exist" in the
       no-default, no-proposal case, which was the corpus encoding of
@@ -852,11 +1205,7 @@ groups:
       avoid, and reaching it through mutual silence is the least deliberate way to arrive
       there. The bounded protocol default replaces it; `EM.NONE` survives only behind the
       embargo-eligibility guard.
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm that EM reaches
-      `EM.ACTIVE` at the configured protocol default when neither party has an actor default
-      and no proposal is made, and that EM remains in the None state when the case is not
-      embargo-eligible.
+    verification_debt: '#3612'
     relationships:
     - rel_type: refines
       spec_id: EP-04-005
@@ -873,10 +1222,11 @@ groups:
     statement: >-
       A Receiver's default embargo specified in its vulnerability disclosure policy SHALL
       be treated as an initial embargo proposal
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that a receiver with a policy-defined default embargo presents it as a
-      Proposed embargo upon receiving a report.
+    rationale: >-
+      A published default tells reporters what to expect. Treating it as a proposal
+      makes it a real negotiating position without either side having to send a first
+      message.
+    verification_debt: '#3612'
     stories:
     - story_2022_004
     - story_2022_009
@@ -888,10 +1238,11 @@ groups:
       If the Receiver has declared a default embargo in its vulnerability disclosure policy
       and the Sender proposes nothing to the contrary, the Receiver's default embargo SHALL
       be considered as an accepted proposal
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that EM advances to Active using the receiver's default when the sender
-      makes no counter-proposal.
+    rationale: >-
+      A sender that knows the receiver's published default and offers nothing else has
+      agreed to it in effect. Treating it as accepted puts an embargo in force at once,
+      rather than leaving the case unprotected while waiting for a formal reply.
+    verification_debt: '#3612'
     stories:
     - story_2022_005
     - story_2022_079
@@ -901,10 +1252,11 @@ groups:
     statement: >-
       If the Sender proposes an embargo longer than the Receiver's default, the Receiver's
       default SHALL be taken as accepted and the Sender's proposal taken as a proposed revision
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that the shorter receiver-default embargo is accepted and the sender's
-      longer proposal is stored as a pending revision.
+    rationale: >-
+      The receiver's shorter default is acceptable to both sides: the receiver published
+      it and the sender asked for at least that much time. Accepting it puts an embargo
+      in force at once, and the longer request stays open as a revision.
+    verification_debt: '#3612'
     stories:
     - story_2022_005
     - story_2022_079
@@ -914,10 +1266,12 @@ groups:
     statement: >-
       If the Sender proposes an embargo shorter than the Receiver's default, the Sender's
       proposal SHALL be taken as accepted and the Receiver's default taken as a proposed revision
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that the sender's shorter proposal is accepted and the receiver's default
-      is stored as a pending revision.
+    rationale: >-
+      The sender's shorter proposal is acceptable to both sides: the sender asked for it
+      and the receiver's default allows at least that much time. Accepting it puts an
+      embargo in force at once, and the receiver's longer default stays open as a
+      revision.
+    verification_debt: '#3612'
     stories:
     - story_2022_005
     - story_2022_079
@@ -927,6 +1281,10 @@ groups:
     statement: >-
       Report Recipients SHOULD post a default embargo period as part of their Vulnerability
       Disclosure Policy to set expectations with potential Reporters
+    rationale: >-
+      Reporters decide how and whether to report based on what they expect. A published
+      default tells them how long they will be asked to wait, and gives VP-07-002 a
+      default to apply.
     stories:
     - story_2022_009
     - story_2022_010
@@ -936,12 +1294,20 @@ groups:
     statement: >-
       If the Sender proposes an embargo and the Receiver has no default embargo specified
       by policy, the Receiver SHOULD accept the Sender's proposal
+    rationale: >-
+      With no default of its own, the receiver has no stated reason to refuse. Accepting
+      the sender's proposal puts an embargo in force at once and keeps the reporter in
+      the coordinated process.
   - id: VP-07-008
     priority: SHOULD
     kind: protocol
     statement: >-
       When two or more embargo proposals are open and no embargo has yet been accepted ($q^{em}
       \in P$), Participants SHOULD accept the shortest one and propose the remainder as revisions
+    rationale: >-
+      The shortest open proposal is acceptable to every proposer, since each asked for
+      at least that much time. Accepting it puts an embargo in force at once, and
+      treating the rest as revisions keeps the longer requests under discussion.
   - id: VP-07-009
     priority: SHOULD
     kind: protocol
@@ -949,30 +1315,47 @@ groups:
       When two or more embargo revisions are open and an embargo is active ($q^{em} \in R$),
       Participants SHOULD accept or reject them individually in earliest-to-latest expiration
       order
+    rationale: >-
+      Open revisions with different end times interact: accepting a later one first can
+      make an earlier one meaningless. Deciding them in expiration order lets each be
+      judged against the terms actually in force.
   - id: VP-07-010
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY include a default embargo period as part of a published Vulnerability
       Disclosure Policy
+    rationale: >-
+      A published default sets reporters' expectations and lets VP-07-002 apply. Keeping
+      it optional leaves the protocol usable by participants who negotiate case by case.
   - id: VP-07-011
     priority: MAY
     kind: protocol
     statement: >-
       When the Receiver has no default, the Receiver MAY propose a revision after accepting
       the Sender's proposal
+    rationale: >-
+      Accepting the sender's proposal secures protection at once, but the receiver may
+      need different terms once it knows more. A later revision lets it ask without
+      leaving the case unprotected.
   - id: VP-07-012
     priority: MAY
     kind: protocol
     statement: >-
       When the Sender proposes longer than the Receiver's default, the Receiver MAY accept
       or reject the proposed extension
+    rationale: >-
+      The sender's longer request is a proposed revision, not an obligation (VP-07-004).
+      The receiver judges whether the extra time is justified.
   - id: VP-07-013
     priority: MAY
     kind: protocol
     statement: >-
       When the Sender proposes shorter than the Receiver's default, the Sender MAY accept
       or reject the Receiver's proposed revision
+    rationale: >-
+      The receiver's longer default is a proposed revision (VP-07-005), and the sender
+      is not bound by it. The sender judges whether the extra time is acceptable.
 - id: VP-08
   title: Multi-Party Coordination
   specs:
@@ -982,10 +1365,11 @@ groups:
     statement: >-
       When inviting a new Participant to a case with an existing embargo, the inviting Participant
       SHALL propose the existing embargo to the invited Participant
-    verification: >-
-      Integration tests in `test/demo/test_manage_participants_demo.py` confirm
-      that the invite payload carries the existing embargo terms when an Active
-      embargo is in place.
+    rationale: >-
+      A newcomer must know which embargo binds the case before it sees case information.
+      Proposing the existing embargo is how it learns the terms and is asked to keep
+      them.
+    verification_debt: '#3612'
     stories:
     - story_2022_013
     - story_2022_052
@@ -996,10 +1380,17 @@ groups:
     statement: >-
       Participants SHOULD attempt to establish an embargo as early in the process of handling
       the case as possible
+    rationale: >-
+      Information shared before an embargo is in place is unprotected. Establishing one
+      early limits how much is shared without any agreement.
   - id: VP-08-003
     priority: SHOULD
     kind: protocol
     statement: Participants SHOULD follow consensus agreement to decide embargo terms
+    rationale: >-
+      In an MPCVD case each participant must be able to keep the terms. Terms set
+      without broad agreement risk being broken by participants who could never meet
+      them.
     stories:
     - story_2022_046
     - story_2022_078
@@ -1008,6 +1399,10 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: All known Vendors of affected software SHOULD be included as Participants
+    rationale: >-
+      A vendor left out of the case cannot prepare a fix, so its users are exposed at
+      publication. Including every known affected vendor lets all fixes be ready
+      together.
     stories:
     - story_2022_013
     - story_2022_032
@@ -1025,6 +1420,10 @@ groups:
     statement: >-
       A newly invited Participant to a case with an existing embargo SHOULD accept the existing
       embargo
+    rationale: >-
+      The existing participants agreed the terms around their own work. A newcomer that
+      accepts them joins without forcing a renegotiation, and can still propose a
+      revision afterwards (VP-08-016).
     stories:
     - story_2022_052
   - id: VP-08-006
@@ -1033,6 +1432,9 @@ groups:
     statement: >-
       The inviting Participant SHOULD NOT share the vulnerability report with a newly invited
       Participant unless the new Participant has accepted the existing embargo
+    rationale: >-
+      Sharing the report with a participant that has not agreed to keep it private puts
+      the whole case at risk of an uncoordinated release.
     stories:
     - story_2022_023
     - story_2022_026
@@ -1043,18 +1445,30 @@ groups:
     statement: >-
       Participants with short default embargo policies SHOULD consider accepting longer embargoes
       in MPCVD cases
+    rationale: >-
+      In an MPCVD case the slowest vendor sets when all affected users can have a fix. A
+      participant whose own policy is short may need to accept more time so others can
+      finish.
   - id: VP-08-008
     priority: SHOULD
     kind: protocol
     statement: >-
       Potential Participants with a longer default policy than an existing case SHOULD accept
       the embargo terms offered
+    rationale: >-
+      The existing terms were set around the existing participants' work. A newcomer
+      that insists on its own longer default could hold them up, so it accepts the
+      case's terms and seeks a revision if needed.
   - id: VP-08-009
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants in a case with an existing embargo SHOULD notify Vendors with a longer
       default embargo policy
+    rationale: >-
+      A vendor with a longer default policy may not be able to meet the existing
+      embargo. Notifying it lets it start work, or ask for a revision, before the
+      deadline instead of being surprised at publication.
     stories:
     - story_2022_032
     - story_2022_052
@@ -1067,6 +1481,10 @@ groups:
       Participants known to leak or provide vulnerability information to adversaries as a
       matter of policy or historical fact SHOULD be treated similar to Participants with brief
       disclosure policies
+    rationale: >-
+      A participant known to leak behaves, in effect, like one that will disclose early.
+      Treating it that way keeps others from sharing more with it than they would with a
+      party that publishes quickly.
     stories:
     - story_2022_027
     - story_2022_094
@@ -1077,6 +1495,9 @@ groups:
     statement: >-
       When consensus fails to reach agreement on embargo terms, Participants MAY appoint a
       case lead to resolve conflicts
+    rationale: >-
+      Consensus can fail, and a case cannot wait indefinitely for terms. A case lead
+      gives the participants a way to reach a decision.
     stories:
     - story_2022_051
   - id: VP-08-012
@@ -1085,6 +1506,9 @@ groups:
     statement: >-
       Participants MAY engage a third-party Coordinator to act as a neutral case lead to resolve
       conflicts between Participants
+    rationale: >-
+      When participants disagree, a party with no product at stake can judge the dispute
+      fairly. A third-party Coordinator offers that neutrality.
     stories:
     - story_2022_047
     - story_2022_053
@@ -1093,12 +1517,20 @@ groups:
     priority: MAY
     kind: protocol
     statement: Third-party Coordinators MAY be included as Participants
+    rationale: >-
+      Coordinators bring contacts, experience and neutrality that help complex cases.
+      Allowing them as participants lets them take part directly rather than from
+      outside.
     stories:
     - story_2022_013
   - id: VP-08-014
     priority: MAY
     kind: protocol
     statement: Other parties MAY be included as Participants when necessary and appropriate
+    rationale: >-
+      Some cases need parties beyond vendors and reporters, such as service providers,
+      government agencies or large deployers. Allowing them when needed lets the case
+      include everyone who can reduce harm.
     stories:
     - story_2022_063
     - story_2022_064
@@ -1112,6 +1544,10 @@ groups:
     statement: >-
       The inviting Participant MAY interpret a potential Participant's default embargo policy
       in accordance with default acceptance strategies
+    rationale: >-
+      A potential participant's published default tells the inviter how it is likely to
+      respond. Applying the default acceptance strategies (VP-07) lets the inviter
+      predict the outcome and propose suitable terms.
     stories:
     - story_2022_054
   - id: VP-08-016
@@ -1119,12 +1555,19 @@ groups:
     kind: protocol
     statement: >-
       A newly invited Participant MAY propose a revision after accepting the existing embargo
+    rationale: >-
+      Accepting first secures the newcomer's protection and the case's information. A
+      later revision still lets it ask for terms that fit its needs.
   - id: VP-08-017
     priority: MAY
     kind: protocol
     statement: >-
       Participants in an MPCVD case MAY delay notifying potential Participants with short
       default embargo policies until their policy aligns with the agreed embargo
+    rationale: >-
+      A participant whose policy would end the embargo early could publish before others
+      are ready. Delaying its notification until its policy fits the agreed embargo
+      reduces that risk.
     stories:
     - story_2022_024
     - story_2022_033
@@ -1134,24 +1577,36 @@ groups:
     statement: >-
       After accepting an existing embargo, newly invited Participants with a longer default
       policy MAY propose a revision to accommodate their preferences
+    rationale: >-
+      The newcomer may need more time than the existing embargo gives. Proposing a
+      revision after accepting lets it ask while the case stays protected.
   - id: VP-08-019
     priority: MAY
     kind: protocol
     statement: >-
       Existing Participants MAY accept or reject a proposed revision from a newly invited
       Participant
+    rationale: >-
+      The existing terms were set around the existing participants' work. They must be
+      free to decide whether a newcomer's request suits them.
   - id: VP-08-020
     priority: MAY
     kind: protocol
     statement: >-
       Participants in a case with an existing embargo MAY choose to extend the embargo to
       accommodate a newly added Participant
+    rationale: >-
+      A newly added vendor may need more time to prepare a fix. Extending the embargo
+      lets its users also be protected at publication.
   - id: VP-08-021
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY decline to participate in future CVD cases involving parties with a
       history of violating previous embargoes
+    rationale: >-
+      A party that has broken embargoes before is likely to do so again. Declining to
+      work with it protects future cases from that risk.
     stories:
     - story_2022_027
     - story_2022_094
@@ -1164,10 +1619,11 @@ groups:
     statement: >-
       Embargoes SHALL terminate immediately when information about the vulnerability becomes
       public ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$)
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that the EM state transitions to Terminated when the CS state advances
-      to include public awareness.
+    rationale: >-
+      Once the vul or its exploit is public, secrecy protects no one: attackers already
+      have the information and defenders need it. Holding to the embargo would only stop
+      participants from helping users respond.
+    verification_debt: '#3612'
     stories:
     - story_2022_015
     - story_2022_020
@@ -1178,12 +1634,20 @@ groups:
     statement: >-
       Participants SHOULD be prepared with contingency plans in the event of early embargo
       termination
+    rationale: >-
+      Leaks, exploit publication and attacks can end an embargo at any time. A
+      participant with no plan for that moment cannot publish advice or fixes quickly,
+      which leaves users exposed.
   - id: VP-09-003
     priority: SHOULD
     kind: protocol
     statement: >-
       Embargoes SHOULD terminate early when there is evidence that the vulnerability is being
       actively exploited by adversaries ($q^{cs} \in \{\cdots A\}$)
+    rationale: >-
+      Active exploitation means users are being harmed now and defenders need
+      information to respond. Keeping the embargo would only preserve the attackers'
+      advantage.
     stories:
     - story_2022_018
   - id: VP-09-004
@@ -1192,18 +1656,28 @@ groups:
     statement: >-
       Embargoes SHOULD terminate early when there is evidence that adversaries possess exploit
       code for the vulnerability
+    rationale: >-
+      Adversaries holding exploit code can attack at any time. Ending the embargo early
+      lets defenders get information and mitigations before attacks spread.
   - id: VP-09-005
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD consider the software supply chain when determining an appropriate
       quorum of Vendors for release
+    rationale: >-
+      Downstream vendors build on upstream components and often cannot ship fixes until
+      those are released. A quorum that ignores the supply chain could trigger release
+      while many affected users still have no fix available.
   - id: VP-09-006
     priority: MAY
     kind: protocol
     statement: >-
       Embargoes MAY terminate early when there is evidence that adversaries are aware of the
       technical details of the vulnerability
+    rationale: >-
+      If adversaries already know the technical details, secrecy stops buying defenders
+      time. Participants may then end the embargo so defenders can act.
     stories:
     - story_2022_018
   - id: VP-09-007
@@ -1227,6 +1701,10 @@ groups:
       If no new embargo has been proposed or agreement has not been reached following a case
       merge, the earliest of the previously accepted embargo dates SHALL be adopted for the
       merged case
+    rationale: >-
+      Each merged case brought an embargo some participants had already agreed to.
+      Adopting the earliest end time breaks no participant's commitment, since none
+      agreed to withhold past its own date, until a new agreement is reached.
     verification: >-
       Inspection of `vultron/core/` confirms that the case-merge handler
       selects the earliest `end_time` across all merging embargo agreements
@@ -1242,6 +1720,11 @@ groups:
       the inherited date, the CASE_MANAGER of that child case SHALL notify the
       CASE_MANAGERs of all sibling child cases before the earlier end time takes
       effect, documenting the rationale in the case ledger.
+    rationale: >-
+      Child cases from one split share the same vul information, so an earlier end in
+      one child in effect ends the embargo for its siblings too. Notifying the siblings'
+      CASE_MANAGERs before it takes effect, with the reason on the ledger, gives their
+      participants time to prepare and to see why.
     verification: >-
       Inspection of `vultron/core/use_cases/` confirms that the case-split
       handler emits a notification to sibling case managers before any earlier
@@ -1256,6 +1739,10 @@ groups:
     statement: >-
       Participants in a child case SHALL communicate any subsequently agreed changes from
       the inherited embargo to the Participants of the other child cases
+    rationale: >-
+      Child cases share information that came from one parent. A change agreed in one
+      child can change what the others may safely disclose and when, so their
+      participants must learn of it.
     verification: >-
       Integration tests in `test/demo/` confirm that embargo revision
       activities on a child case are forwarded to all sibling child-case
@@ -1269,6 +1756,9 @@ groups:
     statement: >-
       A new embargo SHOULD be proposed when any two or more CVD cases are to be merged and
       multiple parties have agreed to different embargo terms prior to the merger
+    rationale: >-
+      Participants of the merging cases agreed to different terms, and no single set
+      binds all of them. A new proposal lets everyone agree to one set.
     stories:
     - story_2022_104
     - story_2022_105
@@ -1278,22 +1768,36 @@ groups:
     statement: >-
       When a case is split into two or more parts, any existing embargo SHOULD transfer to
       the new cases
+    rationale: >-
+      The information in each new case was shared under the parent's embargo. Carrying
+      the embargo over keeps it protected on terms everyone already agreed to.
   - id: VP-10-006
     priority: SHOULD
     kind: protocol
     statement: >-
       If any of the new cases need to renegotiate the embargo inherited from the parent case,
       any new embargo SHOULD be later than the inherited embargo
+    rationale: >-
+      The information in a child case is also held in its siblings. An earlier end in
+      one child could expose the others before they are ready, so renegotiated terms
+      should only extend the inherited date.
   - id: VP-10-007
     priority: MAY
     kind: protocol
     statement: Participants MAY propose revisions to the embargo on a merged case as usual
+    rationale: >-
+      A merged case is still a case, and its work keeps changing. Participants need the
+      usual way to adjust its terms.
   - id: VP-10-008
     priority: MAY
     kind: protocol
     statement: >-
       Participants approaching a case split MAY engage a Coordinator to act as a trusted third
       party to help resolve and coordinate embargo dependencies for the new cases
+    rationale: >-
+      Splitting a case creates embargo dependencies between the new cases that their
+      participants may not each see. A trusted third party who can see all of them can
+      keep them consistent.
 - id: VP-11
   title: EM Messaging
   specs:
@@ -1303,6 +1807,9 @@ groups:
     statement: >-
       Participants SHALL NOT negotiate embargoes where the vulnerability or its exploit is
       public or attacks are known to have occurred
+    rationale: >-
+      Once the vul or exploit is public, or attacks are known, secrecy stops protecting
+      users. Negotiating an embargo then would only delay defenders.
     verification: >-
       Inspection of `vultron/core/states/em.py` confirms that EM guard
       conditions block new embargo proposals when the CS state includes
@@ -1323,6 +1830,12 @@ groups:
       other than the authorising Case Owner does not itself terminate the case-level
       embargo; it may only initiate termination and terminate its own compliance
       (VP-13-017).
+    rationale: >-
+      Once the vul or an exploit is public, the embargo protects no one and only stops
+      participants from helping users. Separating who reports the condition from who
+      ends the embargo keeps one authoritative decision, made by the Case Owner and
+      recorded by the CASE_MANAGER, so participants never disagree about whether the
+      embargo still holds.
     note: >-
       Rephrased from the original "Participants SHALL terminate the embargo" (CONCERN-3280):
       that wording conflated the obligation to *initiate* termination (any Participant) with
@@ -1332,10 +1845,7 @@ groups:
       `docs/reference/vultron-spec/_oq-embargo-termination-authority.md`; the working
       position is that teardown is mandatory once the condition is adopted as canonical case
       state (DEMOMA-07-003).
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that the EM state transitions to Terminated when a CP or CX message is
-      received.
+    verification_debt: '#3612'
     stories:
     - story_2022_007
     - story_2022_018
@@ -1345,10 +1855,10 @@ groups:
     statement: >-
       Participants SHALL initiate embargo termination upon becoming aware of publicly available
       information about the vulnerability or its exploit code
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that a CP or CX event automatically triggers the ET
-      embargo-termination transition.
+    rationale: >-
+      Other participants may not have seen the public information. Initiating
+      termination makes sure the case learns of it and the embargo ends promptly.
+    verification_debt: '#3612'
     stories:
     - story_2022_008
     - story_2022_019
@@ -1358,12 +1868,20 @@ groups:
     statement: >-
       Participants SHOULD send $EK$ in acknowledgment of any other $E*$ message except $EK$
       itself
+    rationale: >-
+      An embargo message changes what participants may disclose. Acknowledging it tells
+      the sender it arrived, so silence is not mistaken for agreement or for a lost
+      message; acknowledging an $EK$ would only start a loop.
   - id: VP-11-005
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD acknowledge ($EK$) and inquire ($GI$) about the nature of any error
       reported by an incoming $EE$ message
+    rationale: >-
+      An $EE$ means the other side could not process an embargo message, so the two may
+      now hold different embargo states. Acknowledging it and asking what went wrong
+      lets them find and fix the mismatch.
     stories:
     - story_2022_008
   - id: VP-11-006
@@ -1375,6 +1893,11 @@ groups:
       reporting the condition (VP-11-007); as with VP-11-002 the authority to terminate the
       case-level embargo belongs to the Case Owner (CM-02-005) and the CASE_MANAGER effects
       the teardown (EMB-19-001).
+    rationale: >-
+      Known attacks mean users are being harmed now and defenders need information.
+      Keeping the embargo would only slow their response; as with VP-11-002, one party
+      holds the authority to end it so participants never disagree about whether it
+      still holds.
     note: >-
       Rephrased from "Participants SHOULD terminate the embargo" for the same reason as
       VP-11-002 (CONCERN-3280).
@@ -1386,6 +1909,9 @@ groups:
     statement: >-
       Participants SHOULD initiate embargo termination upon becoming aware of attacks against
       an otherwise unpublished vulnerability
+    rationale: >-
+      Others in the case may not know about the attacks. Initiating termination makes
+      sure the case learns of them and can end the embargo.
     stories:
     - story_2022_019
   - id: VP-11-008
@@ -1394,6 +1920,10 @@ groups:
     statement: >-
       If early embargo termination is desired but the termination date/time is in the future,
       this SHOULD be achieved through an Embargo Revision Proposal and additional communication
+    rationale: >-
+      Participants must keep the existing terms until the new end time arrives. A
+      revision proposal changes the end time through the usual agreement process, rather
+      than leaving participants unsure whether the embargo still holds.
   - id: VP-11-009
     priority: MAY
     kind: protocol
@@ -1401,10 +1931,16 @@ groups:
       Participants MAY begin embargo negotiations before sending the report itself in an $RS$
       message; therefore it is not an error for an $E*$ message to arrive while the Recipient
       is unaware of the report ($q^{rm} \in S$)
+    rationale: >-
+      Negotiating before sending the report lets the sender protect it from the moment
+      it is shared. Treating an early $E*$ as an error would block that.
   - id: VP-11-010
     priority: MAY
     kind: protocol
     statement: Participants MAY reject any embargo proposals or revisions for any reason
+    rationale: >-
+      An embargo binds only those who agree. Participants must be free to refuse
+      proposals or revisions they cannot keep.
 - id: VP-12
   title: CVD Case State (CS) Messaging
   specs:
@@ -1415,6 +1951,10 @@ groups:
       Vendor Awareness ($CV$) messages SHOULD be sent only by Participants with direct knowledge
       of the notification (i.e., either the Participant who sent the report to the Vendor
       or the Vendor upon receipt of the report)
+    rationale: >-
+      Only those who took part in the notification know for certain that the vendor was
+      told. Restricting $CV$ to them stops second-hand reports from marking a vendor
+      aware when it was not.
     stories:
     - story_2022_037
     - story_2022_069
@@ -1429,6 +1969,9 @@ groups:
     statement: >-
       Once attacks are observed ($q^{cs} \in \cdots A$), fix development SHOULD
       accelerate.
+    rationale: >-
+      Attacks mean users are being harmed while no fix exists. Speeding fix development
+      shortens that harm.
     stories:
     - story_2022_019
   - id: VP-12-002b
@@ -1437,6 +1980,9 @@ groups:
     statement: >-
       Once attacks are observed ($q^{cs} \in \cdots A$), the embargo teardown process
       SHOULD begin immediately.
+    rationale: >-
+      Once attacks are seen, secrecy stops protecting users and defenders need
+      information. Starting the teardown at once avoids keeping them uninformed.
     relationships:
     - rel_type: refines
       spec_id: VP-12-002
@@ -1446,6 +1992,10 @@ groups:
     statement: >-
       Once attacks are observed ($q^{cs} \in \cdots A$), publication and deployment
       SHOULD follow as soon as is practical.
+    rationale: >-
+      While attacks continue, every day without published advice or a deployed fix
+      leaves users harmed. Publishing and deploying as soon as practical shortens that
+      harm.
     relationships:
     - rel_type: refines
       spec_id: VP-12-002
@@ -1458,35 +2008,58 @@ groups:
     statement: >-
       The EM process SHOULD begin when a recipient is in RM Received ($q^{rm} \in R$) whenever
       possible
+    rationale: >-
+      Received is the earliest point at which the recipient holds the report. Starting
+      embargo work there protects the report before validation, rather than after
+      information may already have been shared.
   - id: VP-13-002
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       Embargo Management SHOULD NOT begin in an inactive RM state ($q^{rm} \in \{I, D, C\}$)
+    rationale: >-
+      Invalid, Deferred and Closed mean the participant is not working on the report.
+      Starting an embargo from those states would bind others to a timeline nobody is
+      working toward.
   - id: VP-13-003
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       Embargo Management SHOULD NOT begin with a proposal from a Participant in RM Invalid
       ($q^{rm} \in I$)
+    rationale: >-
+      A participant that judged the report invalid does not believe there is a real vul
+      to protect. A proposal from it would ask others to withhold information about
+      something it does not think needs fixing.
   - id: VP-13-004
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       Embargo Management SHOULD NOT proceed from EM Proposed to EM Accepted when RM is Invalid
       or Closed ($q^{rm} \in \{I, C\}$)
+    rationale: >-
+      An Invalid or Closed participant is not working on the report. Agreeing to an
+      embargo then would commit it to terms it has no intent to work toward.
   - id: VP-13-005
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       Participants SHOULD NOT close reports ($q^{rm} \in \{R,I,D,A\} \xrightarrow{c} C$) while
       an embargo is active ($q^{em} \in \{A, R\}$)
+    rationale: >-
+      A participant that closes may stop watching the case and lose track of its
+      obligations. Keeping the report open while the embargo runs keeps the participant
+      aware of the embargo until it ends.
   - id: VP-13-006
     priority: SHOULD
     kind: protocol
     statement: >-
       Reports with no further tasks SHOULD be held in Deferred or Invalid ($q^{rm} \in \{D,
       I\}$) until the embargo has terminated ($q^{em} \in X$)
+    rationale: >-
+      Holding the report in Deferred or Invalid keeps the participant attached to the
+      case, and aware of the embargo, until the embargo ends, without claiming any
+      further work.
   - id: VP-13-007
     priority: SHOULD
     kind: protocol
@@ -1494,12 +2067,19 @@ groups:
       Participants who choose to close a report while an embargo remains in force SHOULD communicate
       their intent to either continue to adhere to the embargo or terminate their compliance
       with it
+    rationale: >-
+      Remaining participants need to know whether someone who closed will still keep the
+      information private. That tells them whether the embargo still holds.
   - id: VP-13-008
     priority: SHOULD
     kind: protocol
     statement: >-
       Any changes to a Participant's intention to adhere to an active embargo SHOULD be communicated
       clearly in addition to any necessary RM or EM state change notifications
+    rationale: >-
+      An RM or EM state change does not say whether the participant will keep the
+      embargo. Saying so clearly stops others from relying on a commitment that has
+      changed.
   - id: VP-13-009
     priority: MUST
     kind: protocol
@@ -1507,10 +2087,11 @@ groups:
       A Participant's closure or deferral ($q^{rm} \in \{C, D\}$) of a report while an embargo
       remains active ($q^{em} \in \{A, R\}$) and while other Participants remain engaged SHALL
       NOT automatically terminate the embargo
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that RM Closed or Deferred transitions leave the EM Active state
-      unchanged.
+    rationale: >-
+      One participant's exit must not end protection for those still working on fixes.
+      Otherwise any participant could end the embargo for everyone by closing or
+      deferring.
+    verification_debt: '#3612'
     stories:
     - story_2022_067
   - id: VP-13-010
@@ -1519,23 +2100,36 @@ groups:
     statement: >-
       The EM process MAY begin prior to the report being sent to a potential Participant ($q^{rm}
       \in S$)
+    rationale: >-
+      Negotiating before sending the report lets the sender protect it from the moment
+      it is shared (VP-11-009).
   - id: VP-13-011
     priority: MAY
     kind: protocol
     statement: >-
       Embargo Management MAY begin in any of the active RM states ($q^{rm} \in \{R, V, A\}$)
+    rationale: >-
+      In the active RM states the participant is working on the report. Allowing the
+      embargo to start in any of them keeps protection timely without waiting for a
+      later step.
   - id: VP-13-012
     priority: MAY
     kind: protocol
     statement: >-
       Embargo Management MAY run in parallel to validation ($q^{rm} \in \{R,I\} \xrightarrow{\{v,i\}}
       \{V,I\}$) and prioritization ($q^{rm} \in V \xrightarrow{\{a,d\}} \{A,D\}$) activities
+    rationale: >-
+      Validation and prioritization can take time. Running embargo work alongside them
+      protects the report while those decisions are made.
   - id: VP-13-013
     priority: MAY
     kind: protocol
     statement: >-
       EM revision proposals and acceptance or rejection of those proposals MAY occur during
       any of the valid yet unclosed RM states ($q^{rm} \in \{V, A, D\}$)
+    rationale: >-
+      Valid, Accepted and Deferred participants still have a stake in the report.
+      Allowing revisions then lets the embargo follow changes in the work.
   - id: VP-13-014
     priority: MAY
     kind: protocol
@@ -1543,23 +2137,36 @@ groups:
       Outstanding embargo negotiations ($q^{em} \in P$) MAY continue in RM Invalid ($q^{rm}
       \in I$) if additional information may be forthcoming to promote the report from Invalid
       to Valid
+    rationale: >-
+      An Invalid report may become valid with more information (VP-02-033). Keeping the
+      negotiation open protects the report until that is known.
   - id: VP-13-015
     priority: MAY
     kind: protocol
     statement: >-
       Embargo Management MAY proceed from EM Proposed to EM Accepted when RM is neither Invalid
       nor Closed ($q^{rm} \in \{R, V, A, D\}$)
+    rationale: >-
+      In these RM states the participant holds the report and is not done with it, so
+      agreeing to an embargo protects real ongoing work.
   - id: VP-13-016
     priority: MAY
     kind: protocol
     statement: >-
       Embargo Management MAY proceed from EM Proposed to EM None ($q^{em} \in P \xrightarrow{r}
       N$) when RM is Invalid or Closed
+    rationale: >-
+      An Invalid or Closed participant has no ongoing work to protect, so letting the
+      proposal fall back to no embargo matches its position.
   - id: VP-13-017
     priority: MAY
     kind: protocol
     statement: >-
       Participants MAY choose to terminate their compliance with an embargo at any time
+    rationale: >-
+      Embargo participation is voluntary, and a participant may become unable to keep
+      the terms. Ending its own compliance openly does less harm than staying in and
+      breaking them, and does not end the embargo for others (VP-13-009).
     note: >-
       Terminating one's own compliance is distinct from terminating the case-level embargo
       (VP-11-002, CM-02-005): it changes only the Participant's own PEC state and does not end
@@ -1574,6 +2181,11 @@ groups:
       an embargo, other Participants MAY choose to terminate their own compliance
       (VP-13-017), and the Case Owner MAY choose to terminate the case-level embargo
       (CM-02-005), which the CASE_MANAGER then effects (EMB-19-001)
+    rationale: >-
+      When one participant will stop keeping the embargo, others may judge that it has
+      stopped protecting them. Letting them end their own compliance, and the Case Owner
+      end the case-level embargo, lets the case respond without any participant acting
+      beyond its own authority.
     note: >-
       Rephrased from "other Participants MAY choose to terminate the embargo" (CONCERN-3280):
       a Participant other than the authorising Case Owner cannot effect the case-level
@@ -1588,10 +2200,10 @@ groups:
     statement: >-
       Once Public Awareness has happened ($q^{cs} \in \cdots P \cdots$), new embargoes SHALL
       NOT be sought and any existing embargo SHALL terminate
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that a CP event both blocks new embargo proposals and terminates any
-      Active embargo.
+    rationale: >-
+      Once the public knows about the vul, secrecy protects no one and defenders need
+      information. Seeking or keeping an embargo would only delay them.
+    verification_debt: '#3612'
     stories:
     - story_2022_020
     - story_2022_108
@@ -1601,10 +2213,10 @@ groups:
     statement: >-
       Once Exploit Publication has occurred ($q^{cs} \in \cdots X \cdot$), new embargoes SHALL
       NOT be sought and any existing embargo SHALL terminate
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that a CX event both blocks new embargo proposals and terminates any
-      Active embargo.
+    rationale: >-
+      Once an exploit is published, anyone can attack and defenders need information at
+      once. Seeking or keeping an embargo would only delay them.
+    verification_debt: '#3612'
     stories:
     - story_2022_018
   - id: VP-14-003
@@ -1613,9 +2225,10 @@ groups:
     statement: >-
       Once Attacks have been observed ($q^{cs} \in \cdots A$), new embargoes SHALL NOT be
       sought
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that a CA event blocks all new embargo proposal activities.
+    rationale: >-
+      With attacks under way, a new embargo would only keep defenders uninformed while
+      users are being harmed.
+    verification_debt: '#3612'
     stories:
     - story_2022_019
   - id: VP-14-004
@@ -1624,11 +2237,10 @@ groups:
     statement: >-
       Participants MUST treat attacks as an event that could occur at any time and adapt their
       process as needed in light of available information
-    verification: >-
-      Inspection of `vultron/core/states/cs.py` confirms the CS state machine
-      accepts the `a` transition from any pre-attack CS state, and integration
-      tests in `test/demo/test_manage_embargo_demo.py` confirm a CA message
-      triggers the EM guard correctly.
+    rationale: >-
+      Attacks can start before, during or after an embargo, without warning. A process
+      that assumes they will not leaves users unprotected when they do.
+    verification_debt: '#3612'
     stories:
     - story_2022_019
     - story_2022_086
@@ -1638,18 +2250,27 @@ groups:
     statement: >-
       Once a case has reached Vendor Aware ($q^{cs} \in Vfdpxa$) for at least one Vendor,
       if the EM process has not started, it SHOULD begin as soon as possible
+    rationale: >-
+      Once a vendor knows, information about the vul is spreading among parties.
+      Starting the EM process then keeps it from spreading further without an agreement.
   - id: VP-14-006
     priority: SHOULD
     kind: protocol
     statement: >-
       Any proposed embargo SHOULD be decided (accept or reject) soon after the first Vendor
       is notified
+    rationale: >-
+      An undecided proposal leaves the notified vendor unsure whether it may share the
+      information. A quick decision gives it clear terms to work under.
   - id: VP-14-007
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       Once a case has reached Fix Ready ($q^{cs} \in VF\cdot pxa$), new embargo negotiations
       SHOULD NOT start and proposed but not-yet-agreed-to embargoes SHOULD be rejected
+    rationale: >-
+      With a fix ready, the remaining work is release. A new or pending embargo would
+      only delay getting the fix to users.
     stories:
     - story_2022_025
   - id: VP-14-008
@@ -1658,18 +2279,27 @@ groups:
     statement: >-
       Existing embargoes ($q^{em} \in \{Active, Revise\}$) when Fix Ready is reached SHOULD
       prepare to terminate soon
+    rationale: >-
+      With a fix ready, most of the reason for the embargo is gone. Preparing to end it
+      lets participants release quickly.
   - id: VP-14-009
     priority: SHOULD
     kind: protocol
     statement: >-
       Participants SHOULD accept reasonable extension proposals to allow trailing Vendors
       to catch up before publication when possible
+    rationale: >-
+      Publishing before all vendors are ready leaves the trailing vendors' users
+      exposed. A reasonable extension can let everyone release together.
   - id: VP-14-010
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       By the time a fix has been deployed ($q^{cs} \in VFD\cdots$), new embargoes SHOULD NOT
       be sought and any existing embargo SHOULD terminate
+    rationale: >-
+      After the fix is deployed there is nothing left to protect by secrecy, so a new or
+      continuing embargo only delays user awareness.
   - id: VP-14-011
     priority: SHOULD
     kind: protocol
@@ -1677,6 +2307,10 @@ groups:
       Exploit Publishers who are Participants in pre-public CVD cases ($q^{cs} \in \cdots
       p \cdots$) SHOULD comply with the protocol, especially when they also fulfill other
       roles (e.g., Reporter, Coordinator, Vendor)
+    rationale: >-
+      An Exploit Publisher in a pre-public case knows about the vul before the public.
+      If it ignores the protocol, especially while also acting as Reporter, Coordinator
+      or Vendor, it can make the vul public before fixes are ready.
     stories:
     - story_2022_080
   - id: VP-14-012
@@ -1685,6 +2319,9 @@ groups:
     statement: >-
       Exploit Publishers SHOULD NOT release exploit code while an embargo is active ($q^{em}
       \in \{A, R\}$)
+    rationale: >-
+      Released exploit code lets attackers use the vul at once. Releasing it during an
+      embargo exposes users before fixes are ready.
     stories:
     - story_2022_080
   - id: VP-14-013
@@ -1693,12 +2330,19 @@ groups:
     statement: >-
       Once Attacks have been observed ($q^{cs} \in \cdots A$), any existing embargo SHOULD
       terminate
+    rationale: >-
+      Attacks mean users are being harmed now and defenders need information. Keeping
+      the embargo would only slow their response.
   - id: VP-14-014
     priority: MAY
     kind: protocol
     statement: >-
       In MPCVD cases where some Vendors reach Fix Ready before others, Participants MAY propose
       an embargo extension to allow trailing Vendors to catch up before publication
+    rationale: >-
+      When some vendors are ready earlier, publishing at once would leave the other
+      vendors' users exposed. An extension proposal lets participants choose to give the
+      trailing vendors time.
     stories:
     - story_2022_080
     - story_2022_105
@@ -1711,6 +2355,9 @@ groups:
     statement: >-
       Vultron Protocol messages SHOULD use well-defined format specifications (e.g., JSON
       Schema, protobuf, XSD)
+    rationale: >-
+      Participants run different implementations. A well-defined format lets each one
+      validate and parse the others' messages the same way, so messages are not misread.
     stories:
     - story_2022_106
   - id: VP-15-002
@@ -1719,6 +2366,9 @@ groups:
     statement: >-
       Vultron Protocol implementations SHOULD use common API patterns (e.g., REST, WebSockets)
       for inter-participant communication
+    rationale: >-
+      Common API patterns let participants build on standard tooling and connect to each
+      other without a bespoke integration for every partner.
     scope:
     - production
     stories:
@@ -1733,6 +2383,9 @@ groups:
     statement: >-
       Vultron Protocol implementations SHOULD use transport-layer encryption to protect sensitive
       data in transit
+    rationale: >-
+      Protocol messages carry undisclosed vul details and embargo terms. Transport-layer
+      encryption keeps them from being read or altered in transit.
     scope:
     - production
     stories:
@@ -1743,6 +2396,10 @@ groups:
     statement: >-
       Vultron Protocol implementations MAY use end-to-end encryption to protect sensitive
       data in transit
+    rationale: >-
+      Transport encryption protects each hop only, and messages may pass through
+      intermediaries. End-to-end encryption also protects them from those
+      intermediaries.
     scope:
     - production
     stories:
@@ -1753,6 +2410,9 @@ groups:
     kind: architecture
     statement: >-
       Vultron Protocol implementations MAY use encryption to protect sensitive data at rest
+    rationale: >-
+      Stored case data contains undisclosed vul details that would harm users if leaked.
+      Encrypting it at rest limits the damage from a compromised system or disk.
     scope:
     - production
     stories:
@@ -1767,6 +2427,10 @@ groups:
     statement: >-
       Vulnerability details MUST NOT appear in embargo representation data (e.g., embargo
       scheduling or notification messages)
+    rationale: >-
+      Embargo data, such as calendar entries and schedule notices, spreads further and
+      with less care than case content. Keeping vul details out of it stops embargo
+      scheduling from leaking the vul.
     stories:
     - story_2022_023
     - story_2022_070
@@ -1777,6 +2441,10 @@ groups:
     statement: >-
       A case or vulnerability identifier SHOULD appear in embargo representation data along
       with an indication that it relates to an embargo expiration
+    rationale: >-
+      Recipients need to know which case an embargo date belongs to and that it is an
+      embargo end. An identifier and an explicit embargo indication give them that
+      without sharing any details.
     stories:
     - story_2022_030
     - story_2022_045
@@ -1786,6 +2454,10 @@ groups:
     statement: >-
       Case or vulnerability identifiers SHOULD NOT carry any information that reveals potentially
       sensitive details about the vulnerability
+    rationale: >-
+      Identifiers travel outside the embargo, for example in embargo notices
+      (VP-16-002). An identifier that hints at the product or the flaw would leak
+      information through that route.
     stories:
     - story_2022_030
 - id: VP-17

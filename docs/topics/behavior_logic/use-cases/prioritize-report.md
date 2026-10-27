@@ -2,11 +2,14 @@
 stakeholder_type: [platform-developer]
 level: 400
 page_type: explanation
+subject: protocol
 description: >
   Triggers `engage_case` and `defer_case`: choosing whether to work the case now or park it, and announcing which.
 ---
 
 # Prioritize Report
+
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Prioritizing a report is the decision to work a case now or to park it.
 The protocol requires the decision but takes no position on the answer, because the answer depends on the Participant's workload, its obligations, and its own assessment of the vulnerability.

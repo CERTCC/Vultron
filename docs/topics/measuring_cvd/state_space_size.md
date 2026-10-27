@@ -3,6 +3,7 @@ description: How large the Vultron protocol state space is for each participant 
 stakeholder_type: [process-researcher]
 level: 500
 page_type: explanation
+subject: neutral
 ---
 
 # About the Size of the Protocol State Space

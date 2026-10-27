@@ -664,6 +664,7 @@ def test_every_port_activity_method_has_a_recipe():
 
 @pytest.mark.spec("VM-08-003")
 @pytest.mark.spec("AKM-03-001")
+@pytest.mark.spec("AKM-02-003")
 @pytest.mark.parametrize("method", sorted(RECIPES))
 def test_the_activity_is_sealed_complete(world, method):
     result = RECIPES[method](world)

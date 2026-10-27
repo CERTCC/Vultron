@@ -2,6 +2,7 @@
 stakeholder_type: [process-researcher]
 level: 500
 page_type: explanation
+subject: neutral
 description: >
   Intervals, dwell times, margins, and spreads that the case ledger's timestamps make measurable within one case.
 ---

@@ -2,12 +2,15 @@
 stakeholder_type: [platform-developer]
 level: 400
 page_type: explanation
+subject: protocol
 introduces: [HeldLedgerAnnounce]
 description: >
   How replicas order ledger entries and catch up on the ones they missed.
 ---
 
 # Case Ledger Synchronization
+
+{% include-markdown "../../includes/specification_governs.md" %}
 
 Organizations that do not share a database coordinate a vulnerability case.
 Each one keeps its own copy of the case.

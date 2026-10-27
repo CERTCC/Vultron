@@ -6,6 +6,7 @@ title: Demo Scenario Narratives
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 page_type: routing
+subject: implementation
 contents: rendered
 ---
 
