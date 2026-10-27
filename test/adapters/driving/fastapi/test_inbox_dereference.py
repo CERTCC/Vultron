@@ -304,7 +304,7 @@ def test_a_failed_fetch_is_a_warning_and_the_activity_goes_on_without_it(
 
     assert any(
         r.levelno == logging.WARNING
-        and "AKM-05-008" in r.getMessage()
+        and "AKM-05-014" in r.getMessage()
         and missing in r.getMessage()
         for r in caplog.records
     )
