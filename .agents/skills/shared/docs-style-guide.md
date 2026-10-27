@@ -316,8 +316,8 @@ from 100–500 (DF-11-001), a `page_type` (DF-11-018): its Diátaxis quadrant, o
 `routing` for a page that mainly gives directions, and a `subject` (DF-11-025):
 `protocol`, `implementation` or `neutral`. A working-record page declares
 `stakeholder_type: [project-contributor]` and no `level` (DF-11-012),
-`page_type` or `subject`. An include fragment declares none of them, because it
-takes its hosts' declarations (DF-11-010). A page that is
+`page_type` or `subject` (DF-11-026). An include fragment declares none of
+them, because it takes its hosts' declarations (DF-11-010). A page that is
 the canonical introduction of a glossary term lists it under `introduces:`
 (SG-11). `docs-frontmatter`, `docs-nav-subjects`, `docs-level-order` and
 `docs-thread-order` enforce these.

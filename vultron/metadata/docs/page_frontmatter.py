@@ -3,9 +3,9 @@
 The keys are ``stakeholder_type``, ``level``, ``page_type`` and ``subject``.
 
 Requirements: specs/diataxis-requirements.yaml DF-11-001, DF-11-003,
-DF-11-010, DF-11-012, DF-11-013, DF-11-018, DF-11-025, DF-09-009;
-attribution per MS-17 via :mod:`vultron.metadata.file_loading`. Schema:
-:mod:`vultron.metadata.docs.page_schema`.
+DF-11-010, DF-11-012, DF-11-013, DF-11-018, DF-11-025, DF-11-026,
+DF-09-009; attribution per MS-17 via :mod:`vultron.metadata.file_loading`.
+Schema: :mod:`vultron.metadata.docs.page_schema`.
 
 Every ``docs/**/*.md`` file is one of three things:
 
@@ -13,12 +13,12 @@ Every ``docs/**/*.md`` file is one of three things:
   ``{% include-markdown %}`` and that is not itself in the nav, or a
   ``pymdownx.snippets`` ``auto_append`` file. It has no reader of its own, so it
   is excluded from the target set and reported if it declares any of the
-  four keys (DF-11-010, DF-11-018, DF-11-025); its hosts' declarations govern
+  four keys (DF-11-010, DF-11-018, DF-11-026); its hosts' declarations govern
   it.
 * a **working-record page** — matched by
   :data:`~vultron.metadata.docs.page_schema.WORKING_RECORD_PATTERNS`. It
   declares ``[project-contributor]``, no ``level`` (DF-11-012), no
-  ``page_type`` (DF-11-018) and no ``subject`` (DF-11-025), and it is
+  ``page_type`` (DF-11-018) and no ``subject`` (DF-11-026), and it is
   absent from the ``mkdocs.yml`` nav and matched by ``not_in_nav``
   (DF-11-003).
 * a **reader-facing page** — everything else. It declares all four keys
@@ -287,7 +287,7 @@ def _check_declarations(
         wanted = (
             "stakeholder_type: [project-contributor] (working record, "
             "no level, page_type or subject; DF-11-012, DF-11-018, "
-            "DF-11-025)"
+            "DF-11-026)"
             if working
             else "stakeholder_type, level (DF-11-001), page_type "
             "(DF-11-018) and subject (DF-11-025)"
@@ -411,7 +411,7 @@ def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
                     f"an include fragment must not declare {key}; it takes "
                     f"its declarations from the pages hosting it "
                     f"({', '.join(hosts)}) (DF-11-010, DF-11-018, "
-                    f"DF-11-025)",
+                    f"DF-11-026)",
                     path=shown(rel),
                     line=frontmatter_key_lines(path).get(key),
                 )

@@ -3,11 +3,11 @@
 They are the audience, the level, the page type and the subject.
 
 Schema requirements: specs/diataxis-requirements.yaml DF-11-001 (reader-facing
-pages), DF-11-018 (page type), DF-11-025 (subject), DF-11-012 (working-record
-pages), DF-11-003
-(which pages are working record), DF-11-013 (a start page's reading-path
-thread). Design rationale: ``notes/site-information-architecture.md``
-(ADR-0102, ADR-0136, ADR-0150).
+pages), DF-11-018 (page type), DF-11-025 (subject), DF-11-026 (no subject off
+reader-facing pages), DF-11-012 (working-record pages), DF-11-003 (which pages
+are working record), DF-11-013 (a start page's reading-path thread). Design
+rationale: ``notes/site-information-architecture.md`` (ADR-0102, ADR-0136,
+ADR-0150).
 
 This module is the single machine source for the ``stakeholder_type`` members,
 the ``level`` ladder, the ``page_type`` values and the ``subject`` values.
@@ -332,7 +332,7 @@ class WorkingRecordFrontmatter(BaseModel):
     defaulted: a level on a decision record is a category error, not a
     harmless extra, the working record's door (DF-11-003) already says what
     kind of page it is (DF-11-018), and the working record is out of the nav
-    whose sections the subject is checked over (DF-11-025).
+    whose sections the subject is checked over (DF-11-026).
     """
 
     stakeholder_type: WorkingRecordStakeholderTypes
@@ -361,7 +361,7 @@ class WorkingRecordFrontmatter(BaseModel):
     def no_subject(cls, value: object) -> object:
         """Refuse any declared subject, including ``null``."""
         raise ValueError(
-            "a working-record page must not declare a subject (DF-11-025)"
+            "a working-record page must not declare a subject (DF-11-026)"
         )
 
 

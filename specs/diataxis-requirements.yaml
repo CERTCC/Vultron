@@ -987,20 +987,31 @@ groups:
       `implementation` for a page about CERT/CC's reference implementation — its
       code, demos, architecture and project record, however protocol-shaped the
       subject; or `neutral` for a page about neither, which may sit in any section.
-      A project working-record page (DF-11-003) and an `{% include-markdown %}`
-      fragment (DF-11-010) MUST NOT declare a `subject`.
     rationale: >-
       Whether a page is about the protocol or about the reference implementation
       is a fact about the page, so it lives on the page; the nav-section check
       (DF-11-020) reads it rather than restating a list that drifts. A required key
-      makes an unclassified page a fault rather than a silent pass. The working
-      record is out of the nav the check walks, and a fragment takes its
-      declarations from its hosts.
+      makes an unclassified page a fault rather than a silent pass.
     verification: >-
       `test/metadata/docs/test_page_frontmatter.py::TestSubjectSchema` covers the
       permitted values and rejects every other spelling;
-      `TestCheck::test_reader_facing_page_without_a_subject_fails`,
-      `TestCheck::test_working_record_page_with_a_subject_fails`,
+      `TestCheck::test_reader_facing_page_without_a_subject_fails` covers the
+      check; `test_committed_tree_passes` runs it over the committed tree, and
+      `docs-frontmatter` runs as a pre-commit hook and in CI.
+  - id: DF-11-026
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      A project working-record page (DF-11-003) and an `{% include-markdown %}`
+      fragment (DF-11-010) MUST NOT declare a `subject` (DF-11-025).
+    rationale: >-
+      The working record is out of the nav the nav-section check (DF-11-020) walks,
+      and a fragment takes its declarations from its hosts, so a `subject` on either
+      would be a declaration nothing reads.
+    verification: >-
+      `test/metadata/docs/test_page_frontmatter.py::TestCheck::test_working_record_page_with_a_subject_fails`,
       `TestWorkingRecordSchema::test_any_declared_subject_is_rejected` and
       `TestFragments::test_fragment_declaring_a_subject_is_reported` cover the
       check; `test_committed_tree_passes` runs it over the committed tree, and

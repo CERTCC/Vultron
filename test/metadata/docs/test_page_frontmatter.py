@@ -3,7 +3,7 @@
 It checks ``stakeholder_type``, ``level``, ``page_type`` and ``subject``.
 
 Requirements: DF-11-001, DF-11-003, DF-11-010, DF-11-012, DF-11-018,
-DF-11-025, DF-09-009; the failures are attributed per MS-17-001.
+DF-11-025, DF-11-026, DF-09-009; the failures are attributed per MS-17-001.
 """
 
 from __future__ import annotations
@@ -283,7 +283,7 @@ class TestWorkingRecordSchema:
                 },
             )
 
-    @pytest.mark.spec("DF-11-025")
+    @pytest.mark.spec("DF-11-026")
     @pytest.mark.parametrize(
         "subject", ["implementation", None], ids=["value", "null"]
     )
@@ -539,7 +539,7 @@ class TestCheck:
         (failure,) = info.value.failures
         assert str(failure) == "docs/index.md — subject: Field required"
 
-    @pytest.mark.spec("DF-11-025")
+    @pytest.mark.spec("DF-11-026")
     def test_working_record_page_with_a_subject_fails(self, tmp_path):
         root = _repo(
             tmp_path,
@@ -732,7 +732,7 @@ class TestFragments:
         assert failure.location == "docs/_f.md:3"
         assert "must not declare page_type" in failure.detail
 
-    @pytest.mark.spec("DF-11-025")
+    @pytest.mark.spec("DF-11-026")
     def test_fragment_declaring_a_subject_is_reported(self, tmp_path):
         root = _repo(
             tmp_path,

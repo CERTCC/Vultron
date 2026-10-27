@@ -90,7 +90,7 @@ Settle the page's frontmatter here, because the concept list decides it
 (SG-40). All four keys are required on every reader-facing page (DF-11-001,
 DF-11-018, DF-11-025); a working-record page declares `stakeholder_type:
 [project-contributor]` and no `level` (DF-11-012), `page_type` (DF-11-018) or
-`subject` (DF-11-025); a fragment declares none of them (DF-11-010):
+`subject` (DF-11-026); a fragment declares none of them (DF-11-010):
 
 - **`stakeholder_type`**: who the page is *addressed to* — not what it is about,
   and not who might find it useful. A list of members from
