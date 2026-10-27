@@ -340,8 +340,8 @@ groups:
         kind: project
         statement: >-
           The workflow that runs the DOCBW-03-013 check MUST fire on a pull
-          request that changes `.pre-commit-config.yaml` or any workflow
-          file.
+          request that changes `.pre-commit-config.yaml` or any
+          `.github/workflows/*.yml` file.
         rationale: >-
           The check reads those files. If it ran only on a pull request that
           changes Python, the pull request that deletes a gate's step, or
@@ -350,8 +350,8 @@ groups:
         verification: >-
           `test/ci/test_docs_source_gates_in_workflows.py` asserts that the
           workflow running `test/ci` fires, under the same trigger reading
-          as DOCBW-03-013, on `.pre-commit-config.yaml` and on every file in
-          `.github/workflows/`.
+          as DOCBW-03-013, on `.pre-commit-config.yaml` and on every
+          `.github/workflows/*.yml` file.
         relationships:
           - rel_type: depends_on
             spec_id: DOCBW-03-013

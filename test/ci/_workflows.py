@@ -73,15 +73,32 @@ def site_building_workflows() -> list[Path]:
     )
 
 
+def _drop_comment(line: str) -> str:
+    """Return *line* up to its shell comment, if any.
+
+    A ``#`` starts a comment only outside quotes and at a word start, so
+    ``echo "PR #1"`` and ``a#b`` keep their ``#``. Quotes are tracked per
+    line, which is enough for the one-line commands a gate step runs.
+    """
+    quote = ""
+    for i, char in enumerate(line):
+        if quote:
+            if char == quote:
+                quote = ""
+        elif char in "'\"":
+            quote = char
+        elif char == "#" and (i == 0 or line[i - 1].isspace()):
+            return line[:i].rstrip()
+    return line
+
+
 def live_text(step: dict[str, Any]) -> str:
     """Return the step's ``run`` and ``uses`` text, with shell comments dropped.
 
     A whole-line comment and a trailing `` # …`` comment both run nothing.
     """
     lines = [
-        re.sub(r"\s+#.*$", "", line)
-        for line in str(step.get("run", "")).splitlines()
-        if not line.lstrip().startswith("#")
+        _drop_comment(line) for line in str(step.get("run", "")).splitlines()
     ]
     return "\n".join([*lines, str(step.get("uses", ""))])
 

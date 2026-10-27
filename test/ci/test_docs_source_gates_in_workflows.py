@@ -486,6 +486,26 @@ def test_a_commented_out_command_does_not_count():
 
 
 @pytest.mark.parametrize(
+    "run,expected",
+    [
+        ("uv run docs-gate  # check", "uv run docs-gate"),
+        ("# uv run docs-gate", ""),
+        ('echo "PR #1"; uv run docs-gate', 'echo "PR #1"; uv run docs-gate'),
+        ("echo 'a #b' || true", "echo 'a #b' || true"),
+        ("uv run docs-gate --anchor a#b", "uv run docs-gate --anchor a#b"),
+    ],
+)
+def test_live_text_drops_only_real_comments(run: str, expected: str):
+    """A ``#`` in a quoted string or mid-word is not a comment."""
+    assert live_text({"run": run}) == expected + "\n"
+
+
+def test_a_quoted_hash_does_not_hide_a_swallowed_failure():
+    step = {"run": 'uv run docs-gate --title "Gate #1" || true'}
+    assert not _can_fail_the_run({}, step)
+
+
+@pytest.mark.parametrize(
     "pattern,path,expected",
     [
         ("docs/**", "docs/reference/specs/protocol.md", True),
