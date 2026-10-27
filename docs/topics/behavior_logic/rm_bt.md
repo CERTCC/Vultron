@@ -26,7 +26,7 @@ The [Protocol Specifications](../../reference/specs/protocol.md) give the behavi
 
     The diagram on this page shows the simulator-era design from `vultron/bt/`.
     It may not match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation generated from the current implementation.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation that a tool generates automatically from the current implementation.
 
 The figure below shows a Behavior Tree for the Report Management model.
 A Fallback node represents the Report Management process.
@@ -113,10 +113,10 @@ That behavior returns *Success* after it moves the report to *Accepted* ($q^{rm}
 
 (E) Next come the behaviors for reports that are both validated and prioritized.
 A *Deferred* report ($q^{rm} \in D$) can go to *Closed* or get a new priority evaluation.
-Otherwise, a *Deferred* report gets no more work.
+Otherwise, we do not expect a *Deferred* report to get more work.
 
 (F) An *Accepted* report ($q^{rm} \in A$) can also go to *Closed* or get a new priority evaluation.
-However, an *Accepted* report also gets more effort: the *do work* task node.
+However, we also expect an *Accepted* report to get more effort: the *do work* task node.
 We discuss this node in [Do Work Behaviors](do_work_bt.md).
 
 The composability of Behavior Trees makes the presentation simpler.

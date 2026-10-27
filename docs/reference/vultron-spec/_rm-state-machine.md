@@ -92,11 +92,11 @@ A participant reaches it by several paths:
   `Reject(Invite)` closes the record (RM Received → Closed) and retains it as history ([CM-11-007](../../reference/vultron-spec/../specs/protocol.md#cm-11-007)).
   Neither transition is a validation of the report, because at that point the invitee has seen only a case stub.
 
-  After the participant joins, the CASE_MANAGER sends the case and the ledger.
-  It then sends a second Invite, the full-case Invite, which carries its ledger position as a floor ([CM-11-010](../../reference/vultron-spec/../specs/protocol.md#cm-11-010)).
-  The participant judges the case when it answers this Invite with its own ledger position.
-  The answer is `Accept` (RV, Received → Valid), `TentativeReject` (RI, Received → Invalid) or `Reject` (RC, Received → Closed) ([CM-11-011](../../reference/vultron-spec/../specs/protocol.md#cm-11-011)).
-  A reply behind the floor, or naming a ledger entry the CASE_MANAGER does not hold, is refused ([CM-11-012](../../reference/vultron-spec/../specs/protocol.md#cm-11-012)).
+    After the participant joins, the CASE_MANAGER sends the case and the ledger.
+    It then sends a second Invite, the full-case Invite, which carries the ledger position of the CASE_MANAGER as a floor ([CM-11-010](../../reference/vultron-spec/../specs/protocol.md#cm-11-010)).
+    The participant judges the case when it answers this Invite with its own ledger position.
+    The answer is `Accept` (RV, Received → Valid), `TentativeReject` (RI, Received → Invalid) or `Reject` (RC, Received → Closed) ([CM-11-011](../../reference/vultron-spec/../specs/protocol.md#cm-11-011)).
+    A reply behind the floor, or naming a ledger entry the CASE_MANAGER does not hold, is refused ([CM-11-012](../../reference/vultron-spec/../specs/protocol.md#cm-11-012)).
 
 - **Direct report recipient** — on receiving a report.
 

@@ -133,7 +133,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
   A production backend replaces this stub with a real priority evaluator.
 - **Input dependency**: Human decision or policy engine, through SSVC scoring, asset inventory lookups, and policy-based engage/defer decisions.
 - **Notes**: Always succeeds in simulation (always engage).
-  PROTO-05-001 defers the SSVC evaluation.
+  PROTO-05-001 lets the prototype use an always-engage stub in place of an SSVC evaluation.
 - **Automation potential**: **High** — SSVC scoring, asset inventory lookups, and policy-based engage/defer decisions are fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.prioritize.EvaluateCasePriority`
 - **Call-out point shape**: Evaluator — `EvaluatorCallOutPoint`.

@@ -21,7 +21,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Semantic function**: Condition — check whether the case meets site-specific or case-specific closure criteria, in addition to the standard CVD completion conditions
 - **Input dependency**: Human analyst decision or a policy-driven checklist, specific to the CVD policy of the organization
 - **Notes**: Fails most of the time in simulation, because non-standard closure criteria are uncommon.
-  It can represent an editorial board sign-off or the completion of a legal review.
+  Examples are an editorial board sign-off or the completion of a legal review.
 - **Automation potential**: **Low** — site-specific.
   Closure criteria vary widely by organization and case context.
   They usually need a human policy evaluation or an explicit sign-off.

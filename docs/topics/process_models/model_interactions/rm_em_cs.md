@@ -153,7 +153,7 @@ stateDiagram-v2
 
 Fix Readiness (**F**) can occur only when a Vendor is in the RM *Accepted* state.
 In multi-party cases, each affected Vendor has its own [RM](../rm/index.md) state.
-This constraint applies to each Vendor individually.
+Thus, this constraint applies to each Vendor individually.
 
 ---
 
@@ -237,7 +237,7 @@ stateDiagram-v2
     RM --> CS: enables
 ```
 
-In some systems, the software delivery model puts Public Awareness before Deployment ($\mathbf{P} \prec \mathbf{D}$).
+In some systems, the software delivery model requires Public Awareness before Deployment ($\mathbf{P} \prec \mathbf{D}$).
 For vulnerabilities in these systems, the Vendor status at the time of deployment might be irrelevant.
 This statement assumes that the Vendor passed through $q^{rm} = Accepted$ at some point.
 Fix Ready (**F**) requires that state, and Fix Ready is a prerequisite for deployment (**D**).
@@ -297,7 +297,7 @@ Therefore the embargo extension caveats from that section also apply to the *Fix
 In a coordinated publication process, (**P**) requires at least one Participant in the $q^{rm} = Accepted$ state.
 The reason is that Participants are presumed to publish only on cases that they have accepted.
 Ideally, the Vendor is one of those Participants.
-But as the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"} explains, the Vendor is not strictly necessary.
+But as the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"} explains, the Vendor does not have to be one of those Participants.
 
 That said, the publishing party might be outside of *any* existing coordination process.
 For example, a report can already be in a CVD process when a party outside the CVD case makes the vulnerability public.
@@ -305,7 +305,7 @@ Parallel discovery and embargo leaks are two causes of this situation.
 
 ---
 
-As for [EM](../em/index.md), the purpose of an embargo is to prevent **P** until the Participants meet other objectives, such as $q^{cs} \in VF\cdot px \cdot$.
+As for [EM](../em/index.md), the purpose of an embargo is to prevent **P** until the case reaches other objectives, such as $q^{cs} \in VF\cdot px \cdot$.
 Therefore,
 
 !!! note ""

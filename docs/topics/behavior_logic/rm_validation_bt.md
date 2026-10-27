@@ -21,7 +21,7 @@ The [Protocol Specifications](../../reference/specs/protocol.md) give the behavi
 
     The diagram on this page shows the simulator-era design from `vultron/bt/`.
     It may not match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation generated from the current implementation.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation that a tool generates automatically from the current implementation.
 
 The next figure shows a Report Validation Behavior Tree.
 To begin with (A), if the report is already *Valid*, this behavior does nothing more.
@@ -74,7 +74,7 @@ If the task *does* find new information, the branch fails, and execution goes to
 (C) The main validation sequence runs when none of the conditions above are true.
 Two conditions trigger the validation sequence.
 In the first, the report is in *Received* and no one has evaluated its validity.
-In the second, an earlier evaluation found the report *Invalid*, but new information can cause a new evaluation.
+In the second, an earlier evaluation found the report *Invalid*, and new information is now available that calls for a new evaluation.
 
 The validation process shown here has two main steps: a credibility check and then a validity check.
 Our introduction of the [Received (R) state](../process_models/rm/index.md#the-received-r-state) describes these steps.

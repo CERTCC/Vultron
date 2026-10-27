@@ -124,7 +124,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **btz type**: `AlwaysSucceed` (p=1.00)
 - **Source file**: `report_management/fuzzer/assign_vul_id.py`
 - **Parent tree**: `AssignVulID`
-- **Semantic function**: Action — assign an ID from its own ID pool, when the participant is an assignment authority
+- **Semantic function**: Action — assign an ID from the ID pool of the participant, when the participant is an assignment authority
 - **Input dependency**: Internal ID pool management system, or the reserve/assign endpoint of the CVE Services API
 - **Notes**: Always succeeds in simulation.
   In production, the node can make API calls or database writes

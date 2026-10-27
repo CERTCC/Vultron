@@ -24,7 +24,7 @@ This tree models the internal process in which the vendor creates a patch or fix
 - **Input dependency**: Human engineer prompt, bug tracker integration, or CI/CD pipeline trigger.
   The input reports progress from the engineering team
 - **Notes**: Succeeds almost always in simulation.
-  In production, this node connects to the bug/patch tracking system of the vendor
+  In production, this node would connect to the bug/patch tracking system of the vendor
 - **Automation potential**: **Low** — a human starts the engineering work.
   Automation can only open a bug-tracker ticket or send a development task notification.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.develop_fix.CreateFix`
@@ -45,8 +45,7 @@ This tree models how a participant deploys a developed fix or mitigation to affe
 - **btz type**: `UsuallySucceed` (p=0.75)
 - **Source file**: `report_management/fuzzer/deploy_fix.py`
 - **Parent tree**: `Deployment`
-- **Semantic function**: Condition — check whether new deployment-related information has arrived.
-  New information can make it necessary to evaluate the deployment workflow again
+- **Semantic function**: Condition — check whether new deployment-related information has arrived that makes a new evaluation of the deployment workflow necessary
 - **Input dependency**: Report/case change detection.
   A metadata timestamp or an event subscription on the deployment status field
 - **Notes**: New deployment information is uncommon.
@@ -69,7 +68,7 @@ This tree models how a participant deploys a developed fix or mitigation to affe
 - **Parent tree**: *(runs independently, outside the BT tick loop)*
 - **Semantic function**: Sentinel — monitors deployment-relevant data sources for new deployment-related events.
   Examples are a patch management system, a CI/CD pipeline, or an asset inventory.
-  The node writes a change-detection flag that `NoNewDeploymentInfo` reads.
+  The Sentinel writes a change-detection flag that `NoNewDeploymentInfo` reads.
 - **Input dependency**: Patch management system event stream, CI/CD pipeline notifications, or asset-inventory change feed.
   A metadata timestamp comparison or an event subscription on deployment-relevant case fields.
 - **Notes**: This is the real seam implied by `NoNewDeploymentInfo`.
@@ -145,7 +144,7 @@ This tree models how a participant deploys a developed fix or mitigation to affe
 - **Input dependency**: Human operator prompt or automated deployment pipeline.
   Patch management or configuration management system integration
 - **Notes**: Succeeds most of the time in simulation.
-  A production implementation connects to patch/config management tools
+  A production implementation would connect to patch/config management tools
 - **Automation potential**: **Medium** — automated deployment is possible in some environments, such as configuration management or cloud.
   Production system changes usually need human approval.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.deploy_fix.DeployMitigation`
@@ -179,7 +178,7 @@ This tree models how a participant deploys a developed fix or mitigation to affe
 - **Source file**: `report_management/fuzzer/deploy_fix.py`
 - **Parent tree**: `Deployment`
 - **Semantic function**: Action — start or do ongoing monitoring of the fix deployment.
-  The monitoring makes sure that the deployment is complete and effective
+  The monitoring checks that the deployment is complete and effective
 - **Input dependency**: Integration with asset management, patch verification tools, or security monitoring platforms
 - **Notes**: Always succeeds in simulation.
   In production, the node monitors deployment coverage metrics

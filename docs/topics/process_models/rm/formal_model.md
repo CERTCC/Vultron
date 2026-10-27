@@ -114,7 +114,7 @@ The transition function is written at right as a right-linear grammar.
 Each production reads as "from this state, this symbol leads to that state".
 For example, $R \to vV~|~iI~|~cC$ says that a *Received* report moves to *Valid* on *validate*, to *Invalid* on *invalidate*, and to *Closed* on *close*.
 A report closes from *Received*, *Invalid*, *Accepted*, or *Deferred*, but never from *Valid*.
-When a Participant decides that a report is valid, it accepts or defers the report before it closes it.
+When a Participant decides that a report is valid, the Participant accepts or defers the report before closing it.
 
 The grammar has one production alternative for each of the twelve transitions in the transitions table of the specification, and no others.
 The [RM state machine diagram](index.md#rm-state-transitions) shows the same transitions.

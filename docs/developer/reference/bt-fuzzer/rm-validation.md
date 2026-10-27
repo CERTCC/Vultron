@@ -72,7 +72,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **btz type**: `AlmostAlwaysSucceed` (p=0.90)
 - **Source file**: `report_management/fuzzer/validate_report.py`
 - **Parent tree**: `RMValidateBt`
-- **Semantic function**: Condition — assess whether the report is valid for the scope of this organization (credible AND in agreement with org-specific acceptance criteria)
+- **Semantic function**: Condition — assess whether the report is valid for the scope of this organization (credible AND meets the org-specific acceptance criteria)
 - **Input dependency**: Human analyst judgment or a policy-driven scope check, specific to the Coordinated Vulnerability Disclosure (CVD) charter of the receiving organization
 - **Notes**: A report can be credible but out of scope.
   Validity depends on the context and the role.
@@ -107,7 +107,7 @@ See the [fuzzer node index](index.md) for the entry format, the automation-poten
 - **Source file**: `report_management/fuzzer/validate_report.py`
 - **Parent tree**: `RMValidateBt`
 - **Semantic function**: Action — request or collect more information to validate the report, such as reproduction steps, affected versions, or a proof-of-concept
-- **Input dependency**: Human analyst contact with the reporter, or automated intake forms and follow-up workflows
+- **Input dependency**: Human analyst contact with the reporter, or automated intake forms or follow-up workflows
 - **Notes**: Succeeds most of the time in simulation, so that the workflow continues
 - **Automation potential**: **Medium** — structured intake form follow-ups and automated case-update requests are partially automatable.
   Direct contact with the reporter usually needs human involvement.

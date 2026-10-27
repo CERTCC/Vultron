@@ -20,7 +20,7 @@ Any workflow of this type maps onto the RM process on this page.
 !!! tip "Vultron Does Not Dictate Internal Processes"
 
     Organizations have different internal processes.
-    To keep interoperability among them possible, our protocol does not specify the subprocesses inside each state.
+    To keep interoperability among them possible, our protocol does not specify the internal subprocesses that each organization uses inside each state.
     [Do Work Behavior](../../behavior_logic/do_work_bt.md) gives examples of such subprocesses.
 
     [ISO/IEC 30111:2019(E)](https://www.iso.org/standard/69725.html) gives recommendations for the *internal* processes of Vendors.
@@ -170,7 +170,7 @@ A `Reject` sent from *Received* is the *close* transition.
 
 The recipient has examined reports in the *Invalid* state and found them lacking.
 This state gives the Reporter time to provide more information.
-It also gives the receiver time to do the validation again before it moves the report to *Closed*.
+It also gives the receiver time to do the validation again before the receiver moves the report to *Closed*.
 
 ```mermaid
 stateDiagram-v2
@@ -226,7 +226,7 @@ stateDiagram-v2
 
     Participants SHOULD have a bias toward accepting rather than deferring _Valid_ cases up to their work capacity limits.
 
-Thus, prioritization is necessary only when the workload of active valid reports is more than the organization can process.
+In other words, prioritization is necessary only when the workload of active valid reports is more than the organization can process.
 
 Participants often use prioritization schemes, such as [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} or the [CVSS](https://first.org/cvss){:target="_blank"}, to prioritize work in the CVD process.
 The specific details are left to each Participant implementation.
@@ -251,7 +251,7 @@ stateDiagram-v2
     Valid --> Accepted
 ```
 
-- Finders and Reporters enter the *Accepted* state only for reports that they intend to put through the CVD process.
+- In this model, Finders and Reporters enter the *Accepted* state only for reports that they intend to put through the CVD process.
     If they do not intend to do CVD, they do not need this protocol to track their actions.
     See [the secret lives of finders](rm_interactions.md#the-secret-lives-of-finders) for more.
 
@@ -267,8 +267,8 @@ stateDiagram-v2
 
 #### The *Deferred* (*D*) State
 
-The *Deferred* state is for valid reports that are not closed and that no one actively works on.
-Reports that someone actively works on are in *Accepted*.
+The *Deferred* state is only for valid reports that are not closed and that the Participant does not actively work on.
+Reports that the Participant actively works on are in *Accepted*.
 The *Deferred* state is similar to the *Invalid* state, which holds reports that fail the validation criteria.
 In both states, a report waits for closure until the Participant decides that no more action is necessary.
 
@@ -375,7 +375,7 @@ The only other exit from *Received* is *close*.
 
 The validation result puts the report in either the *Valid* or the *Invalid* state.
 *Invalid* reports often wait for more information from the reporter.
-Other *Invalid* reports are not in the scope of the Participant.
+Some *Invalid* reports can also be out of the scope of the Participant.
 Some Participants close *Invalid* reports immediately.
 Others validate them again from time to time to see if they are now *Valid*.
 

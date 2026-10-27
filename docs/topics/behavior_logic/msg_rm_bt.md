@@ -27,7 +27,7 @@ The [Protocol Specifications](../../reference/specs/protocol.md) give the behavi
 
     The diagram on this page shows the simulator-era design from `vultron/bt/`.
     It may not match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation generated from the current implementation.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation that a tool generates automatically from the current implementation.
 
 The figure below shows the Process RM Messages Behavior Tree.
 

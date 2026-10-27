@@ -21,7 +21,7 @@ The [Protocol Specifications](../../reference/specs/protocol.md) give the behavi
 
     The diagram on this page shows the simulator-era design from `vultron/bt/`.
     It may not match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation generated from the current implementation.
+    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation that a tool generates automatically from the current implementation.
 
 The figure below shows the Report Prioritization Behavior Tree.
 Its structure is similar to the Report Validation Behavior Tree.
@@ -87,11 +87,11 @@ Or new information is available for a report in $q^{rm} \in \{ D, A \}$, and thi
 
 If the preconditions are met, the Participant evaluates the report priority.
 For example, a Participant that uses [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} could put that process here.
-The evaluation task always sets the report priority.
+We expect the evaluation task to always set the report priority.
 The next check returns *Failure* on a defer priority or *Success* on any other priority.
 
 On *Success*, the tree runs an *accept* task.
-This task is a placeholder for any intake process that a Participant has for *Accepted* reports.
+This task is a placeholder for any intake process that a Participant might have for *Accepted* reports.
 If the task succeeds, the tree moves the report to the *Accepted* state ($q^{rm} \xrightarrow{a} A$) and emits an $RA$ message.
 
 (C) If any item in the main sequence fails, the tree defers the case.

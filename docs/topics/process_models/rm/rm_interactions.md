@@ -33,8 +33,8 @@ A few examples of this model applied to common CVD and multi-party CVD case scen
 ## The Secret Lives of Finders
 
 The *Received*, *Valid*, and *Invalid* states of the Finder help in modeling and simulation, but they are less useful as part of a CVD protocol.
-Other Participants can know about the vulnerability only after the Finder validates the report.
-The Finder must also decide that the report is worth the effort to coordinate its disclosure.
+Other Participants can know about the vulnerability only after the Finder validates the report and decides that the report is worth the effort to coordinate its disclosure.
+Without these two steps, CVD cannot happen at all.
 Thus, CVD starts only *after* the Finder has reached the *Accepted* state for the vulnerability being reported.
 That is also the point at which a *Finder* becomes a *Reporter*.
 
@@ -207,7 +207,7 @@ Other configurations of MPCVD RM interactions are possible, and the figures belo
 In these figures, each node is the full RM model of one Participant.
 Each edge is a notification from the *Accepted* state of one Participant to the *Received* state of another.
 The CERT/CC has observed all of the following interactions.
-The RM model is composable, so that it can include all such permutations.
+The RM model is designed to be composable enough to include all such permutations.
 
 ### Finder coordinates MPCVD with Multiple Vendors
 
