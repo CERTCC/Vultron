@@ -136,7 +136,7 @@ Nothing calls for the termination; the collapse is the protocol's own consequenc
 
 Every participant closes the case.
 Vendor1, the Reporter, and Vendor2 leave first; the Coordinator, the Case Owner, leaves last.
-A departure sent after the owner's is not recorded, so every other participant's departure is recorded first.
+{% include-markdown "./_owner_leaves_last.md" trailing-newlines=false %}
 
 *Antecedent:* the vulnerability has been published.
 

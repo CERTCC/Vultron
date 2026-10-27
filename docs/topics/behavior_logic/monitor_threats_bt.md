@@ -6,27 +6,17 @@ stakeholder_type: [project-contributor]
 
 ## Requirements
 
-The behavioral requirements for this tree are specified in the
-[Protocol Specifications](../../reference/specs/protocol.md):
+{% include-markdown "./_requirements_pointer.md" %}
 
 - [CSB-12](../../reference/specs/protocol.md#csb-12) — Enter CS P (Public Aware)
 - [CSB-13](../../reference/specs/protocol.md#csb-13) — Enter CS X (Exploit Public)
 - [CSB-14](../../reference/specs/protocol.md#csb-14) — Enter CS A (Attacks Observed)
 
-!!! note "Implementation approach"
-
-    The behavior tree diagram below illustrates one conformant implementation of these requirements.
-    Implementations are not required to use behavior trees — any approach that satisfies the
-    requirements above is conformant.
+{% include-markdown "./_conformant_implementation_note.md" %}
 
 {% include-markdown "../../includes/notional_external_process.md" %}
 
-!!! note "Legacy design diagram"
-
-    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
-    match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for
-    auto-generated documentation from the current implementation.
+{% include-markdown "./_legacy_diagram_note.md" %}
 
 The Monitor Threats Behavior Tree is shown below.
 

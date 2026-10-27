@@ -35,9 +35,7 @@ By the end of this tutorial, we will have:
 
 You need the following tools installed before we begin:
 
-- [Docker](https://docs.docker.com/get-docker/){:target="_blank"} (version 20.10 or later)
-- [Docker Compose](https://docs.docker.com/compose/install/){:target="_blank"} (version 2.x; included with Docker Desktop)
-- Git (to clone the repository)
+{% include-markdown "./_docker_prerequisites.md" %}
 
 You do **not** need Python installed locally; the containers include everything required.
 
@@ -85,8 +83,7 @@ docker compose -f docker/docker-compose-multi-actor.yml \
 The `rv` scenario is the **default**, so no `DEMO` environment variable is required.
 [Running the Multi-Actor Container Demos](container_demos.md) shows how to select the others.
 
-Docker builds the images on the first run, which takes a few minutes.
-Subsequent runs reuse the cached images and start immediately.
+{% include-markdown "./_first_run_build.md" %}
 
 Once the images exist, the compose stack starts all of its actor containers and waits for each one to pass its health check.
 Three of them take part in this scenario: `reporter` plays the Reporter, `vendor` plays the Vendor, and `case-actor` hosts the **Case Actor**.
@@ -280,12 +277,7 @@ docker compose -f docker/docker-compose-multi-actor.yml down -v
 
 ## Step 4 — Clean up
 
-Named Docker volumes persist the SQLite databases between runs.
-Remove all volumes after a session to start fresh next time:
-
-```bash
-docker compose -f docker/docker-compose-multi-actor.yml down -v
-```
+{% include-markdown "./_cleanup_volumes.md" %}
 
 ---
 

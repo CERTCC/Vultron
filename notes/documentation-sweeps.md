@@ -13,6 +13,7 @@ related_notes:
   - notes/documentation-strategy.md
   - notes/site-information-architecture.md
   - notes/specs-vs-adrs.md
+  - notes/demo-scenario-registry.md
 related_specs:
   - specs/diataxis-requirements.yaml
   - specs/meta-specifications.yaml
@@ -68,6 +69,11 @@ fragment instead of copying prose — one source, many render points
   assembled page (DF-09-007), and its quadrant comes from its including pages
   (DF-09-008). Pass a new fragment to `lint-docs` explicitly. Lint checks the
   prose, not the claims, so the claims are still verified at the move.
+- **A list-item fragment holds the item's text, not its marker.** Write
+  `- {% include-markdown "./_item.md" trailing-newlines=false %}` in the host.
+  A bare directive line next to list items is not a list item to markdownlint,
+  so its MD032 fix inserts a blank line that renders the list loose (#5055).
+  A sentence inside a paragraph takes `trailing-newlines=false` the same way.
 - **Near-copies merge too.** A copy that has drifted is merged into one
   fragment, not left as two, unless a documented reason keeps them apart
   (DF-10-002). Pick the wording that is correct against its

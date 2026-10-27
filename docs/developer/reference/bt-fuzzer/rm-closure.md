@@ -6,7 +6,7 @@ stakeholder_type: [project-contributor]
 
 These stub nodes belong to `RMCloseBt` (`vultron/bt/report_management/_behaviors/close_report.py`), which models closing a report once the Coordinated Vulnerability Disclosure (CVD) workflow concludes, and to `RMDoWorkBt` (`vultron/bt/report_management/_behaviors/do_work.py`), the fallback tree for miscellaneous work on an accepted report.
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## Report closure
 

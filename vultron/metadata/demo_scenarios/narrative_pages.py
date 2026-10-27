@@ -83,7 +83,9 @@ def unregistered_narrative_pages(
     """Return narrative pages that no registered scenario derives.
 
     Every ``*.md`` under :data:`NARRATIVE_DIR` other than :data:`NARRATIVE_INDEX`
-    must be some registered scenario's ``narrative_path`` (DEMOCI-11-012).  The
+    must be some registered scenario's ``narrative_path`` (DEMOCI-11-012).  A
+    ``_``-prefixed file is an ``{% include-markdown %}`` fragment the narratives
+    share (SG-43), not a page, so it is not checked (DF-09-007).  The
     converse — a registered scenario whose page is missing — is
     :func:`.sync.missing_derived_paths`' job (DEMOCI-11-003).
 
@@ -96,7 +98,8 @@ def unregistered_narrative_pages(
     return [
         relative
         for page in sorted(_narrative_dir(base).glob("*.md"))
-        if (relative := page.relative_to(base).as_posix()) != NARRATIVE_INDEX
+        if not page.name.startswith("_")
+        and (relative := page.relative_to(base).as_posix()) != NARRATIVE_INDEX
         and relative not in registered
     ]
 

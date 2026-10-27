@@ -30,8 +30,7 @@ You finish with the update committed to the case ledger and replicated to every 
 
 Use a participant status for anything that is true of you rather than of the case.
 
-Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemented in ActivityStreams as `Add(ParticipantStatus)`.
-Which one you are sending is determined by the field you set, not by a different activity.
+{% include-markdown "./_vfd_one_activity.md" trailing-newlines=false %}
 
 In every case, send `Add(ParticipantStatus)` targeting your own participant record, with the new status inline as its `object`.
 Set the status's `context` to the case your participant record belongs to.

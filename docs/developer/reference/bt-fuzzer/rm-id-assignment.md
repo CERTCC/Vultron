@@ -7,7 +7,7 @@ stakeholder_type: [project-contributor]
 These stub nodes belong to the `AssignVulID` fallback tree (`vultron/bt/report_management/_behaviors/assign_vul_id.py`), which models assigning a public vulnerability identifier (such as a Common Vulnerabilities and Exposures (CVE) ID) to a validated report.
 The production tree is `create_assign_cve_id_tree` (`vultron/core/behaviors/report/assign_cve_id_tree.py`).
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## Simulator nodes
 

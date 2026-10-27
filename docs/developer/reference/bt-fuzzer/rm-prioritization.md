@@ -6,7 +6,7 @@ stakeholder_type: [project-contributor]
 
 These stub nodes belong to `RMPrioritizeBt` (`vultron/bt/report_management/_behaviors/prioritize_report.py`), the sub-tree that decides whether to accept (engage) or defer a valid report.
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## `NoNewPrioritizationInfo`
 

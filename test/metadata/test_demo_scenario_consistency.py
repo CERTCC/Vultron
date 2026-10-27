@@ -552,6 +552,19 @@ def test_narrative_page_check_exempts_the_index(prose_root: Path) -> None:
     assert unregistered_narrative_pages(prose_root) == []
 
 
+def test_narrative_page_check_exempts_include_fragments(
+    prose_root: Path,
+) -> None:
+    """A ``_``-prefixed fragment the narratives include is not a scenario page.
+
+    Shared narrative prose is sourced from one fragment (SG-43); the fragment is
+    never published as a page of its own, so it names no scenario (DF-09-007).
+    """
+    fragment = prose_root / NARRATIVE_DIR / "_shared_sentence.md"
+    fragment.write_text("A sentence several narratives include.\n")
+    assert unregistered_narrative_pages(prose_root) == []
+
+
 def test_narrative_page_check_fails_when_the_directory_moved(
     tmp_path: Path,
 ) -> None:

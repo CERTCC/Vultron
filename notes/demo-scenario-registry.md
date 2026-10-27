@@ -14,6 +14,7 @@ related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
   - specs/meta-specifications.yaml
+  - specs/diataxis-requirements.yaml
 related_notes:
   - notes/demo-interactive-ui.md
   - notes/demo-scenario-tree.md
@@ -23,6 +24,7 @@ related_notes:
   - notes/demo-future-ideas.md
   - notes/demo-scenario-authoring.md
   - notes/vocabulary-registry.md
+  - notes/documentation-sweeps.md
 ---
 
 # Demo Scenario Registry — Self-Registration, Derived Paths, and the Generate-vs-Check Split
@@ -147,7 +149,9 @@ literal text.
 whose stem names no registered scenario (no CI run exercises it) and refuses
 `status:` or `maturity:` frontmatter: a page cannot know whether its scenario
 passes, and the live answer is the demo-integration workflow (MS-16-002). A
-missing page is `missing_derived_paths`'s finding, not this check's.
+missing page is `missing_derived_paths`'s finding, not this check's. A
+`_`-prefixed file in the directory is an include fragment the narratives share,
+not a page, so the check skips it (DEMOCI-11-012, DF-09-007).
 
 ## The CLI is a registry consumer, and `ActorRole` is what lets it be one
 
