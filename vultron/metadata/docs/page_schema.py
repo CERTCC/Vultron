@@ -1,4 +1,6 @@
-"""Pydantic schema for the audience, level, page type and subject in ``docs/`` frontmatter.
+"""Pydantic schema for the declarations in ``docs/`` page frontmatter.
+
+They are the audience, the level, the page type and the subject.
 
 Schema requirements: specs/diataxis-requirements.yaml DF-11-001 (reader-facing
 pages), DF-11-018 (page type), DF-11-025 (subject), DF-11-012 (working-record

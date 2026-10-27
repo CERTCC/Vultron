@@ -1,8 +1,10 @@
-"""Validate the ``stakeholder_type``, ``level``, ``page_type`` and ``subject`` of ``docs/`` pages.
+"""Validate the declarations ``docs/`` pages make in their frontmatter.
+
+The keys are ``stakeholder_type``, ``level``, ``page_type`` and ``subject``.
 
 Requirements: specs/diataxis-requirements.yaml DF-11-001, DF-11-003,
-DF-11-010, DF-11-012, DF-11-013, DF-11-018, DF-11-025, DF-09-009; attribution per MS-17 via
-:mod:`vultron.metadata.file_loading`. Schema:
+DF-11-010, DF-11-012, DF-11-013, DF-11-018, DF-11-025, DF-09-009;
+attribution per MS-17 via :mod:`vultron.metadata.file_loading`. Schema:
 :mod:`vultron.metadata.docs.page_schema`.
 
 Every ``docs/**/*.md`` file is one of three things:

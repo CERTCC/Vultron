@@ -1,4 +1,6 @@
-"""Tests for the ``docs/`` page ``stakeholder_type``/``level``/``page_type``/``subject`` validator.
+"""Tests for the ``docs/`` page declaration validator.
+
+It checks ``stakeholder_type``, ``level``, ``page_type`` and ``subject``.
 
 Requirements: DF-11-001, DF-11-003, DF-11-010, DF-11-012, DF-11-018,
 DF-11-025, DF-09-009; the failures are attributed per MS-17-001.
