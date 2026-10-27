@@ -34,6 +34,7 @@ import pytest
 from test.ci._workflows import (
     MKDOCS_BUILD,
     REPO_ROOT,
+    RUN_EVEN_AFTER_FAILURE,
     WORKFLOWS_DIR,
     load_workflow,
     site_building_workflows,
@@ -95,11 +96,6 @@ def _steps(wf_data: dict[str, Any]) -> list[Step]:
             else:
                 flat.append(Step(step, step))
     return flat
-
-
-# An ``if:`` that still runs the step after an earlier step failed. It widens
-# when the step runs rather than narrowing it, so it cannot skip a gate.
-RUN_EVEN_AFTER_FAILURE = frozenset({"${{ !cancelled() }}", "!cancelled()"})
 
 
 def _neutering(step: Step) -> list[str]:

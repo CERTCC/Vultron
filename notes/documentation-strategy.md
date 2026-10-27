@@ -6,8 +6,8 @@ description: >
   How to trust and edit Vultron's documentation: the three documentation
   generations and which wins on conflict, which of the three behavior views to
   edit, and the MkDocs build rules — withholding, link and anchor checks over
-  built output, URL permanence, fragments vs. assembly units, and the codespell
-  floor.
+  built output, URL permanence, fragments vs. assembly units, the codespell
+  floor, and the CI step every docs pre-commit gate needs.
 related_notes:
   - notes/bt-integration.md
   - notes/case-state-model.md
@@ -280,6 +280,15 @@ shape means reading every file, which is what linting is.
 
 A gate that checks nothing and passes is worse than no gate: its false clean
 signal suppresses the review it replaced (DF-09-009).
+
+### A docs gate in pre-commit needs a CI step too
+
+No workflow runs pre-commit, and `python-app.yml`, which runs the gates'
+committed-tree tests, does not trigger on `docs/**`. So a tree-wide hook
+that checks `docs/` also needs a step in a workflow that fires on the files it
+checks, normally `docs-build-check.yml` before the build (DOCBW-03-013, #5084).
+`test/ci/test_docs_source_gates_in_workflows.py` derives the hooks from
+`.pre-commit-config.yaml`, so a new hook fails CI until that step exists.
 
 ### Auto-fix scale is about edit kind, not file count
 

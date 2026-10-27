@@ -107,7 +107,7 @@ jobs:
       # print and the job stays green (DOCBW-03-009). Never add --quiet
       # (DOCBW-03-010): it hides the warnings --strict counts, so the build
       # passes over them. It runs after a source gate fails, so the same run
-      # also reports what the build finds (DOCBW-03-002).
+      # also reports what the build finds (DOCBW-03-013).
       - name: Build Site
         if: ${{ !cancelled() }}
         run: |

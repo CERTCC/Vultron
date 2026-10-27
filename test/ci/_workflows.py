@@ -17,6 +17,10 @@ WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
 MKDOCS_BUILD = "mkdocs build"
 
+# An ``if:`` that still runs the step after an earlier step failed. It widens
+# when the step runs rather than narrowing it, so it cannot skip a gate.
+RUN_EVEN_AFTER_FAILURE = frozenset({"${{ !cancelled() }}", "!cancelled()"})
+
 
 # Parsed workflow YAML is untyped by nature; ``Any`` here is the YAML boundary.
 def load_workflow(path: Path) -> dict[str, Any]:
