@@ -9,6 +9,8 @@ description: >
 
 # Prioritize Report
 
+{% include-markdown "../../../includes/specification_governs.md" %}
+
 Prioritizing a report is the decision to work a case now or to park it.
 The protocol requires the decision but takes no position on the answer, because the answer depends on the Participant's workload, its obligations, and its own assessment of the vulnerability.
 

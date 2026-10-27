@@ -10,6 +10,8 @@ introduces: [Trust Bootstrap, Trust Anchor, Case Replica Seeding]
 
 # Case Authority, Trust, and Routing
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 This page explains the authority model of a Vultron case: who may change what, and why every case message goes through one actor.
 It also explains how a node decides which actor to trust for a case it has not seen before.
 It is for you if you build a node that takes part in cases, in any language.

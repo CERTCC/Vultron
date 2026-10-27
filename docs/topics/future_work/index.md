@@ -8,6 +8,8 @@ contents: generated
 
 # Future Work
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 This section gives the design areas that Vultron plans but does not supply.
 It lets you find the difference between two conditions.
 In the first condition, the protocol excludes a capability.

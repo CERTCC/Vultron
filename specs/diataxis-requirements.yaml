@@ -1362,6 +1362,7 @@ groups:
       protocol-floor companions, and fails, naming `path:line`, when a declared
       page is missing, does not include the banner in the page itself, declares a
       `subject` other than `protocol` or also includes the not-normative banner;
-      when any other page or a shared fragment includes the banner; or when the
-      declared set is empty. The test also checks that the banner states the
+      when any other page or a shared fragment includes the banner; when a page is
+      listed twice, or in both this set and the normative set; or when the declared
+      set is empty. The test also checks that the banner states the
       precedence without an RFC 2119 keyword.

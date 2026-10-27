@@ -9,6 +9,8 @@ description: >
 
 # Propose Case
 
+{% include-markdown "../../../includes/specification_governs.md" %}
+
 Proposing a case is how an actor asks a service to open and manage a coordination case on its behalf.
 The proposing actor does not create the case itself.
 It sends a proposal and waits.

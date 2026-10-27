@@ -9,6 +9,8 @@ description: >
 
 # Federation
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 Vultron has a design for a world in which each organization operates its own coordination service.
 This page gives the federation model for those services.
 It tells you which data the services interchange, which actor has authority for a case, and how two organizations build the trust that coordination needs.

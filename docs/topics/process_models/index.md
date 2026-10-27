@@ -8,6 +8,8 @@ contents: routing
 
 # Vultron Process Models
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 !!! info inline end "Vultron Process Models"
 
     ```mermaid

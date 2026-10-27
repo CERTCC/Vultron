@@ -8,6 +8,8 @@ contents: generated
 
 # Use-Case Behavior
 
+{% include-markdown "../../../includes/specification_governs.md" %}
+
 Each page in this section takes one coordination use case and explains the structure of the behavior behind it.
 The subject is the shape of the decision, not the code that carries it out.
 Four things define that shape: what starts the behavior, which parts the protocol settles by itself, which parts it hands to an outside judgment, and what the rest of the case learns.

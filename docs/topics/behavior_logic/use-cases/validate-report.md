@@ -9,6 +9,8 @@ description: >
 
 # Validate Report
 
+{% include-markdown "../../../includes/specification_governs.md" %}
+
 Validating a report is the decision that a received report describes a real problem worth coordinating.
 It is the first place in the protocol where a Participant applies its own judgment to something another actor sent it, and the first place where that judgment becomes visible to everyone else in the case.
 

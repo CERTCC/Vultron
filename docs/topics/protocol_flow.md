@@ -7,6 +7,8 @@ subject: protocol
 
 # Protocol Event Flow
 
+{% include-markdown "../includes/specification_governs.md" %}
+
 ## Overview
 
 This page explains how events move through Vultron at run time. It is for implementers who want to understand *why* the protocol behaves as it does, in any programming language.

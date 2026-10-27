@@ -88,8 +88,10 @@ class TestSections:
 
         [failure] = _failures(_repo(tmp_path, nav, _PAGES))
 
-        assert "protocol page(s) docs/spec/a.md" in str(failure)
-        assert "implementation page(s) docs/impl/x.md" in str(failure)
+        assert (
+            "holds protocol page(s) docs/spec/a.md and implementation page(s) "
+            "docs/impl/x.md;" in str(failure)
+        )
 
     def test_every_section_holding_both_is_reported_innermost_first(
         self, tmp_path
@@ -143,6 +145,27 @@ class TestSections:
         ]
 
         assert check_nav_subjects(_repo(tmp_path, nav, pages)).pages == 4
+
+    def test_unparsable_frontmatter_is_read_once_and_left_to_docs_frontmatter(
+        self, tmp_path
+    ):
+        root = _repo(tmp_path, [{"P": ["spec/a.md", "bad.md"]}], _PAGES)
+        (root / "docs/bad.md").write_text("---\ntitle: a: b\n---\n# T\n")
+        nav = [{"P": ["spec/a.md", "bad.md"]}, {"Q": ["bad.md", "spec/b.md"]}]
+        (root / "mkdocs.yml").write_text(yaml.safe_dump({"nav": nav}))
+
+        result = check_nav_subjects(root)
+
+        assert result.pages == 3
+
+    def test_every_page_missing_reports_them_with_the_empty_set(
+        self, tmp_path
+    ):
+        root = _repo(tmp_path, [{"P": ["gone.md"]}], {})
+
+        locations = sorted(str(f.location) for f in _failures(root))
+
+        assert locations == ["docs/gone.md", "mkdocs.yml"]
 
     def test_a_missing_nav_page_is_reported(self, tmp_path):
         nav = [{"P": ["spec/a.md", "spec/gone.md"]}, {"Q": ["spec/gone.md"]}]

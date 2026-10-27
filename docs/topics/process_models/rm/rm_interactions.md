@@ -9,6 +9,8 @@ description: >
 
 # Report Management Interactions Between CVD Participants
 
+{% include-markdown "../../../includes/specification_governs.md" %}
+
 Each Participant in a Coordinated Vulnerability Disclosure (CVD) case has their own instance of the [Report Management (RM) state model](index.md).
 Participants can change their local state independent of the state of other Participants.
 Events within a CVD case may trigger a state transition in one Participant while no transition occurs in another.

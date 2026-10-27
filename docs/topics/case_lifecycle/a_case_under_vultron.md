@@ -11,6 +11,8 @@ subject: protocol
 
 # A Case Under Vultron
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 This page explains what a Coordinated Vulnerability Disclosure (CVD) case looks like from your seat when the organizations in it coordinate through Vultron.
 It covers these topics:
 

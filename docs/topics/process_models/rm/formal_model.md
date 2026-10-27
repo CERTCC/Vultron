@@ -9,6 +9,8 @@ description: >
 
 # RM Formal Model
 
+{% include-markdown "../../../includes/specification_governs.md" %}
+
 This page defines the Report Management (RM) process as a deterministic finite automaton (DFA).
 It is for readers who want the formal model behind the [RM process model](index.md), which describes each state and transition in practitioner terms.
 The [formal protocol](../../../reference/formal_protocol/index.md) builds on the definitions given here.

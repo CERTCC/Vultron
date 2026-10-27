@@ -18,9 +18,10 @@ finding names the section by its label trail and lists the pages of whichever
 subject is fewer in it, which are the likely misplacements; on a tie it lists
 both.
 
-A page with no valid ``subject`` counts as neither, because ``docs-frontmatter``
-already reports it against the page; failing here too would name one fault
-from two tools. A nav entry naming a file that does not exist is reported.
+A page with no valid ``subject``, or whose frontmatter does not parse, counts as
+neither, because ``docs-frontmatter`` already reports it against the page;
+failing here too would name one fault from two tools. A nav entry naming a
+file that does not exist is reported once, however many entries name it.
 
 Usage::
 
@@ -41,7 +42,7 @@ from vultron.metadata.docs.landing_pages import (
     split_nav_item,
     unreadable_nav_item,
 )
-from vultron.metadata.docs.page_schema import Subject
+from vultron.metadata.docs.page_schema import Subject, declared_subject
 from vultron.metadata.file_loading import (
     FailureCollector,
     MetadataLoadError,
@@ -92,25 +93,29 @@ class _Walk:
     def subject_of(self, rel: str) -> Subject | None:
         """The page's declared subject, or ``None`` when it has no valid one.
 
+        Each page is read once, however many nav entries list it. Frontmatter
+        that does not parse counts as no subject: ``docs-frontmatter`` reports
+        it against the page.
+
         Raises:
-            MetadataLoadError: If the page does not exist.
+            MetadataLoadError: The first time a nav entry names a page that
+                does not exist.
         """
-        if rel not in self._subjects:
-            path = self.docs_dir / rel
-            if not path.is_file():
-                self._subjects[rel] = None
-                raise MetadataLoadError(
-                    "is listed in the mkdocs.yml nav but does not exist",
-                    path=f"docs/{rel}",
-                )
-            self.result.pages += 1
-            raw = load_frontmatter(path, root=self.root).metadata.get(
-                "subject"
+        if rel in self._subjects:
+            return self._subjects[rel]
+        self._subjects[rel] = None
+        path = self.docs_dir / rel
+        if not path.is_file():
+            raise MetadataLoadError(
+                "is listed in the mkdocs.yml nav but does not exist",
+                path=f"docs/{rel}",
             )
-            valid = {member.value for member in Subject}
-            self._subjects[rel] = (
-                Subject(raw) if isinstance(raw, str) and raw in valid else None
-            )
+        self.result.pages += 1
+        try:
+            metadata = load_frontmatter(path, root=self.root).metadata
+        except MetadataLoadError:
+            return None
+        self._subjects[rel] = declared_subject(metadata.get("subject"))
         return self._subjects[rel]
 
     def item(self, item: object, trail: tuple[str, ...]) -> _Held:
@@ -151,20 +156,20 @@ def _mix_finding(trail: tuple[str, ...], held: _Held) -> MetadataLoadError:
     }
     fewest = min(counts.values())
     named = [s for s in _SEPARATED if counts[s] == fewest]
-    parts = [
+    listed = " and ".join(
         f"{subject.value} page(s) "
         + ", ".join(f"docs/{p}" for p in held.pages[subject])
         for subject in named
-    ]
+    )
     if len(named) == 1:
         (other,) = (s for s in _SEPARATED if s not in named)
-        parts.append(
-            f"beside {counts[other]} {other.value} page(s) "
+        listed += (
+            f" beside {counts[other]} {other.value} page(s) "
             f"(first: docs/{held.pages[other][0]})"
         )
     return MetadataLoadError(
         f"nav section '{' > '.join(trail)}' holds "
-        + " ".join(parts)
+        + listed
         + "; the protocol and the reference implementation never share a "
         "section, so move the page(s) to a section of their own subject, or "
         "correct a wrong subject: key (DF-11-020)",
@@ -199,13 +204,17 @@ def check_nav_subjects(repo_root: Path | None = None) -> CheckResult:
             # a missing file is still reported.
             walk.item(item, ())
     if not walk.result.sections or not walk.result.pages:
-        raise MetadataLoadError(
+        empty = MetadataLoadError(
             "the nav resolved no "
             + ("sections" if not walk.result.sections else "pages")
             + " to check; an empty target set is a failure, not a pass "
             "(DF-09-009)",
             path="mkdocs.yml",
         )
+        if not collector.failures:
+            raise empty
+        # Report the missing pages that emptied the set too (EH-07-001).
+        collector.failures.append(empty)
     collector.raise_if_any(
         summary=(
             f"{len(collector.failures)} nav subject finding(s) (DF-11-020):"

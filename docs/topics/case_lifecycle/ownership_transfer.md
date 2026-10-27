@@ -10,6 +10,8 @@ description: >
 
 # Case Ownership Transfer
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 A case has at most one owner at a time: the participant holding the `CASE_OWNER` role, who makes decisions for the case ([CM-21-001](../../reference/specs/protocol.md#cm-21-001)).
 Ownership can move from one participant to another — for example, when a vendor hands a case to a coordinator.
 This page explains how that transfer works and why every step of it goes through the [CASE_MANAGER](case_manager_and_ledger.md).

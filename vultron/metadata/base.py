@@ -9,6 +9,12 @@ import yaml
 from pathspec.gitignore import GitIgnoreSpec
 from pydantic import StringConstraints
 
+from vultron.metadata.file_loading import (
+    MetadataLoadError,
+    load_yaml,
+    loads_yaml,
+)
+
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 NonEmptyStrList = list[NonEmptyStr]
 
@@ -82,21 +88,37 @@ def mkdocs_config(root: Path | None = None) -> dict[str, object]:
 
     Args:
         root: Repository root. Defaults to the enclosing checkout.
+
+    Raises:
+        MetadataLoadError: If ``mkdocs.yml`` is missing, or is not valid YAML
+            or UTF-8, naming ``mkdocs.yml`` and, for a YAML fault, its
+            ``line:col`` (MS-17-001).
     """
     base = root or repo_root()
-    return parse_mkdocs_config(
-        (base / "mkdocs.yml").read_text(encoding="utf-8")
-    )
+    path = base / "mkdocs.yml"
+    if not path.is_file():
+        raise MetadataLoadError(
+            "does not exist; every docs check reads the nav from it",
+            path="mkdocs.yml",
+        )
+    config = load_yaml(path, root=base, loader=MkDocsYamlLoader)
+    return config if isinstance(config, dict) else {}
 
 
-def parse_mkdocs_config(text: str) -> dict[str, object]:
+def parse_mkdocs_config(
+    text: str, shown: str = "mkdocs.yml"
+) -> dict[str, object]:
     """Return ``mkdocs.yml`` content *text* parsed with :class:`MkDocsYamlLoader`.
 
     For a config that is not a file in this checkout, such as the
-    ``mkdocs.yml`` on another git ref.
+    ``mkdocs.yml`` on another git ref; a fault is attributed to *shown*.
+
+    Raises:
+        MetadataLoadError: If *text* is not valid YAML, naming
+            ``shown:line:col`` (MS-17-001).
     """
     # mkdocs.yml carries !!python/name tags; the text is the repository's own.
-    config = yaml.load(text, Loader=MkDocsYamlLoader)  # noqa: S506
+    config = loads_yaml(text, Path(shown), loader=MkDocsYamlLoader)
     return config if isinstance(config, dict) else {}
 
 

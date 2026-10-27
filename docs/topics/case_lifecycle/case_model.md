@@ -10,6 +10,8 @@ description: >
 
 # The Case Model
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 This page explains the objects that make up a Vultron coordination case, what each one is for, and how they relate to each other.
 It describes their structure, not their fields: the field-by-field listing and a class diagram are in [Case Model Fields](../../reference/case_model_fields.md).
 

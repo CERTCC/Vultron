@@ -8,6 +8,8 @@ contents: routing
 
 # Modeling an MPCVD AI Using Behavior Trees
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 These pages document the original Vultron Protocol behavior tree design for Multi-Party Coordinated Vulnerability Disclosure (MPCVD).
 They are retained for two reasons.
 They are the formal behavioral specification of what a Participant does at each step, and they record the design reasoning the protocol rests on.

@@ -10,6 +10,8 @@ description: >
 
 # Embargo Lifecycle
 
+{% include-markdown "../../../includes/specification_governs.md" %}
+
 An embargo is an agreement that Participants will not disclose a vulnerability before an agreed moment.
 The protocol tracks it twice, at two different scopes.
 Almost every mistake in this area comes from confusing the two scopes.

@@ -7,6 +7,8 @@ subject: protocol
 
 # Activity Vocabulary Design
 
+{% include-markdown "../includes/specification_governs.md" %}
+
 Vultron carries its protocol messages as ActivityStreams Vocabulary 2.0 (AS2) activities rather than as a bespoke message format.
 That choice constrains every later one.
 The verb set is fixed by a published standard.

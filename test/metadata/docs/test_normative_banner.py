@@ -364,6 +364,19 @@ class TestProtocolDesignPages:
 
         assert _check(root).governs_pages == 1
 
+    @pytest.mark.parametrize(
+        "frontmatter",
+        ["subject: Protocol\n", "title: a: b\n"],
+        ids=["invalid-subject", "unparsable"],
+    )
+    def test_a_fault_docs_frontmatter_reports_is_not_repeated(
+        self, tmp_path, frontmatter
+    ):
+        page = _DESIGN_PAGE.replace("subject: protocol\n", frontmatter, 1)
+        root = _repo(tmp_path, _tree(**{"design/model.md": page}))
+
+        assert _check(root).governs_pages == 1
+
     def test_declared_page_with_the_not_normative_banner_fails(self, tmp_path):
         page = (
             _DESIGN_PAGE
@@ -375,6 +388,26 @@ class TestProtocolDesignPages:
 
         assert failure.location == "docs/design/model.md:7"
         assert NOT_NORMATIVE_BANNER in str(failure)
+
+    def test_page_in_both_sets_fails(self, tmp_path):
+        root = _repo(tmp_path, _tree())
+
+        failures = _failures(root, governs=(*_GOVERNS, "spec/part.md"))
+
+        assert str(failures[0].location) == "docs/spec/part.md"
+        assert "both NORMATIVE_PAGES and SPECIFICATION_GOVERNS_PAGES" in str(
+            failures[0]
+        )
+
+    @pytest.mark.parametrize("which", ["normative", "governs"])
+    def test_page_listed_twice_fails(self, tmp_path, which):
+        root = _repo(tmp_path, _tree())
+        sets = {"normative": _NORMATIVE, "governs": _GOVERNS}
+        sets[which] = sets[which] * 2
+
+        [failure] = _failures(root, **sets)
+
+        assert "listed more than once" in str(failure)
 
     def test_missing_declared_page_fails(self, tmp_path):
         root = _repo(tmp_path, _tree())

@@ -10,6 +10,8 @@ description: >
 
 # Case Initialization
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 This page explains why the [CASE_MANAGER](case_manager_and_ledger.md) creates every `VulnerabilityCase`, rather than the actor that received the report.
 That report receiver — a Vendor, a Coordinator, or any other role — becomes the case's Case Owner, but it does not create the case.
 How the proposal exchange works, step by step, is described in [Propose Case](../behavior_logic/use-cases/propose-case.md).

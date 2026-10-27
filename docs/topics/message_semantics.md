@@ -7,6 +7,8 @@ subject: protocol
 
 # Message Semantics
 
+{% include-markdown "../includes/specification_governs.md" %}
+
 This page explains two basic design decisions that shape how Vultron messages
 work. If you understand these decisions before you build, you will not make
 errors that are hard to find later.

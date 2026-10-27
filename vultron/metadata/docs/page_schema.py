@@ -204,6 +204,20 @@ _check_page_type = _member_of(PageType)
 _check_subject = _member_of(Subject)
 
 
+def declared_subject(value: object) -> Subject | None:
+    """The :class:`Subject` a raw frontmatter *value* names, or ``None``.
+
+    For a check that reads ``subject`` but leaves an invalid or missing one to
+    ``docs-frontmatter``, so one fault is not named by two tools. Accepts
+    exactly what :class:`PageFrontmatter` accepts.
+    """
+    try:
+        _check_subject(value)
+    except ValueError:
+        return None
+    return Subject(str(value))
+
+
 def _check_level(value: object) -> object:
     """Accept only an integer on the ladder — not ``"100"``, ``100.0``, or a bool.
 

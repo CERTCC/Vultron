@@ -10,6 +10,8 @@ description: >
 
 # Case Ledger Synchronization
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 Organizations that do not share a database coordinate a vulnerability case.
 Each one keeps its own copy of the case.
 This page explains how those copies stay in agreement, and it answers two questions:

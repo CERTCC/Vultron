@@ -10,6 +10,8 @@ introduces: [CASE_MANAGER, Case Ledger Entry, Ledger Admission, Participant Case
 
 # The CASE_MANAGER and the Case Ledger
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 Organizations that do not share a database coordinate a vulnerability case.
 Each one keeps its own copy of the case.
 This page explains who is allowed to change the case, where the authoritative history of the case lives, and how every participant's copy is kept up to date.

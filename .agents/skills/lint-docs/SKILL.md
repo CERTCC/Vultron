@@ -159,17 +159,21 @@ Report these with the file, the line, the rule ID, and a recommended fix. Do
 not apply them.
 
 Start with `uv run docs-level-order`, `uv run docs-thread-order`,
-`uv run docs-frontmatter` and `uv run docs-normative-banner`. All four are
-site-wide, so report only the findings on target pages. A `docs-thread-order`
+`uv run docs-frontmatter`, `uv run docs-normative-banner` and
+`uv run docs-nav-subjects`. All five are site-wide, so report only the findings
+on target pages. A `docs-thread-order`
 finding is a thread member using a term a later member introduces, with no
 link (DF-11-024); report it with the link to add or the reorder. A banner
 finding means a normative-set page lacks the `normative.md` include, or
-another page carries it (DF-12-006). Each `docs-level-order` finding is a
-mechanical instance of SG-10 and SG-11: a concept used at
-`path:line:col` that a higher-level page introduces, with no link. Report it
-with both fixes: link the use to the named page, or re-level the page. The tool
-sees only terms some page declares under `introduces:`, so the concept-order
-and first-use checks below still need judgment for every other term.
+another page carries it (DF-12-006), or the same for a protocol-design page and
+`specification_governs.md` (DF-12-007). A `docs-nav-subjects` finding is a nav
+section holding both a `subject: protocol` and a `subject: implementation` page
+(DF-11-020); recommend moving the named page, or correcting its `subject`.
+Each `docs-level-order` finding is a mechanical instance of SG-10 and SG-11: a concept
+used at `path:line:col` that a higher-level page introduces, with no link. Report it
+with both fixes: link the use to the named page, or re-level the page. The tool sees
+only terms some page declares under `introduces:`, so the concept-order and first-use
+checks below still need judgment for every other term.
 
 Then run `uv run docs-duplicates`. It is site-wide and advisory: it exits 0
 whatever it finds, and fails only when it resolves no target pages
@@ -233,6 +237,12 @@ recommendation, never applied:
   (DF-11-019), so a wrong one misleads. Recommend the type the content is, never
   the one its directory suggests. If the page genuinely mixes types, the finding
   is DF-01-003 instead: recommend splitting it or separating the parts clearly.
+- **Subject mismatch** (DF-11-025, DF-11-020; SG-40) — the declared `subject`
+  is not what the page is about: a page about CERT/CC's code or demos declared
+  `protocol`, a page explaining the protocol declared `implementation`, or
+  either declared `neutral`. `docs-nav-subjects` trusts the declaration, so a
+  wrong one hides a misplaced page. Recommend the subject the content is about,
+  never the one that makes the nav check pass.
 
 - **Concept order** (SG-10) — a section using a concept the page has not
   introduced. Name the forward reference and the section order that fixes it.

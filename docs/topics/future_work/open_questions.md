@@ -9,6 +9,8 @@ description: >
 
 # Open Design Questions
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 This page collects each unresolved design question in the Future Work section.
 Each question is also at the point in the text where it first applies.
 A reader who finds a gap in context sees the question at that point, and not only on this page.

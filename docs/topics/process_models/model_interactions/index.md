@@ -8,6 +8,8 @@ contents: generated
 
 # Model Interactions
 
+{% include-markdown "../../../includes/specification_governs.md" %}
+
 The three Vultron process models constrain each other.
 Those models are the [Report Management (RM)](../rm/index.md), [Embargo Management (EM)](../em/index.md), and [Case State (CS)](../cs/index.md) models.
 This section describes those constraints.

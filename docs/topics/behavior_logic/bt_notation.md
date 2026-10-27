@@ -9,6 +9,8 @@ subject: protocol
 
 # Behavior Tree Notation
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 The pages in [Behavior Logic](index.md) describe what a Participant does as behavior trees.
 This page explains what a behavior tree is, why the protocol's behavior is described with them, and how to read the diagrams.
 

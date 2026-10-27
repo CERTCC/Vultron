@@ -10,6 +10,8 @@ subject: protocol
 
 # Capability Model
 
+{% include-markdown "../../includes/specification_governs.md" %}
+
 Vultron does not decide whether a report is credible, how urgent a case is, or when an advisory is ready to publish.
 Each of those decisions is a **call-out point**: a place where the protocol stops and asks a system you run.
 This page answers the objection "Vultron doesn't do X" by naming, for each X, the call-out point where your system does it.

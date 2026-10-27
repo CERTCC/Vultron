@@ -10,6 +10,8 @@ description: >
 
 # EM Formal Model
 
+{% include-markdown "../../../includes/specification_governs.md" %}
+
 This page defines the Embargo Management (EM) process as a deterministic finite automaton (DFA).
 It is for readers who want the formal model behind the [EM process model](index.md).
 That page describes each state and transition in practitioner terms.

@@ -31,6 +31,9 @@ one:
   :data:`BANNER_EXAMPLE_PAGES`, which show the banners as examples;
 * an empty target set or an empty declared set (DF-09-009).
 
+A page listed twice in one set, or in both sets, is reported as well: a page
+is either normative or an informative protocol-design page.
+
 A protocol-design page is also reported when it declares a ``subject`` other
 than ``protocol``, or carries the not-normative banner as well.
 
@@ -52,7 +55,7 @@ from vultron.metadata.docs.page_frontmatter import (
     frontmatter_key_lines,
     include_directives,
 )
-from vultron.metadata.docs.page_schema import Subject
+from vultron.metadata.docs.page_schema import Subject, declared_subject
 from vultron.metadata.file_loading import (
     FailureCollector,
     MetadataLoadError,
@@ -83,12 +86,14 @@ NORMATIVE_PAGES: tuple[str, ...] = (
 )
 
 #: The informative pages that explain the protocol's design, ``docs/``-relative
-#: (DF-12-007): Formal Protocol and the RM, EM and CS process models. Declared
-#: here because ``subject: protocol`` does not single them out: the
-#: protocol-floor companions (Messages, the Conformance Matrix, the Quick
-#: Reference) are protocol pages too, and carry the not-normative banner. The
-#: process models' formal-model pages state the specification's authority in
-#: their own prose, so they are not listed.
+#: (DF-12-007): Formal Protocol, the process models, the case lifecycle, the
+#: capability model, behavior logic, the Protocol Design pages and Future Work.
+#: Declared here because ``subject: protocol`` does not single them out: the
+#: Protocol Specification's own pages, the protocol-floor companions (Messages,
+#: the Conformance Matrix, the Quick Reference), the ActivityStreams guides and
+#: the tutorials are protocol pages too, and carry the normative or
+#: not-normative banner, or none. A new page that explains the protocol's
+#: design joins this list.
 SPECIFICATION_GOVERNS_PAGES: tuple[str, ...] = (
     "reference/formal_protocol/conclusion.md",
     "reference/formal_protocol/index.md",
@@ -96,19 +101,46 @@ SPECIFICATION_GOVERNS_PAGES: tuple[str, ...] = (
     "reference/formal_protocol/protocol_definition.md",
     "reference/formal_protocol/states.md",
     "reference/formal_protocol/transitions.md",
+    "topics/activity_vocabulary_design.md",
+    "topics/actor-knowledge-model.md",
+    "topics/behavior_logic/bt_notation.md",
+    "topics/behavior_logic/index.md",
+    "topics/behavior_logic/use-cases/embargo-lifecycle.md",
+    "topics/behavior_logic/use-cases/index.md",
+    "topics/behavior_logic/use-cases/prioritize-report.md",
+    "topics/behavior_logic/use-cases/propose-case.md",
+    "topics/behavior_logic/use-cases/validate-report.md",
+    "topics/capability_model/index.md",
+    "topics/case_lifecycle/a_case_under_vultron.md",
+    "topics/case_lifecycle/case_authority_and_trust.md",
+    "topics/case_lifecycle/case_initialization.md",
+    "topics/case_lifecycle/case_ledger_sync.md",
+    "topics/case_lifecycle/case_manager_and_ledger.md",
+    "topics/case_lifecycle/case_model.md",
+    "topics/case_lifecycle/ownership_transfer.md",
+    "topics/future_work/federation.md",
+    "topics/future_work/index.md",
+    "topics/future_work/open_questions.md",
+    "topics/message_semantics.md",
     "topics/process_models/cs/cs_model.md",
     "topics/process_models/cs/index.md",
     "topics/process_models/cs/transitions.md",
     "topics/process_models/em/defaults.md",
     "topics/process_models/em/early_termination.md",
+    "topics/process_models/em/formal_model.md",
     "topics/process_models/em/index.md",
     "topics/process_models/em/negotiating.md",
     "topics/process_models/em/principles.md",
     "topics/process_models/em/split_merge.md",
     "topics/process_models/em/working_with_others.md",
+    "topics/process_models/index.md",
+    "topics/process_models/model_interactions/index.md",
     "topics/process_models/model_interactions/rm_em.md",
     "topics/process_models/model_interactions/rm_em_cs.md",
+    "topics/process_models/rm/formal_model.md",
     "topics/process_models/rm/index.md",
+    "topics/process_models/rm/rm_interactions.md",
+    "topics/protocol_flow.md",
 )
 
 #: Pages that document the banners and so include both as examples.
@@ -221,21 +253,26 @@ def _check_governs_pages(
     """Report a protocol-design page that is not ``subject: protocol`` or
     that also carries the not-normative banner (DF-12-007, DF-11-025).
 
-    A page with no ``subject`` is left to ``docs-frontmatter``, which reports
-    it against the page, so one fault is not named by two tools.
+    A page with no valid ``subject``, or whose frontmatter does not parse, is
+    left to ``docs-frontmatter``, which reports it against the page, so one
+    fault is not named by two tools.
     """
     for rel in pages:
         path = docs_dir / rel
         if not path.is_file():
             continue  # reported by _check_rule
-        with collector.attempt():
-            subject = load_frontmatter(path, root=root).metadata.get("subject")
-            if subject is not None and subject != Subject.PROTOCOL:
+        try:
+            metadata = load_frontmatter(path, root=root).metadata
+        except MetadataLoadError:
+            metadata = {}
+        subject = declared_subject(metadata.get("subject"))
+        if subject is not None and subject != Subject.PROTOCOL:
+            with collector.attempt():
                 raise MetadataLoadError(
                     f"explains the protocol's design (listed in "
                     f"SPECIFICATION_GOVERNS_PAGES) but declares subject: "
-                    f"{subject}; declare subject: protocol, or remove it "
-                    "from the list (DF-12-007, DF-11-025)",
+                    f"{subject.value}; declare subject: protocol, or remove "
+                    "it from the list (DF-12-007, DF-11-025)",
                     path=f"docs/{rel}",
                     line=frontmatter_key_lines(path).get("subject"),
                 )
@@ -248,6 +285,39 @@ def _check_governs_pages(
                     path=f"docs/{rel}",
                     line=line,
                 )
+
+
+def _check_declared_sets(
+    normative: tuple[str, ...],
+    governs: tuple[str, ...],
+    collector: FailureCollector,
+) -> None:
+    """Report a page listed twice in one set, or in both (DF-12-006/007).
+
+    A page cannot be both normative and informative, and a repeated entry
+    would report each of its faults twice.
+    """
+    for name, pages in (
+        ("NORMATIVE_PAGES", normative),
+        ("SPECIFICATION_GOVERNS_PAGES", governs),
+    ):
+        for rel in sorted({p for p in pages if pages.count(p) > 1}):
+            with collector.attempt():
+                raise MetadataLoadError(
+                    f"is listed more than once in {name} in "
+                    "vultron/metadata/docs/normative_banner.py; list it once",
+                    path=f"docs/{rel}",
+                )
+    for rel in sorted(set(normative) & set(governs)):
+        with collector.attempt():
+            raise MetadataLoadError(
+                "is listed in both NORMATIVE_PAGES and "
+                "SPECIFICATION_GOVERNS_PAGES in "
+                "vultron/metadata/docs/normative_banner.py; a page is either "
+                "normative or an informative protocol-design page, so remove "
+                "it from one (DF-12-006, DF-12-007)",
+                path=f"docs/{rel}",
+            )
 
 
 def check_normative_banner(
@@ -303,6 +373,7 @@ def check_normative_banner(
         )
 
     collector = FailureCollector()
+    _check_declared_sets(normative, governs, collector)
     present = {f.relative_to(docs_dir).as_posix() for f in files}
     for rel in sorted(examples - present):
         with collector.attempt():
