@@ -19,7 +19,10 @@ the peer keeps its pause, it also refuses every later commit in the case. The
 user decided on #5120 that the fan-out skips that peer, sends the new entry to
 everyone else and succeeds, while every other hold-back still fails its node.
 `learn` should write that exception into SYNC-03-009 or BT-14-001, where it
-now lives only in code, a note and the issue.
+now lives only in code, a note and the issue. The join backfill and the
+admission backfill node recur the same way and still fail, as decided: while a
+broken old entry exists, every later Accept of an Invite to the case is refused
+whole, so no one new can join. The spec text should say so too.
 
 **Evidence.** PR #5248 (ISSUE-5120): the decision in its "AC-3 amended" section
 and on #5120 (comment 6443457746); the pre-push finding

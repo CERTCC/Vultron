@@ -22,7 +22,9 @@ backfill (``SendLogEntryToEachNode``), the admission backfill node
 one with a tampered entry and one with an entry that states no hash: the
 entries before the broken one are queued, it and every later one are not,
 the hold-back is logged at ERROR, and the node returns ``FAILURE``
-(BT-14-001).
+(BT-14-001).  The one exception is the fan-out's catch-up of a let-back-in,
+paused peer: that peer keeps its pause and is skipped for the new entry,
+everyone else gets it, and the fan-out returns ``SUCCESS`` (decided on #5120).
 """
 
 import logging
@@ -410,6 +412,40 @@ def test_admission_backfill_stops_at_a_broken_entry_and_keeps_the_pause(
     assert sends(sync_port) == [(1, [NON_SIGNATORY_ID])]
     _assert_held_back(caplog, entries[2], NON_SIGNATORY_ID)
     assert paused_from(datalayer) == 1
+
+
+@pytest.mark.spec("SYNC-03-009")
+@pytest.mark.spec("CM-10-006")
+@broken_entries
+def test_admission_backfill_holds_back_one_peer_and_backfills_the_other(
+    bridge: BTBridge,
+    datalayer,
+    break_entry: BreakEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Each peer's backfill is its own send.
+
+    The finder's backfill from entry 1 reaches the broken entry 2 and keeps
+    its pause; the signatory's, from entry 3, is intact and clears its pause.
+    """
+    entries = _paused_from_one_then_admitted(datalayer)
+    record_embargo_pause(
+        datalayer, case_id=CASE_ID, peer_id=SIGNATORY_ID, from_index=3
+    )
+    _break_stored(datalayer, entries, 2, break_entry)
+    sync_port = MagicMock(spec=SyncActivityPort)
+
+    with caplog.at_level(logging.ERROR):
+        result = _admission_backfill(bridge, sync_port)
+
+    assert result.status == Status.FAILURE
+    assert sorted(sends(sync_port)) == [
+        (1, [NON_SIGNATORY_ID]),
+        (3, [SIGNATORY_ID]),
+    ]
+    _assert_held_back(caplog, entries[2], NON_SIGNATORY_ID)
+    assert paused_from(datalayer) == 1
+    assert paused_from(datalayer, SIGNATORY_ID) is None
 
 
 # --- Join-time backfill ---------------------------------------------------------

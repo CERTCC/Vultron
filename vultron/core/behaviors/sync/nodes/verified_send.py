@@ -35,6 +35,28 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.errors import VultronUnverifiedLedgerEntryError
 
 
+def check_log_entry_verifies(
+    entry: CaseLedgerEntry, recipients: list[str]
+) -> None:
+    """Raise unless *entry*'s hash verifies, naming *recipients* in the error.
+
+    A caller about to send one entry to several recipients checks it once,
+    before the first send, so the error names every recipient it is held
+    back from (SYNC-03-009).
+
+    Raises:
+        VultronUnverifiedLedgerEntryError: *entry* states no ``entry_hash``,
+            or its content does not reproduce it.
+    """
+    if not ledger_entry_hash_intact(entry):
+        raise VultronUnverifiedLedgerEntryError(
+            case_id=entry.case_id,
+            entry_id=entry.id_,
+            log_index=entry.log_index,
+            recipients=recipients,
+        )
+
+
 def send_verified_log_entry(
     sync_port: SyncActivityPort,
     entry: CaseLedgerEntry,
@@ -54,13 +76,7 @@ def send_verified_log_entry(
             caller stops its send there and reports it at ERROR
             (SYNC-03-009).
     """
-    if not ledger_entry_hash_intact(entry):
-        raise VultronUnverifiedLedgerEntryError(
-            case_id=entry.case_id,
-            entry_id=entry.id_,
-            log_index=entry.log_index,
-            recipients=to,
-        )
+    check_log_entry_verifies(entry, to)
     return sync_port.send_announce_log_entry(
         entry=entry, actor_id=actor_id, to=to
     )

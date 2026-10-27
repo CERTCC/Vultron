@@ -25,6 +25,7 @@ from test.core.use_cases.received.conftest import (
     seed_inert_invitee,
     seed_store_owner_as_case_manager,
 )
+from test.support.broken_ledger_entry import tampered
 from test.support.embargo_register import activate
 from test.support.ledger_records import with_ledger_records
 from test.support.received import case_stub
@@ -1573,7 +1574,7 @@ class TestInviteActorUseCases:
         lj = _seed_late_joiner_case()
         dl, case, invitee_id = lj["dl"], lj["case"], lj["invitee_id"]
         first, second = lj["first"], lj["second"]
-        dl.save(second.model_copy(update={"payload_snapshot": {"index": "x"}}))
+        dl.save(tampered(second))
         sync_port = MagicMock()
 
         accept = _accept_invite(lj["invite"], actor=invitee_id)
@@ -1585,10 +1586,9 @@ class TestInviteActorUseCases:
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
 
-        print(
-            "DISPOSITION", result.disposition, repr(result), dl.outbox_list()
-        )
-        assert result.disposition is not HandlerDisposition.APPLIED, result
+        assert result.disposition is HandlerDisposition.REFUSED, result
+        assert second.id_ in (result.reason or ""), result.reason
+        assert dl.outbox_list() == []
         sent_to_invitee = [
             call.kwargs["entry"].log_index
             for call in sync_port.send_announce_log_entry.call_args_list

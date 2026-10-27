@@ -48,6 +48,7 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
     record_embargo_pause,
 )
 from vultron.core.behaviors.sync.nodes.verified_send import (
+    check_log_entry_verifies,
     send_verified_log_entry,
 )
 from vultron.core.models.case import VulnerabilityCase
@@ -298,6 +299,10 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
             recipients = [r for r in recipients if r not in held_back]
 
         try:
+            # Checked once against every recipient, so the error names all of
+            # them; each send below checks again, as every send path does.
+            if recipients:
+                check_log_entry_verifies(entry, recipients)
             for recipient_id in recipients:
                 send_verified_log_entry(
                     self._sync_port,
@@ -306,13 +311,10 @@ class SendLogEntryToEachNode(DataLayerActionWithPorts):
                     to=[recipient_id],
                 )
         except VultronUnverifiedLedgerEntryError as exc:
-            # The first send checks the entry, so no recipient got it.
+            # Checked before the first send, so no recipient got it.
             self.feedback_message = str(exc)
             self.logger.error(  # noqa: TRY400 -- the hold-back is the report
-                "%s: %s; not sent to any of %s",
-                self.name,
-                exc,
-                recipients,
+                "%s: %s; not sent to any recipient", self.name, exc
             )
             return Status.FAILURE
         self.logger.info(
