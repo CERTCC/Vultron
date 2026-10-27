@@ -242,7 +242,7 @@ We have:
   to see how a report is validated, accepted, and turned into a Case, and how
   the `Offer(Report)` activity fits alongside `Create(Report)`.
 - **Decide whether to submit at all** — read
-  [How to Select the Case Owner](../howto/decide_who_owns_a_case.md) to
+  [How to Decide Who Owns a Case](../howto/decide_who_owns_a_case.md) to
   choose between submitting a report, creating the case yourself, and
   transferring ownership of a case you already run.
 - **See the full workflow run for you** — follow

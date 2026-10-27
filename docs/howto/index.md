@@ -18,7 +18,7 @@ Each still has its own page, at the same address as before.
 
 On **Coordinate Cases**:
 
-- [Select the Case Owner](decide_who_owns_a_case.md)
+- [Decide Who Owns a Case](decide_who_owns_a_case.md)
 - [Adopt Vultron in Your CVD Program](adopt_vultron.md)
 - [Measuring Your CVD Program](measure_your_cvd_program.md)
 

@@ -21,7 +21,7 @@ This page is part of *Prepare your program*.
 </td>
 <td markdown="block">
 
-- How to Select the Case Owner
+- How to Decide Who Owns a Case
 
 </td>
 <td markdown="block">

@@ -1,168 +1,183 @@
 ---
 description: >
-  Select a path for a vulnerability: send a report, report to yourself and
-  coordinate the case, or transfer a case. One question gives the path: who
-  should be the Case Owner now, and who later?
+  Choose between submitting a report, reporting to yourself and coordinating
+  the case, and transferring a case to someone else. One question decides it:
+  who should be the Case Owner now, and who later?
 stakeholder_type: [cvd-practitioner]
 level: 200
 page_type: how-to
 subject: protocol
 ---
 
-# How to Select the Case Owner
+# How to Decide Who Owns a Case
 
 {% include-markdown "../includes/not_normative.md" %}
 
 Use this guide when you have a vulnerability and must start a Coordinated Vulnerability Disclosure (CVD) case for it under Vultron.
-You can send a report to a different organization.
+You can submit a report to another organization, such as a vendor or a coordinator.
 You can also report to yourself and coordinate the case.
-If you are the Case Owner of a case, you can transfer the case to a participant that is a better owner.
-One question gives the correct path: who should be the [Case Owner](../reference/glossary.md#cvd-roles-and-participants) now, and who later?
+If you already own a case, you can transfer it to a participant that is better placed to coordinate it.
+One question decides between these paths: who should be the [Case Owner](../reference/glossary.md#cvd-roles-and-participants) now, and who later?
 
 ---
 
 ## Prerequisites
 
-- You know what a case is, which participant is its Case Owner, and which participant keeps its record.
-  [A Case Under Vultron](../topics/case_lifecycle/a_case_under_vultron.md) gives this information.
-- You know what an [embargo](../topics/process_models/em/principles.md) requires from the participants that agree to it.
-- Your organization operates a system that sends and receives Vultron messages, or it can use one.
+- You know what a case is, which participant owns it, and which participant keeps its record.
+  [A Case Under Vultron](../topics/case_lifecycle/a_case_under_vultron.md) covers this.
+- You know what an [embargo](../topics/process_models/em/principles.md) asks of the participants that agree to it.
+- Your organization operates a system that sends and receives Vultron messages, or can use one.
 
 ---
 
-## Step 1: Know the four rules that control your selection
+## Step 1: Know the five rules behind each path
 
-Four protocol rules control the result of each path.
-Read these rules before you select a path.
+Five protocol rules decide what each path gives you.
+Read them before you choose a path.
 
-**A case starts with a report and a proposal.**
-No participant makes a case directly.
-The actor that receives a report proposes a case to a [Case Actor Service](../reference/glossary.md#cvd-roles-and-participants).
-That actor can be you.
-The service makes the case, and it keeps the history of the case as its [Case Manager](../topics/case_lifecycle/case_manager_and_ledger.md).
-The service makes the receiver of the report the Case Owner, and it adds the Reporter as a participant ([CP-09-001](../reference/specs/protocol.md#cp-09-001), [CP-09-002](../reference/specs/protocol.md#cp-09-002), [CM-22-001](../reference/specs/protocol.md#cm-22-001)).
-Thus, the actor that receives the report is the Case Owner.
+**The receiver of a report creates the case and owns it.**
+No actor creates a case without a report.
+Any actor that receives a report can create a case for it: a vendor, a coordinator, or you, if you report to yourself.
+The receiver becomes the Case Owner, and the Reporter becomes a participant ([CM-14-008](../reference/specs/protocol.md#cm-14-008), [CM-14-009](../reference/specs/protocol.md#cm-14-009), [CM-14-012](../reference/specs/protocol.md#cm-14-012)).
+So the actor that receives the report owns the case.
 
-**An invitation adds a participant, not a Case Owner.**
+**The Case Owner holds the Case Manager role, or delegates it.**
+Each case has a [Case Manager](../topics/case_lifecycle/case_manager_and_ledger.md), which keeps the history of the case and sends each change to the participants.
+The Case Owner can hold this role itself.
+The Case Owner can also delegate it to a different actor, for example a coordinator that hosts cases for others ([§10.3 Case Bootstrap and the Trust Root](../reference/vultron-spec/interactions.md#103-case-bootstrap-and-the-trust-root), [CBT-01-001](../reference/specs/protocol.md#cbt-01-001)).
+When it delegates, the delegate creates the case, and the receiver of the report is still its Case Owner ([CP-09-001](../reference/specs/protocol.md#cp-09-001), [CBT-01-003](../reference/specs/protocol.md#cbt-01-003)).
+The rest of this guide is the same in both cases.
+
+!!! note "Delegation in the reference implementation"
+
+    The Vultron reference implementation always delegates the Case Manager role.
+    The receiver proposes the case to a [Case Actor Service](../reference/glossary.md#cvd-roles-and-participants), which starts a separate Case Actor for the case.
+    The protocol does not require this.
+
+**An invitation adds a participant, not an owner.**
 When the Case Owner invites an actor, that actor becomes a participant with the roles that the invitation names ([§12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
 A case has only one Case Owner at a time ([CM-21-001](../reference/specs/protocol.md#cm-21-001)).
-The Case Owner role moves to a different participant only by an [ownership transfer](../topics/case_lifecycle/ownership_transfer.md) ([CM-21-002](../reference/specs/protocol.md#cm-21-002)).
-The Case Manager refuses all other offers of the Case Owner role ([CM-33-003](../reference/specs/protocol.md#cm-33-003)).
-If you make a case and invite the vendor, you continue to make the decisions for the case.
+The Case Owner role moves to another participant only by an [ownership transfer](../topics/case_lifecycle/ownership_transfer.md) ([CM-21-002](../reference/specs/protocol.md#cm-21-002)).
+The Case Manager refuses any other offer of the Case Owner role ([CM-33-003](../reference/specs/protocol.md#cm-33-003)).
+If you create a case and invite a vendor, you still make the decisions for the case.
 
 **The actor that reports is the Reporter.**
 The protocol has no finder role ([ADR-0078](../adr/0078-retire-finder-role.md)).
-The actor that reports a vulnerability gets the [Reporter](../reference/glossary.md#cvd-roles-and-participants) role.
-This actor can be a [finder](../reference/glossary.md#cvd-roles-and-participants), a vendor that finds a vulnerability in its own product, or a coordinator.
+The actor that reports a vulnerability holds the [Reporter](../reference/glossary.md#cvd-roles-and-participants) role.
+That actor can be a [finder](../reference/glossary.md#cvd-roles-and-participants), a vendor that found a vulnerability in its own product, or a coordinator.
 The report records who found the vulnerability, and the role does not.
 
-**When you send a report, you agree to the embargo of the case.**
-When the Case Manager makes a case from your report, it adds you as a signatory to the active embargo, if there is one ([CM-14-005](../reference/specs/protocol.md#cm-14-005)).
+**A submitted report agrees to the embargo of the case.**
+When a case is created from your report, you become a signatory to any active embargo ([CM-14-005](../reference/specs/protocol.md#cm-14-005)).
 You can propose your own embargo terms in the report ([EP-04-004](../reference/specs/protocol.md#ep-04-004)).
 If the receiver also has default terms, the shorter embargo becomes active ([EP-04-003](../reference/specs/protocol.md#ep-04-003), [Default Embargoes](../topics/process_models/em/defaults.md)).
-The longer embargo becomes a proposed revision.
+The longer one should become a proposed revision.
 
 ---
 
-## Step 2: Select a path
+## Step 2: Choose a path
 
-The four paths that follow go from the least work to the most work.
-Use the first path whose condition is true for you.
+The four paths below go from the least work to the most work.
+Take the first path whose condition is true for you.
 
-| Path | Use it when | Case Owner |
+| Path | Use it when | Who is the Case Owner |
 |---|---|---|
-| Send a report | The receiver should be the Case Owner and make the decisions | The receiver |
-| Report to yourself and coordinate | You should be the Case Owner for all of the case | You |
-| Report to yourself, invite the vendor, and make a decision later | You should be the Case Owner now, and possibly a different participant later | You, until you transfer the case |
-| Transfer the ownership of a case | The case is open, and a different participant should now coordinate it | The participant that accepts the transfer |
+| Submit a report | The receiver should own the case and make its decisions | The receiver |
+| Report to yourself and coordinate | You should own the case for its whole life | You |
+| Report to yourself, invite the others, and decide later | You should own the case now, and another participant may own it later | You, until you transfer the case |
+| Transfer ownership of an existing case | A case exists, and another participant should now coordinate it | The participant that accepts the transfer |
 
-### Send a report
+### Submit a report
 
-Use this path if you agree that the receiver makes the decisions.
-The receiver makes the decision to open a case, and it makes the decisions in the case.
-This path is usual for a finder that reports to a vendor or a coordinator.
+Use this path if you are content for the receiver to decide whether a case exists and how it runs.
+This is the usual path for a finder that reports to a vendor or a coordinator.
 
 1. Send the report to the receiver as an `Offer(VulnerabilityReport)`.
    [How to Report a Vulnerability](activitypub/activities/report_vulnerability.md#submit-a-report) shows this message.
 2. If you have embargo terms, propose them in the report ([EP-04-004](../reference/specs/protocol.md#ep-04-004)).
-3. Wait for the decision of the receiver.
-   If the receiver opens a case, the receiver is the Case Owner.
+3. Wait for the receiver to decide.
+   If the receiver creates a case, the receiver is the Case Owner.
    You are a participant with the Reporter role.
 
 ### Report to yourself and coordinate
 
-Use this path if you are the correct Case Owner for all of the case.
-Two examples are a vendor that finds a vulnerability in its own product, and a coordinator that has a report about many vendors.
+Use this path if you are the right owner for the whole case.
+Two examples are a vendor that found a vulnerability in its own product, and a coordinator that holds a report affecting several vendors.
 
 1. Send the report to your own actor.
-   You get the Reporter role, and you become the Case Owner.
-2. Let your system propose the case to your Case Actor Service.
+   You hold the Reporter role, and you become the Case Owner.
+2. Create the case.
+   Hold the Case Manager role yourself, or delegate it to an actor that you choose.
 3. Invite each vendor, coordinator, or other actor that the case needs.
    Each actor that accepts becomes a participant ([§12.2 Invitation and Acceptance](../reference/vultron-spec/interactions.md#122-invitation-and-acceptance-n)).
 
-### Report to yourself, invite the vendor, and make a decision later
+### Report to yourself, invite the others, and decide later
 
-Use this path if you should be the Case Owner now.
-A different participant can possibly coordinate the case later.
+Use this path if you should own the case now.
+Another participant may be a better owner later.
 An example is a finder that records each vulnerability it finds as a case in its own system.
-This finder transfers each case at the time that it selects.
+That finder transfers each case when it chooses.
 
-1. Report to yourself, and let your system propose the case, as in the previous path.
-2. Invite the vendor, or a different possible Case Owner, to the case.
-3. Coordinate the case while you are the correct Case Owner.
-4. When a different participant should coordinate the case, do the steps of the next path.
+1. Report to yourself and create the case, as in the previous path.
+2. Invite the other parties that the case needs, including any possible future owner.
+   A future owner can be a vendor, a coordinator, or any other participant.
+3. Coordinate the case while you are the right owner.
+4. When another participant should coordinate the case, take the next path.
 
-### Transfer the ownership of a case
+### Transfer ownership of an existing case
 
-Use this path if a case is open and a different participant is a better Case Owner.
-An example is a vendor that transfers its case to a coordinator when the case includes many vendors.
+Use this path if a case exists and another participant is better placed to coordinate it.
+An example is a vendor that transfers its case to a coordinator when the case comes to include several vendors.
 
-1. Make sure that the new Case Owner is an active participant of the case.
-   An [active participant](../reference/glossary.md#cvd-roles-and-participants) is a participant from the start of the case, or a participant that accepted its invitation.
-   It is not removed, and it agrees to the active embargo, if there is one ([CM-10-004](../reference/specs/protocol.md#cm-10-004)).
-   If the new Case Owner is not in the case, invite it first.
+1. Make sure that the new owner is an active participant of the case.
+   An [active participant](../reference/glossary.md#cvd-roles-and-participants) was in the case from its start, or accepted an invitation to it.
+   It has not been removed, and it agrees to the active embargo, if there is one ([CM-10-004](../reference/specs/protocol.md#cm-10-004)).
+   If the new owner is not in the case, invite it first.
    Wait until it accepts the invitation.
-   When it accepts the invitation, it also agrees to the active embargo ([CM-11-001](../reference/specs/protocol.md#cm-11-001)).
-2. Propose the transfer to the Case Manager, and name the new Case Owner.
+   When it accepts, it also agrees to the active embargo ([CM-11-001](../reference/specs/protocol.md#cm-11-001)).
+2. Propose the transfer to the Case Manager, which can be your own system, and name the new owner ([CM-21-005](../reference/specs/protocol.md#cm-21-005)).
    The Case Manager refuses a transfer to an actor that is not an active participant ([CM-21-021](../reference/specs/protocol.md#cm-21-021)).
-3. Wait for the new Case Owner to accept the transfer.
-   It must be an active participant at the time that it accepts ([CM-21-021](../reference/specs/protocol.md#cm-21-021)).
+3. Wait for the new owner to accept the transfer.
+   It must be an active participant when it accepts ([CM-21-021](../reference/specs/protocol.md#cm-21-021)).
 
 After the transfer, the case keeps its history, its embargo, and its participants.
 Only the Case Owner role moves ([CM-21-002](../reference/specs/protocol.md#cm-21-002), [CM-21-003](../reference/specs/protocol.md#cm-21-003)).
-You continue to be a participant, and you keep your other roles, for example Reporter or Vendor ([CM-21-008](../reference/specs/protocol.md#cm-21-008), [CM-21-009](../reference/specs/protocol.md#cm-21-009)).
-The case record tells each participant about the new Case Owner ([CM-21-007](../reference/specs/protocol.md#cm-21-007)).
-[Case Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md) gives the details of each message in the transfer.
+You stay a participant, and you keep your other roles, for example Reporter or Vendor ([CM-21-008](../reference/specs/protocol.md#cm-21-008), [CM-21-009](../reference/specs/protocol.md#cm-21-009)).
+The Case Manager tells each participant about the new owner ([CM-21-007](../reference/specs/protocol.md#cm-21-007)).
+
+The Case Manager role does not move with the Case Owner role.
+If you held both roles, you still hold the Case Manager role after the transfer.
+The protocol does not yet say how that role moves to another actor ([§12.1 Role Assignment](../reference/vultron-spec/interactions.md#121-role-assignment-n), [Open questions: cases and participants](../topics/future_work/open_questions.md#cases-and-participants)).
+[Case Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md) describes each message in the transfer.
 
 ---
 
-## Step 3: Select between a report to X and a case that you transfer to X
+## Step 3: Choose between submitting to X and creating the case for X
 
-If you want a different organization, X, to coordinate the case, two paths are possible.
-You can send the report to X.
-Or, you can make the case yourself and then transfer it to X.
-This table compares the decisions that each path gives to you.
+If you want another organization, X, to coordinate the case, two paths can get it there.
+You can submit the report to X.
+Or you can create the case yourself and then transfer it to X.
+The table below compares what each path leaves in your hands.
 
-| Question | Send a report to X | Make the case, then transfer it to X |
+| Question | Submit a report to X | Create the case, then transfer it to X |
 |---|---|---|
-| Which actor makes the decision to open a case | X | You |
-| Which actor makes the first decisions, for example the embargo terms and the invitations | X, as the Case Owner. If you propose embargo terms, the shorter of your terms and the terms of X becomes active. | You, until X accepts the transfer |
-| What occurs if X rejects | X does not open a case. Or, X opens a case and then invalidates or closes the report. If there is a case, X is its Case Owner. | X rejects the transfer. You keep the case, its history, and its participants ([CM-21-012](../reference/specs/protocol.md#cm-21-012)). |
-| What you can do after X rejects | Report to yourself and coordinate your own case. If X opened a case for the report, your case is a different case ([CP-05-008](../reference/specs/protocol.md#cp-05-008)). | Propose a transfer to a different participant immediately ([CM-21-014](../reference/specs/protocol.md#cm-21-014)). |
+| Who decides whether a case exists | X | You |
+| Who makes the early decisions, such as the embargo terms and the invitations | X, as the Case Owner. Your proposed embargo terms apply as Step 1 describes. | You, until X accepts the transfer |
+| What happens if X declines | X creates no case, or creates one and then invalidates or closes the report. Any case that exists is owned by X, not by you. | X rejects the transfer. You keep the case, its history, and its participants ([CM-21-012](../reference/specs/protocol.md#cm-21-012)). |
+| What you can do next if X declines | Report to yourself and create a case of your own. It is separate from any case that X created. | Propose a transfer to another participant at once ([CM-21-014](../reference/specs/protocol.md#cm-21-014)). |
 
-Use this test to select a path.
-If these two conditions are true, send the report to X:
+Use this test to choose.
+If both of these conditions are true, submit the report to X:
 
-- You agree that X makes the decisions.
-- If X rejects the report, you do not want to be the Case Owner.
+- You are content for X to decide.
+- If X declines, you do not want to own the case.
 
-If one condition is not true, make the case first.
+If either condition is false, create the case first.
 
-It is not an error to make a case only to transfer it later.
-A finder that finds many vulnerabilities can record each vulnerability as its own case.
+Creating a case only to transfer it is not a mistake.
+A finder that finds many vulnerabilities can record each one as its own case.
 The finder can then transfer each case when it is ready.
-The advantage is that the case stays if the new owner rejects it.
-The history, the participants, and the embargo stay with the case.
+The benefit is that the case outlives a decline: the history, the participants, and the embargo stay with it.
 
 ---
 
@@ -170,18 +185,19 @@ The history, the participants, and the embargo stay with the case.
 
 | Question | Answer |
 |---|---|
-| What gives the correct path? | The answer to one question: who should be the Case Owner now, and who later? |
-| What does it mean to make a case? | You report, possibly to yourself, and you propose the case to a Case Actor Service. The receiver of the report becomes the Case Owner. |
-| Does an invitation make an actor the Case Owner? | No. An invitation adds a participant. The Case Owner role moves only by a transfer. |
-| Which actor can receive a transfer? | Only an active participant. Invite the new Case Owner first. |
-| What stays with the case after a transfer? | The history, the embargo, and the participants. The previous Case Owner continues to be a participant, and it keeps its other roles. |
-| When do I send a report directly? | When you agree that the receiver makes the decisions, and you do not want to be the Case Owner if the receiver rejects the report. |
+| What decides the path? | Who should be the Case Owner, now and later. |
+| Who creates a case? | The actor that receives the report, which can be you. That actor becomes the Case Owner. |
+| Who is the Case Manager? | The Case Owner, or an actor that the Case Owner delegates the role to. |
+| Does an invitation make someone an owner? | No. It adds a participant. Ownership moves only by a transfer. |
+| Who can receive a transfer? | Only an active participant. Invite the future owner first. |
+| What stays with the case after a transfer? | The history, the embargo, and the participants. The previous owner stays a participant and keeps its other roles. |
+| When should I submit directly? | When you are content for the receiver to decide, and you would not want to own the case if it declines. |
 
 ## Further reading
 
-- [A Case Under Vultron](../topics/case_lifecycle/a_case_under_vultron.md) — the Case Owner, what each participant sees, and what an embargo invitation asks
+- [A Case Under Vultron](../topics/case_lifecycle/a_case_under_vultron.md) — who owns a case, what each participant sees, and what an embargo invitation asks
 - [Case Ownership Transfer](../topics/case_lifecycle/ownership_transfer.md) — the messages that move the Case Owner role, and why they go through the Case Manager
-- [Default Embargoes](../topics/process_models/em/defaults.md) — how a case starts with an embargo, and which terms become active
-- [Submit a Report to a Vultron Actor](../tutorials/submit-a-report.md) — how to send a report message to an actor that operates
+- [Default Embargoes](../topics/process_models/em/defaults.md) — how a case starts under an embargo, and which terms become active
+- [Submit a Report to a Vultron Actor](../tutorials/submit-a-report.md) — the report message, sent to a running actor in the reference implementation
 
 {% include-markdown "../start/_paths/coordinate-cases/howto__decide_who_owns_a_case.md" %}

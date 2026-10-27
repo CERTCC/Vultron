@@ -265,7 +265,7 @@ In both, the CASE_MANAGER sits in the middle because it is the only participant 
 
 ## See also
 
-- [How to Select the Case Owner](../../howto/decide_who_owns_a_case.md) — when to submit a report, create a case yourself, or transfer one
+- [How to Decide Who Owns a Case](../../howto/decide_who_owns_a_case.md) — when to submit a report, create a case yourself, or transfer one
 - [Case Management Messages](../../reference/messages/case_management.md#propose-case-ownership-transfer) — the proposal, `Offer`, `Accept`, `Reject`, and `Undo` activities on the wire
 - [Other Demos: transfer-ownership](../../tutorials/other_demos.md#transfer-ownership) — run a transfer end to end
 - [The Case Model](case_model.md) — `VulnerabilityCase`, participants, and the `CASE_OWNER` role
