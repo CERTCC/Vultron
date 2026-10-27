@@ -151,8 +151,7 @@ groups:
     rationale: >-
       A malformed duration that a receiver accepts with a guessed meaning sets an
       embargo length that nobody proposed. Rejecting it at parse time keeps the bad
-      value out of the core and tells the sender its message was not understood
-      (ADR-0032).
+      value out of the core and tells the sender its message was not understood.
     verification: >-
       A unit test confirms that strings not conforming to ISO 8601 duration grammar
       (e.g., `"1D"`, `"foo"`) are rejected with a validation error.

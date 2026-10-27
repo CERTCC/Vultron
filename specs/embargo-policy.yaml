@@ -1375,7 +1375,7 @@ groups:
       spec_id: RSH-08-003
     adr:
     - ADR-0113
-    - ADR-0118
+    - ADR-0108
     stories:
     - story_2022_014
   - id: EP-09-002

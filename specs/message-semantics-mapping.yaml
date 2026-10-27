@@ -350,9 +350,12 @@ groups:
     statement: Protocol shorthand `EE` (Embargo Management Error) has no dedicated `MessageSemantics` dispatch value and no
       entry in `SEMANTIC_REGISTRY`; embargo-management error conditions MUST instead be reported through the
       failure-mode mechanisms specified in MSM-05-001.
-    rationale: 'Symmetric with MSM-01-007 (`RE`): faults are partitioned by failure mode rather than by state machine, so no
-      embargo-scoped error wire form exists. Tests SHOULD assert that `EE` is absent from `MessageSemantics` and the semantic
-      registry to catch unintended additions.'
+    rationale: >-
+      Symmetric with MSM-01-007 (`RE`): faults are partitioned by failure mode rather
+      than by state machine, so no embargo-scoped error wire form exists.
+    note: >-
+      Tests SHOULD assert that `EE` is absent from `MessageSemantics` and the semantic
+      registry to catch unintended additions.
     relationships:
     - rel_type: refines
       spec_id: MSM-05-001
@@ -369,9 +372,12 @@ groups:
     statement: Protocol shorthand `EK` (Embargo Management Acknowledgment) has no dedicated `MessageSemantics` dispatch value
       and no entry in `SEMANTIC_REGISTRY`; acknowledgement of embargo state carried on the case ledger MUST instead
       follow the cumulative hash-chain mechanism specified in MSM-05-002.
-    rationale: 'Per-message positive acknowledgement is redundant for ledger-replicated state: a matching `prev_log_hash`
-      already proves receipt of every prior entry (MSM-05-002). Tests SHOULD assert that `EK` is absent from
-      `MessageSemantics` and the semantic registry.'
+    rationale: >-
+      Per-message positive acknowledgement is redundant for ledger-replicated state: a
+      matching `prev_log_hash` already proves receipt of every prior entry (MSM-05-002).
+    note: >-
+      Tests SHOULD assert that `EK` is absent from `MessageSemantics` and the semantic
+      registry.
     relationships:
     - rel_type: refines
       spec_id: MSM-05-002
@@ -413,6 +419,7 @@ groups:
       spec_id: VAM-08-004
     adr:
     - ADR-0083
+    - ADR-0075
     stories:
     - story_2022_062
     - story_2022_081
@@ -465,6 +472,7 @@ groups:
       spec_id: VAM-08-004
     adr:
     - ADR-0083
+    - ADR-0075
     stories:
     - story_2022_107
     - story_2022_103
@@ -580,9 +588,12 @@ groups:
     statement: Protocol shorthand `CE` (Case State Error) has no dedicated `MessageSemantics` dispatch value and no entry
       in `SEMANTIC_REGISTRY`; case-state error conditions MUST instead be reported through the failure-mode
       mechanisms specified in MSM-05-001.
-    rationale: 'Symmetric with MSM-01-007 (`RE`): faults are partitioned by failure mode rather than by state machine, so no
-      case-state-scoped error wire form exists. Tests SHOULD assert that `CE` is absent from `MessageSemantics` and the
-      semantic registry.'
+    rationale: >-
+      Symmetric with MSM-01-007 (`RE`): faults are partitioned by failure mode rather
+      than by state machine, so no case-state-scoped error wire form exists.
+    note: >-
+      Tests SHOULD assert that `CE` is absent from `MessageSemantics` and the semantic
+      registry.
     relationships:
     - rel_type: refines
       spec_id: MSM-05-001
@@ -599,9 +610,13 @@ groups:
     statement: Protocol shorthand `CK` (Case State Acknowledgment) has no dedicated `MessageSemantics` dispatch value and
       no entry in `SEMANTIC_REGISTRY`; acknowledgement of case-state changes carried on the case ledger MUST instead
       follow the cumulative hash-chain mechanism specified in MSM-05-002.
-    rationale: 'Symmetric with MSM-02-009 (`EK`): case-state changes are ledger-replicated, so hash-chain continuity already
-      acknowledges them cumulatively and a per-message ack would be redundant. Tests SHOULD assert that `CK` is absent from
-      `MessageSemantics` and the semantic registry.'
+    rationale: >-
+      Symmetric with MSM-02-009 (`EK`): case-state changes are ledger-replicated, so
+      hash-chain continuity already acknowledges them cumulatively and a per-message ack
+      would be redundant.
+    note: >-
+      Tests SHOULD assert that `CK` is absent from `MessageSemantics` and the semantic
+      registry.
     relationships:
     - rel_type: refines
       spec_id: MSM-05-002
@@ -695,9 +710,12 @@ groups:
       mechanisms: `Create(ProcessingFault)` when a message was received but not understood; `as:Reject` when a message was
       received and understood but declined; and `Add(Note)[target=VulnerabilityCase]`
       when the condition requires narrative explanation.'
-    rationale: 'Failure mode is actionable to a receiver in a way that originating state machine is not. Not-understood calls
-      for a format or version fix, declined calls for a protocol-level decision, and needs-explanation calls for a human. The
-      formal RE, EE, CE and GE partition carries no such signal, which is why it was not reproduced.'
+    rationale: >-
+      Failure mode is actionable to a receiver in a way that originating state machine
+      is not. Not-understood calls for a format or version fix, declined calls for a
+      protocol-level decision, and needs-explanation calls for a human. A partition by
+      state machine (RE, EE, CE and GE) carries no such signal, so it would tell the
+      sender only where the fault arose, not what to do about it.
     verification: >-
       Inspection of the semantic registry confirms `create_processing_fault`,
       the `as:Reject`-based entries, and the note-scoped entries are all registered.
@@ -782,7 +800,8 @@ groups:
       discriminated by `as:inReplyTo`; those types exist in no ontology file and no code.
     rationale: >-
       No ontology file and no code defines this taxonomy, so documentation that cites it
-      leads implementers to a wire format that does not exist. Note also the name note:
+      leads implementers to a wire format that does not exist.
+    note: >-
       `VultronError` in `vultron/errors.py` is a Python exception base class, unrelated
       to protocol wire-level error messages.
     verification: >-
