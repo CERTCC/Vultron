@@ -356,11 +356,10 @@ groups:
       spec_id: SYNC-16-002
     verification: >-
       `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_changes_nothing`
-      asserts an empty outbox and unchanged replication state for a fault from an
-      active participant of a seeded case.
+      asserts `SKIPPED`, an empty outbox, unchanged replication state and no new
+      ledger entry for a fault from an active participant of a seeded case.
       `::test_hash_mismatch_fault_from_a_non_participant_is_refused` asserts `REFUSED`
-      for one from a sender that is not a participant; it is a strict `xfail` until
-      #5094 builds the sender rule.
+      and the same for one from a sender that is not a participant of that case.
     stories:
     - story_2022_045
   - id: SYNC-03-010
@@ -377,9 +376,9 @@ groups:
       the self-check says which side is broken (SYNC-03-008).
     verification: >-
       `test/core/behaviors/sync/test_hash_mismatch_fault.py::test_hash_mismatch_fault_from_an_active_participant_is_logged_at_error`
-      asserts the ERROR record for a fault from an active participant of a seeded case,
-      a strict `xfail` until #5094 builds the behavior and adds the self-check result
-      (intact, not intact, or no stored copy).
+      asserts one ERROR record naming the case, the `Announce`, the entry, the sender
+      and the self-check result (intact, not intact, or no stored copy) for a fault
+      from an active participant of a seeded case.
     relationships:
     - rel_type: implements
       spec_id: SYNC-03-008

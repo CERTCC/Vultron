@@ -3,7 +3,9 @@
 A sender receives this when a receiver could not process its activity
 (ADR-0080, ASK-07-001).  The response depends on the fault's failure class:
 a replica's case-diverged fault makes the CASE_MANAGER re-seed it
-(SYNC-16-003, ADR-0142); every other class is archived and skipped until the
+(SYNC-16-003, ADR-0142); a replica's hash-mismatch fault is logged at ERROR
+beside a re-check of the CASE_MANAGER's own copy (SYNC-03-010); every other
+class is archived and skipped until the
 outstanding-request register correlates it to its ask (#2883).
 """
 
@@ -46,6 +48,12 @@ from vultron.core.behaviors.sender_entitlement import (
 from vultron.core.behaviors.sync.divergence_tree import (
     create_case_diverged_fault_tree,
 )
+from vultron.core.behaviors.sync.hash_mismatch_tree import (
+    create_hash_mismatch_fault_tree,
+)
+from vultron.core.behaviors.sync.nodes.hash_mismatch import (
+    ReportHashMismatchNode,
+)
 from vultron.core.behaviors.sync.nodes.reseed import (
     ReseedPeerNode,
     announced_ledger_entry,
@@ -57,6 +65,7 @@ from vultron.core.models.events.fault import (
 )
 from vultron.core.models.fault_classes import (
     VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
+    VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH,
 )
 from vultron.core.models.use_case_result import (
     HandlerDisposition,
@@ -81,9 +90,14 @@ logger = logging.getLogger(__name__)
 
 #: Builds the one tree a fault's delivery runs, from the entry the fault
 #: reports refusing (``None`` when it names none this store sent), the
-#: fault's sender and the use case's declared sender rule.
+#: received fault and the use case's declared sender rule.
 type FaultTreeBuilder = Callable[
-    [CaseLedgerEntry | None, str, SenderRule], py_trees.behaviour.Behaviour
+    [
+        CaseLedgerEntry | None,
+        CreateProcessingFaultReceivedEvent,
+        SenderRule,
+    ],
+    py_trees.behaviour.Behaviour,
 ]
 
 #: Reads the verdict of a finished run, given the tree, its result, the
@@ -114,10 +128,12 @@ class FaultResponse:
 
 
 def _archive_tree(
-    refused_entry: CaseLedgerEntry | None, sender_id: str, rule: SenderRule
+    refused_entry: CaseLedgerEntry | None,
+    fault: CreateProcessingFaultReceivedEvent,
+    rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     """The intake-only tree: a fault with no effect is only archived."""
-    del refused_entry, sender_id, rule  # nothing here depends on them
+    del refused_entry, fault, rule  # nothing here depends on them
     return create_intake_only_received_tree("CreateProcessingFaultReceivedBT")
 
 
@@ -139,11 +155,30 @@ def _archive_verdict(
     )
 
 
+def _unnamed_entry_refusal(
+    tree: py_trees.behaviour.Behaviour, result: BTExecutionResult, label: str
+) -> HandlerResult:
+    """The refusal of a fault that names no ``Announce(CaseLedgerEntry)``
+    this actor sent: there is no case to answer for (ASK-07-004).
+
+    A door guard's own refusal is kept, since it names the closer cause.
+    """
+    if (refusal := door_refusal(tree)) is not None:
+        return refusal
+    applied_or_raise(tree, result, label=label)
+    return HandlerResult.refused(
+        "the fault names no Announce(CaseLedgerEntry) this actor sent, so it"
+        " names no case to answer for (ASK-07-004)"
+    )
+
+
 def _case_diverged_tree(
-    refused_entry: CaseLedgerEntry | None, sender_id: str, rule: SenderRule
+    refused_entry: CaseLedgerEntry | None,
+    fault: CreateProcessingFaultReceivedEvent,
+    rule: SenderRule,
 ) -> py_trees.behaviour.Behaviour:
     return create_case_diverged_fault_tree(
-        refused_entry, sender_id=sender_id, sender_rule=rule
+        refused_entry, sender_id=fault.actor_id, sender_rule=rule
     )
 
 
@@ -163,13 +198,7 @@ def _reseed_verdict(
     """
     label = "CaseDivergedFaultReceivedBT"
     if refused_entry is None:
-        if (refusal := door_refusal(tree)) is not None:
-            return refusal
-        applied_or_raise(tree, result, label=label)
-        return HandlerResult.refused(
-            "the fault names no Announce(CaseLedgerEntry) this actor sent, so"
-            " it names no case to re-seed (SYNC-16-003, ASK-07-004)"
-        )
+        return _unnamed_entry_refusal(tree, result, label)
     verdict = case_manager_verdict(
         tree,
         verdict_from_bt(tree, result, label=label),
@@ -196,6 +225,56 @@ def _reseed_verdict(
     )
 
 
+def _hash_mismatch_tree(
+    refused_entry: CaseLedgerEntry | None,
+    fault: CreateProcessingFaultReceivedEvent,
+    rule: SenderRule,
+) -> py_trees.behaviour.Behaviour:
+    return create_hash_mismatch_fault_tree(
+        refused_entry,
+        announce_id=fault.failed_activity_id,
+        sender_id=fault.actor_id,
+        sender_rule=rule,
+    )
+
+
+def _hash_mismatch_verdict(
+    tree: py_trees.behaviour.Behaviour,
+    result: BTExecutionResult,
+    dl: CasePersistence,
+    refused_entry: CaseLedgerEntry | None,
+) -> HandlerResult:
+    """The verdict on a hash-mismatch fault (SYNC-03-008, SYNC-03-010).
+
+    ``SKIPPED`` once the CASE_MANAGER has logged the fault and checked its
+    own copy, since nothing changes; ``REFUSED`` for a fault that names no
+    ``Announce(CaseLedgerEntry)`` this actor sent, for a sender that is not
+    an active participant, and at any receiver that is not the case's
+    CASE_MANAGER (HP-01-005).
+    """
+    label = "HashMismatchFaultReceivedBT"
+    if refused_entry is None:
+        return _unnamed_entry_refusal(tree, result, label)
+    verdict = case_manager_verdict(
+        tree,
+        verdict_from_bt(tree, result, label=label),
+        dl,
+        refused_entry.case_id,
+    )
+    if verdict.disposition is not HandlerDisposition.APPLIED:
+        return verdict
+    report = find_node(tree, ReportHashMismatchNode)
+    if report is None or report.own_copy is None:
+        raise VultronBTInternalError(
+            f"{label}: the run did not check this actor's own copy"
+        )
+    return HandlerResult.skipped(
+        f"hash mismatch on ledger entry '{refused_entry.id_}' logged; own"
+        f" copy {report.own_copy.value}; nothing is sent, re-seeded or"
+        " recorded for it (SYNC-03-008)"
+    )
+
+
 #: A failure class with no entry in a use case's ``responses``.
 ARCHIVE_ONLY = FaultResponse(
     build_tree=_archive_tree,
@@ -215,6 +294,10 @@ class CreateProcessingFaultReceivedUseCase:
       re-seed the replica with ``Announce(VulnerabilityCase)`` of the current
       case, rate-bounded per peer, ledgering nothing (SYNC-16-002,
       SYNC-16-003, SYNC-16-004, SYNC-16-008).
+    - ``LedgerEntryRefused/HashMismatch`` — at the case's CASE_MANAGER, log
+      the fault at ERROR and re-check its own stored copy of the named entry,
+      changing nothing and reporting ``SKIPPED``: neither a replay nor a
+      re-seed can heal a hash mismatch (SYNC-03-008, SYNC-03-010).
 
     A class with no entry is only archived, as every received tree archives
     what arrived (CLP-10-018), and reports ``SKIPPED``: correlating it to the
@@ -245,6 +328,10 @@ class CreateProcessingFaultReceivedUseCase:
         {
             VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED: FaultResponse(
                 build_tree=_case_diverged_tree, read_verdict=_reseed_verdict
+            ),
+            VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_HASH_MISMATCH: FaultResponse(
+                build_tree=_hash_mismatch_tree,
+                read_verdict=_hash_mismatch_verdict,
             ),
         }
     )
@@ -280,7 +367,7 @@ class CreateProcessingFaultReceivedUseCase:
             self._refused_entry() if response.reads_refused_entry else None
         )
         tree = response.build_tree(
-            refused_entry, request.actor_id, self.sender_entitlement
+            refused_entry, request, self.sender_entitlement
         )
         result = BTBridge(
             datalayer=self._dl,
