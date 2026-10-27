@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer]
 level: 400
 page_type: reference
+subject: protocol
 description: >
   Wire activities for the Case State message types CV, CF, CD, CP, CX, CA, CK, and CE.
 ---

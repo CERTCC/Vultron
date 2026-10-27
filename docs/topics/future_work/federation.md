@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 page_type: explanation
+subject: protocol
 description: >
   The federation model for organizations that each operate their own coordination service: what the services interchange, who has authority for a case, and how trust is built.
 ---

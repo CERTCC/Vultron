@@ -5,6 +5,7 @@ description: >
 stakeholder_type: [cvd-practitioner, platform-developer, process-researcher]
 level: 200
 page_type: explanation
+subject: neutral
 ---
 
 # The Need for Interoperability in Coordinated Vulnerability Disclosure

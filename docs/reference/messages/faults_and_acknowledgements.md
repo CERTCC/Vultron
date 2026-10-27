@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 page_type: reference
+subject: protocol
 description: >
   The fault trichotomy and the cumulative hash-chain acknowledgment.
 ---

@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer]
 level: 400
 page_type: reference
+subject: protocol
 description: >
   The message types that Participants exchange.
 ---

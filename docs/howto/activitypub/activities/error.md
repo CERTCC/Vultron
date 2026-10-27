@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer]
 level: 300
 page_type: how-to
+subject: protocol
 ---
 
 # How to Report a Protocol Fault

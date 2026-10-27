@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
 page_type: explanation
+subject: protocol
 description: >
   The events that move a case between states, the rules that restrict them, the full state diagram, and the transition grammar.
 ---

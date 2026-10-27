@@ -2,6 +2,7 @@
 stakeholder_type: [process-researcher]
 level: 500
 page_type: explanation
+subject: neutral
 description: >
   What measuring CVD still leaves open, from transition probabilities and the order of histories to fairness across vendors.
 ---

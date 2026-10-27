@@ -974,6 +974,37 @@ groups:
       `TestFragments::test_fragment_declaring_a_page_type_is_reported` cover the
       check; `test_committed_tree_passes` runs it over the committed tree, and
       `docs-frontmatter` runs as a pre-commit hook and in CI.
+  - id: DF-11-025
+    priority: MUST
+    kind: process
+    adr:
+      - ADR-0136
+    statement: >-
+      Every reader-facing `docs/` page (DF-11-001) MUST declare exactly one `subject`
+      in its YAML frontmatter: `protocol` for a page about the Vultron protocol — its
+      specification, requirements, messages, models and design, including a
+      tutorial that teaches protocol behavior on the reference implementation;
+      `implementation` for a page about CERT/CC's reference implementation — its
+      code, demos, architecture and project record, however protocol-shaped the
+      subject; or `neutral` for a page about neither, which may sit in any section.
+      A project working-record page (DF-11-003) and an `{% include-markdown %}`
+      fragment (DF-11-010) MUST NOT declare a `subject`.
+    rationale: >-
+      Whether a page is about the protocol or about the reference implementation
+      is a fact about the page, so it lives on the page; the nav-section check
+      (DF-11-020) reads it rather than restating a list that drifts. A required key
+      makes an unclassified page a fault rather than a silent pass. The working
+      record is out of the nav the check walks, and a fragment takes its
+      declarations from its hosts.
+    verification: >-
+      `test/metadata/docs/test_page_frontmatter.py::TestSubjectSchema` covers the
+      permitted values and rejects every other spelling;
+      `TestCheck::test_reader_facing_page_without_a_subject_fails`,
+      `TestCheck::test_working_record_page_with_a_subject_fails`,
+      `TestWorkingRecordSchema::test_any_declared_subject_is_rejected` and
+      `TestFragments::test_fragment_declaring_a_subject_is_reported` cover the
+      check; `test_committed_tree_passes` runs it over the committed tree, and
+      `docs-frontmatter` runs as a pre-commit hook and in CI.
   - id: DF-11-019
     priority: MUST
     kind: process
@@ -1014,11 +1045,16 @@ groups:
       A reader who wants the protocol must be able to trust that every page in a
       protocol section binds them or explains what binds them; a reference-
       implementation page beside them reads as part of the protocol. The nav is the
-      only place the two are grouped together. The Diátaxis-type sections predate
-      the rule and mix the two until #4684 replaces them; until #4946 adds a check
-      over the nav, it is a review rule for new and moved pages.
-    verification_debt: '#2571'
-    tracking_issue: '#4946'
+      only place the two are grouped together, and pages move between its sections
+      often enough that a review rule alone would let one slip.
+    verification: >-
+      `docs-nav-subjects`, run as a pre-commit hook and by
+      `test/metadata/docs/test_nav_subjects.py`, reads each nav page's `subject`
+      (DF-11-025) and fails, naming the section's label trail and the pages of its
+      less numerous subject, for every nav group at any depth whose pages include
+      both a `protocol` page and an `implementation` page. A nav entry naming a
+      missing file is a finding, and a nav with no section or no page fails
+      (DF-09-009).
   - id: DF-11-021
     priority: MUST
     kind: process
@@ -1319,10 +1355,13 @@ groups:
       may lag it. Neither the normative banner nor the not-normative banner is true
       of them; a precedence statement keeps their standing and names the tiebreaker.
     verification: >-
-      Partly checked: `test/metadata/docs/test_normative_banner.py` checks that the
-      banner states the precedence without an RFC 2119 keyword and that the
-      Formal Protocol and process-model pages carry it. #4946 adds the check that
-      requires it on every informative protocol-design page, which a
-      `subject: protocol` key alone does not single out from the protocol-floor
-      companions.
-    tracking_issue: '#4946'
+      `docs-normative-banner`, run as a pre-commit hook and by
+      `test/metadata/docs/test_normative_banner.py`, declares the informative
+      protocol-design pages in `SPECIFICATION_GOVERNS_PAGES`, because
+      `subject: protocol` (DF-11-025) does not single them out from the
+      protocol-floor companions, and fails, naming `path:line`, when a declared
+      page is missing, does not include the banner in the page itself, declares a
+      `subject` other than `protocol` or also includes the not-normative banner;
+      when any other page or a shared fragment includes the banner; or when the
+      declared set is empty. The test also checks that the banner states the
+      precedence without an RFC 2119 keyword.

@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 page_type: explanation
+subject: protocol
 introduces: [VulnerabilityCase, CaseParticipant, Dimension Object, CVDRole]
 description: >
   The domain objects that make up a case and how they relate.

@@ -2,6 +2,7 @@
 stakeholder_type: [cvd-practitioner, process-researcher]
 level: 300
 page_type: explanation
+subject: protocol
 description: >
   The RM model applied to common coordination scenarios, from a single Reporter and Vendor to multi-party cases.
 ---

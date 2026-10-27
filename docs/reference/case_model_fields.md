@@ -4,6 +4,7 @@ description: >
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 page_type: reference
+subject: implementation
 ---
 
 # Case Model Fields

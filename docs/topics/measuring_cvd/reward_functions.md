@@ -2,6 +2,7 @@
 stakeholder_type: [process-researcher]
 level: 500
 page_type: explanation
+subject: neutral
 description: >
   Criteria for reward functions over Report Management and Embargo Management histories, and the simulation work they would enable.
 ---

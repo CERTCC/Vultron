@@ -4,6 +4,7 @@ description: >
 stakeholder_type: [platform-developer]
 level: 300
 page_type: explanation
+subject: protocol
 introduces: [CASE_MANAGER, Case Ledger Entry, Ledger Admission, Participant Case Replica, Canonical Recorded Log, Single-Writer Regime, Ledger Fanout]
 ---
 

@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer]
 level: 400
 page_type: explanation
+subject: protocol
 introduces: [HeldLedgerAnnounce]
 description: >
   How replicas order ledger entries and catch up on the ones they missed.

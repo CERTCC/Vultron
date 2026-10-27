@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer]
 level: 400
 page_type: explanation
+subject: protocol
 description: >
   Trigger `validate_report`: deciding that a received report is worth coordinating, and advancing RM to `VALID`.
 ---

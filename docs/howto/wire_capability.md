@@ -5,6 +5,7 @@ description: >
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 page_type: how-to
+subject: implementation
 ---
 
 # Wiring a Capability into the Reference Implementation

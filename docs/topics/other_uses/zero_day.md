@@ -2,6 +2,7 @@
 stakeholder_type: [process-researcher]
 level: 400
 page_type: explanation
+subject: neutral
 description: >
   Formal definitions of zero day and forever day in terms of case states.
 ---

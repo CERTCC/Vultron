@@ -2,6 +2,7 @@
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
 page_type: explanation
+subject: protocol
 contents: generated
 ---
 
