@@ -157,7 +157,8 @@ groups:
       every nested domain object (e.g., each `CaseParticipant` in `case_participants`) embedded as a full inline object;
       it MUST NOT use a bare URI string for a nested object in this activity.
     rationale: How this codebase meets CBT-01-002 and CBT-01-007 (split per MS-12-010). Inlining is a shortcut of this
-      prototype, which does not yet dereference (AKM-05-003), not a protocol rule. `ActivityStreamRef` accepts bare URI
+      prototype, which dereferences only the few references AKM-05-007 lists, not a
+      protocol rule. `ActivityStreamRef` accepts bare URI
       strings, but receiving handlers persist only materialized entries, so a string participant is silently skipped and
       later participant guards (e.g., `SenderIsActiveParticipantNode`) fail.
     verification: Inspection of `vultron/wire/as2/vocab/` confirms that `ActivityStreamRef` fields accept bare URI strings
@@ -588,8 +589,9 @@ groups:
       MUST reject the bootstrap under CBT-05-008.
     rationale: >-
       How this codebase meets CBT-05-008; split from it so CBT-05-008 states
-      only what other participants observe (MS-12-010). This codebase does not
-      yet dereference (AKM-05-003), so it cannot read a participant record
+      only what other participants observe (MS-12-010). This codebase
+      dereferences only the few references AKM-05-007 lists, and a bootstrap
+      participant is not one of them, so it cannot read a participant record
       named only by URI. Refusing it is a shortcut of this prototype reference
       implementation, not a protocol rule: an implementation that dereferences
       the reference has the participant data and need not reject.

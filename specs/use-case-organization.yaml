@@ -259,10 +259,11 @@ groups:
       exception
     rationale: >-
       Treating "dispatch did not raise" as success is what lets a handler take no action and
-      still be reported as `processed` (issue #2255). `deferred` has two producers that must
-      not be conflated: `DeferCheckNode` before dispatch, for missing case context, and a
-      handler returning `DEFERRED` after dispatch, for an entry parked pending its
-      predecessor. Both reach the same `InboxOutcome.status`; only the second flows through
+      still be reported as `processed` (issue #2255). `deferred` has three producers that
+      must not be conflated: `DeferCheckNode` before dispatch, for missing case context,
+      `DereferenceCheckNode` before dispatch, for an object being fetched (AKM-05-010),
+      and a handler returning `DEFERRED` after dispatch, for an entry parked pending its
+      predecessor. All reach the same `InboxOutcome.status`; only the last flows through
       this mapping.
     relationships:
     - rel_type: implements

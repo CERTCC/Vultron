@@ -47,6 +47,8 @@ An entry whose content does not reproduce its hash takes `LedgerEntryRefused/Has
 An entry that extends the participant's chain but does not apply to its case takes `LedgerEntryRefused/CaseDiverged`, because the participant's case has diverged from the CASE_MANAGER's ([SYNC-16-001](../specs/protocol.md#sync-16-001)).
 The participant sends either fault only to the actor it knows as the case's CASE_MANAGER, and neither side commits it to the case ledger ([SYNC-16-002](../specs/protocol.md#sync-16-002)).
 The CASE_MANAGER answers a case-diverged fault from an active participant with a fresh `Announce(VulnerabilityCase)` of its current case, at most once per cooldown for each participant ([SYNC-16-003](../specs/protocol.md#sync-16-003), [SYNC-16-004](../specs/protocol.md#sync-16-004)).
+A hash-mismatch fault from an active participant changes nothing: the CASE_MANAGER sends nothing for it, not even a fresh case copy, and records nothing, because a replay or a fresh copy would resend the same content ([SYNC-03-008](../specs/protocol.md#sync-03-008)).
+The CASE_MANAGER refuses either fault from any other sender.
 
 A fault also answers a message that the receiver understood but failed to process.
 When the use case that processes a received activity fails on the receiver's own internal error, the receiver keeps nothing of the act and its inbox sends the sender one `Create(ProcessingFault)` ([ASK-07-010](../specs/protocol.md#ask-07-010), [ASK-07-011](../specs/project.md#ask-07-011)).

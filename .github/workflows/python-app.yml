@@ -21,7 +21,11 @@ on:
       # this workflow still tests them (DEMOCI-02-004, #3610).
       - uv.lock
       - pyrightconfig.json
-      - .github/workflows/python-app.yml
+      # test/ci reads every workflow and the pre-commit config, so the pull
+      # request that drops a gate's CI step, or adds a hook no workflow runs,
+      # fails (DOCBW-03-015). The glob includes this file.
+      - '.github/workflows/*.yml'
+      - .pre-commit-config.yaml
   pull_request:
     branches: [ "main" ]
     paths:
@@ -35,7 +39,11 @@ on:
       - pyproject.toml
       - uv.lock
       - pyrightconfig.json
-      - .github/workflows/python-app.yml
+      # test/ci reads every workflow and the pre-commit config, so the pull
+      # request that drops a gate's CI step, or adds a hook no workflow runs,
+      # fails (DOCBW-03-015). The glob includes this file.
+      - '.github/workflows/*.yml'
+      - .pre-commit-config.yaml
   workflow_dispatch:
 
 permissions:

@@ -49,7 +49,10 @@ from vultron.adapters.driving.fastapi.inbox_orchestration import (
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.adapters.driving.fastapi.responses import AS2JSONResponse
-from vultron.adapters.driving.fastapi.routers.actors import _embargo_policy
+from vultron.adapters.driving.fastapi.routers.actors import (
+    _case_object,
+    _embargo_policy,
+)
 from vultron.adapters.driving.fastapi.routers.actors._inbox import (
     _activity_addressed_to,
     parse_activity,
@@ -641,8 +644,10 @@ def post_actor_outbox(
 
 # Included ahead of the catch-all below on purpose: FastAPI matches routes in
 # registration order, and ``GET /{actor_id:path}`` would otherwise claim
-# ``/actors/{slug}/embargo-policy`` with the suffix folded into the segment.
+# ``/actors/{slug}/embargo-policy`` and ``/actors/{slug}/cases/{key}/objects``
+# with the suffix folded into the segment.
 router.include_router(_embargo_policy.router)
+router.include_router(_case_object.router)
 
 
 @router.get(

@@ -212,6 +212,14 @@ NO_COMMIT_TREES: dict[_Site, str] = {
         " a fresh case copy, never ledgered or refused (SYNC-16-002,"
         " SYNC-16-003)"
     ),
+    (
+        "vultron/core/behaviors/sync/hash_mismatch_tree.py",
+        "create_hash_mismatch_fault_tree",
+    ): (
+        "a replica's hash-mismatch fault is replication signalling, logged"
+        " with a self-check and never ledgered or refused (SYNC-03-008,"
+        " SYNC-03-010)"
+    ),
 }
 
 

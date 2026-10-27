@@ -297,6 +297,69 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: DOCBW-03-008
+      - id: DOCBW-03-013
+        priority: MUST
+        kind: project
+        statement: >-
+          Each tree-wide pre-commit hook (`pass_filenames: false`) whose
+          `files:` matches a `docs/` file MUST also run in a workflow whose
+          `pull_request` trigger fires on that file.
+        rationale: >-
+          No workflow runs pre-commit, so a hook enforces nothing on a pull
+          request whose author did not run it. A gate's committed-tree test is
+          no backstop when its workflow's path filter misses the file: a pull
+          request that changes only `docs/` and breaks a page's frontmatter or
+          the normative banner merged green (#5084).
+        verification: >-
+          `test/ci/test_docs_source_gates_in_workflows.py` derives the hooks
+          from `.pre-commit-config.yaml` and asserts that, for every `docs/`
+          file a hook's pattern matches, a workflow triggered by a pull
+          request changing that file runs the hook's command in a step that
+          can fail the run.
+      - id: DOCBW-03-014
+        priority: MUST
+        kind: project
+        statement: >-
+          Each DOCBW-03-013 gate that the review workflow runs MUST run after
+          the shared build step and the built-site checks, on `!cancelled()`,
+          failing the job without stopping later steps. Nothing swallows its
+          failure (no `continue-on-error`, no `|| true`).
+        rationale: >-
+          The gates check the `docs/` sources, not the built site, so they
+          need only the environment the shared build step sets up
+          (DOCBW-06-004); running them first would mean a second install in
+          the same job. A built-site check has no `if:`, so it is skipped
+          after any earlier failure: placed after those checks, a failed gate
+          cannot hide them, and `!cancelled()` lets every gate run whatever
+          failed before it, so one push reports every broken gate.
+        verification: >-
+          `test/ci/test_docs_source_gates_in_workflows.py` asserts, within the
+          one job that calls the shared build action, that each gate follows
+          the build and every built-site check, that nothing swallows its
+          failure, and that every gate runs on `!cancelled()`.
+        relationships:
+          - rel_type: depends_on
+            spec_id: DOCBW-03-013
+      - id: DOCBW-03-015
+        priority: MUST
+        kind: project
+        statement: >-
+          The workflow that runs the DOCBW-03-013 check MUST fire on a pull
+          request that changes `.pre-commit-config.yaml` or any
+          `.github/workflows/*.yml` file.
+        rationale: >-
+          The check reads those files. If it ran only on a pull request that
+          changes Python, the pull request that deletes a gate's step, or
+          adds a docs hook with no step, would merge green and the next
+          unrelated pull request would fail instead.
+        verification: >-
+          `test/ci/test_docs_source_gates_in_workflows.py` asserts that the
+          workflow running `test/ci` fires, under the same trigger reading
+          as DOCBW-03-013, on `.pre-commit-config.yaml` and on every
+          `.github/workflows/*.yml` file.
+        relationships:
+          - rel_type: depends_on
+            spec_id: DOCBW-03-013
 
   - id: DOCBW-05
     title: Security Compliance

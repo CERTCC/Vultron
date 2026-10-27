@@ -54,14 +54,6 @@ jobs:
       - name: Build Site
         uses: ./.github/actions/build-site
 
-      # Runs even when the build failed, so one run reports both (EH-07-001).
-      - name: ADR index in sync, and no ADR in the nav
-        if: ${{ !cancelled() }}
-        run: |
-          # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
-          # distinguishable by shellcheck, which flags the bare form as SC1007.
-          PYTHONPATH='' uv run python -m vultron.metadata.adr.index_gen --check
-
       # Runs against the built site above, so it must follow that step: no
       # withheld artifact was built, every internal reference resolves, and
       # every URL an earlier publish served still resolves. The same action
@@ -81,3 +73,59 @@ jobs:
         if: ${{ !cancelled() && github.base_ref == 'publish' }}
         run: |
           PYTHONPATH='' uv run docs-legacy-urls --require-recorded
+
+      # The source gates: the ADR index and the docs source gates
+      # (DOCBW-03-013, DOCBW-03-014). They read the docs/ sources, not the
+      # built site, so they need only the environment the shared build set
+      # up. They run last, each on !cancelled(): a failed build or built-site
+      # check does not stop them, and a failed gate cannot skip a check after
+      # it. Pre-commit runs them locally, but no workflow runs pre-commit,
+      # and python-app.yml, which runs their committed-tree tests, does not
+      # trigger on docs/** (#5084). Each is its own step so a failure names
+      # its gate.
+      - name: ADR index in sync, and no ADR in the nav
+        if: ${{ !cancelled() }}
+        run: |
+          # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
+          # distinguishable by shellcheck, which flags the bare form as SC1007.
+          PYTHONPATH='' uv run python -m vultron.metadata.adr.index_gen --check
+
+      - name: Page frontmatter (DF-11-001)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-frontmatter
+
+      - name: Normative banner on exactly its pages (DF-12-006)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-normative-banner
+
+      - name: No nav section mixes protocol and implementation pages (DF-11-020)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-nav-subjects
+
+      - name: No page depends on a page above its level (DF-11-002)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-level-order
+
+      - name: Landing pages, reading-path boxes and coverage matrix in sync (DF-11-005)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-site --check
+
+      - name: Reading-path threads list only reader-facing pages (DF-11-016)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-threads
+
+      - name: No thread page depends on a later member's term (DF-11-024)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-thread-order
+
+      - name: Occasion table and message fragments in sync
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run msm-occasions --check
+
+      - name: Demo scenario artifacts in sync (DEMOCI-11-005)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run demo-scenarios --check
+
+      - name: JSON-LD context in sync with the wire vocabulary (VM-10-001)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run wire-context --check

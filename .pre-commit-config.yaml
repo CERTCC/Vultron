@@ -124,7 +124,9 @@ repos:
         # level, its introduces:, its prose and links), the nav, which decides
         # what is an include fragment; the glossary is a docs page; and the
         # checker, its scanner, baseline and the readers they use.
-        # test_the_committed_docs_tree_passes is the CI backstop.
+        # In CI, docs-build-check.yml runs it on a pull request that changes
+        # docs/ (DOCBW-03-013), and test_the_committed_docs_tree_passes on one
+        # that changes vultron/.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/(level_(order|baseline).*|concept_(scan|registry)\.py|baseline_file\.py|page_.*|glossary_index\.py)|vultron/metadata/(base|file_loading|markdown_tables)\.py)$
         pass_filenames: false
 
@@ -135,8 +137,11 @@ repos:
         # Every input that can make an artifact stale (DF-11-005/008/011/023): any
         # docs page (its description:, level or stakeholder_type), the nav, the
         # schema and generators, and the artifacts themselves so a hand-edit is
-        # caught. test_committed_site_artifacts_are_in_sync is the CI backstop,
-        # and the only one for a deletion, which no staged-file pattern matches.
+        # caught. In CI, docs-build-check.yml runs it tree-wide on a pull
+        # request that changes docs/ (DOCBW-03-013), so a deleted page is
+        # caught there, and test_committed_site_artifacts_are_in_sync on one
+        # that changes vultron/; locally, no staged-file pattern matches a
+        # deletion.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
         pass_filenames: false
 
@@ -146,7 +151,9 @@ repos:
         language: system
         # A thread lives in its start page's frontmatter, and any docs page
         # can be renamed, deleted or moved into the working record (DF-11-016).
-        # test_the_committed_threads_pass is the CI backstop.
+        # In CI, docs-build-check.yml runs it on a pull request that changes
+        # docs/ (DOCBW-03-013), and test_the_committed_threads_pass on one that
+        # changes vultron/.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
@@ -158,7 +165,10 @@ repos:
         # start page's thread, a member's introduces:, prose and links), the
         # nav, which decides what is an include fragment, and the checker, the
         # level-order scanner and thread loader it composes, and its baseline.
-        # test_the_committed_threads_pass_the_order_check is the CI backstop.
+        # In CI, docs-build-check.yml runs it on a pull request that changes
+        # docs/ (DOCBW-03-013), and
+        # test_the_committed_threads_pass_the_order_check on one that changes
+        # vultron/.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/(.*\.py|thread_order_baseline\.txt)|vultron/metadata/(base|file_loading|markdown_tables)\.py)$
         pass_filenames: false
 
@@ -207,9 +217,11 @@ repos:
         # page's H1), mkdocs.yml (its draft_docs and exclude_docs keep a page
         # out of "Seen in"), the generator and the metadata helpers it calls, and the
         # artifacts themselves, so a hand-edit is caught too.
-        # test_committed_occasion_artifacts_are_in_sync in
-        # test/metadata/test_msm_occasions.py enforces the check in CI and is
-        # the backstop for a deletion, which no `files:` pattern can match.
+        # In CI, docs-build-check.yml runs it on a pull request that changes
+        # docs/ (DOCBW-03-013), and test_committed_occasion_artifacts_are_in_sync
+        # in test/metadata/test_msm_occasions.py on one that changes vultron/;
+        # the test is also the backstop for a deletion, which no `files:`
+        # pattern can match.
         files: ^(vultron/semantic_registry/.*\.py|vultron/wire/as2/extractor/.*\.py|vultron/core/use_cases/received/.*\.py|vultron/core/behaviors/sender_entitlement\.py|vultron/enums/roles\.py|vultron/core/models/events/base\.py|vultron/core/models/enums\.py|vultron/wire/as2/enums\.py|vultron/core/states/.*\.py|vultron/metadata/(base|markdown_tables|file_loading|generated_files|docs/page_frontmatter)\.py|vultron/wire/as2/vocab/examples/.*\.py|vultron/metadata/msm/.*\.(py|yaml)|docs/.*\.md|mkdocs\.yml)$
         pass_filenames: false
 
@@ -222,8 +234,9 @@ repos:
         # Two kinds of input make the artifact stale (VM-10-001/002): the wire
         # vocabulary classes (a new/renamed Vultron-namespace type, or a
         # changed _vocab_ns) and the committed file itself (a hand-edit).
-        # This hook is local-only; test_committed_context_is_not_stale is what
-        # enforces the check in CI, and is also the backstop for a deletion,
+        # In CI, docs-build-check.yml runs it on a pull request that changes
+        # docs/ (DOCBW-03-013), and test_committed_context_is_not_stale on one
+        # that changes vultron/; the test is also the backstop for a deletion,
         # which pre-commit's staged-file list cannot match.
         files: ^(vultron/wire/as2/vocab/.*\.py|vultron/metadata/wire_context/.*\.py|docs/ns/context\.jsonld)$
         pass_filenames: false

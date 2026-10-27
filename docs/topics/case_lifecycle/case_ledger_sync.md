@@ -57,6 +57,8 @@ Before a replica holds, applies or stores an entry, it recomputes the hash from 
 An entry whose content does not reproduce its hash is refused and logged as an error.
 The replica sends no `Reject(CaseLedgerEntry)` for it, because a replay would resend the same entry.
 It sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` instead, naming the refused `Announce(CaseLedgerEntry)` ([SYNC-03-007](../../reference/specs/protocol.md#sync-03-007)).
+The CASE_MANAGER does not try to repair it, since a replay or a fresh case copy would resend the same content ([SYNC-03-008](../../reference/specs/protocol.md#sync-03-008)).
+This implementation logs the fault as an error and rechecks its own stored copy of the entry, so the log says which side is broken ([SYNC-03-010](../../reference/specs/project.md#sync-03-010)).
 
 The CASE_MANAGER makes the same check before it sends an entry, whether it is sending a new entry to every participant or resending entries a participant is missing ([SYNC-03-009](../../reference/specs/protocol.md#sync-03-009)).
 An entry that fails the check is not sent and is logged as an error.

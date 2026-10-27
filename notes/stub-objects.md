@@ -80,9 +80,10 @@ already held (MV-10-003) and never creates a new domain record (MV-10-004).
   after joining.
 - The stub's `activeEmbargo` is the full `EmbargoEvent` as the sender holds it,
   never a copy rebuilt from its ID and `end_time` (CM-17-011). The protocol lets a
-  stub name the embargo by ID for the invitee to fetch (CM-17-002), but this
-  prototype builds no fetch, so `_project_case_to_stub()` refuses an embargo it
-  holds only by ID rather than send terms the invitee cannot read.
+  stub name the embargo by ID for the invitee to fetch (CM-17-002), but an invitee
+  is not yet an active participant, and the case host serves case objects only to
+  those (AKM-05-006), so `_project_case_to_stub()` refuses an embargo it holds only
+  by ID rather than send terms the invitee cannot read.
 - `AnnounceVulnerabilityCaseReceivedUseCase` needs the full inline case on
   `activity.object_`, so `extract_intent()` keeps rich `object_`, `target`, and
   `context` values when `include_activity=True`.

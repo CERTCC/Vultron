@@ -18,6 +18,7 @@ related_specs:
   - specs/rm-behavior.yaml
   - specs/participant-case-replica.yaml
   - specs/vultron-protocol-spec.yaml
+  - specs/docs-build-workflow.yaml
 related_notes:
   - notes/message-occasion-table.md
   - notes/activitystreams-semantics.md
@@ -192,8 +193,9 @@ how-to tree.
   msm-occasions --write` projects the registry into
   `vultron/metadata/msm/occasions.yaml` and the fragments under
   `docs/reference/messages/_occasions/`; the `msm-occasions-sync` hook runs
-  `--check`, and `test/metadata/test_msm_occasions.py` is the CI backstop
-  (MSM-06-001).
+  `--check`, which CI runs in `docs-build-check.yml` on a `docs/` change
+  (DOCBW-03-013); `test/metadata/test_msm_occasions.py` checks a `vultron/`
+  change (MSM-06-001).
 - **Fragments render from the re-parsed YAML, not from the registry**, so the
   YAML carries every fact a fragment shows; a new column is a field on
   `OccasionRow` plus a renderer change.
