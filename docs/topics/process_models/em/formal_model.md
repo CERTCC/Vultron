@@ -220,7 +220,7 @@ If you read only the symbol, four of these moves are not deterministic:
 - *r* or *a* from *R* reaches *A* or stays at *R*.
 
 The register decides which move is taken.
-The case leaves *P* or *R* only when no proposal remains open.
+The case moves from *P* or *R* to *N* or *A* only when no proposal remains open.
 The move that stays in the same state is therefore the move made while another proposal is still open.
 
 ```mermaid

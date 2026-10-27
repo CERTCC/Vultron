@@ -1551,3 +1551,69 @@ groups:
       spec_id: MSM-08-009
     adr:
     - ADR-0128
+  - id: MSM-08-012
+    priority: MUST
+    kind: process
+    statement: >-
+      Each occasion whose activity moves a protocol state machine MUST declare each
+      transition it carries, as a trigger of that machine.
+    rationale: >-
+      An occasion is the bridge from a formal protocol message to its wire form, and
+      without a link its effect is prose that can drift from the transition table
+      actors' moves are held to (#5172). One occasion may carry several: a
+      participant's embargo acceptance moves its PEC consent row and can move the
+      case's EM. An occasion that moves no machine, such as a note, a ledger
+      replication, an acknowledgment or an error, declares none.
+    verification: >-
+      A unit test asserts that every declared trigger is a member of its machine's
+      trigger enum and appears in that machine's statechart (SM-11-001), and that an
+      occasion with an RM, EM or CS shorthand other than an acknowledgment or an error
+      declares a transition.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SM-11-001
+    adr:
+    - ADR-0162
+  - id: MSM-08-013
+    priority: MUST
+    kind: process
+    statement: >-
+      Each declared transition MUST state whose state it moves: the sender's, the
+      receiver's or the case's.
+    rationale: >-
+      No rule on the machine alone gives it. SM-10-001 has a received RM move update
+      the sender's status, but a report submission moves the receiver's RM, and a
+      participant's public-state observation is adopted into the case's state, so a
+      derivation would hide special cases in generator code. Another implementer reads
+      this fact off the table.
+    verification: >-
+      A unit test asserts that no occasion declares the case's state for RM, VF, D or
+      PEC (a PEC row belongs to one participant), and none declares a participant's
+      state for EM or PXA (SM-10-003).
+    relationships:
+    - rel_type: depends_on
+      spec_id: MSM-08-012
+    - rel_type: depends_on
+      spec_id: SM-10-003
+    adr:
+    - ADR-0162
+  - id: MSM-08-014
+    priority: MUST
+    kind: process
+    statement: >-
+      An occasion section's statement of the state change its activity causes MUST be
+      generated from the occasion's declared transition.
+    rationale: >-
+      A hand-typed effect in the description is the drift MSM-08-012 removes. The
+      generated line names the machine, whose state moves, and the source and
+      destination states the chart gives for the trigger.
+    verification: >-
+      `msm-occasions --check` fails when a committed section differs from a fresh
+      generation, and a unit test asserts that no occasion description holds an
+      effect sentence, matched as a verb such as "moves" or "sets" followed within the
+      sentence by an RM, EM or CS state name.
+    relationships:
+    - rel_type: depends_on
+      spec_id: MSM-08-013
+    adr:
+    - ADR-0162

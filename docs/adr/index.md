@@ -266,6 +266,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0156 Every Case Activity States Its Sender's Ledger Position](0156-every-case-activity-states-its-senders-ledger-position.md)
 - [ADR-0157 A Case's Creation Is One `Create`, Delivered and Ledgered](0157-a-cases-creation-is-one-create-delivered-and-ledgered.md)
 - [ADR-0158 The Occasion Is the Specification's Message Unit, and Case Coordination Is Its Own Normative Section](0158-the-occasion-is-the-specifications-message-unit-and-case-coordination-is-its-own-section.md)
+- [ADR-0162 Protocol Statecharts Are Projections of the Core Transition Tables, and Occasions Name Their Transitions](0162-protocol-statecharts-are-projections-of-the-core-transition-tables-and-occasions-name-their-transitions.md)
 
 ## Rejected ADRs
 
