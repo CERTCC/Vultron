@@ -23,8 +23,12 @@ Move the worktree HEAD to `origin/main` before loading any context. Do **not**
 use `git checkout main` — that branch may be checked out in another worktree.
 
 ```bash
-git fetch origin main && git reset --hard origin/main
+git fetch origin main && git checkout --detach origin/main
 ```
+
+Detach rather than `git reset --hard`: a reset moves whatever branch is
+checked out, which may be another session's, and discards uncommitted work.
+A detached checkout moves no branch and refuses to overwrite local changes.
 
 If this fails, stop and investigate before proceeding.
 

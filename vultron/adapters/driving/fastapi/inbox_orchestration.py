@@ -38,7 +38,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from vultron.adapters.driven.http_object_fetch import ObjectFetcher
 from vultron.adapters.driving.fastapi import inbox_port_factories
+from vultron.adapters.driving.fastapi.inbox_dereference import (
+    FastAPIDereferencePort,
+    resolve_open_fetches,
+)
 from vultron.adapters.driving.fastapi.inbox_handler import (
     dispatch,
     emit_processing_fault,
@@ -517,6 +522,11 @@ class _InboxRun:
             actor_id=actor_id,
             staging=self.staging,
         )
+        # Shares the staging too: an activity waiting on a fetch is held
+        # whole for its replay, as a deferred one is (AKM-05-007).
+        self.dereference = FastAPIDereferencePort(
+            actor_dl, actor_id, self.staging
+        )
         # The receiving actor's RSVP windows govern inbound embargo invites
         # (EP-07-001, EP-07-002); None applies the protocol defaults.
         self.actor_config = inbox_port_factories._resolve_actor_config()
@@ -532,6 +542,7 @@ class _InboxRun:
             self.staging,
             self.actor_config,
             self.max_attempts,
+            self.dereference,
         )
 
 
@@ -592,6 +603,7 @@ async def run_inbox_pipeline(
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
     emitter: ActivityEmitter | None,
+    fetcher: ObjectFetcher | None = None,
 ) -> None:
     """Adapter-layer background task: construct adapters and run pipeline.
 
@@ -599,7 +611,10 @@ async def run_inbox_pipeline(
     immediate payload, then replays every activity queued in the inbox
     (e.g., after bootstrap dispatch) with bounded retry and dead letter
     (:func:`~vultron.adapters.driving.fastapi.inbox_queue_drain.drain_inbox_queue`,
-    IE-06-004), and finally drains the outbox.
+    IE-06-004), and finally drains the outbox.  Last, it makes every fetch
+    an activity waits on and replays the activities each one settles
+    (:func:`~vultron.adapters.driving.fastapi.inbox_dereference.resolve_open_fetches`,
+    AKM-05-007).
     The synchronous BT work runs in a worker thread so the ASGI event loop
     keeps serving while a handler executes (IE-06-002, BT-11-002); only the
     outbox drain, which is async I/O, runs on the loop.
@@ -617,6 +632,7 @@ async def run_inbox_pipeline(
         actor_id: Canonical URI of the receiving actor.
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
+        fetcher: The object fetcher; ``None`` uses the HTTP one.
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
 
@@ -632,6 +648,7 @@ async def run_inbox_pipeline(
             run.dispatch,
             run.queue,
             actor_config=run.actor_config,
+            dereference_port=run.dereference,
         )
         logger.debug(
             "run_inbox_pipeline: status=%s context_id=%s",
@@ -646,6 +663,22 @@ async def run_inbox_pipeline(
         run.drain_queue()
 
     await _run_serialised(actor_dl, actor_id, emitter, _process_and_replay)
+    await _resolve_fetches(run, emitter, fetcher)
+
+
+async def _resolve_fetches(
+    run: _InboxRun,
+    emitter: ActivityEmitter | None,
+    fetcher: ObjectFetcher | None,
+) -> None:
+    """Make *run*'s open fetches, settling each under the actor's lock."""
+
+    async def _locked(work: Callable[[], None]) -> None:
+        await _run_serialised(run.actor_dl, run.actor_id, emitter, work)
+
+    await resolve_open_fetches(
+        run.actor_dl, run.actor_id, _locked, run.drain_queue, fetcher
+    )
 
 
 async def replay_inbox_queue(
@@ -653,19 +686,24 @@ async def replay_inbox_queue(
     actor_id: str,
     dispatcher: ActivityDispatcher | None,
     emitter: ActivityEmitter | None,
+    fetcher: ObjectFetcher | None = None,
 ) -> None:
     """Replay every item queued in *actor_id*'s inbox, with no delivery.
 
     The startup replay (IE-06-006): the same drain, bounded retry and dead
     letter as a replay after a delivery (IE-06-004), under the same
     per-actor lock as :func:`run_inbox_pipeline` and off the event loop
-    (IE-06-003), then the outbox drain.
+    (IE-06-003), then the outbox drain.  A fetch an earlier run left open
+    is made then, so an activity waiting on it does not wait for the next
+    delivery (AKM-05-007).
 
     Args:
         actor_dl: The receiving actor's DataLayer, which holds the queue.
         actor_id: Canonical URI of the receiving actor.
         dispatcher: Optional per-app dispatcher.
         emitter: Optional per-app ActivityEmitter.
+        fetcher: The object fetcher; ``None`` uses the HTTP one.
     """
     run = _InboxRun(actor_dl, actor_id, dispatcher)
     await _run_serialised(actor_dl, actor_id, emitter, run.drain_queue)
+    await _resolve_fetches(run, emitter, fetcher)

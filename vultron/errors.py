@@ -90,6 +90,23 @@ class VultronNotFoundError(VultronError):
         super().__init__(f"{resource_type} '{resource_id}' not found.")
 
 
+class VultronNotACaseParticipantError(VultronError):
+    """Raised when an actor asks to read a case it is no active participant of.
+
+    The case host serves a case's objects only to the case's active
+    participants (AKM-05-006, CM-10-004).  The requester is the actor the
+    request claims to be: the prototype authenticates nobody (#509).
+    """
+
+    def __init__(self, case_id: str, actor_id: str):
+        self.case_id = case_id
+        self.actor_id = actor_id
+        super().__init__(
+            f"Actor '{actor_id}' is not an active participant of case"
+            f" '{case_id}'."
+        )
+
+
 class VultronAlreadyExistsError(VultronError, ValueError):
     """Raised when creating a record whose ``id_`` is already present.
 
@@ -259,7 +276,8 @@ class VultronOutboxObjectIntegrityError(VultronError):
 
     This codebase carries the ``object`` of every outbound activity as a fully
     inline typed object so that recipients can determine the semantic type
-    without dereferencing it, which this codebase does not yet do.  The
+    without dereferencing it, which this codebase does only in a few cases
+    (AKM-05-007).  The
     protocol allows the object inline or by reference (AKM-03-001, MV-09-001);
     inlining is this codebase's rule (AKM-03-003), enforced at delivery
     (AKM-03-002, MV-09-002).

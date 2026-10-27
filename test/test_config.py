@@ -398,3 +398,19 @@ def test_env_override_pre_bootstrap_queue_timeout_seconds(monkeypatch):
     monkeypatch.setenv("VULTRON_PRE_BOOTSTRAP_QUEUE_TIMEOUT_SECONDS", "45")
     reload_config()
     assert get_config().pre_bootstrap_queue_timeout_seconds == 45
+
+
+@pytest.mark.spec("AKM-05-008")
+def test_object_fetch_limits_have_documented_defaults_and_env_overrides():
+    from vultron.config.app import AppConfig, config_override
+
+    defaults = AppConfig()
+    assert defaults.max_object_fetch_attempts == 3
+    assert defaults.object_fetch_timeout_seconds == 30.0
+
+    with config_override(
+        VULTRON_MAX_OBJECT_FETCH_ATTEMPTS="5",
+        VULTRON_OBJECT_FETCH_TIMEOUT_SECONDS="2.5",
+    ) as cfg:
+        assert cfg.max_object_fetch_attempts == 5
+        assert cfg.object_fetch_timeout_seconds == 2.5

@@ -1427,7 +1427,7 @@ class TestADR0041EmbargoInit:
         )
 
     @pytest.mark.spec("CP-01-009")
-    @pytest.mark.spec("CP-01-010")
+    @pytest.mark.spec("CP-01-016")
     @pytest.mark.spec("EP-04-001")
     def test_inline_actor_profile_policy_is_the_actor_default(
         self, make_payload
@@ -1487,24 +1487,26 @@ class TestADR0041EmbargoInit:
             <= after + policy_duration + slack
         ), "the actor default must come from the inline profile's policy"
 
-    @pytest.mark.spec("CP-01-010")
-    def test_a_bare_uri_actor_is_refused_and_creates_nothing(
+    @pytest.mark.spec("CP-01-009")
+    @pytest.mark.spec("CP-01-018")
+    @pytest.mark.spec("AKM-05-015")
+    def test_a_profile_named_by_reference_and_not_fetched_is_refused(
         self, make_payload
     ):
-        """No inline profile means no actor default can be read, and the
-        CASE_MANAGER does not fetch one: the proposal is refused before it
-        reaches core, so no event — and no case — exists."""
-        from vultron.wire.as2.errors import VultronParseValidationError
-
+        """A profile id still on the event at dispatch is a fetch that failed:
+        no actor default can be read, so the proposal is refused and no case
+        is created."""
         dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_URI)
         _seed_report(dl)
 
-        with pytest.raises(VultronParseValidationError, match="CP-01-010"):
-            _run_full_bt(make_payload, dl, actor=_VENDOR_URI)
+        result = _run_full_bt(make_payload, dl, actor=_VENDOR_URI)
 
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert result.reason is not None
+        assert "could not be fetched" in result.reason
         assert list(dl.list_objects("VulnerabilityCase")) == []
 
-    @pytest.mark.spec("CP-01-010")
+    @pytest.mark.spec("CP-01-016")
     @pytest.mark.spec("PCR-01-003")
     def test_a_policy_in_the_case_managers_store_is_not_the_actor_default(
         self, make_payload
@@ -1540,7 +1542,7 @@ class TestADR0041EmbargoInit:
             <= after + protocol_default + slack
         )
 
-    @pytest.mark.spec("CP-01-010")
+    @pytest.mark.spec("CP-01-017")
     def test_a_policy_on_one_proposal_is_not_the_default_for_the_next(
         self, make_payload
     ):

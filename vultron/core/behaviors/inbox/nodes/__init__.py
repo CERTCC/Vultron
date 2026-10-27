@@ -27,6 +27,9 @@ The dead-letter node is not an inbox pipeline node; it lives in
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.core.behaviors.inbox.nodes.dereference import (
+    DereferenceCheckNode,
+)
 from vultron.core.behaviors.inbox.nodes.dispatch import (
     BuildOutcomeNode,
     DispatchNode,
@@ -35,6 +38,7 @@ from vultron.core.behaviors.inbox.nodes.pipeline import (
     ALL_INBOX_KEYS,
     KEY_ACTIVITY,
     KEY_CONTEXT_ID,
+    KEY_DEREFERENCE,
     KEY_DISPATCH,
     KEY_EVENT,
     KEY_FAILURE_REASON,

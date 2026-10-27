@@ -26,6 +26,7 @@ from vultron.config.actor import ActorConfig
 from vultron.core.behaviors.inbox.nodes import (
     BuildOutcomeNode,
     DeferCheckNode,
+    DereferenceCheckNode,
     DispatchNode,
     ExtractSemanticsNode,
     ParsePayloadNode,
@@ -56,6 +57,7 @@ def create_inbox_bt(
           ├─ RehydrateActivityNode
           ├─ ExtractSemanticsNode
           ├─ DeferCheckNode
+          ├─ DereferenceCheckNode
           ├─ DispatchNode
           └─ BuildOutcomeNode
     """
@@ -69,6 +71,10 @@ def create_inbox_bt(
                 name="ExtractSemantics", actor_config=actor_config
             ),
             DeferCheckNode(name="DeferCheck"),
+            # After the case check: a case the receiver does not hold names
+            # no CASE_MANAGER to fetch from, so that activity waits on its
+            # case first (AKM-05-007).
+            DereferenceCheckNode(name="DereferenceCheck"),
             DispatchNode(name="Dispatch"),
             BuildOutcomeNode(name="BuildOutcome"),
         ],

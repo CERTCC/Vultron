@@ -92,9 +92,10 @@ groups:
       has, such as the case it participates in.
     rationale: >-
       How this codebase meets AKM-02-002; split from it so AKM-02-002 states only what
-      other participants observe (MS-12-010). This codebase does not yet dereference
-      (AKM-05-003), so a reference to an object its recipient does not hold could not be
-      resolved. Carrying the object inline instead is a shortcut of this prototype
+      other participants observe (MS-12-010). This codebase dereferences only the few
+      references AKM-05-007 lists, so a reference to an object its recipient does not
+      hold could not in general be resolved. Carrying the object inline instead is a
+      shortcut of this prototype
       reference implementation, not a protocol rule.
     verification: >-
       `test/architecture/test_introduced_objects_inline.py` classifies every outbound
@@ -310,10 +311,18 @@ groups:
     stories:
     - story_2022_014
     note: >-
-      Until an implementation supports dereference, every refusal that stands in for it
-      is conditional on that gap and lapses once dereference exists: the bare-URI `actor`
-      on `Create(CaseProposal)` (CP-01-010) and the unreadable-record refusal of
-      EMB-18-003. The mechanism is tracked in #3258 and #3739.
+      A refusal that stands in for dereference lapses where dereference exists. This
+      codebase dereferences through the case host's object read (AKM-05-006) and the
+      inbox's fetch-and-defer (AKM-05-007), so the bare-URI `actor` on
+      `Create(CaseProposal)` is fetched (CP-01-010) and a replica fetches an embargo
+      EMB-18-003 would otherwise refuse as unreadable; each is refused only when its
+      fetch fails (AKM-05-008).
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_dereference.py` delivers activities
+      naming objects the receiver does not hold and checks each is fetched through an
+      API call and the activity replayed with it, and
+      `test/adapters/driven/test_http_object_fetch.py` checks the fetch is an HTTP `GET`
+      to the object's holder.
   - id: AKM-05-004
     priority: MUST
     kind: protocol
@@ -335,6 +344,238 @@ groups:
       spec_id: AKM-05-003
     stories:
     - story_2022_014
+  - id: AKM-05-006
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase's CASE_MANAGER MUST serve a case object, at `GET
+      {actor}/cases/{case}/objects` with an `object_id` query parameter, to an
+      active participant of the case (CM-10-004) that has not closed on it
+      (CM-23-004). A case object is the case itself, an embargo in its register, a
+      participant, status, report or note it lists, or an object whose `context`
+      is the case. The `{case}` segment is the case's id, or its surrogate key
+      when the id carries slashes. The surrogate key is the last segment of the
+      id, and one that matches more than one case names none. The requester is the
+      actor the request names in its `X-Vultron-Actor` header.
+    rationale: >-
+      A replica dereferences a case object from the actor that holds the canonical case
+      (ADR-0107), and only an active participant is entitled to case content
+      (CM-10-004). A participant's replica is not the case host, so only the
+      CASE_MANAGER serves the read.
+    note: >-
+      The requester is not authenticated: the prototype trusts the header as its inbox
+      trusts the actor an activity claims to be. Actor authentication (#509) replaces
+      that trust.
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_case_object_route.py` checks a
+      participant gets an object the case names as an ActivityStreams document, and
+      `test_a_case_id_with_slashes_is_named_by_its_surrogate_key` that a case whose id
+      carries slashes is named by its surrogate key;
+      `test/core/services/test_dereference.py` checks a removed participant and one
+      that has closed (`test_a_participant_that_has_closed_is_refused`) are refused,
+      that an object scoped to the case by its `context` is served, and that an actor
+      other than the case's CASE_MANAGER serves nothing;
+      `test/adapters/driven/test_sqlite_find_case.py::test_find_case_by_short_id_returns_none_when_ambiguous`
+      checks a surrogate key
+      that matches more than one case names none.
+    relationships:
+    - rel_type: implements
+      spec_id: AKM-05-003
+    - rel_type: depends_on
+      spec_id: CM-10-004
+    adr:
+    - ADR-0107
+  - id: AKM-05-009
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase's CASE_MANAGER MUST answer 403, 401 or 404 when it refuses the
+      AKM-05-006 read. It answers 403 to a requester that is not an entitled
+      participant, and 401 to a request naming no requester. It answers 404 for a
+      case it does not manage, or an object the case does not name.
+    rationale: >-
+      A 404 for an object the case does not name, whether or not the host holds it,
+      tells a participant nothing about cases it is not in. Distinct answers for a
+      missing and a refused requester let the fetcher end at once on either (AKM-05-013).
+    verification: >-
+      `test/adapters/driving/fastapi/routers/test_case_object_route.py` checks that a
+      non-participant, a request naming no requester, an object the case does not name
+      and a case the host does not hold are answered 403, 401, 404 and 404.
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-006
+    adr:
+    - ADR-0107
+  - id: AKM-05-007
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST fetch an object it lacks, and needs to process a received
+      activity, from the actor that holds it. A case's object is held by the
+      case's CASE_MANAGER, and an actor's profile by that actor.
+    rationale: >-
+      A sender may name by reference an object its receiver is expected to hold
+      (CLP-07-006, AKM-02-002), and a replica that lacks it, through a gap or a lag,
+      would otherwise refuse or drop an activity that was sound.
+    note: >-
+      In this codebase a receiver fetches a case object for an activity no pattern
+      matches because its `object` is a bare id it does not hold
+      (`UNKNOWN_UNRESOLVABLE_OBJECT`), the embargo a replica's case names as active when
+      an announced revision replaces it (EMB-18-007), and the proposer's profile a
+      `Create(CaseProposal)` names by id (CP-01-014). An activity that matches a pattern
+      with a bare reference is handled as it was before dereference existed: its
+      handler decides.
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_dereference.py` delivers each such
+      activity through the inbox run with a fake fetcher and checks it is fetched from
+      the right actor; `test/core/services/test_dereference.py` checks a bare object a
+      replica lacks is fetched from the case host and a proposer's profile from the
+      proposer.
+    relationships:
+    - rel_type: implements
+      spec_id: AKM-05-003
+    - rel_type: refines
+      spec_id: CLP-07-006
+    adr:
+    - ADR-0107
+    stories:
+    - story_2022_014
+  - id: AKM-05-010
+    priority: MUST
+    kind: protocol
+    statement: >-
+      While a fetch under AKM-05-007 is open, the receiver MUST defer the
+      activity, held as received. It does not process the activity without the
+      object, and does not drop it.
+    rationale: >-
+      Deferring keeps the activity, as the inbox keeps one whose case is not yet known
+      (PCR-06-001), so the activity is processed once, with the object, when the fetch
+      settles.
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_dereference.py` checks the activity is
+      deferred and held while its fetch is open and replayed once the fetch settles;
+      `test/core/behaviors/inbox/nodes/test_dereference_check_node.py` checks an
+      activity waits while its fetch is open.
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-007
+    adr:
+    - ADR-0107
+    stories:
+    - story_2022_014
+  - id: AKM-05-011
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST NOT fetch an object from itself, or the entry an
+      `Announce(CaseLedgerEntry)` carries.
+    rationale: >-
+      The CASE_MANAGER holds the canonical case, so nobody holds a case object it lacks.
+      Replication carries its entries inline (SYNC-02-005), and replay needs no fetch.
+    verification: >-
+      `test/core/services/test_dereference.py` checks the CASE_MANAGER fetches nothing
+      from itself and a ledger entry is never fetched.
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-007
+    adr:
+    - ADR-0107
+    stories:
+    - story_2022_014
+  - id: AKM-05-012
+    priority: MUST
+    kind: protocol
+    statement: >-
+      A receiver MUST keep a fetched case object only when it holds no record under the
+      object's id (MV-10-003).
+    rationale: >-
+      A fetch answers an object the receiver lacked; a record that arrived meanwhile is
+      the receiver's own, and a fetched copy must not overwrite it (MV-10-003).
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_dereference.py` checks the fetched case
+      object is stored, and that a fetched object never replaces a record the receiver
+      already holds; `test/core/services/test_dereference.py` checks a held object is
+      not fetched again.
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-007
+    - rel_type: depends_on
+      spec_id: MV-10-003
+    adr:
+    - ADR-0107
+    stories:
+    - story_2022_014
+  - id: AKM-05-008
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST make at most `max_object_fetch_attempts` attempts to fetch one
+      object (default 3), backing off exponentially between them, each bounded by
+      `object_fetch_timeout_seconds` (default 30).
+    rationale: >-
+      A fetch that never succeeds must surface rather than hang (ADR-0107).
+    verification: >-
+      `test/adapters/driven/test_http_object_fetch.py` checks the retry cap and the
+      backoff on a 5xx or network error, and `test/test_config.py` the defaults.
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-007
+    adr:
+    - ADR-0107
+  - id: AKM-05-013
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST end a fetch at once on a 4xx answer.
+    rationale: >-
+      A 4xx answer will not change on a retry (OX-13-005).
+    verification: >-
+      `test/adapters/driven/test_http_object_fetch.py` checks a 4xx ends the fetch
+      after one attempt.
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-008
+    adr:
+    - ADR-0107
+  - id: AKM-05-014
+    priority: MUST
+    kind: project
+    statement: >-
+      This codebase MUST log at WARNING a fetch that fails, or answers with anything but
+      the object asked for, naming the object, its holder and the waiting activities.
+    rationale: >-
+      A failed fetch is recoverable for the inbox but leaves a replica without an object
+      it was expected to hold, so an operator needs to see it (SL-01).
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_dereference.py` checks a failed fetch is
+      logged at WARNING, and that a body that is not the object asked for fails the
+      fetch.
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-008
+    adr:
+    - ADR-0107
+  - id: AKM-05-015
+    priority: MUST
+    kind: project
+    statement: >-
+      After a fetch fails, this codebase MUST process each activity waiting on it
+      without the object. The path that needs the object then refuses it as it did
+      before dereference existed.
+    rationale: >-
+      Replaying the waiting activity, instead of dead-lettering it, lets the handler
+      that needs the object give the refusal and the answer it already gives for an
+      object nobody can supply.
+    verification: >-
+      `test/adapters/driving/fastapi/test_inbox_dereference.py` checks the waiting
+      activity is replayed with its reference unresolved after a failed fetch;
+      `test/core/behaviors/inbox/nodes/test_dereference_check_node.py` checks a failed
+      fetch lets the activity go on with its reference.
+    relationships:
+    - rel_type: refines
+      spec_id: AKM-05-008
+    adr:
+    - ADR-0107
   - id: AKM-05-005
     priority: MUST
     kind: protocol

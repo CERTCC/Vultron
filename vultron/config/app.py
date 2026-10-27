@@ -177,6 +177,15 @@ class AppConfig(BaseSettings):
             store (IE-06-004).  Matches the outbox default of 12 so that
             inbox and outbox share the same retry budget.  Override via
             ``VULTRON_MAX_INBOX_RETRY_ATTEMPTS``.  Defaults to 12.
+        max_object_fetch_attempts: Maximum attempts to fetch one object a
+            received activity names before the fetch fails and the waiting
+            activity goes on without it (AKM-05-008).  Attempts back off
+            exponentially; a 4xx answer ends the fetch at once.  Override via
+            ``VULTRON_MAX_OBJECT_FETCH_ATTEMPTS``.  Defaults to 3.
+        object_fetch_timeout_seconds: Timeout of each fetch attempt, in
+            seconds (AKM-05-008).  Override via
+            ``VULTRON_OBJECT_FETCH_TIMEOUT_SECONDS``.  Defaults to 30, the
+            delivery timeout (SYNC-05-004).
     """
 
     server: ServerConfig = ServerConfig()
@@ -186,6 +195,8 @@ class AppConfig(BaseSettings):
     mode: RunMode = RunMode.PROTOTYPE
     pre_bootstrap_queue_timeout_seconds: int = 300
     max_inbox_retry_attempts: int = 12
+    max_object_fetch_attempts: int = Field(default=3, ge=1)
+    object_fetch_timeout_seconds: float = Field(default=30.0, gt=0)
 
     model_config = SettingsConfigDict(
         env_prefix="VULTRON_",

@@ -32,7 +32,7 @@ In the reference implementation, this happens in the `create_case` trigger path.
 The actor records a local case, publishes the case actor identity it will address, and emits the proposal.
 
 The proposal carries the report inline.
-The reference implementation does not permit a URI reference here, because the receiving service cannot yet fetch an object from the proposer's store (CP-01-004, AKM-03-003).
+The reference implementation does not permit a URI reference here, because the receiving service fetches only a few objects by reference, and a report is not one of them (CP-01-004, AKM-03-003).
 The proposal also carries the provenance of the report: which `Offer(VulnerabilityReport)` delivered it, and from whom.
 The accepting service cannot reconstruct that provenance, and it needs it for the first ledger entry (CP-01-007).
 

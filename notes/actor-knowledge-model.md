@@ -35,10 +35,12 @@ sender's DataLayer": that framing implies the access is possible but skipped.
 
 Corollary: **a bare object URI is resolvable only if the recipient holds the
 object or can dereference it.** The protocol allows an object inline or by a
-reference the recipient can fetch (AKM-02-002, AKM-03-001). This codebase does
-not yet dereference (AKM-05-003), so a bare URI for an object the recipient lacks
-fails: rehydration from the recipient's own store fails and pattern matching
-falls through to `MessageSemantics.UNKNOWN`.
+reference the recipient can fetch (AKM-02-002, AKM-03-001). This codebase
+dereferences narrowly: the inbox fetches an object only for an activity no
+pattern matches because of it (`UNKNOWN_UNRESOLVABLE_OBJECT`), a replica's
+replaced embargo, and a proposer's profile (AKM-05-007). Patterns accept a bare
+`object` by default, so most bare URIs for an object the recipient lacks still
+match and reach a handler without it; that handler decides. Keep inlining.
 
 ## This Codebase Carries Full Inline Objects
 

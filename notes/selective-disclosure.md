@@ -11,6 +11,7 @@ description: >
   VulnerabilityCase stub is in notes/stub-objects.md.
 related_specs:
   - specs/message-validation.yaml (AKM-03-001, MV-10-002)
+  - specs/actor-knowledge-model.yaml (AKM-05-006, AKM-05-007)
 related_notes:
   - notes/stub-objects.md
   - notes/wire-core-boundary.md
@@ -35,12 +36,13 @@ That raises two concerns this plan addresses, beyond the one sanctioned
 ## Dereferencing a URI Reference (#3258)
 
 In AS2 the idiomatic way to reference an object you are not inlining is a URI or
-a `Link`, which the receiver dereferences. Vultron has no mechanism for Actor B to
-dereference a URI from Actor A's message into the resolved object, so today a
-sender must inline the full object or accept an opaque reference. Bare URIs and
-`Link` objects already parse in all four positions MV-10-002 names; what is
-missing is resolution. This is a prototype limitation, not a production property,
-so dict-shaped partial objects must not become the workaround.
+a `Link`, which the receiver dereferences. Vultron resolves only a few references:
+a participant fetches a case object from the CASE_MANAGER's case-scoped read
+(AKM-05-006) when an activity cannot be classified without it, and the other
+cases AKM-05-007 lists. A `Link` is never resolved, so a sender must still inline
+the full object or accept an opaque reference. This is a prototype limitation,
+not a production property, so dict-shaped partial objects must not become the
+workaround.
 
 ## Redaction: `None` ≠ Redacted (#4568)
 

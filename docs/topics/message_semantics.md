@@ -85,7 +85,7 @@ and makes the protocol available in any language or framework.
 ## Object verbosity and selective disclosure
 
 A Vultron message carries each object it names inline or by reference, and a receiver copes with either form.
-The reference implementation carries objects inline, because it cannot yet fetch an object by reference.
+The reference implementation carries objects inline, because it fetches only a few objects by reference (AKM-05-007).
 When it sends a message about a case, the case object travels with it.
 When it sends a message about a report, the report object is included.
 

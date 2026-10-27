@@ -857,11 +857,11 @@ groups:
       `Accept(Event)[target=VulnerabilityCase]` of VAM-05-008 and of the
       `Reject(Event)[target=VulnerabilityCase]` of VAM-05-009.
     rationale: >-
-      How this codebase meets VAM-05-008 and VAM-05-009; split from them so they state only
-      what other participants observe (MS-12-010). This codebase matches the semantic on the
-      typed inline object and does not yet dereference (AKM-05-003), so the event travels
-      inline. That is a shortcut of this prototype reference implementation, not a protocol
-      rule.
+      How this codebase meets VAM-05-008 and VAM-05-009; split from them so they state
+      only what other participants observe (MS-12-010). This codebase matches the
+      semantic on the typed inline object and dereferences only the few references
+      AKM-05-007 lists, so the event travels inline. That is a shortcut of this
+      prototype reference implementation, not a protocol rule.
     verification: >-
       Inspection of `_ActivateEmbargoActivity` and `_RejectEmbargoProposalActivity` in
       `vultron/wire/as2/vocab/activities/embargo.py` confirms each types `object_` as
@@ -906,8 +906,9 @@ groups:
     rationale: >-
       How this codebase meets VAM-05-011; split from it so it states only what other
       participants observe (MS-12-010). This codebase matches the semantic on the typed
-      inline object and does not yet dereference (AKM-05-003), so the event travels inline.
-      That is a shortcut of this prototype reference implementation, not a protocol rule.
+      inline object and dereferences only the few references AKM-05-007 lists, so the
+      event travels inline. That is a shortcut of this prototype reference
+      implementation, not a protocol rule.
     verification: >-
       Inspection of `_WithdrawFromEmbargoActivity` in
       `vultron/wire/as2/vocab/activities/embargo.py` confirms it types `object_` as
