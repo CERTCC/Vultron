@@ -13,7 +13,7 @@ page_type: reference
 
 This page describes the conventions the documentation uses to mark different kinds of information.
 It covers the call-out boxes that appear throughout the site, the badge that names each page's kind, and the banners that say whether a page states requirements.
-The mathematical and diagram notation used in the formal treatment of the protocol is on the [Notation](notation.md) page.
+The mathematical and diagram notation used in the formal treatment of the protocol is in [Annex C Notation Reference](vultron-spec/annex-c-notation.md) of the Protocol Specification.
 
 ## Call-out boxes
 
@@ -119,5 +119,5 @@ Three banners say where a page stands relative to it.
 
 ## Further reading
 
-- [Notation](notation.md) — the mathematical and diagram notation used in the formal treatment of the protocol
+- [Annex C Notation Reference](vultron-spec/annex-c-notation.md) — the mathematical and diagram notation used in the formal treatment of the protocol
 - [Glossary](glossary.md) — the terms this documentation uses, with the aliases to avoid

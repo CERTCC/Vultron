@@ -1,4 +1,8 @@
 ---
+description: >
+  The architecture requirements of the reference implementation: structure
+  that carries over to other languages but that Vultron compliance does not
+  require.
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 page_type: reference

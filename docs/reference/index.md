@@ -14,6 +14,7 @@ page_type: routing
 
 The reference pages now sit on the tab of the reader they serve.
 Each still has its own page, at the same address as before.
+[Look Something Up](../lookup.md) lists them all on one page, grouped by tab.
 
 On **Implement the Protocol**:
 
@@ -47,4 +48,4 @@ On **Project**:
 
 - [Versioning](versioning.md)
 
-The notation used across the site is in [Annex C Notation Reference](vultron-spec/annex-c-notation.md) of the Protocol Specification; the older [Notation](notation.md) page is kept for existing links.
+The notation used across the site is in [Annex C Notation Reference](vultron-spec/annex-c-notation.md) of the Protocol Specification.

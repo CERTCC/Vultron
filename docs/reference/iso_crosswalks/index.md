@@ -1,8 +1,10 @@
 ---
 description: >
-  Crosswalks of the Vultron Protocol against the ISO/IEC standards on
-  vulnerability handling and disclosure, against SSVC, and against the CSAF
-  2.1 draft, each routed to the explanation that covers it and to the
+  Crosswalks of the Vultron Protocol against the International Organization
+  for Standardization (ISO) standards on vulnerability handling and
+  disclosure, against Stakeholder-Specific Vulnerability Categorization
+  (SSVC), and against the Common Security Advisory Framework (CSAF) 2.1
+  draft, each routed to the explanation that covers it and to the
   specification section that governs it.
 stakeholder_type: [cvd-practitioner]
 level: 200

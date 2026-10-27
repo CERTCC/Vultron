@@ -1,21 +1,3 @@
----
-description: >
-  The mathematical and diagram notation used in the formal treatment of the
-  Vultron Protocol.
-stakeholder_type: [platform-developer, process-researcher]
-level: 400
-page_type: reference
----
-
-# Notation
-
-{% include-markdown "../includes/not_normative.md" %}
-
-Defining the Vultron Protocol involves a lot of notation.
-This page is the reference for the set-theory, logic, and deterministic finite automaton (DFA) symbols used in the [formal protocol](formal_protocol/index.md) and the process-model formal pages, and for the diagram forms used throughout the documentation.
-The call-out boxes and the normative-page banners the documentation uses are described on [Documentation Conventions](conventions.md).
-
-<!-- notation-math-start -->
 ## Mathematical Notation
 
 All of these definitions assume the standard [Zermelo-Fraenkel set theory](https://en.wikipedia.org/wiki/Zermelo%E2%80%93Fraenkel_set_theory){:target="_blank"}.
@@ -107,5 +89,3 @@ classDiagram
 ### Behavior Tree Diagrams
 
 A few additional notation details specific to [Behavior Trees](../topics/behavior_logic/index.md) are introduced when needed.
-
-<!-- notation-math-end -->
