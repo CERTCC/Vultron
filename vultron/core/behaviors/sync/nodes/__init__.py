@@ -30,6 +30,8 @@ Submodules:
 - ``position_statement``: the ``Read(CaseLedgerEntry)`` position check and
   the participant's position statements (SYNC-17)
 - ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-002)
+- ``verified_send``: the one ``send_announce_log_entry`` call, behind the
+  CASE_MANAGER's send-side hash check (SYNC-03-009)
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
 - ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)
 - ``fanout``: Fan-out action nodes; RM.CLOSED participants are skipped

@@ -84,11 +84,21 @@ everything after the last hash a participant reports.
   `send_announce_log_entry` call (fan-out, `Reject` replay, embargo backfill,
   join-time backfill, and `Read` position-statement replay) goes through one core
   helper that checks first, so no send path can skip it. The helper sits at the port
-  call, below `send_ledger_suffix`, because two of the three call sites bypass that
+  call, below `send_ledger_suffix`, because the fan-out of a new entry bypasses that
   loop. A replay stops at the broken entry: a replica
   can only hold what follows as a forward gap. Fan-out checks the entry it built in
   memory, unless it reused a recorded one or backfills a paused peer, so a storage
   round-trip bug usually surfaces at replay, which reads the stored copy.
+- **A held-back send fails its node, except a fan-out's catch-up.** The node
+  that holds back an entry returns `FAILURE` (BT-14-001), and inside an act's
+  transaction the act then keeps nothing (CLP-07-015). So a broken *new* entry
+  refuses its commit, and an Accept whose join backfill reaches a broken entry
+  cannot commit. The `Reject` and `Read` replays commit nothing, so the entries
+  queued before the broken one stay queued. The one exception is the fan-out's
+  catch-up of a let-back-in, paused peer: that peer keeps its pause and is skipped
+  for the new entry, every other recipient gets it, and the fan-out succeeds.
+  Failing there would refuse every later commit in the case, since the peer's
+  pause brings the same catch-up back each time (decided on #5120).
 - **A hash refusal is reported, not recovered.** The replica sends
   `LedgerEntryRefused/HashMismatch`; the CASE_MANAGER logs it at ERROR and checks its
   own copy, and does nothing else. Replay and re-seed resend the same content, so

@@ -200,6 +200,36 @@ class VultronCanonicalEntryError(VultronError):
     """Raised when a case-ledger entry violates canonical entry criteria."""
 
 
+class VultronUnverifiedLedgerEntryError(VultronError):
+    """Raised when the CASE_MANAGER is about to send an entry it cannot verify.
+
+    The entry states no ``entry_hash``, or its content does not reproduce the
+    one it states.  It is held back, and no later entry of the same send goes
+    out (SYNC-03-009).  The message names the case, the entry, its
+    ``log_index`` and the recipients, so the one ERROR line that reports it
+    carries everything SYNC-03-009 asks for.
+    """
+
+    def __init__(
+        self,
+        *,
+        case_id: str,
+        entry_id: str,
+        log_index: int,
+        recipients: list[str],
+    ) -> None:
+        self.case_id = case_id
+        self.entry_id = entry_id
+        self.log_index = log_index
+        self.recipients = list(recipients)
+        super().__init__(
+            f"held back ledger entry '{entry_id}' (case '{case_id}',"
+            f" log_index={log_index}) from {self.recipients}: it states no"
+            " entry_hash or its content does not reproduce it, so no later"
+            " entry of this send goes out (SYNC-03-009)"
+        )
+
+
 class VultronApiHandlerNotFoundError(VultronError, KeyError):
     """Raised when no handler is found for a given activity type."""
 

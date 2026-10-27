@@ -43,15 +43,24 @@ active — the active embargo withholds it, or it was removed (CM-31-001) — ha
 its stream paused (``inactive_joined_participants``).
 
 Helpers here raise on a broken invariant and never return ``None`` in place of
-a failure (BT-HELPER-01).
+a failure (BT-HELPER-01).  :func:`send_ledger_suffix` is the one that reports
+a hold-back in its result instead (``LedgerSuffixSend.held_back``): the
+entries queued before the broken one stay queued, and a replay needs their
+count to record its cooldown (SYNC-15-011), so the result carries both.
+Every caller acts on ``held_back``: the nodes return ``FAILURE``, except the
+fan-out, which skips a peer whose catch-up was held back (decided on #5120).
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from typing import NamedTuple
 
 from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
+from vultron.core.behaviors.sync.nodes.verified_send import (
+    send_verified_log_entry,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
@@ -66,9 +75,24 @@ from vultron.core.ports.sync_activity import SyncActivityPort
 
 # Re-exported: replay, post-close and the pending-request reader import it here.
 from vultron.core.sync_helpers import sorted_case_ledger_entries
-from vultron.errors import VultronError
+from vultron.errors import VultronError, VultronUnverifiedLedgerEntryError
 
 logger = logging.getLogger(__name__)
+
+
+class LedgerSuffixSend(NamedTuple):
+    """What :func:`send_ledger_suffix` queued.
+
+    ``sent`` rows were queued and ``already_pending`` rows the port declined
+    because it already held them for the peer (SYNC-15-012).  ``held_back``
+    is the error for the entry the send stopped at because its hash did not
+    verify, or ``None`` when every entry in range was checked and offered to
+    the port (SYNC-03-009).
+    """
+
+    sent: int
+    already_pending: int
+    held_back: VultronUnverifiedLedgerEntryError | None = None
 
 
 def send_ledger_suffix(
@@ -79,7 +103,7 @@ def send_ledger_suffix(
     actor_id: str,
     peer_id: str,
     through_index: int | None = None,
-) -> tuple[int, int]:
+) -> LedgerSuffixSend:
     """Send each entry with ``after_index < log_index <= through_index`` to *peer_id*.
 
     *entries* MUST be sorted ascending by ``log_index``; they go out in that
@@ -88,9 +112,12 @@ def send_ledger_suffix(
     The sync port declines to queue a row it already holds for this peer and
     says so (SYNC-15-012), so the result separates the two.
 
-    Returns:
-        ``(sent, already_pending)`` — the rows queued, and the rows the port
-        declined because they were already pending.
+    Each entry goes through :func:`send_verified_log_entry`.  The send stops
+    at the first entry whose hash does not verify: that entry and every
+    later one stay unsent, the hold-back is logged at ERROR, and the result
+    carries it in ``held_back`` so the calling node returns ``FAILURE``
+    (SYNC-03-009, BT-14-001).  A replica could hold an entry after the
+    broken one only as a forward gap (SYNC-14-001).
     """
     sent = 0
     skipped = 0
@@ -99,15 +126,27 @@ def send_ledger_suffix(
             continue
         if through_index is not None and log_entry.log_index > through_index:
             break
-        if sync_port.send_announce_log_entry(
-            entry=log_entry,
-            actor_id=actor_id,
-            to=[peer_id],
-        ):
+        try:
+            queued = send_verified_log_entry(
+                sync_port,
+                log_entry,
+                actor_id=actor_id,
+                to=[peer_id],
+            )
+        except VultronUnverifiedLedgerEntryError as exc:
+            logger.error(  # noqa: TRY400 -- the hold-back is the report, no trace
+                "'%s' stopped its ledger send to '%s' after %d entries: %s",
+                actor_id,
+                peer_id,
+                sent,
+                exc,
+            )
+            return LedgerSuffixSend(sent, skipped, held_back=exc)
+        if queued:
             sent += 1
         else:
             skipped += 1
-    return sent, skipped
+    return LedgerSuffixSend(sent, skipped)
 
 
 def embargo_paused_from_index(
@@ -240,6 +279,19 @@ def peer_is_inactive_joined(
     return peer_id in inactive_joined_participants(case, datalayer)
 
 
+class AdmissionBackfill(NamedTuple):
+    """What :func:`backfill_admitted_peers` did, peer by peer.
+
+    ``backfilled`` peers were sent everything withheld from them and their
+    pause was cleared.  ``held_back`` peers had their backfill stopped at an
+    entry whose hash does not verify (SYNC-03-009): each keeps its pause, and
+    the hold-back was logged at ERROR by :func:`send_ledger_suffix`.
+    """
+
+    backfilled: list[str]
+    held_back: list[str]
+
+
 def backfill_admitted_peers(
     datalayer: CasePersistence,
     case: VulnerabilityCase,
@@ -247,7 +299,7 @@ def backfill_admitted_peers(
     sync_port: SyncActivityPort,
     actor_id: str,
     through_index: int | None = None,
-) -> list[str]:
+) -> AdmissionBackfill:
     """Backfill every paused peer the gate now admits, then clear its pause.
 
     For each active participant of *case* (other than *actor_id*) whose
@@ -265,8 +317,16 @@ def backfill_admitted_peers(
             index just before the entry it is about to send, so the backfill
             arrives in order *before* it.
 
+    Each peer's backfill is its own send: one held back at an entry whose
+    hash does not verify (SYNC-03-009) keeps its pause and is reported in
+    ``held_back``, and the other peers are still backfilled.  The caller
+    decides what a hold-back means for its node.
+
     Returns:
-        The peers backfilled, in index order.
+        The peers backfilled and the peers held back, each in index order.
+
+    Raises:
+        VultronError: *case* cannot be resolved to decide the gate.
     """
     # Admission is decided over the whole case, never from a caller's
     # withheld list: a fan-out collector filters (e.g. RM.CLOSED peers)
@@ -274,6 +334,7 @@ def backfill_admitted_peers(
     # as admitted.
     entries: list[CaseLedgerEntry] | None = None
     backfilled: list[str] = []
+    held: list[str] = []
     for peer_id in case_content_recipients(
         case, datalayer, excluding={actor_id}
     ):
@@ -284,7 +345,7 @@ def backfill_admitted_peers(
             continue
         if entries is None:
             entries = sorted_case_ledger_entries(datalayer, case.id_)
-        sent, skipped = send_ledger_suffix(
+        sent, skipped, held_back = send_ledger_suffix(
             sync_port,
             entries,
             after_index=paused_from - 1,
@@ -292,6 +353,11 @@ def backfill_admitted_peers(
             actor_id=actor_id,
             peer_id=peer_id,
         )
+        if held_back is not None:
+            # SYNC-03-009: the pause stays, since the peer still lacks the
+            # held-back entry and everything after it.
+            held.append(peer_id)
+            continue
         clear_embargo_pause(datalayer, case_id=case.id_, peer_id=peer_id)
         backfilled.append(peer_id)
         logger.info(
@@ -304,4 +370,4 @@ def backfill_admitted_peers(
             paused_from,
             skipped,
         )
-    return backfilled
+    return AdmissionBackfill(backfilled, held)

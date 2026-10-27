@@ -55,6 +55,9 @@ class BackfillAdmittedParticipantsNode(DataLayerActionWithPorts):
     ``VultronWiringError``, as the fan-out does (SYNC-02-003, BT-14-001,
     #4126): a silent skip left an admitted peer with no backfill and nothing
     to report it.
+
+    A backfill held back at an entry whose hash does not verify returns
+    ``FAILURE`` (SYNC-03-009, BT-14-001).
     """
 
     def __init__(self, case_id: str, name: str | None = None) -> None:
@@ -107,7 +110,16 @@ class BackfillAdmittedParticipantsNode(DataLayerActionWithPorts):
             self.feedback_message = str(exc)
             self.logger.exception("%s: embargo gate undecidable", self.name)
             return Status.FAILURE
+        if backfilled.held_back:
+            # SYNC-03-009, BT-14-001: a backfill held back at an entry that
+            # does not verify is not delivered.  send_ledger_suffix already
+            # logged it at ERROR.
+            self.feedback_message = (
+                "backfill held back at an unverifiable ledger entry for"
+                f" {backfilled.held_back} (SYNC-03-009)"
+            )
+            return Status.FAILURE
         self.feedback_message = (
-            f"backfilled {len(backfilled)} admitted participant(s)"
+            f"backfilled {len(backfilled.backfilled)} admitted participant(s)"
         )
         return Status.SUCCESS
