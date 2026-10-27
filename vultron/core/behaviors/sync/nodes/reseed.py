@@ -49,8 +49,8 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.behaviors.sync.nodes.replay_guard import (
-    _read_state,
     cooldown_elapsed,
+    read_replication_state,
     update_replication_state,
 )
 from vultron.core.models._helpers import _as_id, now_utc
@@ -92,7 +92,7 @@ def should_reseed(
 
     Spec: SYNC-16-004.
     """
-    state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
+    state = read_replication_state(datalayer, case_id=case_id, peer_id=peer_id)
     return cooldown_elapsed(
         None if state is None else state.last_reseeded_at,
         RESEED_COOLDOWN_SECONDS,
@@ -261,7 +261,9 @@ class ReseedPeerNode(_EmitSingleActivityBase):
                     peer_id=self.peer_id,
                     position=position,
                 )
-        except VultronError as exc:
+        except (VultronError, ValueError) as exc:
+            # ValueError: a model's own validation (a pydantic
+            # ValidationError) refused the record; this actor's fault too.
             raise VultronBTInternalError(
                 f"{self.name}: could not re-seed peer '{self.peer_id}' with"
                 f" case '{self.case_id}': {exc}"
@@ -322,7 +324,7 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
         if (f := self._require_datalayer()) is not None:
             return f
         datalayer = cast(CasePersistence, self.datalayer)
-        state = _read_state(
+        state = read_replication_state(
             datalayer, case_id=self.case_id, peer_id=self.peer_id
         )
         position = None if state is None else state.last_reseed_position

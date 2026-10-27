@@ -474,7 +474,9 @@ def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
     bridge, datalayer, case_actor, case_obj
 ):
     """When every entry is already queued, nothing is queued and no cooldown starts."""
-    from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
+    from vultron.core.behaviors.sync.nodes.replay_guard import (
+        read_replication_state,
+    )
 
     first = _make_entry(0)
     second = _make_entry(1, first.entry_hash)
@@ -491,7 +493,7 @@ def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
     assert result.status == Status.SUCCESS
     assert _queued_announces(datalayer) == before
     assert (
-        _read_state(
+        read_replication_state(
             datalayer, case_id=first.case_id, peer_id=PARTICIPANT_ACTOR_ID
         )
         is None

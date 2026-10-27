@@ -51,7 +51,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 
-from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    read_replication_state,
+    update_replication_state,
+)
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.replication_state import VultronReplicationState
@@ -114,7 +117,7 @@ def embargo_paused_from_index(
     datalayer: CasePersistence, *, case_id: str, peer_id: str
 ) -> int | None:
     """Return the first ``log_index`` withheld from *peer_id*, or ``None``."""
-    state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
+    state = read_replication_state(datalayer, case_id=case_id, peer_id=peer_id)
     if state is None:
         return None
     return state.embargo_paused_from_index
@@ -132,28 +135,17 @@ def record_embargo_pause(
     A pause already on record keeps the earlier index: the backfill must start
     with the *first* entry withheld (CM-10-006), not the latest.
     """
-    state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
-    if state is None:
-        datalayer.save(
-            VultronReplicationState(
-                case_id=case_id,
-                peer_id=peer_id,
-                embargo_paused_from_index=from_index,
-            )
-        )
-        logger.info(
-            "embargo gate: paused ledger stream to '%s' for case '%s' from"
-            " log_index=%d (CM-10-005)",
-            peer_id,
-            case_id,
-            from_index,
-        )
-        return
-    current = state.embargo_paused_from_index
+    state = read_replication_state(datalayer, case_id=case_id, peer_id=peer_id)
+    current = None if state is None else state.embargo_paused_from_index
     if current is not None and current <= from_index:
         return
-    state.embargo_paused_from_index = from_index
-    datalayer.save(state)
+
+    def _pause(paused: VultronReplicationState) -> None:
+        paused.embargo_paused_from_index = from_index
+
+    update_replication_state(
+        datalayer, case_id=case_id, peer_id=peer_id, change=_pause
+    )
     logger.info(
         "embargo gate: paused ledger stream to '%s' for case '%s' from"
         " log_index=%d (CM-10-005)",
@@ -167,7 +159,7 @@ def clear_embargo_pause(
     datalayer: CasePersistence, *, case_id: str, peer_id: str
 ) -> None:
     """Clear *peer_id*'s pause once everything withheld from it has been sent."""
-    state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
+    state = read_replication_state(datalayer, case_id=case_id, peer_id=peer_id)
     if state is None or state.embargo_paused_from_index is None:
         return
     state.embargo_paused_from_index = None

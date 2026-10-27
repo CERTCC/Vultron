@@ -31,7 +31,8 @@ Submodules:
   the participant's position statements (SYNC-17)
 - ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-002)
 - ``reseed``: the rate-bounded re-seed of a diverged peer with a fresh case
-  copy, and the ERROR for a divergence a re-seed already covered (SYNC-16)
+  copy, and the log of a divergence a re-seed already covered: ERROR once the
+  peer acknowledged that re-seed's position, WARNING before (SYNC-16)
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
 - ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)
 - ``fanout``: Fan-out action nodes; RM.CLOSED participants are skipped

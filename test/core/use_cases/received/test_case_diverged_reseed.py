@@ -17,8 +17,9 @@ CASE_MANAGER a ``LedgerEntryRefused/CaseDiverged`` fault (SYNC-16-001).  From
 an active participant, the CASE_MANAGER answers with
 ``Announce(VulnerabilityCase)`` of its current case, which names its ledger
 position, rate-bounded per peer and never ledgered (SYNC-16-002 through
-SYNC-16-004); a divergence the last re-seed already covered is logged at
-ERROR (SYNC-16-008).  Every activity moves between the stores only as the
+SYNC-16-004).  A divergence the last re-seed already covered is logged at
+ERROR once the peer acknowledged that re-seed's position, and at WARNING
+before (SYNC-16-008).  Every activity moves between the stores only as the
 sealed body the sender's outbox delivers.
 """
 
@@ -81,7 +82,15 @@ def _report(net: LedgerNetwork) -> HandlerResult:
 def _fault_from(
     net: LedgerNetwork, sender: str, announce_id: str
 ) -> HandlerResult:
-    """A new case-diverged fault from *sender* naming *announce_id*."""
+    """A new case-diverged fault from *sender* naming *announce_id*.
+
+    In production a repeat never names the same ``Announce``: the fault's id
+    is derived from the failed ``Announce`` (ID-04-004), so the inbox would
+    drop it as a redelivery, and a repeat arrives only after a replay, which
+    mints a fresh ``Announce`` of the same entry.  The handler reads nothing
+    from the ``Announce`` but the entry it carried, so a fresh fault naming
+    the original ``Announce`` exercises the same path.
+    """
     activity = create_processing_fault_activity(
         actor=sender,
         fault=as_ProcessingFault(
@@ -298,6 +307,48 @@ def test_a_divergence_after_an_unacknowledged_reseed_is_a_warning(
     assert len(_seeds(net)) == 2
 
 
+@pytest.mark.spec("SYNC-16-008")
+@pytest.mark.parametrize("acknowledged", ["behind", "unknown"])
+def test_an_acknowledgement_short_of_the_reseed_is_no_error(
+    caplog: pytest.LogCaptureFixture, acknowledged: str
+) -> None:
+    """Only an acknowledged position at or past the re-seed's is an ERROR.
+
+    The re-seed names position 1.  A peer that acknowledged only position 0,
+    or a hash this ledger does not hold, has shown no sign of applying that
+    copy, so the repeat fault is a WARNING.
+    """
+    from vultron.core.behaviors.embargo.copy_commit import (
+        commit_and_apply_embargo_entries,
+    )
+
+    net, announce_id = _diverged(f"reseed-ack-{acknowledged}")
+    first, *_ = ledger_entries(net.stores[MANAGER], net.case_id)
+    change = net.consent_row_change(PROPOSER, EmbargoConsentState.DECLINED)
+    commit_and_apply_embargo_entries(
+        net.stores[MANAGER],
+        net.case_id,
+        [net.planned_consent_entry(change, _CAUSE)],
+    )
+    _report(net)
+    state = _state(net, BYSTANDER)
+    assert state is not None and state.last_reseed_position is not None
+    assert state.last_reseed_position.log_index == 1
+    _acknowledge(
+        net,
+        BYSTANDER,
+        first.entry_hash if acknowledged == "behind" else "0" * 64,
+    )
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
+        _fault_from(net, BYSTANDER, announce_id)
+
+    assert not _reseed_records(caplog, logging.ERROR)
+    (warning,) = _reseed_records(caplog, logging.WARNING)
+    assert "has not acknowledged" in warning.getMessage()
+
+
 def _reseed_records(
     caplog: pytest.LogCaptureFixture, at_least: int
 ) -> list[logging.LogRecord]:
@@ -388,18 +439,26 @@ def test_a_copy_the_port_cannot_build_is_an_internal_error(
 
 
 @pytest.mark.spec("SYNC-16-004")
+@pytest.mark.parametrize("raised", ["VultronValidationError", "ValueError"])
 def test_a_record_that_fails_withdraws_the_queued_copy(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, raised: str
 ) -> None:
     """The copy, its outbox entry and its record land together or not at all,
-    so no copy is ever queued without starting the cooldown."""
+    so no copy is ever queued without starting the cooldown.  A model's own
+    validation error is this actor's fault too, reported the same way."""
     from vultron.core.behaviors.sync.nodes import reseed
     from vultron.errors import VultronBTInternalError, VultronValidationError
 
-    def _fail(*args: Any, **kwargs: Any) -> None:
-        raise VultronValidationError("the replication state is unwritable")
+    error = (
+        VultronValidationError
+        if raised == "VultronValidationError"
+        else ValueError
+    )
 
-    net, _ = _diverged("reseed-record-fails")
+    def _fail(*args: Any, **kwargs: Any) -> None:
+        raise error("the replication state is unwritable")
+
+    net, _ = _diverged(f"reseed-record-fails-{raised}")
     outbox_before = list(net.stores[MANAGER].outbox_list())
     with monkeypatch.context() as patched:
         patched.setattr(reseed, "record_reseed", _fail)
@@ -505,3 +564,52 @@ def test_the_reseed_node_fails_when_its_gate_is_undecidable() -> None:
 
     assert result.status is Status.FAILURE
     assert not node.reseeded
+
+
+def _stored_announce(net: LedgerNetwork, announce_id: str) -> Any:
+    activity = net.stores[MANAGER].read(announce_id)
+    assert activity is not None
+    return activity
+
+
+@pytest.mark.spec("SYNC-16-003")
+def test_an_announce_of_an_entry_this_store_lacks_names_none() -> None:
+    """An ``Announce`` whose object is a reference this store cannot resolve
+    names no refused entry: the store reads it back as the bare id."""
+    from vultron.core.behaviors.sync.nodes.reseed import (
+        announced_ledger_entry,
+    )
+    from vultron.errors import VultronNotFoundError
+
+    net, announce_id = _diverged("reseed-entry-unresolved")
+    by_ref = _stored_announce(net, announce_id).model_copy(
+        update={
+            "id_": f"{announce_id}-by-ref",
+            "object_": f"{net.case_id}/log/99",
+        }
+    )
+    net.stores[MANAGER].save(by_ref)
+    assert isinstance(_stored_announce(net, by_ref.id_).object_, str)
+
+    with pytest.raises(VultronNotFoundError):
+        announced_ledger_entry(net.stores[MANAGER], by_ref.id_, MANAGER)
+
+
+@pytest.mark.spec("SYNC-16-003")
+def test_an_announce_of_something_other_than_an_entry_names_none() -> None:
+    """An ``Announce`` this actor sent of anything but a ledger entry names
+    no refused entry."""
+    from vultron.core.behaviors.sync.nodes.reseed import (
+        announced_ledger_entry,
+    )
+    from vultron.errors import VultronNotFoundError
+
+    net, announce_id = _diverged("reseed-announce-not-entry")
+    of_case = _stored_announce(net, announce_id).model_copy(
+        update={"id_": f"{announce_id}-of-case", "object_": net.case_id}
+    )
+    net.stores[MANAGER].save(of_case)
+    assert _stored_announce(net, of_case.id_).object_ is not None
+
+    with pytest.raises(VultronNotFoundError):
+        announced_ledger_entry(net.stores[MANAGER], of_case.id_, MANAGER)

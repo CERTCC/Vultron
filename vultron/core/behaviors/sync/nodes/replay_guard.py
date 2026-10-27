@@ -127,7 +127,7 @@ def replay_cooldown_seconds(
     return min(base * 2.0 ** min(doublings, 32), MAX_REPLAY_COOLDOWN_SECONDS)
 
 
-def _read_state(
+def read_replication_state(
     datalayer: CasePersistence, *, case_id: str, peer_id: str
 ) -> VultronReplicationState | None:
     """Return the stored replication state for *peer_id*, or ``None``."""
@@ -156,7 +156,7 @@ def update_replication_state(
     The stored record, or a fresh one when the peer has none; ``updated_at``
     is stamped after *change* runs (SYNC-04-002).
     """
-    state = _read_state(
+    state = read_replication_state(
         datalayer, case_id=case_id, peer_id=peer_id
     ) or VultronReplicationState(case_id=case_id, peer_id=peer_id)
     change(state)
@@ -211,7 +211,7 @@ def should_replay(
 
     Spec: SYNC-15-003.
     """
-    state = _read_state(datalayer, case_id=case_id, peer_id=peer_id)
+    state = read_replication_state(datalayer, case_id=case_id, peer_id=peer_id)
     if state is None or state.last_replayed_at is None:
         return True
     if state.last_replayed_from_hash != from_hash:

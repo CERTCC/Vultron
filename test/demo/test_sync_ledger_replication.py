@@ -615,14 +615,17 @@ def _drain_outbox(iso, actor_id: str, dl) -> None:
 @pytest.mark.spec("SYNC-16-001")
 @pytest.mark.spec("SYNC-16-003")
 @pytest.mark.spec("SYNC-16-007")
+@pytest.mark.parametrize("divergence", ["register_entry", "consent_row"])
 def test_a_diverged_replica_converges_after_the_case_managers_reseed(
-    two_app_setup,
+    two_app_setup, divergence: str
 ) -> None:
     """A replica whose embargo state diverged is repaired by a re-seed.
 
-    The peer's replica lost its consent row for the proposed embargo, so the
-    CASE_MANAGER's next copied entry, which updates that row, extends the
-    peer's chain but does not apply to its case.  Every hop is a delivery
+    The peer's replica loses either the embargo register's entry for the
+    proposed embargo or its own consent row for it (the per-entry record of
+    that register, ADR-0122).  Either way the CASE_MANAGER's next copied
+    entry, which updates that row, extends the peer's chain but does not
+    apply to its case.  Every hop is a delivery
     between the two isolated apps: the peer holds the entry and sends a
     case-diverged fault (SYNC-16-001); the CASE_MANAGER answers with
     ``Announce(VulnerabilityCase)`` naming its ledger position (SYNC-16-003);
@@ -715,8 +718,9 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
     write_consent_rows(
         case_actor_dl, cast(VulnerabilityCase, case_actor_dl.read(case.id_))
     )
-    # The peer's replica holds the same case file, then diverges: its copy
-    # of its own record loses the consent row the next entry updates.
+    # The peer's replica holds the same case file, then diverges: its case
+    # loses the register entry, or its own record the consent row, that the
+    # next entry's row update needs.
     for obj_id in (
         case.id_,
         embargo.id_,
@@ -724,9 +728,14 @@ def test_a_diverged_replica_converges_after_the_case_managers_reseed(
         peer_participant.id_,
     ):
         peer_dl.save(case_actor_dl.read(obj_id))
-    diverged = cast(CaseParticipant, peer_dl.read(peer_participant.id_))
-    diverged.embargo_consents = []
-    peer_dl.save(diverged)
+    if divergence == "register_entry":
+        diverged_case = cast(VulnerabilityCase, peer_dl.read(case.id_))
+        diverged_case.embargo_register = []
+        peer_dl.save(diverged_case)
+    else:
+        diverged = cast(CaseParticipant, peer_dl.read(peer_participant.id_))
+        diverged.embargo_consents = []
+        peer_dl.save(diverged)
 
     commit_and_apply_embargo_entries(
         case_actor_dl,
