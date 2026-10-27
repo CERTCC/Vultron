@@ -35,6 +35,12 @@ groups:
     priority: MUST
     kind: protocol
     statement: 'The embargo policy record MUST include the following fields: actor_id (full URI string identifying the Actor to which this policy applies), inbox (URL string of the Actor''s ActivityPub inbox), preferred_duration (ISO 8601 duration string representing the Actor''s preferred embargo length)'
+    rationale: >-
+      A coordinator that reads a policy needs to know whose terms it states, where to
+      send a proposal or Invite, and what length the actor prefers. Without `actor_id` a
+      policy copied out of its profile cannot be attributed, without `inbox` the
+      coordinator cannot reach the actor, and `preferred_duration` is the actor default
+      that shortest-wins reads at case creation (EP-04-003).
     verification: >-
       Inspection of the `EmbargoPolicy` Pydantic model confirms that `actor_id`,
       `inbox`, and `preferred_duration` are declared as required fields with no
@@ -62,6 +68,11 @@ groups:
       The embargo policy record SHOULD include the optional fields
       `minimum_duration` (ISO 8601 duration), `maximum_duration` (ISO 8601 duration),
       and `notes` (free-text string describing the Actor's embargo preferences).
+    rationale: >-
+      A declared range tells a coordinator, before it proposes, which terms the actor
+      will accept (EP-03-002), which saves a propose-and-reject round trip. Free-text
+      notes carry preferences that a duration cannot express. The fields are optional
+      because many actors hold only a preferred length.
     relationships:
     - rel_type: implements
       spec_id: VP-05-001
@@ -80,6 +91,10 @@ groups:
     statement: >-
       The embargo policy record MUST be serializable as a Pydantic model and persisted in
       the DataLayer as part of the Actor's profile record (EP-01-001)
+    rationale: >-
+      The policy must survive a restart and be readable from the profile at case
+      creation (EP-04-003). Persisting it as part of the profile record keeps one copy,
+      so the profile and the policy cannot disagree.
     verification: >-
       A unit test confirms that an actor profile carrying an `EmbargoPolicy` round-trips
       through Pydantic serialization and through the DataLayer `save()` and `get()`
@@ -90,6 +105,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: The embargo policy record MUST use full-URI IDs for `actor_id`
+    rationale: >-
+      Other actors on other servers read and compare policies. A local or short
+      identifier cannot be resolved or compared across servers, so a coordinator could
+      attach a policy to the wrong actor; a full URI names one actor everywhere
+      (OID-01-001).
     verification: >-
       A unit test confirms that `EmbargoPolicy` raises `ValidationError` when
       `actor_id` is a non-URI string and accepts a well-formed `https://` URI.
@@ -131,6 +151,10 @@ groups:
     kind: project
     statement: >-
       Each Actor SHOULD expose its embargo policy at `GET /actors/{actor_id}/embargo-policy`
+    rationale: >-
+      A coordinator evaluates an actor's terms before inviting it (EP-03-001). A
+      predictable URL lets it fetch those terms from any server without knowing how that
+      server lays out its profiles.
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
       (`TestGetEmbargoPolicy`) confirms the route returns the published record as
@@ -147,6 +171,10 @@ groups:
     statement: >-
       The policy endpoint MUST be machine-readable (returns JSON) and MUST return the same
       record the Actor's profile carries inline under `embargo_policy` (EP-01-001)
+    rationale: >-
+      Compatibility evaluation is done by code (EP-03), so the policy must be
+      machine-readable. If the endpoint could return a record that differs from the one
+      in the profile, a coordinator could evaluate terms the actor has since replaced.
     verification: >-
       A test confirms the endpoint responds with `Content-Type: application/json` and a body
       equal to the `embargoPolicy` value of the Actor's profile document.
@@ -200,12 +228,12 @@ groups:
       that the profile carries it inline as the actor default shortest-wins reads at case
       creation (CP-01-010, EP-04-003). A replace MUST leave exactly one policy for the actor.
     rationale: >-
-      Nothing in the API wrote an `EmbargoPolicy` before #3972; the only writers were tests
-      and the demo seeder, so a Receiver could not be given an actor default without reaching
-      into its store. Deriving `actor_id` from the path actor keeps a body from publishing
-      terms in another actor's name (EP-01-005). Writing the terms into the one profile field
-      makes a replace an overwrite, so there is never a withdrawn default left beside the
-      current one for anything to read (#4027).
+      Without a write endpoint the only way to give a Receiver an actor default is to
+      reach into its store, so an operator could not set the terms shortest-wins reads
+      at case creation. Deriving `actor_id` from the path actor keeps a body from
+      publishing terms in another actor's name (EP-01-005). Writing the terms into the
+      one profile field makes a replace an overwrite, so there is never a withdrawn
+      default left beside the current one for anything to read.
     verification: >-
       `test/adapters/driving/fastapi/routers/test_actors_embargo_policy.py`
       (`TestPutEmbargoPolicy`) confirms 201 on first publish and 200 on replace with one
@@ -234,6 +262,11 @@ groups:
       Before proposing an embargo or inviting an actor to join an existing embargo, the CASE_MANAGER
       SHOULD retrieve and evaluate the target actor's embargo policy for compatibility with
       the proposed embargo terms
+    rationale: >-
+      A proposal the invitee will reject costs a negotiation round and can leave the
+      invitee outside the embargo while the round runs. Reading the published policy
+      first lets the CASE_MANAGER choose terms the invitee has said it accepts, or know
+      in advance that it will decline.
     scope:
     - production
     relationships:
@@ -251,6 +284,10 @@ groups:
     statement: >-
       Compatibility evaluation MUST check that the proposed duration falls within the target
       actor's `minimum_duration`–`maximum_duration` range, if declared
+    rationale: >-
+      The declared minimum and maximum are the actor's statement of what it will accept
+      (EP-01-006, EP-01-007). An evaluation that ignored them would report terms as
+      compatible that the actor has already said it will reject.
     verification: >-
       A unit test confirms that the compatibility evaluator returns incompatible when the
       proposed duration falls outside the declared `minimum_duration`–`maximum_duration`
@@ -282,6 +319,11 @@ groups:
       `EM.ACTIVE`, not `EM.PROPOSED`. The sender's report submission without a
       counter-proposal constitutes tacit acceptance of the CASE_OWNER's actor default
       embargo.
+    rationale: >-
+      A sender that submits a report without terms of its own has nothing to object to
+      in the receiver's default, so nobody is left to accept it. A case left at
+      `EM.PROPOSED` would wait for an answer nobody owes, with no embargo in force at
+      the moment the report is most sensitive.
     note: >-
       "Actor default" is the duration carried by a published `EmbargoPolicy`, as distinguished
       from the "protocol default" of EP-04-005. Only the actor default participates in the
@@ -308,6 +350,10 @@ groups:
       When a default embargo is created, the intermediate EM Proposed state MUST NOT be
       observable to other participants: no message, ledger entry or replica shows the
       embargo as Proposed.
+    rationale: >-
+      The default embargo is in force from creation. A participant that saw it as
+      Proposed would treat it as not yet agreed and could answer it or counter-propose,
+      and its replica would record a negotiation that never happened.
     verification: >-
       `TestCreationTimeEmbargoIsOneWrite` refuses the ACCEPT step after PROPOSE has been
       applied and asserts the stored case stays at `EM.NONE` rather than `EM.PROPOSED`, and
@@ -391,11 +437,14 @@ groups:
       `EmbargoEvent` carries the report URI as its `context` (EP-04-009), and the
       CASE_MANAGER MUST rewrite that context to the case URI at case creation.
     rationale: >-
-      This discharges the contingency this requirement previously recorded. Until ADR-0096 no
-      sender-proposal mechanism existed, so EP-04-003 was unreachable and only the
-      no-sender-proposal path applied. Implemented by #3392: the Offer carries the proposal as
-      `proposedEmbargo`; the report receiver's `CaseProposal` carries the Offer whole (CP-01-008); the
-      case-actor's `CreateEmbargoEventNode` keeps the Reporter's event and rewrites its context.
+      Without a way to state terms on the report, a sender with its own deadline can
+      only take the receiver's default or negotiate after the case exists, and the
+      shortest-wins comparison (EP-04-003) has no sender side to compare. The report
+      Offer is the one message the sender sends before a case exists, so it carries the
+      proposal, and the receiver's `CaseProposal` carries the Offer whole (CP-01-008),
+      so the terms reach the CASE_MANAGER as the sender stated them. The context rewrite
+      moves the terms onto the case once there is one, so the case's embargo is about
+      the case like every other (EP-04-009).
     note: >-
       Carrying the proposal on the report offer was chosen over two alternatives. An
       activity-level `end_time` on the `Offer` would add a third meaning to a field CM-28-001
@@ -578,12 +627,12 @@ groups:
       before a case exists, and the case URI afterwards. A reader MUST NOT assume the context
       is a case without checking.
     rationale: >-
-      A proposal embedded on `Offer(VulnerabilityReport)` (EP-04-004) precedes the case, so it
-      has no case URI to point at. Widening the subject is a semantic change, not a type change:
-      the field is `EmbargoEvent.context` in `vultron/core/models/embargo_event.py`, typed
-      `NonEmptyString`, and nothing validates it as a case reference. This also gives pre-case
-      embargo terms a legitimate home, which is what CONCERN-2215 asked for; what ADR-0096
-      declines is the pre-case *phase*, not the *representation*.
+      A proposal embedded on `Offer(VulnerabilityReport)` (EP-04-004) precedes the case,
+      so the report is the only subject it can name. The field is `EmbargoEvent.context`
+      in `vultron/core/models/embargo_event.py`, typed `NonEmptyString`, and nothing
+      validates it as a case reference, so a reader that assumes a case would take a
+      report URI for one. This gives pre-case embargo terms a representation without a
+      pre-case embargo phase, which ADR-0096 declines.
     note: >-
       Do not confuse this field with `VultronEvent.context` in
       `vultron/core/models/events/base.py`, which is typed `CoreObject | None` and holds the
@@ -649,11 +698,12 @@ groups:
       other party. The party whose terms lost is the proposer and is not invited
       (EP-09-002).
     rationale: >-
-      A revision registered in the CASE_MANAGER's store alone is invisible to the party whose
-      terms won and unreachable by the owner: it was never indexed, so the default selection
-      could not name it, and no Invite was ever emitted for it (#3863). The creation-time
-      revision is a revision like any other; the only thing special about it is who proposes
-      it, and CM-24 already covers the CASE_MANAGER proposing on a participant's behalf.
+      A revision registered in the CASE_MANAGER's store alone is invisible to the party
+      whose terms won and unreachable by the owner: unindexed, the default selection
+      cannot name it, and with no Invite nobody is asked to answer it. The creation-time
+      revision is a revision like any other; the only thing special about it is who
+      proposes it, and CM-24 already covers the CASE_MANAGER proposing on a
+      participant's behalf.
     note: >-
       Which party lost is known at registration:
       `initial_embargo_duration.source` on the blackboard names whether the sender's proposal
@@ -819,9 +869,9 @@ groups:
       signatory to it remains one.
     rationale: >-
       A participant cannot lapse until the embargo on the case differs from the one they
-      agreed to. Lapsing on proposal stranded signatories when the revision was rejected,
-      left participants still bound and still receiving embargoed content reported as not
-      bound, and lapsed the proposer of the revision (ADR-0093, Concern #3884). With
+      agreed to. Lapsing on proposal would strand signatories when the revision is
+      rejected, report participants who are still bound and still receive embargoed
+      content as not bound, and lapse the proposer of the revision (ADR-0093). With
       per-embargo rows a proposal only ever adds rows for the proposed embargo.
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_proposals.py` assert that
@@ -1026,9 +1076,10 @@ groups:
       CM-18-002 policy window — would fall after the embargo's `end_time`, it MUST be
       clamped down to that `end_time`.
     rationale: >-
-      An invitee must be able to answer while the embargo still exists. Nothing previously
-      compared the RSVP deadline against the embargo's own end, so an answer window could
-      outlive the thing it was about. See ADR-0096.
+      An invitee must be able to answer while the embargo still exists. A deadline past
+      the embargo's end asks the invitee to consent to an embargo that is already over,
+      and records its silence as an expiry after the answer stopped mattering. See
+      ADR-0096.
     note: >-
       The failure is concrete. Invite a participant to a 24-hour embargo with no explicit
       `Invite.end_time` and the CM-18-002 policy window applies: 7 days. The pocket veto
@@ -1289,12 +1340,11 @@ groups:
       EMB-03-002 are realised in the CASE_MANAGER topology: the CASE_MANAGER on receipt,
       every other participant through ledger replay (EP-09-007).
     rationale: >-
-      The received Invite tree stored the activity, moved the invitee's consent and committed
-      an entry, but never moved the case, so the CASE_MANAGER's canonical record never showed
-      that a revision was under negotiation when a non-owner proposed one, and everything
-      keyed on `EM.REVISE` ran only in the proposer's store (#3892). The CASE_MANAGER is the
-      sole writer of canonical case state (ADR-0108); if it does not move the case, no
-      replica can.
+      If the CASE_MANAGER does not move the canonical case on receipt, its record never
+      shows that a revision is under negotiation when a non-owner proposes one, and
+      everything keyed on `EM.REVISE` runs only in the proposer's store. The
+      CASE_MANAGER is the sole writer of canonical case state (ADR-0108); if it does not
+      move the case, no replica can.
     note: >-
       The write sits behind the CASE_MANAGER role gate (BT-17-001, RSH-08-003). A non-manager
       that receives a peer's proposal directly stores it and writes nothing; that delivery is
@@ -1325,6 +1375,7 @@ groups:
       spec_id: RSH-08-003
     adr:
     - ADR-0113
+    - ADR-0108
     stories:
     - story_2022_014
   - id: EP-09-002
@@ -1445,11 +1496,11 @@ groups:
       revision is recorded on the revision's row and binds it to nothing new until the owner
       activates the revision (EP-05-001, EP-05-002).
     rationale: >-
-      A signatory is bound by the active embargo for as long as it is active; a proposal to
-      revise it asks nothing of them yet (ADR-0093). Because consent is per embargo
+      A signatory is bound by the active embargo for as long as it is active; a proposal
+      to revise it asks nothing of them yet (ADR-0093). Because consent is per embargo
       (ADR-0122) the Invite lands on its own row and cannot touch the row that binds the
-      signatory, so a receive tree that applies `INVITE` for every recipient no longer
-      faults on exactly the participants a revision most concerns.
+      signatory, so a receive tree that applies `INVITE` for every recipient does not
+      fault on exactly the participants a revision most concerns.
     verification: >-
       A test delivers a revision Invite for a participant already a signatory and asserts the
       receive tree succeeds, the participant has an `INVITED` row for the revision, and its
@@ -1552,11 +1603,10 @@ groups:
       it directly is gated (RSH-08-003).
     rationale: >-
       Replicas take state from the ledger, so a semantic type with no replay node is a
-      state change no replica can see (ADR-0108). Before this rule the only embargo event with
-      a replica effect was teardown; proposal, revision and activation entries were stored and
-      ignored, which is why a replica's EM stayed `ACTIVE` through a whole revision cycle
-      (#3892). Covering every semantic type of the relay is what makes the participant-side
-      embargo trees gateable with no further work.
+      state change no replica can see (ADR-0108). A relay entry with no replay node is
+      stored and ignored, and a replica's EM then stays `ACTIVE` through a whole
+      revision cycle. Covering every semantic type of the relay is what makes the
+      participant-side embargo trees gateable with no further work.
     note: >-
       The owner's decision and expiry slots copy their entry's register step or
       row too (#4716, #4784), and the consent rows those acts change arrive as
@@ -1599,11 +1649,12 @@ groups:
       (EMB-02-002): a participant takes a `Reject(Invite(EmbargoEvent))` from the
       CASE_MANAGER and from nobody else (PCR-08-001, HP-01-006).
     rationale: >-
-      Every embargo trigger wrote its own local EM state before the CASE_MANAGER had
-      answered, then declared that state to the manager, and nothing corrected the write when
-      the manager refused, so a proposer's replica could sit at `PROPOSED` while the canonical
-      case never moved (#3918). The manager is the one writer of shared case state
-      (ADR-0108); a participant's replica of it comes from the ledger like everyone else's.
+      An actor that writes its own EM state before the CASE_MANAGER has answered, then
+      declares that state to the manager, is left wrong when the manager refuses:
+      nothing corrects the write, so a proposer's replica can sit at `PROPOSED` while
+      the canonical case never moves. The manager is the one writer of shared case state
+      (ADR-0108); a participant's replica of it comes from the ledger like everyone
+      else's.
     note: >-
       Participant self-status (RM, `Add(ParticipantStatus)`) is the participant's own
       claim and keeps its local write (RSH-06-001). The rule covers the owner that still
@@ -1713,11 +1764,12 @@ groups:
       no embargo is answered the same way, with failure class `EmbargoInviteWithoutEmbargo`.
       Two spellings of one actor in `to` (a trailing slash) name one recipient.
     rationale: >-
-      Every emitter sends a single-recipient Invite — a participant to the CASE_MANAGER, the
-      CASE_MANAGER to one participant per relayed Invite (EP-09-002) — so the multi-recipient
-      resolution built for a shape nothing emits was dead code, and its fallback to the
-      receiving actor put the deadline on the enforcer's own record (ISSUE-2762). Refusing
-      names the defect; guessing hides it.
+      Every emitter sends a single-recipient Invite, a participant to the CASE_MANAGER
+      and the CASE_MANAGER to one participant per relayed Invite (EP-09-002), so an
+      Invite with no recipient or several is a defect, not a shape to interpret.
+      Inferring the invitee from the receiving actor puts the RSVP deadline on the
+      enforcer's own record instead of the invitee's. Refusing names the defect;
+      guessing hides it.
     verification: >-
       Tests deliver an Invite with two `to` recipients and with none and assert `REFUSED`
       with the recipient count in the reason and one `Create(ProcessingFault)` to the

@@ -19,6 +19,11 @@ groups:
     statement: >-
       Durations MUST be represented as ISO 8601 duration strings using the `P[n]DT[n]H[n]M[n]S`
       format
+    rationale: >-
+      Participants exchange durations across independent implementations, so they need a
+      format every stack already parses the same way. ISO 8601 durations have libraries
+      in every common language and carry their units in the string; a private format
+      would need every implementer to agree on its grammar separately.
     verification: >-
       A unit test confirms that duration values produced by `vultron/core/` match
       the `P[n]DT[n]H[n]M[n]S` pattern and are round-tripped correctly from that
@@ -30,6 +35,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: Duration strings MUST be serialized as JSON strings, not as numbers
+    rationale: >-
+      A JSON number carries no unit, so `30` could mean seconds, hours or days, and two
+      receivers could read different embargo lengths from the same record. A string in
+      the DUR-01-001 format states its units, so the value means one thing to every
+      reader.
     verification: >-
       A unit test confirms that duration fields serialize to a JSON string type,
       not a numeric type, when serialized via the Pydantic model.
@@ -42,6 +52,11 @@ groups:
     statement: >-
       Durations represent **absolute elapsed time**, not calendar-relative intervals; `P1D`
       means exactly 86400 seconds, with no DST or calendar adjustment implied
+    rationale: >-
+      An embargo ends at one instant for every participant. If `P1D` meant a calendar
+      day, a duration that spans a daylight-saving change would end an hour earlier or
+      later depending on the time zone it was computed in, and participants in different
+      zones would disagree on when disclosure is allowed.
     verification: >-
       A unit test confirms that `P1D` is treated as exactly 86400 seconds with no
       DST or calendar adjustment applied during interval arithmetic.
@@ -55,6 +70,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: 'Only the following units are permitted in duration strings: days (`D`), hours (`H`), minutes (`M`, time-part only), and seconds (`S`).'
+    rationale: >-
+      Each of these units has a fixed length in seconds, so every implementation
+      computes the same end time from the same string. The list is closed so that a
+      receiver can reject anything else (DUR-04-001) rather than guess at its length.
     verification: >-
       A unit test confirms that duration strings using only `D`, `H`, time-part
       `M`, and `S` units are accepted, and that strings containing any other unit
@@ -81,17 +100,31 @@ groups:
     statement: >-
       Duration strings SHOULD be normalized to a canonical form: prefer the largest unit without
       remainder
+    rationale: >-
+      One duration can be written several ways (`P1D`, `PT24H`, `PT1440M`), so two
+      records that hold the same value can fail a plain string comparison or show a
+      spurious change in a diff. One preferred spelling lets readers compare strings and
+      lets a person read the value at a glance.
   - id: DUR-03-002
     priority: SHOULD
     kind: protocol
     statement: >-
       Embargo policy durations SHOULD use only integer day units when possible; mixed day/time
       representations SHOULD be avoided
+    rationale: >-
+      Embargo terms are negotiated and compared in days, and policy ranges are read by
+      people as well as code. A value such as `P29DT23H` is hard to compare against a
+      policy range at a glance and usually signals an arithmetic leftover rather than an
+      intended term.
   - id: DUR-03-003
     priority: SHOULD_NOT
     kind: protocol
     statement: >-
       `P0D` SHOULD NOT be used to express a zero-length duration; prefer `PT0S` for explicitness
+    rationale: >-
+      A zero duration needs one spelling so that equal values compare equal as strings.
+      `PT0S` is the form a zero `timedelta` serializes to (DUR-05), so a zero value
+      written and read back keeps the same spelling.
 - id: DUR-04
   title: Validation Requirements
   specs:
@@ -101,6 +134,11 @@ groups:
     statement: >-
       Implementations MUST reject duration strings containing disallowed units: `Y`, date-part
       `M`, `W`
+    rationale: >-
+      A duration with a year, month or week unit has no fixed length (DUR-02-002), so
+      two receivers that accept it can compute different embargo end dates from the same
+      message. Rejecting it at the edge exposes the disagreement before any participant
+      acts on its own reading.
     verification: >-
       A unit test confirms that duration strings containing `Y`, date-part `M`, or
       `W` units are rejected with a validation error.
@@ -110,6 +148,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: Implementations MUST reject malformed ISO 8601 duration strings
+    rationale: >-
+      A malformed duration that a receiver accepts with a guessed meaning sets an
+      embargo length that nobody proposed. Rejecting it at parse time keeps the bad
+      value out of the core and tells the sender its message was not understood.
     verification: >-
       A unit test confirms that strings not conforming to ISO 8601 duration grammar
       (e.g., `"1D"`, `"foo"`) are rejected with a validation error.
@@ -119,6 +161,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: Implementations MUST reject empty duration strings (`"P"` or `"PT"`)
+    rationale: >-
+      `P` and `PT` match the start of the grammar but state no length. A parser that
+      read them as zero would turn a missing value into an embargo that ends the moment
+      it starts.
     verification: >-
       A unit test confirms that the strings `"P"` and `"PT"` are rejected as empty
       duration strings.
@@ -128,6 +174,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: A valid duration MUST contain at least one component
+    rationale: >-
+      Each ISO 8601 component is optional on its own, so without this rule the grammar
+      admits a duration that states no length at all. A reader would then have to guess
+      one, and the obvious guess, zero, ends an embargo at its start.
     verification: >-
       A unit test confirms that a valid duration string must contain at least one
       numeric component, and that bare `"P"` or `"PT"` strings are rejected.
@@ -141,12 +191,22 @@ groups:
     kind: project
     statement: >-
       Duration fields SHOULD use `datetime.timedelta` as the internal Python representation
+    rationale: >-
+      `timedelta` is the standard library type for elapsed time, so `end = start +
+      duration` (DUR-06-002) and range checks such as EP-03-002 work directly on it.
+      Code that kept the string form would have to parse it at every comparison and
+      could parse it differently in different places.
   - id: DUR-05-002
     priority: MUST
     kind: project
     statement: >-
       Duration fields MUST serialize to ISO 8601 duration strings at the JSON wire layer;
       the internal `timedelta` MUST NOT be serialized as a plain number
+    rationale: >-
+      Pydantic can be configured to serialize a `timedelta` as a number of seconds,
+      which would put a unitless value on the wire and break DUR-01-002. Fixing the wire
+      form to the ISO 8601 string keeps the internal type a private choice that other
+      implementations never see.
     verification: >-
       A unit test confirms that a Pydantic model with a duration field serializes
       the field as an ISO 8601 string (e.g., `"P1D"`) rather than a plain number
@@ -160,6 +220,10 @@ groups:
     statement: >-
       A duration-only embargo policy field MUST be interpreted as a relative offset from a
       context-specific anchor (typically case creation time)
+    rationale: >-
+      A duration alone has no position in time. Without a named anchor, two participants
+      could apply the same policy to different start points, such as report receipt,
+      case creation or the moment they read it, and hold different embargo end dates.
     verification: >-
       Inspection of `vultron/core/` confirms that code applying an embargo policy
       adds the policy duration to the case creation timestamp to derive the embargo
@@ -171,6 +235,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: When combined with a start timestamp, the end time is `end = start + duration`
+    rationale: >-
+      Plain addition with no calendar adjustment (DUR-01-003) is the one rule every
+      implementation computes identically, so a start time and a duration give every
+      participant the same end instant.
     verification: >-
       A unit test confirms that combining a start timestamp with a duration
       produces `end = start + duration` with no additional calendar offset.
@@ -182,6 +250,11 @@ groups:
     statement: >-
       Timestamps used in interval composition MUST conform to RFC 3339 (UTC recommended);
       local timezone arithmetic is NOT RECOMMENDED
+    rationale: >-
+      A timestamp without an offset is read in each participant's local zone, so the
+      same start time names different instants on different servers. RFC 3339 timestamps
+      carry their offset, and UTC avoids daylight-saving shifts, so every participant
+      computes the same end instant.
     verification: >-
       A unit test confirms that timestamps used in interval composition are parsed
       as RFC 3339 values and that local-timezone arithmetic is not applied.
@@ -196,6 +269,11 @@ groups:
     statement: >-
       Specific embargo end times on cases MUST be declared as event intervals with unambiguous
       start and end timestamps, not as durations alone
+    rationale: >-
+      An embargo on a case is a commitment to a disclosure date that every participant
+      must agree on. A duration alone depends on an anchor each participant might read
+      differently and on when it is read, while explicit start and end timestamps name
+      the same instants for everyone.
     verification: >-
       Inspection of `vultron/core/` confirms that case embargo end times are stored
       as explicit start and end timestamp pairs, not as a duration-only field.
@@ -210,12 +288,22 @@ groups:
       At case creation (RM.RECEIVED), if no embargo end time is established, the case creation
       process SHOULD apply the actor's default embargo duration (from the actor profile) to
       the case creation timestamp to establish the initial embargo end time
+    rationale: >-
+      A case with no embargo end has no agreed disclosure date, and the EM process
+      exists to lock in an embargo as early as possible. The receiving actor's published
+      default is the terms it has already declared it will accept, so applying it at
+      creation gives the case an embargo without a negotiation round.
   - id: DUR-07-003
     priority: MUST
     kind: protocol
     statement: >-
       When a default embargo duration is applied at case creation, the case's resulting
       EM state MUST be `EM.ACTIVE`, not `EM.PROPOSED` (EP-04-001).
+    rationale: >-
+      The default applies only when the sender submitted no terms of its own, which is
+      tacit acceptance of the default (EP-04-001), so nobody is left to accept it. A
+      case left at `EM.PROPOSED` would wait for an answer that nobody owes, with no
+      embargo in force while it waits.
     verification: >-
       `test/core/services/embargo_lifecycle/test_creation.py`
       (`test_none_to_active_in_one_commit`) confirms that initializing the creation-time
@@ -246,6 +334,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: An embargo end time MUST be established before the case transitions to RM.VALID
+    rationale: >-
+      Once a report is valid, coordination begins and other parties are brought into the
+      case. An embargo end set before that point means every participant joins under a
+      known disclosure date instead of sharing vul details with no agreed date in force.
     verification: >-
       Integration tests in `test/demo/` confirm that no case successfully
       transitions to `RM.VALID` unless an embargo end time has been established.
