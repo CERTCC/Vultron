@@ -295,6 +295,30 @@ groups:
         relationships:
           - rel_type: depends_on
             spec_id: DOCBW-03-008
+      - id: DOCBW-03-013
+        priority: MUST
+        kind: project
+        statement: >-
+          Every pre-commit hook that checks the whole tree (`pass_filenames:
+          false`) and whose `files:` pattern matches a file under `docs/` MUST
+          also run in a workflow whose `pull_request` trigger fires on a change
+          to that file. In the review workflow, each such gate MUST run before
+          the Build Site step, MUST NOT set `continue-on-error`, and MUST NOT
+          stop a later gate or the Build Site step from running when it fails.
+        rationale: >-
+          No workflow runs pre-commit, so a hook enforces nothing on a pull
+          request whose author did not run it. A gate's committed-tree test is
+          no backstop when its workflow's path filter misses the file: a pull
+          request that changes only `docs/` and breaks a page's frontmatter or
+          the normative banner merged green (#5084). Running every gate after
+          a failed one lets one run report every broken gate.
+        verification: >-
+          `test/ci/test_docs_source_gates_in_workflows.py` derives the hooks
+          from `.pre-commit-config.yaml` and asserts that, for every `docs/`
+          file a hook's pattern matches, a workflow triggered by a pull
+          request changing that file runs the hook's command, and that in the
+          review workflow each gate precedes the build and every gate after
+          the first, and the build, runs on `!cancelled()`.
 
   - id: DOCBW-05
     title: Security Compliance
