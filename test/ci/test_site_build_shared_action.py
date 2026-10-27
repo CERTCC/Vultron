@@ -19,7 +19,6 @@ that uploads there.
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +26,9 @@ import pytest
 
 from test.ci._workflows import (
     BUILD_SITE_ACTION,
+    MKDOCS_SITE_BUILD,
     REPO_ROOT,
+    RUN_EVEN_AFTER_FAILURE,
     WORKFLOWS_DIR,
     expanded_steps,
     load_workflow,
@@ -43,14 +44,11 @@ SETUP_PYTHON_UV_ACTION = "./.github/actions/setup-python-uv"
 # What ships: the project's own dependencies, without the dev group.
 SHIPPED_DEPENDENCY_SET = "--no-dev"
 PUBLICATION_WORKFLOW = WORKFLOWS_DIR / "deploy_site.yml"
+ADR_INDEX_CHECK = "vultron.metadata.adr.index_gen --check"
 PAGES_UPLOAD_ACTIONS = (
     "actions/upload-pages-artifact",
     "actions/deploy-pages",
 )
-# A mkdocs command that builds the site: ``build`` or ``gh-deploy`` (which
-# builds and pushes), with any global options before the subcommand, so
-# ``mkdocs -v build`` and ``python -m mkdocs gh-deploy`` count too.
-MKDOCS_SITE_BUILD = re.compile(r"\bmkdocs(?:\s+-\S+)*\s+(?:build|gh-deploy)\b")
 
 
 # Parsed workflow YAML is untyped by nature; ``Any`` here is the YAML boundary.
@@ -231,6 +229,23 @@ def test_workflow_steps_follow_the_shared_build(workflow: Path):
         )
 
 
+@pytest.mark.spec("EH-07-001")
+def test_adr_index_check_runs_even_if_the_build_failed():
+    """A failed build must not hide ADR-index drift in the same review run."""
+    review = load_workflow(WORKFLOWS_DIR / "docs-build-check.yml")
+    adr_checks = [
+        step
+        for step in steps(review)
+        if ADR_INDEX_CHECK in str(step.get("run", ""))
+    ]
+    assert adr_checks, f"docs-build-check.yml never runs '{ADR_INDEX_CHECK}'."
+    for step in adr_checks:
+        assert step.get("if") in RUN_EVEN_AFTER_FAILURE, (
+            f"'{step.get('name')}' is skipped when the build fails; give it "
+            "'if: ${{ !cancelled() }}'."
+        )
+
+
 def test_own_builds_finds_a_direct_build_but_not_the_shared_action():
     """The detector the ratchet above rests on catches what it must."""
     step_list = [
@@ -247,6 +262,8 @@ def test_own_builds_finds_a_direct_build_but_not_the_shared_action():
         "uv run mkdocs -v build",
         "python -m mkdocs gh-deploy --force",
         "mkdocs build",
+        "uv run mkdocs -f mkdocs.yml build",
+        "mkdocs --config-file mkdocs.yml build --strict",
     ],
 )
 def test_own_builds_finds_every_form_of_a_site_build(command: str):

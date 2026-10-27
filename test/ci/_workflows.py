@@ -7,6 +7,7 @@ all. Parsing lives here so each ratchet states only its assertion.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
 MKDOCS_BUILD = "mkdocs build"
+# A mkdocs command that builds the site: ``build`` or ``gh-deploy`` (which
+# builds and pushes), with any global options (and their values) before the
+# subcommand, so ``mkdocs -v build``, ``mkdocs -f mkdocs.yml build`` and
+# ``python -m mkdocs gh-deploy`` count too.
+MKDOCS_SITE_BUILD = re.compile(
+    r"\bmkdocs(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+(?:build|gh-deploy)\b"
+)
+# An ``if:`` that still runs the step after an earlier step failed. It widens
+# when the step runs rather than narrowing it, so it cannot skip a gate.
+RUN_EVEN_AFTER_FAILURE = frozenset({"${{ !cancelled() }}", "!cancelled()"})
 # The one composite action every site-building workflow builds through
 # (DOCBW-06-004).
 BUILD_SITE_ACTION = "./.github/actions/build-site"
@@ -92,15 +103,14 @@ def expanded_steps(step_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def site_building_workflows() -> list[Path]:
     """Return every workflow that builds the site.
 
-    A workflow builds the site when it calls the shared build action or names
-    ``mkdocs build`` itself; the second is what DOCBW-06-004 forbids, and it
-    still counts here so every gate on a site build sees it.
+    A workflow builds the site when it calls the shared build action or runs
+    a site build itself (``MKDOCS_SITE_BUILD``); the second is what
+    DOCBW-06-004 forbids, and it still counts here so every gate on a site
+    build sees it.
     """
     return sorted(
         path
         for path in WORKFLOWS_DIR.glob("*.yml")
-        if any(
-            needle in path.read_text(encoding="utf-8")
-            for needle in (BUILD_SITE_ACTION, MKDOCS_BUILD)
-        )
+        if BUILD_SITE_ACTION in (text := path.read_text(encoding="utf-8"))
+        or MKDOCS_SITE_BUILD.search(text)
     )
