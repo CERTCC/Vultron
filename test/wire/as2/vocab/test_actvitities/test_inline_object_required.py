@@ -646,3 +646,30 @@ def test_accept_refuses_the_offered_object_in_place_of_the_offer(
     """An Accept carries the Offer or Invite itself, not what it offered."""
     with pytest.raises(ValidationError):
         accept_cls(actor=_ACTOR.id_, object_=offered_object)
+
+
+@pytest.mark.spec("RF-03-003")
+@pytest.mark.parametrize(
+    ("reject_cls", "offered_object"),
+    [
+        (_RejectCaseOwnershipTransferActivity, _CASE),
+        (_RmRejectInviteToCaseActivity, _CASE),
+        (_EmRejectEmbargoActivity, _EMBARGO),
+        (_RmCloseReportActivity, _REPORT),
+    ],
+)
+def test_reject_refuses_the_offered_object_in_place_of_the_offer(
+    reject_cls, offered_object
+):
+    """A Reject carries the Offer or Invite itself, not what it offered."""
+    with pytest.raises(ValidationError):
+        reject_cls(actor=_ACTOR.id_, object_=offered_object)
+
+
+@pytest.mark.spec("RF-04-003")
+def test_tentative_reject_refuses_the_offered_object_in_place_of_the_offer():
+    """A TentativeReject carries the Offer itself, not the offered report."""
+    with pytest.raises(ValidationError):
+        _RmInvalidateReportActivity(
+            actor=_ACTOR.id_, object_=cast(Any, _REPORT)
+        )

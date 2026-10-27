@@ -429,6 +429,7 @@ def test_accept_ownership_transfer_returns_accept(sample_offer):
         offer=sample_offer, actor=_ACTOR_URI
     )
     assert isinstance(result, as_Accept)
+    assert result.type_ == "Accept"
 
 
 def test_accept_ownership_transfer_object_is_offer(sample_offer):
@@ -459,6 +460,7 @@ def test_reject_ownership_transfer_returns_reject(sample_offer):
         offer=sample_offer, actor=_ACTOR_URI
     )
     assert isinstance(result, as_Reject)
+    assert result.type_ == "Reject"
 
 
 def test_reject_ownership_transfer_object_is_offer(sample_offer):
@@ -659,6 +661,7 @@ def test_rm_accept_invite_to_case_returns_accept(sample_actor):
     )
     result = rm_accept_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert isinstance(result, as_Accept)
+    assert result.type_ == "Accept"
 
 
 def test_rm_accept_invite_to_case_object_is_invite(sample_actor):
@@ -790,6 +793,7 @@ def test_rm_reject_invite_to_case_returns_reject(sample_actor):
     )
     result = rm_reject_invite_to_case_activity(invite=invite, actor=_ACTOR_URI)
     assert isinstance(result, as_Reject)
+    assert result.type_ == "Reject"
 
 
 def test_rm_reject_invite_to_case_object_is_invite(sample_actor):
