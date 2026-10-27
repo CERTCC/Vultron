@@ -204,6 +204,7 @@ REFUSED: dict[
 }
 
 
+@pytest.mark.spec("VP-04-002")
 @pytest.mark.parametrize("case", list(REFUSED), ids=list(REFUSED))
 def test_refused_step_raises(case: str) -> None:
     """Each combination is refused, and by the rule it breaks."""
@@ -561,6 +562,7 @@ def test_construction_stamps_the_register_em_onto_the_status() -> None:
     assert case.current_status.em.state is EM.ACTIVE
 
 
+@pytest.mark.spec("VP-04-002")
 @pytest.mark.parametrize(
     "entries",
     [

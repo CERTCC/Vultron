@@ -21,9 +21,11 @@ groups:
       Responses travel through the same AS2 inbox pipeline as every other activity. A
       response that does not conform to AS2 cannot be parsed or matched to a semantic by
       its receiver, so the initiator would never learn the answer.
-    verification: Integration tests in `test/demo/` confirm that response activities produced by handlers are valid AS2
-      objects, and unit tests in `test/wire/as2/vocab/test_actvitities/test_activities.py` confirm they inherit from the
-      AS2 base hierarchy.
+    verification: >-
+      `test_response_round_trips_through_the_as2_parser` in
+      `test/wire/as2/factories/test_report_factories.py` confirms that an Accept, a
+      Reject and a TentativeReject response serialize with the AS2 context and parse
+      back to their AS2 activity types through the inbound parser.
     stories:
     - story_2022_017
     - story_2022_039
@@ -230,8 +232,10 @@ groups:
       A TentativeReject is a provisional refusal, which the receiver handles differently
       from a final Reject. Only a distinct activity type lets the receiver tell the two
       apart.
-    verification: Unit tests in `test/wire/as2/factories/test_embargo_factories.py` confirm that `TentativeReject`
-      response factories produce objects with `type_` equal to `'TentativeReject'`.
+    verification: >-
+      `test_rm_invalidate_report_returns_tentative_reject` in
+      `test/wire/as2/factories/test_report_factories.py` confirms that the
+      `TentativeReject` response factory produces an `as_TentativeReject`.
     relationships:
     - rel_type: implements
       spec_id: VP-06-004
@@ -396,9 +400,7 @@ groups:
       Delivery is at-least-once, so a receiver sees some activities more than once. If
       each copy produced a new response, the initiator would receive duplicate or
       conflicting answers and could apply the same state change twice.
-    verification: Integration tests in `test/demo/` confirm that processing the same inbound activity twice produces the
-      same response without additional state changes, and `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py`
-      confirms that re-delivering an outbox item does not cause duplicate side effects.
+    verification_debt: '#3612'
     relationships:
     - rel_type: depends_on
       spec_id: ID-02-001

@@ -99,10 +99,7 @@ groups:
       Valid reports are the ones known to need work, so effort spent on them is what
       reduces harm. Received reports are not yet judged and Closed reports need nothing
       more; letting either crowd out Valid work delays fixes for confirmed vuls.
-    verification: >-
-      Integration tests in `test/demo/test_workflow_rm_triage.py` confirm that
-      the RM triage workflow only advances to Accepted from the Valid state,
-      enforcing priority ordering over Received and Closed cases.
+    verification_debt: '#3612'
     stories:
     - story_2022_086
   - id: VP-02-003
@@ -113,10 +110,7 @@ groups:
       Accepted is the RM state in which a participant has committed to work on the
       report. Drawing others into a case from an earlier state would commit them to
       coordination the initiator has not itself agreed to pursue.
-    verification: >-
-      Integration tests in `test/demo/test_initialize_case_demo.py` confirm
-      that `RmInviteToCaseActivity` is only emitted when the initiating
-      participant's RM state is Accepted.
+    verification_debt: '#3612'
     stories:
     - story_2022_006
     - story_2022_013
@@ -497,10 +491,7 @@ groups:
       If receiving a report did not set it, the case would understate what the vendor
       knows, and every later CS-based decision, including embargo eligibility and fix
       tracking, would start from a wrong state.
-    verification: >-
-      Integration tests in `test/demo/test_receive_report_demo.py` confirm
-      that processing an RS message sets the recipient vendor's CS state to
-      the Vendor Aware substates.
+    verification_debt: '#3612'
     stories:
     - story_2022_002
     - story_2022_038
@@ -775,10 +766,7 @@ groups:
       Participants need to know from what moment they are bound. Starting the embargo at
       acceptance leaves no gap in which a participant has agreed but is not yet bound,
       and no future start that could be read as permission to disclose now.
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that the EM state transitions to Active with the acceptance timestamp as
-      the effective start, not a future date.
+    verification_debt: '#3612'
     stories:
     - story_2022_014
     - story_2022_074
@@ -792,10 +780,7 @@ groups:
       Cases often need new vendors or coordinators after an embargo is in place. If
       telling them counted as release, no one could be added without ending the embargo;
       requiring that they accept the terms keeps the information inside it.
-    verification: >-
-      Integration tests in `test/demo/test_manage_participants_demo.py` confirm
-      that inviting a participant to a case with an Active embargo leaves the
-      EM state unchanged.
+    verification_debt: '#3612'
     stories:
     - story_2022_013
     - story_2022_052
@@ -1087,10 +1072,7 @@ groups:
       Sending the report while a proposal is pending shows the sender is willing to
       share under those terms. Treating the submission as acceptance avoids a report
       being shared with no embargo in force.
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that sending RS while EM is in the Proposed state causes EM to advance
-      to Active.
+    verification_debt: '#3612'
     stories:
     - story_2022_014
     - story_2022_002
@@ -1223,11 +1205,7 @@ groups:
       avoid, and reaching it through mutual silence is the least deliberate way to arrive
       there. The bounded protocol default replaces it; `EM.NONE` survives only behind the
       embargo-eligibility guard.
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm that EM reaches
-      `EM.ACTIVE` at the configured protocol default when neither party has an actor default
-      and no proposal is made, and that EM remains in the None state when the case is not
-      embargo-eligible.
+    verification_debt: '#3612'
     relationships:
     - rel_type: refines
       spec_id: EP-04-005
@@ -1248,10 +1226,7 @@ groups:
       A published default tells reporters what to expect. Treating it as a proposal
       makes it a real negotiating position without either side having to send a first
       message.
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that a receiver with a policy-defined default embargo presents it as a
-      Proposed embargo upon receiving a report.
+    verification_debt: '#3612'
     stories:
     - story_2022_004
     - story_2022_009
@@ -1267,10 +1242,7 @@ groups:
       A sender that knows the receiver's published default and offers nothing else has
       agreed to it in effect. Treating it as accepted puts an embargo in force at once,
       rather than leaving the case unprotected while waiting for a formal reply.
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that EM advances to Active using the receiver's default when the sender
-      makes no counter-proposal.
+    verification_debt: '#3612'
     stories:
     - story_2022_005
     - story_2022_079
@@ -1284,10 +1256,7 @@ groups:
       The receiver's shorter default is acceptable to both sides: the receiver published
       it and the sender asked for at least that much time. Accepting it puts an embargo
       in force at once, and the longer request stays open as a revision.
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that the shorter receiver-default embargo is accepted and the sender's
-      longer proposal is stored as a pending revision.
+    verification_debt: '#3612'
     stories:
     - story_2022_005
     - story_2022_079
@@ -1302,10 +1271,7 @@ groups:
       and the receiver's default allows at least that much time. Accepting it puts an
       embargo in force at once, and the receiver's longer default stays open as a
       revision.
-    verification: >-
-      Integration tests in `test/demo/test_establish_embargo_demo.py` confirm
-      that the sender's shorter proposal is accepted and the receiver's default
-      is stored as a pending revision.
+    verification_debt: '#3612'
     stories:
     - story_2022_005
     - story_2022_079
@@ -1403,10 +1369,7 @@ groups:
       A newcomer must know which embargo binds the case before it sees case information.
       Proposing the existing embargo is how it learns the terms and is asked to keep
       them.
-    verification: >-
-      Integration tests in `test/demo/test_manage_participants_demo.py` confirm
-      that the invite payload carries the existing embargo terms when an Active
-      embargo is in place.
+    verification_debt: '#3612'
     stories:
     - story_2022_013
     - story_2022_052
@@ -1660,10 +1623,7 @@ groups:
       Once the vul or its exploit is public, secrecy protects no one: attackers already
       have the information and defenders need it. Holding to the embargo would only stop
       participants from helping users respond.
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that the EM state transitions to Terminated when the CS state advances
-      to include public awareness.
+    verification_debt: '#3612'
     stories:
     - story_2022_015
     - story_2022_020
@@ -1885,10 +1845,7 @@ groups:
       `docs/reference/vultron-spec/_oq-embargo-termination-authority.md`; the working
       position is that teardown is mandatory once the condition is adopted as canonical case
       state (DEMOMA-07-003).
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that the EM state transitions to Terminated when a CP or CX message is
-      received.
+    verification_debt: '#3612'
     stories:
     - story_2022_007
     - story_2022_018
@@ -1901,10 +1858,7 @@ groups:
     rationale: >-
       Other participants may not have seen the public information. Initiating
       termination makes sure the case learns of it and the embargo ends promptly.
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that a CP or CX event automatically triggers the ET
-      embargo-termination transition.
+    verification_debt: '#3612'
     stories:
     - story_2022_008
     - story_2022_019
@@ -2137,10 +2091,7 @@ groups:
       One participant's exit must not end protection for those still working on fixes.
       Otherwise any participant could end the embargo for everyone by closing or
       deferring.
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that RM Closed or Deferred transitions leave the EM Active state
-      unchanged.
+    verification_debt: '#3612'
     stories:
     - story_2022_067
   - id: VP-13-010
@@ -2252,10 +2203,7 @@ groups:
     rationale: >-
       Once the public knows about the vul, secrecy protects no one and defenders need
       information. Seeking or keeping an embargo would only delay them.
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that a CP event both blocks new embargo proposals and terminates any
-      Active embargo.
+    verification_debt: '#3612'
     stories:
     - story_2022_020
     - story_2022_108
@@ -2268,10 +2216,7 @@ groups:
     rationale: >-
       Once an exploit is published, anyone can attack and defenders need information at
       once. Seeking or keeping an embargo would only delay them.
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that a CX event both blocks new embargo proposals and terminates any
-      Active embargo.
+    verification_debt: '#3612'
     stories:
     - story_2022_018
   - id: VP-14-003
@@ -2283,9 +2228,7 @@ groups:
     rationale: >-
       With attacks under way, a new embargo would only keep defenders uninformed while
       users are being harmed.
-    verification: >-
-      Integration tests in `test/demo/test_manage_embargo_demo.py` confirm
-      that a CA event blocks all new embargo proposal activities.
+    verification_debt: '#3612'
     stories:
     - story_2022_019
   - id: VP-14-004
@@ -2297,11 +2240,7 @@ groups:
     rationale: >-
       Attacks can start before, during or after an embargo, without warning. A process
       that assumes they will not leaves users unprotected when they do.
-    verification: >-
-      Inspection of `vultron/core/states/cs.py` confirms the CS state machine
-      accepts the `a` transition from any pre-attack CS state, and integration
-      tests in `test/demo/test_manage_embargo_demo.py` confirm a CA message
-      triggers the EM guard correctly.
+    verification_debt: '#3612'
     stories:
     - story_2022_019
     - story_2022_086

@@ -423,6 +423,7 @@ def test_offer_ownership_transfer_invalid_raises():
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("RF-02-001")
 def test_accept_ownership_transfer_returns_accept(sample_offer):
     result = accept_case_ownership_transfer_activity(
         offer=sample_offer, actor=_ACTOR_URI
@@ -452,6 +453,7 @@ def test_accept_ownership_transfer_plain_offer_raises(sample_report):
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("RF-03-001")
 def test_reject_ownership_transfer_returns_reject(sample_offer):
     result = reject_case_ownership_transfer_activity(
         offer=sample_offer, actor=_ACTOR_URI
@@ -650,6 +652,7 @@ def test_rm_invite_to_case_invalid_raises():
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("RF-02-001")
 def test_rm_accept_invite_to_case_returns_accept(sample_actor):
     invite = rm_invite_to_case_activity(
         invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
@@ -666,6 +669,7 @@ def test_rm_accept_invite_to_case_object_is_invite(sample_actor):
     assert result.object_ == invite
 
 
+@pytest.mark.spec("RF-08-001")
 def test_rm_accept_invite_to_case_in_reply_to_auto_set(sample_actor):
     """Model validator auto-populates in_reply_to from invite.id_."""
     invite = rm_invite_to_case_activity(
@@ -779,6 +783,7 @@ def test_reply_refuses_a_received_activity_that_is_not_an_invite(
 
 
 @pytest.mark.spec("AF-01-002")
+@pytest.mark.spec("RF-03-001")
 def test_rm_reject_invite_to_case_returns_reject(sample_actor):
     invite = rm_invite_to_case_activity(
         invitee=sample_actor, target=_CASE_URI, actor=_ACTOR_URI
@@ -795,6 +800,7 @@ def test_rm_reject_invite_to_case_object_is_invite(sample_actor):
     assert result.object_ == invite
 
 
+@pytest.mark.spec("RF-08-001")
 def test_rm_reject_invite_to_case_in_reply_to_auto_set(sample_actor):
     """Model validator auto-populates in_reply_to from invite.id_."""
     invite = rm_invite_to_case_activity(

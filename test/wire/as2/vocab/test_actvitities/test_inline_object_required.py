@@ -275,12 +275,14 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
         )
         assert isinstance(obj.object_, _RecommendActorActivity)
 
+    @pytest.mark.spec("RF-02-003")
     def test_accept_case_ownership_transfer_accepts_typed(self):
         obj = _AcceptCaseOwnershipTransferActivity(
             actor=_ACTOR.id_, object_=_OFFER_TRANSFER
         )
         assert isinstance(obj.object_, _OfferCaseOwnershipTransferActivity)
 
+    @pytest.mark.spec("RF-03-003")
     def test_reject_case_ownership_transfer_accepts_typed(self):
         obj = _RejectCaseOwnershipTransferActivity(
             actor=_ACTOR.id_, object_=_OFFER_TRANSFER
@@ -322,14 +324,17 @@ class TestInlineTypedObjectAccepted(unittest.TestCase):
         obj = _EmUndoEmbargoInviteActivity(actor=_ACTOR.id_, object_=_PROPOSE)
         assert isinstance(obj.object_, _EmProposeEmbargoActivity)
 
+    @pytest.mark.spec("RF-02-003")
     def test_rm_validate_report_accepts_typed(self):
         obj = _RmValidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
         assert isinstance(obj.object_, _RmSubmitReportActivity)
 
+    @pytest.mark.spec("RF-04-003")
     def test_rm_invalidate_report_accepts_typed(self):
         obj = _RmInvalidateReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
         assert isinstance(obj.object_, _RmSubmitReportActivity)
 
+    @pytest.mark.spec("RF-03-003")
     def test_rm_close_report_accepts_typed(self):
         obj = _RmCloseReportActivity(actor=_ACTOR.id_, object_=_SUBMIT)
         assert isinstance(obj.object_, _RmSubmitReportActivity)
@@ -624,6 +629,7 @@ if __name__ == "__main__":
 
 @pytest.mark.spec("RF-02-004")
 @pytest.mark.spec("RF-02-005")
+@pytest.mark.spec("RF-02-003")
 @pytest.mark.parametrize(
     ("accept_cls", "offered_object"),
     [
