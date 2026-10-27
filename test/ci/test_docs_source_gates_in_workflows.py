@@ -292,3 +292,19 @@ def test_review_workflow_gates_precede_the_build_and_do_not_stop_it():
 def test_glob_translation(pattern: str, path: str, expected: bool):
     """The trigger check is only as right as its reading of a path glob."""
     assert bool(_glob_regex(pattern).fullmatch(path)) is expected
+
+
+@pytest.mark.parametrize(
+    "event,expected",
+    [
+        (None, True),
+        ({"branches": ["main"]}, True),
+        ({"paths": ["docs/**"]}, True),
+        ({"paths": ["specs/**", "!docs/**"]}, False),
+        ({"paths-ignore": ["docs/**"]}, False),
+        ({"paths-ignore": ["specs/**"]}, True),
+    ],
+)
+def test_trigger_reading(event: Any, expected: bool):
+    """Each form of ``pull_request`` filter is read as GitHub reads it."""
+    assert _fires_on(event, "docs/reference/specs/protocol.md") is expected
