@@ -31,6 +31,7 @@ from test.support.case_manager import (
     make_case_with_case_manager,
 )
 from test.support.embargo_register import activate
+from test.support.received import TEST_SENDER_POSITION
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.http_object_fetch import ObjectFetchResult
 from vultron.adapters.driving.fastapi import (
@@ -102,6 +103,10 @@ def _replica() -> tuple[SqliteDataLayer, VulnerabilityCase]:
     return dl, make_case_with_case_manager(dl)
 
 
+#: The CASE_MANAGER's ledger position its case activities state (SYNC-18-001).
+_POSITION = TEST_SENDER_POSITION.model_dump(by_alias=True)
+
+
 def _embargo(case_id: str) -> EmbargoEvent:
     return EmbargoEvent(
         context=case_id, end_time=now_utc() + timedelta(days=30)
@@ -120,6 +125,7 @@ def _revision(
         "object": _body(revision),
         "context": case_id,
         "to": [_REPLICA],
+        "ledgerPosition": _POSITION,
     }
 
 
@@ -133,6 +139,7 @@ def _bare_accept(case_id: str, object_id: str) -> dict[str, Any]:
         "object": object_id,
         "context": case_id,
         "to": [_REPLICA],
+        "ledgerPosition": _POSITION,
     }
 
 
