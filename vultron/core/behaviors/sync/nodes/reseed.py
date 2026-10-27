@@ -28,9 +28,10 @@ once it has passed the next request re-seeds, so a lost copy cannot strand a
 peer (the choice SYNC-15-003 makes for replay).
 
 :class:`ReportRepeatDivergenceNode` reads the same record: a divergence
-fault for an entry the last re-seed's copy already reflected means the
-CASE_MANAGER's case disagrees with its own ledger, and is logged at ERROR
-(SYNC-16-008).
+fault for an entry the last re-seed's copy already reflected is logged at
+ERROR when the peer has acknowledged that copy's position, since the
+CASE_MANAGER's case then disagrees with its own ledger, and at WARNING
+otherwise, since the copy may be lost or in flight (SYNC-16-008).
 
 Neither node commits a ledger entry: a re-seed is replication signalling,
 like the replay it resembles (SYNC-16-002).
@@ -58,6 +59,7 @@ from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
+from vultron.core.sync_helpers import sorted_case_ledger_entries
 from vultron.errors import (
     VultronBTInternalError,
     VultronError,
@@ -278,14 +280,22 @@ class ReseedPeerNode(_EmitSingleActivityBase):
 
 
 class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
-    """Log at ERROR a divergence the last re-seed should already have cured.
+    """Log a divergence the last re-seed's copy already reflected.
 
     *refused_entry* is the entry the peer's divergence fault reports
     refusing.  When the peer's last re-seed named a ledger position at or
-    after it, the copy the peer was sent already reflected that entry, so the
-    CASE_MANAGER's case disagrees with its own ledger: a defect, not
-    recovery (SYNC-16-008).  Writes nothing and always returns SUCCESS; the
-    re-seed that follows stays under its own rate bound.
+    after it, the copy the peer was sent already reflected that entry.
+
+    - If the peer's acknowledged position (``last_acknowledged_hash``) is at
+      or past the re-seed's position, the peer applied that copy, so the
+      CASE_MANAGER's case disagrees with its own ledger: a defect, logged at
+      ERROR (``repeated``).
+    - Otherwise the copy may have been lost, or the entry replayed before
+      the copy arrived: ordinary recovery, logged at WARNING
+      (``unconfirmed``) and left to the rate-bounded re-seed (SYNC-16-004).
+
+    Writes nothing and always returns SUCCESS; the re-seed that follows stays
+    under its own rate bound.
 
     Spec: SYNC-16-008.
     """
@@ -302,28 +312,52 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
         self.peer_id = peer_id
         self.refused_entry = refused_entry
         self.repeated = False
-        """True when the last run found the entry already re-seeded."""
+        """True when the peer acknowledged the copy that reflected the entry."""
+        self.unconfirmed = False
+        """True when the copy reflected the entry but no acknowledgement shows
+        the peer applied it."""
 
     def update(self) -> Status:
-        self.repeated = False
+        self.repeated = self.unconfirmed = False
         if (f := self._require_datalayer()) is not None:
             return f
+        datalayer = cast(CasePersistence, self.datalayer)
         state = _read_state(
-            cast(CasePersistence, self.datalayer),
-            case_id=self.case_id,
-            peer_id=self.peer_id,
+            datalayer, case_id=self.case_id, peer_id=self.peer_id
         )
         position = None if state is None else state.last_reseed_position
         if position is None:
             return Status.SUCCESS
         if self.refused_entry.log_index > position.log_index:
             return Status.SUCCESS
-        self.repeated = True
-        self.logger.error(
+        assert state is not None
+        acknowledged = _acknowledged_index(
+            datalayer, self.case_id, state.last_acknowledged_hash
+        )
+        if acknowledged is not None and acknowledged >= position.log_index:
+            self.repeated = True
+            self.logger.error(
+                "%s: peer '%s' reports case '%s' diverged at ledger entry '%s'"
+                " (log_index %d) after acknowledging position %d, which the"
+                " case copy it was re-seeded with (position %d) already"
+                " reflected: this CASE_MANAGER's case disagrees with its own"
+                " ledger (SYNC-16-008)",
+                self.name,
+                self.peer_id,
+                self.case_id,
+                self.refused_entry.id_,
+                self.refused_entry.log_index,
+                acknowledged,
+                position.log_index,
+            )
+            return Status.SUCCESS
+        self.unconfirmed = True
+        self.logger.warning(
             "%s: peer '%s' reports case '%s' diverged at ledger entry '%s'"
-            " (log_index %d), which the case copy it was last re-seeded with"
-            " already reflected (position %d): this CASE_MANAGER's case"
-            " disagrees with its own ledger (SYNC-16-008)",
+            " (log_index %d), which its last re-seed copy (position %d)"
+            " reflects, but it has not acknowledged that position; the copy"
+            " may be lost or still in flight, so the re-seed bound decides"
+            " (SYNC-16-008, SYNC-16-004)",
             self.name,
             self.peer_id,
             self.case_id,
@@ -332,3 +366,19 @@ class ReportRepeatDivergenceNode(DataLayerActionWithPorts):
             position.log_index,
         )
         return Status.SUCCESS
+
+
+def _acknowledged_index(
+    datalayer: CasePersistence, case_id: str, acknowledged_hash: str
+) -> int | None:
+    """The ``log_index`` of the entry *acknowledged_hash* names, or ``None``.
+
+    ``None`` for an empty hash (nothing acknowledged) or a hash this ledger
+    does not hold: neither is evidence the peer reached any position.
+    """
+    if not acknowledged_hash:
+        return None
+    for entry in sorted_case_ledger_entries(datalayer, case_id):
+        if entry.entry_hash == acknowledged_hash:
+            return entry.log_index
+    return None

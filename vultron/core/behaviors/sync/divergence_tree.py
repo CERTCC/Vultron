@@ -52,8 +52,9 @@ def create_case_diverged_fault_tree(
     fault names no ``Announce(CaseLedgerEntry)`` this store sent: there is no
     case to answer for, so the tree only archives the fault and the handler
     refuses it.  At that case's
-    CASE_MANAGER the tree logs at ERROR a divergence the last re-seed's copy
-    already reflected (:class:`ReportRepeatDivergenceNode`, SYNC-16-008),
+    CASE_MANAGER the tree logs a divergence the last re-seed's copy already
+    reflected, at ERROR once the peer acknowledged that copy's position and at
+    WARNING before (:class:`ReportRepeatDivergenceNode`, SYNC-16-008),
     then sends the sender ``Announce(VulnerabilityCase)`` of its current
     case, rate-bounded per peer (:class:`ReseedPeerNode`, SYNC-16-003,
     SYNC-16-004).  Both are the CASE_MANAGER's own acts, so they sit in

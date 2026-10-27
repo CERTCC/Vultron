@@ -304,7 +304,8 @@ The `Reject(CaseLedgerEntry)` names the last entry the replica's chain stores.
 A replica whose chain stores no entry has none to name, so its `Reject` names no entry, carries an empty last-accepted hash and names the case as its `target`; the CASE_MANAGER answers it with a replay from genesis. (SYNC-16-007)
 A `Reject` that names no entry but carries a hash is refused when it arrives.
 
-A divergence fault for an entry the last re-seed already reflected means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
+A divergence fault for an entry the last re-seed already reflected, from a participant whose acknowledged position is at or past that re-seed's position, means the CASE_MANAGER's case disagrees with its own ledger, and the CASE_MANAGER SHOULD log it as an error. (SYNC-16-008)
+Without that acknowledgement the copy may have been lost or may still be in flight, so the CASE_MANAGER SHOULD log the fault below error and leave it to the rate-bounded re-seed. (SYNC-16-008)
 
 ### 5.6 Position Statements
 
@@ -629,7 +630,7 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-16-005 | §5.5 | A case MUST store the ledger position it is a projection of, and carry it on the wire |
 | SYNC-16-006 | §5.5 | Participant MUST NOT replace its case with a stale or conflicting copy |
 | SYNC-16-007 | §5.5 | After replacement, participant MUST backfill to the copy's position |
-| SYNC-16-008 | §5.5 | CASE_MANAGER SHOULD log divergence after a re-seed as an error |
+| SYNC-16-008 | §5.5 | CASE_MANAGER SHOULD log divergence after an acknowledged re-seed as an error |
 | SYNC-17-001 | §5.6 | Participant MAY state its position with `Read(CaseLedgerEntry)` |
 | SYNC-17-002 | §5.6 | CASE_MANAGER MUST act on a stated position only from an active participant |
 | SYNC-17-003 | §5.6 | CASE_MANAGER MUST record a stated position as the acknowledged position |

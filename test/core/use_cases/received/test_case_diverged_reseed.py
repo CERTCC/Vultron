@@ -242,35 +242,80 @@ def test_reseeds_are_rate_bounded_per_peer_not_suppressed() -> None:
 
 
 @pytest.mark.spec("SYNC-16-008")
-def test_a_divergence_the_last_reseed_covered_is_logged_at_error(
+def test_a_divergence_after_an_acknowledged_reseed_is_logged_at_error(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The copy already reflected the refused entry: a CASE_MANAGER defect.
+    """The peer applied a copy that reflected the entry: a CASE_MANAGER defect.
 
-    The first fault, with no re-seed before it, is routine; a later fault
-    for the same entry is an ERROR naming the entry and the position.
+    The first fault, with no re-seed before it, is routine.  Once the peer's
+    acknowledged position reaches the re-seed's, a fault for the same entry
+    is an ERROR naming the entry and the position.
+    """
+    net, announce_id = _diverged("reseed-repeat-acked")
+    with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
+        _report(net)
+    assert not _reseed_records(caplog, logging.WARNING)
+    (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
+    _acknowledge(net, BYSTANDER, entry.entry_hash)
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
+        _fault_from(net, BYSTANDER, announce_id)
+
+    (error,) = _reseed_records(caplog, logging.ERROR)
+    message = error.getMessage()
+    assert "SYNC-16-008" in message
+    assert BYSTANDER in message
+    assert entry.id_ in message
+
+
+@pytest.mark.spec("SYNC-16-008")
+@pytest.mark.spec("SYNC-16-004")
+def test_a_divergence_after_an_unacknowledged_reseed_is_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A lost or in-flight copy is recovery, not a defect.
+
+    The peer never acknowledged the re-seed's position, so the repeat is a
+    WARNING, never an ERROR, and the rate-bounded re-seed answers it once
+    the cooldown has passed.
     """
     from vultron.core.behaviors.sync.nodes.reseed import (
         RESEED_COOLDOWN_SECONDS,
     )
 
-    net, announce_id = _diverged("reseed-repeat")
-    with caplog.at_level(logging.ERROR, logger=_RESEED_LOGGER):
-        _report(net)
-    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
-
+    net, announce_id = _diverged("reseed-repeat-lost")
+    _report(net)
     _age_last_reseed(net, BYSTANDER, RESEED_COOLDOWN_SECONDS)
-    caplog.clear()
-    with caplog.at_level(logging.ERROR, logger=_RESEED_LOGGER):
-        _fault_from(net, BYSTANDER, announce_id)
 
-    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
-    (error,) = errors
-    message = error.getMessage()
-    assert "SYNC-16-008" in message
-    assert BYSTANDER in message
-    (entry,) = ledger_entries(net.stores[MANAGER], net.case_id)
-    assert entry.id_ in message
+    with caplog.at_level(logging.WARNING, logger=_RESEED_LOGGER):
+        verdict = _fault_from(net, BYSTANDER, announce_id)
+
+    assert not _reseed_records(caplog, logging.ERROR)
+    (warning,) = _reseed_records(caplog, logging.WARNING)
+    assert "has not acknowledged" in warning.getMessage()
+    assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
+    assert len(_seeds(net)) == 2
+
+
+def _reseed_records(
+    caplog: pytest.LogCaptureFixture, at_least: int
+) -> list[logging.LogRecord]:
+    """The re-seed module's records at *at_least* or above."""
+    return [
+        r
+        for r in caplog.records
+        if r.name.startswith(_RESEED_LOGGER) and r.levelno >= at_least
+    ]
+
+
+def _acknowledge(net: LedgerNetwork, peer: str, entry_hash: str) -> None:
+    """Record *peer*'s acknowledgement of the entry *entry_hash* names, as its
+    ``Reject`` or ``Read`` would (SYNC-04-001)."""
+    state = _state(net, peer)
+    assert state is not None
+    state.last_acknowledged_hash = entry_hash
+    net.stores[MANAGER].save(state)
 
 
 @pytest.mark.spec("SYNC-16-008")
