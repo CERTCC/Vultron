@@ -59,7 +59,7 @@ class DereferenceCheckNode(_InboxNodeWithPorts):
       fetched object in place of its reference, and stops waiting;
     - ``FAILED``: the activity stops waiting and goes on with the reference
       unresolved, so the path that needs the object refuses it as it did
-      before dereference existed (AKM-05-008).
+      before dereference existed (AKM-05-015).
 
     An activity waiting on any fetch is held for its replay and deferred
     (``deferred`` outcome); otherwise the node writes the event, with every

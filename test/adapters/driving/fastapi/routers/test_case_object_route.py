@@ -89,6 +89,7 @@ def test_a_participant_gets_an_object_the_case_names(client, host):
     assert body["type"] == "EmbargoEvent"
 
 
+@pytest.mark.spec("AKM-05-009")
 @pytest.mark.spec("AKM-05-006")
 def test_a_non_participant_is_refused_with_403(client, host):
     _, case = host
@@ -98,6 +99,7 @@ def test_a_non_participant_is_refused_with_403(client, host):
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
+@pytest.mark.spec("AKM-05-009")
 @pytest.mark.spec("AKM-05-006")
 def test_a_request_naming_no_requester_is_refused_with_401(client, host):
     _, case = host
@@ -107,6 +109,7 @@ def test_a_request_naming_no_requester_is_refused_with_401(client, host):
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
+@pytest.mark.spec("AKM-05-009")
 @pytest.mark.spec("AKM-05-006")
 def test_an_object_the_case_does_not_name_is_404(client, host):
     _, case = host
@@ -116,6 +119,7 @@ def test_an_object_the_case_does_not_name_is_404(client, host):
     assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
+@pytest.mark.spec("AKM-05-009")
 @pytest.mark.spec("AKM-05-006")
 def test_a_case_the_host_does_not_hold_is_404(client, host):
     response = _get(

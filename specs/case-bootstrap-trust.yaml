@@ -589,8 +589,9 @@ groups:
       MUST reject the bootstrap under CBT-05-008.
     rationale: >-
       How this codebase meets CBT-05-008; split from it so CBT-05-008 states
-      only what other participants observe (MS-12-010). This codebase does not
-      yet dereference (AKM-05-003), so it cannot read a participant record
+      only what other participants observe (MS-12-010). This codebase
+      dereferences only the few references AKM-05-007 lists, and a bootstrap
+      participant is not one of them, so it cannot read a participant record
       named only by URI. Refusing it is a shortcut of this prototype reference
       implementation, not a protocol rule: an implementation that dereferences
       the reference has the participant data and need not reject.

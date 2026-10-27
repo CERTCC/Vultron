@@ -217,7 +217,7 @@ The EP-05-001 comparison reads the revised and the replaced embargo, so every
 path that writes `active_embargo` must hold the record first. The writers fail
 closed on an unreadable record. A replica lacking the replaced embargo of an
 announced revision fetches it from the CASE_MANAGER before dispatch and refuses
-only when the fetch fails (AKM-05-007, AKM-05-008); the CASE_MANAGER has nobody
+only when the fetch fails (EMB-18-007, AKM-05-015); the CASE_MANAGER has nobody
 to fetch from, so there it is a broken invariant and refused. Build no other
 catch-up path.
 

@@ -176,6 +176,7 @@ def test_an_activity_needing_nothing_goes_to_dispatch():
     assert port.awaited == []
 
 
+@pytest.mark.spec("AKM-05-010")
 @pytest.mark.spec("AKM-05-007")
 @pytest.mark.parametrize("pending", [None, ObjectFetchState.PENDING])
 def test_an_activity_waits_while_its_fetch_is_open(
@@ -209,6 +210,7 @@ def test_a_fetched_profile_is_handed_to_the_event_and_released():
     ]
 
 
+@pytest.mark.spec("AKM-05-015")
 @pytest.mark.spec("AKM-05-008")
 def test_a_failed_fetch_lets_the_activity_go_on_with_its_reference():
     port = _Port([_PROFILE_REF], _record(ObjectFetchState.FAILED))
@@ -221,6 +223,7 @@ def test_a_failed_fetch_lets_the_activity_go_on_with_its_reference():
     assert len(port.released) == 1
 
 
+@pytest.mark.spec("AKM-05-014")
 @pytest.mark.spec("AKM-05-008")
 def test_an_unfit_fetched_object_is_a_warning_and_a_failed_fetch(
     caplog: pytest.LogCaptureFixture,

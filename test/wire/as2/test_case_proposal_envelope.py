@@ -88,10 +88,10 @@ def test_an_inline_profile_with_its_own_policy_parses():
     )
 
 
-@pytest.mark.spec("CP-01-010")
+@pytest.mark.spec("CP-01-015")
 def test_an_actor_named_by_a_link_is_refused():
     with pytest.raises(
-        VultronParseValidationError, match=r"(?s)Link reference.*CP-01-010"
+        VultronParseValidationError, match=r"(?s)Link reference.*CP-01-015"
     ):
         parse_activity(_body({"type": "Link", "href": _VENDOR}))
 
@@ -105,10 +105,10 @@ def test_the_proposers_bare_id_parses_for_the_inbox_to_dereference():
 
 
 @pytest.mark.spec("CP-01-009")
-@pytest.mark.spec("CP-01-010")
+@pytest.mark.spec("CP-01-015")
 def test_a_bare_id_naming_someone_else_is_refused():
     with pytest.raises(
-        VultronParseValidationError, match=r"(?s)attributedTo.*CP-01-010"
+        VultronParseValidationError, match=r"(?s)attributedTo.*CP-01-015"
     ):
         parse_activity(_body(_OTHER))
 

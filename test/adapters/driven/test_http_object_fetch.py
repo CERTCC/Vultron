@@ -110,6 +110,7 @@ class TestHttpObjectFetcher:
         assert result.attempts == 1
         assert get.call_args.kwargs["headers"][REQUESTER_HEADER] == _REQUESTER
 
+    @pytest.mark.spec("AKM-05-013")
     @pytest.mark.spec("AKM-05-008")
     def test_a_4xx_ends_the_fetch_at_once(self):
         result, get = _fetch(

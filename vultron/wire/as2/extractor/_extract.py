@@ -210,7 +210,7 @@ def _proposer_profile(activity: as_Activity) -> CoreActor | str:
         f"Create(CaseProposal) {activity.id_!r} carries neither an"
         " inline actor profile nor the proposer's id (got"
         f" {type(actor).__name__}); the proposer's profile is the"
-        " only source of the CASE_OWNER's actor default (CP-01-010)"
+        " only source of the CASE_OWNER's actor default (CP-01-016)"
     )
 
 

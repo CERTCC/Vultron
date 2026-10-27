@@ -180,6 +180,8 @@ def _held(dl: SqliteDataLayer, activity_id: str) -> bool:
     )
 
 
+@pytest.mark.spec("EMB-18-007")
+@pytest.mark.spec("AKM-05-010")
 @pytest.mark.spec("AKM-05-003")
 @pytest.mark.spec("AKM-05-007")
 @pytest.mark.spec("EMB-18-003")
@@ -251,6 +253,7 @@ def test_an_unclassifiable_activity_is_replayed_with_its_object_resolved():
     assert _fetches(dl) == []
 
 
+@pytest.mark.spec("AKM-05-010")
 @pytest.mark.spec("AKM-05-007")
 def test_the_activity_is_deferred_not_dropped_while_the_fetch_is_open():
     """Before any fetch is made the activity is held whole and waits."""
@@ -273,6 +276,8 @@ def test_the_activity_is_deferred_not_dropped_while_the_fetch_is_open():
     assert _held(dl, payload["id"])
 
 
+@pytest.mark.spec("AKM-05-014")
+@pytest.mark.spec("AKM-05-015")
 @pytest.mark.spec("AKM-05-008")
 def test_a_failed_fetch_is_a_warning_and_the_activity_goes_on_without_it(
     caplog: pytest.LogCaptureFixture,
@@ -376,6 +381,8 @@ def test_an_activity_waiting_on_two_fetches_replays_once_both_settle():
     assert port.fetch_of(first.object_id) is not None
 
 
+@pytest.mark.spec("CP-01-014")
+@pytest.mark.spec("CP-01-017")
 @pytest.mark.spec("CP-01-009")
 @pytest.mark.spec("CP-01-010")
 def test_a_proposers_profile_is_handed_to_the_proposal_and_never_stored():
@@ -441,6 +448,7 @@ def test_a_proposers_profile_is_handed_to_the_proposal_and_never_stored():
     assert _fetches(dl) == [], "the handed-off body is released"
 
 
+@pytest.mark.spec("AKM-05-014")
 @pytest.mark.spec("AKM-05-008")
 def test_a_fetched_body_that_is_not_the_object_asked_for_fails_the_fetch():
     dl, case = _replica()
@@ -466,6 +474,7 @@ def test_a_fetched_body_that_is_not_the_object_asked_for_fails_the_fetch():
     assert dl.read(other.id_) is None
 
 
+@pytest.mark.spec("AKM-05-012")
 @pytest.mark.spec("AKM-05-007")
 def test_a_fetched_object_never_replaces_one_already_held():
     """A copy held meanwhile is kept, never overwritten (MV-10-003)."""
@@ -603,6 +612,76 @@ def test_a_waiter_not_held_for_replay_is_logged_and_skipped(
         for r in caplog.records
     )
     assert _fetches(dl) == [], "a record nothing can wait on is removed"
+
+
+def _hold(dl: SqliteDataLayer, activity_id: str) -> None:
+    dl.create(
+        DeferredInboxActivity(
+            activity_id=activity_id,
+            received_body=json.dumps({"id": activity_id}),
+        )
+    )
+
+
+def _await(
+    dl: SqliteDataLayer, reference: ObjectReference, waiters: list[str]
+) -> None:
+    dl.save(
+        PendingObjectFetch.for_reference(reference).model_copy(
+            update={"waiting_activity_ids": waiters}
+        )
+    )
+
+
+def test_an_unheld_waiter_on_two_fetches_is_kept_by_no_settled_fetch():
+    """An unheld waiter is dropped even while another fetch is still open."""
+    dl, case = _replica()
+    unheld = "https://example.org/a/lost"
+    held = "https://example.org/a/held"
+    _hold(dl, held)
+    first = _store_reference(case.id_, "urn:uuid:first")
+    second = _store_reference(case.id_, "urn:uuid:second")
+    _await(dl, first, [held, unheld])
+    _await(dl, second, [unheld])
+
+    settle_fetch(
+        dl, _REPLICA, first.object_id, ObjectFetchResult(None, "x", 1)
+    )
+
+    (settled,) = [f for f in _fetches(dl) if f.object_id == first.object_id]
+    assert settled.waiting_activity_ids == [held], (
+        "the unheld waiter is dropped though the second fetch is open"
+    )
+
+    settle_fetch(
+        dl, _REPLICA, second.object_id, ObjectFetchResult(None, "x", 1)
+    )
+
+    assert not any(
+        unheld in f.waiting_activity_ids
+        for f in _fetches(dl)
+        if f.state is not ObjectFetchState.PENDING
+    ), "no settled fetch keeps the unheld waiter"
+
+
+def test_a_settled_fetch_keeps_only_its_held_waiter_and_replays_it():
+    dl, case = _replica()
+    held = "https://example.org/a/held"
+    unheld = "https://example.org/a/lost"
+    _hold(dl, held)
+    reference = _store_reference(case.id_, "urn:uuid:obj")
+    _await(dl, reference, [held, unheld])
+
+    queued = settle_fetch(
+        dl, _REPLICA, reference.object_id, ObjectFetchResult(None, "x", 1)
+    )
+
+    assert queued == [held]
+    assert held in dl.inbox_list()
+    assert unheld not in dl.inbox_list()
+    (fetch,) = _fetches(dl)
+    assert fetch.state is ObjectFetchState.FAILED
+    assert fetch.waiting_activity_ids == [held]
 
 
 def test_release_keeps_a_settled_fetch_others_still_wait_on():

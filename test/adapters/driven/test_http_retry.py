@@ -13,6 +13,7 @@
 """The shared bounded retry with backoff (SYNC-05-001, AKM-05-008)."""
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -29,16 +30,23 @@ _BACKOFF = Backoff(
 )
 
 
-def _run(answers: list[object]) -> tuple[object, AsyncMock, list[float]]:
-    """Run the helper over *answers*: a value returns, an exception raises."""
+def _answering(answers: list[object]) -> Callable[[], Awaitable[object]]:
+    """An attempt answering from *answers*: a value returns, an error raises."""
     remaining = list(answers)
-    delays: list[float] = []
 
     async def _attempt() -> object:
         answer = remaining.pop(0)
         if isinstance(answer, Exception):
             raise answer
         return answer
+
+    return _attempt
+
+
+def _run(answers: list[object]) -> tuple[object, AsyncMock, list[float]]:
+    """Run the helper over *answers*: a value returns, an exception raises."""
+    delays: list[float] = []
+    _attempt = _answering(answers)
 
     with (
         patch("asyncio.sleep", new_callable=AsyncMock) as sleep,
@@ -86,6 +94,20 @@ def test_exhausted_retries_carry_the_last_failure():
     assert isinstance(outcome, RetriesExhaustedError)
     assert outcome.attempts == 3
     assert outcome.last is last
+
+
+@pytest.mark.spec("SYNC-05-001")
+def test_a_retry_without_a_hook_still_backs_off_and_succeeds():
+    with (
+        patch("asyncio.sleep", new_callable=AsyncMock) as sleep,
+        patch("random.uniform", return_value=0.0),
+    ):
+        outcome = asyncio.run(
+            retry_with_backoff(_answering([RuntimeError("a"), "ok"]), _BACKOFF)
+        )
+
+    assert outcome == ("ok", 2)
+    sleep.assert_awaited_once_with(1.0)
 
 
 def test_at_least_one_attempt_is_required():

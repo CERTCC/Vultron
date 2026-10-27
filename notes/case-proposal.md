@@ -102,12 +102,13 @@ writes and the emit in `proposal_admission_actions.py` (BTND-07-003).
   carrying its `embargoPolicy` when published (CP-01-010); senders here always
   inline it. A receiver also accepts the proposer's bare id (CP-01-009): the inbox
   fetches the profile from `{actor}/profile` before dispatch, swaps it into the event
-  and never stores it, and a failed fetch refuses the proposal (AKM-05-007,
-  AKM-05-008). `refuse_malformed_case_proposal_envelope`
+  and never stores it, and a failed fetch refuses the proposal (CP-01-014,
+  CP-01-018). `refuse_malformed_case_proposal_envelope`
   (`vultron/wire/as2/case_proposal_envelope.py`) refuses a `Link` `actor` or one
-  whose `id` is not the proposal's `attributed_to`. The extractor hands it to core as
-  `proposer_profile`; [embargo-default-semantics](embargo-default-semantics.md)
-  covers how the default embargo is read from it.
+  whose `id` is not the proposal's `attributed_to` (CP-01-015). The extractor
+  hands it to core as `proposer_profile`;
+  [embargo-default-semantics](embargo-default-semantics.md) covers how the default
+  embargo is read from it.
 - `in_reply_to` carries the whole `Offer(VulnerabilityReport)` (CP-01-008) so a
   Reporter's `proposedEmbargo` reaches the case-actor, which never saw the Offer.
 - The three case-proposal patterns MUST be registered before more-general patterns

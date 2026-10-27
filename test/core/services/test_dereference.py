@@ -152,6 +152,7 @@ class TestReferencesToFetch:
             )
         ]
 
+    @pytest.mark.spec("AKM-05-011")
     @pytest.mark.spec("AKM-05-007")
     def test_the_case_manager_fetches_nothing_from_itself(self):
         dl = _replica(CASE_MANAGER_ID)
@@ -179,6 +180,7 @@ class TestReferencesToFetch:
 
         assert refs == []
 
+    @pytest.mark.spec("AKM-05-011")
     @pytest.mark.spec("AKM-05-007")
     def test_a_ledger_entry_is_never_fetched(self):
         """Replication carries its entry inline; replay needs no fetch."""
@@ -194,6 +196,7 @@ class TestReferencesToFetch:
 
         assert refs == []
 
+    @pytest.mark.spec("AKM-05-012")
     @pytest.mark.spec("AKM-05-007")
     def test_an_object_the_receiver_holds_is_not_fetched(self):
         dl = _replica()
@@ -207,6 +210,7 @@ class TestReferencesToFetch:
 
         assert refs == []
 
+    @pytest.mark.spec("CP-01-014")
     @pytest.mark.spec("CP-01-009")
     def test_a_proposers_profile_named_by_id_is_fetched_from_the_proposer(
         self,
@@ -233,7 +237,7 @@ class TestReferencesToFetch:
 
         assert references_to_fetch(_proposal(profile), dl, _CASE_ACTOR) == []
 
-    @pytest.mark.spec("EMB-18-003")
+    @pytest.mark.spec("EMB-18-007")
     def test_a_replica_fetches_the_replaced_embargo_it_cannot_read(self):
         dl = _replica()
         case = make_case_with_case_manager(dl)
@@ -248,7 +252,7 @@ class TestReferencesToFetch:
         assert refs[0].source is ObjectFetchSource.CASE_HOST
         assert refs[0].use is ObjectFetchUse.STORE
 
-    @pytest.mark.spec("EMB-18-003")
+    @pytest.mark.spec("EMB-18-007")
     def test_a_replica_holding_the_replaced_embargo_fetches_nothing(self):
         dl = _replica()
         case = make_case_with_case_manager(dl)
@@ -263,7 +267,7 @@ class TestReferencesToFetch:
 
         assert refs == []
 
-    @pytest.mark.spec("EMB-18-003")
+    @pytest.mark.spec("EMB-18-007")
     def test_the_case_manager_does_not_fetch_the_replaced_embargo(self):
         dl = _replica(CASE_MANAGER_ID)
         case = make_case_with_case_manager(dl)
@@ -276,7 +280,7 @@ class TestReferencesToFetch:
 
         assert refs == []
 
-    @pytest.mark.spec("EMB-18-003")
+    @pytest.mark.spec("EMB-18-007")
     def test_an_announced_embargo_that_is_the_active_one_fetches_nothing(
         self,
     ):
@@ -382,6 +386,7 @@ class TestCaseObjectForParticipant:
 
         assert isinstance(found, VulnerabilityCase)
 
+    @pytest.mark.spec("AKM-05-009")
     @pytest.mark.spec("AKM-05-006")
     def test_a_non_participant_is_refused(self):
         dl, case = self._host()
@@ -425,6 +430,7 @@ class TestCaseObjectForParticipant:
                 dl, CASE_MANAGER_ID, case.id_, case.id_, _PARTICIPANT
             )
 
+    @pytest.mark.spec("AKM-05-009")
     @pytest.mark.spec("AKM-05-006")
     def test_an_object_the_case_does_not_name_is_not_found(self):
         dl, case = self._host()
@@ -467,6 +473,7 @@ class TestCaseObjectForParticipant:
                 dl, _PARTICIPANT, case.id_, case.id_, _PARTICIPANT
             )
 
+    @pytest.mark.spec("AKM-05-009")
     @pytest.mark.spec("AKM-05-006")
     def test_a_case_the_host_does_not_hold_is_not_found(self):
         dl, _ = self._host()

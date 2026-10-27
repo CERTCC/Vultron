@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Parse-edge refusals for the ``Create(CaseProposal)`` envelope (CP-01-010).
+"""Parse-edge refusals for the ``Create(CaseProposal)`` envelope (CP-01-015).
 
 The CASE_MANAGER reads the CASE_OWNER's actor default only from the
 proposer's own actor profile: the one the proposer sends inline as the
@@ -24,7 +24,7 @@ envelope's shape is checked where it arrives, and a proposal that can supply
 neither is refused naming the fault rather than created under a default
 nobody stated (ADR-0032: validate at the edge).
 
-The third CP-01-010 fault, a profile carrying another actor's
+The third parse-edge fault, a profile carrying another actor's
 ``embargoPolicy``, is refused by ``CoreActor`` itself when the parser
 validates the inline profile (EP-01-001), so it needs no check here.
 """
@@ -84,7 +84,7 @@ def refuse_malformed_case_proposal_envelope(activity: as_Activity) -> None:
                 f"Create(CaseProposal) {activity.id_!r}: the actor {actor!r}"
                 " differs from the proposal's attributedTo"
                 f" {proposal.attributed_to!r}; the actor must be the"
-                " proposer (CP-01-010)"
+                " proposer (CP-01-015)"
             )
         return
     if not isinstance(actor, CoreActor) or type(actor) is CoreActor:
@@ -92,14 +92,14 @@ def refuse_malformed_case_proposal_envelope(activity: as_Activity) -> None:
             f"Create(CaseProposal) {activity.id_!r}: {_describe_actor(actor)};"
             " the proposer's actor profile must be inline or named by its id,"
             " because it carries the CASE_OWNER's embargo policy (CP-01-009,"
-            " CP-01-010)"
+            " CP-01-015)"
         )
     if actor.id_ != proposal.attributed_to:
         raise VultronParseValidationError(
             f"Create(CaseProposal) {activity.id_!r}: the inline actor profile"
             f" {actor.id_!r} differs from the proposal's attributedTo"
             f" {proposal.attributed_to!r}; the profile must be the"
-            " proposer's own (CP-01-010)"
+            " proposer's own (CP-01-015)"
         )
 
 

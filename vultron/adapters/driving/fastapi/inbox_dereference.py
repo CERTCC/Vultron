@@ -46,6 +46,7 @@ from vultron.adapters.inbox_staging import InlineObjectStaging
 from vultron.config import get_config
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
+from vultron.core.models.deferred_inbox_activity import DeferredInboxActivity
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.object_fetch import (
     ObjectFetchState,
@@ -59,7 +60,6 @@ from vultron.core.services.dereference import references_to_fetch
 from vultron.errors import (
     VultronError,
     VultronValidationError,
-    VultronWiringError,
 )
 from vultron.primitives import same_actor_id
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -287,7 +287,7 @@ def settle_fetch(
             logger.warning(
                 "Fetch of '%s' from %s for actor_id=%s failed after %d"
                 " attempt(s): %s; waiting activities %s go on without it"
-                " (AKM-05-008)",
+                " (AKM-05-014)",
                 object_id,
                 fetch.host_actor_id,
                 actor_id,
@@ -325,7 +325,12 @@ def settle_fetch(
 def _queue_ready_waiters(
     dl: DataLayer, waiters: list[str]
 ) -> tuple[list[str], list[str]]:
-    """Queue each waiter that waits on no other open fetch.
+    """Queue each held waiter that waits on no other open fetch.
+
+    A waiter is checked for its held body before its other fetches: one
+    nothing holds is reported now, whether or not another fetch is still
+    open, so the record settling now does not keep it.  A settled record
+    that kept it would never be released (CP-01-010).
 
     Returns:
         The waiters queued for replay, and those not held for one: nothing
@@ -340,11 +345,7 @@ def _queue_ready_waiters(
     queued: list[str] = []
     unheld: list[str] = []
     for waiter in waiters:
-        if waiter in still_waiting:
-            continue
-        try:
-            replay.replay_held(waiter)
-        except VultronWiringError:
+        if not _is_held(dl, waiter):
             logger.warning(
                 "Activity %s waited on a fetch but is not held for its"
                 " replay, so it is not replayed (DL-06-006)",
@@ -352,8 +353,19 @@ def _queue_ready_waiters(
             )
             unheld.append(waiter)
             continue
+        if waiter in still_waiting:
+            continue
+        replay.replay_held(waiter)
         queued.append(waiter)
     return queued, unheld
+
+
+def _is_held(dl: DataLayer, activity_id: str) -> bool:
+    """Whether *dl* holds *activity_id* whole for its replay."""
+    return isinstance(
+        dl.read(DeferredInboxActivity.build_id(activity_id)),
+        DeferredInboxActivity,
+    )
 
 
 def _drop_waiters(

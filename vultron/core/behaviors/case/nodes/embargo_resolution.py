@@ -303,7 +303,7 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
         ):
             self.feedback_message = (
                 f"no inline actor profile for case owner {owner_id!r} to read"
-                f" the actor default from (got {profile!r}; CP-01-010)"
+                f" the actor default from (got {profile!r}; CP-01-018)"
             )
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

@@ -168,7 +168,7 @@ def _replaced_embargo_references(
     Applying an announced revision compares it with the embargo it replaces
     (EP-05-001, CM-31-010), so a replica fetches a replaced embargo it does
     not hold from the case host before it applies the revision; only a
-    failed fetch refuses (EMB-18-003).
+    failed fetch refuses (EMB-18-007).
     """
     host = _case_host_of(dl, event.case_id, receiving_actor_id)
     if host is None:
@@ -193,7 +193,7 @@ def references_to_fetch(
     Empty when the receiver holds everything the event needs, or when no one
     the receiver could ask holds more than it does.  The receiver never asks
     itself: a CASE_MANAGER lacking a case object has no one to fetch it from,
-    so its existing refusal stands (EMB-18-003).
+    so its existing refusal stands (AKM-05-011, EMB-18-003).
 
     Args:
         event: The extracted received event.
