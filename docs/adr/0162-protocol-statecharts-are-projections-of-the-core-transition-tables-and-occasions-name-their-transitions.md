@@ -27,7 +27,8 @@ How do the protocol's state machines get a representation that the occasions can
 ## Decision Drivers
 
 - Every fact has one owner, and documentation is a projection of the code ([ADR-0128](0128-message-vocabulary-docs-are-projections-of-the-semantic-registry.md)).
-- The transition tables in `vultron/core/states/` are what receivers enforce, including the EM table that the embargo register is checked against (EMB-18-006).
+- The transition tables in `vultron/core/states/` are what an actor's own moves are held to (CSB-16-001), and every embargo register step is checked against the EM table (EMB-18-006).
+  A receiver is more lenient: it accepts a declared RM or public-state move that skips states, as long as it moves forward (RSH-06-001, RSH-09-003).
 - A statechart is a standard notation for `event [condition]` transitions, and a chart file could later describe the protocol outside this codebase.
 - The core layer must not depend on the message vocabulary, which sits above it in the semantic registry.
 - Conformance checking and running the charts are out of scope for now.
@@ -46,28 +47,36 @@ Chosen option: "Charts generated from the core tables; occasions name their tran
 
 Core transition tables → generated statecharts → occasions that name chart transitions → generated documentation.
 No later stage writes an earlier one.
+Everything a chart holds comes from the core layer: each machine's module declares its initial and final states and the condition names of its register-dependent moves beside its table, so the generator only translates and adds no fact of its own.
 
 ### Charts are generated and committed
 
 A generator writes one statechart per machine in Sismic's YAML format: RM, the vendor fix path (VF), the deployer path (D), the public state (PXA), EM, and PEC.
 One PEC chart describes one consent row, since consent is held per (participant, embargo register entry) ([ADR-0122](0122-per-embargo-participant-consent.md)).
-The embargo register is the stored data EM is computed from ([ADR-0130](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md)), not a machine of its own, so it gets no chart.
+The embargo register is the stored data EM is computed from ([ADR-0130](0130-em-is-computed-from-the-embargo-register-under-the-em-transition-table.md)), so it gets no chart.
+Each register entry does have a lifecycle table of its own, but that lifecycle is bookkeeping beneath EM: no message names a register trigger, and other participants see its effect only as EM and consent moves.
 The charts are committed and gated by a `--check` hook that regenerates them and fails on any difference, as the occasion YAML is.
 They hold states, the initial and final states, and transitions with an event, a target and, where needed, a named condition.
 They hold no send actions: which message a transition carries is the occasion's fact, read when the documentation is generated.
 
 ### EM's register-dependent moves are named conditions
 
-The EM table is not deterministic on its trigger alone: from Proposed, a rejection returns to None only when it removes the last open proposal, and otherwise EM stays in Proposed; acceptance and Revise behave the same way.
+The EM table is not deterministic on its trigger alone: four (source, trigger) pairs each have two destinations, and which one is taken depends on whether another proposal stays open.
+From Proposed, a rejection returns to None when it removes the last open proposal, and otherwise EM stays in Proposed.
+From Proposed, an acceptance moves to Active, or to Revise while another proposal stays open.
+From Revise, a rejection or an acceptance moves to Active when it removes the last open proposal, and otherwise EM stays in Revise.
 The EM chart charts every move of the table, telling the alternatives apart by a named condition such as "last open proposal".
-A named condition is a name defined in prose, not an expression in any language, so the chart stays independent of this implementation.
+A named condition is an identifier whose meaning is defined in prose, not an expression in any language, so the chart stays independent of this implementation.
+The condition names are declared in `vultron/core/states/em.py` beside the table, and a test fails when a two-destination pair has none.
 
 ### Occasions name their transitions
 
-An occasion that moves a machine declares the transition it carries, by the machine's trigger, and whose state moves: the sender's, the receiver's, or the case's.
-"Whose" is declared rather than derived, because no rule on the machine alone gives it: a report submission moves the receiver's RM, not the sender's, and a participant's public-state observation is adopted into the case's state.
-A declaration is checked against the table (the trigger exists on that machine) and against the scoping rules (a participant-specific machine never moves the case's state, and a participant-agnostic machine never moves a participant's).
-An occasion that moves no machine, such as a note or a ledger replication, declares none.
+An occasion that moves a machine declares each transition it carries, by the machine's trigger, and whose state each one moves: the sender's, the receiver's, or the case's.
+An occasion may declare more than one: a participant's acceptance of an embargo moves its own consent row (PEC) and can move the case's EM.
+"Whose" is declared rather than derived, because no rule on the machine alone gives it.
+SM-10-001 has a received RM or VFD move update the sender's status, but a report submission moves the receiver's RM, not the sender's, and a participant's public-state observation is adopted into the case's state.
+A declaration is checked against the table (the trigger exists on that machine) and against the scoping rules: a participant-specific machine (RM, VF, D, and PEC, whose row belongs to one participant) never moves the case's state, and a participant-agnostic machine (EM, PXA) never moves a participant's (SM-10-003).
+An occasion that moves no machine, such as a note, a ledger replication, an acknowledgment or an error, declares none.
 
 ### Documentation is generated from the charts and the occasions
 
@@ -78,11 +87,12 @@ The state diagrams on the process-model and protocol specification pages are gen
 
 Sismic is a dev-only dependency, used by a test that loads every generated chart, so a key the generator writes wrong fails a test.
 The `transitions` library stays the runtime state-machine library (SM-02-001).
-An export to SCXML, the W3C statechart format, is left for later; the charts' vocabulary has a one-to-one SCXML form.
+An export to SCXML, the W3C statechart format, is left for later.
+States, events and targets map directly onto SCXML; a named condition has no SCXML expression of its own and would map to a `cond` that names an externally defined predicate, which is why condition names are identifiers.
 
 ### Consequences
 
-- Good, because an occasion's effect and the state diagrams can no longer drift from the tables receivers enforce.
+- Good, because an occasion's effect and the state diagrams can no longer drift from the tables that actors' own moves and the embargo register are held to.
 - Good, because the protocol's state behaviour gets a file in a standard notation that a later decision can publish.
 - Good, because the core layer stays independent of the message vocabulary.
 - Bad, because a chart cannot be read on its own to learn which message a transition carries; that needs the occasions.
@@ -91,7 +101,7 @@ An export to SCXML, the W3C statechart format, is left for later; the charts' vo
 
 ## Validation
 
-- The `--check` hook fails when a committed chart differs from a fresh generation.
+- The `--check` hook fails when a committed chart differs from a fresh generation, and a test fails when the committed chart set is not exactly RM, VF, D, PXA, EM and PEC.
 - A test loads every generated chart with Sismic.
 - A test fails when an occasion names a trigger its machine does not have, or declares whose state moves against the scoping rules.
 - The generated effect lines and diagrams are committed fragments under the same `--check` gate.
@@ -109,7 +119,7 @@ An export to SCXML, the W3C statechart format, is left for later; the charts' vo
 The issue's prototype: an RM chart written by hand, with the Python table checked against it.
 
 - Good, because a chart could be authored and versioned apart from this implementation.
-- Bad, because the protocol's state behaviour then has two owners, a chart and the table receivers enforce, and one of them is checked against the other instead of derived.
+- Bad, because the protocol's state behaviour then has two owners, a chart and the table actors' moves are held to, and one of them is checked against the other instead of derived.
 - Bad, because the EM table's register-dependent moves are hard to hand-write correctly and easy to leave out.
 
 ### No charts

@@ -70,10 +70,11 @@ class EM_Trigger(StrEnum):
 
 
 #: The EM transition table (ADR-0130, EMB-18-005): ``trigger → {(source,
-#: destination)}``.  With several proposals open, EM leaves ``PROPOSED`` or
-#: ``REVISE`` only when the last open proposal is off the table, so ``reject``
-#: and ``accept`` each have a move that stays put.  Normative: every embargo
-#: register step is checked against it (EMB-18-006).
+#: destination)}``.  With several proposals open, ``reject`` leaves ``PROPOSED``,
+#: and ``reject`` or ``accept`` leaves ``REVISE``, only when the last open
+#: proposal is off the table; ``accept`` from ``PROPOSED`` always leaves it, for
+#: ``ACTIVE``, or for ``REVISE`` while another proposal stays open.  Normative:
+#: every embargo register step is checked against it (EMB-18-006).
 EM_TRANSITIONS: Mapping[EM_Trigger, frozenset[tuple[EM, EM]]] = (
     MappingProxyType(
         {

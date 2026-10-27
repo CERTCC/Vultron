@@ -306,13 +306,15 @@ groups:
       statechart in Sismic's YAML format that is generated from that machine's
       transition table in the core layer.
     rationale: >-
-      The transition tables are what receivers enforce. A generated chart gives the
-      occasions and the documentation one representation to refer to, with no second
-      owner of the protocol's state behaviour (ADR-0128). The embargo register is the
-      data EM is computed from, not a machine, so it has no chart.
+      The transition tables are what an actor's own moves and every embargo register
+      step are held to. A generated chart gives the occasions and the documentation
+      one representation to refer to, with no second owner of the protocol's state
+      behaviour (ADR-0128). The embargo register's per-entry lifecycle is bookkeeping
+      beneath EM that no message names, so it has no chart.
     verification: >-
       A pre-commit `--check` hook regenerates every chart and fails when a committed
-      chart differs from the fresh generation.
+      chart differs from the fresh generation, and a unit test asserts that the
+      committed chart set is exactly RM, VF, D, PXA, EM and PEC.
     adr:
     - ADR-0162
   - id: SM-11-002
@@ -322,8 +324,9 @@ groups:
       A generated statechart MUST chart every transition of its machine's table and
       no other transition.
     rationale: >-
-      A chart that omits the EM stay-put moves would describe less than receivers
-      enforce, which is the drift the charts exist to remove.
+      A chart that omits the EM register-dependent moves would describe less than the
+      table the embargo register is held to, which is the drift the charts exist to
+      remove.
     verification: >-
       A unit test asserts that the transitions read back from each generated chart
       equal the (trigger, source, destination) triples of its table.
@@ -337,16 +340,20 @@ groups:
     kind: project
     statement: >-
       Two chart transitions that share a source state and a trigger MUST be told apart
-      by a named condition that the protocol documentation defines in prose.
+      by a named condition: an identifier declared in the core layer beside the
+      machine's transition table and defined in prose in the protocol documentation.
     rationale: >-
-      EM leaves Proposed or Revise only when the last open proposal is off the table
-      (ADR-0130), so its table has two moves for one trigger from one state. A named
-      condition keeps the chart free of any implementation language, so a later SCXML
-      export stays possible.
+      Whether an EM rejection or acceptance leaves Proposed or Revise for a given
+      state depends on whether another proposal stays open (ADR-0130), so the EM table
+      has two moves for one trigger from one state. Declaring the name beside the table
+      keeps the core layer the one owner, so the generator adds no fact. An identifier
+      keeps the chart free of any implementation language, and a later SCXML export
+      can map it to a `cond` naming an externally defined predicate.
     verification: >-
-      A unit test asserts that every pair of chart transitions with one source and one
-      trigger carries distinct condition names, and that each name is defined on the
-      EM documentation page.
+      A unit test asserts that every (source, trigger) pair with two destinations in a
+      core transition table has a distinct condition name declared for each
+      destination, that the generated chart carries those names, and that each name is
+      defined on the EM documentation page.
     relationships:
     - rel_type: depends_on
       spec_id: SM-11-002
@@ -372,8 +379,9 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      The state diagrams on the process-model and protocol specification pages MUST be
-      committed mermaid fragments generated from the statecharts.
+      Each state diagram of a single charted machine on the process-model and protocol
+      specification pages MUST be a committed mermaid fragment generated from that
+      machine's statechart.
     rationale: >-
       The hand-written diagrams are held to the tables by no check. Labels name the
       messages whose occasions declare each transition (MSM-08-012), so the diagrams
@@ -381,7 +389,9 @@ groups:
     verification: >-
       The `--check` hook fails when a committed diagram fragment differs from a fresh
       generation, and a test asserts that no page under `docs/` holds a hand-written
-      `stateDiagram` block for a charted machine.
+      `stateDiagram` block whose state names are exactly one charted machine's states.
+      Diagrams of several machines together, such as the CS product diagram, are out
+      of scope.
     relationships:
     - rel_type: depends_on
       spec_id: SM-11-001
