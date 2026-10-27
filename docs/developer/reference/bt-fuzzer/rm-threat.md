@@ -16,7 +16,7 @@ The received-side behavior tree (BT) of the CASE_MANAGER, `add_participant_statu
 The nodes below model what that monitoring actor watches for.
 None of them is wired into the received-side pipeline of the CASE_MANAGER.
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## `MonitorAttacks`
 

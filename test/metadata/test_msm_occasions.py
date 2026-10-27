@@ -807,7 +807,13 @@ def test_the_message_types_page_opens_with_the_whole_table():
     text = (_MESSAGES / "index.md").read_text(encoding="utf-8")
     directive = text.index(f'"./{_FROM_PAGES}/lookup.md"')
     assert directive < text.index("\n## ")
-    assert _includes(_MESSAGES / "index.md") == [f"{_FROM_PAGES}/lookup.md"]
+    # The page's reading-path box (DF-11-023) is not an occasion fragment.
+    occasions = [
+        path
+        for path in _includes(_MESSAGES / "index.md")
+        if path.startswith(f"{_FROM_PAGES}/")
+    ]
+    assert occasions == [f"{_FROM_PAGES}/lookup.md"]
 
 
 _QUICK_REFERENCE = _DOCS / "reference/quick_reference.md"

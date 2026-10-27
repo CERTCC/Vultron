@@ -128,6 +128,23 @@ class LedgerEntryRejectPattern(ActivityPattern):
         return is_genesis_replay_reject(activity)
 
 
+class LedgerPositionReadPattern(ActivityPattern):
+    """``Read(CaseLedgerEntry)``: a participant's stated ledger position.
+
+    The entry goes by reference (SYNC-17-001), and the receiver may not hold
+    it, so a bare id in ``object_`` matches as the base pattern lets it.
+    What makes the ``Read`` a position statement is the ``ledgerPosition``
+    it carries: a ``Read`` without one is not matched here, so an
+    acknowledgment ``Read`` whose object did not resolve is never read as a
+    ledger position.
+    """
+
+    def match(self, activity: as_Activity) -> bool:
+        if getattr(activity, "ledger_position", None) is None:
+            return False
+        return super().match(activity)
+
+
 def _match_activity_field(
     pattern_field: AOtype | VOtype | ActivityPattern | None,
     activity_field: object,

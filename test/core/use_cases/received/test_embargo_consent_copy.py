@@ -17,7 +17,8 @@ The CASE_MANAGER decides, trial-applies, commits, then applies
 (``commit_and_apply_embargo_entries``); each changed consent row is its own
 ``Create``/``Update(EmbargoConsent)`` entry, and a replica copies it through
 the same apply function.  An entry that does not apply to a replica's case
-goes to gap handling and is never patched over (ADR-0124).
+goes to gap handling and is never patched over (ADR-0124), and the replica
+reports the divergence to the CASE_MANAGER (SYNC-16-001).
 """
 
 from typing import Any, cast
@@ -38,6 +39,7 @@ from vultron.core.behaviors.embargo.copy_commit import (
     consent_row_entry,
 )
 from vultron.core.behaviors.sync import commit_tree
+from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_apply import (
     ConsentRowChange,
@@ -47,16 +49,24 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     UPDATE_EMBARGO_CONSENT_SEMANTIC_TYPE,
 )
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
+)
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
-from vultron.errors import VultronEntryRefusedError
+from vultron.errors import (
+    VultronBTInternalError,
+    VultronEntryRefusedError,
+    VultronValidationError,
+)
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
 _S = EmbargoConsentState
 _CAUSE = "https://example.org/activities/the-act"
+_CASE_DIVERGED = VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED
 
 
 def _net(name: str) -> LedgerNetwork:
@@ -122,6 +132,32 @@ def _drop_row(net: LedgerNetwork, holder: str, actor_id: str) -> None:
         if row.embargo_id != net.initial_embargo_id
     ]
     net.stores[holder].save(record)
+
+
+def _diverged_announcement(net: LedgerNetwork) -> dict[str, Any]:
+    """The CASE_MANAGER's announce of an entry the bystander has diverged from.
+
+    The bystander's replica lost its consent row, so the committed entry
+    updating that row extends its chain but does not apply to its case.
+    """
+    _drop_row(net, BYSTANDER, BYSTANDER)
+    commit_and_apply_embargo_entries(
+        net.stores[MANAGER],
+        net.case_id,
+        [_entry(net, _row_change(net, BYSTANDER, _S.DECLINED))],
+    )
+    (body,) = _announcements(net, BYSTANDER)
+    return body
+
+
+def _faults(net: LedgerNetwork) -> list[dict[str, Any]]:
+    """The sealed ``Create(ProcessingFault)`` bodies the bystander queued."""
+    bodies = []
+    for activity in net.queued(BYSTANDER, to=MANAGER, type_="Create"):
+        body = read_sealed_body_dict(net.stores[BYSTANDER], activity.id_)
+        if ((body or {}).get("object") or {}).get("type") == "ProcessingFault":
+            bodies.append(cast(dict[str, Any], body))
+    return bodies
 
 
 def _rows(record: CaseParticipant) -> list[dict[str, Any]]:
@@ -335,6 +371,142 @@ class TestReplicaCopies:
         assert replica.read(entry_id) is None, "a refused entry is not stored"
         assert held_depth(replica, net.case_id) == 1
         assert _rows(_record(net, BYSTANDER, BYSTANDER)) == _rows(diverged)
+
+    @pytest.mark.spec("SYNC-16-001")
+    @pytest.mark.spec("ASK-07-004")
+    @pytest.mark.spec("ID-04-004")
+    def test_a_diverged_replica_tells_the_case_manager_and_no_one_else(self):
+        """The refusal of an entry that extends the chain is a divergence.
+
+        The replica queues one ``LedgerEntryRefused/CaseDiverged`` fault,
+        naming the refused ``Announce`` by reference, to the CASE_MANAGER
+        alone; the entry stays held and the announce is still deferred.  A
+        redelivery of the same ``Announce`` names the same fault.
+        """
+        net = _net("cc-diverged")
+        replica = net.stores[BYSTANDER]
+        body = _diverged_announcement(net)
+
+        verdict = net.receive(BYSTANDER, body)
+
+        assert verdict.disposition is HandlerDisposition.DEFERRED
+        assert held_depth(replica, net.case_id) == 1
+        assert replica.read(body["object"]["id"]) is None
+        (fault,) = _faults(net)
+        assert fault["id"] == derived_activity_id(
+            "processing-fault", BYSTANDER, body["id"], _CASE_DIVERGED
+        )
+        assert fault["to"] == [MANAGER]
+        assert not any(fault.get(k) for k in ("cc", "bto", "bcc"))
+        assert fault["object"]["failureClass"] == _CASE_DIVERGED
+        assert fault["object"]["inReplyTo"] == body["id"]
+
+        net.receive(BYSTANDER, body)
+
+        assert [f["id"] for f in _faults(net)] == [fault["id"]]
+
+    @pytest.mark.spec("SYNC-16-001")
+    @pytest.mark.spec("SYNC-14-006")
+    def test_a_divergence_the_bound_cannot_hold_is_still_reported(
+        self, monkeypatch
+    ):
+        """A full holding area drops the Announce, not the fault."""
+        from vultron.core.services import held_ledger_announces
+
+        monkeypatch.setattr(
+            held_ledger_announces, "DEFAULT_HELD_LEDGER_ANNOUNCES_MAX", 0
+        )
+        net = _net("cc-diverged-full")
+        body = _diverged_announcement(net)
+
+        verdict = net.receive(BYSTANDER, body)
+
+        assert verdict.disposition is HandlerDisposition.REFUSED
+        assert held_depth(net.stores[BYSTANDER], net.case_id) == 0
+        (fault,) = _faults(net)
+        assert fault["object"]["failureClass"] == _CASE_DIVERGED
+
+    @pytest.mark.spec("SYNC-16-001")
+    def test_a_divergence_without_a_trigger_port_is_a_wiring_fault(self):
+        """No port is a composition fault, raised, never a silent hold.
+
+        The hold shares the fault's transaction, so it is rolled back with
+        it: no ``Announce`` stays held without its fault (ASK-07-010), and
+        a redelivery to a correctly wired replica runs the act again.
+        """
+        net = _net("cc-diverged-no-port")
+        body = _diverged_announcement(net)
+
+        with pytest.raises(VultronBTInternalError):
+            net.receive(
+                BYSTANDER, body, without=frozenset({"trigger_activity"})
+            )
+
+        assert _faults(net) == []
+        assert held_depth(net.stores[BYSTANDER], net.case_id) == 0
+
+    @pytest.mark.spec("SYNC-16-001")
+    @pytest.mark.spec("ASK-07-010")
+    def test_a_fault_that_cannot_be_queued_rolls_back_the_hold(
+        self, monkeypatch
+    ):
+        """A port that fails to queue the fault is an internal error.
+
+        The refusal is not reported as handled with its fault lost: the use
+        case raises, and the held ``Announce`` is rolled back with the
+        failed fault.  A redelivery once the port works holds it and
+        reports it.
+        """
+
+        def _fail(*args: Any, **kwargs: Any) -> None:
+            raise VultronValidationError("the outbox refused the fault")
+
+        net = _net("cc-diverged-port-fails")
+        body = _diverged_announcement(net)
+        with monkeypatch.context() as patched:
+            patched.setattr(
+                TriggerActivityAdapter, "emit_processing_fault", _fail
+            )
+            with pytest.raises(VultronBTInternalError):
+                net.receive(BYSTANDER, body)
+
+        assert _faults(net) == []
+        assert held_depth(net.stores[BYSTANDER], net.case_id) == 0
+
+        verdict = net.receive(BYSTANDER, body)
+
+        assert verdict.disposition is HandlerDisposition.DEFERRED
+        assert held_depth(net.stores[BYSTANDER], net.case_id) == 1
+        (fault,) = _faults(net)
+        assert fault["object"]["failureClass"] == _CASE_DIVERGED
+
+    @pytest.mark.spec("SYNC-16-002")
+    @pytest.mark.spec("CLP-04-007")
+    def test_no_case_ledger_gains_an_entry_for_a_divergence_fault(self):
+        """Neither the replica sending the fault nor the CASE_MANAGER
+        receiving it commits it to a case ledger."""
+        net = _net("cc-diverged-unledgered")
+        body = _diverged_announcement(net)
+        manager_before = committed_semantic_types(
+            net.stores[MANAGER], net.case_id
+        )
+        replica_before = committed_semantic_types(
+            net.stores[BYSTANDER], net.case_id
+        )
+
+        net.receive(BYSTANDER, body)
+        verdicts = net.deliver(BYSTANDER, to=MANAGER, type_="Create")
+
+        ((_, verdict),) = verdicts
+        assert verdict.disposition is HandlerDisposition.SKIPPED
+        assert (
+            committed_semantic_types(net.stores[MANAGER], net.case_id)
+            == manager_before
+        )
+        assert (
+            committed_semantic_types(net.stores[BYSTANDER], net.case_id)
+            == replica_before
+        )
 
     @pytest.mark.spec("CM-23-016")
     @pytest.mark.spec("SYNC-14-006")

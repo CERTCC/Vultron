@@ -11,113 +11,75 @@
 #  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""Trigger helper for LedgerReconciliation: replay missing log entries on hash-chain rejection.
+"""Trigger helper for LedgerReconciliation: a participant states its positions.
 
 Public entry point:
 
-- :func:`replay_missing_entries_trigger`
+- :func:`state_ledger_positions_trigger`
 
-Spec: SYNC-03-001, SYNC-03-002.
+Spec: SYNC-17-001, SYNC-17-007.
 
-Note: ``commit_log_entry_trigger`` was removed (BT-06-006).  All ledger
-commits now go through :class:`~vultron.core.behaviors.case.nodes.lifecycle.CommitCaseLedgerEntryNode`
-via ``BTBridge.execute_with_setup()``.
+Note: ``commit_log_entry_trigger`` was removed (BT-06-006), and so was
+``replay_missing_entries_trigger``, whose only caller was a test: a replay is
+the CASE_MANAGER's answer to a ``Reject`` or a ``Read(CaseLedgerEntry)``, run
+by ``ReplayMissingEntriesNode`` in the received tree (SYNC-03-002,
+SYNC-17-004).
 """
 
 from __future__ import annotations
 
 import logging
 
-from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from py_trees.common import Status
+
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.sync.state_positions_tree import (
+    create_state_ledger_positions_tree,
+)
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
-from vultron.errors import VultronError
+from vultron.errors import VultronBTInternalError
 
 logger = logging.getLogger(__name__)
 
 
-def replay_missing_entries_trigger(
-    case_id: str,
-    peer_id: str,
-    from_hash: str,
-    case_actor_id: str,
+def state_ledger_positions_trigger(
     dl: CaseOutboxPersistence,
-    sync_port: SyncActivityPort | None = None,
+    actor_id: str,
+    sync_port: SyncActivityPort,
 ) -> int:
-    """Replay all log entries after *from_hash* to a specific peer.
+    """Queue ``Read(CaseLedgerEntry)`` for each case replica *actor_id* holds.
 
-    Queries all :class:`~vultron.core.models.case_ledger_entry.CaseLedgerEntry`
-    records for *case_id*, finds entries with ``log_index`` strictly greater
-    than the index of the entry whose ``entry_hash`` matches *from_hash*,
-    and queues an ``Announce(CaseLedgerEntry)`` activity for each to *peer_id*.
-
-    When *from_hash* is ``""`` (empty string, indicating no entry acknowledged)
-    or is not found among stored entries, ALL entries for the case are replayed.
+    Each names the tail of the actor's replica and goes to the case's
+    CASE_MANAGER, so a participant that missed the last entry before a quiet
+    period is caught up without waiting for a new commit (SYNC-17-001,
+    SYNC-17-007, ADR-0155).  The reference participant runs it after a
+    restart and, when configured, on an interval.  The work runs in one
+    behavior tree (SBT-01-001); the queued activities go out by the outbox.
 
     Args:
-        case_id: URI of the parent :class:`VulnerabilityCase`.
-        peer_id: URI of the participant who needs the missing entries.
-        from_hash: ``entry_hash`` of the last entry acknowledged by *peer_id*.
-        case_actor_id: URI of the CaseActor sending the announcements.
-        dl: CaseOutboxPersistence instance for persistence and outbox access.
+        dl: The actor's own store; its outbox receives the statements.
+        actor_id: The participant stating its positions.
+        sync_port: Builds and queues each ``Read(CaseLedgerEntry)``.
 
     Returns:
-        The number of entries replayed (i.e. queued for delivery).
+        The number of statements queued.
 
-    Spec: SYNC-03-002.
+    Raises:
+        VultronBTInternalError: The tree failed.
     """
-    entries: list[CaseLedgerEntry] = [
-        obj
-        for obj in dl.list_objects("CaseLedgerEntry")
-        if isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
-    ]
-
-    if not entries:
-        logger.debug(
-            "sync replay: no entries for case '%s' — nothing to replay",
-            case_id,
+    tree = create_state_ledger_positions_tree()
+    result = BTBridge(datalayer=dl, sync_port=sync_port).execute_with_setup(
+        tree=tree, actor_id=actor_id
+    )
+    if result.status != Status.SUCCESS:
+        raise VultronBTInternalError(
+            f"StateLedgerPositionsBT: {result.feedback_message}"
         )
-        return 0
-
-    entries.sort(key=lambda e: e.log_index)
-
-    # Find the log_index of the entry matching from_hash.
-    # If not found (e.g. "" empty string or unknown hash), start from index -1
-    # so all entries are replayed.
-    from_index = -1
-    for entry in entries:
-        if entry.entry_hash == from_hash:
-            from_index = entry.log_index
-            break
-
-    missing = [e for e in entries if e.log_index > from_index]
-    if not missing:
-        logger.debug(
-            "sync replay: peer '%s' is already up-to-date for case '%s'",
-            peer_id,
-            case_id,
-        )
-        return 0
-
-    if sync_port is None:
-        raise VultronError(
-            "replay_missing_entries_trigger: sync_port must be injected — "
-            "no adapter fallback is available in the core layer."
-        )
-
-    replayed = 0
-    for entry in missing:
-        sync_port.send_announce_log_entry(
-            entry=entry,
-            actor_id=case_actor_id,
-            to=[peer_id],
-        )
-        logger.info(
-            "sync replay: queued Announce(CaseLedgerEntry) "
-            "(log_index=%d) → '%s'",
-            entry.log_index,
-            peer_id,
-        )
-        replayed += 1
-
-    return replayed
+    logger.info(
+        "sync: actor '%s' stated its ledger position for %d case(s)"
+        " (SYNC-17-007)",
+        actor_id,
+        tree.sent,
+    )
+    return tree.sent

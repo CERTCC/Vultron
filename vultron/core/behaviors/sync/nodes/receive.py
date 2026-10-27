@@ -113,6 +113,10 @@ class CheckEntryHashIntactNode(DataLayerConditionWithPorts):
     stored.  No ``Reject(CaseLedgerEntry)`` is sent:
     a replay would resend the same entry, and the replica's unmoved tail
     already makes the next entry ask for one (SYNC-03-006, SYNC-08-001).
+    The announce tree pairs it with an
+    :class:`~vultron.core.behaviors.sync.nodes.ledger_entry_fault.EmitLedgerEntryFaultNode`
+    fallback, which reports the refusal to the CASE_MANAGER with a
+    ``LedgerEntryRefused/HashMismatch`` fault (SYNC-03-007).
     """
 
     INPUT_PORTS: dict[str, PortInformation] = {

@@ -1,0 +1,3 @@
+The table maps each clause to the explanation page that covers it and to the section of the [Vultron Protocol Specification](../vultron-spec/index.md) that states the requirement.
+Transitions are written as the state before and after, with the formal message name in parentheses.
+The protocol side names the Report Management (RM) and Embargo Management (EM) state machines, each participant's [Participant Embargo Consent (PEC)](../../topics/behavior_logic/use-cases/embargo-lifecycle.md#which-messages-move-consent), and the two Case State (CS) dimensions: vendor aware, fix ready, fix deployed (VFD) and public aware, exploit public, attacks observed (PXA).

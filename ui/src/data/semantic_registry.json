@@ -257,6 +257,11 @@
       "phrase": "{actor} rejected a ledger entry"
     },
     {
+      "semanticType": "read_case_ledger_entry",
+      "wire": "Read(CaseLedgerEntry)",
+      "phrase": "{actor} stated its ledger position"
+    },
+    {
       "semanticType": "add_case_participant_to_case",
       "wire": "Add(CaseParticipant)[target=VulnerabilityCase]",
       "phrase": "{actor} added {object} as a case participant"

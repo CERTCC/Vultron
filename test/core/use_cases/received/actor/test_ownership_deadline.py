@@ -32,6 +32,7 @@ import pytest
 from test.core.use_cases.received.actor.test_ownership import (
     _CASE_ACTOR_ID,
     _COORDINATOR_ID,
+    _VENDOR2_ID,
     _VENDOR_ID,
     _accept,
     _announces,
@@ -177,9 +178,7 @@ class TestAnExpiredOfferIsClosed:
         )
         before = _semantic_types(dl)
 
-        second, _ = deliver(
-            "https://example.org/users/vendor2", f"{case_id}/offer2"
-        )
+        second, _ = deliver(_VENDOR2_ID, f"{case_id}/offer2")
 
         assert second is HandlerDisposition.APPLIED
         assert _semantic_types(dl) == [
@@ -199,9 +198,7 @@ class TestAnExpiredOfferIsClosed:
         deliver(_COORDINATOR_ID, f"{case_id}/offer", end_time=_future())
         before = _semantic_types(dl)
 
-        second, _ = deliver(
-            "https://example.org/users/vendor2", f"{case_id}/offer2"
-        )
+        second, _ = deliver(_VENDOR2_ID, f"{case_id}/offer2")
 
         assert second is HandlerDisposition.REFUSED
         assert _semantic_types(dl) == before

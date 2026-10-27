@@ -8,7 +8,7 @@ These stub nodes belong to two trees.
 `RMCloseBt` (`vultron/bt/report_management/_behaviors/close_report.py`) models the closure of a report after the Coordinated Vulnerability Disclosure (CVD) workflow ends.
 `RMDoWorkBt` (`vultron/bt/report_management/_behaviors/do_work.py`) is the fallback tree for miscellaneous work on an accepted report.
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## Report closure
 

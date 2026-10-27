@@ -624,6 +624,8 @@ def _copy_node(
     node = ApplyEmbargoTeardownNode()
     node.datalayer = dl
     node.actor_id = ACTOR_ID
+    # A refused step reports the divergence through this port (SYNC-16-001).
+    node.trigger_activity_factory = MagicMock()
     node.activity = type("Carrier", (), {"log_entry": entry})()
     return node
 

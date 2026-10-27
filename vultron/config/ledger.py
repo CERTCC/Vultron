@@ -24,6 +24,9 @@ environment (``VULTRON_LEDGER__CLOCK_SKEW_TOLERANCE_SECONDS`` and friends);
 the ``timedelta`` properties are what the commit-boundary guard consumes.
 
 Per ``specs/case-ledger-processing.yaml`` CLP-14-007, CLP-14-008, CLP-14-009.
+
+It also holds the participant's ledger position statement interval
+(``specs/sync-ledger-replication.yaml`` SYNC-17-007).
 """
 
 from datetime import timedelta
@@ -48,6 +51,13 @@ class LedgerConfig(BaseModel):
         staleness_window_days: How far *behind* the CaseActor's own clock an
             assertion's claimed timestamp may fall before CLP-14-008 rejects
             it.  CLP-14-008 sets the default at seven days.
+        position_statement_interval_seconds: How often a hosted participant
+            states its ledger position for each case it holds, with
+            ``Read(CaseLedgerEntry)``, beyond the statement it sends after
+            every restart (SYNC-17-007).  Off (``None``) by default, because
+            a periodic check costs traffic a deployment should choose.
+            Override via
+            ``VULTRON_LEDGER__POSITION_STATEMENT_INTERVAL_SECONDS``.
     """
 
     clock_skew_tolerance_seconds: int = Field(
@@ -72,6 +82,17 @@ class LedgerConfig(BaseModel):
         description=(
             "CLP-14-008 window on how far behind the CaseActor's clock a "
             "claimed timestamp may be. Default: 7 days."
+        ),
+    )
+
+    position_statement_interval_seconds: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "SYNC-17-007 interval at which each hosted participant states its "
+            "ledger position to each case's CASE_MANAGER with "
+            "Read(CaseLedgerEntry), after the statement every restart sends. "
+            "Default: None (off)."
         ),
     )
 

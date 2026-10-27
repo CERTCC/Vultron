@@ -149,3 +149,5 @@ No solid formula for this point exists, but factors to consider include
 
 - [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — end an active embargo, early or at its agreed time.
 - [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — propose and activate an embargo on a case that has not yet had one end.
+
+{% include-markdown "../../../start/_paths/coordinate-cases/topics__process_models__em__early_termination.md" %}

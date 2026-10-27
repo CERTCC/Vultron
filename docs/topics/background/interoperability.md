@@ -105,3 +105,5 @@ Each part of the documentation supplies one piece of the shared agreement a newc
 | The set of message types those workflows exchange | [Message Types](../../reference/messages/index.md) |
 | What each message means to the Participant who receives it | [Message Semantics](../message_semantics.md) |
 | A concrete wire format for those messages, built on ActivityStreams 2.0 | [Vultron and ActivityPub](../../howto/activitypub/index.md) |
+
+{% include-markdown "../../start/_paths/study-the-process/topics__background__interoperability.md" %}

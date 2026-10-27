@@ -6,22 +6,14 @@ stakeholder_type: [project-contributor]
 
 ## Requirements
 
-The [Protocol Specifications](../../reference/specs/protocol.md) give the behavioral requirements for this tree:
+{% include-markdown "./_requirements_pointer.md" %}
 
 - [RMB-10](../../reference/specs/protocol.md#rmb-10) — Enter RM Valid
 - [RMB-11](../../reference/specs/protocol.md#rmb-11) — Enter RM Invalid
 
-!!! note "Implementation approach"
+{% include-markdown "./_conformant_implementation_note.md" %}
 
-    The behavior tree diagram below shows one conformant implementation of these requirements.
-    Implementations do not have to use behavior trees.
-    Any approach that satisfies the requirements above is conformant.
-
-!!! note "Legacy design diagram"
-
-    The diagram on this page shows the simulator-era design from `vultron/bt/`.
-    It may not match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation that a tool generates automatically from the current implementation.
+{% include-markdown "./_legacy_diagram_note.md" %}
 
 The next figure shows a Report Validation Behavior Tree.
 To begin with (A), if the report is already *Valid*, this behavior does nothing more.

@@ -10,7 +10,7 @@ This tree models how a participant decides which artifacts to publish, prepares 
 The production tree is `create_publication_tree` (`vultron/core/behaviors/report/publication_tree.py`).
 It replaces the flag checks and bypass leaves of the simulator with one intent Evaluator and three per-artifact arms (ADR-0028, BT-20-002).
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## `AllPublished`
 

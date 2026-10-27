@@ -7,7 +7,7 @@ stakeholder_type: [project-contributor]
 These stub nodes belong to `RMValidateBt` (`vultron/bt/report_management/_behaviors/validate_report.py`).
 This sub-tree assesses whether an incoming vulnerability report is credible and valid for the receiving organization.
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## `NoNewValidationInfo`
 

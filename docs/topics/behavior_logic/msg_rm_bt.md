@@ -6,28 +6,13 @@ stakeholder_type: [project-contributor]
 
 ## Requirements
 
-The [Protocol Specifications](../../reference/specs/protocol.md) give the behavioral requirements for this tree:
+{% include-markdown "./_requirements_pointer.md" %}
 
-- [RMB-01](../../reference/specs/protocol.md#rmb-01) — Receive RS (Report Submission)
-- [RMB-02](../../reference/specs/protocol.md#rmb-02) — Receive RI (Report Invalid)
-- [RMB-03](../../reference/specs/protocol.md#rmb-03) — Receive RV (Report Valid)
-- [RMB-04](../../reference/specs/protocol.md#rmb-04) — Receive RD (Report/Case Deferred)
-- [RMB-05](../../reference/specs/protocol.md#rmb-05) — Receive RA (Report/Case Accepted)
-- [RMB-06](../../reference/specs/protocol.md#rmb-06) — Receive RC (Report Closed)
-- [RMB-07](../../reference/specs/protocol.md#rmb-07) — Receive RE (Report Error)
-- [RMB-08](../../reference/specs/protocol.md#rmb-08) — Receive RK (Report Acknowledgment)
+{% include-markdown "./_rm_message_requirements.md" %}
 
-!!! note "Implementation approach"
+{% include-markdown "./_conformant_implementation_note.md" %}
 
-    The behavior tree diagram below shows one conformant implementation of these requirements.
-    Implementations do not have to use behavior trees.
-    Any approach that satisfies the requirements above is conformant.
-
-!!! note "Legacy design diagram"
-
-    The diagram on this page shows the simulator-era design from `vultron/bt/`.
-    It may not match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for documentation that a tool generates automatically from the current implementation.
+{% include-markdown "./_legacy_diagram_note.md" %}
 
 The figure below shows the Process RM Messages Behavior Tree.
 

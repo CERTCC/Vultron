@@ -4,7 +4,8 @@ status: active
 kind: guidance
 description: >
   Rules for outbox delivery reliability: per-pass caps and the queue tail,
-  per-recipient lanes under a per-actor drain lock, batch interruption, store
+  per-recipient lanes under a per-actor drain lock (an optimization, never a
+  correctness argument), batch interruption, store
   sessions under concurrent delivery, retry budgets that must stay finite,
   immediate dead-lettering of a refused sealed body (OX-13-013),
   request-derived ids for responses, the outbox-id idempotency check
@@ -66,6 +67,10 @@ FIFO row and awaited its POST, so rows *completed* in an order unrelated to enqu
 order; every forward gap at a peer is a `Reject` (SYNC-14-002) and every `Reject` a
 suffix replay (SYNC-15-010) queued ahead of the next fan-out (#3602). **OX-01-002 FIFO
 is a property of the queue's pop order, not a delivery guarantee.**
+
+- **Lane order is an optimization, never a correctness argument.** It makes
+  reordering rare, not impossible: a lost row replayed later, or another
+  implementation, delivers in any order. No receiver may need it (SYNC-19-003).
 
 - **One drain per actor, rows in per-recipient lanes.** `outbox_handler` takes a
   per-actor drain lock (OX-01-004) and hands each popped batch to

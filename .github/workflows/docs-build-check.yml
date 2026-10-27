@@ -19,10 +19,11 @@ on:
       # and the scenario table and What's New are vultron/metadata/ generators.
       # vultron/** also covers the gates themselves and what they read
       # (vultron/metadata/docs/: withheld.py, links.py, legacy_urls.py and its
-      # baseline, built_site.py), so a PR editing only a gate reruns it.
+      # baseline, path_boxes.py, built_site.py), so a PR editing only a gate
+      # reruns it.
       - 'vultron/**'
       - 'specs/**'
-      # Runs the built-site gates (DOCBW-03-005/007/008).
+      # Runs the built-site gates (DOCBW-03-005/007/008, DF-11-023).
       - '.github/actions/check-site-publication/**'
       - 'CONTRIBUTING.md'
       - 'ContributionInstructions.md'

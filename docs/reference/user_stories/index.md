@@ -49,3 +49,7 @@ The [User Story Traceability Matrix](traceability.md) is the current record of w
 ## User Stories Table
 
 {% include-markdown "./table.md" %}
+
+{% include-markdown "../../start/_paths/coordinate-cases/reference__user_stories__index.md" %}
+
+{% include-markdown "../../start/_paths/study-the-process/reference__user_stories__index.md" %}

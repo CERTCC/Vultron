@@ -21,7 +21,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from vultron.metadata.base import parse_mkdocs_config
-from vultron.metadata.docs.landing_pages import page_title
+from vultron.metadata.docs.landing_pages import (
+    is_url,
+    page_title,
+    split_nav_item,
+)
 from vultron.metadata.docs.nav_usability.results import Outcome, TaskResult
 from vultron.metadata.docs.nav_usability.suite import Suite
 from vultron.metadata.file_loading import (
@@ -53,17 +57,6 @@ def nav_hash(config_text: str) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
 
 
-def _is_url(value: str) -> bool:
-    return "://" in value
-
-
-def _split(item: object) -> tuple[str | None, object]:
-    if isinstance(item, dict) and len(item) == 1:
-        ((label, value),) = item.items()
-        return str(label), value
-    return None, item
-
-
 class _TreeBuilder:
     def __init__(self, docs_dir: Path) -> None:
         self.docs_dir = docs_dir
@@ -82,12 +75,12 @@ class _TreeBuilder:
     def items(self, items: list[object]) -> list[NavNode]:
         nodes: list[NavNode] = []
         for item in items:
-            label, value = _split(item)
+            label, value = split_nav_item(item)
             if isinstance(value, list):
                 nodes.append(self.group(label or "", value))
             elif isinstance(value, str):
                 shown = label or (
-                    value if _is_url(value) else self.title(value)
+                    value if is_url(value) else self.title(value)
                 )
                 nodes.append(self.node(shown, value))
         return nodes
@@ -98,7 +91,7 @@ class _TreeBuilder:
         opener: str | None = None
         rest = value
         if value:
-            first_label, first = _split(value[0])
+            first_label, first = split_nav_item(value[0])
             if (
                 first_label is None
                 and isinstance(first, str)
@@ -222,12 +215,19 @@ def resolve_label_path(
 
 
 def _home_pages(nodes: list[NavNode]) -> set[str]:
-    """The front desk: every top-level leaf that is a page, not a section.
+    """The front desk: every top-level leaf that is a page, not a section,
+    and the home page even when it opens a group of its own.
 
     The home page and any external parent-site link are both ``Home`` to a
-    reader; an answer that ends there has not left the front door.
+    reader; an answer that ends there has not left the front door. The home
+    page opens a group when the nav puts pages beside it (the lookup page,
+    DF-11-021), and stopping on it is still stopping at the front door.
     """
-    return {n.path for n in nodes if not n.children and n.path is not None}
+    return {
+        n.path
+        for n in nodes
+        if n.path is not None and (not n.children or n.path == _INDEX_NAME)
+    }
 
 
 def score_tree_answers(

@@ -6,7 +6,8 @@ description: >
   Rules for replicating the canonical case ledger to participants: single-writer
   log, hash-chain sync, canonical serialization, commit and replica invariants,
   the sync-port wiring rule, fan-out recipients and the embargo pause, ingress
-  never writing the ledger, the held out-of-order Announce, divergence recovery,
+  never writing the ledger, the held out-of-order Announce, arrival-order
+  independence (SYNC-19), divergence recovery,
   the sender's ledger position on every case activity, replay rate limiting, and
   SYNC test patterns.
 related_specs:
@@ -81,10 +82,10 @@ everything after the last hash a participant reports.
   can disagree with the first and blame the wrong side (SYNC-03-010, #5095).
 - **The CASE_MANAGER holds back an entry it cannot verify** (SYNC-03-009). Every
   `send_announce_log_entry` call (fan-out, `Reject` replay, embargo backfill,
-  join-time backfill, replay trigger, and position-statement replay once SYNC-17-004
-  is built) goes through one core helper that checks first, so no send path can skip
-  it. The helper sits at the port call, below `send_ledger_suffix`, because three of
-  the four call sites bypass that loop. A replay stops at the broken entry: a replica
+  join-time backfill, and `Read` position-statement replay) goes through one core
+  helper that checks first, so no send path can skip it. The helper sits at the port
+  call, below `send_ledger_suffix`, because two of the three call sites bypass that
+  loop. A replay stops at the broken entry: a replica
   can only hold what follows as a forward gap. Fan-out checks the entry it built in
   memory, unless it reused a recorded one or backfills a paused peer, so a storage
   round-trip bug usually surfaces at replay, which reads the stored copy.
@@ -307,6 +308,51 @@ does not re-queue an `Announce` the outbox already holds for that peer
 Enqueuing for another actor means opening that actor's store explicitly
 (`store_for_actor`, DL-07-005) and calling `outbox_append` on it.
 
+## No Decision Depends on Arrival Order (SYNC-19)
+
+The ledger's `log_index` is the one order the protocol defines, and eventual
+consistency is its guarantee (ADR-0161). Every other arrival order is noise, so a
+decision that reads it is a bug against SYNC-19-001. The maintained list of direct
+messages and their verdicts is the table in
+`docs/topics/case_lifecycle/case_ledger_sync.md` § "Messages the CASE_MANAGER sends
+outside the ledger".
+
+- **The CASE_MANAGER's observation order is the order.** Taking concurrent
+  assertions from different senders as they arrive is correct: the ledger records
+  that order, and the later one is refused with a notice the ledger explains.
+  Reason: CLP-14-001 makes that order the case's causal order.
+- **Never count on per-recipient order.** Our outbox delivers in order per
+  recipient (OX-01-005), which hides reordering in end-to-end runs; a lost
+  `Announce` replayed later breaks it. Test a race by delivering the messages in
+  every order through `LedgerNetwork.receive`, never through the outbox
+  (SYNC-19-003).
+- **A direct message is stored, not applied.** A message the CASE_MANAGER sends
+  outside the ledger stores a record or closes a pending assertion; the replica
+  takes its effect from the ledger entry (RSH-08-003). Reason: a message that
+  writes case state races the entry that writes it too. The ending notices to a
+  paused signatory are the exception, and diverge when reversed (#5201).
+- **A replica's answer must not turn on its related entry.** A relayed message can
+  arrive before or after the entry it relates to, so a guard reading the state that
+  entry changes answers twice differently. The owner's auto-accept reads EM `NONE`,
+  which the proposal's own `PROPOSE` step changes (#5199).
+- **A replica-local index must end where the ledger puts it.**
+  `pending_embargo_proposal_index` is written by relayed Invites, by ledger apply and
+  by case copies, so the last writer wins; a late Invite leaves a decided proposal
+  open (#5200). Write such an index idempotently and prune it against the register,
+  whichever writer arrives last.
+- **One sender's back-to-back assertions are unordered.** The CASE_MANAGER cannot
+  see send order, and both assertions carry the same `ledgerPosition`. Two that
+  conflict are recorded in arrival order: an Accept and a Reject of one Invite
+  (#5202), or an assertion and the sender's own Leave (#5203).
+- **Expect the relayed Invite before its emission entry.** The CASE_MANAGER commits
+  each emission after queueing it (SYNC-09-002), so the steady state delivers the
+  Invite first; the replica arm must not need its emission entry.
+- **Every new direct message gets a verdict.** Classify it by the rules above, add a
+  row to the docs table, and add it to
+  `test/core/use_cases/received/test_arrival_order.py` if it can race its ledger
+  entries ([`vultron/core/AGENTS.md`](../vultron/core/AGENTS.md) § "Adding a New
+  Message Type").
+
 ## A Refusal That Extends the Chain Is Divergence (SYNC-16)
 
 When the apply function refuses an entry whose predecessor the replica holds, no
@@ -359,7 +405,7 @@ same entry forever (ADR-0142).
 - **An empty chain still asks.** A replica with no stored entry sends the `Reject`
   that names none: empty last-accepted hash, case as `target`. The parser admits an
   objectless `Reject` only in that form (`ledger_reject_envelope.py`), and the
-  CASE_MANAGER reads the case through `rejected_case_id`, never the entry.
+  CASE_MANAGER reads the case through the event's `replay_case_id`, never the entry.
 - **A no-op still copies what the copy names by id.** A copy carries participants,
   reports and the active embargo inline but names notes, statuses and other
   embargoes by id; `StoreRecordsReflectedEntryCarriesNode` stores those records
@@ -439,6 +485,12 @@ before a quiet period leaves the replica behind with no signal on either side.
   can predate entries already in flight, so only the rate bound limits the
   redundant replays.
 - **Never ledgered** (SYNC-17-006): a `Read` is an observation (ADR-0152).
+- **A fresh id per statement**, unlike a rebuildable send (SYNC-09-002): a repeat
+  is a new observation the CASE_MANAGER must answer, and a derived id would be
+  skipped as a redelivery (`SyncActivityAdapter.send_read_ledger_entry`).
+- **The restart round waits for the startup inbox replay** (IE-06-006), so the
+  stated tail includes every entry the queue held; a shutdown during that wait
+  states nothing (`ledger_position_statements.py`).
 
 ## Document Boundary: Internal Spec vs. External Companion
 

@@ -174,3 +174,5 @@ Those goals are stated as outcomes a case should reach, and [What Does *Success*
 - [The Need for Interoperability in Coordinated Vulnerability Disclosure](interoperability.md) — why the Participants in a case need shared meaning, not only a shared message format.
 - [Vultron Process Models](../process_models/index.md) — the report, embargo, and case state processes that carry out the protocol.
 - [Formal Protocol Definition](../../reference/formal_protocol/index.md) — the protocol in the technical sense: its states, messages, and transitions, stated formally.
+
+{% include-markdown "../../start/_paths/how-vultron-works/topics__background__cvd-coordination-problem.md" %}

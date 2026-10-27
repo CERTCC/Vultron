@@ -26,13 +26,17 @@ Submodules:
 - ``replay_held``: Replay the held Announce of a ledger successor (SYNC-14-009)
 - ``chain``: Chain reconstruction and log entry creation action nodes
 - ``canonical_entry``: Canonical ``payloadSnapshot`` validation (CLP-07)
-- ``replay``: Reject-driven replay action nodes for replication
+- ``replay``: Reject- and Read-driven replay action nodes for replication
+- ``position_statement``: the ``Read(CaseLedgerEntry)`` position check and
+  the participant's position statements (SYNC-17)
 - ``genesis_announce``: the genesis-Reject case pre-seed (SYNC-15-002)
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
 - ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)
 - ``fanout``: Fan-out action nodes; RM.CLOSED participants are skipped
   except for the entries recording their own closure (CM-23-004)
 - ``effects``: Ledger-apply side-effect nodes (note, invite-accept)
+- ``ledger_entry_fault``: the replica's ``Create(ProcessingFault)`` about a
+  refused ledger entry, sent to the CASE_MANAGER and never ledgered (SYNC-16-002)
 - ``participant_status_effect``: Ledger-apply of ``ParticipantStatus``, copying
   the status the entry carries (CM-23-016)
 - ``offer_report_effect``, ``ownership_effects``,
@@ -103,6 +107,9 @@ from vultron.core.behaviors.sync.nodes.genesis_announce import (
 from vultron.core.behaviors.sync.nodes.ledger_authority import (
     DeclineForeignLedgerCommitNode,
 )
+from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
+    EmitLedgerEntryFaultNode,
+)
 from vultron.core.behaviors.sync.nodes.note_effect import (
     ApplyNoteFromLedgerNode,
     ApplyRemoveNoteFromLedgerNode,
@@ -131,6 +138,10 @@ from vultron.core.behaviors.sync.nodes.participant_status_effect import (
 from vultron.core.behaviors.sync.nodes.port_guard import (
     RequireSyncPortNode,
     RequireWireRenderPortNode,
+)
+from vultron.core.behaviors.sync.nodes.position_statement import (
+    CheckStatedPositionInLedgerNode,
+    StateLedgerPositionsNode,
 )
 from vultron.core.behaviors.sync.nodes.receive import (
     BufferOutOfOrderEntryNode,
@@ -193,6 +204,8 @@ __all__ = [
     "ApplyCaseParticipantUpdateFromLedgerNode",
     "ApplyInviteAcceptFromLedgerNode",
     "ApplyInviteRejectFromLedgerNode",
+    # ledger_entry_fault (RSH-09-006, SYNC-03-007, SYNC-16-001)
+    "EmitLedgerEntryFaultNode",
     # participant_status_effect
     "ApplyParticipantStatusFromLedgerNode",
     "EmitImpossibleStateFaultNode",
@@ -228,6 +241,9 @@ __all__ = [
     "UpdateReplicationStateNode",
     "CreateLogEntryNode",
     "PersistLogEntryNode",
+    # position_statement (SYNC-17)
+    "CheckStatedPositionInLedgerNode",
+    "StateLedgerPositionsNode",
     # replay
     "AnnounceCaseOnGenesisRejectNode",
     "FindCaseActorNode",

@@ -41,6 +41,10 @@ in a way that state-machine origin is not.
 {% include-markdown "./_occasions/sections/create-processing-fault.md" heading-offset=1 %}
 
 In the example, a Vendor cannot apply a ledger entry from the CASE_MANAGER whose participant status names an impossible state, and reports the fault to the CASE_MANAGER ([RSH-09-006](../specs/protocol.md#rsh-09-006)).
+A participant reports two other refused ledger entries the same way, each with a `LedgerEntryRefused` failure class.
+An entry whose content does not reproduce its hash takes `LedgerEntryRefused/HashMismatch` ([SYNC-03-007](../specs/protocol.md#sync-03-007)).
+An entry that extends the participant's chain but does not apply to its case takes `LedgerEntryRefused/CaseDiverged`, because the participant's case has diverged from the CASE_MANAGER's ([SYNC-16-001](../specs/protocol.md#sync-16-001)).
+The participant sends either fault only to the actor it knows as the case's CASE_MANAGER, and neither side commits it to the case ledger ([SYNC-16-002](../specs/protocol.md#sync-16-002)).
 
 A fault also answers a message that the receiver understood but failed to process.
 When the use case that processes a received activity fails on the receiver's own internal error, the receiver keeps nothing of the act and its inbox sends the sender one `Create(ProcessingFault)` ([ASK-07-010](../specs/protocol.md#ask-07-010), [ASK-07-011](../specs/project.md#ask-07-011)).
@@ -130,9 +134,13 @@ and a participant that is unreachable look identical until a new entry arrives.
 Implementations MAY rely solely on `Announce` deliveries for liveness inference
 without emitting a dedicated periodic heartbeat ([MSM-05-006](../specs/protocol.md#msm-05-006)).
 
+A participant can still state how far it has got.
+`Read(CaseLedgerEntry)` names the last entry it applied, and the CASE_MANAGER replays any entries after it ([SYNC-17-004](../specs/protocol.md#sync-17-004)).
+It is a statement of position, not an acknowledgment of a received entry: a participant sends it on its own policy, such as after a restart, so a lost last entry before a quiet period is recovered without waiting for a new one.
+
 #### NAK path bounding
 
-The replay triggered by `Reject(CaseLedgerEntry)` is rate-limited per peer to prevent amplification; see [SYNC-15-003](../specs/protocol.md#sync-15-003).
+The replay triggered by `Reject(CaseLedgerEntry)` or `Read(CaseLedgerEntry)` is rate-limited per peer to prevent amplification; see [SYNC-15-003](../specs/protocol.md#sync-15-003).
 The outbox delivery budget ([ADR-0066](../../adr/0066-outbox-terminal-state.md)) provides a finite total-attempt bound independent of the replay rate limit.
 
 ---
@@ -147,4 +155,5 @@ The outbox delivery budget ([ADR-0066](../../adr/0066-outbox-terminal-state.md))
 - [How to Acknowledge a Report](../../howto/activitypub/activities/acknowledge.md) —
   how-to guide for `RK`.
 - [Ledger Replication](ledger_replication.md) — the wire format for
-  `Announce(CaseLedgerEntry)` and `Reject(CaseLedgerEntry)`.
+  `Announce(CaseLedgerEntry)`, `Reject(CaseLedgerEntry)` and
+  `Read(CaseLedgerEntry)`.

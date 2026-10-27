@@ -35,7 +35,10 @@ A node that sends through ``SyncActivityPort`` (``Announce`` / ``Reject`` of a
 is gated by ledger authority rather than by the case role: only the store
 holding the canonical log mints and fans out
 (``DeclineForeignLedgerCommitNode``, ADR-0073), and a ledger ``Reject`` is the
-replica's own answer to the ledger holder (SYNC-03-001).
+replica's own answer to the ledger holder (SYNC-03-001).  So is the replica's
+``Create(ProcessingFault)`` about an entry it refused
+(``emit_ledger_entry_fault``), sent to the CASE_MANAGER that announced it and
+never ledgered (SYNC-03-007, SYNC-16-001, SYNC-16-002).
 The same test pins those classes as a reasoned set, so a new one is a
 decision, not an omission.
 """

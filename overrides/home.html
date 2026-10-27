@@ -1,0 +1,59 @@
+{#-
+  Home-page template: extends main.html and injects a hero section from
+  ``hero:`` frontmatter before the page content (docs/index.md uses this
+  template via ``template: home.html`` in its frontmatter).
+
+  When the ``hero:`` key is absent nothing extra is rendered, so the template
+  is safe for any page that omits it. The hero is text-only until #4689 adds
+  the illustration; an absent ``image:`` key renders no element and reserves
+  no space.
+
+  Fields read from ``hero:`` frontmatter:
+    title      -- short heading; must differ from the page's H1 to avoid duplication
+    tagline    -- one- or two-sentence pitch below the title
+    image      -- built-site image path (optional)
+    image_alt  -- alt text for the image (required when image is present;
+                  test_page_type_badge.py checks every page)
+    buttons    -- list of {text: ..., url: ...} entries; first button is primary
+
+  ``url`` and ``image`` are built-site paths (``reference/vultron-spec/``, not
+  ``reference/vultron-spec/index.md``) or ``#anchors``: MkDocs rewrites ``.md``
+  links only inside Markdown, so frontmatter paths go through the ``url``
+  filter, which makes them relative to the page. MkDocs does not autoescape,
+  so every value is escaped here.
+-#}
+{%- extends "main.html" -%}
+
+{#- Inject the hero before the page content (which includes the page-type badge
+    inherited from main.html via super()). -#}
+{% block content %}
+  {%- set h = page.meta.get("hero") if page and page.meta else none %}
+  {%- if h %}
+  <div class="vultron-hero">
+    {%- if h.get("title") %}
+    <p class="vultron-hero__title">{{ h["title"] | e }}</p>
+    {%- endif %}
+    {%- if h.get("tagline") %}
+    <p class="vultron-hero__tagline">{{ h["tagline"] | e }}</p>
+    {%- endif %}
+    {%- if h.get("image") %}
+    <img
+      class="vultron-hero__image"
+      src="{{ h['image'] | url | e }}"
+      alt="{{ h['image_alt'] | e }}"
+    />
+    {%- endif %}
+    {%- if h.get("buttons") %}
+    <nav class="vultron-hero__actions" aria-label="Quick navigation">
+      {%- for btn in h["buttons"] %}
+      <a
+        href="{{ btn['url'] | url | e }}"
+        class="md-button{% if loop.first %} md-button--primary{% endif %}"
+      >{{ btn["text"] | e }}</a>
+      {%- endfor %}
+    </nav>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {{ super() }}
+{% endblock %}

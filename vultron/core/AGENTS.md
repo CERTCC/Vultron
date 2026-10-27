@@ -14,7 +14,7 @@
   (e.g., `CreateReportReceivedUseCase`). See CS-12-002.
 - **Trigger use cases** (actor-initiated actions): Use `Svc` prefix
   (e.g., `SvcEngageCaseUseCase`). See CS-12-002.
-- **Trigger-side module functions** (e.g. `replay_missing_entries_trigger` in
+- **Trigger-side module functions** (e.g. `state_ledger_positions_trigger` in
   `use_cases/triggers/sync.py`): Use a `_trigger` **suffix** (not an `svc_`
   prefix). The `Svc` prefix is reserved for use-case class names only.
 - **Domain class names**: Use CVD-domain vocabulary, not wire-format parallels
@@ -63,6 +63,9 @@ class CreateReportReceivedUseCase:
    `UseCase` Protocol (received: `execute() -> HandlerResult`)
 5. Add tests: pattern matching (`test/test_semantic_activity_patterns.py`),
    routing (`test/test_semantic_registry.py`), use-case logic (`test/core/use_cases/`)
+6. A message the CASE_MANAGER sends outside the ledger gets an arrival-order row in
+   `docs/topics/case_lifecycle/case_ledger_sync.md` (SYNC-19-001); if it can race its
+   entries, add it to `test/core/use_cases/received/test_arrival_order.py`.
 
 ---
 
@@ -113,10 +116,6 @@ back entirely (CM-21-004). See `AcceptCaseOwnershipTransferNode` in
 `vultron/core/behaviors/case/nodes/ownership_transfer.py` for the canonical
 implementation pattern; the AST ratchet
 `test/architecture/test_attributed_to_requires_save_many.py` enforces it (#1661).
-
-<!-- Source: CONCERN-1653 -->
-
----
 
 ### Use `isinstance` for Pyright Attribute Narrowing, Not `# type: ignore`
 

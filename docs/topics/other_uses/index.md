@@ -32,3 +32,5 @@ The remaining four apply the model to a vocabulary problem, to situation awarene
 
 [CVD Roles and Their Influence](roles_influence.md) is the stakeholder reflection that the [Measuring CVD](../measuring_cvd/index.md) section promises, and the two sections share the same partial order over case histories.
 The actor-discovery problem that an earlier page in this section discussed is now carried as an [open question](../future_work/open_questions.md#federation) in Future Work, beside the federation design it belongs to.
+
+{% include-markdown "../../start/_paths/study-the-process/topics__other_uses__index.md" %}
