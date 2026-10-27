@@ -15,6 +15,7 @@
 """An outbox emitter that records what it would deliver, sending nothing."""
 
 import json
+from collections.abc import Mapping
 from typing import Any
 
 
@@ -30,7 +31,11 @@ class RecordingEmitter:
         self.sent: list[tuple[dict[str, Any], list[str]]] = []
 
     async def emit(
-        self, activity_id: str, json_body: str, recipients: list[str]
+        self,
+        activity_id: str,
+        json_body: str,
+        recipients: list[str],
+        inboxes: Mapping[str, str] | None = None,
     ) -> None:
         self.sent.append((json.loads(json_body), list(recipients)))
 

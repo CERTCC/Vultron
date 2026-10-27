@@ -373,3 +373,5 @@ These labels were candidates for this taxonomy but did not survive review.
 - ADR-0024 — Coordination Agent Taxonomy (original "agent shapes" decision; capability shapes is the updated name)
 - ADR-0038 — Four-Tier Specification Taxonomy (how specification files are classified; partially superseded by ADR-0134)
 - ADR-0134 — Who Must Obey a Rule Decides Its Spec Kind (the five kinds, including `foundation`, and the split rule)
+
+{% include-markdown "../start/_paths/how-vultron-works/reference__vultron-taxonomy.md" %}

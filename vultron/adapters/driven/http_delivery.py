@@ -10,8 +10,9 @@ are delivered over HTTP loopback exactly like any other recipient.
 
 Responsibilities:
 
-- Derives each recipient's inbox URL as ``{actor_uri}/inbox/``
-  (ActivityPub convention, OX-05-001).
+- Posts to the inbox the sender's held profile of each recipient names,
+  and derives ``{actor_uri}/inbox/`` (ActivityPub convention, OX-05-001)
+  only for a recipient it holds no inbox for (OX-12-009).
 - POSTs the serialised activity payload to each recipient inbox URL
   using ``httpx.AsyncClient`` so the delivery loop is non-blocking.
 - Retries with exponential backoff on delivery failure (SYNC-05-001).
@@ -31,6 +32,7 @@ Port: ``vultron.core.ports.emitter.ActivityEmitter``
 """
 
 import logging
+from collections.abc import Mapping
 
 import httpx2 as httpx
 
@@ -86,6 +88,21 @@ DEFAULT_MAX_DELAY: float = 30.0
 DEFAULT_DELIVERY_TIMEOUT: float = 30.0
 
 
+def inbox_url_for(
+    recipient_id: str, inboxes: Mapping[str, str] | None = None
+) -> str:
+    """The inbox to POST to for *recipient_id* (OX-12-009).
+
+    The inbox the sender's held profile names, from *inboxes*; else the
+    address ``{actor_uri}/inbox/`` derived from the recipient's URI, a guess
+    used only when nothing better is known (AKM-05-001, ADR-0159).
+    """
+    held = (inboxes or {}).get(recipient_id)
+    if held:
+        return held
+    return recipient_id.rstrip("/") + "/inbox/"
+
+
 class HttpDeliveryAdapter:
     """``ActivityEmitter`` driven-port implementation (ADR-0042, OX-12-001).
 
@@ -131,10 +148,12 @@ class HttpDeliveryAdapter:
         activity_id: str,
         json_body: str,
         recipients: list[str],
+        inboxes: Mapping[str, str] | None = None,
     ) -> None:
         """Deliver *json_body* to each recipient's inbox via HTTP POST.
 
-        Derives each inbox URL as ``{actor_uri}/inbox/`` and POSTs the
+        Posts to the inbox *inboxes* names for a recipient, else to
+        ``{actor_uri}/inbox/`` (OX-12-009), and POSTs the
         sealed body exactly as handed over — no re-serialisation
         (VM-08-003).  Per-recipient failures are retried with exponential
         backoff; after all retries are exhausted the failure is logged at
@@ -147,6 +166,8 @@ class HttpDeliveryAdapter:
             activity_id: The id of the activity being delivered (for logs).
             json_body: The sealed AS2 document to deliver.
             recipients: List of recipient actor ID strings (full URIs).
+            inboxes: The inbox the sender's held profile names, per
+                recipient; a recipient absent here gets the derived address.
 
         Raises:
             DeliveryError: If any recipient could not be reached after all
@@ -161,6 +182,7 @@ class HttpDeliveryAdapter:
                         client=client,
                         json_body=json_body,
                         recipient_id=recipient_id,
+                        inbox_url=inbox_url_for(recipient_id, inboxes),
                         activity_id=activity_id,
                     )
                 except DeliveryError:
@@ -174,9 +196,10 @@ class HttpDeliveryAdapter:
         client: httpx.AsyncClient,
         json_body: str,
         recipient_id: str,
+        inbox_url: str,
         activity_id: str | None,
     ) -> None:
-        """Deliver a single JSON payload to *recipient_id* with retry/backoff.
+        """Deliver a single JSON payload to *inbox_url* with retry/backoff.
 
         Attempts delivery up to ``max_retries + 1`` times.  On each failure
         (except the last), waits *delay* seconds before retrying.  The delay
@@ -184,7 +207,6 @@ class HttpDeliveryAdapter:
 
         Spec: SYNC-05-001, SYNC-05-002.
         """
-        inbox_url = recipient_id.rstrip("/") + "/inbox/"
 
         async def _post() -> int:
             try:

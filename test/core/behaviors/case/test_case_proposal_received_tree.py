@@ -33,6 +33,7 @@ The ``Create`` emit tests verify that
 
 import asyncio
 import logging
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from unittest.mock import patch
@@ -531,7 +532,11 @@ class _FailFirstCreateEmitter:
         self.delivered: list[str] = []
 
     async def emit(
-        self, activity_id: str, json_body: str, recipients: list[str]
+        self,
+        activity_id: str,
+        json_body: str,
+        recipients: list[str],
+        inboxes: Mapping[str, str] | None = None,
     ) -> None:
         if activity_id == _CREATE_ID:
             self.create_attempts += 1

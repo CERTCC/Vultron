@@ -169,3 +169,11 @@ Pick the description that matches your situation.
 - [You maintain a vulnerability tracker and want it to talk to your partners](../../start/connect-your-tracker.md)
 - [You study how vulnerability disclosure works and want the models behind it](../../start/study-the-process.md)
 - [You want to work on the Vultron reference implementation](../../start/contribute.md)
+
+{% include-markdown "../../start/_paths/connect-your-tracker/topics__background__what-is-vultron.md" %}
+
+{% include-markdown "../../start/_paths/coordinate-cases/topics__background__what-is-vultron.md" %}
+
+{% include-markdown "../../start/_paths/how-vultron-works/topics__background__what-is-vultron.md" %}
+
+{% include-markdown "../../start/_paths/study-the-process/topics__background__what-is-vultron.md" %}

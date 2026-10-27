@@ -352,7 +352,7 @@ def _rival_publish(store, profile: CoreActor, _n: int) -> None:
                 "embargo_policy": EmbargoPolicy(
                     id_=EmbargoPolicy.build_id(profile.id_),
                     actor_id=profile.id_,
-                    inbox=profile.inbox,
+                    inbox=f"{profile.id_}/inbox",
                     preferred_duration=timedelta(days=10),
                 ),
             }

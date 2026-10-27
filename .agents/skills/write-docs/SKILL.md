@@ -232,6 +232,10 @@ confirm it.** The recipe:
    fails; a `routing` index must link every member of its section. Each
    index's decision is its own `contents:` value, and
    `test/metadata/docs/test_site_sync.py` pins the generated set.
+   A `page_type: reference` page is also listed on the lookup page
+   (`docs/lookup.md`, DF-11-021), so it needs a `description:` too; one the
+   nav omits needs a nav-carried `index.md` in its own directory, or
+   `docs-site --check` fails on it.
    A page that belongs on a reading path goes into the `thread:` frontmatter
    of its start page under `docs/start/`, with a blurb written for that thread;
    the start page's listing is generated from it (`docs-site --write`,

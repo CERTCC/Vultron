@@ -38,7 +38,10 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Undo,
     as_Update,
 )
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor, as_ActorRef
+from vultron.wire.as2.vocab.base.objects.actors import (
+    as_ActorRef,
+    as_CarriedActor,
+)
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant_role import (
     as_CaseParticipantRole,
@@ -210,7 +213,8 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
     target-field ambiguity of the previous format.
 
     object_: as_CaseParticipantRole (required — carries the CVDRole)
-    target: as_Actor (required — the Actor receiving the role offer)
+    target: the Actor receiving the role offer (required), as the sender
+        holds it or as an actor reference (AKM-05-005)
     context: as_VulnerabilityCase or str URI (required)
 
     Declares **both** ``object_`` and ``target`` in
@@ -226,7 +230,7 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
       sender's (DL-08-003) — the same reason ``_RmInviteToCaseActivity``
       declares its invitee.
 
-    This ``target`` is typed ``as_Actor`` rather than a ref union, so an id
+    This ``target`` is typed as an inline actor rather than a ref union, so an id
     there is not merely unresolvable but off-type: read-back yields a plain
     ``as_Offer`` that no longer matches this class, and the receiver cannot
     dispatch it at all.
@@ -237,7 +241,7 @@ class _OfferCaseParticipantRoleActivity(as_Offer):
     object_: as_CaseParticipantRole = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_Actor = Field(
+    target: as_CarriedActor = Field(
         ..., validation_alias="target", serialization_alias="target"
     )
     context: as_VulnerabilityCase | NonEmptyString = Field(
@@ -283,7 +287,7 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
     dispatch.
 
     object_: as_VulnerabilityCase (inline — not a bare string ID)
-    target: as_Actor (the transferee)
+    target: the transferee, as the sender holds it or as an actor reference
 
     Declares ``target`` in :attr:`inline_required_refs` (DL-08-003). The
     transferee is a *peer*: under ADR-0073 its record lives in the store of
@@ -292,13 +296,14 @@ class _OfferCaseOwnershipTransferActivity(as_Offer):
     read the transferee back from, and the CASE_MANAGER's ledger commit then
     refused the bare ``target`` (CLP-07-006, #4843).
     :func:`~vultron.wire.as2.factories.offer_case_ownership_transfer_activity`
-    wraps a bare transferee id as an ``as_Actor`` so it travels inline.
+    carries a transferee known only by id as an actor reference, so it
+    travels inline (AKM-05-005).
     """
 
     object_: as_VulnerabilityCase = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
-    target: as_ActorRef = None
+    target: as_CarriedActor | as_ActorRef = None
 
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"target"})
 
@@ -394,7 +399,7 @@ class _RmInviteToCaseActivity(as_Invite):
     answered 404 for an invite it had never been told about (#2548, rcv-reject).
     """
 
-    object_: as_Actor = Field(
+    object_: as_CarriedActor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: as_VulnerabilityCaseStub = Field(...)
@@ -472,7 +477,7 @@ class _RmInviteToFullCaseActivity(as_Invite):
     peer the sender holds no record of (see :class:`_RmInviteToCaseActivity`).
     """
 
-    object_: as_Actor = Field(
+    object_: as_CarriedActor = Field(
         ..., validation_alias="object", serialization_alias="object"
     )
     target: NonEmptyString = Field(...)

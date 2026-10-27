@@ -74,17 +74,60 @@ groups:
   - id: VAM-01-009
     priority: MUST
     kind: project
-    statement: If the `object_` field of an activity remains a bare string URI after rehydration (i.e., the DataLayer does
-      not have a record for that URI), `find_matching_semantics()` MUST return `MessageSemantics.UNKNOWN`
-    rationale: Semantic dispatch depends on the object type. A bare string in `object_` makes the object type unknowable;
-      proceeding as if the pattern matches would route the activity to the wrong handler
-    verification: A unit test confirms that `find_matching_semantics()` returns `MessageSemantics.UNKNOWN` when
-      the activity's `object_` remains a bare string URI after rehydration because the DataLayer has no record
-      for that URI.
+    statement: >-
+      `find_matching_semantics()` MUST return
+      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` when no registered pattern
+      matches an activity whose type has at least one registered pattern and
+      whose `object_` is still a bare string URI after rehydration.
+    rationale: >-
+      `UNKNOWN_UNRESOLVABLE_OBJECT` is the specific signal for a known activity
+      type whose object could not be resolved: it separates a data gap, which may
+      resolve later, from an activity no pattern describes.
+    verification: >-
+      Tests marked `VAM-01-009` confirm that `find_matching_semantics()` returns
+      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` for an `Accept` whose
+      `object_` is a bare string URI that no pattern matches.
+  - id: VAM-01-012
+    priority: MUST
+    kind: project
+    statement: >-
+      When an `ActivityPattern` with `strict=False` (the default) constrains
+      `object_` to a scalar object type, a bare string URI left in the activity's
+      `object_` after rehydration MUST satisfy that constraint.
+    rationale: >-
+      Some activities legitimately carry their object by reference, and the
+      receiver may not hold it: `Reject(CaseLedgerEntry)` and the
+      `Read(CaseLedgerEntry)` position statement of SYNC-17-001 both name an
+      entry by id. Requiring a resolved object would send them to the
+      unresolvable-object fallback, which knows neither the case nor the sender's
+      position.
+    verification: >-
+      A unit test marked `VAM-01-012` confirms that a non-strict
+      `Offer(VulnerabilityCase)` pattern matches an `Offer` whose `object_` is an
+      unresolved bare string URI.
+  - id: VAM-01-013
+    priority: MUST_NOT
+    kind: project
+    statement: >-
+      An `ActivityPattern` with `strict=True` that constrains `object_` MUST NOT
+      match an activity whose `object_` is still a bare string URI after
+      rehydration.
+    rationale: >-
+      `strict=True` is the tool for a pattern whose object type distinguishes it
+      from competing patterns for the same activity type: an unresolved
+      reference cannot show which pattern applies, so it must not be dispatched
+      as any of them.
+    verification: >-
+      A unit test marked `VAM-01-013` confirms that a strict
+      `Offer(VulnerabilityCase)` pattern does not match an `Offer` whose
+      `object_` is an unresolved bare string URI.
   - id: VAM-01-007
     priority: MUST
     kind: project
-    statement: '`MessageSemantics.UNKNOWN` MUST be returned when no registered pattern matches the incoming activity'
+    statement: >-
+      `MessageSemantics.UNKNOWN` MUST be returned when no registered pattern
+      matches the incoming activity, except where VAM-01-009 requires
+      `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`
     verification: A unit test (`test_find_matching_semantics_returns_unknown_for_unmatched_activity`) in
       `test/wire/as2/test_extractor.py` confirms that `find_matching_semantics()` returns
       `MessageSemantics.UNKNOWN` for an activity matching no registered pattern.

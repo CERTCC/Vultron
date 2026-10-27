@@ -105,3 +105,9 @@ The diagram below shows the two parts side by side.
 [Model Interactions](model_interactions/index.md) describes the constraints the three models place on each other, such as when an embargo may be negotiated relative to a report's validation.
 The [formal protocol](../../reference/formal_protocol/index.md) builds on all three models and their interactions to define the messages Participants exchange.
 The [Vultron Protocol Specification](../../reference/vultron-spec/index.md) is the normative source for each model's states and transitions.
+
+{% include-markdown "../../start/_paths/coordinate-cases/topics__process_models__index.md" %}
+
+{% include-markdown "../../start/_paths/how-vultron-works/topics__process_models__index.md" %}
+
+{% include-markdown "../../start/_paths/study-the-process/topics__process_models__index.md" %}

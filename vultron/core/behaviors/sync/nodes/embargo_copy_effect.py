@@ -25,9 +25,10 @@ frame reads the case file, applies the change, and saves what changed.
 
 An entry whose starting state does not match this replica's case is refused,
 never patched over: the frame holds the received ``Announce`` that carried
-it, keyed on its predecessor hash (``hold_ledger_announce``, SYNC-14-001), and
-fails, so the entry is not persisted (SYNC-12-001), and the receive path
-reports it deferred.  The entry extends the stored chain, so the drain that
+it, keyed on its predecessor hash (``hold_ledger_announce``, SYNC-14-001),
+sends the CASE_MANAGER a ``LedgerEntryRefused/CaseDiverged`` fault
+(SYNC-16-001), and fails, so the entry is not persisted (SYNC-12-001), and the
+receive path reports it deferred.  The entry extends the stored chain, so the drain that
 follows every received announce for the case replays that ``Announce`` and
 retries it; it stays held until this replica's case reaches the entry's
 start.  An entry this replica
@@ -65,6 +66,9 @@ from vultron.core.behaviors.sync.nodes._helpers import (
 from vultron.core.behaviors.sync.nodes.event_conditions import (
     _SemanticTypeSetNode,
 )
+from vultron.core.behaviors.sync.nodes.ledger_entry_fault import (
+    emit_ledger_entry_fault,
+)
 from vultron.core.models._helpers import project_wire_snapshot_to_core
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.embargo_apply import (
@@ -79,6 +83,9 @@ from vultron.core.models.embargo_consent import EmbargoConsent
 from vultron.core.models.embargo_consent_semantic_types import (
     CONSENT_ROW_VERBS,
 )
+from vultron.core.models.fault_classes import (
+    VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
+)
 from vultron.errors import VultronEntryRefusedError
 
 
@@ -88,8 +95,9 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
     Subclasses implement :meth:`_change`.  SUCCESS when the change is applied
     and saved, when it is already in place (a re-applied entry), or when this
     replica holds no copy of the case (Regime 2, ADR-0087).  FAILURE when the entry is malformed, or when the apply
-    function refuses it; the refused entry's ``Announce`` is held and
-    :attr:`refused_into_gap` is set.
+    function refuses it; the refused entry's ``Announce`` is held,
+    :attr:`refused_into_gap` is set, and the CASE_MANAGER is sent the
+    divergence fault (SYNC-16-001).
     """
 
     def __init__(self, name: str | None = None) -> None:
@@ -179,11 +187,34 @@ class ApplyEmbargoChangeFromLedgerNode(_LedgerEffectNode):
     def _refuse(
         self, entry: CaseLedgerEntry, exc: VultronEntryRefusedError
     ) -> Status:
-        """Hold a refused entry's ``Announce``; never patch it over."""
+        """Hold a refused entry's ``Announce`` and report the divergence.
+
+        The entry is never patched over.  It extends this replica's chain and
+        the case file is not past it, so no replay can fill the gap: the
+        replica's case has diverged from the CASE_MANAGER's, and the
+        CASE_MANAGER is told so with a ``LedgerEntryRefused/CaseDiverged``
+        fault (SYNC-16-001).  The ``Announce`` is held as a forward gap is,
+        and the fault is sent whether or not the holding area's bound let it
+        be held.  Each replay of the held ``Announce`` that is refused again
+        queues the same fault, under the same id, which the CASE_MANAGER
+        drops as a repeat; the replay rate bound limits how often
+        (SYNC-15-003).
+
+        The hold and the fault share one transaction (ADR-0146): when the
+        fault cannot be queued, the hold is rolled back with it, so the
+        replica keeps nothing of the act (ASK-07-010) and no ``Announce``
+        stays held without its fault.
+        """
         assert self.datalayer is not None
-        buffered = hold_received_announce(
-            self.name, self.datalayer, self.activity, self.actor_id
-        )
+        with self.datalayer.transaction():
+            buffered = hold_received_announce(
+                self.name, self.datalayer, self.activity, self.actor_id
+            )
+            emit_ledger_entry_fault(
+                self,
+                self.activity,
+                VULTRON_FAILURE_LEDGER_ENTRY_REFUSED_CASE_DIVERGED,
+            )
         self.refused_into_gap = buffered
         self.feedback_message = (
             f"{self.name}: entry '{entry.id_}' (log_index={entry.log_index})"

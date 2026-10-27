@@ -71,6 +71,8 @@ from vultron.config import get_config
 from vultron.core.models.actor import (
     CoreActor,
     VultronOrganization,
+    endpoint_uri,
+    hosted_endpoints,
 )
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.protocols import PersistableModel
@@ -266,7 +268,9 @@ def create_actor(request: ActorCreateRequest, http_request: Request):
         )
 
     actor_cls = _ACTOR_TYPE_MAP.get(request.actor_type, VultronOrganization)
-    actor = actor_cls(id_=actor_id, name=request.name)
+    actor = actor_cls(
+        id_=actor_id, name=request.name, **hosted_endpoints(actor_id)
+    )
     datalayer.create(object_to_record(cast(PersistableModel, actor)))
     logger.info("Created actor %s (type=%s)", actor_id, request.actor_type)
     return AS2JSONResponse(
@@ -354,7 +358,12 @@ def register_peer(
         )
 
     actor_cls = _ACTOR_TYPE_MAP.get(request.actor_type, VultronOrganization)
-    peer = actor_cls(id_=peer_id, name=request.name)
+    # Only what the request supplied: no clock time and no endpoint derived
+    # from the id, since the peer stated neither (AKM-02-006, ADR-0159).
+    # Delivery falls back to the derived inbox address on its own (OX-12-009).
+    peer = actor_cls(
+        id_=peer_id, name=request.name, published=None, updated=None
+    )
     datalayer.create(object_to_record(cast(PersistableModel, peer)))
     logger.info("Registered peer %s in actor %s store", peer_id, actor_id)
     return AS2JSONResponse(
@@ -396,26 +405,14 @@ def get_actor_profile(
     profile = as_actor.model_dump(
         mode="json", by_alias=True, exclude_none=True
     )
-    inbox = getattr(as_actor, "inbox", None)
-    outbox = getattr(as_actor, "outbox", None)
-    profile["inbox"] = (
-        inbox
-        if isinstance(inbox, str)
-        else (
-            inbox.get("id")
-            if isinstance(inbox, dict)
-            else getattr(inbox, "id_", None)
+    # The actor this node hosts publishes the endpoints this node routes for
+    # it, which a record created before it stated them may lack (ISSUE-3616).
+    own = hosted_endpoints(as_actor.id_)
+    for field_name in ("inbox", "outbox"):
+        profile[field_name] = (
+            endpoint_uri(getattr(as_actor, field_name, None))
+            or own[field_name]
         )
-    )
-    profile["outbox"] = (
-        outbox
-        if isinstance(outbox, str)
-        else (
-            outbox.get("id")
-            if isinstance(outbox, dict)
-            else getattr(outbox, "id_", None)
-        )
-    )
     return AS2JSONResponse(profile)
 
 
@@ -511,6 +508,11 @@ def refuse_non_post_inbox(actor_id: str) -> None:
 
 
 @router.post(
+    "/{actor_id:path}/inbox",
+    status_code=status.HTTP_202_ACCEPTED,
+    include_in_schema=False,
+)
+@router.post(
     "/{actor_id:path}/inbox/",
     summary="Add an Activity to the Actor's Inbox.",
     description="Adds an Activity to the Actor's Inbox. (stub implementation).",
@@ -534,6 +536,10 @@ def post_actor_inbox(
     Policy logic lives in ``process_payload`` (core BT module); this
     endpoint is thin glue that supplies adapter implementations and
     schedules the background task (IO-03-003).
+
+    It answers at ``/inbox``, the address a hosted actor's profile names
+    (``hosted_endpoints``) and a sender holding that profile posts to
+    (OX-12-009), as well as at ``/inbox/``.
 
     Args:
         actor_id: The ID of the Actor whose Inbox to add the item to.

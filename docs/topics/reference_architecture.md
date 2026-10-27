@@ -180,3 +180,5 @@ A different-language implementation reuses the concepts — the boundary, the pi
 - [Federation](future_work/federation.md) — future work on a deployment in which each organization runs its own coordination service
 - [ADR-0009](../adr/0009-hexagonal-architecture.md) — Adopt Hexagonal Architecture
 - [ADR-0017](../adr/archived/0017-domain-wire-object-separation.md) — Domain/Wire Object Separation
+
+{% include-markdown "../start/_paths/contribute/topics__reference_architecture.md" %}

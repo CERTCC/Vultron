@@ -7,17 +7,9 @@ stakeholder_type: [project-contributor]
 Many CVD practitioners want to assign identifiers to the vulnerabilities they coordinate.
 The most common of these is a CVE ID, so we provide an example CVE ID Assignment Behavior Tree, shown below.
 
-!!! note "Legacy design diagram"
+{% include-markdown "./_legacy_diagram_note.md" %}
 
-    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
-    match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for
-    auto-generated documentation from the current implementation.
-
-!!! note "No normative spec group"
-
-    This behavior has no corresponding normative RMB, EMB, or CSB spec group in the
-    [Protocol Specifications](../../reference/specs/protocol.md).
+{% include-markdown "./_no_normative_spec_group_note.md" %}
 
 ```mermaid
 ---

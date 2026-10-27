@@ -259,3 +259,5 @@ But we think that it is necessary to encode the possibility that non-cooperation
 - [How to Invite an Actor to a Case](../../../howto/activitypub/activities/invite_actor.md) — invite a new Participant, who is offered the existing embargo.
 - [How to Establish an Embargo](../../../howto/activitypub/activities/establish_embargo.md) — propose, accept and activate an embargo.
 - [How to Revise or Terminate an Embargo](../../../howto/activitypub/activities/manage_embargo.md) — propose the shorter terms a new Participant needs as a revision, or end the embargo.
+
+{% include-markdown "../../../start/_paths/coordinate-cases/topics__process_models__em__working_with_others.md" %}

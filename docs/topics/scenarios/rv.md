@@ -60,9 +60,9 @@ directly with no coordinator.
 
 **Participants:**
 
-- **Reporter** — discovers the vulnerability and submits the report; in the case it holds the Reporter role; the protocol has no separate Finder role ([ADR-0078](../../adr/0078-retire-finder-role.md)).
+- {% include-markdown "./_participant_reporter.md" trailing-newlines=false %}
 - **Vendor** — receives the report; validates, engages, and owns the case.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it writes every canonical ledger entry and fans it out to the participants. In the demo it runs on the dedicated `case-actor` container, but its authority comes from the role, not from where it runs.
+- {% include-markdown "./_participant_case_actor.md" trailing-newlines=false %}
 
 ## Protocol narrative
 
@@ -103,8 +103,7 @@ The records seated at case creation were ledgered earlier, each as a `create_cas
 ### 5. Reporter and Vendor exchange notes
 
 Participants communicate about the vulnerability through case notes.
-Each note is posted via the protocol as one `Add(Note)` carrying the note inline.
-The ledger records it as an `add_note_to_case` entry, which attaches it to the case.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
 The Reporter may ask about workarounds; the Vendor provides status updates.
 
 *Antecedent:* `engage_case` is present in the ledger.

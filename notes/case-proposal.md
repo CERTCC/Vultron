@@ -163,12 +163,16 @@ identity `http://case-actor:7999/api/v2/actors/case-actor`.
 - **The demo runner seeds it.** Reset clears every node and no container seeds
   itself, so `reset_containers` (`vultron/demo/helpers/seeding.py`) re-seeds the
   identity via `seed_case_actor_identity` when given the `case_actor_client`;
-  without it every proposal answers 404.
+  without it every proposal answers 404. Every `seed_containers*` call then gets
+  the same client, so `seed_case_actor_peers` refills the CaseActor's address
+  book; without it the CaseActor sends each participant as an id-and-type
+  reference, not its profile (AKM-05-005).
 - **Canonical records live in the case-actor container.** Its store holds the
   case, ledger and participant records, with the CaseActor as the `CASE_MANAGER`
   participant; each participant container holds a replica plus an address-book
-  copy of the CaseActor (`EnsureCaseActorHostedNode`), a plain `VultronService`
-  whose inbox and outbox derive from its id (ARCH-12-006).
+  copy of the CaseActor (`EnsureCaseActorHostedNode`): the hosted record when the
+  CaseActor is co-located, else a `VultronService` holding its id alone, with no
+  endpoint derived from it (ARCH-12-006, AKM-02-006).
 - **Read the CaseActor's state through its own client**, never a participant's
   replica: some participant RM transitions are applied without a ledger entry,
   so a replica can lag them indefinitely (DEMOMA-06-005).

@@ -7,7 +7,7 @@ stakeholder_type: [project-contributor]
 These stub nodes belong to `EmbargoManagementBt` and its sub-trees (`TerminateEmbargoBt`, `_ConsiderTerminatingActiveEmbargo`, `_ProposeEmbargoBt`, `_ChooseEmProposedResponse`) in `vultron/bt/embargo_management/behaviors.py`.
 They model the negotiation, evaluation, and lifecycle management of coordinated disclosure embargoes.
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## `ExitEmbargoWhenDeployed`
 

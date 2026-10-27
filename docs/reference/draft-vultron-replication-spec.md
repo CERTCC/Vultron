@@ -221,6 +221,7 @@ as the recovery signal. (SYNC-03-001, SYNC-08-005)
 Before that check, a receiver MUST recompute the entry's hash from its content and compare it with the stated `entry_hash`.
 An entry that states no hash, or whose content does not reproduce it, MUST be refused and logged, and is not buffered, applied or stored.
 It is not answered with `Reject(CaseLedgerEntry)`, because a replay would resend the same entry. (SYNC-03-006)
+The receiver MUST instead send `Create(ProcessingFault)` with failure class `LedgerEntryRefused/HashMismatch` to the CASE_MANAGER, naming the refused `Announce(CaseLedgerEntry)` by reference, and the fault's id is derived from that `Announce` and the failure class. (SYNC-03-007)
 
 ### 5.2 Sender Retry
 
@@ -270,7 +271,7 @@ while still preventing amplification.
 ### 5.5 Divergence Recovery
 
 A participant can refuse an entry whose predecessor it already holds, because the entry's starting state does not match its case.
-An entry whose content is invalid in itself, such as an impossible participant status, takes its own fault instead (RSH-09-006).
+An entry whose content is invalid in itself takes its own fault instead: an impossible participant status takes `StatusAssertionRefused/ImpossibleState` (RSH-09-006), and an entry whose content does not reproduce its hash takes `LedgerEntryRefused/HashMismatch` (SYNC-03-007).
 No replay fills that gap: the participant's case has diverged from the CASE_MANAGER's, and a replay resends the same refused entry.
 
 - The participant MUST send `Create(ProcessingFault)` with failure class `LedgerEntryRefused/CaseDiverged` to the CASE_MANAGER, and MUST keep holding the refused entry. (SYNC-16-001)
@@ -390,6 +391,21 @@ CASE_MANAGER's current ledger tip. Lagging behind the leader tip is permitted if
 the actor's own acknowledged prefix is contiguous from genesis. (SYNC-10-005)
 
 ---
+
+### 6.7 Eventual Consistency and Arrival-Order Independence
+
+Eventual consistency is the ordering guarantee this protocol makes.
+Every active participant's replica that receives the CASE_MANAGER's committed entries, in any order, MUST reach the CASE_MANAGER's case file through hash-chain apply and gap repair.
+A message the CASE_MANAGER sends outside `Announce(CaseLedgerEntry)` MUST NOT leave a replica in a final state that the entries it relates to do not determine. (SYNC-19-002)
+
+A coordination decision MUST NOT depend on an arrival order that the ledger does not define.
+The CASE_MANAGER's observation order is the case's causal order, so its ledger records the order in which it takes concurrent assertions from different senders.
+Every other decision MUST be the same whatever order its messages arrive in.
+That covers a participant's handling of a direct message and the entries it relates to.
+It also covers the CASE_MANAGER's record of two assertions that one sender sent before the first was committed. (SYNC-19-001)
+
+Per-recipient delivery order MUST NOT be a protocol guarantee.
+An implementation MAY deliver in order per recipient as an optimization, but neither a sender nor a receiver may rely on it. (SYNC-19-003)
 
 ## 7. Commit Discipline [N]
 
@@ -621,6 +637,9 @@ authoritative source identifiers in `specs/sync-ledger-replication.yaml`.
 | SYNC-17-005 | §5.6 | A position the ledger does not hold MUST be logged and answered with nothing |
 | SYNC-17-006 | §5.6 | A `Read(CaseLedgerEntry)` and its answer MUST NOT be ledgered |
 | SYNC-17-007 | §5.6, §10 | Reference participant SHOULD state positions after restart and on an optional interval |
+| SYNC-19-001 | §6.7 | A coordination decision MUST NOT depend on an arrival order the ledger does not define |
+| SYNC-19-002 | §6.7 | Eventual consistency is the guarantee; every replica reaches the CASE_MANAGER's case file |
+| SYNC-19-003 | §6.7 | Per-recipient delivery order MUST NOT be a protocol guarantee |
 
 ---
 

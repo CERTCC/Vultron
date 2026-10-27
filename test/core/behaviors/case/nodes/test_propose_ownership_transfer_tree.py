@@ -28,6 +28,14 @@ from py_trees.common import Status
 
 from test.core.behaviors.bt_harness import BTTestScenario
 from test.support.received import with_evidence
+from test.support.transferee import (
+    INACTIVE_STANDINGS,
+    TransfereeStanding,
+    seat_transferee,
+)
+from vultron.core.behaviors.case.nodes.ownership_offer_guard import (
+    OwnershipProposalAdmissibleNode,
+)
 from vultron.core.behaviors.case.nodes.ownership_transfer import (
     MakeOwnershipTransferOfferNode,
 )
@@ -58,7 +66,11 @@ PROPOSAL_ID = "https://example.org/activities/proposal-make"
 _SENDER_RULE = ProposeCaseOwnershipTransferReceivedUseCase.sender_entitlement
 
 
-def _seed_case(bt_scenario: BTTestScenario) -> None:
+def _seed_case(
+    bt_scenario: BTTestScenario,
+    transferee: TransfereeStanding = TransfereeStanding.ACTIVE,
+) -> None:
+    """Seed the case, with the transferee in *transferee* standing."""
     case_actor_participant = CaseParticipant(
         id_="https://example.org/participants/case-actor-make-cp",
         attributed_to=CASE_ACTOR_ID,
@@ -83,6 +95,8 @@ def _seed_case(bt_scenario: BTTestScenario) -> None:
         },
     )
     bt_scenario.seed(case_actor_participant, owner_participant, case)
+    # Only an active participant may be offered the case (CM-21-021).
+    seat_transferee(case, bt_scenario.dl, TRANSFEREE_ID, transferee)
 
 
 def _offers(bt_scenario: BTTestScenario) -> list[str]:
@@ -150,8 +164,6 @@ def test_the_case_manager_makes_one_offer_and_ledgers_it(
     bt_scenario: BTTestScenario,
 ) -> None:
     """One Offer, under the derived id, queued and then ledgered."""
-    # The transferee is off the roster here, which CM-21-021 forbids; #5189
-    # (AC-5) seats it as an active participant when the rule is built.
     _seed_case(bt_scenario)
 
     result = bt_scenario.run(
@@ -177,26 +189,32 @@ def test_the_case_manager_makes_one_offer_and_ledgers_it(
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "CM-21-021: a transferee off the roster is not refused yet. "
-        "Tracked by #5189."
-    ),
-)
 @pytest.mark.spec("CM-21-021")
+@pytest.mark.spec("CM-21-005")
 @pytest.mark.executes_as(CASE_ACTOR_ID)
+@pytest.mark.parametrize("standing", INACTIVE_STANDINGS, ids=lambda s: s.name)
 def test_a_transferee_that_is_not_an_active_participant_is_refused(
-    bt_scenario: BTTestScenario,
+    bt_scenario: BTTestScenario, standing: TransfereeStanding
 ) -> None:
-    """No Offer, and so no case content, goes to an actor off the roster."""
-    _seed_case(bt_scenario)
+    """No Offer, and so no case content, goes to an inactive transferee.
+
+    Refused as such, not as an internal error, with nothing ledgered.
+    """
+    _seed_case(bt_scenario, standing)
+    tree = _tree()
 
     result = bt_scenario.run(
-        _tree(), actor_id=CASE_ACTOR_ID, activity=_proposal_event()
+        tree, actor_id=CASE_ACTOR_ID, activity=_proposal_event()
     )
 
     assert result.status == Status.FAILURE
+    assert result.internal_error is False
+    [guard] = [
+        node
+        for node in tree.iterate()
+        if isinstance(node, OwnershipProposalAdmissibleNode)
+    ]
+    assert "CM-21-021" in guard.feedback_message
     assert _offers(bt_scenario) == []
     assert not [
         entry
@@ -254,3 +272,23 @@ def test_no_offer_is_built_for_a_proposal_naming_no_transferee() -> None:
     """The guard refuses such a proposal; no effect is composed for it."""
     assert _make_nodes(_tree(transferee_id=None)) == []
     assert len(_make_nodes(_tree())) == 1
+
+
+@pytest.mark.spec("CM-21-021")
+@pytest.mark.executes_as(CASE_ACTOR_ID)
+def test_the_admissibility_guard_fails_on_a_case_this_store_lacks(
+    bt_scenario: BTTestScenario,
+) -> None:
+    """With no case to judge the transferee against, the guard fails rather
+    than admit it; nothing is offered."""
+    guard = OwnershipProposalAdmissibleNode(
+        case_id=CASE_ID,
+        proposed_case_id=CASE_ID,
+        transferee_id=TRANSFEREE_ID,
+        proposer_id=VENDOR_ID,
+    )
+
+    result = bt_scenario.run(guard, actor_id=CASE_ACTOR_ID)
+
+    assert result.status == Status.FAILURE
+    assert _offers(bt_scenario) == []

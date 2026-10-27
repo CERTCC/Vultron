@@ -837,6 +837,42 @@ def test_case_proposal_with_string_object_returns_unresolvable():
     )
 
 
+def _offer_with_bare_string_object(*, strict: bool) -> bool:
+    """Whether an ``Offer(VulnerabilityCase)`` pattern matches a bare URI.
+
+    The activity's ``object_`` is left as an unresolved string, as it is when
+    rehydration finds no record for the URI.
+    """
+    from vultron.core.models.enums import VultronObjectType as VOtype
+    from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Offer,
+    )
+
+    pattern = ActivityPattern(
+        activity_=TAtype.OFFER,
+        object_=VOtype.VULNERABILITY_CASE,
+        strict=strict,
+    )
+    activity = as_Offer(
+        actor=_VENDOR_URI,
+        object_="https://example.org/cases/unresolved",
+    )
+    return pattern.match(activity)
+
+
+@pytest.mark.spec("VAM-01-012")
+def test_non_strict_pattern_matches_bare_string_object():
+    """A non-strict scalar ``object_`` constraint accepts an unresolved URI."""
+    assert _offer_with_bare_string_object(strict=False)
+
+
+@pytest.mark.spec("VAM-01-013")
+def test_strict_pattern_rejects_bare_string_object():
+    """A strict pattern does not match an unresolved ``object_`` URI."""
+    assert not _offer_with_bare_string_object(strict=True)
+
+
 # ---------------------------------------------------------------------------
 # AC-1: strict target_ field — bare string URIs must be rejected (ADR-0039)
 # ---------------------------------------------------------------------------

@@ -63,6 +63,7 @@ from vultron.adapters.driven.http_delivery import (
 from vultron.adapters.driving.fastapi.outbox_addressing import (
     _extract_recipients,
     _format_object,
+    held_inboxes,
 )
 from vultron.adapters.driving.fastapi.outbox_delivery import (
     _activity_type,
@@ -201,7 +202,12 @@ async def handle_outbox_item(
 
     # ``to:`` has just been checked to name someone, so this is non-empty.
     recipients = _extract_recipients(body)
-    await emitter.emit(activity_id, sealed.body, recipients)
+    await emitter.emit(
+        activity_id,
+        sealed.body,
+        recipients,
+        inboxes=held_inboxes(dl, recipients),
+    )
     logger.info(
         "Delivered %s activity '%s' (object: %s) to %d recipient(s)"
         " [%s] for actor '%s'.",

@@ -5,6 +5,20 @@ description: >
 stakeholder_type: ALL
 level: 100
 page_type: routing
+contents: routing
+template: home.html
+hero:
+  title: Open Protocol for Vulnerability Coordination
+  tagline: >-
+    Coordinate a disclosure from the tracker you already use, with no account
+    on any partner's portal.
+  buttons:
+    - text: Find your way in
+      url: "#where-to-start"
+    - text: Read the Protocol Specification
+      url: reference/vultron-spec/
+    - text: How Vultron works
+      url: start/how-vultron-works/
 ---
 
 # The Vultron Coordinated Vulnerability Disclosure Protocol
@@ -18,6 +32,12 @@ It builds on decades of vulnerability coordination experience at the CERT Coordi
 !!! note "Work in progress"
 
     Vultron is a collection of ideas, models, code, and work in progress, and is **not yet ready for production use**.
+
+## Where to start
+
+{% include-markdown "./includes/start_here_cards.md" %}
+
+{% include-markdown "./includes/lookup_link.md" %}
 
 ## What kind of thing Vultron is
 
@@ -37,35 +57,43 @@ Vultron replaces those per-partner accounts with one protocol.
 Your tracker speaks it, your partners' trackers speak it, and the case moves between them as structured messages.
 See [What Is Vultron?](topics/background/what-is-vultron.md) for the full answer.
 
+The diagrams below show the contrast.
+Without Vultron, each organization holds a separate account on every partner's portal.
+With Vultron, each organization's own tracker speaks the protocol, so any two trackers can exchange case updates directly.
+
+<div class="grid" markdown>
+
+```mermaid
+---
+title: Without Vultron — one account per partner portal
+---
+flowchart LR
+    org(["Your organization"])
+    a1["Account on Portal A"]
+    a2["Account on Portal B"]
+    a3["Account on Portal C"]
+    org --> a1
+    org --> a2
+    org --> a3
+```
+
+```mermaid
+---
+title: With Vultron — one protocol, any tracker
+---
+flowchart LR
+    yours(["Your tracker"])
+    pa(["Partner A tracker"])
+    pb(["Partner B tracker"])
+    yours <-->|"Vultron"| pa
+    yours <-->|"Vultron"| pb
+```
+
+</div>
+
 ## What Vultron is not
 
 {% include-markdown "./includes/vultron_is_not.md" %}
-
-## Where to start
-
-{% include-markdown "./includes/start_here_cards.md" %}
-
-## Who this documentation is for
-
-The site is written for four kinds of reader, and every page declares which of them it addresses.
-
-{% include-markdown "./includes/stakeholder_types.md" %}
-
-## How this documentation is organized
-
-The site is organized by what you came to do.
-Each tab across the top opens on a page that says what is on it and gives a reading path through it:
-
-- **How Vultron Works**: what a case is, the process models that drive it, and the vocabulary the rest of the site uses.
-- **Coordinate Cases**: adopting Vultron in a disclosure program, and how it maps onto the standards you already follow.
-- **Implement the Protocol**: the [Vultron Protocol Specification](reference/vultron-spec/index.md), its messages and requirements, and how to put them on the wire.
-- **Reference Implementation**: CERT/CC's open-source implementation, its demos, and how it is built.
-- **Research**: measuring disclosure across many cases, and other uses of the case state model.
-- **Project**: versioning, what is new, open questions, and how to propose a change.
-
-Each page shows what kind of page it is (a tutorial, a how-to guide, an explanation or a reference page) as a badge above its title.
-Pages that only give directions, like this one, carry no badge.
-The project's decision records, requirements, and generated code references are reached from [Working on This Implementation](about/project_record.md).
 
 ## Background
 

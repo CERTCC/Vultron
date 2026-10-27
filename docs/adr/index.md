@@ -243,9 +243,11 @@ General information about architectural decision records is available at <https:
 - [ADR-0146 One Atomic Commit per CASE_MANAGER Act](0146-one-atomic-commit-per-case-manager-act.md) *(revision 5)* *(provisional)*
 - [ADR-0147 The Protocol Specification Renders Its Normative Text from the YAML Requirements](0147-the-protocol-specification-renders-its-normative-text-from-the-yaml-requirements.md) *(provisional)*
 - [ADR-0149 The Received Archive Is the Sealed Received Body, Read Through a Read-Only View Parsed on Load](0149-the-received-archive-is-the-sealed-received-body-read-through-a-read-only-view.md) *(provisional)* — partially supersedes 0035-core-activity-representation-and-envelope-reconstitution.md
+- [ADR-0150 A Reading-Path Thread Is Staged Data on Its Start Page, Rendered at Both Ends](0150-a-reading-path-thread-is-staged-data-on-its-start-page-rendered-at-both-ends.md) *(revision 2)* *(provisional)*
 - [ADR-0152 A Case Manager's Act Shares the Participants' Semantic Type, and an Observation Is Not Ledgered](0152-a-case-managers-act-shares-the-participants-semantic-type-and-an-observation-is-not-ledgered.md) *(provisional)* — partially supersedes 0140-a-ledger-entrys-semantic-type-is-the-registry-label-of-its-as2-payload.md
 - [ADR-0159 An Actor Known Only by URI Travels as an Id-and-Type Reference, and No One Invents a Value They Do Not Know](0159-an-actor-known-only-by-uri-travels-as-an-id-and-type-reference.md) *(provisional)*
 - [ADR-0160 A Requirement That Uses a Term Another Requirement Defines Records `uses_definition`, and a Link No Type Fits Is Not Recorded](0160-a-requirement-that-uses-a-term-another-defines-records-uses-definition.md) *(provisional)*
+- [ADR-0161 Eventual Consistency Is the Protocol's Ordering Guarantee](0161-eventual-consistency-is-the-protocols-ordering-guarantee.md) *(provisional)*
 
 ## Proposed ADRs
 
@@ -257,7 +259,6 @@ General information about architectural decision records is available at <https:
 - [ADR-0139 A Fresh Agent Reviews the Branch Before Its First Push](0139-a-fresh-agent-reviews-the-branch-before-its-first-push.md)
 - [ADR-0143 A Fix Commit's Local Gate Escalates Only for Shared Test Infrastructure](0143-a-fix-commits-local-gate-escalates-only-for-shared-test-infrastructure.md) — partially supersedes 0126-ci-is-the-full-suite-authority-after-the-first-push.md
 - [ADR-0148 An Owner Proposes an Ownership-Transfer Offer and the CASE_MANAGER Makes It](0148-an-owner-proposes-an-ownership-transfer-offer-and-the-case-manager-makes-it.md) *(revision 2)* — partially supersedes 0053-ownership-transfer-routed-via-caseactor.md
-- [ADR-0150 A Reading-Path Thread Is Staged Data on Its Start Page, Rendered at Both Ends](0150-a-reading-path-thread-is-staged-data-on-its-start-page-rendered-at-both-ends.md) *(revision 2)*
 - [ADR-0151 A Received Act Commits Its Own Entry with Its Consequences](0151-a-received-act-commits-its-own-entry-with-its-consequences.md) *(revision 2)* — partially superseded by 0154-a-received-message-is-one-staged-record-archived-only-when-applied.md; partially supersedes 0111-intake-is-the-first-received-side-stage.md
 - [ADR-0153 One Role Check per Message Picks the Received Path](0153-one-role-check-per-message-picks-the-received-path.md) — partially supersedes 0088-consolidate-case-authority-determination.md
 - [ADR-0154 A Received Message Is One Staged Record, Archived Only When Applied](0154-a-received-message-is-one-staged-record-archived-only-when-applied.md) — partially supersedes 0111-intake-is-the-first-received-side-stage.md, 0135-compose-received-trees-never-chain-them.md, 0151-a-received-act-commits-its-own-entry-with-its-consequences.md

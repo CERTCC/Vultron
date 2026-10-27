@@ -1,4 +1,6 @@
 ---
+description: >
+  The documentation pages added in the last 90 days.
 stakeholder_type: ALL
 level: 100
 page_type: reference

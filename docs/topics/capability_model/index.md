@@ -419,3 +419,9 @@ The answer changes what you build.
    Decide what context your capability needs from Vultron and what structured answer it returns.
 5. **Wire it in and test it.**
    Replace the fuzzer node with your backend, following [Wiring a Capability into the Reference Implementation](../../howto/wire_capability.md), and run it against the existing BT structure.
+
+{% include-markdown "../../start/_paths/connect-your-tracker/topics__capability_model__index.md" %}
+
+{% include-markdown "../../start/_paths/coordinate-cases/topics__capability_model__index.md" %}
+
+{% include-markdown "../../start/_paths/how-vultron-works/topics__capability_model__index.md" %}

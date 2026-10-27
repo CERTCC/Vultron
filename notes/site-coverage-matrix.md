@@ -29,10 +29,10 @@ types is counted in both of their rows.
 | Stakeholder type | 100 | 200 | 300 | 400 | 500 |
 |---|---:|---:|---:|---:|---:|
 | `cvd-practitioner` | 1 | 16 | 22 | 4 | 0 |
-| `platform-developer` | 1 | 11 | 46 | 70 | 0 |
-| `process-researcher` | 1 | 7 | 1 | 14 | 17 |
+| `platform-developer` | 1 | 11 | 46 | 69 | 0 |
+| `process-researcher` | 1 | 7 | 1 | 13 | 17 |
 | `project-contributor` | 1 | 1 | 19 | 13 | 0 |
-| `ALL` | 12 | 2 | 0 | 0 | 0 |
+| `ALL` | 12 | 3 | 0 | 0 | 0 |
 
 Reader-facing pages that declare both keys: 187.
 Working-record pages carry no level (DF-11-012) and are not counted.

@@ -1,4 +1,7 @@
 ---
+description: >
+  One narrative page for each multi-actor demo scenario, which tells the
+  case that scenario runs from the participants' point of view.
 title: Demo Scenario Narratives
 stakeholder_type: [platform-developer, project-contributor]
 level: 300

@@ -162,6 +162,8 @@ class TestWalkPrompt:
         ("index.html", "#anchor", None),
         ("index.html", "mailto:x@y.org", None),
         ("index.html", "https://x.org/", None),
+        ("index.html", "tel:123", None),
+        ("index.html", "javascript:void(0)", None),
         ("index.html", "../outside/", None),
         ("index.html", "?q=1", None),
     ],

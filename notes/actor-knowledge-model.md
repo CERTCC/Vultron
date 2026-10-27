@@ -93,20 +93,28 @@ downstream to fill in a bare ID. If the error fires, fix the activity builder.
   (AKM-05-005, ADR-0159).** Carry the sender's held profile unchanged; with only
   the URI, carry exactly `id` and `type`. A receiver reads a reference's missing
   fields as unknown and never lets it replace a fuller record. Not a stub: it is
-  the one other exception MV-10-001 allows. Marker tests:
-  `test/wire/as2/factories/test_actor_references.py`.
+  the one other exception MV-10-001 allows. Factories take the held record or the
+  URI (`carried_actor`, `vultron/wire/as2/factories/_actor.py`); the trigger
+  adapter reads the held record first (`_held_actor`), and a bare `CoreActor`
+  minimal peer travels as a reference, since its type names no wire actor.
+  Marker tests: `test/wire/as2/factories/test_actor_references.py`.
 - **Never record or send a value you do not know (AKM-02-006).** A clock-read
   `published`/`updated` or an `inbox`/`outbox` derived from an id is invented: a
   receiver cannot tell it from an asserted value, and a rebuild under the same id
   stops matching (OX-06-002). Leave the field absent. Delivery to a derived
   `{actor}/inbox/` is addressing, used only when no inbox is held (OX-12-009).
+- **Only a hosted actor states its own endpoints.** Neither actor model derives
+  `inbox`/`outbox` from the id; the node states them for the actor it hosts at
+  creation (`hosted_endpoints`, `vultron/core/models/actor.py`), so its published
+  profile carries both (ISSUE-3616). A peer record built with no endpoints
+  passes `published=None, updated=None` too, or the base class stamps the clock.
 - **Discovery is an injectable Retriever call-out (AKM-05-002).** With no local
   record, `_record_named_peer` (`vultron/core/use_cases/triggers/actor.py`) asks
   the injected `ActorDiscoveryCallOutBundle` before recording a minimal
-  `CoreActor`, which must hold only the id (AKM-02-006; it still mints times and
-  endpoints until #5177). The default, `ACTOR_DISCOVERY_DETERMINISTIC`, always
-  succeeds and logs at DEBUG. A failing production backend logs a WARNING and
-  still proceeds: discovery never blocks an invite.
+  `CoreActor`, which holds only the id (AKM-02-006). The default,
+  `ACTOR_DISCOVERY_DETERMINISTIC`, always succeeds and logs at DEBUG. A failing
+  production backend logs a WARNING and still proceeds: discovery never blocks an
+  invite.
 - **The seam lives in the use case's `_prepare()`, not a BT node.** Recording a
   peer changes no protocol-observable state, so BT-15-001 does not apply, and a
   BT node must not be ticked procedurally outside a tree. Promote it to a BT

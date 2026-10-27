@@ -42,3 +42,5 @@ sys.path.insert(0, str(_repo / "docs" / "_scripts"))
 from render_trigger_api import render  # noqa: E402
 print(render())
 ```
+
+{% include-markdown "../start/_paths/connect-your-tracker/reference__trigger-api.md" %}

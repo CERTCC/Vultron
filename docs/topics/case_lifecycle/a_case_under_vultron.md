@@ -197,3 +197,7 @@ What a good outcome looks like across the whole case, and how the roles pull tow
 - [Capability Model](../capability_model/index.md) — every decision the protocol leaves to your organization
 - [The Case Model](case_model.md) and [The CASE_MANAGER and the Case Ledger](case_manager_and_ledger.md) — the objects and the record-keeping behind this page, written for the people who build the systems
 - [Vultron Protocol Specification, §3 Protocol Overview](../../reference/vultron-spec/introduction.md#3-protocol-overview-i) — the coordination model in normative terms
+
+{% include-markdown "../../start/_paths/coordinate-cases/topics__case_lifecycle__a_case_under_vultron.md" %}
+
+{% include-markdown "../../start/_paths/how-vultron-works/topics__case_lifecycle__a_case_under_vultron.md" %}

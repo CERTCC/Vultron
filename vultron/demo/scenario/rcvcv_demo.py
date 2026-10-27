@@ -302,6 +302,7 @@ def _phase_report_submission(
             v1_actor_id=v1_id,
             c2_actor_id=c2_id,
             v2_actor_id=v2_id,
+            case_actor_client=case_actor_client,
         )
 
     c1_in_c1 = get_actor_by_id(c1_client, c1.id_)

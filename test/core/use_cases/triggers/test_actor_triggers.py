@@ -43,6 +43,12 @@ from test.support.embargo_register import (
     write_consent_rows,
 )
 from test.support.received import archive_received, case_stub
+from test.support.transferee import (
+    INACTIVE_STANDINGS,
+    TransfereeStanding,
+    make_inactive,
+    transferee_record,
+)
 from test.support.trigger_results import activity_of
 from vultron.adapters.driven.datalayer_sqlite import (
     SqliteDataLayer,
@@ -1463,12 +1469,15 @@ class TestSvcAcceptActorRecommendationUseCase:
             ).execute()
 
 
-def _seed_managed_case(owner, dl, *peers):
+def _seed_managed_case(owner, dl, *peers, participant_ids=()):
     """A case whose roster names a separate CASE_MANAGER (CM-24-006).
 
     The owner's trigger runs in the owner's own store only (CM-24-004,
     ADR-0109); the CASE_MANAGER's store is seeded with the case too, so the
     tests that deliver the owner's Offer to it have a replica to act on.
+    Each of *peers*, and each of *participant_ids* (an actor this store
+    holds no record of), is seated as an active participant: only one may
+    be offered the case (CM-21-021).
     """
     case = as_VulnerabilityCase(
         attributed_to=owner.id_, name="Test Case", content="Content"
@@ -1489,10 +1498,24 @@ def _seed_managed_case(owner, dl, *peers):
     # The owner holds CASE_OWNER on the roster: only it may offer the case
     # (CM-21-019).
     owner_record = seed_case_owner_participant(dl, case)
+    peer_records = [
+        transferee_record(case, actor_id)
+        for actor_id in (*(peer.id_ for peer in peers), *participant_ids)
+    ]
+    for record in peer_records:
+        dl.create(record)
     dl.create(case)
     case_actor_dl = dl.clone_for_actor(case_actor.id_)
     _CREATED_DLS.append(case_actor_dl)
-    for obj in (owner, *peers, case, case_actor, manager, owner_record):
+    for obj in (
+        owner,
+        *peers,
+        case,
+        case_actor,
+        manager,
+        owner_record,
+        *peer_records,
+    ):
         case_actor_dl.create(obj)
     return case, case_actor
 
@@ -1564,6 +1587,47 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         with pytest.raises(VultronValidationError, match="transferee_id"):
             _offer_ownership(dl, owner, case, transferee_id)
         assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-21-021")
+    @pytest.mark.spec("TRIG-01-003")
+    @pytest.mark.parametrize(
+        "standing", INACTIVE_STANDINGS, ids=lambda s: s.name
+    )
+    def test_offer_to_a_transferee_that_is_not_active_is_refused(
+        self, standing
+    ):
+        """A transferee the owner's replica does not hold as an active
+        participant fails the trigger with a validation error, which the
+        route returns as a structured 4xx, before anything is queued."""
+        owner, dl = _make_actor_dl("Vendor")
+        transferee_id = "https://example.org/actors/lapsed-transferee"
+        seated = (
+            ()
+            if standing is TransfereeStanding.OFF_ROSTER
+            else (transferee_id,)
+        )
+        case, _ = _seed_managed_case(owner, dl, participant_ids=seated)
+        if seated:
+            make_inactive(case, dl, transferee_id, standing)
+
+        with pytest.raises(VultronValidationError, match="CM-21-021"):
+            _offer_ownership(dl, owner, case, transferee_id)
+        assert dl.outbox_list() == []
+
+    @pytest.mark.spec("CM-21-021")
+    @pytest.mark.spec("OID-01-006")
+    def test_a_slash_spelled_active_transferee_is_not_refused(self):
+        """The active check reads the roster by the canonical id, so a
+        trailing slash on ``transferee_id`` does not refuse a participant."""
+        owner, dl = _make_actor_dl("Vendor")
+        transferee_id = "https://example.org/actors/slash-spelled"
+        case, _ = _seed_managed_case(
+            owner, dl, participant_ids=[transferee_id]
+        )
+
+        result = _offer_ownership(dl, owner, case, f"{transferee_id}/")
+
+        assert result.activity is not None
 
     @pytest.mark.spec("TRIG-11-007")
     @pytest.mark.spec("CM-21-016")
@@ -1691,7 +1755,8 @@ class TestSvcOfferCaseOwnershipTransferUseCase:
         """
         owner, dl = _make_actor_dl("Vendor")
         missing_id = "https://example.org/actors/nobody"
-        case, _ = _seed_managed_case(owner, dl)
+        # On the roster, with no actor record in this store.
+        case, _ = _seed_managed_case(owner, dl, participant_ids=[missing_id])
 
         from vultron.core.use_cases.triggers.actor import (
             SvcOfferCaseOwnershipTransferUseCase,
@@ -2364,11 +2429,6 @@ class TestActorDiscoveryCallOut:
         assert recorded is not None
         assert str(recorded.id_) == missing_id
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="AKM-02-006: the minimal peer gets clock times and endpoints"
-        " derived from its id. Tracked by #5177.",
-    )
     @pytest.mark.spec("AKM-02-006")
     def test_minimal_peer_holds_no_value_nobody_asserted(self):
         """A peer known only by URI is recorded with nothing invented."""

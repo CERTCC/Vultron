@@ -37,6 +37,7 @@ from vultron.core.models.dimensions import (
 from vultron.core.models.ledger_position import LedgerPosition
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.enums import as_TransitiveActivityType
+from vultron.wire.as2.factories._actor import carried_actor
 from vultron.wire.as2.factories._context import (
     case_target_ref,
     case_uri_of,
@@ -480,7 +481,7 @@ def rm_close_case_activity(
 
 def offer_case_participant_role_activity(
     role: CVDRole,
-    target_actor: as_Actor,
+    target_actor: as_Actor | CoreActor | str,
     case: as_VulnerabilityCase | str,
     **kwargs,
 ) -> as_Offer:
@@ -498,7 +499,9 @@ def offer_case_participant_role_activity(
     Args:
         role: The ``CVDRole`` to offer.  Becomes the ``role`` field on the
             ``as_CaseParticipantRole`` object.
-        target_actor: The ``as_Actor`` that will receive the role offer.
+        target_actor: The actor that will receive the role offer: its profile
+            as the sender holds it, or its URI, which travels as an actor
+            reference (AKM-05-005).
         case: The ``as_VulnerabilityCase`` (or its URI) the role is scoped
             to.  Only its URI goes on the wire as ``context``: the recipient
             is a participant and already holds the case (AKM-02-002), and the
@@ -518,7 +521,7 @@ def offer_case_participant_role_activity(
         role_obj = as_CaseParticipantRole(role=role)
         return _OfferCaseParticipantRoleActivity(
             object_=role_obj,
-            target=target_actor,
+            target=carried_actor(target_actor),
             context=case_uri_of(case) or case,
             **kwargs,
         )
@@ -600,9 +603,18 @@ def reject_case_participant_role_activity(
         ) from exc
 
 
+def _carried_target(
+    target: as_ActorRef | CoreActor | None,
+) -> as_ActorRef | CoreActor | None:
+    """The transferee as the Offer carries it: held, or an actor reference."""
+    if isinstance(target, (str, as_Actor, CoreActor)):
+        return carried_actor(target)
+    return target
+
+
 def offer_case_ownership_transfer_activity(
     case: as_VulnerabilityCase,
-    target: as_ActorRef | None = None,
+    target: as_ActorRef | CoreActor | None = None,
     **kwargs,
 ) -> as_Offer:
     """Build an Offer(as_VulnerabilityCase, target=Actor) — ownership transfer.
@@ -611,10 +623,10 @@ def offer_case_ownership_transfer_activity(
     a bare string ID, so the recipient can distinguish this activity from
     a ``SUBMIT_REPORT`` Offer during semantic pattern matching.
 
-    A *target* given as a bare actor URI is wrapped as an ``as_Actor`` so the
-    transferee travels and is stored inline (DL-08-003): the CASE_MANAGER
+    The transferee travels and is stored inline (DL-08-003): the CASE_MANAGER
     need not hold the transferee's profile, and its ledger snapshot must
-    carry the transferee inline (CLP-07-006).
+    carry the transferee inline (CLP-07-006).  A held profile travels as held;
+    a bare actor URI travels as an actor reference (AKM-05-005).
 
     Args:
         case: The ``as_VulnerabilityCase`` whose ownership is being offered.
@@ -628,11 +640,11 @@ def offer_case_ownership_transfer_activity(
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
-    if isinstance(target, str):
-        target = as_Actor(id_=target)
     try:
         return _OfferCaseOwnershipTransferActivity(
-            object_=case, target=target, **kwargs
+            object_=case,
+            target=_carried_target(target),
+            **kwargs,
         )
     except ValidationError as exc:
         logger.warning(
@@ -646,7 +658,7 @@ def offer_case_ownership_transfer_activity(
 
 def propose_case_ownership_transfer_activity(
     case: as_VulnerabilityCase,
-    target: as_ActorRef,
+    target: as_ActorRef | CoreActor,
     end_time: datetime | None = None,
     **kwargs,
 ) -> as_Offer:
@@ -835,7 +847,7 @@ def undo_case_ownership_transfer_activity(
 
 
 def rm_invite_to_case_activity(
-    invitee: as_Actor | str,
+    invitee: as_Actor | CoreActor | str,
     target: Any,
     roles: list[str] | None = None,
     embargo_obj: Any = None,
@@ -849,7 +861,8 @@ def rm_invite_to_case_activity(
     for the scenario where a case does not yet exist.
 
     Args:
-        invitee: The ``as_Actor`` (or actor URI) being invited.
+        invitee: The actor being invited: its profile as the sender holds
+            it, or its URI, which travels as an actor reference (AKM-05-005).
         target: The case to join — either a ``VulnerabilityCase`` (projected
             to an enriched ``as_VulnerabilityCaseStub`` via
             :func:`_project_case_to_stub`), a pre-built ``as_VulnerabilityCaseStub``,
@@ -881,13 +894,11 @@ def rm_invite_to_case_activity(
         # not hold the case, and the stub Invite is told apart by its target's
         # ``type`` (CM-11-013, VAM-04-004).
         target = as_VulnerabilityCaseStub(case_id=target)
-    if isinstance(invitee, str):
-        invitee = as_Actor(id_=invitee)
     if roles is not None:
         kwargs["roles"] = roles
     try:
         return _RmInviteToCaseActivity(
-            object_=invitee,
+            object_=carried_actor(invitee),
             target=target,
             **with_case_context(kwargs, target),
         )
@@ -1026,7 +1037,7 @@ def ledger_position_content(position: LedgerPosition) -> str:
 
 
 def rm_invite_to_full_case_activity(
-    invitee: as_Actor | str,
+    invitee: as_Actor | CoreActor | str,
     case: VulnerabilityCase | str,
     ledger_tail: LedgerPosition,
     **kwargs,
@@ -1040,7 +1051,8 @@ def rm_invite_to_full_case_activity(
     reach, travels in ``content`` (see :func:`ledger_position_content`).
 
     Args:
-        invitee: The ``as_Actor`` (or actor URI) being asked.
+        invitee: The actor being asked: its profile as the sender holds it,
+            or its URI, which travels as an actor reference (AKM-05-005).
         case: The case, or its URI.
         ledger_tail: The CASE_MANAGER's ledger position when it issues the
             Invite.
@@ -1055,11 +1067,9 @@ def rm_invite_to_full_case_activity(
         VultronActivityConstructionError: If Pydantic validation fails.
     """
     case_id = case if isinstance(case, str) else case.id_
-    if isinstance(invitee, str):
-        invitee = as_Actor(id_=invitee)
     try:
         return _RmInviteToFullCaseActivity(
-            object_=invitee,
+            object_=carried_actor(invitee),
             target=case_id,
             content=ledger_position_content(ledger_tail),
             **with_case_context(kwargs, case_id),

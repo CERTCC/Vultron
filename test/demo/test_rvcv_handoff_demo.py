@@ -20,7 +20,7 @@ True multi-container isolation is validated by the acceptance test runnable via:
 import contextlib
 import importlib
 import json
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from datetime import timedelta
 from types import SimpleNamespace
 from typing import Any
@@ -1061,12 +1061,16 @@ class _CountingRouter(_TestClientRouter):
         self.attempted = 0
 
     async def emit(
-        self, activity_id: str, json_body: str, recipients: list[str]
+        self,
+        activity_id: str,
+        json_body: str,
+        recipients: list[str],
+        inboxes: Mapping[str, str] | None = None,
     ) -> None:
         self.attempted += len(recipients)
         if self.attempted > self.cap:
             return
-        await super().emit(activity_id, json_body, recipients)
+        await super().emit(activity_id, json_body, recipients, inboxes)
 
 
 @pytest.mark.spec("SYNC-15-013")

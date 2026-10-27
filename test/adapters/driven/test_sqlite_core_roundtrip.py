@@ -633,10 +633,10 @@ def test_a_legacy_case_actor_row_reads_back_as_vultron_service(dl):
     """The old ``CaseActor`` shape reads back as a ``VultronService``.
 
     ``CaseActor`` stored no ``inbox`` and kept ``outbox`` as an id-less
-    tracking list, so the endpoints are derived from the id instead, and a
-    store written before the class was deleted stays readable.  The list is
-    non-empty and the old serializer's null fields are present, as in a real
-    stored row.
+    tracking list.  Neither names an address, so both read back absent rather
+    than derived from the id (AKM-02-006), and a store written before the
+    class was deleted stays readable.  The list is non-empty and the old
+    serializer's null fields are present, as in a real stored row.
     """
     actor_id = "https://test.example/api/v2/actors/case-actor"
     _insert_raw_row(
@@ -659,5 +659,5 @@ def test_a_legacy_case_actor_row_reads_back_as_vultron_service(dl):
     result = dl.read(actor_id)
 
     assert type(result) is VultronService
-    assert result.inbox == f"{actor_id}/inbox"
-    assert result.outbox == f"{actor_id}/outbox"
+    assert result.inbox is None
+    assert result.outbox is None
