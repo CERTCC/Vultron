@@ -30,11 +30,7 @@ using Docker Compose. By the end of this tutorial, we will have:
 
 We need the following tools installed before we begin:
 
-- [Docker](https://docs.docker.com/get-docker/){:target="_blank"} (version
-  20.10 or later)
-- [Docker Compose](https://docs.docker.com/compose/install/){:target="_blank"}
-  (version 2.x; included with Docker Desktop)
-- Git (to clone the repository)
+{% include-markdown "./_docker_prerequisites.md" %}
 
 We do **not** need Python installed locally; the containers include everything
 required.
@@ -231,3 +227,7 @@ We have:
   maps each RM message to its ActivityStreams wire form.
 - **Run all demos at once** — inside the demo container, run
   `vultron-demo all` to execute every demo in sequence.
+
+{% include-markdown "../start/_paths/contribute/tutorials__receive_report_demo.md" %}
+
+{% include-markdown "../start/_paths/coordinate-cases/tutorials__receive_report_demo.md" %}

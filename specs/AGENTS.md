@@ -78,7 +78,9 @@ If requirements appear to conflict:
 When updating specs per LEARN_prompt instructions:
 
 - **Avoid over-specifying implementation details**: Specify *what*, not *how*
-- **Keep requirements atomic**: One testable requirement per ID
+- **Keep requirements atomic**: one RFC 2119 keyword per `statement:` (MS-03-001),
+  in short active sentences that name the actor (MS-03-003 to MS-03-006); how
+  to split is in `notes/spec-authoring-rules.md`
 - **Remove redundancy**: Use cross-references instead of duplicating
   requirements
 - **Maintain verification criteria**: Every requirement needs a test

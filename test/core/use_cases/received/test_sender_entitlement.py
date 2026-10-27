@@ -207,10 +207,12 @@ def _record_ownership_offer(cm_store, owned_case, make_payload, offer_id):
     """The CASE_MANAGER makes and ledgers an Offer naming ``_TRANSFEREE_ID``.
 
     The owner proposes it (ADR-0148); the owner holds ``CASE_OWNER`` on the
-    roster, since only it may propose (CM-21-019).  Returns the Offer the
-    CASE_MANAGER made, the one the transferee answers.
+    roster, since only it may propose (CM-21-019), and the transferee is an
+    active participant, since only one may be offered the case (CM-21-021).
+    Returns the Offer the CASE_MANAGER made, the one the transferee answers.
     """
     seed_case_owner_participant(cm_store, owned_case, _OWNER_ID)
+    seed_case_participant(cm_store, owned_case, _TRANSFEREE_ID)
     cm_store.create(owned_case)
     proposal = propose_case_ownership_transfer_activity(
         owned_case,

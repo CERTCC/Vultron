@@ -1735,10 +1735,11 @@ groups:
           --changed-since <base>` and push only when it exits 0, whatever the
           Pull Request's type.
         rationale: >-
-          The marker rule for named tests (MS-10-011) and the spec line limit
-          (PD-10-002) have a backlog, so plain `spec-lint` cannot fail on them.
-          Scoped to the branch they can, and a docs Pull Request runs no test
-          suite to catch them otherwise.
+          The marker rule for named tests (MS-10-011), the spec line limit
+          (PD-10-002) and the one-obligation rule for statements (MS-03-007)
+          have a backlog, so plain `spec-lint` cannot fail on them. Scoped to
+          the branch they can, and a docs Pull Request runs no test suite to
+          catch them otherwise.
         verification: >-
           `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins the
           `create-pr` call; `test/metadata/specs/test_branch_checks.py` covers

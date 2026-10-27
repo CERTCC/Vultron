@@ -1,0 +1,1 @@
+If you have been here before and want one page in particular, [Look Something Up](../lookup.md) lists the reference pages of every tab: the specification, the requirements, the messages, and the glossary.

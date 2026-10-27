@@ -20,9 +20,7 @@ The Reporter's and Vendor2's copies of the case are verified as [Ledger Fanout](
 
 ## Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/){:target="_blank"} (version 20.10 or later)
-- [Docker Compose](https://docs.docker.com/compose/install/){:target="_blank"} (version 2.x)
-- A local clone of the Vultron repository
+{% include-markdown "../../tutorials/_docker_prerequisites.md" %}
 
 ---
 
@@ -52,8 +50,8 @@ docker compose -f docker/docker-compose-multi-actor.yml \
 ```
 
 The `DEMO=rvv` environment variable selects the RVV scenario.
-Docker builds the images on the first run (a few minutes); subsequent runs
-use the cache.
+
+{% include-markdown "../../tutorials/_first_run_build.md" %}
 
 !!! success "Success indicator"
 

@@ -18,6 +18,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
+from vultron.core.models.actor import hosted_endpoints
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,
@@ -78,18 +79,37 @@ report_base_url = f"{base_url}/reports"
 # generated once per run so all examples in a single run share the same case number
 case_number = random.randint(10000000, 99999999)  # noqa: S311 — sample data
 
-_FINDER = as_Person(name="Finn der Vul", id_=f"{user_base_url}/finndervul")
-_VENDOR = as_Organization(
-    name="VendorCo", id_=f"{organization_base_url}/vendorco"
+# Each example actor's profile is the one it publishes, so it states its own
+# endpoints (``hosted_endpoints``); an activity naming it carries it as held.
+_FINDER = as_Person.model_validate(
+    {
+        "id": f"{user_base_url}/finndervul",
+        "name": "Finn der Vul",
+        **hosted_endpoints(f"{user_base_url}/finndervul"),
+    }
 )
-_COORDINATOR = as_Organization(
-    name="Coordinator LLC", id_=f"{organization_base_url}/coordinator"
+_VENDOR = as_Organization.model_validate(
+    {
+        "id": f"{organization_base_url}/vendorco",
+        "name": "VendorCo",
+        **hosted_endpoints(f"{organization_base_url}/vendorco"),
+    }
+)
+_COORDINATOR = as_Organization.model_validate(
+    {
+        "id": f"{organization_base_url}/coordinator",
+        "name": "Coordinator LLC",
+        **hosted_endpoints(f"{organization_base_url}/coordinator"),
+    }
 )
 
 case_actor_base_url = f"{base_url}/case-actors"
-_CASE_ACTOR = as_Service(
-    name="VendorCo Case Actor",
-    id_=f"{case_actor_base_url}/vendorco-case-actor",
+_CASE_ACTOR = as_Service.model_validate(
+    {
+        "id": f"{case_actor_base_url}/vendorco-case-actor",
+        "name": "VendorCo Case Actor",
+        **hosted_endpoints(f"{case_actor_base_url}/vendorco-case-actor"),
+    }
 )
 
 _REPORT = as_VulnerabilityReport(

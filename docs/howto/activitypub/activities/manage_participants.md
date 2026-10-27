@@ -128,8 +128,7 @@ A later `Join` or `Ignore` moves the participant to `ACCEPTED` or `DEFERRED` as 
 
 ## Record a participant's status
 
-Vendor Awareness (CV), Fix Readiness (CF) and Fix Deployed (CD) are all implemented in ActivityStreams as `Add(ParticipantStatus)`.
-Which one you are sending is determined by the field you set, not by a different activity.
+{% include-markdown "./_vfd_one_activity.md" trailing-newlines=false %}
 See [How to Post a Status Update or a Case Note](status_updates.md) for the field that selects each.
 
 Send `Add(ParticipantStatus)`, targeting the participant record, with the new status inline as its `object`.

@@ -11,7 +11,7 @@ The tree exists only for the simulation and has no prototype counterpart.
 A real Vultron system starts from creating and submitting a vulnerability report, which is the output of discovery.
 Every entry below is therefore simulation-only: its cross-ref, shape, and factory placement are N/A.
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## `HaveDiscoveryPriority`
 

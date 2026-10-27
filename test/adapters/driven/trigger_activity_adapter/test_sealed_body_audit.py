@@ -775,11 +775,6 @@ _ROLE_DELEGATE_PATHS: dict[str, tuple[str, ...]] = {
 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="AKM-02-006: the adapter wraps a delegate known only by URI in a"
-    " made-up actor with clock times and derived endpoints. Tracked by #5177.",
-)
 @pytest.mark.spec("AKM-02-006")
 @pytest.mark.parametrize("method", sorted(_ROLE_DELEGATE_PATHS))
 def test_a_role_delegate_given_by_uri_carries_no_invented_field(world, method):
@@ -790,3 +785,114 @@ def test_a_role_delegate_given_by_uri_carries_no_invented_field(world, method):
     assert isinstance(delegate, dict)
     invented = ("published", "updated", "inbox", "outbox")
     assert [key for key in invented if key in delegate] == []
+
+
+#: Methods that name the held peer ``_PEER``, with the path to the actor in
+#: the sealed body.
+_HELD_ACTOR_PATHS: dict[str, tuple[str, ...]] = {
+    "invite_actor_to_case": ("object",),
+    "invite_actor_to_full_case": ("object",),
+    "suggest_actor_to_case": ("object",),
+    "offer_case_ownership_transfer": ("target",),
+    "propose_case_ownership_transfer": ("object", "target"),
+}
+
+
+def _carried(blob: str, path: tuple[str, ...]) -> dict[str, Any]:
+    actor: Any = json.loads(blob)
+    for key in path:
+        actor = actor[key]
+    assert isinstance(actor, dict)
+    return actor
+
+
+@pytest.mark.spec("AKM-05-005")
+@pytest.mark.parametrize("method", sorted(_HELD_ACTOR_PATHS))
+def test_an_actor_the_sender_holds_travels_as_held(world, method):
+    """The adapter reads its held record of the named actor (ADR-0159)."""
+    _, blob = RECIPES[method](world)
+    actor = _carried(blob, _HELD_ACTOR_PATHS[method])
+    assert actor["id"] == _PEER
+    assert actor["type"] == "Service"
+    assert actor["name"] == "Vendor"
+    # Its own ``published``, not this build's clock; and no endpoint the
+    # record does not state (AKM-02-006).
+    assert (
+        actor["published"]
+        == world.vendor.model_dump(mode="json", by_alias=True)["published"]
+    )
+    assert "inbox" not in actor
+    assert "outbox" not in actor
+
+
+@pytest.mark.spec("AKM-05-005")
+@pytest.mark.parametrize("method", sorted(_ROLE_DELEGATE_PATHS))
+def test_an_actor_the_sender_does_not_hold_travels_as_a_reference(
+    world, method
+):
+    """Only a URI is held for the delegate, so it travels as id and type."""
+    assert world.dl.read(_CASE_ACTOR) is None
+    _, blob = RECIPES[method](world)
+    actor = _carried(blob, _ROLE_DELEGATE_PATHS[method])
+    actor.pop("@context", None)
+    assert actor == {"id": _CASE_ACTOR, "type": "Actor"}
+
+
+@pytest.mark.spec("AKM-05-005")
+def test_a_uri_only_peer_record_travels_as_a_reference(world):
+    """The minimal peer of ``_record_named_peer`` holds only the URI."""
+    from vultron.core.models.actor import CoreActor
+
+    world.dl.create(CoreActor(id_=_CASE_ACTOR, published=None, updated=None))
+    _, blob = RECIPES["offer_case_participant_role"](world)
+    actor = _carried(blob, ("target",))
+    actor.pop("@context", None)
+    assert actor == {"id": _CASE_ACTOR, "type": "Actor"}
+
+
+@pytest.mark.spec("AKM-02-006")
+@pytest.mark.spec("OX-06-002")
+@pytest.mark.parametrize(
+    "method",
+    ["emit_accept_actor_recommendation", "emit_reject_actor_recommendation"],
+)
+def test_a_rebuilt_recommendation_is_the_same_on_every_build(
+    world, method, monkeypatch
+):
+    """The CASE_MANAGER's rebuild of the recommendation reads no clock.
+
+    Two builds from one store, an hour apart, embed the same recommendation:
+    nothing in it is minted from this actor's clock (AKM-02-006), so every
+    rebuild under the recommendation's id carries the same body (OX-06-002).
+    """
+    from datetime import timedelta
+
+    from test.support.clock import SteppingClock
+    from vultron.core.models import _helpers
+    from vultron.core.models._helpers import now_utc
+
+    emit = getattr(world.adapter, method)
+
+    def embedded() -> dict[str, Any]:
+        _, blob = emit(
+            recommender_id=_PEER,
+            recommendation_id="https://example.org/activities/recommendation",
+            recommended_id=_PEER,
+            case_id=world.case_id,
+            actor=_ACTOR,
+            to=[_PEER],
+        )
+        recommendation: dict[str, Any] = json.loads(blob)["object"]
+        return recommendation
+
+    first = embedded()
+    monkeypatch.setattr(
+        _helpers,
+        "datetime",
+        SteppingClock(now_utc() + timedelta(hours=1), step=timedelta(0)),
+    )
+    second = embedded()
+
+    assert "published" not in first
+    assert "updated" not in first
+    assert first == second

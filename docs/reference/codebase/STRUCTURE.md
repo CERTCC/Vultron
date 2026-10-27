@@ -56,7 +56,8 @@ stakeholder_type: [project-contributor]
     An unverified `MUST`/`MUST_NOT` requirement without its own `verification_debt` marker is a hard error.
     The marked ones are printed as one line per kind, `--list-unverified` names the IDs, `--check-debt-owners` reports an owner issue that is closed, and `--check-closing-pr N` fails a PR that closes an owner still in use (both run in `verification-debt-owners.yml`).
     It also prints one `[INFO]` line per MS-12 `lint_suppress` code, giving the live total of specs that carry it.
-    `--changed-since REF` adds the checks scoped to what the branch changed (MS-10-011, PD-10-002), which `create-pr` runs before the first push.
+    `--changed-since REF` adds the checks scoped to what the branch changed (MS-10-011, PD-10-002, MS-03-007), which `create-pr` runs before the first push.
+    `--list-compound` prints only the compound-requirement backlog, by spec file (MS-03-001).
   - `spec-coverage` → `vultron.metadata.specs.coverage:main`
   - `spec-backstop` → `vultron.metadata.specs.backstop:main` (spec groups governing the changed code, checked against a Spec manifest)
   - `spec-rationale` → `vultron.metadata.specs.rationale:main`.
@@ -79,7 +80,7 @@ stakeholder_type: [project-contributor]
     It fails when a `docs/` page uses a glossary term that a higher-level page declares in `introduces:`, unless the page links that introducing page at or before the first use or the use itself links to the glossary (DF-11-002).
     Working-record pages and pages with no level are skipped, and include fragments are checked at their lowest host's level.
     Pre-existing violations sit in a shrink-only baseline, pinned by key in its test, where each entry names a reason; `--prune-baseline` drops entries that are no longer violations.
-  - `docs-site` → `vultron.metadata.docs.site_sync:main`.
+  - `docs-site` → `vultron.metadata.docs.site_sync:main` (`--write` also writes the reading-path box fragments under `docs/start/_paths/` and deletes stale ones; `--check` reports both, DF-11-023; it also writes the listing on the cross-tab lookup page `docs/lookup.md` and checks that the home page and every start page link it, DF-11-021).
     `--write` regenerates the contents listing of each section landing page whose `index.md` declares `contents: generated`, at any nav depth, from the `mkdocs.yml` nav and each listed page's `description:` frontmatter.
     It also checks that a `contents: routing` index links every member of its section, directly or through a fragment it includes uncut (DF-11-005), and regenerates `docs/includes/stakeholder_types.md` from the page schema (DF-11-011) and `notes/site-coverage-matrix.md` (DF-11-008).
     It regenerates each start page's reading-path listing from the page's `thread:` frontmatter (DF-11-014).
@@ -89,7 +90,7 @@ stakeholder_type: [project-contributor]
   - `docs-thread-order` → `vultron.metadata.docs.thread_order:main`.
     It fails when a thread member, or a fragment it renders, uses a term a later member introduces without linking out for it first (DF-11-024).
     It reuses the `docs-level-order` scan, and its shrink-only baseline is `vultron/metadata/docs/thread_order_baseline.txt`.
-  - `docs-withheld` → `vultron.metadata.docs.withheld:main` (a withheld artifact produces no `site/` files), `docs-links` → `vultron.metadata.docs.links:main` (every internal reference in the built `site/` resolves), `docs-legacy-urls` → `vultron.metadata.docs.legacy_urls:main` (a URL the site once published still answers)
+  - `docs-withheld` → `vultron.metadata.docs.withheld:main` (a withheld artifact produces no `site/` files), `docs-links` → `vultron.metadata.docs.links:main` (every internal reference in the built `site/` resolves), `docs-path-boxes` → `vultron.metadata.docs.path_boxes:main` (every member page and start page renders its reading-path boxes, DF-11-023), `docs-legacy-urls` → `vultron.metadata.docs.legacy_urls:main` (a URL the site once published still answers)
   - `docs-duplicates` → `vultron.metadata.docs.duplicates:main`.
     It lists paragraphs repeated across `docs/` pages, as exact copies or as drifted copies that share most of their sentences, for `lint-docs` to report as SG-43 findings.
     It is advisory and exits 0 whatever it finds, except that it fails when it resolves no target pages (DF-09-009).
@@ -152,7 +153,7 @@ Enforced by: `test/architecture/test_core_no_adapter_imports.py`, `test/architec
 | `vultron/adapters/outbox_sealed_body.py` | Seals the outbound activity JSON at emission so delivery relays it byte for byte (VM-08-003) |
 | `vultron/wire/as2/unknown_keys.py` | Inbound unknown-key disposition at the parse edge (MV-11) |
 | `vultron/metadata/specs/kind_classification.py`, `vultron/metadata/specs/yaml_items.py` | MS-12 kind-tree enforcement for `spec-lint`, and the spec-YAML item slicer shared by `scripts/` |
-| `vultron/metadata/specs/growth_guard.py` | PR-only growth guard: runs a per-item extractor at the merge base and on the working tree and reports only the items the branch added; backs the protocol-coverage (SR-05-005), `missing_story_reference` (MS-12-007) and missing-rationale (MS-10-014) guards |
+| `vultron/metadata/specs/growth_guard.py` | PR-only growth guard: runs a per-item extractor at the merge base and on the working tree and reports only the items the branch added; backs the protocol-coverage (SR-05-005), `missing_story_reference` (MS-12-007), missing-rationale (MS-10-014) and compound-statement (MS-03-007) guards |
 | `vultron/metadata/specs/rationale.py` | `spec-rationale`: the missing-rationale extractor behind the MS-10-014 guard, and the advisory history-narration and candidate-`adr:`-link worklists (MS-10-015) |
 | `vultron/demo/exchange/report_with_embargo_demo.py` + `vultron/demo/helpers/embargo_outcome.py` | Exchange demo where the Reporter proposes embargo terms with the report, and its creation-time embargo checks |
 

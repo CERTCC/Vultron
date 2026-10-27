@@ -14,10 +14,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Any, TypeAlias
+from typing import Annotated, Any, TypeAlias
 
-from pydantic import Field, ValidationInfo, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator
 
+from vultron.core.models.actor import CoreActor
 from vultron.wire.as2.enums import as_ActorType as A_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
@@ -42,8 +43,11 @@ class as_Actor(as_Object):
     """
 
     # todo: collections should be internally represented as lists but dumped as collections
-    inbox: as_OrderedCollection = Field(default_factory=as_OrderedCollection)
-    outbox: as_OrderedCollection = Field(default_factory=as_OrderedCollection)
+    # Absent unless the profile states it: an endpoint derived from ``id_``
+    # would be a value nobody asserted (AKM-02-006, ADR-0159).  A hosted actor
+    # states its own endpoints when it is created (``hosted_endpoints``).
+    inbox: as_OrderedCollection | None = None
+    outbox: as_OrderedCollection | None = None
     preferred_username: str | None = None
     endpoints: Any | None = None
     # todo endpoints should be its own object
@@ -52,14 +56,14 @@ class as_Actor(as_Object):
     @field_validator("inbox", "outbox", mode="before")
     @classmethod
     def _coerce_uri_to_collection(cls, v: Any, info: ValidationInfo) -> Any:
-        """Coerce a plain URI string or None to an as_OrderedCollection.
+        """Coerce a plain URI string to an as_OrderedCollection.
 
         When reading back an actor that was stored via a CoreActor-derived
         class (inbox/outbox as a URL string), the value is normalised:
 
-        - ``None``, a blank string, or a collection with no ``id`` →
-          ``as_OrderedCollection`` at ``{actor_id}/{field}``, the same
-          address ``set_collections`` derives when the field is absent
+        - ``None``, a blank string, or a collection with no ``id`` → ``None``:
+          none of them names an address, and deriving one from the actor's
+          ``id_`` would invent it (AKM-02-006)
         - ``str`` → ``as_OrderedCollection(id_=v)``
         - ``dict`` → validated as an ``as_OrderedCollection`` with an absent
           ``published``/``updated`` read as ``None``
@@ -71,58 +75,30 @@ class as_Actor(as_Object):
         routes to.
 
         An endpoint is an *address*, so no branch here mints a clock stamp
-        (see :func:`_address_collection`): a collection dict — addressed or
-        not — reads an absent ``published``/``updated`` as ``None`` whichever
-        validation context it is in, and keeps the stamps it arrived with.
-        The dict is validated under the caller's ``info.context`` so the
-        inbound rule (ADR-0103) still reaches any item nested inside it.
+        (see :func:`_address_collection`): a collection dict reads an absent
+        ``published``/``updated`` as ``None`` whichever validation context it
+        is in, and keeps the stamps it arrived with.  The dict is validated
+        under the caller's ``info.context`` so the inbound rule (ADR-0103)
+        still reaches any item nested inside it.
         """
-        derived = _endpoint_collection(info.data.get("id_"), info.field_name)
         if v is None:
-            return derived
+            return None
         if isinstance(v, str):
-            return _address_collection(v.strip()) if v.strip() else derived
+            return _address_collection(v.strip()) if v.strip() else None
         if isinstance(v, dict):
-            addressed = {**_NO_CLOCK_STAMP, **v}
             if not (v.get("id") or v.get("id_")):
-                addressed["id"] = derived.id_
+                return None
             return as_OrderedCollection.model_validate(
-                addressed, context=info.context
+                {**_NO_CLOCK_STAMP, **v}, context=info.context
             )
         if isinstance(v, as_OrderedCollection) and (
             "id_" not in v.model_fields_set
         ):
-            unstamped = {
-                name: None
-                for name in _NO_CLOCK_STAMP
-                if name not in v.model_fields_set
-            }
-            return v.model_copy(update={"id_": derived.id_, **unstamped})
+            return None
         return v
 
-    @model_validator(mode="after")
-    def set_collections(self):
-        """Derive an absent ``inbox``/``outbox`` from the actor's ``id_``.
 
-        Keyed on ``model_fields_set`` rather than on the collection's ``id_``:
-        the field's ``default_factory`` builds a collection whose ``id_`` is a
-        fresh ``urn:uuid:``, so an ``id_ is None`` test never fires and the
-        actor would publish an address nobody routes to.  Recorded in
-        ``model_fields_set``, as ``CoreActor`` does, so an ``exclude_unset``
-        dump still carries the derived address.
-        """
-        for field_name in ("inbox", "outbox"):
-            if field_name not in self.model_fields_set:
-                object.__setattr__(
-                    self,
-                    field_name,
-                    _endpoint_collection(self.id_, field_name),
-                )
-                self.model_fields_set.add(field_name)
-        return self
-
-
-def _address_collection(uri: str | None) -> as_OrderedCollection:
+def _address_collection(uri: str) -> as_OrderedCollection:
     """Return the endpoint collection that is only the address *uri*.
 
     ActivityPub publishes ``inbox``/``outbox`` as URIs and ``CoreActor`` keeps
@@ -132,29 +108,32 @@ def _address_collection(uri: str | None) -> as_OrderedCollection:
     clock on every construction, and a value minted on read can never equal
     the one minted on write once a second boundary separates them — which is
     how an actor stored and read back through the datalayer compared unequal
-    to itself (#3732, #3726).  *uri* ``None`` yields a fresh-id collection for
-    a caller with no address to give.
+    to itself (#3732, #3726).
     """
-    if uri is None:
-        return as_OrderedCollection(published=None, updated=None)
     return as_OrderedCollection(id_=uri, published=None, updated=None)
 
 
-def _endpoint_collection(
-    actor_id: str | None, field_name: str | None
-) -> as_OrderedCollection:
-    """Return the collection at the actor's ``{actor_id}/{field_name}`` URL.
+def actor_reference(actor_id: str) -> "as_Actor":
+    """Return the actor reference for an actor known only by *actor_id*.
 
-    Falls back to a fresh collection id when the actor id is unavailable,
-    which happens only if ``id_`` itself failed validation — in which case the
-    actor is being rejected anyway.
+    An inline object with exactly the actor's ``id`` and a ``type``
+    (AKM-05-005, ADR-0159): enough for a receiver to route the activity by
+    its object's ``type``, and nothing the sender does not know.  ``as_Object``
+    would stamp ``published``/``updated`` from this process's clock, so both
+    are cleared; the actor did not publish them (AKM-02-006).
     """
-    if actor_id is None or field_name is None:
-        return _address_collection(None)
-    return _address_collection(f"{actor_id}/{field_name}")
+    return as_Actor(id_=actor_id, published=None, updated=None)
 
 
 as_ActorRef: TypeAlias = ActivityStreamRef[as_Actor]
+
+#: An actor as an activity carries it inline: a wire actor (an actor
+#: reference among them, :func:`actor_reference`) or the core record of the
+#: actor the sender holds, carried as held (AKM-05-005, ADR-0159).  Tried
+#: left to right so a dict still validates as the wire actor it always did.
+as_CarriedActor: TypeAlias = Annotated[
+    as_Actor | CoreActor, Field(union_mode="left_to_right")
+]
 
 
 class as_Group(as_Actor):

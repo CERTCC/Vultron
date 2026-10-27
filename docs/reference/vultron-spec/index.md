@@ -45,3 +45,5 @@ Annexes A and B trace Coordinated Vulnerability Disclosure (CVD) cases from firs
 
 [Open Questions](open-questions.md) collects the questions this version of the specification leaves unresolved.
 [The single-page edition](full.md) holds every section and annex in order, for printing or for searching the whole text at once.
+
+{% include-markdown "../../start/_paths/connect-your-tracker/reference__vultron-spec__index.md" %}

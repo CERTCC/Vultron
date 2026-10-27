@@ -1,0 +1,8 @@
+- [RMB-01](../../reference/specs/protocol.md#rmb-01) — Receive RS (Report Submission)
+- [RMB-02](../../reference/specs/protocol.md#rmb-02) — Receive RI (Report Invalid)
+- [RMB-03](../../reference/specs/protocol.md#rmb-03) — Receive RV (Report Valid)
+- [RMB-04](../../reference/specs/protocol.md#rmb-04) — Receive RD (Report/Case Deferred)
+- [RMB-05](../../reference/specs/protocol.md#rmb-05) — Receive RA (Report/Case Accepted)
+- [RMB-06](../../reference/specs/protocol.md#rmb-06) — Receive RC (Report Closed)
+- [RMB-07](../../reference/specs/protocol.md#rmb-07) — Receive RE (Report Error)
+- [RMB-08](../../reference/specs/protocol.md#rmb-08) — Receive RK (Report Acknowledgment)

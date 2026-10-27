@@ -1,18 +1,18 @@
 {
   "@context": "https://www.w3.org/ns/activitystreams",
   "type": "Accept",
-  "id": "urn:uuid:c3385ecd-7116-4093-ba50-8ee347b30a98",
-  "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/case-actors/vendorco-case-actor Offer VendorCo Case #25584766 to https://vultron.example/organizations/coordinator",
-  "content": "We're accepting your offer to transfer ownership of case VendorCo Case #25584766 to us.",
+  "id": "urn:uuid:57362302-154f-4b74-8317-5cda08e0912c",
+  "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/case-actors/vendorco-case-actor Offer VendorCo Case #19510215 to https://vultron.example/organizations/coordinator",
+  "content": "We're accepting your offer to transfer ownership of case VendorCo Case #19510215 to us.",
   "actor": "https://vultron.example/organizations/coordinator",
   "object": {
     "@context": "https://www.w3.org/ns/activitystreams",
     "type": "Offer",
-    "id": "urn:uuid:2863ccf8-05f8-4e5b-b052-e11b0b35ed49",
-    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer VendorCo Case #25584766 to https://vultron.example/organizations/coordinator",
-    "published": "2026-10-22T14:04:24+00:00",
-    "updated": "2026-10-22T14:04:24+00:00",
-    "content": "We're offering to transfer ownership of case VendorCo Case #25584766 to you.",
+    "id": "urn:uuid:f7757b1a-ea6d-433c-bedf-a6f599be48c8",
+    "name": "https://vultron.example/case-actors/vendorco-case-actor Offer VendorCo Case #19510215 to https://vultron.example/organizations/coordinator",
+    "published": "2026-10-26T20:51:07+00:00",
+    "updated": "2026-10-26T20:51:07+00:00",
+    "content": "We're offering to transfer ownership of case VendorCo Case #19510215 to you.",
     "to": [
       "https://vultron.example/organizations/coordinator"
     ],
@@ -21,40 +21,26 @@
     "target": {
       "@context": "https://www.w3.org/ns/activitystreams",
       "type": "Actor",
-      "id": "https://vultron.example/organizations/coordinator",
-      "published": "2026-10-22T14:04:24+00:00",
-      "updated": "2026-10-22T14:04:24+00:00",
-      "inbox": {
-        "@context": "https://www.w3.org/ns/activitystreams",
-        "type": "OrderedCollection",
-        "id": "https://vultron.example/organizations/coordinator/inbox",
-        "items": []
-      },
-      "outbox": {
-        "@context": "https://www.w3.org/ns/activitystreams",
-        "type": "OrderedCollection",
-        "id": "https://vultron.example/organizations/coordinator/outbox",
-        "items": []
-      }
+      "id": "https://vultron.example/organizations/coordinator"
     },
     "object": {
-      "id": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
+      "id": "urn:uuid:0f5110f3-b4b3-4351-9878-5a73a066f0f7",
       "type": "VulnerabilityCase",
-      "name": "VendorCo Case #25584766",
-      "published": "2026-10-22T14:04:23+00:00",
-      "updated": "2026-10-22T14:04:23+00:00",
+      "name": "VendorCo Case #19510215",
+      "published": "2026-10-26T20:51:06+00:00",
+      "updated": "2026-10-26T20:51:06+00:00",
       "attributedTo": "https://vultron.example/organizations/vendorco",
       "caseParticipants": [],
       "actorParticipantIndex": {},
       "vulnerabilityReports": [],
       "caseStatuses": [
         {
-          "id": "urn:uuid:ae3f6696-f263-43a8-83ea-34aae0fe6683",
+          "id": "urn:uuid:33c0a059-2011-43bf-857e-a5d11467b54e",
           "type": "CaseStatus",
           "name": "NONE pxa",
-          "context": "urn:uuid:ff55f4dd-64bd-4dc3-9ff5-bc70dbe939fb",
-          "published": "2026-10-22T14:04:23+00:00",
-          "updated": "2026-10-22T14:04:23+00:00",
+          "context": "urn:uuid:0f5110f3-b4b3-4351-9878-5a73a066f0f7",
+          "published": "2026-10-26T20:51:06+00:00",
+          "updated": "2026-10-26T20:51:06+00:00",
           "attributedTo": "https://vultron.example/organizations/vendorco",
           "emState": "NONE",
           "pxaState": "pxa",
@@ -65,10 +51,10 @@
       "embargoRegister": [],
       "pendingEmbargoProposalIndex": {},
       "caseActivity": [],
-      "genesisHash": "5b4e8bd4b5d2e94c1d1269ef9c189010cf6f315f113b8151201f6e5b42eb3c8d",
+      "genesisHash": "04dd0647cebe2f9dbdc624b1acb94c1e6b0ba9e63979af39696362ac8c551646",
       "ledgerPosition": {
         "logIndex": -1,
-        "entryHash": "5b4e8bd4b5d2e94c1d1269ef9c189010cf6f315f113b8151201f6e5b42eb3c8d"
+        "entryHash": "04dd0647cebe2f9dbdc624b1acb94c1e6b0ba9e63979af39696362ac8c551646"
       },
       "parentCases": [],
       "childCases": [],

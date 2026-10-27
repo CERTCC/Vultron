@@ -125,7 +125,7 @@ Nodes
   is the Case Owner that made the Offer the CASE_MANAGER recorded
   (``CASE_OWNER`` kind; CM-21-015).  Whether that Offer is still open is a
   precondition guard after the sender check
-  (``vultron.core.behaviors.case.nodes.ownership_offer_guard``)
+  (``vultron.core.behaviors.case.nodes.ownership_reply_guard``)
 - ``SenderIsOfferingCaseOwnerNode`` — guards that the sender of a new
   ownership-transfer Offer holds CVDRole.CASE_OWNER, or is the recorded sender
   of the Offer it redelivers (``CASE_OWNER`` kind; CM-21-019)
@@ -1675,7 +1675,7 @@ class SenderIsOwnershipOfferPartyNode(SenderIsRequestAddresseeNode):
     embeds, which the sender wrote.  Whether the Offer is still open, and
     whether the reply is a redelivery of the one that closed it, is the
     precondition guard that runs right after the sender check
-    (:class:`~vultron.core.behaviors.case.nodes.ownership_offer_guard.OwnershipOfferOpenNode`),
+    (:class:`~vultron.core.behaviors.case.nodes.ownership_reply_guard.OwnershipOfferOpenNode`),
     so a sender with no standing is refused before any offer-state check.
 
     A case this store does not hold, or one that names no CASE_MANAGER,

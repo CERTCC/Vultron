@@ -28,6 +28,7 @@ import vultron.adapters.driving.fastapi.outbox_handler as _outbox_handler
 from test.conftest import seed_case_actor_replica
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import archive_received, case_stub
+from test.support.transferee import transferee_record
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi import trigger_runner
 from vultron.adapters.driving.fastapi.deps import get_trigger_dl
@@ -48,7 +49,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 
 
 class _NoopEmitter:
-    async def emit(self, activity_id, json_body, recipients):
+    async def emit(self, activity_id, json_body, recipients, inboxes=None):
         pass
 
 
@@ -673,6 +674,18 @@ def case_for_invite(dl, actor):
     return case, case_actor
 
 
+@pytest.fixture
+def case_for_transfer(dl, case_for_invite, other_actor):
+    """The invite case, with *other_actor* seated as an active participant.
+
+    Only an active participant may be offered the case (CM-21-021).
+    """
+    case, case_actor = case_for_invite
+    dl.save(transferee_record(case, other_actor.id_))
+    dl.save(case)
+    return case, case_actor
+
+
 def test_trigger_invite_actor_to_case_returns_202(
     client_triggers_invite, actor, case_for_invite, other_actor
 ):
@@ -834,7 +847,7 @@ def drained(monkeypatch):
 @pytest.mark.spec("CM-21-005")
 @pytest.mark.spec("CM-24-004")
 def test_offer_case_ownership_transfer_drains_the_owners_outbox(
-    client_triggers_invite, actor, case_for_invite, other_actor, drained
+    client_triggers_invite, actor, case_for_transfer, other_actor, drained
 ):
     """The owner's own Offer is queued in the owner's outbox, which is drained.
 
@@ -842,7 +855,7 @@ def test_offer_case_ownership_transfer_drains_the_owners_outbox(
     CASE_MANAGER its own Offer, so the drain targets the owner's queue and the
     CaseActor's is untouched.
     """
-    case, case_actor = case_for_invite
+    case, case_actor = case_for_transfer
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/offer-case-ownership-transfer",
         json={"case_id": case.id_, "transferee_id": other_actor.id_},
@@ -856,15 +869,36 @@ def test_offer_case_ownership_transfer_drains_the_owners_outbox(
     assert drained == [(actor.id_, actor.id_)]
 
 
+@pytest.mark.spec("CM-21-021")
+@pytest.mark.spec("TRIG-01-003")
+@pytest.mark.spec("EH-05-001")
+def test_offer_case_ownership_transfer_route_refuses_an_inactive_transferee(
+    client_triggers_invite, actor, case_for_invite, other_actor, drained
+):
+    """A transferee off the owner's roster gets a structured 422, and no
+    proposal is queued or drained."""
+    case, _ = case_for_invite
+    resp = client_triggers_invite.post(
+        f"/actors/{actor.id_}/trigger/offer-case-ownership-transfer",
+        json={"case_id": case.id_, "transferee_id": other_actor.id_},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+    detail = resp.json()["detail"]
+    assert detail["status"] == status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert detail["error"]
+    assert "CM-21-021" in detail["message"]
+    assert drained == []
+
+
 @pytest.mark.spec("TRIG-11-007")
 def test_offer_case_ownership_transfer_route_passes_end_time(
-    client_triggers_invite, actor, case_for_invite, other_actor, drained
+    client_triggers_invite, actor, case_for_transfer, other_actor, drained
 ):
     """The route hands the body's end_time to the trigger: the Offer's
     deadline to answer (CM-21-016)."""
     from datetime import UTC, datetime, timedelta
 
-    case, _ = case_for_invite
+    case, _ = case_for_transfer
     deadline = (datetime.now(UTC) + timedelta(days=2)).replace(microsecond=0)
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/offer-case-ownership-transfer",
@@ -883,9 +917,9 @@ def test_offer_case_ownership_transfer_route_passes_end_time(
 
 @pytest.mark.spec("TRIG-11-007")
 def test_offer_case_ownership_transfer_route_refuses_a_past_end_time(
-    client_triggers_invite, actor, case_for_invite, other_actor
+    client_triggers_invite, actor, case_for_transfer, other_actor
 ):
-    case, _ = case_for_invite
+    case, _ = case_for_transfer
     resp = client_triggers_invite.post(
         f"/actors/{actor.id_}/trigger/offer-case-ownership-transfer",
         json={

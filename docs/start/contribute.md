@@ -48,8 +48,12 @@ What every implementation must do is on [Implement the Protocol](connect-your-tr
 This page is a reading path from running the demos to understanding why the codebase is built the way it is.
 Each section builds on the ones before it; read a numbered list in order and a bulleted list in any order.
 
+{% include-markdown "../includes/lookup_link.md" %}
+
 [Run the demos](../tutorials/container_demos.md){ .md-button .md-button--primary }
 [Read the architecture](../topics/reference_architecture.md){ .md-button }
+
+{% include-markdown "./_paths/contribute/start__contribute.md" %}
 
 <!-- BEGIN GENERATED READING PATH — do not edit; change this page's thread: frontmatter, then run `uv run docs-site --write` -->
 

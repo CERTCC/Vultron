@@ -40,9 +40,15 @@ _OWNERSHIP_ACCEPTED = "accept_case_ownership_transfer"
 
 
 def _narrative_pages() -> list[Path]:
-    """Every scenario narrative page (the index is a routing page, not a scenario)."""
+    """Every scenario narrative page.
+
+    The index is a routing page and a ``_``-prefixed file is an include
+    fragment the narratives share; neither is a scenario.
+    """
     pages = sorted(
-        p for p in _SCENARIOS_DIR.glob("*.md") if p.name != "index.md"
+        p
+        for p in _SCENARIOS_DIR.glob("*.md")
+        if p.name != "index.md" and not p.name.startswith("_")
     )
     assert pages, f"no scenario narratives found under {_SCENARIOS_DIR}"
     return pages

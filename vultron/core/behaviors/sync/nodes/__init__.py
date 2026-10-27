@@ -33,6 +33,8 @@ Submodules:
 - ``reseed``: the rate-bounded re-seed of a diverged peer with a fresh case
   copy, and the log of a divergence a re-seed already covered: ERROR once the
   peer acknowledged that re-seed's position, WARNING before (SYNC-16)
+- ``verified_send``: the one ``send_announce_log_entry`` call, behind the
+  CASE_MANAGER's send-side hash check (SYNC-03-009)
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
 - ``embargo_backfill``: ``BackfillAdmittedParticipantsNode`` (CM-10-006)
 - ``fanout``: Fan-out action nodes; RM.CLOSED participants are skipped

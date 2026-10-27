@@ -31,6 +31,7 @@ See also: ``core/ports/dispatcher.py`` (inbound counterpart) and
 ``vultron/core/ports/AGENTS.md`` "Dispatch vs Emit Terminology".
 """
 
+from collections.abc import Mapping
 from typing import Protocol
 
 
@@ -45,7 +46,9 @@ class ActivityEmitter(Protocol):
     ``activity_id`` names the activity, for logging and error reporting.
     ``json_body`` is the sealed AS2 document to deliver, byte for byte.
     ``recipients`` is a sequence of actor ID strings (URI-formatted) that
-    should receive the activity.
+    should receive the activity.  ``inboxes`` maps a recipient to the inbox
+    the sender's held profile of it names; a recipient it leaves out is
+    delivered to the address derived from its URI (OX-12-009).
     """
 
     async def emit(
@@ -53,4 +56,5 @@ class ActivityEmitter(Protocol):
         activity_id: str,
         json_body: str,
         recipients: list[str],
+        inboxes: Mapping[str, str] | None = None,
     ) -> None: ...
