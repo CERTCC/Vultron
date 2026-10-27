@@ -295,3 +295,97 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: CM-04-006
+- id: SM-11
+  title: Generated Statecharts
+  specs:
+  - id: SM-11-001
+    priority: MUST
+    kind: project
+    statement: >-
+      Each protocol state machine (RM, VF, D, PXA, EM and PEC) MUST have a committed
+      statechart in Sismic's YAML format that is generated from that machine's
+      transition table in the core layer.
+    rationale: >-
+      The transition tables are what receivers enforce. A generated chart gives the
+      occasions and the documentation one representation to refer to, with no second
+      owner of the protocol's state behaviour (ADR-0128). The embargo register is the
+      data EM is computed from, not a machine, so it has no chart.
+    verification: >-
+      A pre-commit `--check` hook regenerates every chart and fails when a committed
+      chart differs from the fresh generation.
+    adr:
+    - ADR-0162
+  - id: SM-11-002
+    priority: MUST
+    kind: project
+    statement: >-
+      A generated statechart MUST chart every transition of its machine's table and
+      no other transition.
+    rationale: >-
+      A chart that omits the EM stay-put moves would describe less than receivers
+      enforce, which is the drift the charts exist to remove.
+    verification: >-
+      A unit test asserts that the transitions read back from each generated chart
+      equal the (trigger, source, destination) triples of its table.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SM-11-001
+    adr:
+    - ADR-0162
+  - id: SM-11-003
+    priority: MUST
+    kind: project
+    statement: >-
+      Two chart transitions that share a source state and a trigger MUST be told apart
+      by a named condition that the protocol documentation defines in prose.
+    rationale: >-
+      EM leaves Proposed or Revise only when the last open proposal is off the table
+      (ADR-0130), so its table has two moves for one trigger from one state. A named
+      condition keeps the chart free of any implementation language, so a later SCXML
+      export stays possible.
+    verification: >-
+      A unit test asserts that every pair of chart transitions with one source and one
+      trigger carries distinct condition names, and that each name is defined on the
+      EM documentation page.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SM-11-002
+    adr:
+    - ADR-0162
+  - id: SM-11-004
+    priority: MUST
+    kind: project
+    statement: >-
+      Every generated statechart MUST load in Sismic without error.
+    rationale: >-
+      The generator writes Sismic's schema by convention. Only loading the file proves
+      it; Sismic is a dev-only dependency for that test, and `transitions` stays the
+      runtime library (SM-02-001).
+    verification: >-
+      A unit test loads each committed chart with Sismic's YAML importer.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SM-11-001
+    adr:
+    - ADR-0162
+  - id: SM-11-005
+    priority: MUST
+    kind: project
+    statement: >-
+      The state diagrams on the process-model and protocol specification pages MUST be
+      committed mermaid fragments generated from the statecharts.
+    rationale: >-
+      The hand-written diagrams are held to the tables by no check. Labels name the
+      messages whose occasions declare each transition (MSM-08-012), so the diagrams
+      are joined from the charts and the occasions.
+    verification: >-
+      The `--check` hook fails when a committed diagram fragment differs from a fresh
+      generation, and a test asserts that no page under `docs/` holds a hand-written
+      `stateDiagram` block for a charted machine.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SM-11-001
+    - rel_type: depends_on
+      spec_id: MSM-08-012
+    adr:
+    - ADR-0162
