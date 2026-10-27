@@ -13,44 +13,57 @@
 
 """Hash refusal: the replica reports it, the CASE_MANAGER logs and self-checks.
 
-The replica's side (SYNC-03-007) is behaviour-tested here.  The CASE_MANAGER's
-side is still partly strict ``xfail`` probes for unbuilt behaviour (SYNC-03-008,
-SYNC-03-010).  Each implementation issue removes the ``xfail`` from the tests it
-makes pass, and replaces a probe with a full behaviour test where the probe
-only pins a name.
+The replica refuses the entry and reports it to the CASE_MANAGER
+(SYNC-03-007).  From an active participant, the CASE_MANAGER logs the fault at
+ERROR beside a re-check of its own copy of the entry, and changes nothing
+(SYNC-03-008, SYNC-03-010); from anyone else it refuses the fault.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import cast
 
 import pytest
+from py_trees.common import Status
 
 from test.core.use_cases.received.conftest import seed_case_participant
 from test.support.inbox_replay import held_depth, ledger_announce_event
 from test.support.ledger_rebuild import run_use_case
 from test.support.received import received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.sync_activity_adapter import ledger_entry_to_wire
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
+from vultron.core.behaviors.sync.nodes.hash_mismatch import (
+    OwnCopyCheck,
+    ReportHashMismatchNode,
+)
 from vultron.core.models import fault_classes
 from vultron.core.models.activity_ids import derived_activity_id
 from vultron.core.models.case_ledger import (
     CaseLedger,
     ledger_entry_hash_intact,
 )
+from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.events.fault import CreateProcessingFaultReceivedEvent
 from vultron.core.models.events.sync import AnnounceLogEntryReceivedEvent
 from vultron.core.models.replication_state import VultronReplicationState
-from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.models.use_case_result import (
+    HandlerDisposition,
+    HandlerResult,
+)
 from vultron.core.use_cases._helpers import outbox_ids
 from vultron.core.use_cases.received.fault import (
     CreateProcessingFaultReceivedUseCase,
 )
 from vultron.enums.roles import CVDRole
-from vultron.wire.as2.factories import create_processing_fault_activity
+from vultron.wire.as2.factories import (
+    announce_log_entry_activity,
+    create_processing_fault_activity,
+)
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
@@ -62,6 +75,7 @@ _CASE_ID = "https://example.org/cases/case-hash-mismatch-001"
 _CASE_ACTOR_ID = "https://example.org/actors/case-actor"
 _STRANGER_ID = "https://example.org/actors/stranger"
 _PARTICIPANT_ID = "https://example.org/actors/participant"
+_OTHER_MANAGER_ID = "https://example.org/actors/other-manager"
 _HASH_MISMATCH = "https://certcc.github.io/Vultron/ns/errors/LedgerEntryRefused/HashMismatch"
 
 
@@ -113,16 +127,21 @@ def _replica() -> SqliteDataLayer:
     return dl
 
 
-def _tampered_announce(dl: SqliteDataLayer) -> AnnounceLogEntryReceivedEvent:
-    """The CASE_MANAGER's announce of an entry its content does not hash to."""
-    case = cast(as_VulnerabilityCase, dl.read(_CASE_ID))
-    ledger = CaseLedger(case_id=_CASE_ID, genesis_hash=case.genesis_hash)
+def _ledger_entry(genesis_hash: str) -> CaseLedgerEntry:
+    """The case's first ledger entry, intact."""
+    ledger = CaseLedger(case_id=_CASE_ID, genesis_hash=genesis_hash)
     ledger.append(
         object_id=f"{_CASE_ID}/notes/0",
         semantic_type="add_note_to_case",
         payload_snapshot={"type": "Add", "index": 0},
     )
-    entry = ledger.entries[0].to_ledger_entry()
+    return ledger.entries[0].to_ledger_entry()
+
+
+def _tampered_announce(dl: SqliteDataLayer) -> AnnounceLogEntryReceivedEvent:
+    """The CASE_MANAGER's announce of an entry its content does not hash to."""
+    case = cast(as_VulnerabilityCase, dl.read(_CASE_ID))
+    entry = _ledger_entry(case.genesis_hash)
     tampered = entry.model_copy(update={"payload_snapshot": {"tampered": 1}})
     assert not ledger_entry_hash_intact(tampered)
     return ledger_announce_event(
@@ -213,100 +232,230 @@ def test_no_case_ledger_gains_an_entry_for_a_hash_mismatch_fault() -> None:
     assert list(manager.list_objects("CaseLedgerEntry")) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-03-008: the fault use case only logs. Tracked by #5094.",
-)
-@pytest.mark.spec("SYNC-03-008")
-def test_hash_mismatch_fault_from_a_non_participant_is_refused() -> None:
-    """Only an active participant's hash-mismatch fault is acted on."""
-    # Probe only: no case is seeded, so a handler that refuses an unknown case
-    # also passes. #5094 replaces it with a seeded case, a stranger and an
-    # active participant, so the sender rule is what decides the outcome.
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
-    activity = create_processing_fault_activity(
-        actor=_STRANGER_ID,
-        fault=as_ProcessingFault(
-            failure_class=_HASH_MISMATCH,
-            in_reply_to=f"{_CASE_ID}/ledger/entries/7/announce",
-        ),
-        to=[_CASE_ACTOR_ID],
-    )
+def _manager(
+    *, receiver_is_manager: bool = True
+) -> tuple[SqliteDataLayer, CaseLedgerEntry, str]:
+    """The CASE_MANAGER's store: its case, an active participant, a stored
+    ledger entry and the ``Announce`` of it the CASE_MANAGER sent.
 
-    result = CreateProcessingFaultReceivedUseCase(
-        dl, cast(CreateProcessingFaultReceivedEvent, received_event(activity))
-    ).execute()
-
-    assert result.disposition == HandlerDisposition.REFUSED
-
-
-@pytest.mark.spec("SYNC-03-008")
-def test_hash_mismatch_fault_from_an_active_participant_changes_nothing() -> (
-    None
-):
-    """An active participant's fault sends nothing and leaves its state alone."""
+    With *receiver_is_manager* false, the store's actor holds only a
+    participant's role, and another actor manages the case.  Returns the
+    store, the entry and the ``Announce``'s id.
+    """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     case = as_VulnerabilityCase(
         id_=_CASE_ID, name="hash mismatch", attributed_to=_CASE_ACTOR_ID
     )
+    if receiver_is_manager:
+        seed_case_participant(dl, case, _CASE_ACTOR_ID, [CVDRole.CASE_MANAGER])
+    else:
+        seed_case_participant(dl, case, _CASE_ACTOR_ID)
+        seed_case_participant(
+            dl, case, _OTHER_MANAGER_ID, [CVDRole.CASE_MANAGER]
+        )
     seed_case_participant(dl, case, _PARTICIPANT_ID)
     dl.create(case)
+    entry = _ledger_entry(case.genesis_hash)
+    dl.save(entry)
+    announce = announce_log_entry_activity(
+        entry=ledger_entry_to_wire(entry),
+        actor=_CASE_ACTOR_ID,
+        to=[_PARTICIPANT_ID],
+    )
+    dl.save(announce)
+    return dl, entry, announce.id_
+
+
+def _fault(
+    dl: SqliteDataLayer, sender: str, announce_id: str | None
+) -> HandlerResult:
+    """Deliver *sender*'s hash-mismatch fault naming *announce_id* (none
+    when ``None``)."""
+    activity = create_processing_fault_activity(
+        actor=sender,
+        fault=as_ProcessingFault(
+            failure_class=_HASH_MISMATCH, in_reply_to=announce_id
+        ),
+        to=[_CASE_ACTOR_ID],
+    )
+    return CreateProcessingFaultReceivedUseCase(
+        dl,
+        cast(
+            CreateProcessingFaultReceivedEvent,
+            received_event(activity, receiving_actor_id=_CASE_ACTOR_ID),
+        ),
+    ).execute()
+
+
+def _replication_state(dl: SqliteDataLayer) -> VultronReplicationState:
+    """A replication record for the participant, to show it is untouched."""
     state = VultronReplicationState(
         case_id=_CASE_ID,
         peer_id=_PARTICIPANT_ID,
         last_acknowledged_hash="a" * 64,
     )
     dl.create(state)
+    return state
+
+
+@pytest.mark.spec("SYNC-03-008")
+@pytest.mark.spec("HP-01-006")
+@pytest.mark.spec("CM-10-004")
+def test_hash_mismatch_fault_from_a_non_participant_is_refused() -> None:
+    """A stranger's fault about a real case is refused, nothing changing.
+
+    The case and the named ``Announce`` exist, so the sender rule, not an
+    unknown case, decides the outcome.
+    """
+    dl, _, announce_id = _manager()
+    state = _replication_state(dl)
     before = dl.read(state.id_)
-    activity = create_processing_fault_activity(
-        actor=_PARTICIPANT_ID,
-        fault=as_ProcessingFault(
-            failure_class=_HASH_MISMATCH,
-            in_reply_to=f"{_CASE_ID}/ledger/entries/7/announce",
-        ),
-        to=[_CASE_ACTOR_ID],
-    )
 
-    CreateProcessingFaultReceivedUseCase(
-        dl, cast(CreateProcessingFaultReceivedEvent, received_event(activity))
-    ).execute()
+    result = _fault(dl, _STRANGER_ID, announce_id)
 
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
     assert outbox_ids(_CASE_ACTOR_ID, dl) == set()
     assert dl.read(state.id_) == before
     assert len(list(dl.list_objects("ReplicationState"))) == 1
+    assert len(list(dl.list_objects("CaseLedgerEntry"))) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-03-010: the fault use case logs at WARNING. Tracked by #5094.",
-)
+@pytest.mark.spec("SYNC-03-008")
+@pytest.mark.spec("SYNC-16-002")
+def test_hash_mismatch_fault_from_an_active_participant_changes_nothing() -> (
+    None
+):
+    """An active participant's fault is ``SKIPPED``: nothing sent, re-seeded,
+    recorded or ledgered."""
+    dl, _, announce_id = _manager()
+    state = _replication_state(dl)
+    before = dl.read(state.id_)
+
+    result = _fault(dl, _PARTICIPANT_ID, announce_id)
+
+    assert result.disposition is HandlerDisposition.SKIPPED, result.reason
+    assert outbox_ids(_CASE_ACTOR_ID, dl) == set()
+    assert dl.read(state.id_) == before
+    assert len(list(dl.list_objects("ReplicationState"))) == 1
+    assert len(list(dl.list_objects("CaseLedgerEntry"))) == 1
+
+
+@pytest.mark.spec("SYNC-03-008")
+def test_hash_mismatch_fault_naming_no_announce_sent_is_refused() -> None:
+    """A fault naming no ``Announce(CaseLedgerEntry)`` this actor sent names
+    no case, so it is refused with nothing sent (ASK-07-004)."""
+    dl, _, _ = _manager()
+
+    result = _fault(dl, _PARTICIPANT_ID, f"{_CASE_ID}/ledger/entries/7")
+
+    assert result.disposition is HandlerDisposition.REFUSED
+    assert "names no case" in (result.reason or "")
+    assert outbox_ids(_CASE_ACTOR_ID, dl) == set()
+
+
+def _break_own_copy(dl: SqliteDataLayer, entry: CaseLedgerEntry) -> None:
+    dl.save(entry.model_copy(update={"payload_snapshot": {"tampered": 1}}))
+
+
+def _drop_own_copy(dl: SqliteDataLayer, entry: CaseLedgerEntry) -> None:
+    assert dl.delete("CaseLedgerEntry", entry.id_)
+
+
 @pytest.mark.spec("SYNC-03-010")
+@pytest.mark.parametrize(
+    ("damage", "expected", "says"),
+    [
+        (None, OwnCopyCheck.INTACT, "the copy the replica received is broken"),
+        (
+            _break_own_copy,
+            OwnCopyCheck.NOT_INTACT,
+            "this CASE_MANAGER's own ledger is broken",
+        ),
+        (
+            _drop_own_copy,
+            OwnCopyCheck.NO_STORED_COPY,
+            "holds no stored copy of the entry",
+        ),
+    ],
+    ids=["intact", "not-intact", "no-stored-copy"],
+)
 def test_hash_mismatch_fault_from_an_active_participant_is_logged_at_error(
     caplog,
+    damage: Callable[[SqliteDataLayer, CaseLedgerEntry], None] | None,
+    expected: OwnCopyCheck,
+    says: str,
 ) -> None:
-    """An active participant's hash-mismatch fault is logged at ERROR.
-
-    #5094 adds the self-check result (intact, not intact, no stored copy).
-    """
-    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
-    case = as_VulnerabilityCase(
-        id_=_CASE_ID, name="hash mismatch", attributed_to=_CASE_ACTOR_ID
-    )
-    seed_case_participant(dl, case, _PARTICIPANT_ID)
-    dl.create(case)
-    activity = create_processing_fault_activity(
-        actor=_PARTICIPANT_ID,
-        fault=as_ProcessingFault(
-            failure_class=_HASH_MISMATCH,
-            in_reply_to=f"{_CASE_ID}/ledger/entries/7/announce",
-        ),
-        to=[_CASE_ACTOR_ID],
-    )
+    """One ERROR record names the case, the ``Announce``, the entry, the
+    sender and what the self-check of the CASE_MANAGER's own copy found."""
+    dl, entry, announce_id = _manager()
+    if damage is not None:
+        damage(dl, entry)
 
     with caplog.at_level(logging.ERROR, logger="vultron"):
-        CreateProcessingFaultReceivedUseCase(
-            dl,
-            cast(CreateProcessingFaultReceivedEvent, received_event(activity)),
-        ).execute()
+        result = _fault(dl, _PARTICIPANT_ID, announce_id)
 
-    assert any(r.levelno == logging.ERROR for r in caplog.records), caplog.text
+    assert result.disposition is HandlerDisposition.SKIPPED, result.reason
+    assert expected.value in (result.reason or "")
+    (record,) = [r for r in caplog.records if r.levelno == logging.ERROR]
+    message = record.getMessage()
+    for named in (_CASE_ID, announce_id, entry.id_, _PARTICIPANT_ID, says):
+        assert named in message, message
+    assert f"Self-check: {expected.value};" in message
+
+
+@pytest.mark.spec("SYNC-03-010")
+def test_a_strangers_hash_mismatch_fault_runs_no_self_check(caplog) -> None:
+    """The sender rule stops the fault before the CASE_MANAGER reports it."""
+    dl, _, announce_id = _manager()
+
+    with caplog.at_level(logging.ERROR, logger="vultron"):
+        _fault(dl, _STRANGER_ID, announce_id)
+
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+@pytest.mark.spec("SYNC-03-008")
+@pytest.mark.spec("HP-01-005")
+def test_a_hash_mismatch_fault_at_a_participant_is_refused(caplog) -> None:
+    """Only the case's CASE_MANAGER reports the fault; a participant that
+    receives one, even from the CASE_MANAGER, changes nothing and refuses
+    it at the CASE_MANAGER gate."""
+    dl, _, announce_id = _manager(receiver_is_manager=False)
+
+    with caplog.at_level(logging.ERROR, logger="vultron"):
+        result = _fault(dl, _OTHER_MANAGER_ID, announce_id)
+
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    assert f"not the CASE_MANAGER of case '{_CASE_ID}'" in (
+        result.reason or ""
+    )
+    assert outbox_ids(_CASE_ACTOR_ID, dl) == set()
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+@pytest.mark.spec("SYNC-03-008")
+def test_a_hash_mismatch_fault_naming_no_announce_is_refused(caplog) -> None:
+    """A fault with no ``inReplyTo`` names no case: it is only archived and
+    refused, with no report and no self-check."""
+    dl, _, _ = _manager()
+
+    with caplog.at_level(logging.ERROR, logger="vultron"):
+        result = _fault(dl, _PARTICIPANT_ID, None)
+
+    assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    assert "names no case to report on (SYNC-03-008" in (result.reason or "")
+    assert outbox_ids(_CASE_ACTOR_ID, dl) == set()
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+@pytest.mark.spec("SYNC-03-010")
+def test_the_report_node_fails_without_a_datalayer() -> None:
+    """With no store to read, the node fails and records no self-check."""
+    node = ReportHashMismatchNode(
+        _ledger_entry("0" * 64),
+        peer_id=_PARTICIPANT_ID,
+        announce_id="urn:x:announce",
+    )
+
+    assert node.update() is Status.FAILURE
+    assert node.own_copy is None
