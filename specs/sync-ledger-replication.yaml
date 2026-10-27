@@ -1613,17 +1613,22 @@ groups:
     rationale: >-
       The CASE_MANAGER's case is authoritative (PCR-03-001), and a copy carrying its
       ledger position (SYNC-16-005) lets the replica replace its case file and backfill
-      (SYNC-16-006, SYNC-16-007). The sender gate is the one the gap Reject uses
-      (SYNC-03-005).
+      (SYNC-16-006, SYNC-16-007). The sender gate is the active-participant standing
+      (CM-10-004, CM-23-020), not the gap Reject's (SYNC-03-005): that one admits a
+      closed participant, but a copy of the current case would cross the closure
+      cutoff such a participant is held to (CM-23-004), so its diverged replica is not
+      repaired this way.
     relationships:
     - rel_type: depends_on
       spec_id: SYNC-16-005
     adr:
     - ADR-0142
     verification: >-
-      `test/core/behaviors/sync/test_divergence_recovery.py` asserts the CASE_MANAGER
-      answers the fault from an active participant with the case, and refuses it from
-      any other sender.
+      `test/core/use_cases/received/test_case_diverged_reseed.py` asserts the
+      CASE_MANAGER answers the fault from an active participant with the case, and
+      refuses it, with nothing recorded or sent, from a stranger and from a
+      participant that is not active; `test/demo/test_sync_ledger_replication.py`
+      shows a diverged replica converging across two isolated actor apps.
     stories:
     - story_2022_045
     - story_2022_088
@@ -1645,8 +1650,8 @@ groups:
     adr:
     - ADR-0142
     verification: >-
-      `test/core/behaviors/sync/test_divergence_recovery.py` asserts a second fault
-      within the cooldown sends no case, and one after it does.
+      `test/core/use_cases/received/test_case_diverged_reseed.py` asserts a second
+      fault within the cooldown sends no case, and one after it does.
     stories:
     - story_2022_045
   - id: SYNC-16-005
@@ -1777,18 +1782,27 @@ groups:
     kind: project
     statement: >-
       The CASE_MANAGER SHOULD log at ERROR a SYNC-16-001 fault for an entry at or before
-      the tail of the last re-seed it sent that peer.
+      the tail of the last re-seed it sent that peer only when the peer's acknowledged
+      position is at or past that tail. Without that acknowledgement the fault is
+      ordinary recovery, logged below ERROR and left to the rate-bounded re-seed
+      (SYNC-16-004).
     rationale: >-
-      Such an entry is already reflected in the copy the peer was sent, so a refusal of
-      it means the CASE_MANAGER's own case disagrees with its ledger. That is a defect,
-      not recovery, and must not read as routine.
+      A peer that acknowledged the copy's position has applied a case that already
+      reflects the entry, so its refusal means the CASE_MANAGER's own case disagrees
+      with its ledger: a defect, not recovery, and it must not read as routine. Without
+      the acknowledgement the same fault is ordinary recovery: the copy may have been
+      lost in transit, or the entry replayed before the copy arrived. Logging that at
+      ERROR would mark a self-healing path as a failure.
     relationships:
     - rel_type: refines
       spec_id: SYNC-16-004
     adr:
     - ADR-0142
     verification: >-
-      `test/core/behaviors/sync/test_divergence_recovery.py` asserts the ERROR record.
+      `test/core/use_cases/received/test_case_diverged_reseed.py` asserts the ERROR
+      record when the peer acknowledged the re-seed's position, a WARNING and a
+      re-seed after the cooldown when it did not, and no ERROR for an entry past the
+      last re-seed.
     stories:
     - story_2022_045
 - id: SYNC-17

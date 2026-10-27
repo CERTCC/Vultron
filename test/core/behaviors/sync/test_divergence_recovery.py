@@ -19,10 +19,9 @@ copy names and how a replica that holds the case judges the copy by it
 fault's class and its wire form are pinned here (SYNC-16-001, SYNC-16-002);
 the replica's emission of it is behaviour-tested in
 ``test/core/use_cases/received/test_embargo_consent_copy.py``.  The
-CASE_MANAGER's re-seed (SYNC-16-003, SYNC-16-004) is a strict ``xfail`` for
-unbuilt behaviour (ADR-0142).  Each implementation issue removes the
-``xfail`` from the tests it makes pass, and replaces a probe with a full
-behaviour test where the probe only pins a name.
+CASE_MANAGER's re-seed (SYNC-16-003, SYNC-16-004, SYNC-16-008) is
+behaviour-tested in ``test/core/use_cases/received/test_case_diverged_reseed.py``;
+its refusal of a sender with no case and its stored record are pinned here.
 """
 
 import logging
@@ -154,7 +153,8 @@ def test_the_wire_vocabulary_carries_the_case_diverged_class() -> None:
 def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
     """The CASE_MANAGER commits no ledger entry for a divergence fault.
 
-    Holds because the fault use case only logs.  The replica side, and
+    Here the fault names no announce this store sent, so it is refused.  The
+    replica side, and
     both sides end to end, are tested in
     ``test/core/use_cases/received/test_embargo_consent_copy.py``.
     """
@@ -180,13 +180,15 @@ def test_case_manager_does_not_ledger_a_divergence_fault() -> None:
     assert list(dl.list_objects("CaseLedgerEntry")) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-16-003: the fault use case only logs. Tracked by #4799.",
-)
 @pytest.mark.spec("SYNC-16-003")
 def test_case_diverged_fault_from_a_non_participant_is_refused() -> None:
-    """Only an active participant's divergence fault earns a re-seed."""
+    """Only an active participant's divergence fault earns a re-seed.
+
+    This store holds no case for the stranger to belong to, so nothing is
+    recorded or sent.  The re-seed itself, its rate bound (SYNC-16-004) and
+    its repeat check (SYNC-16-008) are behaviour-tested end to end in
+    ``test/core/use_cases/received/test_case_diverged_reseed.py``.
+    """
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_CASE_ACTOR_ID)
     activity = create_processing_fault_activity(
         actor=_STRANGER_ID,
@@ -202,19 +204,27 @@ def test_case_diverged_fault_from_a_non_participant_is_refused() -> None:
     ).execute()
 
     assert result.disposition == HandlerDisposition.REFUSED
+    assert dl.outbox_list() == []
+    assert list(dl.list_objects("ReplicationState")) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SYNC-16-004: no per-peer re-seed record yet. Tracked by #4799.",
-)
 @pytest.mark.spec("SYNC-16-004")
 @pytest.mark.spec("SYNC-16-008")
 def test_replication_state_records_the_last_reseed() -> None:
     """The re-seed rate bound and the repeat check read per-peer state."""
-    assert any(
-        "reseed" in field for field in VultronReplicationState.model_fields
+    state = VultronReplicationState(
+        case_id=_CASE_ID,
+        peer_id=_REPLICA_ID,
+        last_reseeded_at=_PUBLISHED,
+        last_reseed_position=LedgerPosition(log_index=3, entry_hash="a" * 64),
     )
+
+    restored = VultronReplicationState.model_validate(
+        state.model_dump(mode="json", by_alias=True)
+    )
+
+    assert restored.last_reseeded_at == _PUBLISHED
+    assert restored.last_reseed_position == state.last_reseed_position
 
 
 _MANAGER_PARTICIPANT_ID = f"{_CASE_ID}/participants/case-manager"

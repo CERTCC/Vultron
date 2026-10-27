@@ -17,6 +17,7 @@ _RECEIVER = "https://example.org/actors/sender-of-failed-activity"
 _EMITTER = "https://example.org/actors/receiver-that-refused"
 _CASE_DIVERGED = "https://certcc.github.io/Vultron/ns/errors/LedgerEntryRefused/CaseDiverged"
 _FAILED_ACTIVITY = "https://example.org/activities/failed"
+_STATUS_REFUSED = "https://vultron.example/faults/status-refused"
 
 
 @pytest.mark.spec("ASK-07-004")
@@ -51,7 +52,7 @@ def test_fault_without_in_reply_to_is_logged_as_unnamed(make_payload, caplog):
     dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
     activity = create_processing_fault_activity(
         actor=_EMITTER,
-        fault=as_ProcessingFault(failure_class=_CASE_DIVERGED),
+        fault=as_ProcessingFault(failure_class=_STATUS_REFUSED),
         to=[_RECEIVER],
     )
     event = make_payload(activity)
@@ -72,6 +73,47 @@ def test_fault_without_in_reply_to_is_logged_as_unnamed(make_payload, caplog):
         and "'None'" not in msg
         for msg in warning_messages
     ), caplog.text
+
+
+@pytest.mark.spec("ASK-07-005")
+def test_fault_event_carries_failure_class(make_payload):
+    """The parse edge carries the fault's class, which picks the response."""
+    activity = create_processing_fault_activity(
+        actor=_EMITTER,
+        fault=as_ProcessingFault(
+            failure_class=_CASE_DIVERGED, in_reply_to=_FAILED_ACTIVITY
+        ),
+        to=[_RECEIVER],
+    )
+
+    assert make_payload(activity).failure_class == _CASE_DIVERGED
+
+
+@pytest.mark.spec("SYNC-16-003")
+@pytest.mark.spec("HP-01-003")
+def test_case_diverged_fault_naming_no_announce_is_refused(make_payload):
+    """A divergence fault with no ``inReplyTo`` names no case to re-seed.
+
+    It is still archived (CLP-10-018), and nothing is sent.
+    """
+    dl = SqliteDataLayer("sqlite:///:memory:", actor_id=_RECEIVER)
+    activity = create_processing_fault_activity(
+        actor=_EMITTER,
+        fault=as_ProcessingFault(failure_class=_CASE_DIVERGED),
+        to=[_RECEIVER],
+    )
+
+    result = CreateProcessingFaultReceivedUseCase(
+        dl, make_payload(activity)
+    ).execute()
+
+    assert result.disposition == HandlerDisposition.REFUSED
+    assert "names no case" in (result.reason or "")
+    assert isinstance(
+        dl.read(ReceivedActivityRecord.build_id(activity.id_)),
+        ReceivedActivityRecord,
+    )
+    assert dl.outbox_list() == []
 
 
 @pytest.mark.spec("HP-01-003")
@@ -136,3 +178,30 @@ def test_received_fault_is_logged_naming_its_sender_and_fault(
     assert any(fault.id_ in msg for msg in warning_messages), (
         f"fault id {fault.id_!r} not in log: {caplog.text}"
     )
+
+
+@pytest.mark.spec("ASK-07-005")
+def test_a_create_without_a_parsed_fault_is_refused_at_the_parse_edge():
+    """Never read as a fault of no class: the class picks the response."""
+    from vultron.core.models.events import MessageSemantics
+    from vultron.core.models.events.fault import (
+        CreateProcessingFaultReceivedEvent,
+    )
+    from vultron.wire.as2.errors import VultronParseValidationError
+    from vultron.wire.as2.extractor._extract import extract_intent
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+
+    activity = as_Create(
+        actor=_EMITTER,
+        object_="https://example.org/objects/not-a-fault",
+        to=[_RECEIVER],
+    )
+
+    with pytest.raises(VultronParseValidationError, match="ASK-07-005"):
+        extract_intent(
+            activity,
+            MessageSemantics.CREATE_PROCESSING_FAULT,
+            CreateProcessingFaultReceivedEvent,
+        )

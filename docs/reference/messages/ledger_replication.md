@@ -56,6 +56,8 @@ The replica does not patch over an embargo or consent entry whose starting state
 It holds the `Announce` that carried that entry as a `HeldLedgerAnnounce`.
 When that entry extends the replica's chain and the case is not already past it, the replica's case has diverged.
 The replica then sends the CASE_MANAGER a `Create(ProcessingFault)` with failure class `LedgerEntryRefused/CaseDiverged` (SYNC-16-001).
+From an active participant, the CASE_MANAGER answers that fault with `Announce(VulnerabilityCase)` of its current case, which names its ledger position, so the replica can replace its case and store the held entry (SYNC-16-003).
+It re-seeds one peer at most once per cooldown, so a replica that refuses several entries in a row gets one copy, and a later fault still gets another (SYNC-16-004).
 Neither fault is committed to a case ledger, by the replica or by the CASE_MANAGER (SYNC-16-002).
 
 ## Occasions

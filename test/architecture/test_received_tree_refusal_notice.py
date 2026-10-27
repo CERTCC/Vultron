@@ -204,6 +204,14 @@ NO_COMMIT_TREES: dict[_Site, str] = {
         " by a replay of the entries after it, never by a refusal"
         " (SYNC-17-002, SYNC-17-006)"
     ),
+    (
+        "vultron/core/behaviors/sync/divergence_tree.py",
+        "create_case_diverged_fault_tree",
+    ): (
+        "a replica's divergence fault is replication signalling, answered by"
+        " a fresh case copy, never ledgered or refused (SYNC-16-002,"
+        " SYNC-16-003)"
+    ),
 }
 
 

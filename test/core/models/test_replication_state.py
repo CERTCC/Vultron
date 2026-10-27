@@ -28,6 +28,7 @@ import pytest
 from pydantic import ValidationError
 from pydantic.alias_generators import to_camel
 
+from vultron.core.models.ledger_position import LedgerPosition
 from vultron.core.models.replication_state import VultronReplicationState
 
 _BASE = {"case_id": "https://example.org/case", "peer_id": "https://x/peer"}
@@ -41,6 +42,8 @@ _VALUES: dict[str, Any] = {
     "last_replayed_at": _WHEN,
     "replays_at_position": 3,
     "embargo_paused_from_index": 7,
+    "last_reseeded_at": _WHEN,
+    "last_reseed_position": LedgerPosition(log_index=2, entry_hash="f" * 64),
 }
 
 

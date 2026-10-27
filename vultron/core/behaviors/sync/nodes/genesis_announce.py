@@ -33,6 +33,7 @@ from vultron.core.behaviors.helpers import (
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
 from vultron.core.behaviors.sync.nodes.replay import replay_case_id
 from vultron.core.behaviors.sync.nodes.replay_guard import should_replay
+from vultron.core.behaviors.sync.nodes.reseed import announce_case_to_peer
 from vultron.core.ports.case_persistence import CasePersistence
 from vultron.core.ports.trigger_activity import TriggerActivityPort
 from vultron.errors import VultronError, VultronValidationError
@@ -148,13 +149,13 @@ class AnnounceCaseOnGenesisRejectNode(_EmitSingleActivityBase):
         # that already populate it.
 
         try:
-            activity_id = factory.announce_vulnerability_case(
-                case_id=case_id,
+            activity_id = announce_case_to_peer(
+                factory,
                 # The executing actor, which the CASE_MANAGER gate has already
                 # established holds that role — not a looked-up CaseActor id.
-                actor=self.actor_id,
-                context_id=case_id,
-                to=[peer_id],
+                actor_id=self.actor_id,
+                case_id=case_id,
+                peer_id=peer_id,
             )
             # Route through the shared emit seam (OX-14-001, ASK-04-008).
             # factory.announce_vulnerability_case returns str only;

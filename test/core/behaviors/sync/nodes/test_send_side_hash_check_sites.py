@@ -53,7 +53,9 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
     record_embargo_pause,
 )
 from vultron.core.behaviors.sync.nodes.fanout import FanOutLogEntryNode
-from vultron.core.behaviors.sync.nodes.replay_guard import _read_state
+from vultron.core.behaviors.sync.nodes.replay_guard import (
+    read_replication_state,
+)
 from vultron.core.models._helpers import now_utc
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.ports.sync_activity import SyncActivityPort
@@ -165,7 +167,9 @@ def test_replay_stops_at_a_broken_entry_and_fails(
     assert result.status == Status.FAILURE
     assert sends(sync_port) == [(0, [SIGNATORY_ID]), (1, [SIGNATORY_ID])]
     _assert_held_back(caplog, entries[2], SIGNATORY_ID)
-    state = _read_state(datalayer, case_id=CASE_ID, peer_id=SIGNATORY_ID)
+    state = read_replication_state(
+        datalayer, case_id=CASE_ID, peer_id=SIGNATORY_ID
+    )
     assert state is not None
     assert state.last_replayed_from_hash is not None
 
@@ -197,7 +201,9 @@ def test_replay_held_back_at_its_first_entry_records_no_cooldown(
     assert result.status == Status.FAILURE
     assert sends(sync_port) == []
     _assert_held_back(caplog, entries[2], SIGNATORY_ID)
-    state = _read_state(datalayer, case_id=CASE_ID, peer_id=SIGNATORY_ID)
+    state = read_replication_state(
+        datalayer, case_id=CASE_ID, peer_id=SIGNATORY_ID
+    )
     assert state is None or state.last_replayed_from_hash is None
 
 

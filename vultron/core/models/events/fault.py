@@ -34,7 +34,7 @@ class CreateProcessingFaultReceivedEvent(VultronEvent):
     (ADR-0080, ASK-07-001).  ``object_`` contains a minimal ``CoreObject``
     wrapping the ``as_ProcessingFault``; ``failed_activity_id`` carries the
     URI the fault's ``inReplyTo`` names — the activity that failed
-    (ASK-07-004).
+    (ASK-07-004) — and ``failure_class`` the fault's class (ASK-07-005).
     """
 
     semantic_type: Literal[MessageSemantics.CREATE_PROCESSING_FAULT] = (
@@ -44,6 +44,10 @@ class CreateProcessingFaultReceivedEvent(VultronEvent):
     # The id of the activity that failed — extracted from the fault object's
     # ``inReplyTo`` at the parse edge (ASK-07-004, ADR-0032).
     failed_activity_id: NonEmptyString | None = None
+
+    # The fault's failure class URI (ASK-07-005), extracted at the parse
+    # edge; the receiver's response is chosen by it (SYNC-16-003).
+    failure_class: NonEmptyString
 
     @property
     def fault_id(self) -> str | None:
