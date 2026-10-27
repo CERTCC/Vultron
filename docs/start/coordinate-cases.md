@@ -47,7 +47,7 @@ thread:
     members:
       - page: howto/decide_who_owns_a_case.md
         blurb: >-
-          choose between submitting a report, reporting to yourself and running the case, and handing a case on, by deciding who should own it.
+          select a path for a vulnerability: send a report, report to yourself and coordinate the case, or transfer a case.
       - page: howto/adopt_vultron.md
         blurb: >-
           name your roles, choose a conformance claim, map your intake to the report states, publish your embargo defaults, and decide which judgment calls stay yours.
@@ -117,7 +117,7 @@ You can stop here if this section answered your question.
 
 ## Prepare your program
 
-1. [How to Decide Who Owns a Case](../howto/decide_who_owns_a_case.md) — choose between submitting a report, reporting to yourself and running the case, and handing a case on, by deciding who should own it.
+1. [How to Select the Case Owner](../howto/decide_who_owns_a_case.md) — select a path for a vulnerability: send a report, report to yourself and coordinate the case, or transfer a case.
 2. [How to Adopt Vultron in Your CVD Program](../howto/adopt_vultron.md) — name your roles, choose a conformance claim, map your intake to the report states, publish your embargo defaults, and decide which judgment calls stay yours.
 
 ## Map it onto what you already do

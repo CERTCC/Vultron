@@ -52,7 +52,7 @@ nav:
     - Documentation Conventions: 'reference/conventions.md'
   - Coordinate Cases:
     - Start Here: 'start/coordinate-cases.md'
-    - Decide Who Owns a Case: 'howto/decide_who_owns_a_case.md'
+    - Select the Case Owner: 'howto/decide_who_owns_a_case.md'
     - Adopt Vultron in Your CVD Program: 'howto/adopt_vultron.md'
     - Measuring Your CVD Program: 'howto/measure_your_cvd_program.md'
     - Standards Crosswalks:
