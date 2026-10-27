@@ -23,3 +23,56 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/*
+ * Home-page hero (overrides/home.html, docs/index.md frontmatter hero:).
+ * The hero image is optional: #4689 adds the hand-made illustration.
+ * Buttons reuse the theme's .md-button and .md-button--primary classes; this
+ * block adds only the layout not provided by the theme.
+ */
+.vultron-hero {
+  padding: 2rem 0 1.5rem;
+  text-align: center;
+}
+
+.vultron-hero__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.vultron-hero__tagline {
+  color: var(--md-default-fg-color--light);
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 44rem;
+}
+
+.vultron-hero__image {
+  display: block;
+  height: auto;
+  margin: 1rem auto;
+  max-width: 100%;
+}
+
+.vultron-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+@media screen and (max-width: 44.984375em) {
+  .vultron-hero {
+    padding: 1.25rem 0 1rem;
+  }
+
+  .vultron-hero__actions {
+    flex-direction: column;
+    align-items: center;
+  }
+}

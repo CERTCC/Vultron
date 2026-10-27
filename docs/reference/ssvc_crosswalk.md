@@ -364,3 +364,5 @@ flowchart LR
     Coordination becomes more necessary the lower that likelihood is.
     2. *Utility* (the usefulness of the exploit to the adversary) acts
     to gauge the likelihood of the **A** transition.
+
+{% include-markdown "../start/_paths/coordinate-cases/reference__ssvc_crosswalk.md" %}

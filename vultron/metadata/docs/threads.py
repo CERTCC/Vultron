@@ -2,9 +2,10 @@
 
 Requirements: specs/diataxis-requirements.yaml DF-11-013 (a thread is staged
 data on its start page), DF-11-014 (the start page's listing is generated and
-check gated), DF-11-015 (each member page shows the pages before and after it
-and a link to the start page), DF-11-016 (the thread check), DF-11-017 (no
-nav-order footer on a member page), DF-11-009 (titled by situation, never by
+check gated), DF-11-015 (each member page and start page shows a start,
+previous, current and next table per thread), DF-11-016 (the thread check),
+DF-11-022 (a section member's box names the section), DF-11-023 (each box is a
+committed fragment placed by hand), DF-11-009 (titled by situation, never by
 ``stakeholder_type``), DF-09-009 (an empty target set fails). Design
 rationale: ``notes/site-information-architecture.md`` § "Threads: staged data,
 rendered at both ends" (ADR-0150).
@@ -18,9 +19,13 @@ in two:
   :data:`LISTING_END`, which ``uv run docs-site --write`` splices in
   (:mod:`~vultron.metadata.docs.site_sync`) — a stage is a section, a chain a
   numbered list, a set a bulleted one;
-* on each **member page**, as a box the ``thread_box`` build hook appends:
-  the pages before it and after it, both as sets (:func:`position`), and a
-  link back to the start page.
+* on the start page and each **member page**, as a box per thread: a
+  committed fragment under :data:`BOX_DIR` that ``docs-site --write``
+  generates (:func:`render_boxes`) and the page's author places with an
+  ``include-markdown`` line. Its table holds the start page, the pages before
+  and after the page, both as sets (:func:`position`), and the page itself.
+  That every page renders its boxes is the built-site check
+  (:mod:`~vultron.metadata.docs.path_boxes`).
 
 ``uv run docs-threads`` is the thread check (DF-11-016), a pre-commit hook
 with ``test_the_committed_threads_pass`` as its CI backstop. That no member
@@ -31,6 +36,7 @@ runs ahead of its thread is ``docs-thread-order``'s check
 from __future__ import annotations
 
 import argparse
+import html
 import posixpath
 import sys
 import textwrap
@@ -379,48 +385,194 @@ def splice_thread_listing(
     )
 
 
-def _escape_title(title: str) -> str:
-    """An admonition title is quoted, so a double quote in it would end it."""
-    return title.replace('"', "&quot;")
+#: ``docs/``-relative directory of the committed box fragments, one
+#: subdirectory per thread (DF-11-023). Listed in ``exclude_docs``: a fragment
+#: reaches a reader only through the ``include-markdown`` line its page's
+#: author places.
+BOX_DIR = f"{START_DIR}/_paths"
+
+#: Shown in a box cell whose set is empty: the first page has no previous
+#: set, the last no next set, and a start page no previous set (DF-11-015).
+EMPTY_CELL = "---"
+
+#: The box's column headings, in order (DF-11-015).
+BOX_COLUMNS = ("Start", "Previous", "Current", "Next")
+
+#: The class every rendered box carries, beside Material's admonition
+#: classes, so the built-site check can find it (DF-11-023).
+BOX_CLASS = "reading-path"
+
+#: The attributes naming the thread and the target a rendered box was made
+#: for: the start page's stem, and the member's ``page`` (anchor included) or
+#: the start page's path (DF-11-023).
+THREAD_ATTR = "data-thread"
+MEMBER_ATTR = "data-member"
+
+#: Separators of a fragment's file name: a ``/`` of the page path, and the
+#: ``#`` before a section member's anchor.
+_DIR_SEP = "__"
+_ANCHOR_SEP = "--"
+
+
+def thread_name(thread: StartThread) -> str:
+    """The thread's name: its start page's file stem (``coordinate-cases``)."""
+    return posixpath.splitext(posixpath.basename(thread.path))[0]
+
+
+def box_targets(thread: StartThread) -> list[str]:
+    """Every page string that carries a box of *thread*, in reading order.
+
+    The start page's path first, then each member's ``page``, with a section
+    member's anchor kept: a section's box is not its page's box (DF-11-022).
+    """
+    return [thread.path, *(member.page for member in thread.members())]
+
+
+def box_fragment_path(thread: StartThread, target: str) -> str:
+    """Return the ``docs/``-relative fragment holding *target*'s box.
+
+    ``topics/a/b.md`` gives ``start/_paths/<thread>/topics__a__b.md``, and
+    ``reference/glossary.md#roles`` gives ``…/reference__glossary--roles.md``,
+    so two sections of one page do not collide (DF-11-023).
+    """
+    path, _hash, anchor = target.partition("#")
+    stem = path.removesuffix(".md").replace("/", _DIR_SEP)
+    if anchor:
+        stem = f"{stem}{_ANCHOR_SEP}{anchor}"
+    return f"{BOX_DIR}/{thread_name(thread)}/{stem}.md"
+
+
+def include_line(host: str, fragment: str) -> str:
+    """The ``include-markdown`` line that places *fragment* on page *host*.
+
+    Both are ``docs/``-relative; the included path is relative to the host
+    page and starts with ``./`` or ``../``, the form ``include-markdown``
+    resolves against the host page rather than the working directory.
+    """
+    rel = posixpath.relpath(fragment, posixpath.dirname(host) or ".")
+    if not rel.startswith("../"):
+        rel = f"./{rel}"
+    return f'{{% include-markdown "{rel}" %}}'
+
+
+def _box_marker(thread: StartThread) -> str:
+    """The comment opening a fragment: where it comes from, and how to change it."""
+    return (
+        "<!-- GENERATED READING PATH BOX — do not edit; change "
+        f"docs/{thread.path}'s {THREAD_KEY}: frontmatter, then run "
+        f"`{WRITE_COMMAND}` -->"
+    )
+
+
+def _text_cell(text: str) -> list[str]:
+    return ["", f"- {_link_text(text)}", ""]
+
+
+def _link_cell(links: list[str]) -> list[str]:
+    return ["", *(f"- {link}" for link in links), ""]
+
+
+def _cell(body: list[str] | None) -> str:
+    """One ``<td>``: Markdown-processed when it holds a list (``md_in_html``)."""
+    if body is None:
+        return f"<td>{EMPTY_CELL}</td>"
+    return "\n".join(['<td markdown="block">', *body, "</td>"])
 
 
 def render_box(
-    thread: StartThread, page: str, titles: Mapping[str, str]
-) -> str | None:
-    """Render *thread*'s box for the member *page*, or ``None`` if not one.
+    thread: StartThread, target: str, titles: Mapping[str, str]
+) -> str:
+    """Render *thread*'s box for *target*: its start page or a member's ``page``.
 
-    The box is titled by the start page's situation and is the same for every
-    reader: no ``stakeholder_type``, no level, no script, no query string
-    (DF-11-009, DF-11-015). An empty before or after set is left out: the
-    first stage has no predecessor and the last no successor.
+    The box is an admonition titled by the start page's situation, the same
+    for every reader: no ``stakeholder_type``, no level, no script, no query
+    string (DF-11-009, DF-11-015). A member's box names its stage, as a page
+    or, for a ``page.md#anchor`` member, a section (DF-11-022); a start page's
+    names none. The table is HTML whose cells ``md_in_html`` processes as
+    Markdown, so MkDocs rewrites and validates every link in it; links are
+    relative to the fragment, and ``include-markdown`` rewrites them for the
+    page that includes it.
+
+    Raises:
+        ValueError: If *target* is neither the start page nor a member.
     """
-    where = position(thread, page)
-    if where is None:
-        return None
+    fragment = box_fragment_path(thread, target)
+    start_href = posixpath.relpath(thread.path, posixpath.dirname(fragment))
+    start_link = f"[{_link_text(thread.title)}]({start_href})"
+    if target == thread.path:
+        stage_line: list[str] = []
+        start = _text_cell(thread.title)
+        before: list[str] | None = None
+        current = _text_cell(thread.title)
+        after_members = _entry(thread.stages[0]) if thread.stages else ()
+    else:
+        member = next((m for m in thread.members() if m.page == target), None)
+        where = position(thread, member.path) if member else None
+        if member is None or where is None:
+            raise ValueError(
+                f"{target} is not on the thread of docs/{thread.path}"
+            )
+        unit = "section" if "#" in member.page else "page"
+        stage_line = [f"This {unit} is part of *{where.stage.title}*.", ""]
+        start = _link_cell([start_link])
+        before = (
+            _link_cell([_link(m, fragment, titles) for m in where.before])
+            if where.before
+            else None
+        )
+        current = _text_cell(member.label or titles[member.path])
+        after_members = where.after
+    after = (
+        _link_cell([_link(m, fragment, titles) for m in after_members])
+        if after_members
+        else None
+    )
+    headings = "".join(f"<th>{name}</th>" for name in BOX_COLUMNS)
     lines = [
-        f'!!! abstract "Reading path: {_escape_title(thread.title)}"',
+        _box_marker(thread),
         "",
-        f"    This page is part of *{where.stage.title}*.",
+        f'<div class="admonition abstract {BOX_CLASS}" '
+        f'{THREAD_ATTR}="{html.escape(thread_name(thread))}" '
+        f'{MEMBER_ATTR}="{html.escape(target)}" markdown>',
+        '<p class="admonition-title">Reading path: '
+        f"{html.escape(thread.title)}</p>",
+        "",
+        *stage_line,
+        f'<table class="{BOX_CLASS}-table" markdown>',
+        f"<thead><tr>{headings}</tr></thead>",
+        "<tbody markdown>",
+        "<tr markdown>",
+        *(_cell(body) for body in (start, before, current, after)),
+        "</tr>",
+        "</tbody>",
+        "</table>",
+        "",
+        "</div>",
     ]
-    for heading, members in (
-        ("Before this page:", where.before),
-        ("After this page:", where.after),
-    ):
-        if not members:
-            continue
-        lines += ["", f"    {heading}", ""]
-        lines += [f"    - {_link(m, page, titles)}" for m in members]
-    start = posixpath.relpath(thread.path, posixpath.dirname(page))
-    lines += ["", f"    [Back to the start of this reading path]({start})"]
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
 
 
-def member_boxes(
-    threads: tuple[StartThread, ...], page: str, titles: Mapping[str, str]
-) -> list[str]:
-    """Return one box per thread the ``docs/``-relative *page* is on."""
-    boxes = (render_box(thread, page, titles) for thread in threads)
-    return [box for box in boxes if box is not None]
+def render_boxes(
+    threads: tuple[StartThread, ...], titles: Mapping[str, str]
+) -> dict[str, str]:
+    """Return ``{docs/-relative fragment path: box}`` for every thread target.
+
+    Raises:
+        ValueError: If two targets of one thread would share a fragment name.
+    """
+    boxes: dict[str, str] = {}
+    owner: dict[str, str] = {}
+    for thread in threads:
+        for target in box_targets(thread):
+            fragment = box_fragment_path(thread, target)
+            if fragment in owner:
+                raise ValueError(
+                    f"docs/{thread.path}: {owner[fragment]} and {target} "
+                    f"would share the box fragment docs/{fragment}"
+                )
+            owner[fragment] = target
+            boxes[fragment] = render_box(thread, target, titles)
+    return boxes
 
 
 def main(argv: list[str] | None = None) -> None:

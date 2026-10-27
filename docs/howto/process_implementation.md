@@ -111,3 +111,5 @@ Some of that detection can be automated:
 Once your milestones emit their messages, your system is a candidate for a conformance claim.
 A claim names the capability sets you provide and the roles you take on ([§13.1 Conformance Model Overview in the specification](../reference/vultron-spec/conformance.md#131-conformance-model-overview)), and conformance tests check it from the outside, in the four layers [§13.5 Conformance Testing Approach](../reference/vultron-spec/conformance.md#135-conformance-testing-approach) defines.
 Independent implementations are tested against the first three; the fourth applies only to the reference implementation.
+
+{% include-markdown "../start/_paths/connect-your-tracker/howto__process_implementation.md" %}

@@ -48,6 +48,7 @@ from vultron.core.models._helpers import _as_id
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.use_case_result import RoleOfferResult
 from vultron.core.participants.authority import resolve_case_manager_id
+from vultron.core.participants.recipients import why_may_not_act_on_case
 from vultron.core.ports.case_outbox import CaseOutboxPersistence
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.core.ports.trigger_activity import TriggerActivityPort
@@ -81,7 +82,7 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
-from vultron.primitives import same_actor_id
+from vultron.primitives import normalise_actor_id, same_actor_id
 
 logger = logging.getLogger(__name__)
 
@@ -506,6 +507,21 @@ class SvcOfferCaseOwnershipTransferUseCase(SvcActivityTriggerBase):
                     " ownership can be offered only to another actor"
                     " (CM-21-005)"
                 )
+        # The CASE_MANAGER offers the case only to an active participant
+        # (CM-21-021), judged here on the owner's own replica before anything
+        # is queued (TRIG-01-003), with the id spelled as the roster keys it
+        # (OID-01-006).  An owner that means to transfer the case to anyone
+        # else invites it first.
+        inactive = why_may_not_act_on_case(
+            self._case, self._dl, normalise_actor_id(request.transferee_id)
+        )
+        if inactive is not None:
+            raise VultronValidationError(
+                f"transferee_id '{request.transferee_id}' {inactive}, so"
+                f" case '{self._case.id_}' may not be offered to it; only an"
+                " active participant may be, so invite it to the case first"
+                " (CM-21-021)"
+            )
 
         # A transferee is a peer named by URI — the same reasoning as an invitee
         # or a recommended actor; see ``_record_named_peer``. Handing ownership

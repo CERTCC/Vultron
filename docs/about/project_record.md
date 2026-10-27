@@ -25,3 +25,5 @@ Each entry below opens a page that links every member of its group.
 | [Behaviors Reference](../reference/behaviors/index.md) | The behavior trees the reference implementation runs, rendered from code |
 | [Code Reference](../reference/code/index.md) | Documentation generated from the Python modules |
 | [Original Behavior Tree Design](../topics/behavior_logic/original_design.md) | The behavior tree design the protocol was first specified with |
+
+{% include-markdown "../start/_paths/contribute/about__project_record.md" %}

@@ -9,20 +9,13 @@ stakeholder_type: [project-contributor]
 This top-level tree integrates all CVD behavioral requirements.
 See the [Protocol Specifications](../../reference/specs/protocol.md) for the full specification:
 
-- [RMB](../../reference/specs/protocol.md#rmb) — Report Management behavioral requirements
-- [EMB](../../reference/specs/protocol.md#emb) — Embargo Management behavioral requirements
-- [CSB](../../reference/specs/protocol.md#csb) — Case State behavioral requirements
+{% include-markdown "./_behavior_spec_groups.md" %}
 
 We begin at the root node of the CVD Behavior Tree shown in the figure below.
 The root node is a simple loop that continues until an interrupt condition is met, representing the idea
 that the CVD practice is meant to be continuous. In other words, we are intentionally not specifying the interrupt condition.
 
-!!! note "Legacy design diagram"
-
-    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
-    match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for
-    auto-generated documentation from the current implementation.
+{% include-markdown "./_legacy_diagram_note.md" %}
 
 ```mermaid
 ---

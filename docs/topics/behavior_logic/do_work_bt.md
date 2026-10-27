@@ -9,9 +9,7 @@ stakeholder_type: [project-contributor]
 This orchestrating node coordinates multiple CVD work streams, each of which has its own behavioral requirements.
 See the [Protocol Specifications](../../reference/specs/protocol.md) for the full specification:
 
-- [RMB](../../reference/specs/protocol.md#rmb) — Report Management behavioral requirements
-- [EMB](../../reference/specs/protocol.md#emb) — Embargo Management behavioral requirements
-- [CSB](../../reference/specs/protocol.md#csb) — Case State behavioral requirements
+{% include-markdown "./_behavior_spec_groups.md" %}
 
 Although it is not directly addressed by the [formal Vultron Protocol](../../reference/formal_protocol/index.md), the *do work* node
 of the [RM Behavior Tree](rm_bt.md) is where much of the CVD effort happens.
@@ -26,12 +24,7 @@ In this section, we will expand on the set of behaviors shown in the diagram bel
     Decisions about which (and how many) of the following tasks are necessary for a Participant to complete work
     on their $Accepted$ CVD cases are left to the discretion of individual Participants.
 
-!!! note "Legacy design diagram"
-
-    The diagram on this page reflects the simulator-era design from `vultron/bt/` and may not
-    match the current implementation in `vultron/core/behaviors/`.
-    See the [Behaviors Reference](../../reference/behaviors/index.md) for
-    auto-generated documentation from the current implementation.
+{% include-markdown "./_legacy_diagram_note.md" %}
 
 ```mermaid
 ---

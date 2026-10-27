@@ -2,8 +2,8 @@
 
 Requirements: DF-11-013 (a thread is staged data on its start page), DF-11-014
 (the start page's listing is generated and check gated), DF-11-015 (the before
-and after sets), DF-11-016 (the thread check), DF-09-009 (an empty target set
-fails).
+and after sets; the box itself is ``test_thread_boxes.py``), DF-11-016 (the
+thread check), DF-09-009 (an empty target set fails).
 """
 
 from __future__ import annotations
@@ -555,18 +555,6 @@ class TestRenderingEdges:
         )
         listing = render_listing(thread, {"a.md": "A"})
         assert "Intro:\n\n- one\n    - nested\n\n- [A]" in listing
-
-    def test_a_quote_in_the_start_page_title_is_escaped(self):
-        thread = StartThread(
-            path="start/s.md",
-            title='You say "hello"',
-            stages=(_chain("a.md", "b.md"),),
-        )
-        box = threads.render_box(thread, "a.md", {"a.md": "A", "b.md": "B"})
-        assert box is not None
-        assert box.startswith(
-            '!!! abstract "Reading path: You say &quot;hello&quot;"'
-        )
 
     def test_every_missing_member_title_is_reported(self, tmp_path):
         root = tree(

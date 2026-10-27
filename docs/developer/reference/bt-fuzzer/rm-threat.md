@@ -12,7 +12,7 @@ An external monitoring actor, or any informed participant, detects a threat sign
 The CASE_MANAGER's received-side behavior tree (BT), `add_participant_status_tree`, adopts the state into the case status and tears down the embargo.
 The nodes below model what that monitoring actor watches for; none is wired into the CASE_MANAGER's received-side pipeline.
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## `MonitorAttacks`
 

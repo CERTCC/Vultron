@@ -137,14 +137,14 @@ def _docs_spec(
     return pathspec.gitignore.GitIgnoreSpec.from_lines(lines)
 
 
-def _walk_nav(nav: object) -> list[str]:
-    """Collect every string file path anywhere in a mkdocs ``nav`` tree."""
+def walk_nav(nav: object) -> list[str]:
+    """Every string file path anywhere in a mkdocs ``nav`` tree, in order."""
     if isinstance(nav, str):
         return [nav]
     if isinstance(nav, list):
-        return [path for item in nav for path in _walk_nav(item)]
+        return [path for item in nav for path in walk_nav(item)]
     if isinstance(nav, dict):
-        return [path for value in nav.values() for path in _walk_nav(value)]
+        return [path for value in nav.values() for path in walk_nav(value)]
     return []
 
 
@@ -162,7 +162,7 @@ def nav_paths(root: Path | None = None) -> frozenset[str]:
     (DF-11-003, ``docs-frontmatter``) must be absent. The nav's labels are
     hand-written prose, so only the *set* of files is derivable.
     """
-    return frozenset(_walk_nav(mkdocs_config(root).get("nav")))
+    return frozenset(walk_nav(mkdocs_config(root).get("nav")))
 
 
 def not_in_nav_spec(root: Path | None = None) -> GitIgnoreSpec:

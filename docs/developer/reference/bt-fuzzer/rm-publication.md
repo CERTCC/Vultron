@@ -8,7 +8,7 @@ These stub nodes belong to the `Publication` fallback tree (`vultron/bt/report_m
 
 In production, `create_publication_tree` (`vultron/core/behaviors/report/publication_tree.py`) collapses the simulator's flag checks and bypass leaves into one intent Evaluator and three per-artifact arms (ADR-0028, BT-20-002).
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## `AllPublished`
 

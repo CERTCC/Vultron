@@ -146,6 +146,54 @@ def _strip_from_block(
     return out, j, len(remaining) != len(entries)
 
 
+_TRAILING_COMMENT_RE = re.compile(r"\s#\s*(\S.*?)\s*$")
+
+
+def _comment_text(lines: Sequence[str]) -> str | None:
+    """The text of the first non-empty ``#`` comment on *lines*, if any."""
+    for line in lines:
+        body = line.rstrip("\n\r")
+        if _COMMENT_RE.match(body):
+            text = body.strip().lstrip("#").strip()
+        else:
+            m = _TRAILING_COMMENT_RE.search(body)
+            text = m.group(1) if m else ""
+        if text:
+            return text
+    return None
+
+
+def suppression_reason(item: SpecItem, code: str) -> str | None:
+    """The comment giving *item*'s reason for suppressing *code*, if any.
+
+    A reason is a YAML comment the schema never sees: in a block list, a
+    comment line before *code*'s entry (the comment that leaves with it, see
+    :func:`remove_lint_suppression`) or one after it on the same line. A
+    comment shared by the whole list — on the ``lint_suppress:`` header, or
+    ending a one-line flow list — is *code*'s reason only when *code* is the
+    list's one entry: in a longer list it may justify another code. A flow
+    list spread over several lines is not read. Returns ``None`` when *item*
+    does not suppress *code* in a form read here, or gives no reason.
+    """
+    lines = item.lines
+    for j, line in enumerate(lines):
+        fm = _LINT_SUPPRESS_FLOW_RE.match(line.rstrip("\n\r"))
+        if fm and fm.group(1) == item.field_indent:
+            codes = [c.strip().strip("'\"") for c in fm.group(2).split(",")]
+            codes = [c for c in codes if c]
+            if codes == [code]:
+                return _comment_text([line])
+            continue
+        bm = _LINT_SUPPRESS_BLOCK_RE.match(line)
+        if bm and bm.group(1) == item.field_indent:
+            entries, _trailing, _next = _scan_block(line, lines, j + 1)
+            shared = [line] if len(entries) == 1 else []
+            for comments, entry, entry_code, _at in entries:
+                if entry_code == code:
+                    return _comment_text([*comments, entry, *shared])
+    return None
+
+
 def remove_lint_suppression(
     item: SpecItem, code: str
 ) -> tuple[list[str], bool]:

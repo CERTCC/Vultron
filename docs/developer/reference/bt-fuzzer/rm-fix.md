@@ -7,7 +7,7 @@ stakeholder_type: [project-contributor]
 These stub nodes belong to the simulator's fix development and fix deployment sub-trees.
 Each entry maps a simulator stub to the call-out point that replaces it in `vultron/core/behaviors/report/`.
 
-See the [fuzzer node index](index.md) for the entry format, the automation-potential and call-out shape values, and the base-type probabilities.
+{% include-markdown "./_index_pointer.md" %}
 
 ## Fix development
 

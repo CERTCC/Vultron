@@ -31,9 +31,7 @@ By the end of this tutorial, we will have:
 
 You need the following tools installed before we begin:
 
-- [Docker](https://docs.docker.com/get-docker/){:target="_blank"} (version 20.10 or later)
-- [Docker Compose](https://docs.docker.com/compose/install/){:target="_blank"} (version 2.x; included with Docker Desktop)
-- Git (to clone the repository)
+{% include-markdown "./_docker_prerequisites.md" %}
 
 You do **not** need Python installed locally; the containers include everything required.
 
@@ -95,8 +93,7 @@ DEMO=rcv docker compose -f docker/docker-compose-multi-actor.yml \
 If you leave `DEMO` unset, the runner executes the `rv` scenario.
 [Run the `rv` Demo](rv-demo.md) walks through that run milestone by milestone.
 
-Docker builds the images on the first run, which takes a few minutes.
-Subsequent runs reuse the cached images and start immediately.
+{% include-markdown "./_first_run_build.md" %}
 Once the images exist, compose:
 
 1. starts the actor containers (`reporter`, `vendor`, `coordinator`, `case-actor`, `actor5`, and `actor6`), whether or not the chosen scenario uses them all,
@@ -162,12 +159,7 @@ The stream and the `…/log` endpoints exist only in prototype mode, and they ar
 
 ## Step 6 — Clean up
 
-Named Docker volumes persist the SQLite databases between runs.
-Remove all volumes after a session to start fresh next time:
-
-```bash
-docker compose -f docker/docker-compose-multi-actor.yml down -v
-```
+{% include-markdown "./_cleanup_volumes.md" %}
 
 ---
 
@@ -220,3 +212,5 @@ We have:
 - **Explore the single-container demos** — see [Run the Receive-Report Demo](receive_report_demo.md) and [Running the Other Demos](other_demos.md) to step through individual protocol exchanges.
 - **Read the scenario source** — the scripts are in `vultron/demo/scenario/`; the shared helpers are in `vultron/demo/helpers/`.
 - **Consult the Docker README** — `docker/README.md` documents port mappings, environment variable overrides, and manual seed commands for debugging individual containers.
+
+{% include-markdown "../start/_paths/contribute/tutorials__container_demos.md" %}
