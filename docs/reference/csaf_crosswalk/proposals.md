@@ -6,6 +6,7 @@ description: >
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
 page_type: explanation
+subject: neutral
 ---
 
 # CSAF 2.1 and Vultron: Proposals

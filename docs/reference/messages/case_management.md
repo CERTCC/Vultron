@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 400
 page_type: reference
+subject: protocol
 description: >
   Case lifecycle, participant roster, and ownership transfer activities.
 ---

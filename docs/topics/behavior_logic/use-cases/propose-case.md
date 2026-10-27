@@ -2,11 +2,14 @@
 stakeholder_type: [platform-developer]
 level: 400
 page_type: explanation
+subject: protocol
 description: >
   Trigger `create_case`: asking a case actor service to open and manage a case, and what it does on acceptance.
 ---
 
 # Propose Case
+
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Proposing a case is how an actor asks a service to open and manage a coordination case on its behalf.
 The proposing actor does not create the case itself.

@@ -5,6 +5,7 @@ description: >
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 400
 page_type: how-to
+subject: implementation
 ---
 
 # How to Run the RVV Demo

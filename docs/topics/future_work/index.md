@@ -2,10 +2,13 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 page_type: explanation
+subject: protocol
 contents: generated
 ---
 
 # Future Work
+
+{% include-markdown "../../includes/specification_governs.md" %}
 
 This section gives the design areas that Vultron plans but does not supply.
 It lets you find the difference between two conditions.

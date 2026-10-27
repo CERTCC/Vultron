@@ -2,10 +2,13 @@
 stakeholder_type: [platform-developer]
 level: 300
 page_type: explanation
+subject: protocol
 contents: generated
 ---
 
 # Use-Case Behavior
+
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Each page in this section takes one coordination use case and explains the structure of the behavior behind it.
 The subject is the shape of the decision, not the code that carries it out.

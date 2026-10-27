@@ -2,12 +2,15 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 page_type: explanation
+subject: protocol
 introduces: [VulnerabilityCase, CaseParticipant, Dimension Object, CVDRole]
 description: >
   The domain objects that make up a case and how they relate.
 ---
 
 # The Case Model
+
+{% include-markdown "../../includes/specification_governs.md" %}
 
 This page explains the objects that make up a Vultron coordination case, what each one is for, and how they relate to each other.
 It describes their structure, not their fields: the field-by-field listing and a class diagram are in [Case Model Fields](../../reference/case_model_fields.md).

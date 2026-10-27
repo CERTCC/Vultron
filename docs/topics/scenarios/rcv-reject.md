@@ -53,6 +53,7 @@ causal_edges:
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 page_type: reference
+subject: implementation
 ---
 
 # RCV-reject Scenario: Reporter + Coordinator + Vendor (Vendor Rejects)

@@ -6,6 +6,7 @@ description: >
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 400
 page_type: reference
+subject: neutral
 ---
 
 # CSAF 2.1 Concept Mapping

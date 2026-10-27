@@ -2,6 +2,7 @@
 stakeholder_type: [process-researcher]
 level: 400
 page_type: explanation
+subject: neutral
 description: >
   The events that a Vultron case records, which events belong to the case or to one participant, the two times on each entry, and the data gaps.
 ---

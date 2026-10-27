@@ -5,6 +5,7 @@ description: >
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
 page_type: routing
+subject: protocol
 introduces: [Deterministic Finite Automaton (DFA), Global State, Communicating Hierarchical State Machine]
 contents: generated
 ---

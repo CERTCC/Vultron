@@ -74,6 +74,7 @@ causal_edges:
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 page_type: reference
+subject: implementation
 ---
 
 # RCVCV Scenario: Reporter + C1 + V1 + C2 + V2

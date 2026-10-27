@@ -46,6 +46,7 @@ causal_edges:
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 page_type: reference
+subject: implementation
 ---
 
 # `rv` Scenario: Reporter + Vendor

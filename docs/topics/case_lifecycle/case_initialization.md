@@ -2,12 +2,15 @@
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 page_type: explanation
+subject: protocol
 description: >
   Why the CASE_MANAGER, not the report receiver, creates the case, and the
   ledger entries case creation commits.
 ---
 
 # Case Initialization
+
+{% include-markdown "../../includes/specification_governs.md" %}
 
 This page explains why the [CASE_MANAGER](case_manager_and_ledger.md) creates every `VulnerabilityCase`, rather than the actor that received the report.
 That report receiver — a Vendor, a Coordinator, or any other role — becomes the case's Case Owner, but it does not create the case.

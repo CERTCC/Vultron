@@ -4,6 +4,7 @@ description: >
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 200
 page_type: reference
+subject: neutral
 ---
 
 # Vultron Release Versioning
