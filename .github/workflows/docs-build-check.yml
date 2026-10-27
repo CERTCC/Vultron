@@ -56,10 +56,11 @@ jobs:
           # distinguishable by shellcheck, which flags the bare form as SC1007.
           PYTHONPATH='' uv run python -m vultron.metadata.adr.index_gen --check
 
-      # The docs source gates (DOCBW-03-013). They judge the docs/ sources, not
-      # the built site, so they run before the build. Pre-commit runs them
-      # locally, but no workflow runs pre-commit, and python-app.yml, which
-      # runs their committed-tree tests, does not trigger on docs/** (#5084).
+      # The docs source gates (DOCBW-03-013, DOCBW-03-014). They judge the
+      # docs/ sources, not the built site, so they run before the build.
+      # Pre-commit runs them locally, but no workflow runs pre-commit, and
+      # python-app.yml, which runs their committed-tree tests, does not
+      # trigger on docs/** (#5084).
       # Each is its own step so a failure names its gate, and each runs after
       # an earlier one fails, so one run reports every broken gate.
       - name: Page frontmatter (DF-11-001)
@@ -107,7 +108,7 @@ jobs:
       # print and the job stays green (DOCBW-03-009). Never add --quiet
       # (DOCBW-03-010): it hides the warnings --strict counts, so the build
       # passes over them. It runs after a source gate fails, so the same run
-      # also reports what the build finds (DOCBW-03-013).
+      # also reports what the build finds (DOCBW-03-014).
       - name: Build Site
         if: ${{ !cancelled() }}
         run: |

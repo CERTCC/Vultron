@@ -1,6 +1,7 @@
 """CI verification test — every docs source gate runs in CI on a docs-only PR.
 
-Implements DOCBW-03-013 from ``specs/docs-build-workflow.yaml`` (#5084).
+Implements DOCBW-03-013 and DOCBW-03-014 from
+``specs/docs-build-workflow.yaml`` (#5084).
 
 The docs source gates (``docs-frontmatter``, ``docs-normative-banner`` and the
 rest) are pre-commit hooks, and no workflow runs pre-commit. Their
@@ -282,7 +283,7 @@ def test_a_docs_only_pull_request_runs_the_hook(hook: Hook):
 def _review_problems(
     job_steps: list[dict[str, Any]], hooks: list[Hook]
 ) -> list[str]:
-    """Return every way one job's gates fail DOCBW-03-013's ordering rule."""
+    """Return every way one job's gates fail DOCBW-03-014's ordering rule."""
     build = index_of(job_steps, MKDOCS_BUILD, "run")
     gates = [
         i
@@ -314,7 +315,7 @@ def _review_problems(
     return problems
 
 
-@pytest.mark.spec("DOCBW-03-013")
+@pytest.mark.spec("DOCBW-03-014")
 def test_review_workflow_gates_precede_the_build_and_do_not_stop_it():
     """In the job that builds the site, a failed gate still lets the rest run."""
     jobs = load_workflow(REVIEW_WORKFLOW).get("jobs", {})
@@ -334,7 +335,7 @@ def test_review_workflow_gates_precede_the_build_and_do_not_stop_it():
     assert not problems, (
         f"In {REVIEW_WORKFLOW.name}: "
         + "; ".join(problems)
-        + " (DOCBW-03-013)."
+        + " (DOCBW-03-014)."
     )
 
 

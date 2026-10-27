@@ -299,26 +299,42 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Every pre-commit hook that checks the whole tree (`pass_filenames:
-          false`) and whose `files:` pattern matches a file under `docs/` MUST
-          also run in a workflow whose `pull_request` trigger fires on a change
-          to that file. In the review workflow, each such gate MUST run before
-          the Build Site step, MUST NOT set `continue-on-error`, and MUST NOT
-          stop a later gate or the Build Site step from running when it fails.
+          Each tree-wide pre-commit hook (`pass_filenames: false`) whose
+          `files:` matches a `docs/` file MUST also run in a workflow whose
+          `pull_request` trigger fires on that file.
         rationale: >-
           No workflow runs pre-commit, so a hook enforces nothing on a pull
           request whose author did not run it. A gate's committed-tree test is
           no backstop when its workflow's path filter misses the file: a pull
           request that changes only `docs/` and breaks a page's frontmatter or
-          the normative banner merged green (#5084). Running every gate after
-          a failed one lets one run report every broken gate.
+          the normative banner merged green (#5084).
         verification: >-
           `test/ci/test_docs_source_gates_in_workflows.py` derives the hooks
           from `.pre-commit-config.yaml` and asserts that, for every `docs/`
           file a hook's pattern matches, a workflow triggered by a pull
-          request changing that file runs the hook's command, and that in the
-          review workflow each gate precedes the build and every gate after
-          the first, and the build, runs on `!cancelled()`.
+          request changing that file runs the hook's command in a step that
+          can fail the run.
+      - id: DOCBW-03-014
+        priority: MUST
+        kind: project
+        statement: >-
+          In the review workflow, each DOCBW-03-013 gate MUST run before the
+          Build Site step, failing the job without stopping later steps. It
+          sets no `continue-on-error`, and every later gate and the build run
+          on `!cancelled()`.
+        rationale: >-
+          The gates check the `docs/` sources, not the built site, so they do
+          not need the build. A failed gate that skipped the rest would hide
+          every later broken gate and the build's own findings until the next
+          push.
+        verification: >-
+          `test/ci/test_docs_source_gates_in_workflows.py` asserts, within the
+          one job that builds the site, that each gate precedes the build, sets
+          no `continue-on-error`, and that every gate after the first, and the
+          build, runs on `!cancelled()`.
+        relationships:
+          - rel_type: depends_on
+            spec_id: DOCBW-03-013
 
   - id: DOCBW-05
     title: Security Compliance
