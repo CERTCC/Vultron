@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 from typing import cast
 
 import pytest
+from py_trees.common import Status
 
 from test.core.use_cases.received.conftest import seed_case_participant
 from test.support.inbox_replay import held_depth, ledger_announce_event
@@ -417,15 +418,21 @@ def test_a_strangers_hash_mismatch_fault_runs_no_self_check(caplog) -> None:
 
 @pytest.mark.spec("SYNC-03-008")
 @pytest.mark.spec("HP-01-005")
-def test_a_hash_mismatch_fault_at_a_participant_is_refused() -> None:
+def test_a_hash_mismatch_fault_at_a_participant_is_refused(caplog) -> None:
     """Only the case's CASE_MANAGER reports the fault; a participant that
-    receives one changes nothing and refuses it."""
+    receives one, even from the CASE_MANAGER, changes nothing and refuses
+    it at the CASE_MANAGER gate."""
     dl, _, announce_id = _manager(receiver_is_manager=False)
 
-    result = _fault(dl, _PARTICIPANT_ID, announce_id)
+    with caplog.at_level(logging.ERROR, logger="vultron"):
+        result = _fault(dl, _OTHER_MANAGER_ID, announce_id)
 
     assert result.disposition is HandlerDisposition.REFUSED, result.reason
+    assert f"not the CASE_MANAGER of case '{_CASE_ID}'" in (
+        result.reason or ""
+    )
     assert outbox_ids(_CASE_ACTOR_ID, dl) == set()
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
 @pytest.mark.spec("SYNC-03-008")
@@ -444,3 +451,16 @@ def test_a_fault_naming_no_sent_announce_builds_an_intake_only_tree(
     assert not any(
         isinstance(node, ReportHashMismatchNode) for node in tree.iterate()
     )
+
+
+@pytest.mark.spec("SYNC-03-010")
+def test_the_report_node_fails_without_a_datalayer() -> None:
+    """With no store to read, the node fails and records no self-check."""
+    node = ReportHashMismatchNode(
+        _ledger_entry("0" * 64),
+        peer_id=_PARTICIPANT_ID,
+        announce_id="urn:x:announce",
+    )
+
+    assert node.update() is Status.FAILURE
+    assert node.own_copy is None

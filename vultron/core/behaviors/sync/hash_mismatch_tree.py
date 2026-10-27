@@ -72,6 +72,8 @@ def create_hash_mismatch_fault_tree(
         sender_id: The fault's ``actor``: the replica that refused it.
         sender_rule: The use case's declared sender rule (HP-01-008).
     """
+    # The use case reads the entry from the Announce *announce_id* names, so
+    # an entry never arrives without one; the second test is defensive.
     if refused_entry is None or announce_id is None:
         return create_intake_only_received_tree("HashMismatchFaultReceivedBT")
     case_id = refused_entry.case_id

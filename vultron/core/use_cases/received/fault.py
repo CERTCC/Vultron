@@ -156,19 +156,25 @@ def _archive_verdict(
 
 
 def _unnamed_entry_refusal(
-    tree: py_trees.behaviour.Behaviour, result: BTExecutionResult, label: str
+    tree: py_trees.behaviour.Behaviour,
+    result: BTExecutionResult,
+    *,
+    label: str,
+    answer: str,
+    spec_id: str,
 ) -> HandlerResult:
     """The refusal of a fault that names no ``Announce(CaseLedgerEntry)``
-    this actor sent: there is no case to answer for (ASK-07-004).
+    this actor sent: there is no case to *answer* for.
 
-    A door guard's own refusal is kept, since it names the closer cause.
+    *spec_id* is the requirement of the response that cannot run.  A door
+    guard's own refusal is kept, since it names the closer cause.
     """
     if (refusal := door_refusal(tree)) is not None:
         return refusal
     applied_or_raise(tree, result, label=label)
     return HandlerResult.refused(
         "the fault names no Announce(CaseLedgerEntry) this actor sent, so it"
-        " names no case to answer for (ASK-07-004)"
+        f" names no case to {answer} ({spec_id}, ASK-07-004)"
     )
 
 
@@ -198,7 +204,9 @@ def _reseed_verdict(
     """
     label = "CaseDivergedFaultReceivedBT"
     if refused_entry is None:
-        return _unnamed_entry_refusal(tree, result, label)
+        return _unnamed_entry_refusal(
+            tree, result, label=label, answer="re-seed", spec_id="SYNC-16-003"
+        )
     verdict = case_manager_verdict(
         tree,
         verdict_from_bt(tree, result, label=label),
@@ -254,7 +262,13 @@ def _hash_mismatch_verdict(
     """
     label = "HashMismatchFaultReceivedBT"
     if refused_entry is None:
-        return _unnamed_entry_refusal(tree, result, label)
+        return _unnamed_entry_refusal(
+            tree,
+            result,
+            label=label,
+            answer="report on",
+            spec_id="SYNC-03-008",
+        )
     verdict = case_manager_verdict(
         tree,
         verdict_from_bt(tree, result, label=label),
