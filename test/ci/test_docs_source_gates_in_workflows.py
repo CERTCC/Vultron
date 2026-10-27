@@ -1,6 +1,6 @@
 """CI verification test — every docs source gate runs in CI on a docs-only PR.
 
-Implements DOCBW-03-013 and DOCBW-03-014 from
+Implements DOCBW-03-013, DOCBW-03-014 and DOCBW-03-015 from
 ``specs/docs-build-workflow.yaml`` (#5084).
 
 The docs source gates (``docs-frontmatter``, ``docs-normative-banner`` and the
@@ -35,7 +35,10 @@ from test.ci._workflows import (
     RUN_EVEN_AFTER_FAILURE,
     WORKFLOWS_DIR,
     index_of,
+    live_text,
     load_workflow,
+    neutering,
+    swallowed_failure,
     triggers,
 )
 
@@ -149,10 +152,12 @@ def _docs_hooks() -> list[Hook]:
 
 
 def _glob_regex(pattern: str) -> re.Pattern[str]:
-    """Translate a GitHub Actions path glob to a regex.
+    """Translate a GitHub Actions filter pattern to a regex.
 
-    ``*`` and ``?`` stop at ``/``; ``**`` crosses it, and ``**/`` also matches
-    no directory at all, as GitHub's filter does.
+    ``*`` stops at ``/``; ``**`` crosses it, and ``**/`` also matches no
+    directory at all. ``?`` and ``+`` repeat the preceding character zero or
+    one, and one or more, times, and ``[...]`` is a character class, as in
+    GitHub's filter pattern cheat sheet.
     """
     out = ""
     i = 0
@@ -166,9 +171,13 @@ def _glob_regex(pattern: str) -> re.Pattern[str]:
         elif pattern[i] == "*":
             out += "[^/]*"
             i += 1
-        elif pattern[i] == "?":
-            out += "[^/]"
+        elif pattern[i] in "?+" and out:
+            out += pattern[i]
             i += 1
+        elif pattern[i] == "[" and "]" in pattern[i + 1 :]:
+            end = pattern.index("]", i + 1)
+            out += "[" + pattern[i + 1 : end].replace("\\", "\\\\") + "]"
+            i = end + 1
         else:
             out += re.escape(pattern[i])
             i += 1
@@ -190,10 +199,27 @@ def _last_match_wins(patterns: list[Any], rel_path: str) -> bool:
     return matched
 
 
+# The pull requests this check is about: opened against main, and every push
+# to them after (GitHub's default ``types``).
+BASE_BRANCH = "main"
+EVERY_PUSH = frozenset({"opened", "synchronize"})
+
+
 def _fires_on(event: Any, rel_path: str) -> bool:
-    """Return whether a ``pull_request`` trigger block fires on *rel_path*."""
+    """Return whether a ``pull_request`` trigger fires on every push of a PR to
+    main that changes *rel_path*."""
     if not isinstance(event, dict):
-        return True  # A bare `pull_request:` has no path filter.
+        return True  # A bare `pull_request:` fires on every pull request.
+    if "types" in event and not set(map(str, event["types"])) >= EVERY_PUSH:
+        return False
+    if "branches" in event and not _last_match_wins(
+        list(event["branches"]), BASE_BRANCH
+    ):
+        return False
+    if "branches-ignore" in event and _last_match_wins(
+        list(event["branches-ignore"]), BASE_BRANCH
+    ):
+        return False
     if "paths" in event:
         return _last_match_wins(list(event["paths"]), rel_path)
     if "paths-ignore" in event:
@@ -201,23 +227,13 @@ def _fires_on(event: Any, rel_path: str) -> bool:
     return True
 
 
-def _live_text(step: dict[str, Any]) -> str:
-    """Return the step's ``run`` and ``uses`` text, with shell comments dropped."""
-    lines = [
-        line
-        for line in str(step.get("run", "")).splitlines()
-        if not line.lstrip().startswith("#")
-    ]
-    return "\n".join([*lines, str(step.get("uses", ""))])
-
-
 def _can_fail_the_run(job: dict[str, Any], step: dict[str, Any]) -> bool:
     """Return whether a failure of *step* fails a pull-request run."""
-    if job.get("continue-on-error") or step.get("continue-on-error"):
+    if job.get("continue-on-error"):
         return False
     if "if" in job and job["if"] not in ON_PULL_REQUEST:
         return False
-    return "if" not in step or step["if"] in RUN_EVEN_AFTER_FAILURE
+    return not neutering(step)
 
 
 def _runs_hook(wf_data: dict[str, Any], hook: Hook) -> bool:
@@ -228,7 +244,7 @@ def _runs_hook(wf_data: dict[str, Any], hook: Hook) -> bool:
         for step in job.get("steps", []):
             if not isinstance(step, dict) or not _can_fail_the_run(job, step):
                 continue
-            if any(command in _live_text(step) for command in hook.commands):
+            if any(command in live_text(step) for command in hook.commands):
                 return True
     return False
 
@@ -280,6 +296,33 @@ def test_a_docs_only_pull_request_runs_the_hook(hook: Hook):
     )
 
 
+# The workflow that runs this test, and the files the test reads besides docs/.
+TEST_WORKFLOW = WORKFLOWS_DIR / "python-app.yml"
+THIS_TEST = "test/ci/" + __file__.rsplit("/", 1)[-1]
+
+
+@pytest.mark.spec("DOCBW-03-015")
+def test_this_check_runs_on_a_pull_request_that_changes_what_it_reads():
+    """Dropping a gate's step, or adding an uncovered hook, fails that PR."""
+    on = triggers(load_workflow(TEST_WORKFLOW))
+    assert "pull_request" in on, f"{TEST_WORKFLOW.name} has no pull_request"
+    assert _fires_on(on["pull_request"], THIS_TEST), (
+        f"{TEST_WORKFLOW.name} no longer fires on {THIS_TEST}; update "
+        "TEST_WORKFLOW to the workflow that runs it."
+    )
+    read = [PRE_COMMIT_CONFIG, *sorted(WORKFLOWS_DIR.glob("*.yml"))]
+    missed = [
+        rel
+        for rel in (p.relative_to(REPO_ROOT).as_posix() for p in read)
+        if not _fires_on(on["pull_request"], rel)
+    ]
+    assert not missed, (
+        f"{TEST_WORKFLOW.name} does not run on a pull request that changes "
+        f"{missed}, so the pull request that breaks DOCBW-03-013 there merges "
+        "green and a later one fails instead (DOCBW-03-015)."
+    )
+
+
 def _review_problems(
     job_steps: list[dict[str, Any]], hooks: list[Hook]
 ) -> list[str]:
@@ -288,7 +331,7 @@ def _review_problems(
     gates = [
         i
         for i, step in enumerate(job_steps)
-        if any(c in _live_text(step) for h in hooks for c in h.commands)
+        if any(c in live_text(step) for h in hooks for c in h.commands)
     ]
     if build is None:
         return ["the job that runs the gates does not build the site"]
@@ -302,9 +345,9 @@ def _review_problems(
         if i > build
     ]
     problems += [
-        f"'{job_steps[i].get('name')}' sets continue-on-error"
+        f"'{job_steps[i].get('name')}' cannot fail the job: {problem}"
         for i in gates
-        if job_steps[i].get("continue-on-error", False)
+        for problem in swallowed_failure(job_steps[i])
     ]
     problems += [
         f"'{job_steps[i].get('name')}' does not run after an earlier gate fails "
@@ -370,7 +413,13 @@ _KEPT_BUILD = {**_BUILD, "if": "${{ !cancelled() }}"}
                 {"name": "A", "run": "docs-gate", "continue-on-error": True},
                 _KEPT_BUILD,
             ],
-            ["'A' sets continue-on-error"],
+            ["'A' cannot fail the job: it sets continue-on-error"],
+        ),
+        (
+            [{"name": "A", "run": "docs-gate || true"}, _KEPT_BUILD],
+            [
+                "'A' cannot fail the job: its command ignores its own exit status"
+            ],
         ),
         (
             [
@@ -406,6 +455,11 @@ def test_review_problems_reports_each_violation(
         ({}, {"run": "x", "if": "github.base_ref == 'publish'"}, False),
         ({}, {"run": "x", "continue-on-error": True}, False),
         ({"continue-on-error": True}, {"run": "x"}, False),
+        ({}, {"run": "x || true"}, False),
+        ({}, {"run": "x ||:"}, False),
+        ({}, {"run": "x || exit 0"}, False),
+        ({}, {"run": "x || echo failed; exit 1"}, True),
+        ({}, {"run": "x || true-ish"}, True),
         ({"if": "github.event_name == 'pull_request'"}, {"run": "x"}, True),
         ({"if": "github.event_name != 'pull_request'"}, {"run": "x"}, False),
     ],
@@ -423,7 +477,11 @@ def test_a_commented_out_command_does_not_count():
         "jobs": {"j": {"steps": [{"run": "# uv run docs-gate\ntrue"}]}}
     }
     live = {"jobs": {"j": {"steps": [{"run": "uv run docs-gate"}]}}}
+    trailing = {
+        "jobs": {"j": {"steps": [{"run": "true  # uv run docs-gate"}]}}
+    }
     assert not _runs_hook(commented, hook)
+    assert not _runs_hook(trailing, hook)
     assert _runs_hook(live, hook)
 
 
@@ -435,6 +493,14 @@ def test_a_commented_out_command_does_not_count():
         ("**/*.md", "docs/a/b.md", True),
         ("docs/*.md", "docs/a/b.md", False),
         ("specs/**", "docs/adr/0001.md", False),
+        ("docs/*.mdx?", "docs/a.md", True),
+        ("docs/*.mdx?", "docs/a.mdx", True),
+        ("docs/a?.md", "docs/ab.md", False),
+        ("docs/a+.md", "docs/aaa.md", True),
+        ("docs/a+.md", "docs/.md", False),
+        ("docs/[ab].md", "docs/b.md", True),
+        ("docs/[ab].md", "docs/c.md", False),
+        ("docs/a.md", "docsXa.md", False),
     ],
 )
 def test_glob_translation(pattern: str, path: str, expected: bool):
@@ -447,6 +513,13 @@ def test_glob_translation(pattern: str, path: str, expected: bool):
     [
         (None, "docs/a.md", True),
         ({"branches": ["main"]}, "docs/a.md", True),
+        ({"branches": ["publish"]}, "docs/a.md", False),
+        ({"branches": ["releases/**"]}, "docs/a.md", False),
+        ({"branches-ignore": ["publish"]}, "docs/a.md", True),
+        ({"branches-ignore": ["main"]}, "docs/a.md", False),
+        ({"types": ["opened", "synchronize", "reopened"]}, "docs/a.md", True),
+        ({"types": ["closed"]}, "docs/a.md", False),
+        ({"types": ["opened"]}, "docs/a.md", False),
         ({"paths": ["docs/**"]}, "docs/a.md", True),
         ({"paths": ["specs/**"]}, "docs/a.md", False),
         ({"paths": ["docs/**", "!docs/adr/**"]}, "docs/adr/0001.md", False),

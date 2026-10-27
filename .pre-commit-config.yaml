@@ -124,7 +124,9 @@ repos:
         # level, its introduces:, its prose and links), the nav, which decides
         # what is an include fragment; the glossary is a docs page; and the
         # checker, its scanner, baseline and the readers they use.
-        # test_the_committed_docs_tree_passes is the CI backstop.
+        # In CI, docs-build-check.yml runs it on a pull request that changes
+        # docs/ (DOCBW-03-013), and test_the_committed_docs_tree_passes on one
+        # that changes vultron/.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/(level_(order|baseline).*|concept_(scan|registry)\.py|baseline_file\.py|page_.*|glossary_index\.py)|vultron/metadata/(base|file_loading|markdown_tables)\.py)$
         pass_filenames: false
 
@@ -135,8 +137,11 @@ repos:
         # Every input that can make an artifact stale (DF-11-005/008/011/023): any
         # docs page (its description:, level or stakeholder_type), the nav, the
         # schema and generators, and the artifacts themselves so a hand-edit is
-        # caught. test_committed_site_artifacts_are_in_sync is the CI backstop,
-        # and the only one for a deletion, which no staged-file pattern matches.
+        # caught. In CI, docs-build-check.yml runs it tree-wide on a pull
+        # request that changes docs/ (DOCBW-03-013), so a deleted page is
+        # caught there, and test_committed_site_artifacts_are_in_sync on one
+        # that changes vultron/; locally, no staged-file pattern matches a
+        # deletion.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading|generated_block)\.py|notes/site-coverage-matrix\.md)$
         pass_filenames: false
 
@@ -146,7 +151,9 @@ repos:
         language: system
         # A thread lives in its start page's frontmatter, and any docs page
         # can be renamed, deleted or moved into the working record (DF-11-016).
-        # test_the_committed_threads_pass is the CI backstop.
+        # In CI, docs-build-check.yml runs it on a pull request that changes
+        # docs/ (DOCBW-03-013), and test_the_committed_threads_pass on one that
+        # changes vultron/.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/.*\.py|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
@@ -158,7 +165,10 @@ repos:
         # start page's thread, a member's introduces:, prose and links), the
         # nav, which decides what is an include fragment, and the checker, the
         # level-order scanner and thread loader it composes, and its baseline.
-        # test_the_committed_threads_pass_the_order_check is the CI backstop.
+        # In CI, docs-build-check.yml runs it on a pull request that changes
+        # docs/ (DOCBW-03-013), and
+        # test_the_committed_threads_pass_the_order_check on one that changes
+        # vultron/.
         files: ^(docs/.*\.md|mkdocs\.yml|vultron/metadata/docs/(.*\.py|thread_order_baseline\.txt)|vultron/metadata/(base|file_loading|markdown_tables)\.py)$
         pass_filenames: false
 

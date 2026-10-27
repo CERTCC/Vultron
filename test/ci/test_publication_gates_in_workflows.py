@@ -37,6 +37,7 @@ from test.ci._workflows import (
     RUN_EVEN_AFTER_FAILURE,
     WORKFLOWS_DIR,
     load_workflow,
+    neutering,
     site_building_workflows,
     triggers,
 )
@@ -100,13 +101,7 @@ def _steps(wf_data: dict[str, Any]) -> list[Step]:
 
 def _neutering(step: Step) -> list[str]:
     """Return every way *step*, or the step that called it, cannot fail the run."""
-    problems: list[str] = []
-    for part in (step.body, step.caller):
-        if "if" in part and part["if"] not in RUN_EVEN_AFTER_FAILURE:
-            problems.append(f"it is conditional (if: {part['if']!r})")
-        if part.get("continue-on-error", False):
-            problems.append("it sets continue-on-error")
-    return problems
+    return [p for part in (step.body, step.caller) for p in neutering(part)]
 
 
 def _index_of(steps: list[Step], needle: str, key: str) -> int | None:

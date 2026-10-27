@@ -318,10 +318,10 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          In the review workflow, each DOCBW-03-013 gate MUST run before the
-          Build Site step, failing the job without stopping later steps. It
-          sets no `continue-on-error`, and every later gate and the build run
-          on `!cancelled()`.
+          Each DOCBW-03-013 gate that the review workflow runs MUST run before
+          the Build Site step, failing the job without stopping later steps.
+          Nothing swallows its failure (no `continue-on-error`, no `|| true`),
+          and every later gate and the build run on `!cancelled()`.
         rationale: >-
           The gates check the `docs/` sources, not the built site, so they do
           not need the build. A failed gate that skipped the rest would hide
@@ -329,9 +329,29 @@ groups:
           push.
         verification: >-
           `test/ci/test_docs_source_gates_in_workflows.py` asserts, within the
-          one job that builds the site, that each gate precedes the build, sets
-          no `continue-on-error`, and that every gate after the first, and the
-          build, runs on `!cancelled()`.
+          one job that builds the site, that each gate precedes the build, that
+          nothing swallows its failure, and that every gate after the first,
+          and the build, runs on `!cancelled()`.
+        relationships:
+          - rel_type: depends_on
+            spec_id: DOCBW-03-013
+      - id: DOCBW-03-015
+        priority: MUST
+        kind: project
+        statement: >-
+          The workflow that runs the DOCBW-03-013 check MUST fire on a pull
+          request that changes `.pre-commit-config.yaml` or any workflow
+          file.
+        rationale: >-
+          The check reads those files. If it ran only on a pull request that
+          changes Python, the pull request that deletes a gate's step, or
+          adds a docs hook with no step, would merge green and the next
+          unrelated pull request would fail instead.
+        verification: >-
+          `test/ci/test_docs_source_gates_in_workflows.py` asserts that the
+          workflow running `test/ci` fires, under the same trigger reading
+          as DOCBW-03-013, on `.pre-commit-config.yaml` and on every file in
+          `.github/workflows/`.
         relationships:
           - rel_type: depends_on
             spec_id: DOCBW-03-013

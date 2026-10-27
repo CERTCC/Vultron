@@ -288,7 +288,9 @@ committed-tree tests, does not trigger on `docs/**`. So a tree-wide hook
 that checks `docs/` also needs a step in a workflow that fires on the files it
 checks, normally `docs-build-check.yml` before the build (DOCBW-03-013, #5084).
 `test/ci/test_docs_source_gates_in_workflows.py` derives the hooks from
-`.pre-commit-config.yaml`, so a new hook fails CI until that step exists.
+`.pre-commit-config.yaml`, so a new hook fails CI until that step exists; it
+runs on any change to that file or a workflow, so the pull request that breaks
+the rule is the one that fails (DOCBW-03-015).
 
 ### Auto-fix scale is about edit kind, not file count
 

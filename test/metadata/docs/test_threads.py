@@ -474,7 +474,10 @@ class TestThreadCheck:
         assert "thread" in capsys.readouterr().err
 
     def test_the_committed_threads_pass(self):
-        """The CI backstop for the ``docs-threads`` pre-commit hook."""
+        """The CI check for the ``docs-threads`` hook on a ``vultron/`` change.
+
+        On a ``docs/`` change, ``docs-build-check.yml`` runs the hook (DOCBW-03-013).
+        """
         committed = check_threads(repo_root())
         assert {t.path for t in committed} == {
             "start/coordinate-cases.md",
