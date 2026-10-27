@@ -15,6 +15,7 @@ This page describes the record that a Vultron case keeps.
 Every measure in the Measuring CVD section uses this record as its data.
 The page tells which events the case records, and whether each event belongs to the case or to one participant.
 The page also tells which times the case puts on each event, where the record has gaps, and which participants can see which events.
+
 The page is for people who measure Coordinated Vulnerability Disclosure (CVD) from cases.
 These people need to know the limits of the data before they calculate.
 
@@ -57,6 +58,7 @@ The table below shows which kind each part of the case state is.
     The embargo register is the list of every embargo that anyone proposed for the case.
     Each entry in the register has a status, such as proposed, active, or ended.
     The case derives its EM state from the statuses in the register.
+
     A consent row records the answer of one participant to one embargo in the register.
     The answer is one of `UNINVITED`, `INVITED`, `AGREED`, `DECLINED`, or `TIMED_OUT` (CM-18-001).
     A participant with an `AGREED` row for the active embargo is a signatory of that embargo.
@@ -87,9 +89,11 @@ This record is the case ledger.
 Participants send their changes to the CASE_MANAGER as protocol messages.
 The CASE_MANAGER checks each change, and admits the change to the case only if the change is valid.
 For each admitted change, the CASE_MANAGER writes one case ledger entry (CLP-07-013).
+
 The CASE_MANAGER writes the entries in the order that it admits the changes.
 The CASE_MANAGER then sends a copy of each entry to the other participants.
 The copy of the ledger that a participant holds is its replica.
+
 A decision that changes nothing is not an entry.
 For example, the CASE_MANAGER does not write an entry when it sees that a deadline has passed and nothing else changes.
 
@@ -137,7 +141,7 @@ A commit stamp tells you when the CASE_MANAGER learned of an event.
 The CASE_MANAGER can learn of an event after the event occurred.
 
 A claimed time comes from the clock of the sender.
-The sender should use the time that the event occurred, not the time that the sender sent or sent again the message (CLP-15-004).
+The sender should use the time that the event occurred, not the time that the sender sent the message or sent it again (CLP-15-004).
 The claimed times of one participant must not decrease across activities that depend on each other (CLP-15-003).
 The claimed times of two different participants come from two different clocks, so these claimed times can disagree.
 
@@ -230,6 +234,7 @@ The record does not show the length of this delay.
 When the CASE_MANAGER does not admit a change, it sends a refusal notice to the participant that sent the change (CLP-05-001).
 A refusal notice is about the ledger, not about the case.
 A replica that misses entries can ask the CASE_MANAGER to send the entries again, which is a replay.
+
 A request for a replay is also about the ledger, not about the case.
 Thus the CASE_MANAGER does not ledger refusal notices or replay requests (CLP-02-012, CLP-02-013).
 A count of refusals or replays must use the CASE_MANAGER's own logs or its outbox.

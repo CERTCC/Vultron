@@ -16,8 +16,9 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_legacy_diagram_note.md" %}
 
-The Terminate Embargo Behavior Tree is shown in the diagram below.
-It consists of two major behaviors depending on whether an embargo has been established or not.
+The diagram below shows the Terminate Embargo Behavior Tree.
+It has two major behaviors.
+Which behavior applies depends on whether an embargo is established.
 
 ```mermaid
 ---
@@ -57,21 +58,24 @@ flowchart LR
     ar_seq --> ar_em_to_x
 ```
 
-(A) If the EM state is *None* or *eXited*, ($q^{em} \in \{N{,}X\}$), the tree succeeds immediately.
+(A) If the EM state is *None* or *eXited* ($q^{em} \in \{N{,}X\}$), the tree succeeds immediately.
 
-(B) The next node handles the scenario where no embargo has been established.
-The behavior descends into a sequence that checks whether we are in $Proposed$ ($q^{em} \in P$).
-If we are, we check to see if there is a reason to exit the embargo negotiation process.
-One such reason is that the case state is outside the embargo "habitable zone," but there may be others that we leave
-unspecified.
-If any reason is found, then the proposal is rejected, the state returns to *None*, and an $ER$ message is sent.
+(B) The next node handles the situation where no embargo is established.
+The behavior goes into a sequence that checks whether the EM state is $Proposed$ ($q^{em} \in P$).
+If it is, the sequence checks whether there is a reason to exit the embargo negotiation process.
 
-(C) Should that branch fail, we still need to handle the situation where an embargo has already been established.
-Following a confirmation that we are in either *Active* or *Revise*, we again look for reasons to exit, this time
-adding the possibility of timer expiration to the conditions explicitly called out.
-Terminating an existing embargo might have some other teardown procedures to be completed, which we represent as the
-*exit embargo* task.
-Finally, the EM state is updated to *eXited* and an $ET$ message is emitted.
+One such reason is that the case state is outside the embargo "habitable zone".
+Other reasons can exist, but we do not specify them.
+If the sequence finds a reason, the tree rejects the proposal, the state returns to *None*, and the tree sends an $ER$ message.
+
+(C) If that branch fails, the tree must still handle the situation where an embargo is already established.
+First, the tree confirms that the EM state is *Active* or *Revise*.
+Then it looks for reasons to exit again.
+This time, the explicit conditions also include timer expiration.
+
+To terminate an existing embargo, the Participant can have other teardown procedures to complete.
+The *exit embargo* task represents these procedures.
+Last, the tree changes the EM state to *eXited* and emits an $ET$ message.
 
 !!! tip inline end "See also"
 
@@ -79,9 +83,6 @@ Finally, the EM state is updated to *eXited* and an $ET$ message is emitted.
     - [Threat Monitoring Behavior](monitor_threats_bt.md)
     - [Message Handling Behavior](msg_intro_bt.md)
 
-The Terminate Embargo Behavior Tree appears in multiple locations in the
-larger tree.
-We will encounter it again as a possible response to evidence collected via
-[threat monitoring](monitor_threats_bt.md)
-as well as in response to certain [CS or EM messages](msg_intro_bt.md)
-in states when an embargo is no longer viable.
+The Terminate Embargo Behavior Tree occurs in multiple locations in the larger tree.
+It is a possible response to evidence that [threat monitoring](monitor_threats_bt.md) collects.
+It is also a response to some [CS or EM messages](msg_intro_bt.md) in states where an embargo is no longer viable.

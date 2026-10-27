@@ -16,8 +16,7 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_legacy_diagram_note.md" %}
 
-The acceptance or counterproposal of an embargo is handled by the Evaluate Proposed Embargo Behavior Tree shown in the
-figure below.
+The Evaluate Proposed Embargo Behavior Tree in the figure below handles the acceptance of an embargo or a counterproposal to it.
 
 ```mermaid
 ---
@@ -41,15 +40,16 @@ flowchart LR
     seq2 --> propose
 ```
 
-(A) As noted [above](em_bt.md), the same process applies to both the *Proposed* and *Revise* EM states ($q^{em} \in \{P,R\}$).
-An evaluation task is followed by an accept task.
-These tasks are placeholders for the actual decision-making process, which is left to individual Participants.
-In both cases, acceptance leads to an EM state transition to $q^{em} \in A$ and emission of an $EA$ message.
+(A) As noted [above](em_bt.md), the same process applies to the *Proposed* and *Revise* EM states ($q^{em} \in \{P,R\}$).
+An evaluation task comes first, and then an accept task.
+These tasks are placeholders for the actual decision process.
+Each Participant decides how to do this process.
+In both states, acceptance causes an EM state transition to $q^{em} \in A$, and the tree emits an $EA$ message.
 
 !!! tip inline end "See also"
 
     - [Propose Embargo Behavior](em_propose_bt.md)
 
-(B) On the other hand, the proposed terms may not be acceptable.
-In this case, the Participant might be willing to offer a counterproposal.
-The counterproposal is covered by the [propose](em_propose_bt.md) behavior.
+(B) But the proposed terms can be unacceptable.
+In that case, the Participant can choose to make a counterproposal.
+The [propose](em_propose_bt.md) behavior covers the counterproposal.
