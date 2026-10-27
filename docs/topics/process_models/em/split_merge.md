@@ -2,6 +2,7 @@
 stakeholder_type: [cvd-practitioner]
 level: 300
 page_type: explanation
+subject: protocol
 description: >
   What happens to embargoes when cases are split or merged.
 ---

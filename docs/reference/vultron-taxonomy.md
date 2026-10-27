@@ -8,6 +8,7 @@ description: >
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 page_type: reference
+subject: neutral
 ---
 
 # Vultron Concept Taxonomy

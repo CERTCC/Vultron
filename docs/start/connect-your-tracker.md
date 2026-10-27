@@ -5,6 +5,7 @@ description: >
 stakeholder_type: [platform-developer]
 level: 100
 page_type: routing
+subject: protocol
 thread:
   - title: Understand the shape of the integration
     kind: chain

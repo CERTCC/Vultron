@@ -6,6 +6,7 @@ description: >
 stakeholder_type: [platform-developer]
 level: 200
 page_type: tutorial
+subject: protocol
 ---
 
 # Tutorial: Submit a report to a Vultron actor

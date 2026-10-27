@@ -2,9 +2,12 @@
 stakeholder_type: [platform-developer]
 level: 300
 page_type: explanation
+subject: protocol
 ---
 
 # Actor Knowledge Model
+
+{% include-markdown "../includes/specification_governs.md" %}
 
 This page explains a foundational invariant of the Vultron protocol: an
 actor's knowledge of the world is bounded entirely by what it has received

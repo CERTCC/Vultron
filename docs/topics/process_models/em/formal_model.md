@@ -2,12 +2,15 @@
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
 page_type: explanation
+subject: protocol
 introduces: [Embargo Grammar]
 description: >
   The EM process as a formal state machine, with its grammar and every possible history.
 ---
 
 # EM Formal Model
+
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 This page defines the Embargo Management (EM) process as a deterministic finite automaton (DFA).
 It is for readers who want the formal model behind the [EM process model](index.md).

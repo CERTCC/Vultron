@@ -2,6 +2,7 @@
 stakeholder_type: [cvd-practitioner]
 level: 300
 page_type: explanation
+subject: protocol
 description: >
   Adding Participants to a case under embargo.
 ---

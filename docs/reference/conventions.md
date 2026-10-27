@@ -5,6 +5,7 @@ description: >
 stakeholder_type: ALL
 level: 100
 page_type: reference
+subject: neutral
 ---
 
 # Documentation Conventions
@@ -105,7 +106,7 @@ Three banners say where a page stands relative to it.
     {% include-markdown "../includes/specification_governs.md" %}
 
     Pages that explain how the protocol is designed carry this banner at or near the top of the page.
-    They include the Formal Protocol pages and the Report Management, Embargo Management, and Case State process models.
+    They include the Formal Protocol pages, the Report Management, Embargo Management, and Case State process models, the case lifecycle and behavior logic pages, and the Protocol Design pages.
     They are informative, and they predate the Protocol Specification, so they can lag it.
     Where such a page and the specification differ, the specification governs.
 

@@ -2,11 +2,14 @@
 stakeholder_type: [platform-developer, process-researcher]
 level: 400
 page_type: explanation
+subject: protocol
 description: >
   The formal definition of the RM model, including the state subsets used on the Model Interactions pages.
 ---
 
 # RM Formal Model
+
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 This page defines the Report Management (RM) process as a deterministic finite automaton (DFA).
 It is for readers who want the formal model behind the [RM process model](index.md).

@@ -5,6 +5,7 @@ description: >
 stakeholder_type: ALL
 level: 100
 page_type: routing
+subject: neutral
 thread:
   - title: Know what kind of thing Vultron is
     kind: chain

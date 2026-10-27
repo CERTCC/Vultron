@@ -5,6 +5,7 @@ description: >
 stakeholder_type: [platform-developer]
 level: 300
 page_type: routing
+subject: protocol
 ---
 
 # A Case Object

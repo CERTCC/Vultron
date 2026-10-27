@@ -84,10 +84,10 @@ repos:
         exclude: ^docs/adr/(index|README)\.md$
 
       - id: validate-docs-page-frontmatter
-        name: Validate docs page stakeholder_type, level and page_type
+        name: Validate docs page stakeholder_type, level, page_type and subject
         entry: uv run python -m vultron.metadata.docs.page_frontmatter
         language: system
-        # Every docs page (DF-11-001, DF-11-018), plus the inputs that change
+        # Every docs page (DF-11-001, DF-11-018, DF-11-025), plus the inputs that change
         # the verdict without touching a page: the nav, which decides what is
         # an include fragment, and not_in_nav, which working record must
         # match; the schema and patterns; and the nav and frontmatter readers
@@ -96,13 +96,24 @@ repos:
         pass_filenames: false
 
       - id: docs-normative-banner
-        name: Normative banner on exactly the normative set
+        name: Each normative-status banner on exactly its declared pages
         entry: uv run python -m vultron.metadata.docs.normative_banner
         language: system
-        # Every docs page and fragment, any of which can gain or lose the
-        # banner (DF-12-006), plus the check, which declares the normative
-        # set, and the include-directive and failure readers it uses.
-        files: ^(docs/.*\.md|vultron/metadata/docs/(normative_banner|page_frontmatter)\.py|vultron/metadata/(base|file_loading)\.py)$
+        # Every docs page and fragment, any of which can gain or lose a
+        # banner or change its subject (DF-12-006, DF-12-007), plus the check,
+        # which declares both page sets, and the include-directive, schema and
+        # failure readers it uses.
+        files: ^(docs/.*\.md|vultron/metadata/docs/(normative_banner|page_frontmatter|page_schema)\.py|vultron/metadata/(base|file_loading)\.py)$
+        pass_filenames: false
+
+      - id: docs-nav-subjects
+        name: No nav section mixes protocol and implementation pages
+        entry: uv run docs-nav-subjects
+        language: system
+        # Every input that changes the verdict (DF-11-020): any docs page (its
+        # subject:), the nav, and the checker, the schema and the nav and
+        # failure readers it uses.
+        files: ^(mkdocs\.yml|docs/.*\.md|vultron/metadata/docs/(nav_subjects|landing_pages|page_schema)\.py|vultron/metadata/(base|file_loading)\.py)$
         pass_filenames: false
 
       - id: docs-level-order

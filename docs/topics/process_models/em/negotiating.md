@@ -2,6 +2,7 @@
 stakeholder_type: [cvd-practitioner]
 level: 300
 page_type: explanation
+subject: protocol
 description: >
   When an embargo can be proposed, accepted or rejected, and how long it can reasonably last.
 ---

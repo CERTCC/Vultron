@@ -1,23 +1,28 @@
-"""Pydantic schema for the audience, level and page type in ``docs/`` frontmatter.
+"""Pydantic schema for the declarations in ``docs/`` page frontmatter.
+
+They are the audience, the level, the page type and the subject.
 
 Schema requirements: specs/diataxis-requirements.yaml DF-11-001 (reader-facing
-pages), DF-11-018 (page type), DF-11-012 (working-record pages), DF-11-003
-(which pages are working record), DF-11-013 (a start page's reading-path
-thread). Design rationale: ``notes/site-information-architecture.md``
-(ADR-0102, ADR-0136, ADR-0150).
+pages), DF-11-018 (page type), DF-11-025 (subject), DF-11-026 (no subject off
+reader-facing pages), DF-11-012 (working-record pages), DF-11-003 (which pages
+are working record), DF-11-013 (a start page's reading-path thread). Design
+rationale: ``notes/site-information-architecture.md`` (ADR-0102, ADR-0136,
+ADR-0150).
 
 This module is the single machine source for the ``stakeholder_type`` members,
-the ``level`` ladder and the ``page_type`` values. Anything that needs one —
+the ``level`` ladder, the ``page_type`` values and the ``subject`` values.
+Anything that needs one —
 the validator in :mod:`vultron.metadata.docs.page_frontmatter`, the generated
 ``docs/includes/stakeholder_types.md`` fragment (DF-11-011), the coverage
 matrix (DF-11-008), the page-type badge's tests — imports
 :class:`StakeholderType`, :data:`LEVELS`, :data:`AUDIENCE_DESCRIPTIONS`,
-:class:`PageType` and :data:`PAGE_TYPE_BADGES` rather than restating them.
+:class:`PageType`, :data:`PAGE_TYPE_BADGES` and :class:`Subject` rather than
+restating them.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
@@ -162,12 +167,57 @@ PAGE_TYPE_BADGES: Mapping[PageType, str] = MappingProxyType(
 )
 
 
-def _check_page_type(value: object) -> object:
-    """Accept only a bare string naming a :class:`PageType` member."""
-    permitted = [member.value for member in PageType]
-    if value not in permitted:
-        raise ValueError(f"must be one of {', '.join(permitted)}")
-    return value
+class Subject(StrEnum):
+    """Whether a reader-facing ``docs/`` page is about the protocol (DF-11-025).
+
+    The protocol and CERT/CC's reference implementation never share a nav
+    section (DF-11-020); this key is what lets ``docs-nav-subjects`` check it.
+    A page's subject is what it is about, not who reads it: a page about the
+    Trigger API is ``implementation`` however protocol-shaped its content is,
+    and a tutorial that teaches protocol behavior on the reference
+    implementation is ``protocol``.
+    """
+
+    #: The Vultron protocol: its specification, requirements, messages,
+    #: models and design, binding on or explaining what binds any
+    #: implementation.
+    PROTOCOL = "protocol"
+    #: CERT/CC's reference implementation: its code, demos, architecture and
+    #: project record.
+    IMPLEMENTATION = "implementation"
+    #: Neither: CVD practice, research, routing and project pages, which may
+    #: sit beside either.
+    NEUTRAL = "neutral"
+
+
+def _member_of(enum: type[StrEnum]) -> Callable[[object], object]:
+    """A validator accepting only a bare string naming a member of *enum*."""
+    permitted = [member.value for member in enum]
+
+    def check(value: object) -> object:
+        if value not in permitted:
+            raise ValueError(f"must be one of {', '.join(permitted)}")
+        return value
+
+    return check
+
+
+_check_page_type = _member_of(PageType)
+_check_subject = _member_of(Subject)
+
+
+def declared_subject(value: object) -> Subject | None:
+    """The :class:`Subject` a raw frontmatter *value* names, or ``None``.
+
+    For a check that reads ``subject`` but leaves an invalid or missing one to
+    ``docs-frontmatter``, so one fault is not named by two tools. Accepts
+    exactly what :class:`PageFrontmatter` accepts.
+    """
+    try:
+        _check_subject(value)
+    except ValueError:
+        return None
+    return Subject(str(value))
 
 
 def _check_level(value: object) -> object:
@@ -244,13 +294,15 @@ class AudienceDeclaration(BaseModel):
 
 
 class PageFrontmatter(AudienceDeclaration):
-    """The declarations a reader-facing page makes (DF-11-001, DF-11-018).
+    """The declarations a reader-facing page makes (DF-11-001, DF-11-018,
+    DF-11-025).
 
-    Only the three declaration keys are validated; a page's other frontmatter
+    Only the four declaration keys are validated; a page's other frontmatter
     (``title``, ``status``, and so on) belongs to other schemas.
     """
 
     page_type: Annotated[PageType, BeforeValidator(_check_page_type)]
+    subject: Annotated[Subject, BeforeValidator(_check_subject)]
 
 
 def _check_addressed_to_contributors(value: object) -> object:
@@ -276,15 +328,17 @@ class WorkingRecordFrontmatter(BaseModel):
     """The declarations a project working-record page makes (DF-11-012).
 
     The working record is addressed to ``project-contributor`` and has no
-    level and no page type. Each absence is enforced rather than defaulted: a
-    level on a decision record is a category error, not a harmless extra, and
-    the working record's door (DF-11-003) already says what kind of page it
-    is (DF-11-018).
+    level, no page type and no subject. Each absence is enforced rather than
+    defaulted: a level on a decision record is a category error, not a
+    harmless extra, the working record's door (DF-11-003) already says what
+    kind of page it is (DF-11-018), and the working record is out of the nav
+    whose sections the subject is checked over (DF-11-026).
     """
 
     stakeholder_type: WorkingRecordStakeholderTypes
     level: None = None
     page_type: None = None
+    subject: None = None
 
     @field_validator("level", mode="before")
     @classmethod
@@ -300,6 +354,14 @@ class WorkingRecordFrontmatter(BaseModel):
         """Refuse any declared page type, including ``null``."""
         raise ValueError(
             "a working-record page must not declare a page_type (DF-11-018)"
+        )
+
+    @field_validator("subject", mode="before")
+    @classmethod
+    def no_subject(cls, value: object) -> object:
+        """Refuse any declared subject, including ``null``."""
+        raise ValueError(
+            "a working-record page must not declare a subject (DF-11-026)"
         )
 
 

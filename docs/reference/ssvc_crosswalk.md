@@ -5,6 +5,7 @@ description: >
 stakeholder_type: [cvd-practitioner]
 level: 400
 page_type: reference
+subject: neutral
 ---
 
 # Interactions Between the Vultron Protocol and SSVC

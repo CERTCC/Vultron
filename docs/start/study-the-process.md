@@ -5,6 +5,7 @@ description: >
 stakeholder_type: [process-researcher]
 level: 100
 page_type: routing
+subject: neutral
 thread:
   - title: Start from the goals
     kind: chain

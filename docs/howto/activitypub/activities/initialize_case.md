@@ -2,6 +2,7 @@
 stakeholder_type: [platform-developer]
 level: 400
 page_type: how-to
+subject: protocol
 ---
 
 # How to Initialize a Case

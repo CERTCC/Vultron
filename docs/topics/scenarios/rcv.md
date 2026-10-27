@@ -52,6 +52,7 @@ causal_edges:
 stakeholder_type: [platform-developer, project-contributor]
 level: 300
 page_type: reference
+subject: implementation
 ---
 
 # RCV Scenario: Reporter + Coordinator + Vendor

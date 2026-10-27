@@ -2,12 +2,15 @@
 stakeholder_type: [platform-developer]
 level: 400
 page_type: explanation
+subject: protocol
 introduces: [Embargo Consent, Pocket Veto]
 description: >
   Triggers `propose_embargo`, `accept_embargo`, `reject_embargo`, and `terminate_embargo`: negotiating, joining, revising, and ending an embargo.
 ---
 
 # Embargo Lifecycle
+
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 An embargo is an agreement that Participants will not disclose a vulnerability before an agreed moment.
 The protocol tracks it twice, at two different scopes.

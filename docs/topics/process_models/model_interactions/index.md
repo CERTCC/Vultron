@@ -2,10 +2,13 @@
 stakeholder_type: [cvd-practitioner, platform-developer]
 level: 300
 page_type: explanation
+subject: protocol
 contents: generated
 ---
 
 # Model Interactions
+
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 The three Vultron process models constrain each other.
 Those models are the [Report Management (RM)](../rm/index.md), [Embargo Management (EM)](../em/index.md), and [Case State (CS)](../cs/index.md) models.

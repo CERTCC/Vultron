@@ -2,11 +2,14 @@
 stakeholder_type: [cvd-practitioner, process-researcher]
 level: 300
 page_type: explanation
+subject: protocol
 description: >
   The RM model applied to common coordination scenarios, from a single Reporter and Vendor to multi-party cases.
 ---
 
 # Report Management Interactions Between CVD Participants
+
+{% include-markdown "../../../includes/specification_governs.md" %}
 
 Each Participant in a Coordinated Vulnerability Disclosure (CVD) case has their own instance of the [Report Management (RM) state model](index.md).
 Participants can change their local state independently of the state of other Participants.

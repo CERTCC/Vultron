@@ -1,9 +1,11 @@
-"""Validate the ``stakeholder_type``, ``level`` and ``page_type`` of ``docs/`` pages.
+"""Validate the declarations ``docs/`` pages make in their frontmatter.
+
+The keys are ``stakeholder_type``, ``level``, ``page_type`` and ``subject``.
 
 Requirements: specs/diataxis-requirements.yaml DF-11-001, DF-11-003,
-DF-11-010, DF-11-012, DF-11-013, DF-11-018, DF-09-009; attribution per MS-17 via
-:mod:`vultron.metadata.file_loading`. Schema:
-:mod:`vultron.metadata.docs.page_schema`.
+DF-11-010, DF-11-012, DF-11-013, DF-11-018, DF-11-025, DF-11-026,
+DF-09-009; attribution per MS-17 via :mod:`vultron.metadata.file_loading`.
+Schema: :mod:`vultron.metadata.docs.page_schema`.
 
 Every ``docs/**/*.md`` file is one of three things:
 
@@ -11,15 +13,16 @@ Every ``docs/**/*.md`` file is one of three things:
   ``{% include-markdown %}`` and that is not itself in the nav, or a
   ``pymdownx.snippets`` ``auto_append`` file. It has no reader of its own, so it
   is excluded from the target set and reported if it declares any of the
-  three keys (DF-11-010, DF-11-018); its hosts' declarations govern it.
+  four keys (DF-11-010, DF-11-018, DF-11-026); its hosts' declarations govern
+  it.
 * a **working-record page** — matched by
   :data:`~vultron.metadata.docs.page_schema.WORKING_RECORD_PATTERNS`. It
-  declares ``[project-contributor]``, no ``level`` (DF-11-012) and no
-  ``page_type`` (DF-11-018), and it is
+  declares ``[project-contributor]``, no ``level`` (DF-11-012), no
+  ``page_type`` (DF-11-018) and no ``subject`` (DF-11-026), and it is
   absent from the ``mkdocs.yml`` nav and matched by ``not_in_nav``
   (DF-11-003).
-* a **reader-facing page** — everything else. It declares all three keys
-  (DF-11-001, DF-11-018).
+* a **reader-facing page** — everything else. It declares all four keys
+  (DF-11-001, DF-11-018, DF-11-025).
 
 A start page (``docs/start/*.md`` other than its ``index.md``) also declares
 its reading-path ``thread:``, and no other page may (DF-11-013).
@@ -80,9 +83,14 @@ from vultron.metadata.file_loading import (
     validate,
 )
 
-#: The three keys this check owns. Any other frontmatter key belongs to another
+#: The four keys this check owns. Any other frontmatter key belongs to another
 #: schema and is ignored here.
-DECLARATION_KEYS: tuple[str, ...] = ("stakeholder_type", "level", "page_type")
+DECLARATION_KEYS: tuple[str, ...] = (
+    "stakeholder_type",
+    "level",
+    "page_type",
+    "subject",
+)
 
 # ``{% include-markdown "path" ... %}`` and the plugin's plain ``include``.
 _INCLUDE_RE = re.compile(
@@ -267,7 +275,8 @@ def _check_declarations(
     tree: DocsTree,
     root: Path,
 ) -> None:
-    """Validate the declarations a page makes (DF-11-001, DF-11-012).
+    """Validate the declarations a page makes (DF-11-001, DF-11-012,
+    DF-11-018, DF-11-025).
 
     Raises:
         MetadataLoadError: If the page declares none of the keys, is included
@@ -277,10 +286,11 @@ def _check_declarations(
     if not declared:
         wanted = (
             "stakeholder_type: [project-contributor] (working record, "
-            "no level or page_type; DF-11-012, DF-11-018)"
+            "no level, page_type or subject; DF-11-012, DF-11-018, "
+            "DF-11-026)"
             if working
-            else "stakeholder_type, level (DF-11-001) and page_type "
-            "(DF-11-018)"
+            else "stakeholder_type, level (DF-11-001), page_type "
+            "(DF-11-018) and subject (DF-11-025)"
         )
         raise MetadataLoadError(
             f"declares none of the keys; add {wanted}",
@@ -400,7 +410,8 @@ def check_docs_frontmatter(repo_root: Path | None = None) -> CheckResult:
                 raise MetadataLoadError(
                     f"an include fragment must not declare {key}; it takes "
                     f"its declarations from the pages hosting it "
-                    f"({', '.join(hosts)}) (DF-11-010, DF-11-018)",
+                    f"({', '.join(hosts)}) (DF-11-010, DF-11-018, "
+                    f"DF-11-026)",
                     path=shown(rel),
                     line=frontmatter_key_lines(path).get(key),
                 )
@@ -446,8 +457,8 @@ def main(argv: list[str] | None = None) -> None:
     """Entry point for the ``docs-frontmatter`` command."""
     parser = argparse.ArgumentParser(
         description=(
-            "Validate stakeholder_type, level and page_type in docs/ "
-            "frontmatter."
+            "Validate stakeholder_type, level, page_type and subject in "
+            "docs/ frontmatter."
         )
     )
     parser.parse_args(argv)
