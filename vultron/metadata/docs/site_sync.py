@@ -31,9 +31,11 @@ routing-page exemption), and the home page and every start page must link the
 lookup page (DF-11-021). A missing link is a fault the author fixes by hand
 in the page's framing, so both modes report it and neither "repairs" it.
 
-``--check`` is wired into pre-commit as ``docs-site-sync``;
-``test_committed_site_artifacts_are_in_sync`` enforces it in CI and is the
-backstop for a deletion, which pre-commit's staged-file list cannot match. Both
+``--check`` is wired into pre-commit as ``docs-site-sync`` and runs in
+``docs-build-check.yml`` on a pull request that changes ``docs/``
+(DOCBW-03-013); ``test_committed_site_artifacts_are_in_sync`` enforces it on
+one that changes ``vultron/`` and is the backstop for a deletion, which
+pre-commit's staged-file list cannot match. Both
 modes compare through :func:`_out_of_date`, so they cannot disagree about what
 "stale" means.
 

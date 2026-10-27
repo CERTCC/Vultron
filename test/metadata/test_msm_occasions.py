@@ -119,7 +119,10 @@ def _rows(table: OccasionTable) -> dict[str, Any]:
 
 @pytest.mark.spec("MSM-06-001")
 def test_committed_occasion_artifacts_are_in_sync():
-    """The CI backstop for the ``msm-occasions-sync`` pre-commit hook."""
+    """The CI check for the ``msm-occasions-sync`` hook on a ``vultron/`` change.
+
+    On a ``docs/`` change, ``docs-build-check.yml`` runs the hook (DOCBW-03-013).
+    """
     found = gen.drift(_ROOT)
     assert found == gen.Drift(stale=(), unexpected=()), (
         f"run '{gen.WRITE_COMMAND}': {found}"

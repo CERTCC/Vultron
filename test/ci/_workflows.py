@@ -7,6 +7,7 @@ all. Parsing lives here so each ratchet states only its assertion.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
 MKDOCS_BUILD = "mkdocs build"
+
+# An ``if:`` that still runs the step after an earlier step failed. It widens
+# when the step runs rather than narrowing it, so it cannot skip a gate.
+RUN_EVEN_AFTER_FAILURE = frozenset({"${{ !cancelled() }}", "!cancelled()"})
+
+# A shell suffix that makes a failed command exit 0, so the step passes.
+_IGNORED_EXIT = re.compile(
+    r"\|\|\s*(?:true|:|exit\s+0)(?=\s|;|\)|$)", re.MULTILINE
+)
 
 
 # Parsed workflow YAML is untyped by nature; ``Any`` here is the YAML boundary.
@@ -61,3 +71,52 @@ def site_building_workflows() -> list[Path]:
         for path in WORKFLOWS_DIR.glob("*.yml")
         if MKDOCS_BUILD in path.read_text(encoding="utf-8")
     )
+
+
+def _drop_comment(line: str) -> str:
+    """Return *line* up to its shell comment, if any.
+
+    A ``#`` starts a comment only outside quotes and at a word start, so
+    ``echo "PR #1"`` and ``a#b`` keep their ``#``. Quotes are tracked per
+    line, which is enough for the one-line commands a gate step runs.
+    """
+    quote = ""
+    for i, char in enumerate(line):
+        if quote:
+            if char == quote:
+                quote = ""
+        elif char in "'\"":
+            quote = char
+        elif char == "#" and (i == 0 or line[i - 1].isspace()):
+            return line[:i].rstrip()
+    return line
+
+
+def live_text(step: dict[str, Any]) -> str:
+    """Return the step's ``run`` and ``uses`` text, with shell comments dropped.
+
+    A whole-line comment and a trailing `` # …`` comment both run nothing.
+    """
+    lines = [
+        _drop_comment(line) for line in str(step.get("run", "")).splitlines()
+    ]
+    return "\n".join([*lines, str(step.get("uses", ""))])
+
+
+def swallowed_failure(step: dict[str, Any]) -> list[str]:
+    """Return every way *step* reports success when its command fails."""
+    problems: list[str] = []
+    if step.get("continue-on-error", False):
+        problems.append("it sets continue-on-error")
+    if _IGNORED_EXIT.search(live_text(step)):
+        problems.append("its command ignores its own exit status")
+    return problems
+
+
+def neutering(step: dict[str, Any]) -> list[str]:
+    """Return every way *step* cannot fail the run: a skipping ``if:`` or a
+    swallowed failure."""
+    problems: list[str] = []
+    if "if" in step and step["if"] not in RUN_EVEN_AFTER_FAILURE:
+        problems.append(f"it is conditional (if: {step['if']!r})")
+    return problems + swallowed_failure(step)

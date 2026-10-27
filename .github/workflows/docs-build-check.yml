@@ -56,12 +56,61 @@ jobs:
           # distinguishable by shellcheck, which flags the bare form as SC1007.
           PYTHONPATH='' uv run python -m vultron.metadata.adr.index_gen --check
 
+      # The docs source gates (DOCBW-03-013, DOCBW-03-014). They judge the
+      # docs/ sources, not the built site, so they run before the build.
+      # Pre-commit runs them locally, but no workflow runs pre-commit, and
+      # python-app.yml, which runs their committed-tree tests, does not
+      # trigger on docs/** (#5084).
+      # Each is its own step so a failure names its gate, and each runs after
+      # an earlier one fails, so one run reports every broken gate.
+      - name: Page frontmatter (DF-11-001)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-frontmatter
+
+      - name: Normative banner on exactly its pages (DF-12-006)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-normative-banner
+
+      - name: No nav section mixes protocol and implementation pages (DF-11-020)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-nav-subjects
+
+      - name: No page depends on a page above its level (DF-11-002)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-level-order
+
+      - name: Landing pages, reading-path boxes and coverage matrix in sync (DF-11-005)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-site --check
+
+      - name: Reading-path threads list only reader-facing pages (DF-11-016)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-threads
+
+      - name: No thread page depends on a later member's term (DF-11-024)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run docs-thread-order
+
+      - name: Occasion table and message fragments in sync
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run msm-occasions --check
+
+      - name: Demo scenario artifacts in sync (DEMOCI-11-005)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run demo-scenarios --check
+
+      - name: JSON-LD context in sync with the wire vocabulary (VM-10-001)
+        if: ${{ !cancelled() }}
+        run: PYTHONPATH='' uv run wire-context --check
+
       # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
       # anchors, pages missing from the nav) fail the job; without it they
       # print and the job stays green (DOCBW-03-009). Never add --quiet
       # (DOCBW-03-010): it hides the warnings --strict counts, so the build
-      # passes over them.
+      # passes over them. It runs after a source gate fails, so the same run
+      # also reports what the build finds (DOCBW-03-014).
       - name: Build Site
+        if: ${{ !cancelled() }}
         run: |
           uv run mkdocs build --strict --verbose --clean --config-file mkdocs.yml
 
