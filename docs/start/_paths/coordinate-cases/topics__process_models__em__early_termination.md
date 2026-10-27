@@ -26,7 +26,7 @@ This page is part of *See how a case moves*.
 </td>
 <td markdown="block">
 
-- [How to Adopt Vultron in Your CVD Program](../../../howto/adopt_vultron.md)
+- [How to Decide Who Owns a Case](../../../howto/decide_who_owns_a_case.md)
 
 </td>
 </tr>

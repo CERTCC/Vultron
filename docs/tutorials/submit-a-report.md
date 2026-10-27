@@ -241,6 +241,10 @@ We have:
   [How to Report a Vulnerability](../howto/activitypub/activities/report_vulnerability.md)
   to see how a report is validated, accepted, and turned into a Case, and how
   the `Offer(Report)` activity fits alongside `Create(Report)`.
+- **Decide whether to submit at all** — read
+  [How to Decide Who Owns a Case](../howto/decide_who_owns_a_case.md) to
+  choose between submitting a report, creating the case yourself, and
+  transferring ownership of a case you already run.
 - **See the full workflow run for you** — follow
   [Run the Receive-Report Demo](receive_report_demo.md) to watch a finder and a
   vendor exchange reports end-to-end with the demo CLI.
