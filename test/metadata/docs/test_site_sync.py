@@ -896,7 +896,10 @@ class TestSiteSync:
         assert "DF-09-009" in capsys.readouterr().err
 
     def test_committed_site_artifacts_are_in_sync(self):
-        """The CI backstop for the ``docs-site-sync`` pre-commit hook."""
+        """The CI check for the ``docs-site-sync`` hook on a ``vultron/`` change.
+
+        On a ``docs/`` change, ``docs-build-check.yml`` runs the hook (DOCBW-03-013).
+        """
         assert site_sync.stale_artifacts(repo_root()) == [], (
             "run 'uv run docs-site --write' and commit the result"
         )

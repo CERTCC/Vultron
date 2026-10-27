@@ -125,9 +125,10 @@ def _case_for_wire(
 
     Every activity that puts a case on the wire goes through here, because a
     reference in the case is one the *receiver* cannot dereference: it may not
-    hold the object, and this codebase does not yet dereference (AKM-02-004,
-    the same rule as CP-01-004). Sending an id alone therefore hands the
-    recipient a case pointing at an object it can never read. Three fields
+    hold the object, and this codebase dereferences only a few references
+    (AKM-05-007), never a case's own (AKM-02-004, the same rule as CP-01-004).
+    Sending an id alone therefore hands the recipient a case pointing at an
+    object it can never read. Three fields
     carry references the recipient needs:
 
     - ``active_embargo``: a CaseActor holding a case with only the id tore the

@@ -288,12 +288,22 @@ class ResolveEmbargoDurationNode(DataLayerActionWithPorts):
         # The profile id is the sender's spelling; the owner is stored
         # canonical, so compare with same_actor_id (#4772).
         profile = self._try_get_input("owner_profile")
+        if isinstance(profile, str):
+            # The proposal named the profile by its id, and the inbox's
+            # fetch of it failed (CP-01-009, AKM-05-008).
+            self.feedback_message = (
+                f"no actor profile for case owner {owner_id!r} to read the"
+                f" actor default from: the proposal names it by reference"
+                f" ({profile!r}) and it could not be fetched (CP-01-009)"
+            )
+            self.logger.error("%s: %s", self.name, self.feedback_message)
+            return Status.FAILURE
         if not isinstance(profile, CoreActor) or not same_actor_id(
             profile.id_, owner_id
         ):
             self.feedback_message = (
                 f"no inline actor profile for case owner {owner_id!r} to read"
-                f" the actor default from (got {profile!r}; CP-01-010)"
+                f" the actor default from (got {profile!r}; CP-01-018)"
             )
             self.logger.error("%s: %s", self.name, self.feedback_message)
             return Status.FAILURE

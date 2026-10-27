@@ -475,11 +475,11 @@ groups:
       This codebase MUST carry the proposed `EmbargoEvent` of EP-04-004 inline as the
       `proposedEmbargo` of the `Offer(VulnerabilityReport)`, not by reference.
     rationale: >-
-      How this codebase meets EP-04-004; split from it so EP-04-004 states only what other
-      participants observe (MS-12-010). The CASE_MANAGER has never seen the Reporter's
-      event, and this codebase does not yet dereference (AKM-05-003), so the event travels
-      inline. That is a shortcut of this prototype reference implementation, not a protocol
-      rule.
+      How this codebase meets EP-04-004; split from it so EP-04-004 states only what
+      other participants observe (MS-12-010). The CASE_MANAGER has never seen the
+      Reporter's event, and this codebase dereferences only the few references
+      AKM-05-007 lists, so the event travels inline. That is a shortcut of this
+      prototype reference implementation, not a protocol rule.
     verification: >-
       `test/core/use_cases/triggers/test_report_triggers.py::TestSubmitReportProposedEmbargo::test_the_offer_carries_the_stored_terms_about_the_report`
       confirms the emitted `Offer(VulnerabilityReport)` carries `proposedEmbargo` as an

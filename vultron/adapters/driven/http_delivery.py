@@ -31,13 +31,17 @@ Responsibilities:
 Port: ``vultron.core.ports.emitter.ActivityEmitter``
 """
 
-import asyncio
 import logging
-import random
 from collections.abc import Mapping
 
 import httpx2 as httpx
 
+from vultron.adapters.driven.http_retry import (
+    Backoff,
+    RetriesExhaustedError,
+    TerminalAttemptError,
+    retry_with_backoff,
+)
 from vultron.core.ports.emitter import (  # noqa: F401 — port reference
     ActivityEmitter,
 )
@@ -203,10 +207,8 @@ class HttpDeliveryAdapter:
 
         Spec: SYNC-05-001, SYNC-05-002.
         """
-        delay = self._initial_delay
 
-        for attempt in range(self._max_retries + 1):
-            last_exc: Exception
+        async def _post() -> int:
             try:
                 response = await client.post(
                     inbox_url,
@@ -215,51 +217,73 @@ class HttpDeliveryAdapter:
                     timeout=self._timeout,
                 )
                 response.raise_for_status()
-                logger.info(
-                    "Delivered activity %s to %s (HTTP %s)",
-                    activity_id,
-                    inbox_url,
-                    response.status_code,
-                )
-                return
             except httpx.HTTPStatusError as exc:
                 if 400 <= exc.response.status_code < 500:
-                    # 4xx is deterministic: the same payload will never succeed.
-                    # Raise immediately without consuming retry slots (OX-13-005).
-                    logger.error(  # noqa: TRY400  # ruff-baseline #3353
-                        "Terminal delivery failure (HTTP %d) for activity %s"
-                        " to %s — not retrying (OX-13-005).",
-                        exc.response.status_code,
-                        activity_id,
-                        inbox_url,
-                    )
-                    raise DeliveryError([recipient_id], activity_id) from exc
-                last_exc = exc
-            except Exception as exc:  # noqa: BLE001  # ruff-baseline #3326
-                last_exc = exc
+                    # 4xx is deterministic: the same payload will never
+                    # succeed, so no retry slot is spent on it (OX-13-005).
+                    raise TerminalAttemptError(exc) from exc
+                raise
+            return response.status_code
 
-            # Retryable failure (5xx or network error).
-            if attempt < self._max_retries:
-                logger.warning(
-                    "Delivery attempt %d/%d failed for activity %s "
-                    "to %s: %s — retrying in %.1fs",
-                    attempt + 1,
-                    self._max_retries + 1,
-                    activity_id,
-                    inbox_url,
-                    last_exc,
-                    delay,
-                )
-                # Retry jitter, not a secret: a PRNG is the correct tool.
-                await asyncio.sleep(delay + random.uniform(0, 0.5))  # noqa: S311
-                delay = min(delay * self._backoff_multiplier, self._max_delay)
-            else:
-                logger.error(
-                    "Failed to deliver activity %s to %s after %d "
-                    "attempt(s): %s",
-                    activity_id,
-                    inbox_url,
-                    self._max_retries + 1,
-                    last_exc,
-                )
-                raise DeliveryError([recipient_id], activity_id) from last_exc
+        def _log_retry(
+            number: int, attempts: int, exc: Exception, delay: float
+        ) -> None:
+            logger.warning(
+                "Delivery attempt %d/%d failed for activity %s "
+                "to %s: %s — retrying in %.1fs",
+                number,
+                attempts,
+                activity_id,
+                inbox_url,
+                exc,
+                delay,
+            )
+
+        terminal: TerminalAttemptError | None = None
+        exhausted: RetriesExhaustedError | None = None
+        try:
+            status_code, _ = await retry_with_backoff(
+                _post,
+                Backoff(
+                    attempts=self._max_retries + 1,
+                    initial_delay=self._initial_delay,
+                    multiplier=self._backoff_multiplier,
+                    max_delay=self._max_delay,
+                ),
+                _log_retry,
+            )
+        except TerminalAttemptError as exc:
+            terminal = exc
+        except RetriesExhaustedError as exc:
+            exhausted = exc
+        if terminal is not None:
+            status = getattr(
+                getattr(terminal.cause, "response", None), "status_code", None
+            )
+            logger.error(
+                "Terminal delivery failure (HTTP %s) for activity %s"
+                " to %s — not retrying (OX-13-005).",
+                status,
+                activity_id,
+                inbox_url,
+            )
+            raise DeliveryError(
+                [recipient_id], activity_id
+            ) from terminal.cause
+        if exhausted is not None:
+            logger.error(
+                "Failed to deliver activity %s to %s after %d attempt(s): %s",
+                activity_id,
+                inbox_url,
+                exhausted.attempts,
+                exhausted.last,
+            )
+            raise DeliveryError(
+                [recipient_id], activity_id
+            ) from exhausted.last
+        logger.info(
+            "Delivered activity %s to %s (HTTP %s)",
+            activity_id,
+            inbox_url,
+            status_code,
+        )

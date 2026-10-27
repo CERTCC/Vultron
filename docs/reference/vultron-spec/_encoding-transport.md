@@ -59,7 +59,7 @@ A production implementation MUST be able to fetch an object named by a URI it ho
 How a case ledger entry records the objects of the activity it records is specified at [§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery).
 
 !!! note "The reference implementation inlines every object"
-    The reference implementation does not yet dereference, so it carries every object inline and refuses a bare URI where it needs the object ([AKM-03-003](../specs/project.md#akm-03-003)).
+    The reference implementation dereferences only a few references, so it carries every object inline and refuses a bare URI it cannot fetch where it needs the object ([AKM-03-003](../specs/project.md#akm-03-003)).
     That is a shortcut of the prototype, not a Vultron rule.
 
 !!! note "Provisional namespace URI"

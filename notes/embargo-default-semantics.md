@@ -17,6 +17,7 @@ related_specs:
   - specs/embargo-policy.yaml
   - specs/message-semantics-mapping.yaml
   - specs/vultron-as2-mapping.yaml
+  - specs/actor-knowledge-model.yaml
 related_notes:
   - notes/participant-embargo-consent.md
   - notes/embargo-lifecycle.md
@@ -92,13 +93,15 @@ to `EM.ACTIVE` with no `EP`/`EA` exchange (EP-04-001). The intermediate
   `case.attributed_to` on every creation path (CM-02-008). The CASE_MANAGER,
   which runs the creation tree, contributes no terms; `ResolveEmbargoDurationNode`
   fails unless the profile's id is `case.attributed_to`.
-- **The policy travels inline, never fetched or kept.** The CASE_MANAGER cannot
-  read the owner's store (PCR-01-003), so the owner's full profile is the `actor`
-  of `Create(as_CaseProposal)` (CP-01-010). It reaches the tree as
-  `owner_profile`, which `BTBridge` restores after the run, so one proposal's
-  profile is never another's default. A profile with no policy means no actor
-  default. The parser refuses a bare-URI actor or one that differs from
-  `attributedTo`, and a URL-string `embargoPolicy` on any inbound actor.
+- **The policy travels with the proposal and is never kept.** The CASE_MANAGER
+  cannot read the owner's store (PCR-01-003), so the owner's full profile is the
+  `actor` of `Create(as_CaseProposal)` (CP-01-010), or is fetched from the owner
+  for that proposal alone when the `actor` is its id (AKM-05-007). It reaches
+  the tree as `owner_profile`, which `BTBridge` restores after the run, so one
+  proposal's profile is never another's default. A profile with no policy means
+  no actor default; a profile that could not be fetched refuses the proposal. The
+  parser refuses a `Link` actor or one that differs from `attributedTo`, and a
+  URL-string `embargoPolicy` on any inbound actor.
 - **The policy is a field of the profile** (`CoreActor.embargo_policy`,
   EP-01-001). A stored actor whose `embargo_policy` is a URL string (the old
   free-standing record) is refused, not converted: the URL names nothing a

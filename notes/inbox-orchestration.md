@@ -21,6 +21,7 @@ related_specs:
   - specs/datalayer.yaml
   - specs/idempotency.yaml
   - specs/protocol-asks.yaml
+  - specs/actor-knowledge-model.yaml
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/use-case-protocol.md
@@ -37,7 +38,8 @@ relevant_packages:
 
 ## Orchestration Belongs in `core/`
 
-A change to inbox processing (parse, rehydrate, defer-check, dispatch) belongs in
+A change to inbox processing (parse, rehydrate, defer-check, dereference-check,
+dispatch) belongs in
 `vultron/core/behaviors/inbox/` (IO-02-001), never in the FastAPI router or a new
 adapter-layer pipeline helper. `process_payload` is the sole caller-facing entry point
 (IO-02-003) and all policy is internal to the BT. Logic in the router is unavailable to
@@ -197,6 +199,15 @@ The defer-check step reads and writes the pending-case queue through the injecte
 `PendingCaseQueuePort` (IO-03-002), never by importing `inbox_pending_queue` from the
 adapter layer. The FastAPI adapter supplies the concrete implementation; tests supply an
 in-memory stub. This keeps `core/` free of adapter imports (ADR-0009).
+
+The dereference-check step does the same through `ObjectDereferencePort`
+(`vultron/core/ports/object_dereference.py`): core decides what an activity must fetch
+first (`references_to_fetch`, AKM-05-007), and the port holds the activity and records
+the fetch. Never fetch inside the step or under the actor's inbox lock: a fetch can
+wait out its retries, and the actor's deliveries must not wait with it (IE-06-002). The
+adapter makes open fetches after the inbox run, on the event loop, and settles each
+under the lock (`inbox_dereference.resolve_open_fetches`), so the replay goes through
+the same drain as any queued item (IE-06-004).
 
 ---
 

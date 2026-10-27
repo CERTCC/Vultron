@@ -33,6 +33,8 @@ Submodules:
 - ``reseed``: the rate-bounded re-seed of a diverged peer with a fresh case
   copy, and the log of a divergence a re-seed already covered: ERROR once the
   peer acknowledged that re-seed's position, WARNING before (SYNC-16)
+- ``hash_mismatch``: the CASE_MANAGER's ERROR report of a replica's
+  hash-mismatch fault, with a re-check of its own copy (SYNC-03-010)
 - ``verified_send``: the one ``send_announce_log_entry`` call, behind the
   CASE_MANAGER's send-side hash check (SYNC-03-009)
 - ``embargo_pause``: the CM-10-005/006 embargo pause and backfill helpers
@@ -108,6 +110,9 @@ from vultron.core.behaviors.sync.nodes.fanout import (
 )
 from vultron.core.behaviors.sync.nodes.genesis_announce import (
     AnnounceCaseOnGenesisRejectNode,
+)
+from vultron.core.behaviors.sync.nodes.hash_mismatch import (
+    ReportHashMismatchNode,
 )
 from vultron.core.behaviors.sync.nodes.ledger_authority import (
     DeclineForeignLedgerCommitNode,
@@ -255,6 +260,8 @@ __all__ = [
     "StateLedgerPositionsNode",
     # replay
     "AnnounceCaseOnGenesisRejectNode",
+    # hash_mismatch (SYNC-03-010)
+    "ReportHashMismatchNode",
     # reseed (SYNC-16)
     "ReportRepeatDivergenceNode",
     "ReseedPeerNode",

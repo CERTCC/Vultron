@@ -49,6 +49,7 @@ from vultron.core.behaviors.inbox.models import (
 from vultron.core.behaviors.inbox.nodes import (
     ALL_INBOX_KEYS,
     KEY_CONTEXT_ID,
+    KEY_DEREFERENCE,
     KEY_DISPATCH,
     KEY_EVENT,
     KEY_FAILURE_REASON,
@@ -58,6 +59,7 @@ from vultron.core.behaviors.inbox.nodes import (
     KEY_QUEUE,
     KEY_UNHANDLED,
 )
+from vultron.core.ports.object_dereference import ObjectDereferencePort
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +85,7 @@ def _write_inbox_inputs(
     ingress_adapter: IngressPayloadAdapter,
     dispatch_adapter: DispatchAdapter,
     queue_port: PendingCaseQueuePort | None,
+    dereference_port: ObjectDereferencePort | None = None,
 ) -> None:
     """Write pipeline inputs to the BT blackboard."""
     setup_bb = py_trees.blackboard.Client(name="InboxOrchestrator-setup")
@@ -90,10 +93,12 @@ def _write_inbox_inputs(
     setup_bb.register_key(KEY_INGRESS, access=py_trees.common.Access.WRITE)
     setup_bb.register_key(KEY_DISPATCH, access=py_trees.common.Access.WRITE)
     setup_bb.register_key(KEY_QUEUE, access=py_trees.common.Access.WRITE)
+    setup_bb.register_key(KEY_DEREFERENCE, access=py_trees.common.Access.WRITE)
     setup_bb.inbox_payload = payload
     setup_bb.inbox_ingress = ingress_adapter
     setup_bb.inbox_dispatch = dispatch_adapter
     setup_bb.inbox_queue = queue_port
+    setup_bb.inbox_dereference = dereference_port
 
 
 def _run_bt_pipeline(actor_config: ActorConfig | None = None) -> Status:
@@ -189,6 +194,7 @@ def process_payload(
     dispatch_adapter: DispatchAdapter,
     queue_port: PendingCaseQueuePort | None = None,
     actor_config: ActorConfig | None = None,
+    dereference_port: ObjectDereferencePort | None = None,
 ) -> InboxOutcome:
     """Process one inbox payload through the BT pipeline.
 
@@ -211,6 +217,9 @@ def process_payload(
         actor_config: The receiving actor's configuration; its RSVP
             windows govern inbound embargo invites (EP-07-001, EP-07-002).
             ``None`` applies the protocol defaults.
+        dereference_port: Optional fetch-and-defer port.  When provided,
+            an activity naming an object the receiver must fetch first waits
+            on the fetch instead of being processed without it (AKM-05-007).
 
     Returns:
         :class:`InboxOutcome` whose ``status`` is an
@@ -227,7 +236,11 @@ def process_payload(
 
         try:
             _write_inbox_inputs(
-                payload, ingress_adapter, dispatch_adapter, queue_port
+                payload,
+                ingress_adapter,
+                dispatch_adapter,
+                queue_port,
+                dereference_port,
             )
             _run_bt_pipeline(actor_config)
             outcome = _read_inbox_outcome()

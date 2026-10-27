@@ -48,6 +48,7 @@ from vultron.core.behaviors.inbox.models import (
 from vultron.core.models.events import VultronEvent
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.object_dereference import ObjectDereferencePort
 from vultron.errors import VultronProtocolViolationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
@@ -363,6 +364,7 @@ def drain_inbox_queue(
     staging: InlineObjectStaging,
     actor_config: ActorConfig | None,
     max_attempts: int,
+    dereference: ObjectDereferencePort | None = None,
 ) -> None:
     """Replay every item queued in *actor_dl*'s inbox, with bounded retry.
 
@@ -396,6 +398,8 @@ def drain_inbox_queue(
         staging: The inbox run's staging, which holds each item for replay.
         actor_config: The receiving actor's configuration, or ``None``.
         max_attempts: ``AppConfig.max_inbox_retry_attempts``.
+        dereference: The fetch-and-defer port; a replayed item that still
+            waits on a fetch is deferred again (AKM-05-007).
     """
     attempt = ReplayAttempt()
     ingress = StoredActivityIngressAdapter(
@@ -423,6 +427,7 @@ def drain_inbox_queue(
                 replay_dispatch,
                 queue,
                 actor_config=actor_config,
+                dereference_port=dereference,
             )
             logger.debug(
                 "run_inbox_pipeline: replayed status=%s context_id=%s",
