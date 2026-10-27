@@ -72,8 +72,8 @@ def get_case_object(
     *case_key* is the case's full id, or its surrogate key (the last segment
     of its id, ``find_case_by_short_id``).  404 when this actor holds no such
     case, the key matches more than one, this actor does not host the case,
-    or the case does not name the object; 403 when the requester is no active participant of the
-    case; 401 when the request names no requester.
+    or the case does not name the object; 403 when the requester is no active
+    participant of the case; 401 when the request names no requester.
     """
     if not requester:
         raise HTTPException(
