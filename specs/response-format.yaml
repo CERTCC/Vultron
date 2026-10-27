@@ -17,6 +17,10 @@ groups:
     priority: MUST
     kind: foundation
     statement: Response activities MUST conform to ActivityStreams 2.0
+    rationale: >-
+      Responses travel through the same AS2 inbox pipeline as every other activity. A
+      response that does not conform to AS2 cannot be parsed or matched to a semantic by
+      its receiver, so the initiator would never learn the answer.
     verification: Integration tests in `test/demo/` confirm that response activities produced by handlers are valid AS2
       objects, and unit tests in `test/wire/as2/vocab/test_actvitities/test_activities.py` confirm they inherit from the
       AS2 base hierarchy.
@@ -34,6 +38,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: Accept responses MUST use `Accept` activity type
+    rationale: >-
+      A receiver recognizes an acceptance by the activity type, and `Accept` is the AS2
+      term peers match on. Any other type would not be read as an acceptance.
     verification: Unit tests in `test/wire/as2/factories/test_case_factories.py` confirm that accept-response factories
       return objects with `type_` equal to `'Accept'`.
     relationships:
@@ -52,6 +59,9 @@ groups:
     kind: protocol
     statement: >-
       Accept responses MUST include `object` field referencing accepted activity or object
+    rationale: >-
+      An Accept with no object does not say what it accepts. An initiator with several
+      requests outstanding could not tell which one changed state.
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       constructing an `Accept` response without an `object` field raises a Pydantic validation error at construction
       time.
@@ -64,6 +74,9 @@ groups:
     statement: >-
       Accepting an Offer of an object MUST reference the Offer activity in the `object` field
       of the Accept response
+    rationale: >-
+      The Offer is the proposal the initiator tracks. Referencing it ties the Accept to
+      that one proposal, even when the same object has been offered more than once.
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       `Accept` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
     stories:
@@ -76,6 +89,11 @@ groups:
       When accepting an offered object, the `object` of the `Accept` activity MUST be the
       Offer activity itself, carried inline or by reference, not the underlying object being
       offered.
+    rationale: >-
+      An Accept of the offered object is ambiguous when that object has been offered
+      more than once, and receivers match an acceptance as `Accept(Offer)`. Naming the
+      Offer says which proposal was accepted. Inline or by reference leaves the form to
+      the implementation (AKM-05-003).
     verification: >-
       In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
       `test_accept_refuses_the_offered_object_in_place_of_the_offer` confirms that an
@@ -110,6 +128,10 @@ groups:
       When accepting an Invite, the `object` of the `Accept` activity MUST be the Invite
       activity itself, carried inline or by reference, not the case, embargo, or any other
       domain object.
+    rationale: >-
+      An Accept of the case or embargo does not say which Invite it answers, and several
+      Invites can be open at once. Receivers match the answer as `Accept(Invite)`, so
+      naming the Invite selects the right use case and closes that Invite.
     verification: >-
       In `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py`,
       `test_accept_refuses_the_offered_object_in_place_of_the_offer` confirms that the case
@@ -148,6 +170,9 @@ groups:
     priority: MUST
     kind: protocol
     statement: Reject responses MUST use `Reject` activity type
+    rationale: >-
+      A receiver recognizes a refusal by the activity type, and `Reject` is the AS2 term
+      peers match on. Any other type would not be read as a refusal.
     verification: Unit tests in `test/wire/as2/factories/test_case_factories.py` confirm that reject-response factories
       return objects with `type_` equal to `'Reject'`.
     relationships:
@@ -160,12 +185,21 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: Reject responses SHOULD include reason in `content` field
+    rationale: >-
+      A bare Reject tells the initiator that its proposal failed but not why, so it
+      cannot correct the proposal or decide whether to escalate. A reason gives the
+      participant something to act on; it is a SHOULD because a refusal can stand
+      without one.
   - id: RF-03-003
     priority: MUST
     kind: protocol
     statement: >-
       Rejecting an Offer of an object MUST reference the Offer activity in the `object` field
       of the Reject response
+    rationale: >-
+      The Offer is the proposal the initiator tracks. Referencing it ties the Reject to
+      that one proposal, so the initiator can close it, even when the same object has
+      been offered more than once.
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       `Reject` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
     stories:
@@ -179,6 +213,10 @@ groups:
       the Offer activity itself, not the underlying object being offered. The Offer activity
       MUST be passed as an inline typed object, not as a bare string ID — bare string IDs
       are rejected at construction time
+    rationale: >-
+      The object is the Offer for the reason given in RF-03-003. Carrying it inline and
+      refusing a bare id at construction lets the receiver read the Offer's type without
+      a dereference, which this codebase does not yet support (AKM-05-003).
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       passing a bare string ID as the `object` of a `Reject` activity raises a validation error at construction time.
 - id: RF-04
@@ -188,6 +226,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: TentativeReject responses MUST use `TentativeReject` activity type
+    rationale: >-
+      A TentativeReject is a provisional refusal, which the receiver handles differently
+      from a final Reject. Only a distinct activity type lets the receiver tell the two
+      apart.
     verification: Unit tests in `test/wire/as2/factories/test_embargo_factories.py` confirm that `TentativeReject`
       response factories produce objects with `type_` equal to `'TentativeReject'`.
     relationships:
@@ -199,12 +241,20 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: TentativeReject responses SHOULD include reason in `content` field
+    rationale: >-
+      A provisional refusal invites a revised proposal. Without a reason the initiator
+      cannot tell what would make the proposal acceptable; it is a SHOULD because a
+      refusal can stand without one.
   - id: RF-04-003
     priority: MUST
     kind: protocol
     statement: >-
       Tentatively Rejecting an Offer of an object MUST reference the Offer activity in the
       `object` field of the TentativeReject response
+    rationale: >-
+      The Offer is the proposal the initiator tracks. Referencing it ties the
+      TentativeReject to that one proposal, even when the same object has been offered
+      more than once.
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       `TentativeReject` responses built from an `Offer` carry the full `Offer` activity object in the `object` field.
     stories:
@@ -217,6 +267,10 @@ groups:
       activity MUST reference the Offer activity itself, not the underlying object being offered.
       The Offer activity MUST be passed as an inline typed object, not as a bare string ID
       — bare string IDs are rejected at construction time
+    rationale: >-
+      The object is the Offer for the reason given in RF-04-003. Carrying it inline and
+      refusing a bare id at construction lets the receiver read the Offer's type without
+      a dereference, which this codebase does not yet support (AKM-05-003).
     verification: Unit tests in `test/wire/as2/vocab/test_actvitities/test_inline_object_required.py` confirm that
       passing a bare string ID as the `object` of a `TentativeReject` activity raises a validation error at construction
       time.
@@ -227,6 +281,11 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: Error responses SHOULD use ActivityStreams error extensions
+    rationale: >-
+      The protocol defines error messages whose recipients inquire about the error
+      (VP-03-010, VP-03-011, VP-11-005). Expressed in the AS2 vocabulary, an error
+      travels and is parsed through the same inbox pipeline as every other activity,
+      with no second channel.
     relationships:
     - rel_type: implements
       spec_id: VP-03-010
@@ -271,6 +330,11 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: Response generation MUST NOT delay inbox acknowledgment
+    rationale: >-
+      A sender whose POST waits on response generation can time out and retry, which
+      produces duplicate deliveries, and a slow handler would hold the inbox for other
+      senders. A response travels as its own activity (RF-06-001), so the acknowledgment
+      needs nothing from it.
     verification: >-
       Inspection of `post_actor_inbox` in
       `vultron/adapters/driving/fastapi/routers/actors/_routes.py` confirms the endpoint
@@ -285,6 +349,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: Response activities MUST include `inReplyTo` field
+    rationale: >-
+      A participant can have several requests outstanding. `inReplyTo` names the
+      activity a response answers, so the initiator matches the response to its request
+      without inferring it from the object.
     verification: Unit tests in `test/wire/as2/factories/test_case_factories.py` and
       `test/wire/as2/factories/test_embargo_factories.py` confirm that response activity factories automatically
       populate `in_reply_to` from the source activity's `id_`.
@@ -324,6 +392,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: Response generation MUST be idempotent
+    rationale: >-
+      Delivery is at-least-once, so a receiver sees some activities more than once. If
+      each copy produced a new response, the initiator would receive duplicate or
+      conflicting answers and could apply the same state change twice.
     verification: Integration tests in `test/demo/` confirm that processing the same inbound activity twice produces the
       same response without additional state changes, and `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py`
       confirms that re-delivering an outbox item does not cause duplicate side effects.

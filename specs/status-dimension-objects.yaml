@@ -132,9 +132,10 @@ groups:
       target (preserve current) requires no validation.
     rationale: >-
       Constructing a dimension object by target state bypasses the transition()
-      validation contract established in SDO-02-001/SDO-02-002. BT write nodes
-      that build snapshots this way must apply the same validity check themselves.
-      See issue #1896 and BTND-10-001.
+      validation contract established in SDO-02-001/SDO-02-002, so without a check at
+      construction any call site that builds a snapshot this way, BT write nodes among
+      them (BTND-10-001), can record a step the state machine forbids. A same-state
+      write changes nothing, so it needs no check.
     verification: Unit tests confirm that constructing a dimension object with an invalid target state raises
       `VultronInvalidStateTransitionError`, while a same-state write succeeds without error.
     relationships:
@@ -153,6 +154,10 @@ groups:
       The SDO-02-004 transition-rejection invariant MUST be enforced via Pydantic
       field or model validators so that validation occurs at model construction time,
       not via caller-side pre-checks.
+    rationale: >-
+      A caller-side pre-check protects only the call sites that remember to make it. A
+      validator on the model runs on every construction, including call sites added
+      later, so no path can build a dimension object at an illegal target state.
     relationships:
     - rel_type: implements
       spec_id: SDO-02-004
@@ -214,10 +219,12 @@ groups:
     verification_debt: '#2575'
     statement: 'CaseStatus and ParticipantStatus MUST remain round-trippable through the DataLayer after the dimension-object
       migration: a persisted record MUST rehydrate correctly to the new dimension-object shape.'
-    rationale: DataLayer round-trip compatibility is a binding design constraint per LST-05-003 and ADR-0033. A dimension
-      field serializes as its bare state value and rehydrates via Pydantic model_validate (SDO-01-004, ADR-0099). It previously
-      serialized as a nested one-key mapping; both forms are accepted on input so stored rows written either way rehydrate.
-      See ADR-0036.
+    rationale: >-
+      DataLayer round-trip compatibility is a binding design constraint per LST-05-003
+      and ADR-0033. A dimension field serializes as its bare state value and rehydrates
+      via Pydantic model_validate (SDO-01-004, ADR-0099). Input accepts both the bare
+      value and the one-key mapping, so a stored row in either shape rehydrates. See
+      ADR-0036.
     relationships:
     - rel_type: depends_on
       spec_id: LST-05-003
@@ -237,12 +244,17 @@ groups:
       ARCH-12-003 requires of every core-branch type, not a per-class
       `model_validator(mode="before")` reject-guard; such a guard MUST NOT be added or
       retained for this purpose.
-    rationale: 'With `extra="ignore"`, a flat `rm_state` key would be silently discarded and `rm.state` would default to `RM.START`
-      — a whole RM ladder lost with no error, which is the defect class of issue #2232 and a violation of ARCH-15-001/ARCH-15-002.
-      `extra="forbid"` is strictly stronger than a reject-guard enumerating the known flat keys: it also catches typos and
-      stale keys from an older schema, needs no per-class maintenance, and covers every registered core type rather than the
-      two named here. Because Pydantic itself raises, the failure surfaces as a pydantic `ValidationError` rather than
-      `VultronValidationError`, and no wire→core recovery is attempted (ADR-0082 retired the ADR-0062 backstop, and ADR-0099 keeps `extra="forbid"` as the guard).'
+    rationale: >-
+      With `extra="ignore"`, a flat `rm_state` key would be silently discarded and
+      `rm.state` would default to `RM.START` — a whole RM ladder lost with no error,
+      which is the defect class of issue #2232 and a violation of
+      ARCH-15-001/ARCH-15-002. `extra="forbid"` is strictly stronger than a reject-guard
+      enumerating the known flat keys: it also catches typos and stale keys from an
+      older schema, needs no per-class maintenance, and covers every registered core
+      type rather than the two named here. Because Pydantic itself raises, the failure
+      surfaces as a pydantic `ValidationError` rather than `VultronValidationError`, and
+      no wire→core recovery is attempted: there is no backstop (ADR-0082), and
+      `extra="forbid"` is the guard (ADR-0099).
     verification: '`TestParticipantStatusCarriesNoFlatShim` in
       `test/core/models/test_participant_status_shape.py` asserts that
       `ParticipantStatus.model_validate` with `rm_state`, `vf_state` or `d_state` raises

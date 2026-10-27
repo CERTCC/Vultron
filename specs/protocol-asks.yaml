@@ -296,6 +296,7 @@ groups:
       action does not execute.
     adr:
     - ADR-0080
+    - ADR-0026
     tags:
     - security
   - id: ASK-03-007
@@ -313,8 +314,7 @@ groups:
       and the relay (EP-09) emits one per participant per proposal, so the
       outstanding-ask register must track it without a special case. Declaring
       the kind here keeps `find_protocol_pair`'s one-open-request assumption from
-      being applied to N simultaneous Invites of one semantic type. Source: #3918,
-      ADR-0113 as amended.
+      being applied to N simultaneous Invites of one semantic type.
     verification: >
       The ask-kind registry, when it lands (#2884), declares this kind with the
       two closing reply types and stale expiry; until then a strict `xfail`
@@ -344,9 +344,9 @@ groups:
       The hazard a late `Accept` could carry is joining on stale embargo terms,
       and the supersede rule already covers it: an embargo change or a re-invite
       replaces the stub, naming the old one in `inReplyTo`, and an `Accept` of a
-      superseded stub is refused (CM-11-016). The reply type constants and the
-      expiry consequence are declared in `vultron/core/models/protocol_pair.py`
-      until the ask-kind registry (#2884) takes them over.
+      superseded stub is refused (CM-11-016). Voiding a late reply would add no
+      protection and would turn away an invitee that answered after the CASE_MANAGER
+      stopped waiting.
     verification: >
       A test lets a stub Invite expire and finds the record unchanged, a late
       `Accept` joining the invitee and a late `Reject` closing the record, and
@@ -514,7 +514,7 @@ groups:
       CASE_MANAGER with the proposer in `attributedTo`, so the manager is the
       emitter and the one that owes the bookkeeping. Giving the proposer a
       register entry for each relayed Invite would let it reap or re-ask on the
-      manager's behalf. Source: #3918, ADR-0113 as amended.
+      manager's behalf.
     verification: >
       When the register lands, a relay test asserts the CASE_MANAGER's register
       holds one outgoing entry per relayed Invite and the proposer's holds only
@@ -647,8 +647,8 @@ groups:
       An actor that cannot process an inbound activity from an authenticated
       sender MUST notify that sender by emitting `Create(ProcessingFault)`.
     rationale: >
-      Discharges the deferral recorded in ADR-0049; without it a failure that
-      took milliseconds costs the sender its full ask deadline in silence.
+      Without a notice, a failure that took milliseconds costs the sender its
+      full ask deadline in silence.
     verification: >
       An authenticated sender whose activity is dead-lettered or rejected
       receives a `Create(ProcessingFault)`.
@@ -785,12 +785,13 @@ groups:
       exclude it. A fault about applying a ledger entry is replication signalling
       instead: ledgering it loops, because the replica that sent it cannot apply the
       entry that records it. Whether the remaining faults belong in the ledger at
-      all is Concern #4800.
+      all is an open question (#4800).
     verification: >
       A case-attributable fault appears as a recorded entry in the case ledger, and a
       fault SYNC-16-002 excludes does not.
     adr:
     - ADR-0080
+    - ADR-0142
   - id: ASK-07-009
     priority: MUST_NOT
     kind: protocol
@@ -837,6 +838,7 @@ groups:
       fault while it is re-queued, and one fault when it is dead-lettered.
     adr:
     - ADR-0080
+    - ADR-0151
     relationships:
     - rel_type: refines
       spec_id: ASK-07-001

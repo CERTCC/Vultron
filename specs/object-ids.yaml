@@ -74,6 +74,11 @@ groups:
     verification_debt: '#2575'
     statement: Helper functions for constructing full-URI IDs from UUIDs MUST be provided in a shared utility module (e.g.,
       `vultron.as_vocab.utils.make_id`)
+    rationale: >-
+      If each layer built IDs its own way, objects could get IDs in different forms
+      (bare UUID, `urn:uuid:`, base-URL HTTPS), and lookups by full URI would miss some
+      of them (OID-02-004). One helper keeps every minted ID in the configured form
+      (OID-01-003).
     adr:
     - ADR-0010
   - id: OID-01-005
@@ -106,9 +111,9 @@ groups:
       and the ledger postmark are evidence of what the sender wrote (ADR-0107), so they
       keep the sender's spelling. The values the receiver works with must have one
       spelling, or exact lookups miss records written in the other: a peer that spells
-      its id with a trailing slash stopped matching its own CASE_OWNER records once the
-      proposal tree stored the canonical spelling (#4775). Normalising where the value is
-      extracted, not where it is compared, lets core trust one spelling (ADR-0032).
+      its id with a trailing slash would not match its own CASE_OWNER records stored
+      under the canonical spelling. Normalising where the value is extracted, not where
+      it is compared, lets core trust one spelling (ADR-0032).
     verification: >-
       A received activity whose actor ids carry a trailing slash is stored with the
       slash, its ledger entry's `payloadSnapshot.actor` keeps the slash, and the case
@@ -159,18 +164,31 @@ groups:
     priority: MUST
     kind: project
     statement: The DataLayer MUST store and retrieve objects using their full-URI `as_id` as the primary key
+    rationale: >-
+      The full URI is the object's identity on the wire and across deployments
+      (OID-01-001, OID-01-002). A shortened key could collide between objects from
+      different deployments and would need a translation at every lookup of a received
+      id.
     verification: A unit test confirms that `DataLayer.save(obj)` and `DataLayer.get(obj.as_id)` round-trip correctly
       using the full-URI key.
   - id: OID-02-002
     priority: MUST
     kind: project
     statement: '`object_to_record()` MUST preserve the full-URI `as_id` when serializing objects to the DataLayer'
+    rationale: >-
+      A record that drops or shortens the id cannot be found again by the id peers use,
+      and objects from different deployments that share a UUID could overwrite each
+      other.
     verification: A unit test confirms that `object_to_record(obj)` includes the full-URI `as_id` value in the serialized
       record.
   - id: OID-02-003
     priority: MUST
     kind: project
     statement: '`record_to_object()` MUST reconstruct objects using the full-URI `as_id` stored in the record'
+    rationale: >-
+      The id on a rebuilt object is what core compares and what outbound activities
+      carry. Rebuilding it from anything other than the stored full URI could give the
+      object an identity different from the one its peers know.
     verification: A unit test confirms that `record_to_object(record)` produces an object whose `as_id` matches the full
       URI stored in the record.
   - id: OID-02-004
@@ -180,6 +198,10 @@ groups:
       Inspection confirms DataLayer lookups key on full-URI ids and that no lookup path
       resolves a bare UUID.
     statement: DataLayer lookups MUST accept full-URI IDs; bare UUIDs MUST NOT be accepted as valid lookup keys
+    rationale: >-
+      Accepting a bare UUID as a key would give one object two keys and let a UUID match
+      an object from another deployment with the same UUID. Refusing it keeps one
+      spelling for each id in the store.
 - id: OID-03
   title: Blackboard Key Handling
   specs:
@@ -188,6 +210,12 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Behavior Tree blackboard keys derived from object IDs MUST NOT use the raw full URI as the key
+    rationale: >-
+      A full URI contains `/`, which py_trees reads as a blackboard namespace separator,
+      so a raw URI used as a key is split into nested namespaces instead of naming one
+      entry. Deriving the key from the id's final path segment avoids the misparse.
+    adr:
+    - ADR-0010
     relationships:
     - rel_type: refines
       spec_id: BT-03-003
@@ -200,3 +228,10 @@ groups:
     verification_debt: '#2575'
     statement: Any migration of existing bare-UUID records MUST be accompanied by a migration script or documented manual
       steps
+    rationale: >-
+      A change in id form leaves existing records under keys that full-URI lookups do
+      not find (OID-02-004). Without a script or written steps, an operator upgrading a
+      deployment cannot bring stored records forward, and those records drop out of the
+      system without an error.
+    adr:
+    - ADR-0010

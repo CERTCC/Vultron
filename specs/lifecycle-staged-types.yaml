@@ -153,6 +153,11 @@ groups:
     statement: >-
       The staged type MUST always be re-derived from the base case data at read time; the base case
       data is the single source of truth for stage determination.
+    rationale: >-
+      A case's stage changes whenever its fields change, for example when an embargo
+      ends, so a stage decided at an earlier read can claim guarantees the current data
+      does not meet. Re-deriving from the data on every read means a caller cannot act
+      on an `EmbargoedCase` whose embargo is gone.
     verification: Inspection of `vultron/core/models/` confirms no staged type stores its stage as a persisted field;
       stage is always derived by re-validating base case data at read time.
     relationships:
