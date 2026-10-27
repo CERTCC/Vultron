@@ -33,9 +33,10 @@ import pytest
 
 from test.ci._workflows import (
     MKDOCS_BUILD,
-    REPO_ROOT,
     WORKFLOWS_DIR,
+    expanded_steps,
     load_workflow,
+    local_action_steps,
     site_building_workflows,
     triggers,
 )
@@ -64,22 +65,6 @@ class Step:
     caller: dict[str, Any]
 
 
-def _local_action_steps(uses: str) -> list[dict[str, Any]]:
-    """Return the steps of the local composite action a ``uses:`` names."""
-    action_dir = REPO_ROOT / uses.removeprefix("./")
-    action_file = next(
-        (
-            action_dir / name
-            for name in ("action.yml", "action.yaml")
-            if (action_dir / name).is_file()
-        ),
-        None,
-    )
-    assert action_file is not None, f"Local action {uses} has no action.yml."
-    runs = load_workflow(action_file).get("runs", {})
-    return [s for s in runs.get("steps", []) if isinstance(s, dict)]
-
-
 def _steps(wf_data: dict[str, Any]) -> list[Step]:
     """Return every step across every job, in run order, actions expanded."""
     flat: list[Step] = []
@@ -89,11 +74,7 @@ def _steps(wf_data: dict[str, Any]) -> list[Step]:
         for step in job.get("steps", []):
             if not isinstance(step, dict):
                 continue
-            uses = str(step.get("uses", ""))
-            if uses.startswith("./"):
-                flat.extend(Step(s, step) for s in _local_action_steps(uses))
-            else:
-                flat.append(Step(step, step))
+            flat.extend(Step(s, step) for s in expanded_steps([step]))
     return flat
 
 
@@ -246,7 +227,7 @@ def test_every_publication_check_runs_even_if_an_earlier_one_failed():
     run-after-failure condition a PR sees only the first check's errors and
     learns of the second only after fixing them (EH-07-001).
     """
-    steps = _local_action_steps(PUBLICATION_ACTION)
+    steps = local_action_steps(PUBLICATION_ACTION)
     later = [
         step
         for step in steps
@@ -352,7 +333,7 @@ def test_require_recorded_can_fail_the_workflow():
 @pytest.mark.spec("DOCBW-03-012")
 def test_require_recorded_is_not_in_the_shared_publication_action():
     """deploy_site.yml and pull requests to main run that action."""
-    for step in _local_action_steps(PUBLICATION_ACTION):
+    for step in local_action_steps(PUBLICATION_ACTION):
         assert REQUIRE_RECORDED not in str(step.get("run", "")), (
             f"{PUBLICATION_ACTION} runs '{REQUIRE_RECORDED}', so every pull "
             "request to main would fail on its new pages (DOCBW-03-012)."

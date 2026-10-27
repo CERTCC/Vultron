@@ -25,6 +25,9 @@ on:
       - 'specs/**'
       # Runs the built-site gates (DOCBW-03-005/007/008, DF-11-023).
       - '.github/actions/check-site-publication/**'
+      # The shared build (DOCBW-06-004) and the environment it installs.
+      - '.github/actions/build-site/**'
+      - '.github/actions/setup-python-uv/**'
       - 'CONTRIBUTING.md'
       - 'ContributionInstructions.md'
       - 'LICENSE.md'
@@ -40,30 +43,22 @@ jobs:
   docs-build-check:
     runs-on: ubuntu-latest
     steps:
+      # Only loads the local actions: build-site re-checks out the repository
+      # with the history and tags the build needs (DOCBW-06-004).
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
 
-      - name: Set up Python and uv
-        uses: ./.github/actions/setup-python-uv
-        with:
-          uv-sync-args: "--dev"
+      # The same build deploy_site.yml publishes: checkout, dependency set and
+      # the strict mkdocs build all live in the action (DOCBW-06-004,
+      # DOCBW-03-009, DOCBW-03-010).
+      - name: Build Site
+        uses: ./.github/actions/build-site
 
       - name: ADR index in sync, and no ADR in the nav
         run: |
           # PYTHONPATH='' (quoted) is identical in effect to PYTHONPATH= but
           # distinguishable by shellcheck, which flags the bare form as SC1007.
           PYTHONPATH='' uv run python -m vultron.metadata.adr.index_gen --check
-
-      # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
-      # anchors, pages missing from the nav) fail the job; without it they
-      # print and the job stays green (DOCBW-03-009). Never add --quiet
-      # (DOCBW-03-010): it hides the warnings --strict counts, so the build
-      # passes over them.
-      - name: Build Site
-        run: |
-          uv run mkdocs build --strict --verbose --clean --config-file mkdocs.yml
 
       # Runs against the built site above, so it must follow that step: no
       # withheld artifact was built, every internal reference resolves, and
