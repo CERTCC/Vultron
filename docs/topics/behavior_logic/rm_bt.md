@@ -20,11 +20,10 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_legacy_diagram_note.md" %}
 
-A Behavior Tree for the Report Management model is shown in the figure below.
-The Report Management process is represented by a Fallback node. Note
-that we assume that completing the process will require multiple *ticks*
-of the Behavior Tree since each tick can complete, at most, only one
-branch.
+The figure below shows a Behavior Tree for the Report Management model.
+A Fallback node represents the Report Management process.
+We assume that the process needs multiple *ticks* of the Behavior Tree to complete.
+The reason is that each tick can complete one branch at most.
 
 ```mermaid
 ---
@@ -81,10 +80,9 @@ flowchart LR
     a_fb_seq --> a__do_work
 ```
 
-(A) The first check is to see whether the case is already $Closed$
-($q^{rm} \in C$). If that check succeeds, the branch returns *Success*,
-and we're done. If it doesn't, we move on to the next branch (B), which
-addresses reports in the *Received* state ($q^{rm} \in R$).
+(A) The first check examines whether the case is already $Closed$ ($q^{rm} \in C$).
+If that check succeeds, the branch returns *Success*, and the process is complete.
+If the check fails, the tree goes to the next branch (B), which handles reports in the *Received* state ($q^{rm} \in R$).
 
 !!! tip inline end "See also"
 
@@ -93,31 +91,26 @@ addresses reports in the *Received* state ($q^{rm} \in R$).
     - [Report Closure Behavior](rm_closure_bt.md)
     - [Do Work Behavior](do_work_bt.md)
 
-The only action to be taken from $q^{rm} \in R$ is to validate the report.
-We address [report validation](rm_validation_bt.md) shortly, but, for now, it is
-sufficient to say that the validate report behavior returns *Success*
-after moving the report to either *Valid* ($q^{rm} \xrightarrow{v} V$)
-or *Invalid* ($q^{rm} \xrightarrow{i} I$).
+From $q^{rm} \in R$, the only action is to validate the report.
+We discuss [report validation](rm_validation_bt.md) later.
+For now, the validate report behavior returns *Success* after it moves the report to *Valid* ($q^{rm} \xrightarrow{v} V$) or *Invalid* ($q^{rm} \xrightarrow{i} I$).
 
 The next branch (C) covers reports in the *Invalid* state ($q^{rm} \in I$).
-Here we have two options: either close the report (move to
-$q^{rm} \xrightarrow{c} C$, as described in [report closure](rm_closure_bt.md), or retry the validation.
+This branch has two options.
+It can close the report ($q^{rm} \xrightarrow{c} C$, as described in [report closure](rm_closure_bt.md)), or it can try the validation again.
 
-(D) For reports that have reached the *Valid* state ($q^{rm} \in V$), our
-only action is to prioritize the report. [Report prioritization](rm_prioritization_bt.md) is
-addressed in detail elsewhere, but returns *Success* after moving the report to either *Accepted*
-($q^{rm} \xrightarrow{a} A$) or *Deferred* ($q^{rm} \xrightarrow{d} D$).
+(D) For reports in the *Valid* state ($q^{rm} \in V$), the only action is to prioritize the report.
+Another page describes [report prioritization](rm_prioritization_bt.md) in detail.
+That behavior returns *Success* after it moves the report to *Accepted* ($q^{rm} \xrightarrow{a} A$) or *Deferred* ($q^{rm} \xrightarrow{d} D$).
 
-(E) Next, we reach behaviors associated with reports that have been both validated
-and prioritized. *Deferred* reports ($q^{rm} \in D$) can be *Closed* or
-have their priority reevaluated, but otherwise are not expected to
-receive additional work.
+(E) Next come the behaviors for reports that are both validated and prioritized.
+A *Deferred* report ($q^{rm} \in D$) can go to *Closed* or get a new priority evaluation.
+Otherwise, we do not expect a *Deferred* report to get more work.
 
-(F) Similarly, *Accepted* reports ($q^{rm} \in A$) can also be *Closed* or
-have their priority reevaluated. However, they are also expected to
-receive more effort---the *do work* task node, which we explore further
-in [Do Work Behaviors](do_work_bt.md).
-We are taking advantage of the composability of Behavior Trees to
-simplify the presentation. Behaviors that appear in multiple places can
-be represented as their own trees. We explore the most relevant of these
-subtrees in the next few subsections.
+(F) An *Accepted* report ($q^{rm} \in A$) can also go to *Closed* or get a new priority evaluation.
+However, we also expect an *Accepted* report to get more effort: the *do work* task node.
+We discuss this node in [Do Work Behaviors](do_work_bt.md).
+
+The composability of Behavior Trees makes the presentation simpler.
+A behavior that occurs in multiple places can be its own tree.
+The next few subsections examine the most relevant of these subtrees.

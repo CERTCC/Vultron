@@ -4,7 +4,8 @@ stakeholder_type: [project-contributor]
 
 # Report validation fuzzer nodes
 
-These stub nodes belong to `RMValidateBt` (`vultron/bt/report_management/_behaviors/validate_report.py`), the sub-tree that assesses whether an incoming vulnerability report is credible and valid for the receiving organization.
+These stub nodes belong to `RMValidateBt` (`vultron/bt/report_management/_behaviors/validate_report.py`).
+This sub-tree assesses whether an incoming vulnerability report is credible and valid for the receiving organization.
 
 {% include-markdown "./_index_pointer.md" %}
 
@@ -14,14 +15,17 @@ These stub nodes belong to `RMValidateBt` (`vultron/bt/report_management/_behavi
 - **btz type**: `ProbablySucceed` (p=0.67)
 - **Source file**: `report_management/fuzzer/validate_report.py`
 - **Parent tree**: `RMValidateBt`
-- **Semantic function**: Condition — check whether any new information has arrived that should trigger re-evaluation of the report's validity
-- **Input dependency**: Report change detection; could be a metadata timestamp check, event subscription, or manual flag
-- **Notes**: Succeeds (no new info) more often than not, avoiding redundant re-evaluation loops
-- **Automation potential**: **High** — event subscription on the case record or metadata timestamp comparison; fully automatable.
+- **Semantic function**: Condition — check whether new information has arrived that makes a new evaluation of the validity of the report necessary
+- **Input dependency**: Report change detection, through a metadata timestamp check, an event subscription, or a manual flag
+- **Notes**: Succeeds (no new information) more often than not, to prevent unnecessary repeated evaluation loops
+- **Automation potential**: **High** — an event subscription on the case record, or a metadata timestamp comparison.
+  This check is fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.NoNewValidationInfo`
-- **Call-out point shape**: ProtocolInternal — reads a change-detection flag written by the upstream `NewValidationInfoSentinel` (see the next entry).
+- **Call-out point shape**: ProtocolInternal — reads a change-detection flag that the upstream `NewValidationInfoSentinel` writes (see the next entry).
   The external seam is at that upstream writer, not at this behavior tree (BT) condition check.
-- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — ProtocolInternal condition check at the top of the root `ValidateReportBT` Selector; not wired yet: the tree has `CheckRMStateValid` there, and the change-detection variant belongs beside it once the retry loop exists
+- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — ProtocolInternal condition check at the top of the root `ValidateReportBT` Selector.
+  It is not wired yet.
+  The tree has `CheckRMStateValid` in that position, and the change-detection variant belongs next to it when the retry loop exists.
 
 ## `NewValidationInfoSentinel` *(upstream Sentinel stub)*
 
@@ -29,14 +33,20 @@ These stub nodes belong to `RMValidateBt` (`vultron/bt/report_management/_behavi
 - **btz type**: *(not a BT node — upstream agent seam)*
 - **Source file**: *(to be determined)*
 - **Parent tree**: *(runs independently, outside the BT tick loop)*
-- **Semantic function**: Sentinel — monitors the case record for new validation-relevant events (e.g., reporter follow-up, credibility update, new threat intelligence) and writes a change-detection flag that `NoNewValidationInfo` consumes.
-- **Input dependency**: Case management system event stream; metadata timestamp comparison or event subscription on validation-relevant case fields.
-- **Notes**: This is the real seam implied by `NoNewValidationInfo`.
-  The writer registers with an external event source and writes a flag to the BT blackboard or local DataLayer; `NoNewValidationInfo` reads that flag each tick.
-- **Automation potential**: **High** — event subscription on the case record or metadata timestamp comparison; fully automatable.
+- **Semantic function**: Sentinel — monitors the case record for new events that are relevant to validation, such as a reporter follow-up, a credibility update, or new threat intelligence.
+  The Sentinel writes a change-detection flag that `NoNewValidationInfo` reads.
+- **Input dependency**: The event stream of the case management system.
+  The Sentinel compares metadata timestamps, or subscribes to events on case fields that are relevant to validation.
+- **Notes**: This writer is the real seam that `NoNewValidationInfo` implies.
+  The writer registers with an external event source and writes a flag to the BT blackboard or the local DataLayer.
+  `NoNewValidationInfo` reads that flag each tick.
+- **Automation potential**: **High** — an event subscription on the case record, or a metadata timestamp comparison.
+  This work is fully automatable.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.call_out_point.NewValidationInfoSentinel`
-- **Call-out point shape**: Sentinel — pending reclassification: Sentinel is no longer a call-out shape (ADR-0097, BT-18-013), and #3424 tracks reclassifying this entry.
-- **Factory-fn placement**: Not placed inside the BT tree; writes the change-detection flag read by `NoNewValidationInfo` at the top of the root `ValidateReportBT` Selector in `vultron.core.behaviors.report.validate_tree.create_validate_report_tree`
+- **Call-out point shape**: Sentinel — pending reclassification.
+  Sentinel is no longer a call-out shape (ADR-0097, BT-18-013), and #3424 tracks the reclassification of this entry.
+- **Factory-fn placement**: Not placed inside the BT tree.
+  It writes the change-detection flag that `NoNewValidationInfo` reads at the top of the root `ValidateReportBT` Selector in `vultron.core.behaviors.report.validate_tree.create_validate_report_tree`.
 
 ## `EvaluateReportCredibility`
 
@@ -44,13 +54,17 @@ These stub nodes belong to `RMValidateBt` (`vultron/bt/report_management/_behavi
 - **btz type**: `AlmostAlwaysSucceed` (p=0.90)
 - **Source file**: `report_management/fuzzer/validate_report.py`
 - **Parent tree**: `RMValidateBt`
-- **Semantic function**: Condition — assess whether the report's source and content are credible (i.e., likely to describe a real vulnerability)
-- **Input dependency**: Human analyst judgment; structured credibility criteria (e.g., Stakeholder-Specific Vulnerability Categorization (SSVC) Exploitation, reporter reputation, technical plausibility); potentially automatable with triage tools based on machine learning (ML)
-- **Notes**: SSVC documentation provides structured criteria for this evaluation
-- **Automation potential**: **Medium** — SSVC exploitation status, reporter reputation scoring, and technical plausibility checks can be partially automated; final credibility determination typically requires human analyst review.
+- **Semantic function**: Condition — assess whether the source and content of the report are credible, that is, whether the report probably describes a real vulnerability
+- **Input dependency**: Human analyst judgment, with structured credibility criteria.
+  Examples are Stakeholder-Specific Vulnerability Categorization (SSVC) Exploitation, reporter reputation, and technical plausibility.
+  Triage tools based on machine learning (ML) can possibly automate this input.
+- **Notes**: SSVC documentation gives structured criteria for this evaluation
+- **Automation potential**: **Medium** — SSVC exploitation status, reporter reputation scoring, and technical plausibility checks are partially automatable.
+  The final credibility decision usually needs a human analyst review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.EvaluateReportCredibility`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Evaluator condition guard in `ValidationFlow` Sequence (second child, before `EvaluateReportValidity`); currently a stub `EvaluateReportCredibility` node that always returns SUCCESS
+- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Evaluator condition guard in the `ValidationFlow` Sequence (second child, before `EvaluateReportValidity`).
+  At this time, it is a stub `EvaluateReportCredibility` node that always returns SUCCESS.
 
 ## `EvaluateReportValidity`
 
@@ -58,13 +72,16 @@ These stub nodes belong to `RMValidateBt` (`vultron/bt/report_management/_behavi
 - **btz type**: `AlmostAlwaysSucceed` (p=0.90)
 - **Source file**: `report_management/fuzzer/validate_report.py`
 - **Parent tree**: `RMValidateBt`
-- **Semantic function**: Condition — assess whether the report is valid for this organization's scope (credible AND meeting org-specific acceptance criteria)
-- **Input dependency**: Human analyst judgment or policy-driven scope check; context-specific to the receiving organization's Coordinated Vulnerability Disclosure (CVD) charter
-- **Notes**: A report can be credible but out of scope; validity is contextual and role-dependent
-- **Automation potential**: **Medium** — scope checks against well-defined Common Vulnerabilities and Exposures (CVE) Numbering Authority (CNA) or charter rules are automatable; organizational-context validity judgment often requires human review.
+- **Semantic function**: Condition — assess whether the report is valid for the scope of this organization (credible AND meets the org-specific acceptance criteria)
+- **Input dependency**: Human analyst judgment or a policy-driven scope check, specific to the Coordinated Vulnerability Disclosure (CVD) charter of the receiving organization
+- **Notes**: A report can be credible but out of scope.
+  Validity depends on the context and the role.
+- **Automation potential**: **Medium** — scope checks against well-defined Common Vulnerabilities and Exposures (CVE) Numbering Authority (CNA) or charter rules are automatable.
+  A validity judgment in the organizational context often needs human review.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.EvaluateReportValidity`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Evaluator condition guard in `ValidationFlow` Sequence (third child, before `RequireCaseForReport`); currently a stub `EvaluateReportValidity` node that always returns SUCCESS
+- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Evaluator condition guard in the `ValidationFlow` Sequence (third child, before `RequireCaseForReport`).
+  At this time, it is a stub `EvaluateReportValidity` node that always returns SUCCESS.
 
 ## `EnoughValidationInfo`
 
@@ -72,13 +89,16 @@ These stub nodes belong to `RMValidateBt` (`vultron/bt/report_management/_behavi
 - **btz type**: `UsuallySucceed` (p=0.75)
 - **Source file**: `report_management/fuzzer/validate_report.py`
 - **Parent tree**: `RMValidateBt`
-- **Semantic function**: Condition — determine whether sufficient information is available to reach a validation decision
-- **Input dependency**: Human decision or automated completeness check against required report fields or evidence criteria
-- **Notes**: Sufficient information is the normal case; absence triggers info-gathering
-- **Automation potential**: **Medium** — completeness check against required fields or evidence criteria can be automated; the sufficiency threshold for final decision often involves human judgment.
+- **Semantic function**: Condition — find out whether there is sufficient information to make a validation decision
+- **Input dependency**: Human decision, or an automated completeness check against the required report fields or evidence criteria
+- **Notes**: Sufficient information is the normal case.
+  If information is missing, the tree starts information gathering.
+- **Automation potential**: **Medium** — a completeness check against the required fields or evidence criteria is automatable.
+  The sufficiency threshold for a final decision often needs human judgment.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.EnoughValidationInfo`
 - **Call-out point shape**: Evaluator
-- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Evaluator condition guard in `ValidationFlow` Sequence (not wired yet); gate before the info-gathering loop that `GatherValidationInfo` populates
+- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Evaluator condition guard in the `ValidationFlow` Sequence (not wired yet).
+  It is the gate before the info-gathering loop that `GatherValidationInfo` fills.
 
 ## `GatherValidationInfo`
 
@@ -86,10 +106,12 @@ These stub nodes belong to `RMValidateBt` (`vultron/bt/report_management/_behavi
 - **btz type**: `AlmostAlwaysSucceed` (p=0.90)
 - **Source file**: `report_management/fuzzer/validate_report.py`
 - **Parent tree**: `RMValidateBt`
-- **Semantic function**: Action — request or collect additional information needed to validate the report (e.g., reproduction steps, affected versions, proof-of-concept)
-- **Input dependency**: Human analyst outreach to reporter, or automated intake forms / follow-up workflows
-- **Notes**: Succeeds most of the time in simulation to keep the workflow progressing
-- **Automation potential**: **Medium** — structured intake form follow-ups and automated case-update requests are partially automatable; direct reporter outreach typically requires human involvement.
+- **Semantic function**: Action — request or collect more information to validate the report, such as reproduction steps, affected versions, or a proof-of-concept
+- **Input dependency**: Human analyst contact with the reporter, or automated intake forms or follow-up workflows
+- **Notes**: Succeeds most of the time in simulation, so that the workflow continues
+- **Automation potential**: **Medium** — structured intake form follow-ups and automated case-update requests are partially automatable.
+  Direct contact with the reporter usually needs human involvement.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.report_management.validate.GatherValidationInfo`
 - **Call-out point shape**: Retriever
-- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Retriever action node in the info-gathering Sequence (not wired yet), triggered when `EnoughValidationInfo` returns FAILURE
+- **Factory-fn placement**: `vultron.core.behaviors.report.validate_tree.create_validate_report_tree` — Retriever action node in the info-gathering Sequence (not wired yet).
+  It runs when `EnoughValidationInfo` returns FAILURE.
