@@ -324,7 +324,7 @@ They model the negotiation, evaluation, and lifecycle management of coordinated 
   In production, an Evaluator-type Coordination Agent would fulfill this seam and return the decision of the owner.
   This agent can be a user interface (UI) prompt, a large language model (LLM) adjudicator, or a policy rule.
 - **Automation potential**: **Low** — final authority rests with the case owner.
-  By default, automatic approval is not possible.
+  By default, approval is not automatic.
 - **New-arch cross-ref**: `vultron.demo.fuzzer.embargo.CaseOwnerApprovesEmbargoResponse`
 - **Call-out point shape**: Evaluator — records an adjudication decision (approve/deny).
   It has no blackboard output_keys, because it is only a pass/fail gate (BT-18-006).

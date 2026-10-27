@@ -193,7 +193,7 @@ It moves the state from *Active* to *Revise*, or the state stays in *Revise*, as
 
 (D2d) Last, the tree handles a revision rejection (*EJ*) or acceptance (*EC*) in the *Revise* state.
 
-Back up the tree, *Success* in any of the branches in this paragraph or the previous paragraph causes an acknowledgment message *EK*.
+Higher up the tree, *Success* in any of the branches in this paragraph or the previous paragraph causes an acknowledgment message *EK*.
 
 ## Messages That Require More than a Simple Acknowledgment
 

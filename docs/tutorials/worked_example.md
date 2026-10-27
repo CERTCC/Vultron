@@ -122,7 +122,7 @@ Then the Reporter evaluates it and accepts it with an *EA* message.
 Finally, the Vendor acknowledges the acceptance with an *EK* message.
 
 But no embargo is active until the Reporter accepts it.
-This method of counterproposal can delay the start of an embargo.
+This method of counterproposal might delay the start of an embargo.
 
 ```mermaid
 ---
@@ -151,7 +151,7 @@ sequenceDiagram
 !!! tip inline end "Yes, And..."
 
     "Yes-And" is a heuristic from improvisational theatre.
-    In it, Participants agree with what their counterpart suggests and add to it, instead of rejecting it outright.
+    In it, Participants are encouraged to agree with what their counterpart suggests and add to it, instead of rejecting it outright.
     It is a good model for cooperation among parties who share an interest in a positive outcome.
 
 Finally, the following diagram shows what we think is a better approach than a simple counterproposal.
@@ -159,7 +159,7 @@ In this "Accept-then-Counter" sequence, the Vendor first accepts the embargo tha
 Then the Vendor immediately sends a revision proposal of their own.
 The difference is that the Vendor accepts the proposal first, so they are in an active embargo state before they try to renegotiate.
 
-This sequence agrees with our earlier discussion of [default embargo strategies](../topics/process_models/em/defaults.md).
+This sequence is intended to agree with our earlier discussion of [default embargo strategies](../topics/process_models/em/defaults.md).
 You can think of this as the "Yes-And" rule for embargo negotiations.
 
 ```mermaid
@@ -364,7 +364,7 @@ sequenceDiagram
     After the embargo has been exited, *any* Participant may publish at any time.
 
     Participants can choose to coordinate their publication schedules more closely, but the protocol does not require it.
-    Some situations can need more concise publication scheduling.
+    Some situations might need more concise publication scheduling.
     We examine this concern again in [Process Implementation Notes](../howto/process_implementation.md).
 
 ### Publishing After Embargo Teardown
@@ -413,7 +413,7 @@ sequenceDiagram
 
 In the next diagram, the Reporter has no more work to do on the case.
 So the Reporter closes their report and tells the Coordinator with an *RC* message.
-This causes the Coordinator to review their open tasks and decide to close their own report.
+This prompts the Coordinator to review their open tasks and decide to close their own report.
 Then the Coordinator relays this to the Vendor, who also closes their report.
 
 ```mermaid

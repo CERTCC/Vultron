@@ -126,7 +126,7 @@ Each Participant decides when to stop trying to get an embargo.
 (E) When there is an open embargo proposal ($q^{em} \in P$), the tree first tries the [terminate](em_terminate_bt.md) task.
 This task returns *Success* if there is a reason for ${q^{em} \in P \xrightarrow{r} N}$.
 
-If there is no reason to [terminate](em_terminate_bt.md), the tree goes to the [evaluate](em_eval_bt.md) task, which a later page describes.
+If there is no reason to [terminate](em_terminate_bt.md), the tree goes to the [evaluate](em_eval_bt.md) task, which is described below.
 The evaluate task returns *Success* if the Participant accepts the proposal or makes a counterproposal.
 
 If neither of these succeeds, the tree rejects the proposal.

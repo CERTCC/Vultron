@@ -51,5 +51,5 @@ In both states, acceptance causes an EM state transition to $q^{em} \in A$, and 
     - [Propose Embargo Behavior](em_propose_bt.md)
 
 (B) But the proposed terms can be unacceptable.
-In that case, the Participant can choose to make a counterproposal.
+In that case, the Participant might be willing to make a counterproposal.
 The [propose](em_propose_bt.md) behavior covers the counterproposal.

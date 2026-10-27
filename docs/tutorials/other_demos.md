@@ -87,8 +87,7 @@ See [How to Initialize a Case](../howto/activitypub/activities/initialize_case.m
 
 This demo shows how a participant joins an existing case.
 The vendor asks the CaseActor to invite a coordinator, and the coordinator joins by accepting the Invite.
-Notice that the vendor's own copy of the case gets the coordinator from the ledger entry for the `Accept`.
-No other message is necessary.
+Notice that the vendor's own copy of the case gets the coordinator from the ledger entry for the `Accept`, with no other message.
 
 See [How to Seat a Participant on an Existing Case](../howto/activitypub/activities/initialize_participant.md) for details.
 
@@ -223,7 +222,7 @@ The demo checks that the offer that the coordinator receives names this deadline
 The coordinator answers in time.
 
 Every message goes through the Case Actor, which holds the CASE_MANAGER role.
-So the ledger records the transfer or the `Reject` of the coordinator, and every participant learns of it.
+This is so that the ledger records the transfer or the `Reject` of the coordinator, and every participant learns of it.
 
 ```mermaid
 ---

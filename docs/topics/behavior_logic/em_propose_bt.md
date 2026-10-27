@@ -69,12 +69,11 @@ Or a Participant can make a decision that is specific to the case.
 
 (D) A Participant can propose embargo terms from any state that is not *eXited* ($q^{em} \in \{N,P,A,R\}$).
 
-(D1) Someone can already have proposed a new or revised embargo ($q^{em} \in \{P,R\}$).
-In that case, the tree checks whether the Participant wants to make a counterproposal.
+(D1) If someone has already proposed a new or revised embargo ($q^{em} \in \{P,R\}$), the tree checks whether the Participant wants to make a counterproposal.
 If the Participant does not, the tree makes no proposal, and the behavior succeeds.
 
 Otherwise, (D2) a proposal from state $q^{em} \in N$ emits $EP$ and causes the transition $q^{em} \xrightarrow{p} P$.
-(D3) A proposal from $q^{em} \in A$ emits $EV$ and moves to $q^{em} \xrightarrow{p} R$.
+(D3) Otherwise, a proposal from $q^{em} \in A$ emits $EV$ and moves to $q^{em} \xrightarrow{p} R$.
 
 A proposal from state $q^{em} \in P$ (D2) or $q^{em} \in R$ (D3) is a counterproposal.
 Thus, it does not change the EM state.
