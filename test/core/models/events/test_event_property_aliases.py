@@ -10,6 +10,7 @@ copy/paste mistake in any property on the same class cannot pass undetected.
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.received import TEST_SENDER_POSITION
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
@@ -27,7 +28,9 @@ from vultron.core.models.events.actor import (
     RejectInviteActorToCaseReceivedEvent,
     UndoCaseOwnershipTransferReceivedEvent,
 )
-from vultron.core.models.events.base import MessageSemantics
+from vultron.core.models.events.base import (
+    MessageSemantics,
+)
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
@@ -111,6 +114,8 @@ _obj = CoreObject(id_="https://example.org/objects/o1")
 
 def _mk(cls, semantic, **fields):
     """Construct an event with the required base fields and extra field overrides."""
+    if "ledger_position" in cls.model_fields:
+        fields.setdefault("ledger_position", TEST_SENDER_POSITION)
     return cls(
         semantic_type=semantic,
         activity_id=_ACT_ID,

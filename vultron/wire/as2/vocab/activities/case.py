@@ -21,7 +21,6 @@ from typing import Any, ClassVar
 
 from pydantic import Field, model_validator
 
-from vultron.core.models.ledger_position import LedgerPosition
 from vultron.primitives import NonEmptyString
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -447,19 +446,15 @@ class _RmRejectInviteToCaseActivity(as_Reject):
         return self
 
 
-def _check_ledger_position_content(activity: Any, what: str) -> None:
-    """Require *activity*'s ``content`` to be a ledger position's JSON dump.
+def _check_ledger_position(activity: Any, what: str) -> None:
+    """Require *activity* to state its sender's ledger position.
 
-    The position travels in the standard AS2 ``content`` slot as the
-    ``LedgerPosition`` model's own JSON dump (VAM-04-019), so a missing,
-    blank or non-parsing ``content`` is not a full-case message.
+    The full-case Invite and its replies carry it in ``ledgerPosition``, the
+    property every case activity states (SYNC-18-001, VAM-04-011, ADR-0156);
+    the field itself validates its shape, so only its absence is checked.
     """
-    content = activity.content
-    if not isinstance(content, str) or not content.strip():
-        raise ValueError(
-            f"{what} must carry its ledger position as JSON in `content`"
-        )
-    LedgerPosition.model_validate_json(content)
+    if activity.ledger_position is None:
+        raise ValueError(f"{what} must carry its `ledgerPosition`")
 
 
 class _RmInviteToFullCaseActivity(as_Invite):
@@ -469,9 +464,7 @@ class _RmInviteToFullCaseActivity(as_Invite):
     (VAM-04-011, CM-11-010, ADR-0121).  The ``target`` is the plain case URI:
     the invitee already holds the case from the Announce (AKM-02-003).  The
     CASE_MANAGER's ledger position when it issued the Invite, the floor the
-    participant's reply must reach, is the JSON dump of a
-    :class:`~vultron.core.models.ledger_position.LedgerPosition` in
-    ``content``.
+    participant's reply must reach, is its ``ledgerPosition`` (SYNC-18-001).
 
     Declares ``object_`` in :attr:`inline_required_refs`: the invitee is a
     peer the sender holds no record of (see :class:`_RmInviteToCaseActivity`).
@@ -485,18 +478,18 @@ class _RmInviteToFullCaseActivity(as_Invite):
     inline_required_refs: ClassVar[frozenset[str]] = frozenset({"object_"})
 
     @model_validator(mode="after")
-    def _content_is_a_ledger_position(self):
-        _check_ledger_position_content(self, "the full-case Invite")
+    def _states_a_ledger_position(self):
+        _check_ledger_position(self, "the full-case Invite")
         return self
 
 
 def _check_full_case_reply(reply: Any) -> None:
     """Shared rules of the three replies to the full-case Invite.
 
-    A reply carries the replier's ledger position in ``content``
-    (CM-11-011) and answers the Invite it embeds.
+    A reply carries the replier's ledger position in ``ledgerPosition``
+    (CM-11-011, SYNC-18-001) and answers the Invite it embeds.
     """
-    _check_ledger_position_content(reply, "a reply to the full-case Invite")
+    _check_ledger_position(reply, "a reply to the full-case Invite")
     if reply.in_reply_to is None:
         object.__setattr__(reply, "in_reply_to", reply.object_.id_)
 

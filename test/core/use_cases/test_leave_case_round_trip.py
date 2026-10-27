@@ -33,7 +33,7 @@ from __future__ import annotations
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.received import with_evidence
+from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -179,6 +179,7 @@ def _make_close_case_event(
     )
     return with_evidence(
         CloseCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
             semantic_type=MessageSemantics.CLOSE_CASE,
             activity_id=activity.id_,
             actor_id=sender_actor_id,

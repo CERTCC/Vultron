@@ -220,6 +220,24 @@ def reconstruct_tail_hash(
     return last.entry_hash, last.log_index
 
 
+def holds_case_ledger(case_id: str, dl: CasePersistence) -> bool:
+    """Whether *dl* holds a ledger for *case_id* whose tail it can state.
+
+    It does once it stores an entry of the case's chain, or the case with its
+    per-case genesis hash, the anchor of an empty chain (CLP-08-004): the
+    CASE_MANAGER from creating the case, a participant from its first copy
+    or entry.  Before that it has no tail to state, so its activities about
+    the case carry no ``ledgerPosition`` (SYNC-18-001), and
+    :func:`ledger_tail_position` would raise.
+    """
+    if _get_case_genesis_hash(case_id, dl):
+        return True
+    return any(
+        isinstance(obj, CaseLedgerEntry) and obj.case_id == case_id
+        for obj in dl.list_objects("CaseLedgerEntry")
+    )
+
+
 def ledger_tail_position(case_id: str, dl: CasePersistence) -> LedgerPosition:
     """Return the position of the last ledger entry *dl* holds for *case_id*.
 

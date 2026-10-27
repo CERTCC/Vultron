@@ -29,6 +29,12 @@ That notice is a `Reject` of the refused message, with the reason in `summary` (
 The CASE_MANAGER records nothing of the refused message in the ledger.
 It sends no answer when the sender may not send the message at all, or when the message repeats one whose effect is already in place.
 
+Each message on this page also states its sender's ledger position.
+The sender puts the tail of its copy of the case ledger in the activity's `ledgerPosition`, an object with `logIndex` and `entryHash`, when it builds the message ([SYNC-18-001](../specs/protocol.md#sync-18-001)).
+A receiver refuses such a message when it carries no position or one that does not parse, and writes nothing ([SYNC-18-003](../specs/protocol.md#sync-18-003)).
+`Create(VulnerabilityCase)` and `Announce(VulnerabilityCase)` carry none, because the case they carry states its own position.
+A reply to a stub `Invite` carries none either, because its sender does not hold the case yet.
+
 A refused `Offer` or `Invite` is answered with a `Reject` of it, which the sender reads as the decline of its request.
 The [close-case](#close-case) decline is the one message on this page with an answer of its own, so it gets no refusal notice.
 The 300-level introduction is [The Case Manager and the Case Ledger](../../topics/case_lifecycle/case_manager_and_ledger.md).
@@ -213,7 +219,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
   The participant already holds the case, so the Invite names it by URI and asks one question: is this case valid?
 - **Triggering transition:** none — the Invite asks, and the reply moves RM.
 - **Object and target:** the `object` is the participant, and the `target` is the plain case URI ([AKM-02-003](../specs/protocol.md#akm-02-003)).
-  The CASE_MANAGER's ledger position when it issued the Invite travels in the standard AS2 `content` field, as the JSON dump of the `LedgerPosition` model, for example `{"logIndex":3,"entryHash":"<hash>"}`.
+  The CASE_MANAGER's ledger position when it issued the Invite travels as the Invite's `ledgerPosition`, the property every case activity carries, for example `"ledgerPosition": {"logIndex": 3, "entryHash": "<hash>"}` ([SYNC-18-001](../specs/protocol.md#sync-18-001)).
   It is a floor: the participant's reply must reach at least this point in the ledger ([VAM-04-011](../specs/protocol.md#vam-04-011)).
   An empty ledger is `logIndex` -1 with the case's `genesisHash` as `entryHash` ([CLP-08-004](../specs/protocol.md#clp-08-004)).
 - **Ask kind:** the Invite closes on `Accept`, `TentativeReject` or `Reject` of it (`INVITE_ACTOR_TO_FULL_CASE_REPLY_TYPES`).
@@ -221,7 +227,7 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 {% include-markdown "./_occasions/sections/accept-full-case-invite.md" %}
 
 - **Effects:** the participant judges the case valid ([Validate report](rm.md#report-valid)), and the CASE_MANAGER records RM Received → Valid ([CM-11-011](../specs/protocol.md#cm-11-011)).
-- **Ledger position:** the reply carries the participant's own ledger position in `content`, in the same form as the Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)).
+- **Ledger position:** the reply carries the participant's own ledger position as its `ledgerPosition`, in the same form as the Invite ([VAM-04-012](../specs/protocol.md#vam-04-012)).
   The CASE_MANAGER refuses a reply whose position is behind the Invite's, or names an entry its ledger does not hold, and writes nothing ([CM-11-012](../specs/protocol.md#cm-11-012)).
   It also refuses, and writes nothing for, a reply from an inert participant that has not joined the case (CM-11-012).
 
@@ -229,13 +235,13 @@ The dedicated object type is preferred over a `target`-field discriminator ([SE-
 
 - **Effects:** the participant judges the case invalid ([Invalidate report](rm.md#report-invalid)), and the CASE_MANAGER records RM Received → Invalid.
   The stub Invite has no `TentativeReject`, because accepting a stub judges nothing ([CM-11-007](../specs/protocol.md#cm-11-007)).
-- **Ledger position:** the reply carries the participant's ledger position in `content` ([VAM-04-013](../specs/protocol.md#vam-04-013)).
+- **Ledger position:** the reply carries the participant's ledger position as its `ledgerPosition` ([VAM-04-013](../specs/protocol.md#vam-04-013)).
 
 {% include-markdown "./_occasions/sections/reject-full-case-invite.md" %}
 
 - **Effects:** the participant closes the case ([Close report](rm.md#report-closed)), and the CASE_MANAGER records RM Received → Closed.
   The participant stops receiving case content.
-- **Ledger position:** the reply carries the participant's ledger position in `content` ([VAM-04-014](../specs/protocol.md#vam-04-014)).
+- **Ledger position:** the reply carries the participant's ledger position as its `ledgerPosition` ([VAM-04-014](../specs/protocol.md#vam-04-014)).
 
 {% include-markdown "./_occasions/sections/announce-vulnerability-case.md" %}
 

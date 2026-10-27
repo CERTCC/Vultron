@@ -31,7 +31,7 @@ from test.core.behaviors.embargo.nodes.conftest import (
     make_case_and_embargo,
     make_case_with_manager,
 )
-from test.support.received import with_evidence
+from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
 from vultron.core.behaviors.bridge import BTBridge
@@ -100,6 +100,7 @@ def _make_remove_event(
     """
     return with_evidence(
         RemoveEmbargoEventFromCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
             activity_id=activity_id,
             actor_id=sender,
             object_=CoreObject(id_=embargo.id_),

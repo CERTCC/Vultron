@@ -17,7 +17,6 @@ position, and fails closed until its ledger copy reaches the Invite's floor
 (SYNC-10-004, CM-11-012).
 """
 
-import json
 from collections.abc import Iterator
 
 import pytest
@@ -146,13 +145,14 @@ def test_reply_carries_the_participants_own_position(
     activity = activity_of(result)
     assert activity["type"] == kind
     assert activity["to"] == [_MANAGER]
-    assert LedgerPosition.model_validate_json(
-        activity["content"]
+    assert LedgerPosition.model_validate(
+        activity["ledgerPosition"]
     ) == LedgerPosition(log_index=-1, entry_hash=genesis)
-    assert json.loads(activity["content"]) == {
+    assert activity["ledgerPosition"] == {
         "logIndex": -1,
         "entryHash": genesis,
     }
+    assert "content" not in activity
 
 
 @pytest.mark.spec("SYNC-10-004")

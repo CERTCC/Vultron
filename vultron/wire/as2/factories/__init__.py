@@ -42,7 +42,6 @@ from vultron.wire.as2.factories.case import (
     announce_vulnerability_case_activity,
     bootstrap_replay_question_activity,
     create_case_activity,
-    ledger_position_content,
     offer_case_ownership_transfer_activity,
     offer_case_participant_role_activity,
     propose_case_ownership_transfer_activity,
@@ -89,6 +88,11 @@ from vultron.wire.as2.factories.fault import (
     create_processing_fault_activity,
     refusal_notice_activity,
 )
+from vultron.wire.as2.factories.ledger_position import (
+    ledger_position_case_ids,
+    object_states_its_own_position,
+    stamp_ledger_position,
+)
 from vultron.wire.as2.factories.report import (
     parse_submit_report_offer,
     rm_close_report_activity,
@@ -118,6 +122,10 @@ __all__ = [
     "recommend_actor_activity",
     "reject_actor_recommendation_activity",
     "reject_case_participant_offer_activity",
+    # ledger position (SYNC-18-001)
+    "ledger_position_case_ids",
+    "object_states_its_own_position",
+    "stamp_ledger_position",
     # case
     "accept_case_participant_role_activity",
     "accept_case_ownership_transfer_activity",
@@ -136,7 +144,6 @@ __all__ = [
     "undo_case_ownership_transfer_activity",
     "reject_case_proposal_activity",
     "reject_close_case_activity",
-    "ledger_position_content",
     "rm_accept_full_case_invite_activity",
     "rm_accept_invite_to_case_activity",
     "rm_close_case_activity",

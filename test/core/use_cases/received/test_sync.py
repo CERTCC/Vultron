@@ -274,9 +274,9 @@ class TestAnnounceLedgerEntryReceivedUseCase:
         )
 
     @pytest.mark.spec("SYNC-03-001")
-    @pytest.mark.spec("SYNC-03-004")
+    @pytest.mark.spec("SYNC-18-001")
     def test_mismatch_reject_carries_tail_hash(self, dl, first_entry):
-        """The queued Reject carries the local tail hash as context (SYNC-03-001)."""
+        """The queued Reject states the local tail as its position (SYNC-18-001)."""
         dl.save(first_entry)
         bad_entry = _make_entry(CASE_URI, 1, "badbadbadbadbad0" * 4)
         event = self._make_event(bad_entry)
@@ -287,7 +287,10 @@ class TestAnnounceLedgerEntryReceivedUseCase:
 
         queued = dl.outbox_list()
         reject_obj = dl.read(queued[0])
-        assert getattr(reject_obj, "context", None) == first_entry.entry_hash
+        position = getattr(reject_obj, "ledger_position", None)
+        assert position is not None
+        assert position.entry_hash == first_entry.entry_hash
+        assert position.log_index == first_entry.log_index
 
     @pytest.mark.spec("SYNC-03-001")
     def test_mismatch_reject_addressed_to_sender(self, dl, first_entry):
@@ -341,8 +344,9 @@ class TestAnnounceLedgerEntryReceivedUseCase:
             getattr(reject_obj, "type_", None)
             == as_TransitiveActivityType.REJECT
         )
-        # context field carries last_accepted_hash="" (replay from genesis)
-        assert getattr(reject_obj, "context", None) == ""
+        # No case, no ledger to state: the Reject states no position, which
+        # the CASE_MANAGER reads as last_accepted_hash="" (SYNC-18-001).
+        assert getattr(reject_obj, "ledger_position", None) is None
 
     @pytest.mark.spec("SYNC-03-003")
     def test_idempotent_second_accept(self, dl, first_entry):

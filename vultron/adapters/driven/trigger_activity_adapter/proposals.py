@@ -57,6 +57,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 from ._base import (
     _create_and_seal,
     _seal,
+    _stamped,
     _to_wire,
 )
 
@@ -317,6 +318,7 @@ class _ProposalsMixin:
             ),
             **extra,
         )
+        activity = _stamped(self._dl, activity)
         try:
             self._dl.create(activity)
         except VultronAlreadyExistsError:

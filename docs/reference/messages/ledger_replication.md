@@ -27,10 +27,18 @@ They carry other protocol messages as ledger entries, and are not a Vultron prot
    The CASE_MANAGER sends nothing back for it, because a replay would resend the same content (SYNC-03-008).
 3. A participant whose local `prev_log_hash` matches the incoming entry's `prev_log_hash` accepts it and sends nothing.
    An unbroken hash chain is the implied positive acknowledgment (MSM-05-002).
-4. A participant whose hashes do not match sends `Reject(CaseLedgerEntry)` with `context` = its last accepted hash.
-   With that hash, the CASE_MANAGER can replay the gap (SYNC-03-001, SYNC-03-002).
+4. A participant whose hashes do not match sends `Reject(CaseLedgerEntry)` whose `ledgerPosition` is its ledger tail, the last entry it accepted.
+   From that position, the CASE_MANAGER can replay the gap (SYNC-03-001, SYNC-03-002).
 5. A participant that wants to check its ledger is current states its position: `Read(CaseLedgerEntry)` naming the last entry it applied.
    The CASE_MANAGER records that position and replays every entry after it (SYNC-17-001, SYNC-17-004).
+
+Every case message a participant or the CASE_MANAGER sends also states how far its sender's ledger had got.
+The sender puts its ledger tail in the activity's `ledgerPosition`, the same property and shape a case copy carries (SYNC-18-001, SYNC-16-005).
+The position is the tail when the sender built the message, and a resend keeps it (SYNC-18-002).
+A receiver refuses a case message that carries no position or one that does not parse (SYNC-18-003).
+The position is part of the received body, so the ledger entry for the message records it (SYNC-18-006).
+`Announce(CaseLedgerEntry)` and `Announce(VulnerabilityCase)` carry none, because the entry and the case state their own positions.
+`Create(ProcessingFault)` carries none either: any receiver sends one, about an activity it could not process.
 
 A participant's replica of the case is the replay of its ledger.
 It is the case as it stood when the replica was seeded, plus every ledger entry since, applied in ledger order ([ADR-0124](../../adr/0124-case-is-a-projection-of-its-ledger.md), CM-23-016).
@@ -84,7 +92,9 @@ It replays that `Announce` when the predecessor arrives (ADR-0037, SYNC-14-009).
 
 {% include-markdown "./_occasions/sections/reject-case-ledger-entry.md" %}
 
-- **Context:** the `context` field carries the participant's last accepted hash so the CASE_MANAGER can determine which entries to replay (SYNC-03-001, SYNC-03-002).
+- **Context:** the case.
+- **`ledgerPosition`:** the participant's ledger tail, the `logIndex` and `entryHash` of the last entry it accepted, so the CASE_MANAGER can determine which entries to replay (SYNC-03-002, SYNC-18-001).
+  A participant that does not hold the case yet has no tail, sends no `ledgerPosition`, and is answered with the case and a replay from genesis (SYNC-15-002).
 - **Triggering transition:** triggered by hash-chain mismatch detection — not a protocol shorthand.
 - **Spec:** SYNC-03-001, SYNC-03-002, SYNC-03-005.
 - **Pattern:** `RejectLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.
@@ -92,9 +102,9 @@ It replays that `Announce` when the predecessor arrives (ADR-0037, SYNC-14-009).
 - **Example artifact:** [reject_case_ledger_entry.json](../examples/reject_case_ledger_entry.json).
 
 A participant that holds no entry has none to reject.
-If its case is replaced by a copy ahead of its chain, it sends a `Reject` with no `object`, an empty `context` and the case as its `target`.
+If its case is replaced by a copy ahead of its chain, it sends a `Reject` with no `object`, the `ledgerPosition` of its empty chain (`logIndex` -1) and the case as its `target`.
 That `Reject` asks for a replay from genesis (SYNC-16-007).
-A `Reject` with no `object` and a non-empty `context` is refused when it is parsed.
+A `Reject` with no `object` whose `ledgerPosition` names an entry is refused when it is parsed.
 
 Buffering takes priority over rejection (ADR-0037).
 A participant sends a `Reject` only for an entry that is really missing from the chain, never for one that is only out of order.
@@ -102,7 +112,7 @@ So an out-of-order delivery does not start a reject-and-replay cycle.
 
 The CASE_MANAGER acts on a `Reject(CaseLedgerEntry)` only when its sender is an active participant in the case (SYNC-03-005, CM-10-004).
 From any other sender it reports `REFUSED`, records no replication state, and replays no entry and announces no case to that sender.
-The check runs before any write, so a stranger cannot obtain case content by sending a `Reject` with an empty last-accepted hash.
+The check runs before any write, so a stranger cannot obtain case content by sending a `Reject` that states no position.
 
 ---
 
@@ -111,6 +121,7 @@ The check runs before any write, so a stranger cannot obtain case content by sen
 - **Object:** the last canonical entry the participant has applied, by reference: its id, not the entry.
 - **Context:** the case.
 - **`ledgerPosition`:** the named entry's `logIndex` and `entryHash`, so the CASE_MANAGER can tell a lag from a position its ledger does not hold (SYNC-17-001).
+  The entry it names is the participant's tail, so this is the same `ledgerPosition` every case activity carries (SYNC-18-001).
 - **Triggering transition:** the participant's own policy, not a protocol shorthand. The reference participant sends one for each case it holds after every restart, and on `ledger.position_statement_interval_seconds` when that is set, which is off by default (SYNC-17-007).
 - **Spec:** SYNC-17-001 through SYNC-17-007.
 - **Pattern:** `ReadLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.

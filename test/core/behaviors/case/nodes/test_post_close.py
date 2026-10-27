@@ -26,13 +26,13 @@ from test.core.use_cases.received.conftest import (
 )
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.ledger import commit_case_manager_closure
+from test.support.received import extract_stamped
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.post_close import (
     CaseOpenToExternalWritesNode,
     case_is_fully_closed,
 )
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import add_note_to_case_activity
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -63,7 +63,7 @@ def _late_note_event():
         target=as_VulnerabilityCase(attributed_to=CASE_OWNER_ID, id_=CASE_ID),
         actor=OTHER,
     )
-    return extract_event(activity)
+    return extract_stamped(activity)
 
 
 def _run(dl: SqliteDataLayer, actor_id: str, case_id: str | None = None):

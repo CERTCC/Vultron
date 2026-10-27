@@ -35,8 +35,11 @@ from test.support.ledger_rebuild import (
     register_rows,
     run_use_case,
 )
-from test.support.received import received_event
+from test.support.received import received_event, stamped
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.ledger_position_stamp import (
+    with_sender_ledger_position,
+)
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -223,15 +226,44 @@ class LedgerNetwork:
         body: dict[str, Any],
         *,
         without: frozenset[str] = frozenset(),
+        as_sent: bool = False,
     ):
         """Route *body* into *receiver*'s store as the inbox routes it.
 
-        *without* names ports the receiver is composed without.
+        *without* names ports the receiver is composed without.  A body that
+        states no ``ledgerPosition`` is first stamped as its sender's adapter
+        would stamp it (:meth:`stamp`), so a test may hand over a factory's
+        dump; *as_sent* delivers the body exactly as given.
         """
+        if not as_sent:
+            body = self.stamp(body)
         event = received_event(
-            parse_activity(body), receiving_actor_id=receiver
+            parse_activity(body), as_sent=as_sent, receiving_actor_id=receiver
         )
         return self.receive_event(receiver, event, without=without)
+
+    def stamp(self, body: dict[str, Any]) -> dict[str, Any]:
+        """*body* stating its sender's ledger tail, as its adapter sends it.
+
+        The tail comes from the sender's store when the network holds one
+        (``with_sender_ledger_position``, SYNC-18-001), and is
+        :data:`~test.support.received.TEST_SENDER_POSITION` for a sender the
+        network keeps no store for.  A body that states a position, or whose
+        object states its own, is returned unchanged.
+        """
+        if "ledgerPosition" in body:
+            return body
+        activity = parse_activity(body)
+        sender_store = self.stores.get(str(_as_id(activity.actor)))
+        stamped_activity = (
+            with_sender_ledger_position(sender_store, activity)
+            if sender_store is not None
+            else stamped(activity)
+        )
+        position = stamped_activity.ledger_position
+        if position is None:
+            return body
+        return {**body, "ledgerPosition": position.model_dump(by_alias=True)}
 
     def receive_event(
         self,

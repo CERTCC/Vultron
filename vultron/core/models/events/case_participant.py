@@ -2,7 +2,10 @@
 
 from typing import TYPE_CHECKING, Literal, cast
 
-from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.events.base import (
+    LedgerPositionedEvent,
+    MessageSemantics,
+)
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
@@ -12,7 +15,7 @@ else:
     CaseParticipant = object
 
 
-class AddCaseParticipantToCaseReceivedEvent(VultronEvent):
+class AddCaseParticipantToCaseReceivedEvent(LedgerPositionedEvent):
     """Actor added a CaseParticipant to a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE] = (
@@ -36,7 +39,7 @@ class AddCaseParticipantToCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.target)
 
 
-class RemoveCaseParticipantFromCaseReceivedEvent(VultronEvent):
+class RemoveCaseParticipantFromCaseReceivedEvent(LedgerPositionedEvent):
     """Actor removed a CaseParticipant from a VulnerabilityCase."""
 
     semantic_type: Literal[
@@ -60,7 +63,7 @@ class RemoveCaseParticipantFromCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.target)
 
 
-class CreateCaseParticipantReceivedEvent(VultronEvent):
+class CreateCaseParticipantReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER created a participant record (ADR-0114, CLP-07-013).
 
     ``Create(CaseParticipant)``: the CASE_MANAGER's own act, committed as its
@@ -82,7 +85,7 @@ class CreateCaseParticipantReceivedEvent(VultronEvent):
         return self.context_id
 
 
-class UpdateCaseParticipantReceivedEvent(VultronEvent):
+class UpdateCaseParticipantReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER changed a participant record (CLP-07-013).
 
     ``Update(CaseParticipant)``: the CASE_MANAGER's own act, such as a

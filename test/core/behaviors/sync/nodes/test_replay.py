@@ -14,6 +14,7 @@ from test.core.behaviors.sync.nodes.conftest import (
     PARTICIPANT_ACTOR_ID,
     _make_entry,
 )
+from test.support.received import extract_stamped, peer_position
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.sync.nodes import (
     CollectAndSortCaseLedgerEntriesNode,
@@ -31,7 +32,6 @@ from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.events.sync import RejectLogEntryReceivedEvent
 from vultron.core.ports.sync_activity import SyncActivityPort
 from vultron.enums.roles import CVDRole
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.factories import reject_log_entry_activity
 from vultron.wire.as2.vocab.objects.case_ledger_entry import (
     as_CaseLedgerEntry as WireCaseLedgerEntry,
@@ -50,11 +50,11 @@ def _make_reject_event(
     )
     activity = reject_log_entry_activity(
         entry=wire_entry,
-        context=tail_hash,
+        ledger_position=peer_position(tail_hash),
         actor=PARTICIPANT_ACTOR_ID,
         to=[OWNER_ACTOR_ID],
     )
-    return cast(RejectLogEntryReceivedEvent, extract_event(activity))
+    return cast(RejectLogEntryReceivedEvent, extract_stamped(activity))
 
 
 @pytest.fixture

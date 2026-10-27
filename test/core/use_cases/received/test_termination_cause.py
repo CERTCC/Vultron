@@ -29,6 +29,7 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.ledger import ledger_entries
+from test.support.received import TEST_SENDER_POSITION, extract_stamped
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -59,7 +60,6 @@ from vultron.core.models.events.embargo import (
 from vultron.core.models.use_case_result import HandlerDisposition
 from vultron.core.states.em import EM
 from vultron.core.states.embargo_register import TerminationReason
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.factories import (
     remove_embargo_from_case_activity,
@@ -176,7 +176,7 @@ def test_an_early_termination_with_no_cause_records_the_what_alone() -> None:
 
 
 def _extract(activity: Any) -> RemoveEmbargoEventFromCaseReceivedEvent:
-    event = extract_event(activity)
+    event = extract_stamped(activity)
     assert isinstance(event, RemoveEmbargoEventFromCaseReceivedEvent)
     return event
 
@@ -255,6 +255,7 @@ def test_the_event_refuses_a_cause_on_an_end_time_termination() -> None:
     cannot carry a cause its what cannot have."""
     with pytest.raises(ValidationError, match="END_TIME_REACHED"):
         RemoveEmbargoEventFromCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
             activity_id="urn:uuid:tc-event-end-time",
             actor_id=OWNER,
             termination_reason=TerminationReason.END_TIME_REACHED,
@@ -276,7 +277,7 @@ def test_parse_edge_refuses_a_cause_on_a_remove_that_ends_no_embargo() -> None:
     body["terminationCause"] = {"kind": "THREAT_SIGNAL", "signals": ["X"]}
 
     with pytest.raises(VultronParseValidationError, match="terminationCause"):
-        extract_event(parse_activity(body))
+        extract_stamped(parse_activity(body))
 
 
 @pytest.mark.spec("EMB-13-005")

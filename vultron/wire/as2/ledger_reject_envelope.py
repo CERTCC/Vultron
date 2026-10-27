@@ -18,9 +18,9 @@
 A ``Reject`` names what it declines in ``object``.  One Vultron message has
 nothing to name: a replica whose case was replaced by a copy ahead of its
 chain, and whose chain stores no entry, asks the CASE_MANAGER to replay the
-case from genesis.  That ``Reject(CaseLedgerEntry)`` carries no entry, an
-empty last-accepted hash (``context`` absent or ``""``) and the case as its
-``target``.  ``as_Reject`` refuses every other ``Reject`` without an object
+case from genesis.  That ``Reject(CaseLedgerEntry)`` carries no entry, a
+``ledgerPosition`` that names none (index -1, SYNC-18-001) and the case as
+its ``target``.  ``as_Reject`` refuses every other ``Reject`` without an object
 when it is built or parsed (ADR-0032: validate at the edge); routing uses
 :func:`is_genesis_replay_reject` to send this one to the ledger handler.
 """
@@ -33,8 +33,8 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import (
 def is_genesis_replay_reject(activity: object) -> bool:
     """Whether *activity* is the objectless genesis-replay ``Reject``.
 
-    It is a plain ``Reject`` with no ``object``, an empty last-accepted hash
-    and a ``target`` that names the case.
+    It is a plain ``Reject`` with no ``object``, a ``ledgerPosition`` that
+    names no entry and a ``target`` that names the case.
     """
     return isinstance(activity, as_Reject) and activity.asks_for_genesis_replay
 

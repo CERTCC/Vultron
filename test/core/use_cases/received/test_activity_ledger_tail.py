@@ -12,7 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """A case activity states its sender's ledger position (SYNC-18, ADR-0156).
 
-Each test has a participant or the CASE_MANAGER send an ``Add(Note)``.  The
+Each test has a participant or the CASE_MANAGER send an ``Add(Note)``,
+built by the sender's own trigger adapter as its outbox would send it.  The
 position travels as the activity's ``ledgerPosition``; the CASE_MANAGER
 records a lag, answers it as it answers a ``Read(CaseLedgerEntry)``, never
 refuses on it, and repairs a position its ledger does not hold.  The tests
@@ -29,10 +30,11 @@ from typing import Any, cast
 import pytest
 
 from test.support.ledger import ledger_entries
-from vultron.adapters.outbox_sealed_body import (
-    dump_outbound_body,
-    read_sealed_body_dict,
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
+from vultron.adapters.driven.trigger_activity_adapter import (
+    TriggerActivityAdapter,
 )
+from vultron.adapters.outbox_sealed_body import read_sealed_body_dict
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_consent import EmbargoConsent
@@ -43,33 +45,41 @@ from vultron.core.states.participant_embargo_consent import (
     EmbargoConsentState,
 )
 from vultron.core.sync_helpers import ledger_tail_position
-from vultron.wire.as2.factories import add_note_to_case_activity
+from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
 CASE_ID = "https://example.org/cases/case-ledger-tail"
-_NOT_STAMPED = (
-    "SYNC-18: case activities do not carry ledgerPosition yet. "
-    "Tracked by #5109."
-)
 _NOT_JUDGED = (
     "SYNC-18: the CASE_MANAGER does not read ledgerPosition yet. "
     "Tracked by #5110."
 )
 
 
-def _add_note_body(
-    note_id: str, *, actor: str = OWNER, to: str = MANAGER, **extra: Any
+def _sent_note_body(
+    dl: SqliteDataLayer, note_id: str, *, actor: str, to: str
 ) -> dict[str, Any]:
-    """The body *actor*'s outbox delivers for a new note on the case."""
-    activity = add_note_to_case_activity(
-        as_Note(id_=note_id, content="stamped", context=CASE_ID),
-        target=CASE_ID,
-        actor=actor,
-        to=[to],
+    """The sealed body *actor*'s adapter builds for a new note on the case."""
+    if dl.read(note_id) is None:
+        dl.create(as_Note(id_=note_id, content="stamped", context=CASE_ID))
+    _activity_id, body = TriggerActivityAdapter(dl).add_note_to_case(
+        note_id=note_id, case_id=CASE_ID, actor=actor, to=[to]
     )
-    return {**json.loads(dump_outbound_body(activity)), **extra}
+    return cast(dict[str, Any], json.loads(body))
+
+
+def _add_note_body(
+    note_id: str,
+    *,
+    net: LedgerNetwork,
+    actor: str = OWNER,
+    to: str = MANAGER,
+    **extra: Any,
+) -> dict[str, Any]:
+    """The body *actor*'s outbox delivers for a new note, with *extra* keys."""
+    body = _sent_note_body(net.stores[actor], note_id, actor=actor, to=to)
+    return {**body, **extra}
 
 
 def _wire(position: LedgerPosition) -> dict[str, Any]:
@@ -91,7 +101,7 @@ def _manager_tail(net: LedgerNetwork) -> LedgerPosition:
 def _advance(net: LedgerNetwork, note_id: str) -> LedgerPosition:
     """Commit one note at the CASE_MANAGER and return its tail before it."""
     before = _manager_tail(net)
-    body = _add_note_body(note_id, ledgerPosition=_wire(before))
+    body = _add_note_body(note_id, net=net, ledgerPosition=_wire(before))
     verdict = net.receive(MANAGER, body)
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     assert _manager_tail(net).log_index > before.log_index
@@ -137,13 +147,12 @@ def _case_copies(net: LedgerNetwork, to: str) -> list[Any]:
     ]
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_STAMPED)
 @pytest.mark.spec("SYNC-18-001")
 def test_a_participant_case_activity_carries_its_ledger_position():
     net = LedgerNetwork(CASE_ID)
     _advance(net, "https://example.org/notes/tail-1a")
 
-    body = _add_note_body("https://example.org/notes/tail-1b")
+    body = _add_note_body("https://example.org/notes/tail-1b", net=net)
 
     assert "ledgerPosition" in body
     # An entry already states its own position, so its Announce carries none.
@@ -157,19 +166,30 @@ def test_a_participant_case_activity_carries_its_ledger_position():
     assert "ledgerPosition" not in announced
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_STAMPED)
 @pytest.mark.spec("SYNC-18-001")
 def test_a_case_manager_case_activity_carries_its_ledger_position():
-    LedgerNetwork(CASE_ID)
+    net = LedgerNetwork(CASE_ID)
 
     body = _add_note_body(
-        "https://example.org/notes/tail-1c", actor=MANAGER, to=OWNER
+        "https://example.org/notes/tail-1c", net=net, actor=MANAGER, to=OWNER
     )
 
-    assert "ledgerPosition" in body
+    assert body.get("ledgerPosition") == _wire(_manager_tail(net))
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_STAMPED)
+@pytest.mark.spec("SYNC-18-001")
+def test_a_sender_that_holds_no_ledger_for_the_case_states_none():
+    LedgerNetwork(CASE_ID)
+    stranger = "https://example.org/users/stranger"
+    store = SqliteDataLayer("sqlite:///:memory:", actor_id=stranger)
+
+    body = _sent_note_body(
+        store, "https://example.org/notes/tail-1d", actor=stranger, to=MANAGER
+    )
+
+    assert "ledgerPosition" not in body
+
+
 @pytest.mark.spec("SYNC-18-002")
 def test_the_stamp_is_the_senders_tail_when_it_built_the_activity():
     net = LedgerNetwork(CASE_ID)
@@ -178,28 +198,53 @@ def test_the_stamp_is_the_senders_tail_when_it_built_the_activity():
     expected = ledger_tail_position(CASE_ID, net.stores[OWNER])
     assert expected.log_index >= 0, "the sender's ledger is still at genesis"
 
-    body = _add_note_body("https://example.org/notes/tail-2b")
+    body = _add_note_body("https://example.org/notes/tail-2b", net=net)
 
     assert body.get("ledgerPosition") == _wire(expected)
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_STAMPED)
+@pytest.mark.spec("SYNC-18-002")
+def test_a_rebuilt_activity_keeps_the_position_it_was_first_sent_with():
+    net = LedgerNetwork(CASE_ID)
+    note_id = "https://example.org/notes/tail-2c"
+    first = _add_note_body(note_id, net=net)
+    _advance(net, "https://example.org/notes/tail-2d")
+    net.deliver(MANAGER, to=OWNER, type_="Announce")
+    assert ledger_tail_position(CASE_ID, net.stores[OWNER]) != (
+        LedgerPosition.model_validate(first["ledgerPosition"])
+    ), "the sender's tail did not move"
+
+    again = _add_note_body(note_id, net=net)
+
+    assert again["ledgerPosition"] == first["ledgerPosition"]
+
+
 @pytest.mark.spec("SYNC-18-003")
 def test_an_unstamped_case_activity_is_refused_and_writes_nothing():
     net = LedgerNetwork(CASE_ID)
-    activity_id = "https://example.org/notes/tail-3"
-    body = _add_note_body(activity_id)
-    body.pop("ledgerPosition", None)
+    body = _add_note_body("https://example.org/notes/tail-3", net=net)
+    body.pop("ledgerPosition")
 
-    try:
-        verdict = net.receive(MANAGER, body)
-    except ValueError as refusal:  # a parse-edge refusal raises
-        reason = str(refusal)
-    else:
-        assert verdict.disposition is HandlerDisposition.REFUSED
-        reason = verdict.reason or ""
+    with pytest.raises(VultronParseValidationError) as refusal:
+        net.receive(MANAGER, body, as_sent=True)
 
-    assert body["id"] in reason
+    assert body["id"] in str(refusal.value)
+    assert "ledgerPosition" in str(refusal.value)
+    assert _note_entries(net) == []
+
+
+@pytest.mark.spec("SYNC-18-003")
+def test_a_malformed_ledger_position_is_refused_and_writes_nothing():
+    net = LedgerNetwork(CASE_ID)
+    body = _add_note_body(
+        "https://example.org/notes/tail-3b",
+        net=net,
+        ledgerPosition={"logIndex": "first", "entryHash": ""},
+    )
+
+    with pytest.raises(VultronParseValidationError):
+        net.receive(MANAGER, body)
+
     assert _note_entries(net) == []
 
 
@@ -209,7 +254,9 @@ def test_a_lagging_stamp_is_applied_and_the_lag_logged(caplog):
     net = LedgerNetwork(CASE_ID)
     before = _advance(net, "https://example.org/notes/tail-4a")
     behind = _add_note_body(
-        "https://example.org/notes/tail-4b", ledgerPosition=_wire(before)
+        "https://example.org/notes/tail-4b",
+        net=net,
+        ledgerPosition=_wire(before),
     )
 
     with caplog.at_level(logging.DEBUG):
@@ -239,7 +286,9 @@ def test_a_split_stamp_is_applied_logged_and_the_sender_reseeded(
         else LedgerPosition(log_index=tail.log_index, entry_hash="0" * 64)
     )
     body = _add_note_body(
-        "https://example.org/notes/tail-5a", ledgerPosition=_wire(split)
+        "https://example.org/notes/tail-5a",
+        net=net,
+        ledgerPosition=_wire(split),
     )
 
     with caplog.at_level(logging.ERROR):
@@ -254,6 +303,7 @@ def test_a_split_stamp_is_applied_logged_and_the_sender_reseeded(
         MANAGER,
         _add_note_body(
             "https://example.org/notes/tail-5b",
+            net=net,
             actor=BYSTANDER,
             ledgerPosition=_wire(split),
         ),
@@ -266,7 +316,7 @@ def test_the_entry_records_the_received_ledger_position():
     net = LedgerNetwork(CASE_ID)
     stamp = _wire(_manager_tail(net))
     body = _add_note_body(
-        "https://example.org/notes/tail-6", ledgerPosition=stamp
+        "https://example.org/notes/tail-6", net=net, ledgerPosition=stamp
     )
 
     verdict = net.receive(MANAGER, body)
@@ -283,7 +333,9 @@ def test_a_lagging_stamp_is_answered_as_a_stated_position():
     before = _advance(net, "https://example.org/notes/tail-7a")
     queued_before = len(net.queued(MANAGER, to=OWNER, type_="Announce"))
     behind = _add_note_body(
-        "https://example.org/notes/tail-7b", ledgerPosition=_wire(before)
+        "https://example.org/notes/tail-7b",
+        net=net,
+        ledgerPosition=_wire(before),
     )
 
     verdict = net.receive(MANAGER, behind)
@@ -301,6 +353,7 @@ def test_a_lagging_stamp_is_answered_as_a_stated_position():
         MANAGER,
         _add_note_body(
             "https://example.org/notes/tail-7c",
+            net=net,
             actor=BYSTANDER,
             ledgerPosition=_wire(before),
         ),
