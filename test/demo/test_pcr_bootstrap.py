@@ -112,7 +112,7 @@ def participant_setup():
     with participant_isolated.client as participant_tc:
         yield participant_isolated, participant_tc
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-    participant_isolated.dl.close()
+    participant_isolated.close()
 
 
 @pytest.fixture
@@ -172,8 +172,8 @@ def two_app_setup():
 
     # Restore previous emitter to avoid polluting other tests.
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-    owner_iso.dl.close()
-    participant_iso.dl.close()
+    owner_iso.close()
+    participant_iso.close()
 
 
 # ---------------------------------------------------------------------------

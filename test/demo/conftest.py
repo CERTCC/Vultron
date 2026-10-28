@@ -256,6 +256,21 @@ class IsolatedActorApp:
         """
         return self.store_for(self.actor_id)
 
+    def close(self) -> None:
+        """Close every store this node opened, as stopping its container would.
+
+        Disposes the node's whole in-memory deployment (:func:`node_db_url`):
+        each actor store it hosts and its scratch stores, which destroys them.
+        Closing only ``dl`` left the node's other stores open, and since ``dl``
+        opens lazily it would also open the node's own actor store only to
+        close it again.
+        """
+        from vultron.adapters.driven.datalayer_sqlite import (
+            dispose_actor_engines,
+        )
+
+        dispose_actor_engines(self.db_url)
+
     def store_for(self, actor_id: str) -> SqliteDataLayer:
         """Return the store of *actor_id* as hosted by this app.
 

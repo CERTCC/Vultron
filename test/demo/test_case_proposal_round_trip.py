@@ -243,8 +243,8 @@ def two_app_setup():
                 yield vendor_iso, reporter_iso, vendor_tc, reporter_tc
 
         configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-        vendor_iso.dl.close()
-        reporter_iso.dl.close()
+        vendor_iso.close()
+        reporter_iso.close()
 
 
 # ---------------------------------------------------------------------------

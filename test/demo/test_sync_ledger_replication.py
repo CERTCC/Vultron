@@ -138,8 +138,8 @@ def two_app_setup() -> Iterator[tuple]:
             yield case_actor_iso, peer_iso, case_actor_tc, peer_tc
 
     configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-    case_actor_iso.dl.close()
-    peer_iso.dl.close()
+    case_actor_iso.close()
+    peer_iso.close()
 
 
 @pytest.mark.spec("SYNC-07-002")

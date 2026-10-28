@@ -423,6 +423,32 @@ class TestGetHostedActorDls:
         assert hosted[addressed_id] is addressed_dl
         addressed_dl.close()
 
+    def test_a_registered_store_is_listed_once_under_the_registry_id(
+        self, caplog
+    ):
+        """An id with a scheme keys the registry, not ``{base}/actors/{slug}``.
+
+        ``urn:uuid:abc`` and ``{base}/actors/uuid_abc`` name one store, so the
+        reset must clear it once, and must not open it under the second id,
+        which would log the shared-store warning.
+        """
+        registered_id = "urn:uuid:abc"
+        registered_dl = SqliteDataLayer(
+            db_url=self._TEMPLATE, actor_id=registered_id
+        )
+        request = _fake_request(
+            db_url=self._TEMPLATE,
+            node_base_url=self._BASE,
+            actor_dls={registered_id: registered_dl},
+        )
+        caplog.set_level("WARNING")
+
+        hosted = get_hosted_actor_dls(request)
+
+        assert hosted == {registered_id: registered_dl}
+        assert "shared by two distinct actor ids" not in caplog.text
+        registered_dl.close()
+
     def test_a_registry_without_a_template_is_returned_alone(self):
         """No deployment of its own, so the configured one is not read."""
         only_id = canonical_actor_uri("registered", base_url=self._BASE)

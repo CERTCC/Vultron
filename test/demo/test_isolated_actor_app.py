@@ -57,3 +57,21 @@ def test_dl_opens_the_nodes_own_actor_store_on_first_use():
     assert open_memory_store_slugs(iso.db_url) == {"vendor"}
     with iso.client as client:
         assert client.get("/api/v2/info").json()["actors"] == [iso.actor_id]
+
+
+def test_close_disposes_every_store_the_node_opened():
+    """``close`` stops the node's whole deployment, not one store."""
+    iso = create_isolated_actor_app(
+        _BASE, _TestClientRouter(), actor_slug="vendor"
+    )
+    with iso.client as client:
+        resp = client.post(
+            "/api/v2/actors/", json={"name": "Case Actor", "id": "case-actor"}
+        )
+        assert resp.status_code == 201
+    assert iso.dl is not None
+    assert open_memory_store_slugs(iso.db_url) == {"vendor", "case-actor"}
+
+    iso.close()
+
+    assert open_memory_store_slugs(iso.db_url) == set()

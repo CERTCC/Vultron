@@ -58,6 +58,7 @@ from fastapi import Depends, Path, Request
 from vultron.adapters.driven import actor_hosts
 from vultron.adapters.driven.actor_hosts import canonical_actor_uri
 from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.datalayer_sqlite.engine import actor_slug
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -214,7 +215,7 @@ def get_hosted_actor_dls(
     which is the deployment case.
 
     The stores in ``app.state.actor_dls`` are added to that set, not put in
-    its place.  That registry holds only the actors a path-scoped route has
+    its place, each standing for its own store in place of the listed one.  That registry holds only the actors a path-scoped route has
     addressed, so an actor created through ``POST /actors/`` and never
     addressed since is in the deployment but not in the registry.  An app with
     a registry but no declared template returns the registry alone: no
@@ -227,14 +228,19 @@ def get_hosted_actor_dls(
     if actor_dls and db_url is None:
         return dict(actor_dls)
 
+    registered: dict[str, DataLayer] = dict(actor_dls or {})
+    # One store, one entry: the registry keys an actor by the id its path
+    # segment resolved to, which for an id that carries a scheme is not the
+    # ``{base}/actors/{slug}`` spelling enumeration maps the slug back to.
+    registered_slugs = {actor_slug(actor_id) for actor_id in registered}
     hosted: dict[str, DataLayer] = {
         actor_id: cast(DataLayer, get_datalayer(actor_id, db_url=db_url))
         for actor_id in actor_hosts.hosted_actor_ids(
             db_url, node_base_url(request)
         )
+        if actor_slug(actor_id) not in registered_slugs
     }
-    if actor_dls:
-        hosted.update(actor_dls)
+    hosted.update(registered)
     return hosted
 
 
