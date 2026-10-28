@@ -221,6 +221,7 @@ def _abandonment_entries(
 @pytest.mark.spec("EMB-16-001")
 @pytest.mark.spec("EP-09-008")
 @pytest.mark.spec("BT-17-001")
+@pytest.mark.spec("MSM-02-006")
 def test_the_manager_abandons_every_open_proposal_and_commits_each():
     case, dl, proposals = _proposed_case("abandon-mgr")
 

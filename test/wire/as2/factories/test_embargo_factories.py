@@ -333,7 +333,6 @@ def test_em_propose_embargo_naive_embargo_end_is_read_as_utc():
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-05-006")
-@pytest.mark.spec("MSM-02-002")
 def test_em_accept_embargo_returns_accept(sample_proposal):
     result = em_accept_embargo_activity(
         proposal=sample_proposal, actor=_ACTOR_URI
@@ -371,7 +370,6 @@ def test_em_accept_embargo_plain_invite_raises(sample_embargo):
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-05-007")
-@pytest.mark.spec("MSM-02-006")
 def test_em_reject_embargo_returns_reject(sample_proposal):
     result = em_reject_embargo_activity(
         proposal=sample_proposal, actor=_ACTOR_URI
