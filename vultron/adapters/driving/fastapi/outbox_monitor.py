@@ -62,6 +62,14 @@ class OutboxMonitor:
     The ``actor_datalayers_factory`` and ``emitter`` parameters allow
     injection of test doubles without patching module globals.
 
+    Production-only: the monitor is started only by the single-node
+    production lifespan (``configure_globals=True``), where every store this
+    process opened belongs to the node's own configured ``db_url``.  That is
+    why its default factory, ``get_all_actor_datalayers()``, is unscoped; an
+    app built by ``create_app`` never starts it, so in a process running
+    several in-memory nodes it never drains another node's outbox
+    (DL-07-011).
+
     Args:
         poll_interval: Maximum seconds between drain passes (default 1.0).
             The monitor may drain more frequently when actors enqueue items.

@@ -180,6 +180,22 @@ def actor_db_url(db_url: str, actor_id: str) -> str:
     return f"{scheme}///{path.with_name(f'{stem}-{slug}{suffix}')}"
 
 
+def _memory_store_prefix(db_url: str) -> str:
+    """Return the resolved-URL prefix every store of an in-memory deployment shares.
+
+    :func:`actor_db_url` names each per-actor store ``{base}-{slug}``, and
+    :func:`scratch_memory_url` names each scratch store ``{base}-~{purpose}``,
+    so this prefix selects one deployment's stores out of the process-wide
+    engine cache.
+
+    Like the file-mode ``{stem}-*`` glob it mirrors, the prefix cannot tell
+    base ``app`` plus slug ``x-vendor`` from base ``app-x`` plus slug
+    ``vendor``: two deployments in one process must not use base names where
+    one is the other followed by ``-``.
+    """
+    return f"sqlite:///file:{_memory_base_name(db_url)}-"
+
+
 def scratch_memory_url(db_url: str, purpose: str) -> str:
     """Return a named in-memory URL template beside the deployment *db_url*.
 
@@ -290,7 +306,7 @@ def dispose_actor_engines(
     if actor_id is not None and db_url is not None:
         targets = [actor_db_url(db_url, actor_id)]
     elif db_url is not None and _is_memory_url(db_url):
-        prefix = f"sqlite:///file:{_memory_base_name(db_url)}-"
+        prefix = _memory_store_prefix(db_url)
         targets = [k for k in _ENGINES if k.startswith(prefix)]
     elif db_url is not None:
         stem = Path(db_url.partition("///")[2]).stem
@@ -302,6 +318,35 @@ def dispose_actor_engines(
         engine = _ENGINES.pop(key, None)
         if engine is not None:
             engine.dispose()
+
+
+def open_memory_store_slugs(db_url: str) -> set[str]:
+    """Return the slug of every open actor store in one in-memory deployment.
+
+    The in-memory analogue of globbing a file deployment's directory: an
+    in-memory store exists exactly while its engine is cached here, and its
+    resolved URL names the deployment it belongs to.  Only stores named under
+    *db_url*'s base name are returned, so two in-memory deployments in one
+    process (two apps, or the nodes of a multi-node test harness) each see only
+    their own stores (DL-07-011, DL-07-013).  Scratch stores, whose name puts a
+    ``~`` right after the deployment prefix, are not actor stores and are
+    skipped.
+
+    Args:
+        db_url: The deployment's in-memory SQLAlchemy URL template.
+
+    Returns:
+        The set of actor slugs with an open store in that deployment.
+    """
+    prefix = _memory_store_prefix(db_url)
+    slugs: set[str] = set()
+    for key in list(_ENGINES):
+        if not key.startswith(prefix):
+            continue
+        name = key[len(prefix) :].split("?", 1)[0]
+        if name and not name.startswith("~"):
+            slugs.add(name)
+    return slugs
 
 
 def reset_store_claimants() -> None:

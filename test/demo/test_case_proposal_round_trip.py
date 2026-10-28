@@ -245,8 +245,8 @@ def two_app_setup():
                 yield vendor_iso, reporter_iso, vendor_tc, reporter_tc
 
         configure_default_emitter(previous_emitter)  # type: ignore[arg-type]
-        vendor_iso.dl.close()
-        reporter_iso.dl.close()
+        vendor_iso.close()
+        reporter_iso.close()
 
 
 # ---------------------------------------------------------------------------
@@ -313,6 +313,54 @@ class TestCaseProposalRoundTrip:
                 ),
             )
         return vendor_iso, reporter_iso, vendor_actor_id, reporter_actor_id
+
+    @pytest.mark.spec("DL-07-011")
+    @pytest.mark.spec("DL-07-013")
+    def test_two_nodes_never_open_each_others_stores(
+        self, two_app_setup, caplog
+    ):
+        """A two-node round trip, then each node's node-wide reads (#5338).
+
+        Each node lists, reports and resets only the stores of its own
+        deployment.  Reading the process-wide store cache instead made each
+        node open stores for the other node's actors under its own template,
+        which logs both warnings checked here: one actor cached under two
+        ``db_url`` values, and one store claimed by two actor ids.
+        """
+        vendor_iso, reporter_iso, vendor_actor_id, reporter_actor_id = (
+            self._submit_report(
+                two_app_setup, caplog, "DL-07-011 two-node isolation report"
+            )
+        )
+        _, _, vendor_tc, reporter_tc = two_app_setup
+
+        with caplog.at_level(logging.WARNING):
+            for tc, own_id in (
+                (vendor_tc, vendor_actor_id),
+                (reporter_tc, reporter_actor_id),
+            ):
+                listed = {a["id"] for a in tc.get("/api/v2/actors/").json()}
+                assert own_id in listed
+                hosted = set(tc.get("/api/v2/info").json()["actors"])
+                assert own_id in hosted
+            assert reporter_actor_id not in {
+                a["id"] for a in vendor_tc.get("/api/v2/actors/").json()
+            }
+            assert vendor_actor_id not in set(
+                reporter_tc.get("/api/v2/info").json()["actors"]
+            )
+            reset = vendor_tc.delete("/api/v2/admin/datalayer/reset/")
+            assert reset.status_code == 200
+            assert reporter_actor_id not in reset.json()["n_items"]
+
+        assert reporter_iso.store_for(reporter_actor_id).read(
+            reporter_actor_id
+        ), "the vendor's reset cleared the reporter node's store"
+        assert not vendor_iso.store_for(vendor_actor_id).read(vendor_actor_id)
+        assert "has cached DataLayers under more than one db_url" not in (
+            caplog.text
+        )
+        assert "is shared by two distinct actor ids" not in caplog.text
 
     @pytest.mark.spec("CP-09-001")
     @pytest.mark.spec("CM-02-004")
