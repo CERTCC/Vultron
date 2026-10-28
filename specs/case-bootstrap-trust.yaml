@@ -357,7 +357,12 @@ groups:
     kind: protocol
     statement: >-
       When the bounded pre-bootstrap queue interval (CBT-03-001) expires, the receiver
-      MUST drop the queued message and require a resend after bootstrap.
+      MUST drop the queued message.
+    rationale: >-
+      A message the receiver cannot yet trust must not wait for a case copy that may
+      never arrive. Recovering a dropped Invite is the CASE_MANAGER's job, not the
+      receiver's: it resends an unanswered Invite once the receiver states its ledger
+      position (ADR-0163).
     verification: >-
       A unit test confirms that when the pre-bootstrap queue timeout elapses, the queued
       message is discarded and the activity is not applied to local case state.
