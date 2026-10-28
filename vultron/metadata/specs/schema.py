@@ -11,6 +11,7 @@ absent fields.  ``kind`` is required on every individual spec item;
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from enum import StrEnum
 from typing import Annotated
 
@@ -28,6 +29,67 @@ from vultron.metadata.base import NonEmptyStr
 #: spec linter, bundle-fit, and the citation ratchets so the ID grammar is
 #: defined once.
 SPEC_ID_CITATION_RE = re.compile(r"\b[A-Z]{2,8}-\d{2}-\d{3}\b")
+
+#: A range of requirement IDs: a full start ID, then either a range word and a
+#: full end ID (``CM-10-001 through CM-10-005``) or a dash or ``..`` and an end
+#: that is a full ID, ``NN-NNN`` or ``NNN`` (``CM-10-001–005``,
+#: ``CSB-18-002..004``). A word before a bare number is prose, not a range:
+#: ``CM-10-001 to 100 actors`` must not expand a whole group. A plain hyphen is
+#: not a range mark either: ``CM-10-001-005`` is too close to an ID typo.
+_SPEC_ID_RANGE_RE = re.compile(
+    r"\b(?P<prefix>[A-Z]{2,8})-(?P<group>\d{2})-(?P<index>\d{3})\s*(?:"
+    r"\b(?:through|thru|to)\s+"
+    r"(?P<word_prefix>[A-Z]{2,8})-(?P<word_group>\d{2})-(?P<word_index>\d{3})"
+    r"|(?:–|—|\.\.)\s*"
+    r"(?:(?:(?P<dash_prefix>[A-Z]{2,8})-)?(?P<dash_group>\d{2})-)?"
+    r"(?P<dash_index>\d{3})"
+    r")\b"
+)
+
+#: A slash list of IDs in one group: ``CLP-14-006/007/008``.
+_SPEC_ID_SLASH_RE = re.compile(r"\b([A-Z]{2,8}-\d{2}-)\d{3}((?:/\d{3})+)\b")
+
+
+def _id_key(spec_id: str) -> tuple[str, int, int] | None:
+    parts = spec_id.split("-")
+    if len(parts) != 3 or not (parts[1].isdigit() and parts[2].isdigit()):
+        return None
+    return parts[0], int(parts[1]), int(parts[2])
+
+
+def cited_spec_ids(text: str, known_ids: Iterable[str]) -> set[str]:
+    """Every requirement ID *text* names, with ranges and slash lists expanded.
+
+    A literal ID (:data:`SPEC_ID_CITATION_RE`) is returned whether or not it is
+    known. A range yields every ID in *known_ids* with the start's prefix that
+    sorts between its ends, inclusive, so it may cross groups but never invents
+    an ID; a range whose ends name different prefixes yields only those ends.
+    A slash list ``PREFIX-NN-AAA/BBB`` yields ``PREFIX-NN-BBB`` beside its
+    literal first ID.
+
+    Args:
+        text: Prose to scan, such as a decision record's body.
+        known_ids: The requirement IDs a range may expand to.
+    """
+    found = set(SPEC_ID_CITATION_RE.findall(text))
+    keyed = [(key, i) for i in known_ids if (key := _id_key(i)) is not None]
+    for match in _SPEC_ID_RANGE_RE.finditer(text):
+        prefix = match["prefix"]
+        end_prefix = match["word_prefix"] or match["dash_prefix"] or prefix
+        if end_prefix != prefix:
+            continue
+        end_group = (
+            match["word_group"] or match["dash_group"] or match["group"]
+        )
+        end_index = match["word_index"] or match["dash_index"]
+        low = (prefix, int(match["group"]), int(match["index"]))
+        high = (prefix, int(end_group), int(end_index))
+        found.update(i for key, i in keyed if low <= key <= high)
+    for match in _SPEC_ID_SLASH_RE.finditer(text):
+        stem, tail = match.groups()
+        found.update(stem + index for index in tail.split("/")[1:])
+    return found
+
 
 SpecIdStr = Annotated[
     str,
