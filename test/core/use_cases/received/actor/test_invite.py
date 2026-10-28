@@ -945,6 +945,7 @@ class TestInviteActorUseCases:
         case = cast(as_VulnerabilityCase, case)
         assert invitee_id in case.actor_participant_index
 
+    @pytest.mark.spec("MV-10-006")
     def test_accept_invite_actor_to_case_records_active_embargo(
         self, monkeypatch, make_payload
     ):

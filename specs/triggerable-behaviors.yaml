@@ -31,7 +31,7 @@ groups:
     rationale: >-
       The behavior runs after the response (TRIG-01-004), so the server can confirm
       only that it accepted the request, not that the behavior finished. 202 states
-      exactly that, and matches the inbox (HTTP-01-003).
+      exactly that, and matches the inbox (IE-05-001).
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-01-003
@@ -58,7 +58,7 @@ groups:
       A behavior tree run and its outbox delivery can take much longer than an HTTP
       client waits. Holding the response would tie up a server worker per call and make
       caller timeouts look like failed behaviors, so the trigger answers first and runs
-      the behavior afterwards, as the inbox does (IE-03-001).
+      the behavior afterwards, as the inbox does (IE-05-002).
     relationships:
     - rel_type: depends_on
       spec_id: IE-03-001
@@ -105,6 +105,9 @@ groups:
       outside source through a call-out point (e.g.
       `DevelopFixCallOutBundle.create_fix_factory`). Both are legitimate in production,
       so these are general-purpose triggers (TRIG-08-002), not demo-only ones.
+    note: >-
+      Only three of the five exist today, under `/demo/`; #4159 owns exposing all
+      five.
   - id: TRIG-02-004
     priority: SHOULD
     kind: project

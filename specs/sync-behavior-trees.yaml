@@ -304,9 +304,9 @@ groups:
           referenced case and use the case-actor's identity as the sender
           for replayed Announce activities.
         rationale: >-
-          A participant accepts a log entry only from the CASE_MANAGER (SBT-02-004).
-          Replayed entries sent under any other identity would be refused, so the
-          replay would never repair the replica.
+          Ledger entries replicate one way, from the CASE_MANAGER to each participant
+          (SYNC-00-002). Replayed entries sent under any other identity would not come
+          from the replica's source, so the replay would not repair the replica.
 
   - id: SBT-04
     title: CommitLogEntryBT
@@ -414,7 +414,8 @@ groups:
           Recommended keys: `sync_port` for SyncActivityPort,
           `datalayer` for DataLayer (already established).
         rationale: >-
-          Blackboard keys with slashes are parsed as paths by py_trees and break key
-          lookup. Fixed, shared key names let any node read an injected port without
-          knowing which code set it.
+          py_trees reads a slash in a key as a namespace separator, so a key built from
+          a full URL id splits into nested namespaces and misses its lookup. Fixed,
+          shared key names let any node read an injected port without knowing which
+          code set it.
 

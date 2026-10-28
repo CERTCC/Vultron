@@ -971,9 +971,9 @@ groups:
       declares a named exemption carrying a reason.
     rationale: >-
       An emit outside the gate runs at every receiver. Re-sending another actor's act
-      under one's own name claims an act one did not author; an on-behalf send names
-      the doer in `actor` and the asker in `attributedTo` (CM-24-001, CM-24-002). A
-      container never mails an actor it hosts (ADR-0109), so a self-addressed emit is a
+      under one's own name claims an act one did not author; an on-behalf send names the
+      doer in `actor` and the asker in `attributedTo` (CM-24-001, CM-24-002). An actor
+      does not mail its own emission to itself (ADR-0109), so a self-addressed emit is a
       loop. Acquiring the gate only in the factory gives every received tree the same
       gate, and the exemption check makes each ungated emit a declared choice.
     verification: >-
@@ -1814,7 +1814,7 @@ groups:
       The DETERMINISTIC bundle is the production-usable happy-path backend a real actor
       uses before a capability implementation is wired in, so a core tree builder must
       resolve its default without reaching into the simulation layer. Placing it in
-      vultron/demo/ would make core depend on demo (BT-16-001, ARCH-01-001).
+      vultron/demo/ would make core depend on demo (BT-16-001, BTND-04-002).
     adr:
     - ADR-0025
   - id: BT-23-009

@@ -452,9 +452,14 @@ groups:
       case details to it.
     rationale: >-
       Full case details can include embargoed vulnerability information. Delivering
-      them only to an active participant means that only an actor that has joined the
-      case, and so answered its embargo, receives them (CM-10-004).
-    verification_debt: '#3612'
+      them only to an active participant means that, while an embargo is active, only
+      an actor that has agreed to it receives them (CM-10-004).
+    verification: >-
+      `test_ledger_fanout_reaches_only_active_participants` in
+      `test/core/behaviors/sync/nodes/test_active_participant_fanout.py` confirms that,
+      under an active embargo, case content fans out only to the participant that agreed
+      to it, and not to a seated participant whose consent is still `INVITED` or to an
+      invitee that never answered its stub Invite.
     adr:
     - ADR-0114
     relationships:
@@ -477,7 +482,11 @@ groups:
       active embargo means taking part under that embargo. Reading the acceptance as
       consent means no participant becomes active without a recorded answer to the
       embargo, which the delivery gate of MV-10-005 relies on.
-    verification_debt: '#3612'
+    verification: >-
+      `test_accept_invite_actor_to_case_records_active_embargo` in
+      `test/core/use_cases/received/actor/test_invite.py` confirms that accepting the
+      stub Invite while an embargo is active marks the accepting participant's consent
+      row for that embargo `AGREED`.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008

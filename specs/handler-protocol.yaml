@@ -55,10 +55,10 @@ groups:
       `CaseOutboxPersistence`, DL-07) and `request` the handler's concrete
       `VultronEvent` subclass — and their `execute()` method MUST take no arguments
     rationale: >-
-      The dispatcher builds every handler the same way from a registry entry, so a
-      handler cannot need anything else to start. A narrow port limits what a handler
-      can write (DL-07), and a typed request means its fields were validated before
-      dispatch.
+      The dispatcher builds every handler the same way from a registry entry: the same
+      two positional arguments, with any driven ports passed by keyword. A narrow port
+      limits what a handler can write (DL-07), and a typed request means its fields
+      were validated before dispatch.
     verification: >-
       `test/architecture/test_use_case_execute_returns_result.py` reads every
       `execute()` under `vultron/core/use_cases/` (outside `triggers/`) and
@@ -153,7 +153,7 @@ groups:
       act on
     rationale: >-
       A role gate skips as SUCCESS so that the CASE_MANAGER's own failure stays
-      distinguishable from a non-manager's no-op (BTND-07-005). If a handler read that
+      distinguishable from a non-manager's no-op (BT-17-001). If a handler read that
       skip as "not my job" and reported `SKIPPED`, `DispatchNode` would record it as
       `processed`, and the receiver's inbox would show a misaddressed message as a
       successful receipt. The disposition is the receiver's own report on its own

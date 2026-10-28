@@ -590,8 +590,8 @@ groups:
       a less-specific competing pattern, `strict=True` MUST be set on that pattern so that
       a bare URI string in the `target` field does NOT match the typed target constraint.
     rationale: >-
-      `ActivityPattern._match_activity_field` treats a bare string as matching in
-      permissive mode (`strict=False`). Without `strict=True`, an unresolved `target`
+      The module-level `_match_activity_field` function treats a bare string as matching
+      in permissive mode (`strict=False`). Without `strict=True`, an unresolved `target`
       URI would let the more-specific pattern match every competing shape whatever the
       target's type, which makes registry order the only protection against misrouting
       and defeats the discriminator (ADR-0039).
