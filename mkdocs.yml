@@ -63,10 +63,10 @@ nav:
       - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
       - CSAF 2.1 Crosswalk:
         - CSAF 2.1 and Vultron: 'reference/csaf_crosswalk/overview.md'
-        - Proposals: 'reference/csaf_crosswalk/proposals.md'
-        - Conclusions: 'reference/csaf_crosswalk/conclusion.md'
         - Concept Mapping: 'reference/csaf_crosswalk/concept_mapping.md'
         - Coverage Differences: 'reference/csaf_crosswalk/coverage.md'
+        - Proposals: 'reference/csaf_crosswalk/proposals.md'
+        - Conclusions: 'reference/csaf_crosswalk/conclusion.md'
   - Implement the Protocol:
     - Start Here: 'start/connect-your-tracker.md'
     - Protocol Specification:

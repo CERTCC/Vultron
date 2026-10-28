@@ -253,10 +253,10 @@ the artifact is written.
    - Missing, or still `Docs: pending check-docs-sync` → **FAIL**.
    - An affected page the PR neither updated nor deferred → **IMPROVE**
      (`fix-now`: execute updates the page and the line).
-   - `Docs: deferred to #N` → `#N` must be an existing `type:Concern` issue
-     (open, or closed as planned) whose body lists the affected pages, and the
-     update must be a multi-page rewrite PD-03-007 permits deferring. Otherwise
-     **IMPROVE**.
+   - `Docs: deferred to #N` → `#N` must be an existing `type:Task` or
+     `type:Concern` issue (open, or closed as planned) whose body lists the
+     affected pages, and the update must be a multi-page rewrite PD-03-007
+     permits deferring. Otherwise **IMPROVE**.
    - `Docs: no docs impact — <reason>` when your determination found an
      affected page → **IMPROVE** (the page is affected but neither updated nor
      deferred).

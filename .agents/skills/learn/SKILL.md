@@ -155,7 +155,8 @@ pattern promotion. Process in this order:
    candidates by claim and count **independent witnesses** — entries with
    different `source` work items asserting the same thing:
    - **Two or more witnesses** → the claim is corroborated. Promote to `notes/`
-     or `AGENTS.md`, or file a `type:Concern` issue if it names a defect.
+     or `AGENTS.md`, or file an issue if it names a defect, typed by
+     `shared/issue-creation-requirements.md` § "Determining the right values".
    - **One witness** → try to confirm it against the code. If confirmed,
      promote. If not, leave it queued.
    - **One witness, older than 30 days** → archive as unreproduced via
@@ -234,7 +235,7 @@ Age alone (signal d) is a tie-breaker only — "old" does not mean "stale."
   adjustment, no restructuring). Write to `docs/` in Phase 5, then archive
   the notes section.
 - **Large (defer)**: a new `docs/` page would be needed, OR significant
-  rewriting/synthesis is required. File a `type:Concern` issue capturing the
+  rewriting/synthesis is required. File a `type:Task` issue capturing the
   gap and the target location; keep the notes section active until resolved.
 - **Ambiguous**: present the choice to the user during the Phase 3 interview.
 
@@ -332,7 +333,7 @@ interview (small = existing target file + verbatim-friendly edit only):
 
 Write the translated content to the target `docs/` file, then archive the
 notes section as above. For large Promote candidates (new page needed or
-significant rewrite), file a `type:Concern` issue instead and leave the
+significant rewrite), file a `type:Task` issue instead and leave the
 section active.
 
 ### Phase 6 — Update Agent Guidance (`AGENTS.md`)

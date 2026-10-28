@@ -25,7 +25,7 @@ You Open").
 | `--planned` | The issue comes from planning or a user request (`plan-issue`, `update-plan`, `new-item`, a user-reported bug) | none |
 | `--opened-as excursion` | Filed so the current PR can close it (an "also" excursion) | `opened:excursion` |
 | `--opened-as separate-defect` | A real defect in code the PR does not touch, or a prerequisite found mid-task | `opened:separate-defect` |
-| `--opened-as debt --where X` | A known weakness seen but not fixed now. `--where` names the file, directory, or spec so the nearby-debt rule can find it. Use issue type `Concern` | `opened:debt` |
+| `--opened-as debt --where X` | A known weakness seen but not fixed now. `--where` names the file, directory, or spec so the nearby-debt rule can find it. Usually a `Task` or `Bug` (see § "Determining the right values") | `opened:debt` |
 | `--opened-as deferred` | The current PR's own work, left undone. Unsupervised runs must not do this; it is flagged in every report | `opened:deferred` |
 
 ## Governing specs (Task and Bug bodies)
@@ -69,8 +69,23 @@ gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
 
 ## Determining the right values
 
-- **Issue type**: infer from the work — implementation tasks → `Task`, regressions → `Bug`,
-  exploratory captures → `Idea` or `Concern`.
+- **Issue type**: choose it from the shape of the work, not from why it was
+  opened. The `opened:` label (excursion, separate-defect, debt, deferred) is
+  independent of the type; a `debt` item is usually a `Task` or `Bug`.
+  - `Bug` — current behavior is wrong against a spec, ADR, or clear intent. The
+    cause may still need diagnosis (`bugfix` investigates first); what matters is
+    that the correct behavior is decided. Stale spec or notes text that names
+    deleted code counts.
+  - `Task` — clear work with a known approach and no open design decision:
+    refactors, module splits, missing docs pages, ratchets, sweeps.
+  - `Concern` — a decision, investigation, or human or protocol-design call is
+    needed before a work item can be written; several plausible answers exist.
+  - `Feature` — a new capability that is already specified well enough to
+    build.
+  - `Idea` — a new capability or direction not yet shaped into work.
+
+  When one finding holds both a ready fix and an open question, file them as
+  separate issues, and wire the blocker if one gates the other.
 - **Parent epic**: use `calve-epics` Mode 1 to find the best-fit open Epic; if none
   matches, run Mode 2 to propose a new one. Never leave an issue without a parent.
 
