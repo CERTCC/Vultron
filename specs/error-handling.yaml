@@ -18,21 +18,33 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The system MUST define custom exceptions for application-specific errors
+    rationale: >-
+      A caller must tell an application failure apart from a bug in a library or in
+      Python itself. A custom exception names the failure in domain terms. A caller can
+      then catch exactly the failures it knows how to handle and let the others show as
+      bugs.
   - id: EH-01-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Custom exceptions MUST inherit from a base VultronError exception
     rationale: >-
-      This hierarchy is the protocol domain's. It does not extend to the metadata tooling layer
-      under `vultron/metadata/`, whose loaders raise `ValueError` by documented contract so that
-      their callers can guard a single exception pair — see MS-17-004, which draws that boundary
-      explicitly.
+      One base class lets a caller, such as the HTTP error handler, catch every
+      application failure with one `except` clause. Exceptions from outside the
+      hierarchy still show as bugs. This hierarchy belongs to the protocol domain. It
+      does not cover the metadata tooling under `vultron/metadata/`, whose loaders raise
+      `ValueError` by contract so that their callers can guard one exception pair
+      (MS-17-004).
   - id: EH-01-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Custom exceptions MUST be centralized in `vultron/errors.py`
+    rationale: >-
+      Errors that several layers raise or catch need one home. `vultron/errors.py`
+      imports only the standard library, so core, wire and adapter code can all import
+      from it without an import from another layer. One module also shows the shared
+      hierarchy in one place.
 - id: EH-02
   title: Submodule Errors
   specs:
@@ -41,11 +53,19 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Submodule-specific errors MUST be defined in submodule `errors.py`
+    rationale: >-
+      An error that only one subsystem raises belongs next to the code that raises it. A
+      local `errors.py` keeps the failures of that subsystem easy to find and keeps the
+      shared module small.
   - id: EH-02-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Submodule errors MUST inherit from base custom exceptions in `vultron/errors.py`
+    rationale: >-
+      A handler that catches `VultronError` or one of its categories also catches a
+      subsystem error that inherits from them. A subsystem can then add its own errors,
+      and the callers that already handle the general case need no change.
 - id: EH-03
   title: Error Categories
   specs:
@@ -54,6 +74,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: 'The system MUST define at least the following error categories in `vultron/errors.py`: `ValidationError` (malformed or schema-invalid input), `NotFoundError` (referenced domain object does not exist), `ProtocolError` (invalid state-machine transition or message semantics), and `SecurityError` (authentication or authorization failure). Additional categories MAY be defined as needed.'
+    rationale: >-
+      A caller decides what to do from the kind of failure, not from the message text.
+      Bad input, a missing object, a protocol violation and a security failure each need
+      a different response, for example a different HTTP status. Fixed categories give
+      each of these responses one exception type to catch.
 - id: EH-04
   title: Error Context
   specs:
@@ -61,6 +86,11 @@ groups:
     priority: SHOULD
     kind: project
     statement: Exceptions SHOULD include contextual information
+    rationale: >-
+      A message alone often does not tell an operator which activity, actor or object
+      failed. Context on the exception, such as the activity ID, lets the log and the
+      HTTP response point to the item that failed. The operator can then find the fault
+      faster.
 - id: EH-05
   title: Error Response Format
   specs:
@@ -69,6 +99,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: 'HTTP error responses MUST include a structured JSON body with at minimum the following fields: `error` (string — machine-readable error code from the VultronError hierarchy), `message` (string — human-readable description), and `status` (integer — HTTP status code mirroring the response status).'
+    rationale: >-
+      A client must tell failures apart without reading prose. A fixed JSON body with a
+      machine-readable code, a human-readable message and the status code gives every
+      error response the same shape. One client parser can then handle all of them.
     relationships:
     - rel_type: depends_on
       spec_id: HTTP-03-001
@@ -83,13 +117,12 @@ groups:
       `message` field MUST remain a human-readable rendering of the whole set, so a
       caller reading only `message` still sees every violation.
     rationale: >-
-      Before this requirement a multi-violation rejection collapsed to the first
-      violation's message, so a caller fixed one problem, resubmitted an atomically
-      rejected request, and was told about the next one. Callers wanting individual
-      violations had to parse `message`, which ISSUE-2112 noted breaks silently when
-      the order of internal checks changes. `details` gives them a stable surface;
-      keeping the full set in `message` means adding the field does not make existing
-      text-only consumers worse off.
+      When a request has several violations and the response names only one, the caller
+      fixes one problem, sends the request again and learns of the next. The rejection
+      is atomic, so nothing changed between the attempts. `details` gives one entry for
+      each violation, so a caller does not have to parse `message`. Such a parse breaks
+      when the order of the internal checks changes. `message` still names every
+      violation, so a caller that reads only the text loses nothing.
     relationships:
     - rel_type: refines
       spec_id: EH-05-001
@@ -108,6 +141,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: All errors MUST be logged at the level defined by SL-03-001 log level semantics
+    rationale: >-
+      The log level of an error tells an operator how serious it is. One set of level
+      rules (SL-03-001) keeps a recoverable fault from raising an alarm and keeps a real
+      failure from being hidden at DEBUG.
     relationships:
     - rel_type: depends_on
       spec_id: SL-03-001
@@ -124,9 +161,10 @@ groups:
       accepted, so a caller told one reason at a time gains nothing from the round
       trip.
     rationale: >-
-      Atomicity governs what is written; diagnostic completeness governs what is
-      reported. The two are independent, and conflating them produced a
-      fix-one-resubmit loop on the add-participant-status trigger path (ISSUE-2112).
+      Atomic rejection decides what the system writes. It does not decide what the
+      system reports. A boundary that reports only the first violation makes the caller
+      fix one problem at a time. Each attempt costs a round trip, and the boundary kept
+      no partial work that could justify that cost.
     adr:
     - ADR-0086
     verification: >-
@@ -152,18 +190,17 @@ groups:
       whose expected remediation is neither of those MUST be checked against the
       remediation test before relying on the overlap proxy.
     rationale: >-
-      One bad dimension frequently entails further violations, so unranked
-      thoroughness degrades into a wall of errors that one fix clears most of. The
-      classification test is dimension overlap rather than a rule-to-rule dependency
-      graph, so a newly added rule is classified correctly by construction and the
-      labelling cannot go stale. The root multi-dimension case is the informative
-      one: every dimension moved legally on its own and the combination is impossible.
-      The remediation premise is stated normatively above because it is load-bearing
-      and was previously left implicit: three separate reviewers read the overlap rule
-      as a pure graph property, concluded a role gate mislabels its entailments, and
-      built a repro that put a participant on a dimension it had no role for — a state
-      ADR-0075 makes unreachable. The finding dissolved each time, but only after
-      re-deriving the domain premise the requirement never stated.
+      One bad dimension often causes more violations. A list that does not rank them
+      becomes a long list of errors that one fix mostly clears. The root and derived
+      labels tell the caller which violations to fix first. The label uses dimension
+      overlap and not a graph of which rule depends on which. Thus a new rule gets the
+      correct label with no extra work, and the labels cannot go out of date. A root
+      violation that reads several dimensions is the most useful one: each dimension
+      moved legally on its own, but the combination is not possible. The statement makes
+      the remediation premise explicit because the overlap rule is correct only while
+      that premise holds. A reader who treats overlap as a pure graph property expects a
+      role gate to mislabel its consequences. That expectation needs a participant on a
+      dimension it has no role for, which ADR-0075 makes unreachable.
     relationships:
     - rel_type: refines
       spec_id: EH-07-001

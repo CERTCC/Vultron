@@ -19,11 +19,18 @@ groups:
     statement: The `core/` package (or equivalent domain layer) MUST NOT import from `wire/`, `adapters/`, or any external
       framework
     rationale: Keeps domain logic replaceable without touching the wire or transport layer
+    adr:
+    - ADR-0009
   - id: ARCH-01-002
     priority: MUST
     kind: architecture
     verification_debt: '#2569'
     statement: Core functions MUST accept and return domain types only
+    rationale: >-
+      Core logic reads the meaning of a message, not its encoding. If a core function
+      takes or returns a wire type, core depends on the AS2 format, and a change to that
+      format then changes core code. Domain types also arrive already validated
+      (ARCH-08-002), so core does not need to check them again.
   - id: ARCH-01-003
     priority: MUST_NOT
     kind: architecture
@@ -31,11 +38,14 @@ groups:
     statement: The `wire/` layer (AS2 parser, semantic extractor) MUST NOT contain handler logic, case management, or journal
       management
     rationale: >-
-      Wire format concerns are structurally distinct from domain concerns; mixing them prevents future wire format
-      substitution. This is the substantive rule that ARCH-22-001 was a proxy for; ADR-0099 keeps this constraint
-      while repealing that proxy. The import ban forbade the harmless thing — naming a core type in a field
-      annotation — while harmful coupling passed through as duck-typing. Enforce no domain logic in wire; do not
-      enforce no imports.
+      The wire layer encodes and decodes messages. Handler logic, case management and
+      the case ledger are domain behaviour, and they belong in core. If the wire layer
+      holds domain logic, a change of wire format must also change that logic, and core
+      then does not own its own rules. The wire layer may name core types in its
+      annotations (ARCH-22-001), because AS2 is a serialization of the core model
+      (ADR-0099). The rule thus limits what wire code does, not what it imports.
+    adr:
+    - ADR-0099
   - id: ARCH-01-004
     priority: MUST
     kind: project
@@ -82,6 +92,11 @@ groups:
     priority: MUST
     kind: project
     statement: The `MessageSemantics` enum (`SemanticIntent`) MUST be defined in the domain layer, not in the wire layer
+    rationale: >-
+      Core code dispatches on `MessageSemantics`. If the enum is defined in the wire
+      layer, core must import wire to dispatch, and ARCH-01-001 forbids that import. The
+      semantic extractor in the wire layer can still produce the enum values, because
+      the wire layer may import core models (ARCH-22-001).
     verification: Inspection of `vultron/core/` confirms `MessageSemantics` (or `SemanticIntent`) is defined there,
       and no definition of this enum exists under `vultron/wire/`.
 - id: ARCH-03
@@ -92,11 +107,15 @@ groups:
     kind: project
     statement: 'AS2 vocabulary MUST be mapped to domain concepts in exactly one location: the semantic extractor'
     rationale: >-
-      Isolates the single seam where wire format changes are absorbed. The semantic extractor stays in
-      `vultron/wire/`, where this requirement places it; the relocation planned against it (issue #2942)
-      was driven by the old import ban (ARCH-22-001) and was cancelled by ADR-0099.
+      When one module maps AS2 vocabulary to domain concepts, a change in the wire
+      format changes only that module. If a second module also does the mapping, the two
+      can disagree, and one message can mean different things in different parts of the
+      code. The semantic extractor reads the AS2 form, so it is in `vultron/wire/`,
+      which may import core models (ARCH-22-001, ADR-0099).
     verification: Inspection of `vultron/wire/` confirms that AS2-to-domain vocabulary mapping logic appears only in
       the semantic extractor module and in no other location.
+    adr:
+    - ADR-0099
 - id: ARCH-04
   title: Driven Adapter Injection
   specs:
@@ -121,11 +140,12 @@ groups:
       already pending, SYNC-15-012); callers MAY ignore the result, and no other
       value crosses the port back into core.
     rationale: >-
-      The incremental fix for ARCH-01-001 violations in `received/sync.py` and
-      `triggers/sync.py`. The "baton-pass" pattern: core hands domain objects to the
-      port; the adapter handles wire conversion unidirectionally. The one bit that
-      comes back lets a replay count only rows actually queued as sent (SYNC-15-011)
-      without core reading the outbox itself (DL-06-001); see ADR-0112.
+      Sync use cases must send ledger activities, but core must not import wire types
+      (ARCH-01-001). This port lets core give domain objects to an adapter, which builds
+      and queues each wire activity. No wire data comes back into core. The one
+      exception is the `bool` from `send_announce_log_entry`: it lets a replay count
+      only the rows that it really queued (SYNC-15-011), with no core read of the outbox
+      (DL-06-001). See ADR-0112.
     verification: >-
       `test/adapters/driven/test_sync_adapter_pending_dedup.py` exercises the boolean
       result of `send_announce_log_entry`; `test/core/behaviors/sync/nodes/test_replay.py`
@@ -184,12 +204,24 @@ groups:
     verification_debt: '#2575'
     statement: Connector plugins (tracker integrations) MUST be discovered via Python entry points (`importlib.metadata`);
       the core MUST NOT import them directly
+    rationale: >-
+      A connector integrates one external tracker, and each deployment installs a
+      different set of connectors. Discovery through entry points lets a site add or
+      remove a connector with no change to Vultron code. If core imports a connector,
+      core depends on that tracker's code, and ARCH-01-001 forbids a core dependency on
+      any external system.
   - id: ARCH-05-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Connector plugins MUST translate only — no case handling logic, authorization, or journal management belongs
       in a connector
+    rationale: >-
+      A connector is an adapter: it translates between a tracker's format and Vultron
+      domain types. Case logic, authorization and the case ledger belong in core, where
+      one implementation serves every connector. If a connector holds any of them, two
+      connectors can make different decisions for the same case, and a tracker becomes a
+      way around the core rules.
 - id: ARCH-06
   title: Wire Layer Replaceability
   specs:
@@ -197,6 +229,10 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: The wire layer (`wire/as2/`) SHOULD be replaceable as a unit without touching the core or adapter layers
+    rationale: >-
+      AS2 is one encoding of the protocol. If core or the adapters depend on the
+      internals of the wire layer, a change of encoding must also change them. When the
+      wire layer can be replaced as one unit, a change of encoding stays in that layer.
 - id: ARCH-07
   title: Handler Isolation
   specs:
@@ -205,6 +241,11 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: Handler functions MUST NOT re-invoke semantic extraction
+    rationale: >-
+      Semantic extraction runs once, in the wire pipeline, before dispatch
+      (ARCH-03-001), and the handler receives its result. If a handler runs extraction
+      again, the two results can differ. The handler can then act on a meaning different
+      from the one that selected it in the dispatcher.
 - id: ARCH-08
   title: Driving Adapter Boundary
   specs:
@@ -232,12 +273,11 @@ groups:
 - id: ARCH-12
   title: Core Object Hierarchy
   rationale: >-
-    Per-class from_core()/to_core() methods on wire types (the original ARCH-12 design) were a
-    workaround for independent parallel hierarchies, and the shared lenient root that replaced
-    them (#799) was a second workaround for the same duplication. ADR-0099 removes the
-    duplication itself: the core classes are the object model and AS2 is a serialization of
-    them, so core owns its own roots and the wire base owns its own. See ADR-0017, ADR-0082,
-    ADR-0099, and concern #796.
+    The core classes are the object model, and AS2 is a serialization of them
+    (ADR-0099). Core and the wire layer thus have separate roots, and each root holds
+    only what its own branch needs. Two class hierarchies for one concept need
+    translation code, and translation code drifts. These rules keep one class for each
+    domain concept.
   specs:
   - id: ARCH-12-001
     priority: MUST_NOT
@@ -248,12 +288,12 @@ groups:
       or registration hook. A domain type's `as_*` name is an alias of its core class
       (ARCH-25-003), not a subclass of it.
     rationale: >-
-      The shared root made every wire class inherit core configuration, which forced the
-      `_is_core_branch` sentinel (#2416) so wire types would not self-register in the core
-      registries, and forced the core root to stay lenient so the wire branch could parse loose
-      inbound data (ARCH-12-002 as formerly written). Under one object model there is nothing
-      for the two roots to share: the wire base describes AS2 vocabulary the core does not model,
-      and everything the core does model is the core class itself.
+      If a wire class inherits from a core class, it also inherits core configuration
+      and registration. A wire type can then register in a core registry, and the core
+      root must stay lenient so that the wire class can parse loose inbound data. The
+      wire base describes AS2 vocabulary that core does not model, and everything that
+      core does model is the core class itself (ARCH-25-003). The two branches thus have
+      nothing to share.
     adr:
     - ADR-0099
     verification: >-
@@ -275,11 +315,11 @@ groups:
       uses yet, which stay declared (ARCH-25-008). Every core model MUST descend from one
       of the two.
     rationale: >-
-      The middle level (`VultronBase` beneath `VultronObject`) existed so that one ancestor could
-      serve a strict core branch and a lenient wire branch. With the wire base on its own root,
-      the only distinction left is whether a type has an AS2 shape at all, and the two roots
-      state exactly that: the rendering port accepts a `CoreObject` and refuses a bare
-      `CoreRecord` (ARCH-20-003).
+      Some core types have an AS2 form, and others are internal records that never go on
+      the wire. Two roots make this difference part of the type. The rendering port
+      accepts a `CoreObject` and refuses a bare `CoreRecord` (ARCH-20-003), so an
+      internal record cannot go into a delivered payload by mistake. A third level of
+      root would add a distinction that no code uses.
     adr:
     - ADR-0099
     verification: >-
@@ -318,22 +358,17 @@ groups:
       `test/adapters/driven/test_wire_render_adapter.py` pins the `@context` rule. None of
       these may be marked `xfail`.
     rationale: >-
-      One spelling on one class is what makes a core dump the wire form, which is what lets the
-      rendering port be a plain dump (ARCH-20-002) instead of a second translation path that
-      drifts. The #2232 hazard this requirement once cited against the generator was a key
-      matching *no* field and being silently discarded, not a key having two spellings: a
-      reader that accepts several spellings for the *same* field on the *same* class, as
-      `ParticipantStatus.rm` does with `AliasChoices("rmState", "rm")`, never
-      decides what the data means. ARCH-25-007 is where that argument attaches (ADR-0099, as
-      amended in #3888 and #3900), and `extra="forbid"` is its enforcement on the in-process and
-      stored side: Pydantic v2 defaults to `extra="ignore"`, so without it a wire-shaped payload
-      handed to a core type silently loses every key it does not recognise, which is how a
-      participant's RM ladder was reset without a trace. Forbidding unknown keys is strictly
-      stronger than rejecting particular spellings; it also catches typos, renamed fields, and
-      stale keys from an older schema. Inbound data reaches a core class only through the parse
-      edge, which partitions unknown keys off first — refusing a near miss, setting aside and
-      reporting a foreign key (MV-11) — so `extra="forbid"` is never the rule that decides an
-      inbound peer's extension property (MV-11-004).
+      One spelling on one class makes the dump of a core object its AS2 form. The
+      rendering port can then be a plain dump (ARCH-20-002), with no second translation
+      that can drift. Pydantic v2 ignores unknown keys by default. Without
+      `extra="forbid"`, a payload with an unknown key loses that key and gives no error,
+      and a participant's RM state can then reset with no trace. A ban on unknown keys
+      also catches typos, renamed fields and stale keys from an older schema. A reader
+      that accepts two spellings for the same field, as `ParticipantStatus.rm` does,
+      still knows what the data means, so it does not cause this problem (ARCH-25-007).
+      Inbound data reaches a core class only after `parse_activity` has handled its
+      unknown keys (MV-11), so `extra="forbid"` never decides what happens to an
+      extension property of a peer (MV-11-004).
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-23-005
@@ -354,13 +389,12 @@ groups:
       The wire branch MUST NOT carry domain validators. Wire-branch overrides exist solely for
       AS2 serialization shape (field aliases, `@context`, lenient `Any | None` types).
     rationale: >-
-      `CORE_VOCABULARY` is the DataLayer primary reconstruction path (used by `_from_row()` in `SqliteDataLayer`);
-      every entry must be a `CoreObject` subclass. `CORE_TYPE_MAP` is the fallback for `find_in_vocabulary()` in the
-      wire registry layer, catching core types that are not `CoreObject` subclasses (e.g. `VultronOfferRecord`,
-      `VultronPendingCaseInbox`). These types extend `CoreRecord` directly and carry Vultron-specific domain state
-      that has no AS2 shape. Contaminating `CORE_TYPE_MAP` with wire types (issue #2416) would silently
-      allow wire-shaped objects to be reconstructed via `find_in_vocabulary()`, bypassing the `CORE_VOCABULARY` primary
-      path and contradicting ARCH-12-003.
+      Domain rules belong in core, where every reader of an object gets the same checks
+      (ARCH-01-003). A wire class for AS2 vocabulary that core does not model must parse
+      loose inbound data. A domain validator on it could refuse data that core accepts,
+      or accept data that core refuses. The `as_*` name of a domain type is its core
+      class (ARCH-25-003), so the domain validators of that class already apply when it
+      is read from the wire.
     verification: 'Confirmed by `test_no_wire_types_in_core_type_map` (imports wire vocab and asserts no `vultron.wire`
       module class appears in `CORE_TYPE_MAP`) and `test_core_record_types_in_core_type_map` (discovers
       every `CoreRecord` that is not a `CoreObject`, including the dead-letter records
@@ -467,10 +501,11 @@ groups:
       `VultronApplication`, `VultronGroup`) MUST be defined in `vultron/core/models/`. The wire layer (`vultron/wire/as2/`)
       MUST NOT define a second actor class for them; its `as_Vultron*` actor names alias the core classes
       (ARCH-25-003).
-    rationale: 'Defining actor domain models in core enforces the hexagonal boundary. The re-export pattern (where wire re-exported
-      core actors directly) was a transitional workaround introduced when field-type conflicts blocked diamond inheritance.
-      Under one object model (ADR-0099) the re-export is the design rather than a workaround: an actor has one class, and
-      its AS2 form is that class''s own serialization.'
+    rationale: >-
+      An actor has one class, its core class (ARCH-25-003). If the wire layer defines a
+      second actor class, the two can drift apart, and code can use the wrong one. With
+      the class in core, core code uses it with no wire import, and the AS2 form of an
+      actor is the serialization of that class (ADR-0099).
     verification: Confirm that `VultronPerson`, `VultronOrganization`, `VultronService`, `VultronApplication`, and `VultronGroup`
       are defined in `vultron/core/models/actor.py`. Confirm that wire actor types in `vultron/wire/as2/vocab/objects/vultron_actor.py`
       are those same core classes, not wire subclasses of them.
@@ -490,6 +525,8 @@ groups:
       required invariants are not satisfied
     rationale: Late validation masks missing data and makes debugging harder; fail-fast ensures errors surface at the point
       of construction
+    adr:
+    - ADR-0032
 - id: ARCH-15
   title: Fail-Fast at Domain Operation Boundaries
   description: Governs relational invariants enforced at runtime entry points — use-case execute(), BT node update(), and
@@ -526,9 +563,12 @@ groups:
     statement: 'Each domain helper function MUST have exactly one canonical copy. Layer-neutral helpers (no dependencies above
       `models/`) MUST live in `vultron/core/models/_helpers.py`. Use-case-specific helpers belong in `vultron/core/use_cases/_helpers.py`.
       Duplicate implementations of the same logic are prohibited.'
-    rationale: 'Duplicate helper copies diverge silently over time. Two copies of _as_id() in use_cases/_helpers.py and services/embargo_lifecycle.py
-      had already diverged in docstring accuracy. Three copies of the case-manager lookup produced inconsistent None-handling
-      behavior across callers. See notes/domain-validation.md and ADR-0032.'
+    rationale: >-
+      When one helper has two copies, a fix to one copy does not reach the other, and
+      the copies drift apart in their behaviour. Callers then get different answers to
+      the same question, for example different handling of a missing value. One copy in
+      a known place lets every caller share each fix. See notes/domain-validation.md and
+      ADR-0032.
     adr:
     - ADR-0032
 - id: ARCH-11
@@ -538,13 +578,19 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: Core ports SHOULD be organized into inbound (driving) and outbound (driven) categories
+    rationale: >-
+      Adapters call driving ports, and core calls driven ports. The two kinds have
+      different rules for who implements them and who calls them. When the ports are
+      grouped by direction, a reader can see which rules apply to a port, and can find a
+      port that is in the wrong place.
 - id: ARCH-14
   title: Wire Vocabulary Object Naming Convention
-  rationale: 'Wire vocabulary objects in `vultron/wire/as2/vocab/objects/` historically used bare domain names (e.g., `VulnerabilityCase`,
-    `CaseParticipant`) that shadow identically-named core domain models. This causes persistent confusion: agents and developers
-    grab the wrong class, reason about the wrong object, or inadvertently introduce wire-layer imports into core code. The
-    `as_` prefix — already established for base ActivityStreams types (`as_Activity`, `as_Actor`, `as_Object`) — MUST be extended
-    to all Vultron-specific wire vocabulary objects to make the layer boundary unambiguous at a glance.'
+  rationale: >-
+    A wire class with a bare domain name shadows the core model of the same name. A
+    developer or agent can then use the wrong class, or add a wire import to core code.
+    The `as_` prefix shows a wire class at a glance. The `as_*` name of a domain type is
+    an alias of its core class (ARCH-25-003). The prefix still marks a separate wire
+    class for AS2 vocabulary that core does not model.
   specs:
   - id: ARCH-14-001
     priority: MUST
@@ -564,8 +610,11 @@ groups:
     statement: The wire-layer base class for all Vultron-specific AS2 objects MUST be named `as_VultronObject`. This carries
       the `as_` prefix ARCH-14-001 requires and drops the redundant "AS2" qualifier, since the prefix already connotes the
       wire layer.
-    rationale: 'The former name `VultronAS2Object` did not follow the `as_` prefix convention, and its "AS2" suffix was redundant
-      once the prefix signalled the wire layer. Naming the base class `as_VultronObject` makes it consistent with every subclass.'
+    rationale: >-
+      Every other wire class has the `as_` prefix (ARCH-14-001), so a base class without
+      it breaks the convention that tells a reader which layer a class is in. The prefix
+      already shows that the class is in the wire layer, so an "AS2" part in the name
+      adds nothing.
     verification: '`vultron/wire/as2/vocab/objects/base.py` exports `as_VultronObject`; no class named `VultronAS2Object`
       exists anywhere in the codebase.'
     relationships:
@@ -592,14 +641,12 @@ groups:
       Where a request carries a path segment, it MUST be resolved to the canonical URI before the store
       is opened.
     rationale: >-
-      Two spellings of one actor must not name two stores. This entry survives ADR-0073 — it is the
-      reason `get_actor_dl` resolves the segment by computation before opening anything — but its
-      wording did not: it referred to constructing an `ActorScopedDataLayer` and justified itself by
-      `record_outbox_item` writing rows keyed by the string it received, and both of those are gone.
-      The original failure mode was BUG-2026040901, where a queue written under the canonical URI was
-      read under the short id and the activities vanished. That specific mechanism is now unreachable —
-      queues are not keyed by an id string — but the requirement still binds, because the canonical URI
-      is what *selects the store*, so a short id opens a different and empty one.
+      Each actor has its own store, and the actor identity selects the store (ADR-0073).
+      If two spellings of one actor identity reach the store factory, they open two
+      different stores. Data written under one spelling is then missing under the other,
+      and the actor reads an empty store. The canonical URI is the one spelling that
+      every component knows, so `get_actor_dl` resolves a path segment to it before it
+      opens a store.
     verification: >-
       `test/adapters/driving/fastapi/test_deps.py` asserts that `get_actor_dl` resolves a short path
       segment to the canonical URI and that the resulting store can read the outbox entries that
@@ -617,10 +664,12 @@ groups:
     statement: '`create_app()` (or any equivalent application factory) MUST NOT mutate module-level singletons, global registries,
       or process-wide shared state. All per-application state MUST be scoped to the returned app instance or its lifespan
       context.'
-    rationale: 'Mutating module-level singletons in `create_app()` makes test isolation impossible: the second call to `create_app()`
-      in the same process inherits mutations from the first. This applies to vocabulary registries, DataLayer factories, BT
-      bridges, actor caches, and any other mutable global. Discovered as a demo-layer issue (DEMOMA-01-004) but applies equally
-      to all application factories.'
+    rationale: >-
+      Tests and demos call `create_app()` more than one time in one process. If the
+      factory changes module-level state, each new app inherits the changes that the
+      first app made, and the tests are not isolated. This applies to vocabulary
+      registries, DataLayer factories, BT bridges, actor caches and every other mutable
+      global.
 - id: ARCH-17
   title: ASGIEmitter Base URL
   description: >-
@@ -636,8 +685,12 @@ groups:
     statement: The `ASGIEmitter` base URL MUST contain only the scheme and netloc components (e.g., `https://example.org`).
       It MUST NOT include a path prefix, trailing slash, or mount-point segment. The emitter strips the mount prefix from
       request paths before constructing outbound URLs; a base URL that includes a prefix causes double-application.
-    rationale: 'A base URL of `https://example.org/api` combined with a request path `/api/actors/…` produces `https://example.org/api/api/actors/…`.
-      Root cause of bugs #557 and #558.'
+    rationale: >-
+      A base URL with a path prefix, such as `https://example.org/api`, joined with a
+      request path such as `/api/actors/…`, gives
+      `https://example.org/api/api/actors/…`, which is an address that does not exist.
+      The `ASGIEmitter` is removed (ADR-0042), so no code now depends on this
+      requirement (see the group description).
   - id: ARCH-17-002
     priority: MUST
     kind: project
@@ -725,10 +778,11 @@ groups:
       pinned exemption set, not as a ratchet or a backlog. A pinned set MUST contain only permanent entries: an
       entry awaiting a fix MUST move to its own ratchet constant with an `# owner: #N` marker.
     rationale: >-
-      Several exact sets began as shrinking backlogs and were later decided to be permanent design registers, but
-      their files still called them ratchets. A reader counting open debt over-counted, and the real debt was harder to
-      see. Both kinds use the same bidirectional equality check; what differs is whether an end state exists, so the
-      name and the marker carry that difference.
+      Only a ratchet is open debt. A reader who counts open debt must thus know which
+      exact sets are ratchets and which are permanent. Both kinds use the same equality
+      check in both directions. The difference is whether an end state exists, so the
+      name and the marker must state it. If a pinned set holds an entry that waits for a
+      fix, that debt is hidden in a set that nobody plans to empty.
     relationships:
     - rel_type: refines
       spec_id: ARCH-18-003
@@ -765,6 +819,11 @@ groups:
     verification_debt: '#2569'
     statement: 'Emission (stage 1) MUST be idempotent with respect to the outbox: writing the same activity ID twice MUST
       NOT create a duplicate outbox entry.'
+    rationale: >-
+      Emission can run again for the same activity, for example after a retry or a
+      crash. If each run adds an outbox entry, the recipient gets the same activity more
+      than one time, and each copy costs a delivery attempt. One entry for each activity
+      ID makes a repeated emission safe.
     relationships:
     - rel_type: extends
       spec_id: ARCH-19-001
@@ -774,6 +833,12 @@ groups:
     verification_debt: '#2569'
     statement: Transport delivery (stage 2) MUST be retried on transient network failures. The retry mechanism MUST be implemented
       in the outbox worker, not in the use-case or handler.
+    rationale: >-
+      Most network failures are temporary, so a retry usually delivers the activity. The
+      outbox worker holds each queued activity, so it can retry with no need to run the
+      use case again. A retry in a use case or a handler would block that work and
+      repeat its protocol logic, although the work is complete when the activity is in
+      the outbox.
     relationships:
     - rel_type: extends
       spec_id: ARCH-19-001
@@ -784,6 +849,11 @@ groups:
     statement: A transport delivery failure (stage 2 error) MUST NOT be interpreted as recipient rejection (stage 3 semantics).
       Delivery failure means the activity did not reach the recipient; it carries no information about whether the recipient
       would accept or reject the activity.
+    rationale: >-
+      A failed delivery tells the sender only that the activity did not arrive. If the
+      sender reads it as a rejection, it can change protocol state for a decision that
+      the recipient never made. The sender and the recipient then disagree about the
+      state of the case.
     relationships:
     - rel_type: derives_from
       spec_id: ARCH-19-001
@@ -814,12 +884,11 @@ groups:
     the port's adapter is a plain `by_alias` dump of the core object; what the group still
     guards is that core code reaches that dump only through the port.
   rationale: >-
-    Eight `CoreObject` subclasses once carried `alias_generator=to_camel` (issue #1991) solely so
-    that core code could call `model_dump(by_alias=True)` when building ledger payload snapshots,
-    and `ParticipantStatus` had to hand-patch the dumped dict into a flat `emConsentState`. The
-    defect was not the generator but core rendering for itself, with a second, drifting
-    translation beside the wire class's. ARCH-01-004 prescribes driven ports as the remediation
-    for core→wire needs. See ADR-0063 and ADR-0099.
+    Core must not produce wire shapes itself. If core code renders its own camelCase
+    output, that output is a second translation beside the spelling of the class, and
+    the two can drift. A driven port is the remedy that ARCH-01-004 prescribes for each
+    core need for a wire form, and it gives one place that decides what goes on the
+    wire. See ADR-0063 and ADR-0099.
   specs:
   - id: ARCH-20-001
     priority: MUST
@@ -889,11 +958,11 @@ groups:
       return `None`, or emit a partially-rendered object. The absence of a separate wire class is
       not a failure.
     rationale: >-
-      A silently core-shaped payload snapshot is unreconstitutable by receivers (CLP-07-011) and
-      is indistinguishable from a correct one at the call site. Failing loudly is required by
-      ARCH-15-002. The `CoreObject` gate is what stops a bookkeeping record such as
-      `VultronOfferRecord` from leaking into a delivered payload now that a missing counterpart
-      no longer refuses it.
+      A payload snapshot in core shape cannot be rebuilt by a receiver (CLP-07-011), and
+      at the call site it looks the same as a correct one. A loud failure shows the
+      error where it starts (ARCH-15-002). The `CoreObject` check stops a bookkeeping
+      record such as `VultronOfferRecord` from going into a delivered payload. Each core
+      type is its own wire form, so a missing wire class is not a reason to refuse.
     verification: >-
       `test/adapters/driven/test_wire_render_adapter.py` asserts the port raises for a
       `CoreRecord` and renders every `CORE_VOCABULARY` entry.
@@ -919,8 +988,10 @@ groups:
     kind: project
     statement: Core-branch types MUST NOT declare a `to_json()`, `to_wire()`, or similarly-named method that emits wire-shaped
       output. Rendering is the port's responsibility, not a method on the domain object.
-    rationale: '`CoreActor.to_json()` dumped with `by_alias=True` and had no callers; such a method is an always-available
-      bypass of the port seam and will be picked up by the next agent that needs camelCase.'
+    rationale: >-
+      A rendering method on a domain object is always available, so any code that needs
+      camelCase output can call it and go around the port. The port then stops being the
+      one place that decides what goes on the wire (ARCH-20-001).
     verification: No class under `vultron/core/models/` defines a method that calls `model_dump`/`model_dump_json` with `by_alias=True`.
     relationships:
     - rel_type: refines
@@ -975,11 +1046,13 @@ groups:
     statement: >-
       Core code MUST NOT normalise a wire object into its core counterpart by dumping it with
       `by_alias=True` and revalidating through the core class ("dump-and-revalidate").
-    rationale: 'Dump-and-revalidate normalises only as far as the core class happens to accept every key a wire dump
-      emits. ARCH-12-003 has a core class read its own AS2 spelling, not an arbitrary wire object''s: under `extra="forbid"`
-      a wire key with no core field raises, and without it the key is silently discarded.
-      The received-status filter once relied on the since-retired
-      `_migrate_flat_fields` shim (SDO-03-003).'
+    rationale: >-
+      The dump of a wire object holds the keys that the wire class emits, and the core
+      class does not always declare them. Under `extra="forbid"` (ARCH-12-003), a key
+      with no core field raises. Without it, the key is lost and gives no error. Either
+      way, the result depends on which keys the two classes happen to share, not on a
+      defined rule. `rehydrate()` and `project_wire_snapshot_to_core` are the defined
+      paths (ARCH-20-008, ARCH-20-009).
     verification: No module under `vultron/core/` constructs a core model via `CoreClass.model_validate(wire_obj.model_dump(by_alias=True, ...))`.
     adr:
     - ADR-0063
@@ -994,13 +1067,12 @@ groups:
       MUST NOT duck-type a projection capability on the object it holds:
       `getattr(obj, "to_core", None)` and equivalents are prohibited.
     rationale: >-
-      No class core can hold carries a `to_core()` any more, so a duck-typed lookup always
-      answers `None` and the branch behind it is dead code that reads as a live fallback — three
-      such sites survived the migration until #3840 removed them.  The `WireParsePort` that
-      ADR-0082 designed to own this step was rejected by ADR-0099; `rehydrate()` owns
-      ID-to-object materialisation (VM-06-007) and the snapshot projection helper owns the
-      dict case, so nothing is left for a port to do.  Refusing the idiom also keeps
-      ARCH-20-007's prohibition on dump-and-revalidate from being reached around.
+      A domain type has one class (ARCH-25-003), so no object that core holds has a
+      `to_core()` method. A duck-typed lookup for it always returns `None`, and the
+      branch behind it is dead code that a reader can take for a live fallback.
+      `rehydrate()` turns an ID into an object (VM-06-007), and the snapshot helper
+      turns a dict into an object, so each case has one defined path. The ban also stops
+      code from a second route to dump-and-revalidate (ARCH-20-007).
     verification: >-
       `test/architecture/test_core_no_to_core_duck_typing.py` fails on any line under
       `vultron/core/` that names a `to_core` attribute (`"to_core"` or `.to_core(`).
@@ -1021,12 +1093,11 @@ groups:
       synthesised in core by dump-and-revalidate, and MUST NOT be replaced by a fabricated
       placeholder.
     rationale: >-
-      The DataLayer port returns core objects that already passed the validation boundary, so
-      re-deriving one in core is both unnecessary and the prohibited idiom.  This requirement
-      was written against an absent `to_core()` override and then an absent pairing-registry
-      entry as the signal that "no translation exists"; under ADR-0099 there is no translation
-      at all, so the only question left is where a missing object comes from, and the answer is
-      the store.
+      The DataLayer port returns core objects that already passed validation, so a
+      second derivation in core is not necessary. A derivation by dump-and-revalidate is
+      also the idiom that ARCH-20-007 forbids. A fabricated placeholder states facts
+      that no actor asserted. The store is thus the only source for an object that a
+      message names only by reference.
     verification: >-
       `rehydrate()` refuses an unresolvable IRI in a model-only slot rather than fabricating a
       value (VM-06-007's tests), and no module under `vultron/core/` revalidates a
@@ -1071,11 +1142,11 @@ groups:
       core record root `CoreRecord` (through `ValidatedAssignmentMixin`), so `as_Base` MUST NOT
       subclass `CoreRecord` or `CoreObject` (ARCH-12-001), and inbound wire data stays lenient.
     rationale: >-
-      While the shared root existed, setting the flag on it was the one-line fix that looked
-      correct and was not: it reached the wire branch and produced the largest measured blast
-      radius (747 failed, 423 errors) because inbound wire data is legitimately loose. With the
-      wire base on its own root (ARCH-25-004) the flag belongs on the core root, and this
-      requirement keeps the two roots from being rejoined.
+      Inbound wire data is loose by contract, and the wire classes must parse it. If the
+      wire branch inherits `validate_assignment`, an assignment on a wire object fails
+      on data that is valid on the wire, and many inbound paths fail. The flag is set on
+      the core root, so the wire base must stay on its own root (ARCH-25-004) to keep
+      the flag off the wire branch.
     verification: >-
       `test_core_roots_are_not_shared_with_the_wire_branch` and
       `test_wire_branch_does_not_enable_validate_assignment` in
@@ -1113,13 +1184,13 @@ groups:
       validated. Wire-layer validators are exempt, because the wire branch never
       enables `validate_assignment` (ARCH-21-003) and therefore cannot re-enter.
     rationale: >-
-      `validate_assignment` re-runs every `mode="after"` validator on each
-      assignment, so a validator that writes to `self` re-enters itself. Guarded
-      validators terminate at depth 2; unguarded ones recurse until the stack is
-      exhausted. Measured: enabling the flag before this rule holds aborts 400+
-      tests with `RecursionError` and nothing else, masking every real type
-      failure. Writing the field through `self.__dict__` was rejected as a remedy
-      because it leaves the derived value unvalidated.
+      `validate_assignment` runs every `mode="after"` validator again on each
+      assignment, so a validator that writes to `self` calls itself again. A guarded
+      validator stops at depth 2, but an unguarded one recurses until the stack is full.
+      The `RecursionError` then hides every real type failure. A write through
+      `self.__dict__` prevents the recursion, but it leaves the derived value
+      unvalidated. A `mode="before"` validator derives the value before validation, so
+      the value is validated.
     adr:
     - ADR-0064
   - id: ARCH-21-005
@@ -1134,11 +1205,12 @@ groups:
       fails the build and forces the marker to be deleted. The test MUST complete
       within one second per scan.
     rationale: >-
-      A `strict=False` xfail keeps passing after the work is done, so it never
-      signals that it should be removed, and it gives no partial-progress signal
-      — the failure mode observed on the long-dormant #1991 and #1992 markers. An
-      exact set plus a strict goal test makes both drift and completion
-      impossible to miss.
+      A `strict=False` xfail continues to pass after the work is done. It never shows
+      that it can be removed, and it gives no signal of partial progress. An exact set
+      fails when it grows and when a fixed entry stays in it. A strict goal test fails
+      when the set is empty, so the marker must then be deleted. Together they make both
+      drift and completion visible. The time limit keeps the scan cheap enough to run in
+      every test run.
     adr:
     - ADR-0064
     relationships:
@@ -1166,14 +1238,13 @@ groups:
       import is exempt, because it is erased at runtime and can only appear in
       an annotation.
     rationale: >-
-      AS2 is a serialization of the core object model, so wire necessarily
-      names the classes it serializes and the states they carry; the blanket
-      ban was what forced wire to keep a duplicate of every domain type.
-      Hexagonal dependency rules are asymmetric — outer layers depend inward —
-      so the direction that is a real violation is ARCH-01-001, not this one.
-      What must still be excluded is core *behaviour*: wire reaching into a
-      use case or a service would stop `vultron/wire/` being replaceable as a
-      unit.
+      AS2 is a serialization of the core object model, so the wire layer must name the
+      classes that it serializes and the states that they carry. Hexagonal dependencies
+      point inward, so the import that breaks the architecture is core to wire
+      (ARCH-01-001), not this one. Core behaviour must still stay out of the wire layer:
+      if wire code calls a use case or a service, the wire layer cannot be replaced as
+      one unit (ARCH-06-001). An allow-list makes each new core package forbidden until
+      a person decides to admit it.
     verification: >-
       `test/architecture/test_wire_core_import_allowlist.py` scans every module
       under `vultron/wire/` and fails on any import outside
@@ -1223,13 +1294,11 @@ groups:
       is already clean, the boundary test states an invariant and needs no
       target to converge on.
     rationale: >-
-      The replaced ARCH-22 ratchet is the worked example.  Its goal test
-      asserted an empty violation set while ARCH-12-001 required wire classes
-      to inherit a shared core base and ARCH-12-010 required the vocabulary
-      lookup to consult the core type map — so the only way to make the goal
-      pass was to break a MUST.  Under the ARCH-22-001 allow-list the boundary
-      is satisfied as it stands, so there is nothing left to ratchet toward
-      and the two-sided set and the `xfail` marker have no work to do.
+      A goal test that other requirements make impossible to reach invites an
+      implementer to break a MUST so that the test passes. That is worse than no goal
+      test. The boundary from wire to core is already clean under the ARCH-22-001
+      allow-list. The test thus states an invariant, and a violation set or an `xfail`
+      marker would have no work to do.
     adr:
     - ADR-0082
     - ADR-0099
@@ -1243,10 +1312,10 @@ groups:
       Wire vocabulary registration keys in `VOCABULARY` MUST be distinct from core vocabulary keys in
       `CORE_VOCABULARY` so that no wire class shadows a core type.
     rationale: >-
-      Fifteen wire classes shadowed a `CORE_VOCABULARY` entry, which is what made the
-      `_NORMALIZE_WIRE_TO_CORE` persistence-boundary workaround necessary (issue #2232, ADR-0062).
-      Under ADR-0099 both the shadow classes and the workaround are gone; disjoint keys preserve
-      that state and prevent a future wire class from accidentally reintroducing the collision.
+      If a wire class and a core class register under the same key, a lookup by that key
+      can return the wrong class, and stored or received data can be rebuilt as a wire
+      object. Disjoint keys keep each lookup unambiguous. They also stop a new wire
+      class from shadowing a core type with no notice. See ADR-0099.
     verification: >-
       A test forces full registration first — registration is a submodule import side effect
       (VM-01-005), so it walks every submodule of the wire vocabulary package and of the core
@@ -1267,11 +1336,11 @@ groups:
       change.  The wire `"type"` value emitted on the wire is independent of
       the registry key under which a wire class is registered.
     rationale: >-
-      The registry key is an internal lookup concern; the `type` field value is
-      an external protocol commitment that receivers match on.  Conflating them
-      is what made VM-01-004 read as though the key and the wire value must be
-      the same string, when the code already derives the key from the class name
-      and diverges for the five actor types.
+      The registry key is an internal lookup value. The `type` value is a commitment to
+      receivers, which match on it. If a change to a key changes the output, a change
+      inside Vultron breaks peers that did not change. The key and the wire value can
+      differ: the code derives the key from the class name, and for the five actor types
+      the two strings are not the same (VM-01-004).
     verification: >-
       A round-trip test asserts the serialized form of every wire type is
       byte-identical to its pre-change output.
@@ -1287,12 +1356,11 @@ groups:
       collection, and per-field reference collapsing MUST NOT be open-coded in
       individual translation paths.
     rationale: >-
-      This knowledge was stated three times: by the `as_ObjectRef` annotations
-      (the truth), by `_AS_OBJECT_REF_FIELDS` in
-      `vultron/adapters/driven/db_record.py` whose own comment described it as a
-      restatement of those annotations, and by hand-written
-      `_scalar_ref_id_or_value(...)` calls inside individual projection methods.
-      Two of the three could drift from the first silently.
+      The `as_ObjectRef` annotations already state which fields hold references. A
+      hand-kept list, or a reference collapse written into each translation path, states
+      the same fact a second time. A second statement can drift from the annotations
+      with no notice, and a field then serializes or persists in the wrong form. A set
+      derived from the annotations stays correct when a field changes.
     verification: >-
       A grep test asserts `_AS_OBJECT_REF_FIELDS` no longer exists, and a test
       asserts the derived set matches the annotation-declared reference fields
@@ -1316,24 +1384,15 @@ groups:
       (`id_`, `type_`, `context_`).  This applies to the persistence record
       round trip as well as to translation.
     rationale: >-
-      A contradicted computed value cannot come from an honest producer: the
-      value is derived, so every dump agrees with itself.  Refusing it closes
-      the last silent-drop carve-out in a boundary whose contract is that an
-      unrecognised key is rejected loudly, and a derived value that gates
-      disclosure (as `embargo_adherence` did) must fail closed when a peer
-      contradicts it.  The objection recorded during #2940 triage — that
-      `as_ParticipantStatus` carried an independent settable wire field — was
-      retired when that class was aliased onto core (ARCH-25-003).
-
-      `extra="forbid"` (ARCH-12-003) is only viable if the project can
-      round-trip its own output.  Measured on the unit suite, the two blockers
-      were `embargo_adherence` — a `@computed_field` per ADR-0056 that appears
-      in `model_dump()` output but is not settable — with 1096 rejections, and
-      `id_` with 110.  Neither was a wire-spelling problem; both were the
-      project failing to re-read what it had just written.  `Record.from_obj()`
-      calls `model_dump(mode="json", serialize_as_any=True)` with no `by_alias`,
-      so persisted rows are keyed `id_`/`type_`, which read back cleanly only
-      because `populate_by_name=True` accepts the field-name spelling.
+      The project must read back what it writes. `extra="forbid"` (ARCH-12-003) refuses
+      an unrecognized key, so a dump that emits a computed field or a Python field name
+      such as `id_` fails its own read. A computed value is derived from the state of
+      the object, so an honest producer always emits a value that agrees with that
+      state, and validation can discard it safely. A value that contradicts the state
+      cannot come from an honest producer, and a derived value that gates disclosure
+      must fail closed. Validation thus refuses it and does not discard it. The
+      persistence path renames the identity keys (ARCH-25-001), so no stored row carries
+      a trailing-underscore key.
     verification: >-
       A test asserts `type(obj).model_validate(dump(obj)) == obj` for every
       `CORE_VOCABULARY` entry, and that no persisted row carries a
@@ -1354,11 +1413,12 @@ groups:
       AS2-representable: every field they carry MUST have a valid AS2 property spelling via the `alias_generator`
       inherited from `CoreObject` (ARCH-12-003), and they MUST NOT carry a field that cannot go on the wire.
     rationale: >-
-      ARCH-25-003 deletes the paired `as_*` classes (ADR-0099); message slots now name core classes directly
-      (`object_: VulnerabilityReport`, `target: VulnerabilityCase`), inverting the old prohibition. The
-      constraint becomes a guarantee: a class in a message slot must be exactly AS2-representable. The
-      enabling prerequisite — `VultronValidationError` inheriting `ValueError` so a guard inside a union
-      fails that branch cleanly — is met; `test_core_guard_inside_wire_union_fails_the_branch` holds it.
+      A class in a message slot goes on the wire as part of the message. If it has a
+      field with no valid AS2 spelling, its AS2 form shows a Python name that a peer
+      cannot read, or the class carries data that cannot be sent. Message slots name
+      core classes directly (ARCH-25-003), so each such core class must be exactly
+      AS2-representable. A core guard inside a wire union must fail only its branch of
+      the union, so `VultronValidationError` inherits `ValueError`.
     verification: >-
       `test_promoted_core_classes_are_exactly_as2_representable` in
       `test/architecture/test_wire_no_core_object_annotations.py` asserts every `CORE_VOCABULARY` entry that is a
@@ -1379,12 +1439,12 @@ groups:
       `published` or `updated` timestamp. A timestamp that arrives on an inbound
       endpoint collection MUST be carried as received.
     rationale: >-
-      An endpoint built from a URI is an address, not an object this process authored,
-      so it has no creation time to state (ADR-0103 stamps what this process authors and
-      leaves an inbound omission absent; such an address is neither). Stamping it from
-      the clock made a stored actor read back unequal to itself whenever a wall-clock second
-      passed between write and read, because the core actor keeps only the URI
-      (ARCH-12-006) and each read minted a new stamp (#3732).
+      An endpoint built from a URI is an address, not an object that this process
+      authored, so it has no creation time (ADR-0103). The core actor keeps only the URI
+      (ARCH-12-006). If each read builds the collection with a clock stamp, a stored
+      actor reads back unequal to itself when a second passes between the write and the
+      read. An inbound stamp is a claim of the sender, so the receiver keeps it as
+      received.
     verification: >-
       In `test/wire/as2/vocab/base/test_actor_endpoints.py`,
       `test_endpoint_without_arrived_stamp_carries_no_clock_stamp` and
@@ -1410,10 +1470,11 @@ groups:
       `CaseParticipant.case_roles` — composed by both `behaviors/` and
       `use_cases/`. No duplicate or twin resolver may exist.
     rationale: >-
-      The authority check was re-derived per site (twin `_resolve_case_manager_id`
-      / `resolve_case_manager_id` resolvers kept in sync by convention), backstopped
-      only by ratchet tests that fire when a site forgets to check. One shared
-      implementation replaces the convention with a structural guarantee.
+      Authority for a case decides who may commit to the case ledger. If more than one
+      resolver answers that question, the resolvers can disagree, and two actors can
+      each act as the authority. Tests that find a site that forgets the check do not
+      stop two resolvers from drifting apart. One shared resolver gives the same answer
+      at every site by construction.
     verification: >-
       A ratchet test asserts exactly one role-authority resolver module, imported
       by both `behaviors/` and `use_cases/` (no twin definition).
@@ -1427,10 +1488,11 @@ groups:
       and `use_cases/`, depending only on `models`, `ports`, and `enums`. Resolving
       case authority MUST NOT require a `behaviors → use_cases` import.
     rationale: >-
-      The behaviors twin existed to dodge a `behaviors → use_cases` import
-      (BTND-04-003), yet other nodes performed that import anyway and
-      `use_cases/_helpers` reached back into behaviors for the URL-shape gate. A
-      neutral home removes the cross-layer reach entirely.
+      Both `behaviors/` and `use_cases/` must resolve case authority. If the resolver is
+      in one of them, the other must import it or keep its own copy. A `behaviors →
+      use_cases` import breaks the layer rule (BTND-04-003), and a copy breaks
+      ARCH-24-001. A neutral layer below both lets them share one resolver with no
+      cross-layer import.
     verification: >-
       The ratchet in ARCH-24-001 additionally asserts no
       `behaviors → use_cases._helpers` role-resolution import.
@@ -1448,10 +1510,10 @@ groups:
       Exactly one authority condition node MUST answer "is the executing actor the
       case authority", and it MUST call the single role-authority resolver.
     rationale: >-
-      `CheckIsCaseManagerNode`, `CheckIsOwnCaseActorNode`, and
-      `CheckIsNotOwnCaseActorNode` each resolved authority independently; collapsing
-      them onto one condition node (plus a negation decorator) that calls the
-      resolver removes the divergence.
+      When several condition nodes each resolve authority, they can give different
+      answers for the same actor and case. One condition node that calls the single
+      resolver gives one answer. A negation decorator answers the opposite question with
+      no second resolver.
     verification: >-
       A test asserts one authority condition node is the only thing resolving "am I
       the authority"; `CheckIsOwnCaseActorNode` / `CheckIsNotOwnCaseActorNode` are
@@ -1470,10 +1532,12 @@ groups:
       on `Service`-hosting location to determine authority, recognition, or routing.
       Authority derives from the `CVDRole.CASE_MANAGER` role alone.
     rationale: >-
-      Hosting location and URL shape are incidental, and one is provably fragile:
-      `_find_case_actor_id`'s own docstring records a bootstrap window in which the
-      actor enacting `CVDRole.CASE_MANAGER` fails its own hosting test and would take
-      the participant arm on its own ledger. Role membership is stable from replica-seed onward.
+      A URL shape or a hosting location is incidental: it does not show who holds the
+      `CVDRole.CASE_MANAGER` role. A hosting test can also fail during the bootstrap
+      window, so the real authority can fail its own test and act as an ordinary
+      participant on its own ledger (CM-02-012). The case replica holds the CASE_MANAGER
+      participant from the moment it is seeded (CP-09-004), so the role gives a stable
+      answer.
     verification: >-
       `test/architecture/test_role_authority_resolver.py` ratchets both halves:
       `test_no_protocol_logic_branches_on_the_case_actor_url` asserts no
@@ -1521,13 +1585,11 @@ groups:
     ARCH-20, ARCH-22, ARCH-23, SDO-01, MV-11 and VM-06 refine these; where one does, the
     statement it refines names it.
   rationale: >-
-    The rules were first written as the numbered decision details of ADR-0099, which chose one
-    object model over three alternatives: relocating the shared core/wire root to a
-    branch-neutral layer, keeping two independent hierarchies bridged by a translator, and
-    adopting a third-party AS2 hierarchy. They are consequences of that one choice, so they are
-    kept together here rather than split across the groups that refine them. ADR-0127 moves a
-    constraint future code must obey out of a decision record's body; this group is where
-    these ones now live, and ADR-0099 is cited for why.
+    The rules in this group are direct consequences of one decision: the core classes
+    are the object model, and AS2 is a serialization of them (ADR-0099). They are kept
+    together so that a reader can see that decision in one place. Each requirement that
+    refines one of them names the rule that it refines. A spec, not a decision record,
+    holds a constraint that future code must obey (ADR-0127).
   specs:
   - id: ARCH-25-001
     priority: MUST
@@ -1542,10 +1604,13 @@ groups:
       renames only `id_`, `type_` and `context_` to `id`, `type` and `@context`; no other stored
       field takes its AS2 spelling. AS2 is the HTTP transmission format only.
     rationale: >-
-      Measured across every class pair that had both a core and a wire form, no field
-      difference was a semantic disagreement; the two hierarchies were one model spelled
-      twice, kept aligned by repairs that never converged. A received activity is also kept as
-      received evidence (VM-08-002, CLP-07-011); that copy is neither serialization above.
+      Two class hierarchies for one domain concept need translation code between them,
+      and that code drifts each time one side changes. A core concept and its AS2 form
+      have the same fields with the same meaning, so one set of classes can carry both.
+      The destination selects the serialization: AS2 for delivery to peers, and a plain
+      dump with renamed identity keys for the data layer. A received activity is also
+      kept as received evidence (VM-08-002, CLP-07-011); that copy is neither of these
+      serializations.
     verification: >-
       `test_core_object_context_is_emitted_on_the_as2_path_only` in
       `test/core/models/test_core_object.py` asserts `@context` appears on the `by_alias` dump
@@ -1571,11 +1636,12 @@ groups:
       MUST NOT type an AS2 spelling, and no parallel core-only naming scheme may be built.
       ARCH-12-003 refines the alias mechanism.
     rationale: >-
-      The aliases already separate the two spellings, so a second naming scheme buys nothing
-      (YAGNI). Declaring the generator per class let some promoted types ship `attributed_to`
-      on the wire while their siblings shipped `attributedTo`, invisible until a peer could not
-      read the payload; declaring it once, and testing that no projected key is a Python
-      field name, removes that failure.
+      Pydantic aliases already separate the Python spelling from the AS2 spelling, so a
+      second naming scheme adds nothing. If each class declares its own alias generator,
+      one class can omit it and send `attributed_to` on the wire while its siblings send
+      `attributedTo`. A peer then cannot read the payload, and nothing shows the error
+      before that. One generator on `CoreObject`, inherited by every subclass, gives
+      every class the same spelling rule.
     verification: >-
       `test/architecture/test_core_no_as2_spellings.py` asserts no module under
       `vultron/core/` types an AS2 spelling;
@@ -1601,11 +1667,12 @@ groups:
       constrained by AS2. Core code MUST NOT look for a `to_core()` projection on an object
       it holds: with one class there is nothing to project.
     rationale: >-
-      Conflating a wire object with a core object was the original defect behind the split;
-      with one class per concept that conflation is structurally impossible. The AS2
-      representability constraint is new and constrains future core modelling, and it is
-      accepted deliberately; records that never cross the wire (dead letters, pending-queue
-      entries, role and lifecycle participant subclasses) stay free of it.
+      When a wire class and a core class model the same concept, code can use one in
+      place of the other, and data can be misread. One class for each domain type makes
+      that mistake impossible. A class in a message slot goes on the wire, so it must be
+      exactly AS2-representable. Records that never go on the wire, such as dead
+      letters, pending-queue entries, and role and lifecycle participant subclasses,
+      stay free of AS2 limits.
     verification: >-
       `test_every_wire_name_for_a_domain_type_is_its_core_class` in
       `test/architecture/test_hierarchy_invariants.py` asserts every `as_<Name>` the wire
@@ -1628,10 +1695,11 @@ groups:
       not AS2 objects, such as dead letters, and one object root carrying the AS2 object
       fields, `@context` and required timestamps. ARCH-12-001 and ARCH-12-002 refine this.
     rationale: >-
-      The shared root existed to support per-class `from_core()`/`to_core()` translation; once
-      translation left the wire classes it had no job, and it was what forced the
-      `_is_core_branch` sentinel and kept the core root lenient so the wire branch could parse
-      loose inbound data.
+      A shared root makes the wire branch inherit core configuration and registration.
+      It also forces the core root to stay lenient so that the wire branch can parse
+      loose inbound data. The wire and core branches have nothing to share
+      (ARCH-12-001). Separate roots let core stay strict while inbound wire data stays
+      lenient.
     verification: >-
       `test/wire/as2/vocab/base/test_wire_base_hierarchy.py` asserts `as_Base` stands directly
       on `pydantic.BaseModel`; `TestCoreRoots` in
@@ -1651,11 +1719,12 @@ groups:
       The AS2 wire form MUST NOT change as a result: the enclosing field's alias (`rmState`)
       carries the spelling. SDO-01-004 refines this.
     rationale: >-
-      A dimension object holds exactly one data field, `state`; everything else on it is
-      behaviour, and behaviour does not serialize. Only the one-key `{"state": ...}` wrapper
-      stood between the core form and the wire form, so collapsing it keeps the published
-      ontology and every peer valid. It was validated byte-for-byte against the former wire
-      output before the rest of the one-object model was built.
+      A dimension object holds one data field, `state`. All its other members are
+      behaviour, and behaviour does not serialize, so the bare state value is the full
+      data of the object. When the dimension writes the bare value, its core form and
+      its wire form are the same. The alias of the enclosing field keeps the published
+      AS2 form unchanged for peers. A serializer and a reader on the class keep the rule
+      in one place.
     verification: >-
       `test/core/models/test_dimension_bare_serialization.py` asserts the bare-value dump and
       that both the bare and the mapping form are read; its
@@ -1674,11 +1743,12 @@ groups:
       default. Core MUST NOT import wire (ARCH-01-001). ARCH-22-001 names the forbidden
       packages.
     rationale: >-
-      Hexagonal dependency rules are asymmetric: outer layers depend inward. A blanket
-      wire-to-core ban was never among the hexagonal architecture's rules (ADR-0009); it
-      banned the harmless direction, naming a core type in a wire annotation, while the
-      harmful coupling passed through as duck-typing no import test could see. What still has
-      to be excluded is core behaviour, so the wire layer stays replaceable as a unit.
+      Hexagonal dependencies point inward: outer layers depend on inner layers
+      (ADR-0009). The wire layer is outside core, so it may name the core types that it
+      serializes. Core behaviour must stay out of the wire layer, so that the wire layer
+      stays replaceable as one unit. An allow-list keyed on the importing directory
+      still holds when a file moves, and it forbids a new core package until a person
+      admits it.
     verification: >-
       `test/architecture/test_wire_core_import_allowlist.py` scans every module under
       `vultron/wire/` against the allow-list, and `test/architecture/test_core_no_wire_imports.py`
@@ -1702,12 +1772,13 @@ groups:
       (MV-11-004). No core class may gain a loose extras field, and a set-aside key MUST NOT be
       carried on the parsed object; the received evidence (VM-08-002) is its only copy.
     rationale: >-
-      A key that spells a field Vultron reads was meant as that field, and proceeding without
-      it loses data silently (#2232); a key Vultron does not read is reported, not refused or
-      lost (ADR-0086). Provenance: first written as "set aside, not rejected" and never built;
-      `extra="forbid"` landed instead (#2940) and the record was amended to match (#3888), until
-      measurement showed the disposition fell out of class ancestry and this rule replaced it
-      (#3900).
+      A key that spells a field Vultron reads was meant as that field. If Vultron
+      continues without it, it loses data and gives no error, so a near miss refuses the
+      activity. A key that Vultron does not read can be an extension of a peer, so
+      Vultron reports it and does not refuse or lose the activity (ADR-0086). One rule
+      in `parse_activity`, for every object at every depth, gives the same result
+      whatever class an object resolves to. Inside the process an unknown key is always
+      a bug, so `CoreObject` keeps `extra="forbid"`.
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` runs a foreign-key matrix over the
       positions an unknown key can arrive in (envelope, generic AS2 object, `Link`, untyped
@@ -1736,11 +1807,12 @@ groups:
       every non-alphanumeric character) and the retired-name list; edit distance or any other
       similarity measure MUST NOT be used.
     rationale: >-
-      AS2 has many two- and three-letter property names within one character of each other, so
-      an edit-distance model would misfire constantly. Provenance: a near miss was first a
-      warning; reporting was withdrawn when core objects began refusing every unknown key
-      (#3888), then restored with the near miss promoted to a refusal (#3900), because a
-      warning still loses the sender's data.
+      AS2 has many short property names that are one character apart, so an
+      edit-distance measure would give many false matches. A fixed normalization and a
+      list of retired names give a deterministic answer. A field that is declared but
+      not used is known and can be ignored, so only a key that is truly unknown reaches
+      the near-miss check. The refusal names both spellings, so the sender can correct
+      the key.
     verification: >-
       `test_as2_vocabulary_properties_are_declared_on_both_roots` in
       `test/architecture/test_hierarchy_invariants.py` asserts a fixed list of the AS2 Object
@@ -1775,11 +1847,13 @@ groups:
       Embedding whole objects is a prototype shortcut: it MUST NOT be read as a permanent
       architectural principle, and MUST be revisited before production.
     rationale: >-
-      `rehydrate()` holds the data layer, so it resolves the real object instead of a
-      placeholder; the projection it replaced invented an actor and misattributed activity.
-      The shortcut defers data normalization rather than solving it: a production system is
-      expected to use references rather than embedded copies, one backing store, and join
-      objects where a relationship carries data of its own.
+      `rehydrate()` holds the data layer, so it can resolve the real object. A
+      placeholder or a synthesized actor states facts that no actor asserted, and
+      activity can then be attributed to the wrong actor. The slot type already says
+      whether an IRI is allowed, so the rule for an unresolved reference needs no second
+      source. Embedded copies defer data normalization and do not solve it. A production
+      system is expected to use references, one backing store, and join objects where a
+      relationship carries its own data.
     verification: >-
       `test/wire/as2/test_rehydration_materialisation.py` asserts `rehydrate()` materialises a
       bare ID in a model-only slot, refuses an unresolvable reference there, leaves a
@@ -1797,10 +1871,12 @@ groups:
       reconciling artifact. The message-shape classes, which subclass AS2 activity verbs, MUST
       live under `vultron/wire/`: they are the AS2 encoding of a message, not its identity.
     rationale: >-
-      AS2 can express more sentences than Vultron needs, and the formal protocol over-counts in
-      the other direction: proposing an embargo and proposing a revision to one are the same
-      sentence with different start and end states. ADR-0083 had already decided that the
-      mapping, not either list, reconciles them.
+      AS2 can express more sentences than Vultron needs. The formal protocol counts in
+      the other direction: to propose an embargo and to propose a revision of one are
+      the same sentence with different start and end states. Neither list is thus a
+      subset of the other, and the mapping between them reconciles them (ADR-0083). The
+      message-shape classes are AS2 encodings of a message, so they live in the wire
+      layer.
     verification: >-
       `test/test_message_semantics_mapping.py` (MSM-03 to MSM-05) asserts the formal shorthands
       map onto the semantic registry rather than onto AS2 types one-for-one, including one AS2

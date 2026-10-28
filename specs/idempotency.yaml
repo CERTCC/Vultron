@@ -31,6 +31,11 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: Activity IDs MUST remain stable (same activity = same ID)
+    rationale: >-
+      Duplicate detection (ID-02-001) and handler idempotency key on the activity id. If
+      a sender sends the same activity again under a new id, the receiver sees a new
+      activity and can apply it twice. A retry that rebuilds its activity under the
+      first id lets the outbox and the receiver both recognize it (OX-06-002).
 - id: ID-02
   title: Duplicate Detection
   specs:
@@ -39,13 +44,13 @@ groups:
     kind: architecture
     statement: System MUST detect duplicate activity submissions by ID
     rationale: >-
-      Detection lives at ingress (IE-10-001): the receiver already holds the activity
-      under a key it derives from the id, so the redelivered body is not held again
-      and the copy the receiver holds is routed in its place. It does not live at the HTTP
-      route. A route-level check keyed on the actor record's inbox
-      collection was a production no-op, because the core actor's `inbox` is a URI
-      string (ARCH-12-006), and its tests passed only by supplying a wire actor shape
-      the route never receives (#3638).
+      ActivityPub peers send an activity again when they do not get an acknowledgement,
+      so a receiver gets the same activity more than once in normal operation. A
+      receiver that cannot recognize a redelivery holds its body twice and can apply it
+      twice. Ingress detects it (IE-10-001), because there the receiver holds each
+      activity under a key it derives from the id. The actor record cannot hold this
+      evidence: the core actor's `inbox` is a URI string, not a collection
+      (ARCH-12-006).
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_redelivery.py` posts the same activity twice to a
       real `CoreActor` over the FastAPI route and asserts a single archive record for
@@ -54,6 +59,11 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: System SHOULD track processed activity IDs in DataLayer
+    rationale: >-
+      Detection needs a record of what the actor already received that outlives the
+      request. An in-memory record is lost at a restart, and a redelivery after the
+      restart then looks new. The DataLayer keeps the record with the rest of the
+      actor's state, so it survives a restart.
   - id: ID-02-003
     priority: MUST
     kind: architecture
@@ -75,6 +85,12 @@ groups:
     priority: MUST
     kind: architecture
     statement: Duplicate submissions MUST return same HTTP status as original
+    rationale: >-
+      A sender that gets a different status for a redelivery can read it as a failed
+      delivery and send again, or report an error for an activity that arrived. The
+      inbox answers before it processes the activity (IE-05-002), so the status says
+      only that the delivery was accepted, and the first delivery and a redelivery get
+      the same answer.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_redelivery.py` asserts that the second post of an
       already-delivered activity is answered with the same HTTP 202 as the first.
@@ -83,17 +99,23 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: Duplicate detection MUST NOT delay response beyond 100ms
+    rationale: >-
+      The inbox answers before it processes the activity (IE-05-002), and detection runs
+      after that answer. A slow duplicate check moved onto the response path would delay
+      every delivery. A sender that times out sends the activity again, which makes more
+      duplicates. The 100 ms figure matches the response target of IE-05-001. It is a
+      budget, not a measured limit.
   - id: ID-03-003
     priority: SHOULD
     kind: architecture
     statement: System SHOULD log duplicate submissions at INFO level
     rationale: >-
-      A redelivery is ordinary ActivityPub behaviour — a peer retry after a lost
-      acknowledgement — not a fault the operator must act on, so it is a lifecycle
-      event, not a WARNING (SL-03-001). The ingress adapter already logs the
-      redelivery it detects at INFO with the activity and actor ids (IE-10-001,
-      #3638). A different body under a held id is not a redelivery: it is refused and
-      logged at WARNING (IE-10-002).
+      A redelivery is normal ActivityPub behavior: a peer sends again when an
+      acknowledgement is lost. It is not a fault that an operator must act on, so it is
+      a lifecycle event and not a WARNING (SL-03-001). The ingress adapter logs each
+      redelivery it detects at INFO, with the activity id and the actor id (IE-10-001).
+      A different body under an id that the receiver holds is not a redelivery. Ingress
+      refuses it and logs it at WARNING (IE-10-002).
     relationships:
     - rel_type: depends_on
       spec_id: SL-03-001
@@ -104,10 +126,20 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: Handlers SHOULD be idempotent (same input → same output)
+    rationale: >-
+      The inbox can route the same activity to a handler more than once: a redelivery, a
+      deferred replay, or a resend after a failed act. A handler that repeats its side
+      effects each time sends duplicate messages and adds duplicate records. If the same
+      input gives the same result, a repeat changes nothing.
   - id: ID-04-002
     priority: SHOULD
     kind: architecture
     statement: Handlers SHOULD check existing state before state transitions
+    rationale: >-
+      A repeat of an activity asks for a transition that already happened. If the
+      handler reads the current state first, it can see that the work is done and skip
+      it. If it does not, it repeats the side effects or attempts a transition that the
+      state machine does not allow from the current state.
     relationships:
     - rel_type: implements
       spec_id: VP-03-013
@@ -115,6 +147,10 @@ groups:
     priority: SHOULD
     kind: architecture
     statement: Handlers SHOULD log attempted re-execution at INFO level
+    rationale: >-
+      A skipped repeat is normal operation, not a fault (SL-03-001), so it is not a
+      WARNING. An INFO record still lets an operator see that a handler did no work for
+      an activity, and why.
   - id: ID-04-004
     priority: MUST
     kind: architecture
@@ -133,20 +169,18 @@ groups:
       transition has succeeded. A handler MUST NOT write the latch first and then attempt the
       remaining work.
     rationale: >-
-      A latch written ahead of the transition it attests to is indistinguishable from a completed
-      transition, so the guard that reads it suppresses every retry. The transition can then never
-      finish: the failure is silent, permanent, and self-concealing. Issue #2548 is the worked
-      example — `TransitionRMtoValid` wrote the report-phase `RM.VALID` `ParticipantStatus` before
-      advancing the case-scoped `CaseParticipant`. When the case was absent the second half was
-      skipped, but `CheckRMStateValid` read the latch and short-circuited every subsequent
-      `validate-report` to SUCCESS, freezing the participant at `RM.RECEIVED` for the life of the
-      case. Ordering the writes so the latch is last makes an incomplete transition retryable
-      instead of terminal.
+      A guard reads the latch as proof that the transition is complete. If the latch is
+      written before the rest of the transition and the rest fails, the guard reads the
+      latch and skips every retry. The transition then never finishes, and nothing
+      reports the failure. If the latch is written last, an incomplete transition stays
+      incomplete, and a retry can finish it.
     relationships:
     - rel_type: refines
       spec_id: ID-04-004
     - rel_type: refines
       spec_id: ARCH-15-001
+    adr:
+    - ADR-0073
 - id: ID-05
   title: Implementation Strategy
   specs:
@@ -168,6 +202,11 @@ groups:
     priority: MAY
     kind: architecture
     statement: HTTP layer MAY implement early duplicate filtering for performance
+    rationale: >-
+      A redelivery that the HTTP layer recognizes early can skip work, such as holding
+      its body again. Handler idempotency already keeps the outcome correct (ID-05-003),
+      so the early filter is an optimization only, and each implementation may choose
+      it.
   - id: ID-05-003
     priority: SHOULD
     kind: architecture
@@ -175,3 +214,7 @@ groups:
       Use-case handlers SHOULD verify that an incoming activity has not already been applied by
       inspecting the current domain state before executing any transitions, serving as the final
       idempotency guard when earlier filtering layers have not already rejected the duplicate.
+    rationale: >-
+      Earlier filters see only activity ids. They miss a repeat that has a new id, a
+      deferred replay, and a resend of an act that failed. Only the domain state shows
+      whether the change was already applied, so the handler makes the last check.

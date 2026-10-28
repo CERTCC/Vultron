@@ -167,6 +167,11 @@ groups:
       Tests that exercise the deferral path MUST assert that `process()`
       returns `None` and that the activity ID appears in the pending-case
       inbox after the call.
+    rationale: >-
+      A deferred activity is processed later, when its case exists. A test that checks
+      only that dispatch did not occur cannot tell a correct deferral from an activity
+      that was lost. The activity id in the pending-case inbox shows that the pipeline
+      kept the activity for replay.
   - id: IBP-04-004
     priority: SHOULD
     kind: project

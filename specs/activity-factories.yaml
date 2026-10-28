@@ -17,6 +17,11 @@ groups:
     priority: MUST
     kind: project
     statement: Factory functions MUST be the sole public construction API for outbound Vultron protocol activities
+    rationale: >-
+      When every outbound activity is built in one place, the rules for its fields are
+      applied in one place. Code that instantiates an activity class directly can skip a
+      field or a check that the factory applies. The recipient then gets an incomplete
+      activity.
     verification: Architecture test in `test/architecture/` confirms that no module outside `vultron/wire/as2/vocab/activities/`
       and `vultron/wire/as2/factories/` directly instantiates a Vultron activity subclass.
   - id: AF-01-002
@@ -25,10 +30,18 @@ groups:
     verification_debt: '#2575'
     statement: Factory functions MUST return plain AS2 base types (e.g. `as_Offer`, `as_Accept`, `as_Create`) rather than
       Vultron activity subclasses
+    rationale: >-
+      Callers depend only on the standard AS2 types. The internal activity subclasses
+      can then change without a change to any caller. Callers also cannot come to depend
+      on behavior that only an internal subclass has.
   - id: AF-01-003
     priority: MUST
     kind: project
     statement: Factory function signatures MUST declare explicit, domain-typed parameters for all protocol-significant fields
+    rationale: >-
+      Explicit, typed parameters let the type checkers and the reader see what each
+      factory needs. A generic dict or `Any` parameter hides a missing or wrong protocol
+      field until run time, or until a recipient refuses the activity.
     verification: Inspection of `vultron/wire/as2/factories/` confirms that each factory function signature uses typed
       domain parameters (not generic dicts or `Any`) for all protocol-significant fields.
   - id: AF-01-004
@@ -36,6 +49,11 @@ groups:
     kind: project
     statement: Factory functions SHOULD accept `**kwargs` for optional AS2 fields that are not protocol-significant, forwarding
       them to the underlying AS2 constructor
+    rationale: >-
+      Fields such as `to` and `published` apply to many activities and do not change
+      what the activity means. When the factory passes them through `**kwargs`, each
+      signature stays short, and no factory needs one parameter for each optional AS2
+      field.
   - id: AF-01-005
     priority: MUST
     kind: project
@@ -47,12 +65,16 @@ groups:
       object — an incomplete argument risks omitting fields the object would have supplied (e.g. `end_time` on an embargo
       event). Factories MUST NOT re-derive AS2 spellings by hand; the field alias a core object inherits (ARCH-12-003) is the
       only source of the wire spelling, and delivery renders through the port (ARCH-20-001).
-    rationale: 'Enrichment computed in two places drifts. The rule originally required a translator-produced wire object
-      because the domain type and its wire type were different classes; ADR-0099 made them one class, so "the complete wire
-      counterpart" is the domain object itself and the factory may import it — ARCH-22-001 admits `vultron/core/models/`
-      and `vultron/core/states/` to the wire layer for exactly this. What survives is the invariant the rule always
-      protected: the factory reads the object it was given and never a stub somebody assembled by hand (issue #1300: a bare
-      `active_embargo` URI reached the wire instead of an embargo event with `end_time`).'
+    rationale: >-
+      When two places compute the same enrichment, the results drift apart. The factory
+      takes the complete domain object and derives the enrichment from its own fields. A
+      partial stub that a caller builds field by field can omit a field the object
+      supplies, for example `end_time` on an embargo event. The recipient then gets less
+      than the sender knows. The core class is its own wire form (ARCH-25-003,
+      ADR-0099), and ARCH-22-001 lets the wire layer import it, so the factory needs no
+      separate wire copy. The field alias that the object inherits is the only source of
+      each wire spelling, so a factory cannot spell a field differently from the rest of
+      the system.
     verification: Each factory that enriches from a domain entity reads only fields of the object it was handed, and the
       factory package's imports from `vultron.core` stay inside the ARCH-22-001 allow-list
       (`test/architecture/test_wire_core_import_allowlist.py`).
@@ -70,23 +92,39 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: All factory functions MUST live in the `vultron/wire/as2/factories/` package — a sibling of `vultron/wire/as2/vocab/`
+    rationale: >-
+      One package for every factory gives callers one import location. It also gives the
+      import-boundary test (AF-06-001) one directory to allow. A factory outside that
+      package would be a way to build activities that the test does not check.
   - id: AF-02-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: 'The `factories/` package MUST be organized into one module per protocol domain, with one factory module for each module present in `vocab/activities/` (e.g. `embargo.py`, `report_management.py`, `case_management.py`). New `vocab/activities/` modules MUST have a corresponding `factories/` module added at the same time.'
+    rationale: >-
+      A factory module for each vocabulary module lets a reader find the factory for an
+      activity from the module of its class. A new vocabulary module with no factory
+      module has activities that only direct instantiation can build, which AF-01-001
+      forbids.
   - id: AF-02-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`factories/__init__.py` MUST re-export every factory function from all domain modules so callers can use a
       single `from vultron.wire.as2.factories import ...` import'
+    rationale: >-
+      One import path keeps call sites short. The package can also move a factory
+      between its domain modules without a change to any caller.
   - id: AF-02-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`VultronActivityConstructionError` MUST be defined in `vultron/wire/as2/factories/errors.py` and imported
       into `factories/__init__.py`'
+    rationale: >-
+      A caller that catches a construction failure must find the exception where it
+      finds the factories. The import into `factories/__init__.py` lets it import the
+      error and the factories from one place.
 - id: AF-03
   title: Function Naming
   specs:
@@ -94,6 +132,10 @@ groups:
     priority: MUST
     kind: project
     statement: Factory function names MUST be the snake_case equivalent of the corresponding Vultron activity class name
+    rationale: >-
+      A predictable name lets a reader find the factory from the activity class, and the
+      class from the factory. It also prevents two different names for the same
+      activity.
     verification: Inspection of `vultron/wire/as2/factories/` confirms each factory function name is the `snake_case`
       form of its corresponding activity class name (e.g., `em_propose_embargo` for `EmProposeEmbargo`).
 - id: AF-04
@@ -104,17 +146,29 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Every factory function MUST wrap Pydantic `ValidationError` in `VultronActivityConstructionError`
+    rationale: >-
+      A caller must not need to know that the factories use Pydantic. One domain
+      exception for every construction failure gives callers one type to catch. The
+      Pydantic error stays attached as its cause, for diagnosis.
   - id: AF-04-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`VultronActivityConstructionError` MUST be defined in `vultron/wire/as2/factories/errors.py` and re-exported
       from `vultron/wire/as2/factories/__init__.py`'
+    rationale: >-
+      Callers import the factories from `vultron.wire.as2.factories`. When the package
+      also exports the exception, a caller can catch construction failures without an
+      import from a second module.
   - id: AF-04-003
     priority: SHOULD
     kind: project
     statement: Factory functions SHOULD log a `WARNING` before raising `VultronActivityConstructionError` so that construction
       failures are observable without requiring callers to catch the exception
+    rationale: >-
+      A caller can catch the exception and handle it, and the failure is then hidden. A
+      WARNING at the point of failure records which factory failed and why, even when a
+      caller hides the exception.
 - id: AF-05
   title: Internal Vocabulary Classes
   specs:
@@ -124,11 +178,20 @@ groups:
     verification_debt: '#2575'
     statement: Vultron activity subclasses in `vultron/wire/as2/vocab/activities/` MUST NOT be imported by any module outside
       that package or `vultron/wire/as2/factories/`
+    rationale: >-
+      The internal subclasses are implementation details of the factories. When outside
+      code cannot import them, it cannot build activities without a factory (AF-01-001).
+      The subclasses can also change without a change to any caller.
   - id: AF-05-002
     priority: MUST
     kind: project
     statement: Inside each factory function the corresponding internal class MUST be instantiated first; the result is returned
       typed as the plain AS2 base type
+    rationale: >-
+      The internal subclass holds the validation and the fixed fields of its activity,
+      such as its type and the shape of its object. To instantiate it first applies
+      those rules. To return it as the plain AS2 type keeps callers on the public types
+      (AF-01-002).
     verification: Inspection of `vultron/wire/as2/factories/` confirms that each factory function instantiates the
       internal Vultron subclass and returns it annotated as the plain AS2 base type (e.g., `as_Offer`, `as_Accept`).
   - id: AF-05-003
@@ -136,6 +199,10 @@ groups:
     kind: project
     statement: Internal Vultron activity classes SHOULD be prefixed with `_` or otherwise marked as private once factory functions
       exist for them, to signal that they are implementation details
+    rationale: >-
+      A leading underscore tells readers and linters that a name is private. On an
+      internal activity class, it shows that callers must use the factory and not the
+      class.
 - id: AF-06
   title: Import Boundary Enforcement
   specs:
@@ -145,12 +212,21 @@ groups:
     verification_debt: '#2575'
     statement: A pytest test in `test/architecture/` MUST verify that no Python source file outside `vultron/wire/as2/vocab/activities/`
       and `vultron/wire/as2/factories/` contains an import from `vultron.wire.as2.vocab.activities`
+    rationale: >-
+      A rule about imports that no test checks erodes as soon as one module breaks it.
+      An architecture test fails the build on the first import of an internal activity
+      class from outside the allowed packages, so the factory boundary (AF-05-001) stays
+      in place.
   - id: AF-06-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The `test/architecture/` package MUST be a proper pytest package (`__init__.py` present) so that future architectural
       enforcement tests can be added alongside it
+    rationale: >-
+      pytest needs `__init__.py` to treat the directory as a package, so that test
+      modules with the same file name in other directories do not collide. Architecture
+      tests can then share helpers in the package and grow next to each other.
 - id: AF-07
   title: TypeAlias Cleanup
   specs:
@@ -159,6 +235,9 @@ groups:
     kind: project
     statement: The `EmProposeEmbargoRef` TypeAlias in `vocab/activities/embargo.py` SHOULD be renamed to `_EmProposeEmbargoRef`
       (private prefix) since it is used only within `embargo.py` and is not intended as a public export
+    rationale: >-
+      A name used only in one module is private. A leading underscore keeps other
+      modules from importing it and shows that it is not part of the public vocabulary.
 - id: AF-08
   title: Migration
   specs:
@@ -168,10 +247,18 @@ groups:
     verification_debt: '#2575'
     statement: All call sites outside `vultron/wire/as2/vocab/activities/` and `vultron/wire/as2/factories/` that directly
       instantiate a Vultron activity subclass MUST be migrated to use the corresponding factory function
+    rationale: >-
+      A call site that still instantiates an activity subclass directly skips the checks
+      the factories apply. Until every such call site uses a factory, AF-01-001 holds
+      only for new code.
   - id: AF-08-002
     priority: SHOULD
     kind: project
     statement: 'Set priority to MUST_NOT and rewrite: "Migration of `from_core()` call sites in `vultron/core/use_cases/` to use driven adapter translation is a separate tracked task. This migration task MUST NOT be conflated with the factory-function migration described in AF-08-001."'
+    rationale: >-
+      Two migrations touch the same call sites: the move to factory functions and the
+      removal of `from_core()` calls from core use cases. When the two stay apart, each
+      change is small and can be checked on its own.
 - id: AF-09
   title: Activity Translator Port
   specs:
@@ -196,6 +283,10 @@ groups:
     verification_debt: '#2575'
     statement: The Activity Translator port MUST be injected into use-cases via dependency injection (constructor parameter
       or factory argument). Use-cases MUST NOT instantiate the wire-layer translator directly.
+    rationale: >-
+      A use case that creates the translator itself must import the wire layer, which
+      AF-09-001 forbids. Injection keeps that import out of core. It also lets a test
+      give the use case a stub translator.
     relationships:
     - rel_type: refines
       spec_id: AF-09-001

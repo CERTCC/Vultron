@@ -80,12 +80,12 @@ groups:
       The inbox endpoint MUST serve POST only. It MUST NOT serve the read (GET) that
       ActivityPub allows an inbox's authenticated owner.
     rationale: >-
-      Split from IE-02-002 (MS-12-010), which keeps the POST delivery ActivityPub
-      defines. ActivityPub lets the actor that owns an inbox read it with an
-      authenticated GET; this codebase has no authentication, so a GET would open
-      another actor's mail, and it serves none. Another implementation with
-      authentication may serve the owner's read. The answer to any other method is
-      HTTP's 405 (IE-02-003).
+      ActivityPub lets the actor that owns an inbox read it with an authenticated GET.
+      This codebase has no authentication, so a GET on the inbox would show one actor's
+      received activities to any caller. It serves no GET. An implementation that has
+      authentication may serve the owner's read. Any other method gets the 405 that HTTP
+      defines (IE-02-003). The POST delivery itself is the ActivityPub rule in
+      IE-02-002.
     verification: >-
       `test_non_post_on_inbox_path_returns_405` in
       `test/adapters/driving/fastapi/routers/test_actors.py` confirms that GET, HEAD,
@@ -106,13 +106,14 @@ groups:
       actor's own store; a sender learns the disposition of what it posted from the
       reply activities delivered to its own inbox, never by reading the recipient's.
     rationale: >-
-      Ingress already stores the received activity under its type, so refusing a read
-      loses nothing. The DataLayer `inbox` queue holds only deferred or re-queued
-      deliveries (bootstrap replay, retries) and is drained as they are processed: a
-      processing queue, not a record of receipt. The core actor's
-      `inbox` is a URI string (ARCH-12-006), so no receipt bookkeeping may hang off
-      the actor record. A stub read over the drained queue reported an empty inbox
-      after each successful delivery (#3141).
+      The inbox is a delivery target, not a record of receipt. Intake archives each
+      received activity in the receiving actor's own store, and the datalayer router
+      reads that store, so a read on the inbox path adds nothing. The DataLayer `inbox`
+      queue holds only deliveries that wait for a replay, and the replay removes them. A
+      read over that queue shows an empty inbox after each successful delivery. The core
+      actor's `inbox` is a URI string (ARCH-12-006), so the actor record holds no
+      receipt data either. A sender learns what happened from the replies sent to its
+      own inbox.
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/routers/actors/` confirms no
       GET route on the inbox path, an explicit method refusal on that path ahead of
@@ -133,6 +134,11 @@ groups:
     priority: MUST
     kind: foundation
     statement: The endpoint MUST validate Content-Type header
+    rationale: >-
+      The `Content-Type` header tells the receiver how to read the body. A body sent as
+      another media type may not be an ActivityStreams document. If the inbox checks the
+      header first, it can refuse such a body with a clear answer (HTTP-01-003) before
+      it parses the body.
     verification: >-
       No check covers this yet: the inbox does not check `Content-Type` (#4666).
       `test_inbox_body_with_a_non_as2_media_type_answers_415` in
@@ -147,6 +153,10 @@ groups:
     priority: MUST
     kind: project
     statement: The endpoint MUST enforce a configurable maximum request body size.
+    rationale: >-
+      Without a limit, any peer can send a body large enough to use up the receiver's
+      memory or time. Deployments differ in the size they need, so the operator sets the
+      limit in configuration.
     verification: >-
       No check covers this yet: the inbox enforces no request body size limit
       (#4596). Once it does, inspection of `vultron/adapters/driving/fastapi/`
@@ -197,15 +207,28 @@ groups:
     statement: >-
       The endpoint MUST validate each activity's structure against the message form its
       type requires
+    rationale: >-
+      A receiver acts on an activity according to its type. A malformed activity can be
+      read as the wrong message, or its processing can fail part of the way through. If
+      the receiver checks the form when the activity arrives, it refuses the activity
+      once, with a clear reason, and later steps work on an activity whose form is known
+      (ADR-0032).
     verification: >-
       Integration tests in `test/demo/` confirm that a structurally invalid
       activity payload is rejected without being placed in the processing queue.
     stories:
     - story_2022_089
+    adr:
+    - ADR-0032
   - id: IE-04-002
     priority: MUST
     kind: project
     statement: The endpoint MUST return HTTP 422 for validation failures
+    rationale: >-
+      A sender needs to tell a body that is not valid JSON from a body that is valid
+      JSON but not a valid activity. HTTP 400 answers the first (IE-07-001). A separate
+      422 tells the sender that the fault is in the content, so a resend of the same
+      body cannot succeed.
     verification: >-
       Integration tests in `test/demo/` confirm that a schema-invalid activity
       body causes the endpoint to return HTTP 422.
@@ -221,6 +244,11 @@ groups:
     priority: MUST
     kind: project
     statement: The endpoint MUST return HTTP 202 within 100ms
+    rationale: >-
+      A sender waits for the answer to each delivery. A sender that waits too long can
+      time out and send the activity again, which makes duplicates (ID-02). A fast 202
+      keeps senders moving and keeps redeliveries rare. The 100 ms figure is the
+      response target of HTTP-06-001.
     verification: >-
       Integration tests in `test/demo/` confirm that the endpoint returns HTTP 202
       and response-time assertions verify the 100 ms budget is not exceeded.
@@ -231,6 +259,11 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: The endpoint MUST NOT block on handler execution
+    rationale: >-
+      Handler work can take a long time: tree execution, DataLayer writes and outbox
+      delivery. If the answer waited for that work, the sender could time out and send
+      again, and one slow activity would hold the connection open. The inbox answers 202
+      first and processes the activity after the answer.
     verification: >-
       Inspection of `post_actor_inbox` in
       `vultron/adapters/driving/fastapi/routers/actors/_routes.py` confirms the endpoint
@@ -246,11 +279,20 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The endpoint MUST queue activities for background processing
+    rationale: >-
+      Queuing the activity for background processing is what lets the endpoint answer
+      before it processes the activity (IE-05-002). The activity is still processed, but
+      after the answer and outside the request.
   - id: IE-06-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Background processing MUST be isolated from HTTP request/response cycle
+    rationale: >-
+      The answer to the delivery is already sent when processing starts. A fault or a
+      slow step in processing must not change that answer or keep the request open. The
+      receiver tells the sender about the result of processing with protocol replies to
+      the sender's inbox, not with the HTTP status.
   - id: IE-06-003
     priority: MUST_NOT
     kind: project
@@ -262,16 +304,14 @@ groups:
       the process keeps accepting deliveries from peers, answering DataLayer and
       trigger requests, and draining its own outboxes.
     rationale: >-
-      Starlette runs an `async` background task on the event loop itself, and the
-      BT pipeline is synchronous (BT ticks, the BT global lock, SQLite I/O). Called
-      inline it stalls the whole container for every inbound activity, so IE-06-002's
-      isolation holds only for the request that scheduled it. The co-hosted
-      `OutboxMonitor` coroutine then pays one full BT tick per delivery — the
-      CaseActor's `Create(VulnerabilityCase)` was measured arriving 17 s after it was
-      queued on the vendor container (#3033) — and a trigger route waiting on the BT
-      lock from its threadpool thread starves until the client times out (#2898).
-      The per-actor asyncio lock is held across the thread hop, so BT-11-001's
-      per-actor FIFO is preserved.
+      Starlette runs an `async` background task on the event loop itself, and the inbox
+      pipeline is synchronous: tree execution, the tree lock and SQLite I/O. If it runs
+      on the event loop, the whole process stops for each inbound activity, so the
+      isolation of IE-06-002 holds only for the request that scheduled it. The outbox
+      monitor in the same process then waits for each tree to finish before it delivers
+      the next message, and a trigger route that waits for the tree lock can wait until
+      its client times out. The per-actor lock is held across the move to the worker
+      thread, so the per-actor order of BT-11-001 stays the same.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_orchestration_offloop.py` asserts
       that `process_payload` runs on a thread other than the event-loop thread and
@@ -316,6 +356,8 @@ groups:
       spec_id: DR-03-002
     - rel_type: refines
       spec_id: IE-06-001
+    adr:
+    - ADR-0066
   - id: IE-06-005
     priority: MUST
     kind: project
@@ -387,6 +429,10 @@ groups:
       The endpoint MUST answer with the status code HTTP defines for each transport
       failure: HTTP 400 for a malformed request, HTTP 405 for a method other than
       POST, and HTTP 413 for a request body over the size limit.
+    rationale: >-
+      HTTP defines these status codes for these failures. Any peer with an HTTP client
+      understands them without knowledge of Vultron, so the inbox uses them as HTTP
+      defines them.
     verification: >-
       `test_parse_activity_raises_400_when_type_missing` and
       `test_parse_activity_raises_400_when_type_blank` in
@@ -408,11 +454,10 @@ groups:
       for an activity whose addressing provably excludes the receiving actor
       (IE-11-001), and HTTP 422 for an activity that fails schema validation.
     rationale: >-
-      These codes are the reference implementation's choices, not protocol
-      requirements: the protocol does not yet say which HTTP responses a receiving
-      actor returns, so a peer cannot rely on them (see the open question on transport
-      status codes). Split from IE-07-001, which keeps the codes HTTP itself defines
-      (MS-12-010).
+      These codes are this implementation's choices, not protocol rules. The protocol
+      does not yet say which HTTP answers a receiving actor gives, so a peer cannot rely
+      on them (see the open question on transport status codes). The codes that HTTP
+      itself defines for transport failures are in IE-07-001.
     verification: >-
       In `test/adapters/driving/fastapi/routers/test_actors.py`,
       `test_post_activity_to_actor_inbox_accepted` confirms 202 for an accepted
@@ -430,6 +475,10 @@ groups:
     priority: MUST
     kind: project
     statement: 'Response body MUST be JSON with fields: `status`, `activity_id`, `message`'
+    rationale: >-
+      A fixed body shape lets a sender or an operator tool read the result of a delivery
+      without parsing free text. The `activity_id` field ties the answer to the activity
+      that was posted.
     verification: >-
       Integration tests in `test/demo/` confirm that every response body contains
       the `status`, `activity_id`, and `message` fields on both success and error
@@ -444,6 +493,10 @@ groups:
     priority: MUST
     kind: project
     statement: The endpoint MUST log all requests at INFO level
+    rationale: >-
+      Each delivery is a normal protocol event (SL-03-001). An operator who traces a
+      case across actors needs a record of each delivery that an actor received, also
+      one that the actor refused later.
     verification: >-
       Inspection of `vultron/adapters/driving/fastapi/` confirms that a structured
       INFO-level log entry is emitted for each incoming request.
@@ -471,18 +524,17 @@ groups:
       archived, carrying that body as its received evidence. A delivery under a held
       id whose body differs is not a redelivery; IE-10-002 refuses it.
     rationale: >-
-      Ingress is the first point at which the receiver can consult durable evidence of
-      a prior delivery, so the HTTP adapter realises the early filtering ID-05-002
-      permits there. The evidence is keyed by the receiver: a row under the sender's
-      id reads as one of its own (DL-06-006). Intake's archive is the received body
-      (ADR-0149), so an archived activity's resend is routed as that body's parse,
-      with that body as its evidence, and handler idempotency answers it (ID-04): a
-      committed act is a repeat, and an act that never committed, such as one whose
-      consequence failed, runs as a first delivery and records the archived body
-      (CLP-07-015, ADR-0151). The archive records receipt, not the act, so "already
-      archived" is not "already applied". Only a resend of the same body is a
-      redelivery: routing the held copy in place of a different body dropped that
-      body with nothing but a DEBUG line (#3762).
+      Ingress is the first point where the receiver can read durable evidence of an
+      earlier delivery, so the early filter that ID-05-002 permits goes there. The
+      evidence is under a key the receiver derives, because a row under the sender's id
+      reads as one of the receiver's own activities (DL-06-006). Intake's archive is the
+      received body (ADR-0149), so a resend of an archived activity is routed as the
+      parse of that body, with that body as its evidence. Handler idempotency then
+      answers it (ID-04). A committed act is a repeat. An act that did not commit, such
+      as one whose consequence failed, runs as a first delivery and records the archived
+      body (CLP-07-015). The archive records receipt, not the act, so "already archived"
+      does not mean "already applied". Only a resend of the same body is a redelivery.
+      If the held copy replaced a different body, that body would be lost with no trace.
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_of_the_held_body_under_a_deferred_id_routes_the_held_copy`
       asserts that a resend of the held body under a deferred id routes the held copy
@@ -516,12 +568,13 @@ groups:
       place (SYNC-13-004); a repeat of its held body is still answered by the
       already-stored gate (SYNC-12-003).
     rationale: >-
-      An activity id names one activity (ID-01-001): a second body under a held id is
-      a sender bug or a rewrite of what was said, and routing the held copy instead
-      hid it (#3762). Maintainer decisions (2026-10-21, #3762): refuse, do not
-      quarantine, so the WARNING is the refused body's only trace; compare the sealed
-      texts exactly (a SHA-256 digest of each). The inbox answers 202 (IE-07-002)
-      before processing, so the refusal is the inbox outcome.
+      An activity id names one activity (ID-01-001). A second body under an id that the
+      receiver holds is a sender bug or a changed version of what was said. Routing the
+      held copy in its place hides that change. The inbox refuses the body and does not
+      quarantine it, so the WARNING is the only trace of the refused body. The
+      comparison uses the exact sealed text of each body (a SHA-256 digest of each), so
+      no rule decides which differences count. The inbox answers 202 before it processes
+      the activity (IE-05-002), so the refusal is the inbox outcome, not an HTTP status.
     note: >-
       Known limitation: the sealed text is the body as the parser decoded and
       re-serialized it, so two bodies that differ only in how they are written, such
@@ -623,12 +676,12 @@ groups:
       bto, bcc — when determining whether the receiving actor is named as a
       recipient. A match on any one field is sufficient.
     rationale: >-
-      Vultron chooses which ActivityStreams audience-targeting properties count as
-      addressing, so the rule is its own (maintainer ruling, 2026-10-15, #4673).
-      Vultron defines no use for `audience` on any object or activity, so an actor
-      named only there is not addressed. Vultron sets only `to` (OX-08), but another
-      implementation may name this actor only in `cc`, `bto` or `bcc`; checking only
-      `to` would refuse it wrongly. A `cc`-only address is HP-10's question.
+      ActivityStreams has several audience properties, and Vultron decides which of them
+      count as addressing, so the rule is Vultron's own. Vultron defines no use for
+      `audience` on any object or activity, so an actor named only there is not
+      addressed. Vultron sets only `to` (OX-08), but another implementation can name
+      this actor only in `cc`, `bto` or `bcc`. If the inbox checks only `to`, it refuses
+      that activity wrongly. HP-10 decides what an address only in `cc` means.
     verification: >-
       `test/adapters/driving/fastapi/routers/actors/test_inbox.py` asserts that an
       Activity naming the receiving actor only in `to`, `cc`, `bto`, or `bcc` passes the
