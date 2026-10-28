@@ -43,11 +43,12 @@ the data.
 
 The **Load …** buttons import committed **recordings** from
 [src/recordings/](src/recordings/) (in-tree, so a fresh clone works without
-the container demo). A recording is the case ledgers a registered scenario
-writes when it runs: `uv run export-demo-recordings` runs each scenario in
-process, with seeded ids and a fixed clock, and writes one `<actor>.jsonl` per
-actor. The buttons load each scenario's `case-actor.jsonl`, the canonical
-ledger. A drift test fails when a committed recording differs from a fresh run.
+the container demo). A recording is the canonical case ledger a registered
+scenario writes when it runs: `uv run export-demo-recordings` runs each scenario
+in process, with seeded ids and a fixed clock, checks every replica against the
+canonical ledger, and writes `<scenario>/case-actor.jsonl`. Replicas are copies
+of the canonical entries, so they are not stored. A drift test fails when a
+committed recording differs from a fresh run.
 
 [src/synthetic-ledgers/](src/synthetic-ledgers/) holds hand-authored fixtures
 that exercise violation and inferred-multistep flagging.

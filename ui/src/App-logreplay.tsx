@@ -12,13 +12,13 @@ import {
 } from './utils/caseLedgerParser'
 import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // Committed recordings the "Load …" buttons import at build time via `?raw`.
-// A recording is the case ledgers a registered scenario writes when it runs,
-// produced by `uv run export-demo-recordings` (vultron/demo/recordings.py), which
-// runs each scenario in process with seeded ids and a fixed clock. The drift test
-// `test/demo_recordings/test_recordings_drift.py` fails when a committed recording differs
-// from a fresh run, so never hand-edit one: regenerate it. Each scenario's
-// directory holds one `<actor>.jsonl` per actor; the buttons load
-// `case-actor.jsonl`, the canonical ledger. They live in-tree, apart from the
+// A recording is the canonical case ledger (`case-actor.jsonl`) a registered
+// scenario writes when it runs, produced by `uv run export-demo-recordings`
+// (vultron/demo/recordings.py), which runs each scenario in process with seeded
+// ids and a fixed clock and checks every replica against the canonical ledger.
+// The drift test `test/demo_recordings/test_recordings_drift.py` fails when a
+// committed recording differs from a fresh run, so never hand-edit one:
+// regenerate it. They live in-tree, apart from the
 // gitignored repo-root `devlogs/` (see ui/AGENTS.md §7), so a fresh clone builds.
 //
 // rv: the happy-path recording (Reporter + Vendor).

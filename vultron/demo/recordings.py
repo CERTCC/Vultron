@@ -13,10 +13,14 @@
 
 """Record every registered demo scenario's case ledgers for the demo UI.
 
-A **recording** is the set of case ledgers a scenario writes when it runs: one
-JSONL file per actor that the scenario's ledger dump names.  Log Replay in
-``ui/`` imports the recordings, so what the audience sees is what Vultron did
-(``notes/demo-interactive-ui.md``, decision 2).
+A **recording** is the case ledger a scenario writes when it runs.  Log Replay
+in ``ui/`` imports the recordings, so what the audience sees is what Vultron
+did (``notes/demo-interactive-ui.md``, decision 2).
+
+Only the CaseActor's ledger, the canonical one, is committed.  Every replica
+holds byte-identical copies of the canonical entries (CLP-07-013), so storing
+them adds nothing.  Each run still checks that claim: a replica entry that
+differs from the canonical entry at its ``logIndex`` fails the recording.
 
 Each scenario runs in this process, through its own ``main()``:
 
@@ -33,7 +37,7 @@ Each scenario runs in this process, through its own ``main()``:
   name, and each outbox batch delivers its rows one at a time, so two runs
   give byte-identical recordings.
 
-Output goes to ``ui/src/recordings/<scenario>/<actor>.jsonl``.  The drift test
+Output goes to ``ui/src/recordings/<scenario>/case-actor.jsonl``.  The drift test
 ``test/demo_recordings/test_recordings_drift.py`` fails when a
 committed recording differs from a fresh run.
 
@@ -99,6 +103,9 @@ _CASE_ROLES_ENV = "VULTRON_ACTOR__DEFAULT_CASE_ROLES"
 _CASE_ACTOR_SERVICE_ENV = "VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL"
 
 RECORDING_SUFFIX = ".jsonl"
+
+#: The dump target whose ledger is the canonical one, and the only one committed.
+CANONICAL_ACTOR = "case-actor"
 
 
 @dataclass(frozen=True)
@@ -330,9 +337,57 @@ def _read_dump(devlogs: Path, scenario: str) -> dict[str, str]:
     return ledgers
 
 
+def _entries_by_index(actor: str, text: str) -> dict[int, str]:
+    """Return each JSONL line of *text* keyed by its entry's ``logIndex``."""
+    entries: dict[int, str] = {}
+    for number, line in enumerate(text.splitlines(), start=1):
+        try:
+            entries[json.loads(line)["logIndex"]] = line
+        except (ValueError, KeyError, TypeError) as exc:
+            raise DemoRecordingError(
+                f"the ledger of {actor!r}, line {number}, is not a ledger "
+                f"entry with a logIndex: {exc}"
+            ) from exc
+    return entries
+
+
+def canonical_ledger(scenario: str, ledgers: dict[str, str]) -> str:
+    """Return the canonical ledger of a run, after checking every replica.
+
+    Each replica entry must be byte-identical to the canonical entry at the
+    same ``logIndex`` (CLP-07-013).  A replica may hold fewer entries, for
+    example a participant that left before the case closed (CM-23-004).
+
+    Raises:
+        DemoRecordingError: When the dump holds no canonical ledger, or a
+            replica entry is absent from or differs from the canonical one.
+    """
+    if CANONICAL_ACTOR not in ledgers:
+        raise DemoRecordingError(
+            f"scenario {scenario!r} dumped no {CANONICAL_ACTOR!r} ledger; "
+            f"it dumped {sorted(ledgers)}."
+        )
+    canonical = _entries_by_index(CANONICAL_ACTOR, ledgers[CANONICAL_ACTOR])
+    for actor, text in ledgers.items():
+        if actor == CANONICAL_ACTOR:
+            continue
+        for index, line in _entries_by_index(actor, text).items():
+            if canonical.get(index) != line:
+                raise DemoRecordingError(
+                    f"scenario {scenario!r}: the replica of {actor!r} holds "
+                    f"an entry at logIndex {index} that "
+                    + (
+                        "the canonical ledger does not."
+                        if index not in canonical
+                        else "differs from the canonical entry."
+                    )
+                )
+    return ledgers[CANONICAL_ACTOR]
+
+
 def record_scenario(
     spec: ScenarioSpec, topology: ContainerTopology | None = None
-) -> dict[str, str]:
+) -> str:
     """Run *spec* in this process and return its recording.
 
     Args:
@@ -341,12 +396,13 @@ def record_scenario(
             omitted.
 
     Returns:
-        ``{actor name: ledger JSONL}`` for each actor the scenario's ledger
-        dump names, in dump order.
+        The canonical ledger, as JSONL, once every replica the scenario's
+        ledger dump names has been checked against it.
 
     Raises:
         DemoRecordingError: When the scenario's ROLES name an unknown container
-            slot or an actor's ledger is not captured.
+            slot, an actor's ledger is not captured, or a replica disagrees
+            with the canonical ledger.
         DemoFailureError: When the scenario itself fails.
     """
     topology = topology or load_topology()
@@ -389,33 +445,28 @@ def record_scenario(
                     f"{role.param_stem}_url": url for role, url in urls.items()
                 },
             )
-        return _read_dump(Path(devlogs), spec.name)
+        return canonical_ledger(
+            spec.name, _read_dump(Path(devlogs), spec.name)
+        )
 
 
-def recording_path(scenario: str, actor: str) -> Path:
-    """Return the committed path of one actor's recording."""
-    return RECORDINGS_DIR / scenario / f"{actor}{RECORDING_SUFFIX}"
+def recording_path(scenario: str) -> Path:
+    """Return the committed path of a scenario's recording."""
+    return RECORDINGS_DIR / scenario / f"{CANONICAL_ACTOR}{RECORDING_SUFFIX}"
 
 
-def write_recording(scenario: str, recording: dict[str, str]) -> list[Path]:
+def write_recording(scenario: str, recording: str) -> Path:
     """Replace the committed recording of *scenario* with *recording*.
 
-    Files of actors no longer in the recording are removed with the rest.
+    Anything else in the scenario's directory is removed with it.
     """
     scenario_dir = RECORDINGS_DIR / scenario
     if scenario_dir.exists():
         shutil.rmtree(scenario_dir)
     scenario_dir.mkdir(parents=True)
-    paths = []
-    for actor, text in recording.items():
-        path = recording_path(scenario, actor)
-        path.write_text(text, encoding="utf-8")
-        paths.append(path)
-    return paths
-
-
-#: The ledger Log Replay loads from each recording.
-CANONICAL_ACTOR = "case-actor"
+    path = recording_path(scenario)
+    path.write_text(recording, encoding="utf-8")
+    return path
 
 
 def layout_problems(scenario_names: Sequence[str]) -> list[str]:
@@ -440,11 +491,15 @@ def layout_problems(scenario_names: Sequence[str]) -> list[str]:
         f"{name}: recorded but not a registered scenario"
         for name in sorted(recorded - registered)
     ]
-    problems += [
-        f"{name}: has no {CANONICAL_ACTOR}{RECORDING_SUFFIX}"
-        for name in sorted(registered & recorded)
-        if not recording_path(name, CANONICAL_ACTOR).is_file()
-    ]
+    expected = f"{CANONICAL_ACTOR}{RECORDING_SUFFIX}"
+    for name in sorted(registered & recorded):
+        held = sorted(path.name for path in (RECORDINGS_DIR / name).iterdir())
+        if expected not in held:
+            problems.append(f"{name}: has no {expected}")
+        if extra := [held_name for held_name in held if held_name != expected]:
+            problems.append(
+                f"{name}: holds files other than {expected}: {extra}"
+            )
     return problems
 
 
@@ -490,10 +545,8 @@ def main(scenarios: tuple[str, ...], check: bool, log_level: str) -> None:
         _remove_unregistered(set(specs))
     topology = load_topology()
     for name in scenarios or tuple(specs):
-        for path in write_recording(
-            name, record_scenario(specs[name], topology)
-        ):
-            click.echo(f"Wrote {path.relative_to(REPO_ROOT)}")
+        path = write_recording(name, record_scenario(specs[name], topology))
+        click.echo(f"Wrote {path.relative_to(REPO_ROOT)}")
 
 
 def _check_layout(scenario_names: Sequence[str]) -> None:

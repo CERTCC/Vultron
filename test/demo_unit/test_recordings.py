@@ -205,6 +205,7 @@ class TestLayoutProblems:
             "rcv: registered but not recorded",
             "retired: recorded but not a registered scenario",
             "rvv: has no case-actor.jsonl",
+            "rvv: holds files other than case-actor.jsonl: ['vendor.jsonl']",
         ]
 
     def test_the_check_option_fails_on_a_disagreement(self, recorded):
@@ -280,14 +281,57 @@ class TestReadDump:
 
 
 class TestWriteRecording:
-    def test_files_of_dropped_actors_are_removed(self, tmp_path, monkeypatch):
+    def test_only_the_canonical_ledger_is_left(self, tmp_path, monkeypatch):
         monkeypatch.setattr(recordings, "RECORDINGS_DIR", tmp_path)
-        write_recording("rv", {"vendor": "a\n", "reporter": "b\n"})
-        write_recording("rv", {"vendor": "c\n"})
+        (tmp_path / "rv").mkdir()
+        (tmp_path / "rv" / "vendor.jsonl").write_text("old\n")
+        path = write_recording("rv", "c\n")
+        assert path == tmp_path / "rv" / "case-actor.jsonl"
         assert sorted(p.name for p in (tmp_path / "rv").iterdir()) == [
-            "vendor.jsonl"
+            "case-actor.jsonl"
         ]
-        assert (tmp_path / "rv" / "vendor.jsonl").read_text() == "c\n"
+        assert path.read_text() == "c\n"
+
+
+def _line(index: int, tag: str = "") -> str:
+    return json.dumps({"logIndex": index, "tag": tag})
+
+
+class TestCanonicalLedger:
+    CANONICAL = "\n".join(_line(i) for i in range(3)) + "\n"
+
+    def test_replicas_that_copy_the_canonical_entries_pass(self):
+        ledgers = {
+            "case-actor": self.CANONICAL,
+            "vendor": self.CANONICAL,
+            # A participant that left early holds a shorter replica.
+            "reporter": _line(0) + "\n" + _line(1) + "\n",
+        }
+        assert recordings.canonical_ledger("rv", ledgers) == self.CANONICAL
+
+    def test_a_replica_entry_that_differs_is_refused(self):
+        ledgers = {
+            "case-actor": self.CANONICAL,
+            "vendor": _line(0) + "\n" + _line(1, "edited") + "\n",
+        }
+        with pytest.raises(
+            DemoRecordingError, match=r"'vendor'.*logIndex 1.*differs"
+        ):
+            recordings.canonical_ledger("rv", ledgers)
+
+    def test_a_replica_entry_the_canonical_ledger_lacks_is_refused(self):
+        ledgers = {"case-actor": self.CANONICAL, "vendor": _line(7) + "\n"}
+        with pytest.raises(DemoRecordingError, match="does not"):
+            recordings.canonical_ledger("rv", ledgers)
+
+    def test_a_dump_without_the_canonical_ledger_is_refused(self):
+        with pytest.raises(DemoRecordingError, match="no 'case-actor'"):
+            recordings.canonical_ledger("rv", {"vendor": self.CANONICAL})
+
+    def test_a_line_without_a_log_index_is_refused(self):
+        ledgers = {"case-actor": self.CANONICAL, "vendor": '{"id": 1}\n'}
+        with pytest.raises(DemoRecordingError, match="'vendor', line 1"):
+            recordings.canonical_ledger("rv", ledgers)
 
 
 class TestNodesCall:
@@ -402,7 +446,7 @@ class TestCli:
         monkeypatch.setattr(
             recordings,
             "record_scenario",
-            lambda spec, _topology: {"case-actor": f"{spec.name}\n"},
+            lambda spec, _topology: f"{spec.name}\n",
         )
         result = CliRunner().invoke(recordings.main, ["--scenario", "rv"])
         assert result.exit_code == 0, result.output
@@ -426,7 +470,7 @@ class TestCli:
         monkeypatch.setattr(
             recordings,
             "record_scenario",
-            lambda spec, _topology: {"case-actor": f"{spec.name}\n"},
+            lambda spec, _topology: f"{spec.name}\n",
         )
         result = CliRunner().invoke(recordings.main, [])
         assert result.exit_code == 0, result.output

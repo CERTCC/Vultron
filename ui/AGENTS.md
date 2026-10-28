@@ -117,9 +117,10 @@ diff whose path was guessed). A clean single legal step gets none.
 - **Two log locations — do not confuse them:**
   - **`ui/src/recordings/`** — GENERATED, COMMITTED recordings the "Load …"
     buttons import via `?raw`. In-tree, so a fresh clone builds. One dir per
-    registered scenario, one `<actor>.jsonl` ledger per actor the scenario's
-    ledger dump names. Regenerate with `uv run export-demo-recordings`; the
-    drift test `test/demo_recordings/test_recordings_drift.py` fails when one is stale.
+    registered scenario, holding its canonical `case-actor.jsonl`; replicas
+    are checked against it on every run and not stored. Regenerate with
+    `uv run export-demo-recordings`; the drift test
+    `test/demo_recordings/test_recordings_drift.py` fails when one is stale.
     Never hand-edit a recording.
   - **`ui/src/synthetic-ledgers/`** — hand-authored ledgers with deliberate
     violations and inferred steps, for the flagging the recordings never

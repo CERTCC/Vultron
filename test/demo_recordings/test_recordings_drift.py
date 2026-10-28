@@ -17,7 +17,9 @@ The comparison is byte for byte, as for ``protocol_states.json``.  A fresh run
 is deterministic (seeded ids, a stepping clock), and the committed files were
 written by another process, so a pass also shows that the output does not
 depend on the process that made it.  No scenario needs a normalized
-comparison.
+comparison.  Only the canonical ledger is committed; ``record_scenario`` checks
+every replica the run dumped against it, so a replica that disagrees fails here
+too.
 
 Each scenario runs for up to two minutes, so this is an integration test.
 
@@ -30,7 +32,6 @@ the CLI writes.
 import pytest
 
 from vultron.demo.recordings import (
-    RECORDINGS_DIR,
     REGENERATE_COMMAND,
     record_scenario,
     recording_path,
@@ -46,23 +47,10 @@ _SCENARIO_TIMEOUT_SECONDS = 900
 @pytest.mark.timeout(_SCENARIO_TIMEOUT_SECONDS)
 @pytest.mark.parametrize("spec", discover_scenarios(), ids=lambda s: s.name)
 def test_committed_recording_matches_a_fresh_run(spec):
-    regenerate = f"{REGENERATE_COMMAND} --scenario {spec.name}"
     fresh = record_scenario(spec)
 
-    committed = sorted(
-        path.stem for path in (RECORDINGS_DIR / spec.name).glob("*.jsonl")
-    )
-    assert committed == sorted(fresh), (
-        f"the committed recording of {spec.name!r} holds ledgers for "
-        f"{committed}, but a fresh run dumps {sorted(fresh)}. "
-        f"Regenerate it: {regenerate}"
-    )
-    stale = [
-        actor
-        for actor, text in fresh.items()
-        if recording_path(spec.name, actor).read_text(encoding="utf-8") != text
-    ]
-    assert not stale, (
-        f"the committed recording of {spec.name!r} differs from a fresh run "
-        f"for {stale}. Regenerate it: {regenerate}"
+    committed = recording_path(spec.name).read_text(encoding="utf-8")
+    assert committed == fresh, (
+        f"the committed recording of {spec.name!r} differs from a fresh run. "
+        f"Regenerate it: {REGENERATE_COMMAND} --scenario {spec.name}"
     )
