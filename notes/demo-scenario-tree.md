@@ -1,11 +1,10 @@
 ---
-title: Demo Scenario Tree — Path Declarations, Names, the Tree Index, and the Prefix Check
+title: Demo Scenario Tree — Names, the Tree Index, the Prefix Check, and Test Starting Points
 status: active
 kind: plan
 tracks:
   - "#4727"
   - "#4733"
-  - "#4759"
   - "#4747"
   - "#5303"
   - "#5304"
@@ -16,13 +15,12 @@ tracks:
   - "#5348"
   - "#5349"
 description: >
-  Design for making the demo scenario tree explicit (#4726): branch points
-  defined once in a table, each scenario declaring its full path on `@scenario`,
-  trigger-only choices, the letter-grammar names and how a rename keeps old
-  URLs, the generated tree index the demo UI reads, and the isomorphic
-  shared-prefix check over recordings. Records the mapping of today's
-  scenarios onto the tree, how integration tests start from named points on it,
-  and the Task order.
+  Design for the remaining scenario-tree work (#4726): the letter-grammar names
+  and how a rename keeps old URLs, the generated tree index the demo UI reads,
+  the isomorphic shared-prefix check over recordings, how integration tests
+  start from named points on the tree, and the Task order. The branch-point
+  table and the `@scenario` path declarations are built; their rules live in
+  demo-scenario-registry.md.
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
@@ -39,7 +37,7 @@ relevant_packages:
   - ui/src/data
 ---
 
-# Demo Scenario Tree — Path Declarations, Names, the Tree Index, and the Prefix Check
+# Demo Scenario Tree — Names, the Tree Index, the Prefix Check, and Test Starting Points
 
 Vocabulary: the **Demo** section of `CONTEXT.md` (scenario tree, branch point,
 choice, ending, scenario, recording). Decision records: ADR-0098 and ADR-0104,
@@ -51,83 +49,18 @@ retires each family's declarations as it lands.
 
 ---
 
-## Declaration shape
+## The tree is declared in code
 
-- **Branch points are defined once, in a table** in the scenario package: the
-  deciding role, the presenter prompt ("As the Vendor, choose…"), and the
-  choices, each with a label and one trigger (DEMOCI-11-013). The labels live
-  nowhere else, so offline and live mode cannot disagree.
-- **Each scenario declares its full path** on `@scenario`, as ordered
-  (branch point, choice) pairs from the root (DEMOCI-11-014). A
-  parent-scenario pointer was rejected: `rv` and `rvv` are siblings, neither a
-  prefix of the other.
-- **A tree node is identified by its path prefix.** A branch point is a table
-  entry that labels one or more nodes: a decision can recur on one path (#2050
-  invalidates, then validates), so key nodes by prefix, not by branch point.
-- **Every scenario is an ending.** No path may be a strict prefix of another, or
-  one scenario would be both an interior node and a leaf.
+The branch-point table (`vultron/demo/scenario/branch_points.py`) and each
+scenario's `@scenario(path=...)` are the tree; `scenario_tree()` in
+`registry.py` merges the paths and discovery fails unless every scenario is one
+ending (DEMOCI-11-013, DEMOCI-11-014). The declaration rules are in
+[demo-scenario-registry.md](demo-scenario-registry.md) § "The path and the
+branch-point table". Read the tree there, not from a copy here.
 
-## Choices are triggers only
-
-Every choice is one trigger POST by the branch point's role, so live mode needs
-no client-side action. A presenter can take over any role at any branch point;
-the scenario plays the other parties until the next branch point.
-
-- **Other parties act between decisions.** A choice's trigger is the deciding
-  role's next trigger on that path, and steps by other roles may run before it
-  and after it (DEMOCI-11-013). "Keep the case" is Vendor1 accepting the
-  Coordinator's suggestion of Vendor2 (`accept-actor-recommendation`), with
-  the suggestion played in between.
-- **"Carry on" is the role's next trigger on that path.** `rv`'s choice beside
-  "invite another Vendor" is "report the fix ready" (`notify-fix-ready`), not
-  "invite nobody". Write the label as what happens.
-- **A silent party shows as what the other party does next** ("the Reporter
-  publishes unilaterally"), not as a wait.
-- **Open consideration:** the silence scenarios (#2053, #2056) may need a
+- **Open consideration: silence scenarios** (#2053, #2056) may need a
   non-trigger wait or a demo-only clock trigger to show a timeout running out.
   Decide that when one of them is designed, and amend DEMOCI-11-013 then.
-
-## Today's scenarios on one tree
-
-Every path opens with submit, then the receiver's validate and engage. The
-default embargo starts at case creation, so embargo terms are a later branch
-point, not a root one. Steps in brackets are shared steps, not choices.
-
-```text
-Reporter: whom to tell?                (room for "Vendor found it itself": #2591, #3667)
-├─ a Vendor → [Vendor validates; Reporter asks, Vendor answers] → Vendor: next?
-│   ├─ report the fix ready ................................ rv
-│   ├─ invite another Vendor ............................... rvv
-│   └─ invite a Coordinator → Vendor1: keep the case?
-│       ├─ keep it: accept the Coordinator's suggestion .... rvcv-extension
-│       └─ offer ownership to the Coordinator .............. rvcv-handoff
-└─ a Coordinator → [Coordinator validates] → Coordinator: invite whom?
-    ├─ a Vendor → Vendor: join?
-    │   ├─ reject the invite ............................... rcv-reject
-    │   └─ accept → Reporter: next?
-    │       ├─ propose new embargo terms → Vendor1: next?
-    │       │   ├─ propose a revision ...................... rcvv-embargo
-    │       │   └─ report the fix ready .................... rcv-embargo
-    │       └─ ask the Vendor a question → [Vendor answers] → Coordinator: next?
-    │           ├─ invite a second Coordinator ............. rcvcv
-    │           └─ carry on: publish after the Vendor's fix  rcv
-    └─ a second Coordinator → Coordinator1: keep the case?
-        ├─ keep it: accept Coordinator2's suggestion ....... rccv-extension
-        └─ offer ownership to Coordinator2 ................. rccv-handoff
-```
-
-Today's code does not follow this order everywhere. #4759 moves these steps,
-with no pass or fail verdict changed (DEMOMA-17-002):
-
-- `rvv`, `rvcv-extension`, `rvcv-handoff`: the notes exchange moves before the
-  invites, so the Vendor's branch point follows it.
-- `rcvcv`: the second Coordinator's invite moves after the notes exchange.
-- `rcv-embargo`, `rcvv-embargo`: the notes exchange moves after the embargo
-  proposal, so the Reporter's choice is between proposing and asking.
-
-The exact prompts, choice labels and triggers are #4759's to write; the shape
-above is what the paths must produce.
-
 - **Future scenarios fit as new choices.** Two-reporter, split and merge
   scenarios (#3671, #4243, #4244) add actors and cases mid-path, which is why
   recordings are keyed by actor and case.
@@ -135,6 +68,11 @@ above is what the paths must produce.
   point is the Reporter's, so a Vendor that finds the vul itself is not one of
   its choices. It is either a second root or the Vendor acting as the Reporter;
   decide when that scenario is designed. Its name begins with `v` either way.
+- **Siblings share logic, not yet bytes.** The steps before a branch point are
+  meant to be the same across its siblings, but some still differ in note text
+  and order (`rcv`'s notes run Reporter, Vendor, Coordinator; `rcvcv`'s run
+  Reporter, C1, V1). The shared-prefix check (#4727) finds these; fix each in
+  that Task without changing a verdict (DEMOMA-17-002).
 
 ## Names
 
@@ -221,15 +159,13 @@ will report to the harness for the shared-prefix check (#4727, DEMOCI-11-017).
   by default), so a saved point needs a name of its own, copied into each test's
   freshly named store (#5345).
 - **Make one act cheap first.** In #5344's profile one received act reread the
-  case 90 times (743 reads of 73 records), and `_pending_announce_index` rebuilt
-  its outbox index each time a queued `Announce` changed the queue; that per-act
-  cost is paid on every step, starting points or not.
+  case 90 times (743 reads of 73 records); that per-act cost is paid on every
+  step, starting points or not. `_pending_announce_index` already reads only
+  the outbox rows queued since its last snapshot (#4906).
 
 ## Task order
 
-1. #4759 — the branch-point table, path declarations and registry checks (no
-   recordings needed).
-2. #4727 — the tree-index exporter and the isomorphic prefix check, after #3901.
-3. #4733 — composition, family by family.
-4. Test starting points: #5344 (one act cheap) and #5345 (the harness, after #4727),
+1. #4727 — the tree-index exporter and the isomorphic prefix check, after #3901.
+2. #4733 — composition, family by family.
+3. Test starting points: #5344 (one act cheap) and #5345 (the harness, after #4727),
    then the pilot #5346, then the migrations #5347 and #5348, and last #5349.

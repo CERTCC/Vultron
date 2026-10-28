@@ -300,11 +300,6 @@ def _phase_report_submission(
         ).with_case(case),
         case_manager=case_actor_client,
     )
-    # The shared note exchange puts add_note_to_case in the ledger
-    # (DEMOMA-16-001); Vendor1 is seated, Vendor2 is not yet.
-    reporter_asks_vendor_answers(
-        cast.reporter, cast.vendor, cast.coordinator.client, case
-    )
     assert_canonical_em_state(
         cast.coordinator,
         case,
@@ -598,6 +593,14 @@ def run_rcvv_embargo_demo(
             vendor2_id=vendor2_id,
         )
         proposed_embargo_id = _phase_embargo_proposal(cast, case)
+        # The Reporter proposed rather than asked first (its branch point on
+        # the scenario tree), so the shared note exchange follows the
+        # proposal and comes before Vendor1's own next decision.  It puts
+        # add_note_to_case in the ledger (DEMOMA-16-001); Vendor1 is seated,
+        # Vendor2 is not yet.
+        reporter_asks_vendor_answers(
+            cast.reporter, cast.vendor, cast.coordinator.client, case
+        )
         # The revision cycle revises the embargo phase 2 put in force; without
         # one, phases 3-7 would only pile secondary failures on the first.
         with demo_gate("Phase 2 put the revised embargo in force"):
@@ -641,6 +644,13 @@ def run_rcvv_embargo_demo(
     participants="Reporter + Coordinator + Vendor1 + Vendor2",
     feature="Embargo revision cycle, late second vendor, and accidental collapse",
     in_pr_set=True,
+    path=(
+        ("reporter-whom-to-tell", "coordinator"),
+        ("coordinator-invite-whom", "vendor"),
+        ("vendor-join", "accept"),
+        ("reporter-after-join", "propose-embargo"),
+        ("vendor-after-embargo", "propose-revision"),
+    ),
 )
 def main(
     skip_health_check: bool = False,

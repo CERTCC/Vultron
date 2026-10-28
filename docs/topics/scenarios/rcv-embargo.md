@@ -105,6 +105,9 @@ It activates the revision, and the case returns to EM `ACTIVE`.
 Each participant waits for the relayed invitation on its own replica.
 No participant waits for a message from another participant.
 
+With the revised embargo in force, the Reporter asks about it in a case note, and the Vendor answers.
+In this scenario the Reporter proposes terms before it asks anything, and the Vendor's next decision comes after its answer.
+
 *Antecedent:* the case is engaged and EM is `ACTIVE`.
 
 ### 3. Fix lifecycle

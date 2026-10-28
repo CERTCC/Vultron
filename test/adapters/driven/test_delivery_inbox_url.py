@@ -30,9 +30,15 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from test.support.emitter import RecordingEmitter
 from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.http_delivery import inbox_url_for
+from vultron.adapters.driven.http_delivery import (
+    HttpDeliveryAdapter,
+    inbox_url_for,
+)
+from vultron.adapters.driving.fastapi import outbox_handler
 from vultron.adapters.driving.fastapi.outbox_addressing import held_inboxes
 from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.core.models.actor import (
@@ -55,6 +61,72 @@ _ACTOR_ID = f"{_CONTAINER_BASE}/actors/{_ACTOR_UUID}"
 def _derive_inbox_url(actor_id: str) -> str:
     """The inbox HttpDeliveryAdapter posts to when it holds none."""
     return inbox_url_for(actor_id)
+
+
+@pytest.fixture
+def http_delivery_attempts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Every activity id handed to a real ``HttpDeliveryAdapter``.
+
+    A tripwire, not a stub: a route test that reaches it would otherwise wait
+    out the delivery retries against a host that does not exist (#5428).
+    """
+    attempts: list[str] = []
+
+    async def _record(
+        self: HttpDeliveryAdapter,
+        activity_id: str,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        attempts.append(activity_id)
+
+    monkeypatch.setattr(HttpDeliveryAdapter, "emit", _record)
+    return attempts
+
+
+@pytest.fixture
+def recording_emitter() -> RecordingEmitter:
+    """The emitter the inbox client's outbox delivers to."""
+    return RecordingEmitter()
+
+
+@pytest.fixture
+def inbox_client(
+    dl: SqliteDataLayer,
+    monkeypatch: pytest.MonkeyPatch,
+    recording_emitter: RecordingEmitter,
+    http_delivery_attempts: list[str],
+) -> TestClient:
+    """A client on the actors router whose outbox sends nothing over HTTP.
+
+    No dispatcher is installed, so every inbox post raises and is answered
+    with a fault to its sender (ASK-07-010).  Both emitter paths record it
+    instead of delivering it (notes/testing-pitfalls.md § "Patch Both Outbox
+    Emitter Paths").
+    """
+    monkeypatch.setattr(
+        outbox_handler._DEFAULT_EMITTER_SLOT, "value", recording_emitter
+    )
+    app = FastAPI()
+    app.include_router(actors_router.router)
+    app.dependency_overrides[get_datalayer] = lambda: dl
+    app.dependency_overrides[actors_router.get_actor_dl] = lambda: dl
+    app.state.emitter = recording_emitter
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def _assert_fault_recorded_not_sent(
+    emitter: RecordingEmitter, http_delivery_attempts: list[str]
+) -> None:
+    """The fault reply reached the recorder, and nothing went over HTTP.
+
+    The recorder holding the fault proves the outbox drain ran, so the empty
+    tripwire is not vacuous.
+    """
+    assert [body["object"]["type"] for body, _ in emitter.sent] == [
+        "ProcessingFault"
+    ], "the outbox drain did not deliver the fault reply"
+    assert http_delivery_attempts == []
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +224,12 @@ def test_held_inboxes_reads_a_wire_profile_inbox_collection():
 
 
 @pytest.mark.spec("OX-12-009")
-def test_the_inbox_a_hosted_profile_states_accepts_post(dl):
+def test_the_inbox_a_hosted_profile_states_accepts_post(
+    dl: SqliteDataLayer,
+    inbox_client: TestClient,
+    recording_emitter: RecordingEmitter,
+    http_delivery_attempts: list[str],
+) -> None:
     """A sender holding a hosted actor's profile posts to its stated inbox.
 
     ``hosted_endpoints`` states ``{id}/inbox`` without the trailing slash the
@@ -172,12 +249,6 @@ def test_the_inbox_a_hosted_profile_states_accepts_post(dl):
             )
         )
     )
-    app = FastAPI()
-    app.include_router(actors_router.router)
-    app.dependency_overrides[get_datalayer] = lambda: dl
-    app.dependency_overrides[actors_router.get_actor_dl] = lambda: dl
-    client = TestClient(app, raise_server_exceptions=False)
-
     stated = hosted_endpoints(local_actor_id)["inbox"]
     base_path = urlparse(local_actor_id).path.removesuffix(
         f"/actors/{_ACTOR_UUID}"
@@ -187,12 +258,18 @@ def test_the_inbox_a_hosted_profile_states_accepts_post(dl):
         by_alias=True, exclude_none=True, mode="json"
     )
 
-    resp = client.post(path, json=payload)
+    resp = inbox_client.post(path, json=payload)
 
     assert resp.status_code == 202, (resp.status_code, path)
+    _assert_fault_recorded_not_sent(recording_emitter, http_delivery_attempts)
 
 
-def test_derived_inbox_path_matches_fastapi_route(dl):
+def test_derived_inbox_path_matches_fastapi_route(
+    dl: SqliteDataLayer,
+    inbox_client: TestClient,
+    recording_emitter: RecordingEmitter,
+    http_delivery_attempts: list[str],
+) -> None:
     """G6: POST to derived inbox path returns 202, not 404.
 
     Creates an actor this node hosts, derives its inbox URL with the delivery
@@ -217,13 +294,6 @@ def test_derived_inbox_path_matches_fastapi_route(dl):
     )
     dl.create(object_to_record(actor))
 
-    app = FastAPI()
-    app.include_router(actors_router.router)
-    app.dependency_overrides[get_datalayer] = lambda: dl
-    app.dependency_overrides[actors_router.get_actor_dl] = lambda: dl
-
-    client = TestClient(app, raise_server_exceptions=False)
-
     # Derive inbox URL using the same formula as HttpDeliveryAdapter.
     inbox_url = _derive_inbox_url(local_actor_id)
 
@@ -242,7 +312,7 @@ def test_derived_inbox_path_matches_fastapi_route(dl):
         by_alias=True, exclude_none=True, mode="json"
     )
 
-    resp = client.post(path_relative_to_app_v2, json=payload)
+    resp = inbox_client.post(path_relative_to_app_v2, json=payload)
 
     # 202 Accepted (not 404) confirms the route pattern is consistent.
     assert resp.status_code == 202, (
@@ -250,8 +320,7 @@ def test_derived_inbox_path_matches_fastapi_route(dl):
         f"Path: {path_relative_to_app_v2}. "
         "This indicates inbox URL derivation is inconsistent with FastAPI routing."
     )
-
-    app.dependency_overrides = {}
+    _assert_fault_recorded_not_sent(recording_emitter, http_delivery_attempts)
 
 
 def test_inbox_url_path_relative_to_app_v2_has_actors_prefix():

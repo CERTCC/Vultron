@@ -54,6 +54,12 @@ _REPO_ROOT = Path(__file__).parents[2]
 _SCENARIO_DIR = _REPO_ROOT / SCENARIO_DIR
 _REGISTRY_SOURCE = _SCENARIO_DIR / "registry.py"
 
+#: A valid path for fixture specs; which one does not matter to these tests.
+_PATH = (
+    ("reporter-whom-to-tell", "vendor"),
+    ("vendor-after-answer", "report-fix-ready"),
+)
+
 
 def _module_stems_on_disk() -> set[str]:
     """Scenario demo module stems, read straight off the filesystem.
@@ -211,6 +217,7 @@ def test_scenario_rejects_a_name_that_contradicts_its_module() -> None:
         participants="Reporter + Vendor",
         feature="Baseline two-actor CVD",
         in_pr_set=True,
+        path=_PATH,
     )
 
     def impostor() -> None:
@@ -263,6 +270,7 @@ def test_scenario_spec_rejects_malformed_fields(
         "participants": "Reporter + Vendor",
         "feature": "Something",
         "in_pr_set": True,
+        "path": _PATH,
     }
     fields[field] = value
     with pytest.raises(DemoScenarioRegistryError):
@@ -283,6 +291,7 @@ def test_scenario_spec_rejects_non_boolean_in_pr_set() -> None:
             participants="Reporter + Vendor",
             feature="Something",
             in_pr_set=1,  # type: ignore[arg-type]
+            path=_PATH,
         )
 
 
@@ -299,6 +308,7 @@ def test_derived_paths_follow_the_documented_conventions() -> None:
         participants="Reporter + Vendor1 → Coordinator + Vendor2",
         feature="Case-ownership transfer to coordinator",
         in_pr_set=True,
+        path=_PATH,
     )
     assert spec.demo_path == "vultron/demo/scenario/rvcv_handoff_demo.py"
     assert (
