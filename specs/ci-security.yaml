@@ -222,11 +222,14 @@ groups:
       mutation failure; a missing type is surfaced, not swallowed.
     verification: >-
       In `test/ci/test_workflow_failure_notification.py`,
-      `test_notify_action_sets_bug_issue_type` asserts the action resolves the
-      `Bug` issue type by name and applies it via `updateIssue` with
-      `issueTypeId` on both the create and the comment-on-existing arm, and
-      `test_notify_action_fails_visibly_without_bug_type` asserts the no-type
-      guard exits non-zero with an `::error::` annotation.
+      `test_notify_action_sets_bug_issue_type` asserts the action sets the
+      `Bug` type through `.github/scripts/ensure-issue-type.sh` on both the
+      create and the comment-on-existing arm;
+      `test_issue_type_helper_resolves_the_type_by_name` asserts that helper
+      resolves the type by name and applies it via `updateIssue` with
+      `issueTypeId`; and
+      `test_issue_type_helper_fails_visibly_without_the_type` asserts its
+      no-type guard exits non-zero with an `::error::` annotation.
     relationships:
       - rel_type: refines
         spec_id: CISEC-05-001
