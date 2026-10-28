@@ -154,7 +154,8 @@ pattern promotion. Process in this order:
    candidates by claim and count **independent witnesses** — entries with
    different `source` work items asserting the same thing:
    - **Two or more witnesses** → the claim is corroborated. Promote to `notes/`
-     or `AGENTS.md`, or file a `type:Bug` issue if it names a defect.
+     or `AGENTS.md`, or file an issue if it names a defect, typed by
+     `shared/issue-creation-requirements.md` § "Determining the right values".
    - **One witness** → try to confirm it against the code. If confirmed,
      promote. If not, leave it queued.
    - **One witness, older than 30 days** → archive as unreproduced via

@@ -160,6 +160,8 @@ is a Task, not a Concern (`shared/issue-creation-requirements.md`
 - **Required docs updates**: each page that needs updating with what to change
 - **Source**: PD-03-007 — implementation PR must include docs updates or a
   linked issue; deferred only when multiple pages require simultaneous rewrite
+- **Governing specs**: PD-03-007, PD-03-009, plus any `DF-` or `SG-` IDs that
+  govern the affected pages
 - **Deferred from PR**: `<PR_URL>` (fill in after the PR opens)
 - **Opened as**: `debt`, with `--where` naming the affected pages (a PR-originated
   deferral is not planned work)

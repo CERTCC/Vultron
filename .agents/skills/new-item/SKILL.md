@@ -20,6 +20,12 @@ IDs.
 Ask in plain text (an open-ended question): "Describe the item you want to
 capture."
 
+When a calling skill supplies the description and fields (for example
+`check-docs-sync` filing a deferred docs rewrite), take them as given: skip
+this question, and in Phase 3 ask only about fields that are missing. If no
+user is present to answer, fill the gaps from the caller's context and do not
+stop.
+
 ### Phase 1 — Infer + Confirm Type
 
 Infer the type from the shape of the work, by the rule in
@@ -61,7 +67,8 @@ user to accept or refine each field.
   References (optional; auto-seed related issue/spec/ADR links when possible).
 - **Bug and Task fields**: Summary, Evidence or Context, Fix or Approach,
   Acceptance Criteria, and the required `Governing specs:` line
-  (`shared/issue-creation-requirements.md` § "Governing specs").
+  (`shared/issue-creation-requirements.md` § "Governing specs (Task and Bug
+  bodies)").
 
 For the **Surface Symptom vs. Underlying Problem** field, actively draw out
 both halves: the naive, symptom-level reading someone would stop at, and the
@@ -89,8 +96,10 @@ parent epic.
 
 ### Phase 5 — Build Title + Body
 
-Generate a clean title (no `[Bug]` / `[Idea]` / `[Concern]` prefix) and body
-matching the corresponding GitHub template sections.
+Generate a clean title (no `[Bug]` / `[Idea]` / `[Concern]` prefix). An Idea or
+Concern body matches the sections of its GitHub template. A Bug or Task body
+uses the Phase 3 field list as its headings: there is no Task template, and the
+Bug template is for human reports.
 
 ### Phase 6 — Create or Update
 
@@ -128,4 +137,5 @@ Print one line:
   discrete choices, plain text for open-ended ones.
 - Use `manage-github-issue` for issue create/update + parent wiring.
 - Do not write to `specs/`, `notes/`, `AGENTS.md`, or open a PR.
-- Do not assign `size:` labels here.
+- Do not assign `size:` labels to an Idea or a Concern. Size a Bug or Task from
+  its Acceptance Criteria with `pr-size --acs <N>` (`shared/sizing.md`).

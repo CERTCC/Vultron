@@ -113,17 +113,18 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      When an implementation or bug-fix PR changes behavior, interfaces, or architecture described in
-      `docs/`, the PR MUST include the corresponding `docs/` updates or a linked follow-up
-      `type:Task` issue. Inline update is preferred for edits to existing pages, adding a single
-      new page, or rewriting a single existing page. A deferred Task is acceptable only when the
-      required update would simultaneously rewrite multiple `docs/` pages.
+      When an implementation or bug-fix PR changes behavior, interfaces, or architecture
+      described in `docs/`, the PR MUST include the corresponding `docs/` updates or a
+      linked follow-up `type:Task` issue. Inline update is preferred for edits to
+      existing pages, adding a single new page, or rewriting a single existing page. A
+      deferred Task is acceptable only when the required update would simultaneously
+      rewrite multiple `docs/` pages.
     rationale: >-
-      A `docs/` page that does not agree with the code misleads its readers, and
-      nobody sees the difference until it is large. The author of the change has the
-      context now, so an update in the same PR costs less than an update in a later
-      session. A rewrite of several pages can be too large for one PR, so only that
-      case can go to a Concern, which keeps the gap tracked.
+      A `docs/` page that does not agree with the code misleads its readers, and nobody
+      sees the difference until it is large. The author of the change has the context
+      now, so an update in the same PR costs less than an update in a later session. A
+      rewrite of several pages can be too large for one PR, so only that case can go to
+      a Task, which keeps the gap tracked.
   - id: PD-03-008
     priority: MUST
     kind: project
@@ -149,24 +150,27 @@ groups:
     priority: MUST
     kind: project
     statement: >-
-      `pr-triage` MUST independently determine which `docs/` pages an implementation or bug-fix
-      PR's diff affects, whether or not the diff touches `docs/`, and compare that determination
-      with the PR body's `Docs:` field. A missing or still-placeholder `Docs:` field is a FAIL
-      finding; an affected page the PR neither updated nor deferred is an IMPROVE finding; a
-      deferral MUST name an existing follow-up `type:Task` (or `type:Concern`) issue that lists the
-      affected pages, and is valid only where PD-03-007 permits deferring (an update that would
-      rewrite multiple `docs/` pages at once).
+      `pr-triage` MUST independently determine which `docs/` pages an implementation or
+      bug-fix PR's diff affects, whether or not the diff touches `docs/`, and compare
+      that determination with the PR body's `Docs:` field. A missing or
+      still-placeholder `Docs:` field is a FAIL finding; an affected page the PR neither
+      updated nor deferred is an IMPROVE finding; and so is a deferral that does not
+      name an existing follow-up `type:Task` or `type:Concern` issue listing the
+      affected pages, or that falls outside what PD-03-007 permits deferring (an update
+      that would rewrite multiple `docs/` pages at once).
     verification: >-
-      `pr-triage`'s notes-and-docs currency review determines affected `docs/` pages from the diff
-      without a `docs/`-modified precondition, and its criteria emit FAIL for a missing or
-      placeholder `Docs:` field, IMPROVE for an affected page neither updated nor deferred, and a
-      finding for a deferral that names no existing multi-page `type:Task` or `type:Concern` issue.
+      `pr-triage`'s notes-and-docs currency review determines affected `docs/` pages
+      from the diff without a `docs/`-modified precondition, and its criteria emit FAIL
+      for a missing or placeholder `Docs:` field, IMPROVE for an affected page neither
+      updated nor deferred, and a finding for a deferral that names no existing
+      multi-page `type:Task` or `type:Concern` issue.
     rationale: >-
       A docs check that runs only when the PR already changed `docs/` can never find a
-      page that the author forgot. Only the review check reaches PRs that a person
-      wrote and the fix rounds of `pr-execute`. The reviewer makes its own decision
-      and does not trust the `Docs:` line of the author. Thus it can find a "no docs
-      impact" that the author wrote without a check.
+      page that the author forgot. Only the review check reaches PRs that a person wrote
+      and the fix rounds of `pr-execute`. The reviewer makes its own decision and does
+      not trust the `Docs:` line of the author. Thus it can find a "no docs impact" that
+      the author wrote without a check. A `type:Concern` deferral still counts, because
+      deferrals filed before PD-03-007 named a Task were Concerns.
     relationships:
     - rel_type: depends_on
       spec_id: PD-03-007

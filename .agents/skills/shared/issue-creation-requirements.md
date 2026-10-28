@@ -72,14 +72,17 @@ gh issue list --repo CERTCC/Vultron --state open --limit 1000 \
 - **Issue type**: choose it from the shape of the work, not from why it was
   opened. The `opened:` label (excursion, separate-defect, debt, deferred) is
   independent of the type; a `debt` item is usually a `Task` or `Bug`.
-  - `Bug` — current behavior is wrong against a spec, ADR, or clear intent, and
-    the fix direction is known. Stale spec or notes text that names deleted code
-    counts.
+  - `Bug` — current behavior is wrong against a spec, ADR, or clear intent. The
+    cause may still need diagnosis (`bugfix` investigates first); what matters is
+    that the correct behavior is decided. Stale spec or notes text that names
+    deleted code counts.
   - `Task` — clear work with a known approach and no open design decision:
     refactors, module splits, missing docs pages, ratchets, sweeps.
   - `Concern` — a decision, investigation, or human or protocol-design call is
     needed before a work item can be written; several plausible answers exist.
-  - `Idea` — a new capability or direction.
+  - `Feature` — a new capability that is already specified well enough to
+    build.
+  - `Idea` — a new capability or direction not yet shaped into work.
 
   When one finding holds both a ready fix and an open question, file them as
   separate issues, and wire the blocker if one gates the other.
