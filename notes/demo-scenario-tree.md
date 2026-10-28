@@ -7,16 +7,26 @@ tracks:
   - "#4733"
   - "#4759"
   - "#4747"
+  - "#5303"
+  - "#5304"
+  - "#5344"
+  - "#5345"
+  - "#5346"
+  - "#5347"
+  - "#5348"
+  - "#5349"
 description: >
   Design for making the demo scenario tree explicit (#4726): branch points
   defined once in a table, each scenario declaring its full path on `@scenario`,
   trigger-only choices, the letter-grammar names and how a rename keeps old
   URLs, the generated tree index the demo UI reads, and the isomorphic
   shared-prefix check over recordings. Records the mapping of today's
-  scenarios onto the tree and the Task order.
+  scenarios onto the tree, how integration tests start from named points on it,
+  and the Task order.
 related_specs:
   - specs/demo-ci.yaml
   - specs/multi-actor-demo.yaml
+  - specs/testability.yaml
 related_notes:
   - notes/demo-scenario-registry.md
   - notes/demo-interactive-ui.md
@@ -25,6 +35,7 @@ related_notes:
 relevant_packages:
   - vultron/demo/scenario
   - vultron/metadata/demo_scenarios
+  - test/core/use_cases/received
   - ui/src/data
 ---
 
@@ -178,9 +189,47 @@ DEMOCI-11-018).
 - A real ordering mismatch the check finds is fixed in that Task without
   changing any scenario's pass or fail verdict (DEMOMA-17-002).
 
+## Test starting points
+
+The multi-actor integration tests start from the same tree (TB-15). A **named
+starting point** is a declared step on a scenario path: the point each scenario
+will report to the harness for the shared-prefix check (#4727, DEMOCI-11-017).
+
+- **Build once, copy per test.** Once per session the harness runs a path up to
+  the point, in-process, and saves each actor's store; every test loads its own
+  copy (TB-15-001, TB-15-002). Sibling tests that replay the same prefix pay for
+  it again and test it again, on every CI run.
+- **Seed it like the recordings.** Build with the recordings' seeded id source
+  and clock (#3901), so every copy is identical across runs (TB-15-003).
+- **Each step is tested once.** The test that moves the case from one starting
+  point to the next is the only one that runs that step; every other test runs
+  only its own acts (TB-15-002).
+- **The rebuild check follows the same rule.** It proves a point rebuilds from
+  its ledger when the point is built, then replays only each test's own entries
+  onto the rebuilt point (TB-15-004, TB-15-005).
+- **Finer states are declared steps, not new branch points.** Embargo
+  negotiation states the tests need ("Vendor1 proposed a revision", "the
+  CASE_MANAGER agreed") are steps on the embargo paths. They add no choice and
+  no scenario, so the branch-point table stays the tree's only choices
+  (DEMOCI-11-013).
+- **A state no story reaches** (a diverged replica, a forced commit failure)
+  loads the nearest point and applies the test's own change, rather than building
+  a case outside the ledger (TB-15-006).
+- **The copy is a SQLite `backup`, not `clone_for_actor`.** `clone_for_actor`
+  opens a different actor's empty store. Every in-memory store is named
+  `<base>-<slug>` from the configured base and the actor slug (`vultron-<slug>`
+  by default), so a saved point needs a name of its own, copied into each test's
+  freshly named store (#5345).
+- **Make one act cheap first.** In #5344's profile one received act reread the
+  case 90 times (743 reads of 73 records), and `_pending_announce_index` rebuilt
+  its outbox index each time a queued `Announce` changed the queue; that per-act
+  cost is paid on every step, starting points or not.
+
 ## Task order
 
 1. #4759 — the branch-point table, path declarations and registry checks (no
    recordings needed).
 2. #4727 — the tree-index exporter and the isomorphic prefix check, after #3901.
 3. #4733 — composition, family by family.
+4. Test starting points: #5344 (one act cheap) and #5345 (the harness, after #4727),
+   then the pilot #5346, then the migrations #5347 and #5348, and last #5349.
