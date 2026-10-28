@@ -56,9 +56,12 @@ GitHub does not dispatch events a workflow raises with its own `GITHUB_TOKEN`
 (filing an issue, adding a label, pushing a commit) to other workflows, to
 prevent recursion. So a bot-filed issue cannot be typed by labelling it and
 waiting for `label-to-issue-type.yml`, and `gh issue create` cannot set a type.
-A workflow that needs a typed issue resolves the type's node ID by name through
-the `issueTypes` GraphQL field and applies it with `updateIssue` itself, failing
-the step if the type does not exist (CISEC-05-007); `notify-failure` does this.
+A workflow that needs a typed issue calls
+`.github/scripts/ensure-issue-type.sh <repo> <issue> <type>` on both its create
+and update arms. The script resolves the type by name, applies it with
+`updateIssue`, leaves a typed issue alone, and fails the step when the type does
+not exist (CISEC-05-007). `notify-failure` and `demo-recordings.yml` use it;
+never copy its body into a workflow.
 
 ## PyYAML Parses a Bare `on:` Key as `True`
 

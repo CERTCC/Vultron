@@ -70,41 +70,10 @@ jobs:
         run: |
           set -euo pipefail
           changed=$(cat changed.txt)
-          # GITHUB_TOKEN events trigger no other workflow, so the type is set
-          # here rather than through label-to-issue-type.yml (CISEC-05-007).
-          # Idempotent: a typed issue is left alone, so the update arm also
-          # repairs a Task that an earlier failed assignment left untyped.
-          ensure_task_type() {
-            local num="$1" task_type_id issue_id current_type
-            # shellcheck disable=SC2016  # GraphQL variables, not shell ones
-            task_type_id=$(gh api graphql \
-              -f owner="${REPO%%/*}" -f name="${REPO##*/}" \
-              -f query='query($owner: String!, $name: String!) {
-                repository(owner: $owner, name: $name) {
-                  issueTypes(first: 100) { nodes { id name } }
-                }
-              }' \
-              --jq '(.data.repository.issueTypes.nodes // [])[]
-                    | select(.name == "Task") | .id')
-            if [ -z "$task_type_id" ]; then
-              echo "::error::No 'Task' issue type found in $REPO; #${num} is untyped." >&2
-              exit 1
-            fi
-            mapfile -t fields < <(gh issue view "$num" --repo "$REPO" \
-              --json id,issueType --jq '.id, (.issueType.name // "")')
-            issue_id="${fields[0]}"
-            current_type="${fields[1]:-}"
-            if [ -n "$current_type" ]; then
-              return 0
-            fi
-            # shellcheck disable=SC2016  # GraphQL variables, not shell ones
-            gh api graphql -f id="$issue_id" -f typeId="$task_type_id" \
-              -f query='mutation($id: ID!, $typeId: ID!) {
-                updateIssue(input: {id: $id, issueTypeId: $typeId}) {
-                  issue { number }
-                }
-              }' > /dev/null
-          }
+          # The Task type is set by the helper notify-failure also uses
+          # (CISEC-05-007); it leaves a typed issue alone and repairs an
+          # untyped one, so it runs on both arms.
+          ensure_type=.github/scripts/ensure-issue-type.sh
           gh label create "$REFRESH_LABEL" --repo "$REPO" \
             --description "Bot-managed: committed demo recordings lag main" \
             --color "fbca04" 2>/dev/null || true
@@ -113,7 +82,7 @@ jobs:
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --repo "$REPO" \
               --body "Still out of date on main: ${changed}. [Run and fresh recordings]($RUN_URL)"
-            ensure_task_type "$existing"
+            bash "$ensure_type" "$REPO" "$existing" Task
             exit 0
           fi
           body=$(printf '%s\n' \
@@ -126,7 +95,7 @@ jobs:
             --title "Refresh the demo recordings" \
             --body "$body" --label "$REFRESH_LABEL")
           echo "Filed $url"
-          ensure_task_type "${url##*/}"
+          bash "$ensure_type" "$REPO" "${url##*/}" Task
       - name: Close the refresh Task
         if: steps.record.outputs.status == '0'
         env:
