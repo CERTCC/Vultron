@@ -65,7 +65,7 @@ groups:
     rationale: >-
       Parentheses let `ruff format` put one name on each line. A diff that adds or
       removes a name then changes one line. A backslash continuation breaks when a
-      space follows the backslash, and the formatter cannot lay it out.
+      space follows the backslash.
 - id: CS-03
   title: Import Practices
   specs:
@@ -77,9 +77,8 @@ groups:
     rationale: >-
       A wildcard import hides where a name comes from, so a reader and a type checker
       cannot tell which names a module defines. A name that the source module adds
-      later can also replace a local name without warning. The `F403` and `F405` rules
-      in `ruff check` report wildcard imports; each sanctioned use carries a `# noqa:
-      F403` marker.
+      later can also replace a local name without warning. In `ruff check`, `F403`
+      reports a wildcard import, and `F405` reports a name that can come from one.
   - id: CS-03-002
     priority: MUST
     kind: project
@@ -205,10 +204,10 @@ groups:
     statement: Before adding imports between modules, trace the import chain to prevent cycles
     rationale: >-
       An import cycle fails at load time, often in a module other than the one a
-      change edited. CS-05-005 does not let a function-local import hide a cycle, so
-      the only remedy after the fact is to reorganize modules. Tracing the chain first
-      finds the cycle before the import exists, when a different placement costs
-      nothing.
+      change edited. A function-local import that hides a cycle is a last resort, and
+      each one needs a tracked marker (CS-05-002, CS-05-005). So a cycle found after
+      the fact costs a reorganization of modules. Tracing the chain first finds the
+      cycle before the import exists, when a different placement costs nothing.
 - id: CS-06
   title: Module Size
   specs:

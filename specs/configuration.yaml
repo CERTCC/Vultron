@@ -51,9 +51,9 @@ groups:
       `get_config()`, not through `os.environ.get()`.
     rationale: >-
       A direct environment read skips the YAML file, the field defaults and the field
-      validators. It also skips the cache, so a test that changes the configuration does
-      not reach that code. One read path keeps the precedence and the validation the
-      same for every setting.
+      validators. A test that supplies a configuration file or overrides `get_config()`
+      does not reach that code. One read path keeps the precedence and the validation
+      the same for every setting.
   - id: CFG-01-005
     priority: MUST
     kind: project

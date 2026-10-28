@@ -41,7 +41,8 @@ groups:
       agent's tool definitions can use it too. A unique id prevents two methods with
       the same name. A stable id keeps generated clients and tool definitions working
       when the server code changes. FastAPI otherwise derives the id from the handler
-      function name, so renaming a function changes the id. A fixed naming pattern lets
+      function name, the path and the method, so renaming a function or moving a route
+      changes the id. A fixed naming pattern lets
       a reader find the id from the resource and the action.
   - id: AR-01-004
     priority: MUST

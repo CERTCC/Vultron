@@ -20,8 +20,8 @@ groups:
     statement: All log entries MUST include `timestamp` field in ISO 8601 format
     rationale: >-
       An operator puts logs from several actors and services together to follow one
-      case. An ISO 8601 timestamp sorts and compares the same way in every log, whatever
-      the time zone or locale of the host that wrote it.
+      case. An ISO 8601 timestamp with its offset names one instant in every log,
+      whatever the time zone or locale of the host that wrote it.
     scope:
     - production
   - id: SL-01-002

@@ -105,8 +105,8 @@ groups:
     statement: The prototype MUST use SQLModel/SQLite for lightweight local persistence.
     rationale: >-
       The prototype needs persistence that runs with no database server. SQLite keeps
-      the data in a local file, or in memory for tests, and SQLModel maps the Pydantic
-      models onto its tables (ADR-0016).
+      the data in a local file, or in memory for tests. SQLModel stores each object as
+      a typed row that holds its JSON body (ADR-0016).
   - id: IMPLTS-02-002
     priority: MUST
     kind: project
@@ -201,8 +201,8 @@ groups:
     statement: The documentation theme SHOULD use Material for MkDocs.
     rationale: >-
       Material for MkDocs gives the site its navigation, search and page layout. One
-      theme gives every page the same structure, and the site's Markdown extensions,
-      such as its emoji support, come from the theme.
+      theme gives every page the same structure, and the emoji extension uses the
+      theme's icon set.
   - id: IMPLTS-04-004
     priority: SHOULD
     kind: project
@@ -431,8 +431,8 @@ groups:
       set of rules. Two tools that check the same thing can disagree, and a contributor
       then cannot satisfy both. ruff checks the whole tree in about a second, so its
       pre-commit hook costs little on each commit. CS-15-001 forbids keeping a replaced
-      tool next to its replacement, and the ban on Black, flake8 and isort applies that
-      rule to tooling.
+      symbol next to its replacement. The ban on Black, flake8 and isort applies the
+      same rule to tooling.
     verification: >-
       `pyproject.toml` contains a `[tool.ruff]` table; `.flake8`, `[tool.black]` and
       `[tool.isort]` are absent; `black`, `flake8` and `isort` are absent from the `dev`
@@ -494,12 +494,12 @@ groups:
       naming both the rule and the issue that tracks its removal, and `RUF100` MUST remain
       selected.
     rationale: >-
-      `RUF100` reports a `# noqa` marker that suppresses nothing. With it selected, a
-      new finding with no marker fails the check, and a marker left after its finding is
-      fixed also fails. Each marker then matches a real finding, and nobody keeps a
-      separate list of them. The issue number on each marker shows that the suppression
-      is planned work, not an unexplained exception. ADR-0094 records why file-wide
-      `per-file-ignores` cannot do the same job.
+      `RUF100` reports a `# noqa` marker that suppresses nothing. A new finding with no
+      marker fails the check because its rule is selected. With `RUF100` selected, a
+      marker left after its finding is fixed also fails. Each marker then matches a
+      real finding, and nobody keeps a separate list of them. The issue number on each
+      marker shows that the suppression is planned work, not an unexplained exception.
+      ADR-0094 records why file-wide `per-file-ignores` cannot do the same job.
     verification: >-
       `RUF100` is absent from the `ignore` list, and every `# noqa` added for baselining names
       a rule code and an issue number.
@@ -538,6 +538,10 @@ groups:
 - id: IMPLTS-06
   title: Optional and Prototype Extensions
   specs:
+  - id: IMPLTS-06-001
+    priority: MAY
+    kind: project
+    statement: The system MAY provide interactive demo interfaces using Streamlit.
   - id: IMPLTS-06-002
     priority: MAY
     kind: project
