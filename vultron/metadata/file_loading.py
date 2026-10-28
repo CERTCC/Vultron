@@ -265,12 +265,15 @@ def loads_yaml(
     shown: Path,
     *,
     loader: type[yaml.SafeLoader | yaml.CSafeLoader] = yaml.SafeLoader,
+    line_offset: int = 0,
 ) -> object:
     """Parse YAML *text* that has no working-tree file behind it.
 
     The text form of :func:`load_yaml`, for content read from elsewhere (a
-    blob at a commit). A fault is attributed to *shown*, for example
-    ``<ref>:specs/x.yaml``.
+    blob at a commit) or cut out of a larger file (a fenced block in a note).
+    A fault is attributed to *shown*, for example ``<ref>:specs/x.yaml``;
+    *line_offset* is the number of file lines before *text*, so a fault in a
+    cut-out block reads at its line in the file.
 
     Raises:
         MetadataLoadError: On a YAML syntax fault.
@@ -278,7 +281,9 @@ def loads_yaml(
     try:
         return yaml.load(text, Loader=loader)  # noqa: S506 — caller's loader
     except yaml.YAMLError as exc:
-        raise _yaml_error(exc, str(shown), "YAML parse error") from exc
+        raise _yaml_error(
+            exc, str(shown), "YAML parse error", line_offset
+        ) from exc
 
 
 #: Lead-in for a frontmatter parse fault. Kept identical across loaders so the

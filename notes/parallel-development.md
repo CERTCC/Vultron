@@ -14,6 +14,7 @@ related_notes:
   - notes/agentic-workflow.md
   - notes/agents-md-structure.md
   - notes/devcontainer-tooling.md
+  - notes/epic-themes.md
   - notes/git-workflow-pitfalls.md
 ---
 
@@ -71,6 +72,7 @@ Subtasks.
 | `needs-decomposition` | `build`, `create-epic`, `calve-epics` | Epic with no sub-issues yet; input to `plan-issue` |
 | `needs-rebase` | `create-pr`, `pr-execute` | PR conflicts an agent could not resolve; a human must (PAD-11-004) |
 | `specs-notes` | `learn`, `plan-issue`, `decision-audit` | Docs-only PR touching only `specs/` and `notes/` |
+| `theme:*` | Whoever creates or relabels the Issue; labels synced by `theme-labels` | The outcome the Issue delivers; one per leaf. Catalog and rules: `notes/epic-themes.md` (PAD-02-014–021) |
 
 Do not create `group:` labels: priority grouping is the Epic's `Schedule` and
 its sub-issue tree. `docs/agents/triage-labels.md` also lists `needs-triage`,

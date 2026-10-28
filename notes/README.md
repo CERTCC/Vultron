@@ -314,6 +314,10 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   Multi-agent coordination: claiming, bundles, recovery, worktrees, Project #24.
   **Load when**: changing how work is claimed, bundled, or sized, or using
   Project #24 or worktree slots.
+- **`epic-themes.md`** · `guidance`
+  The `theme:` label catalog (a YAML block tools load) and how to classify an Issue.
+  **Load when**: creating or relabeling an Issue, routing one to an Epic, or
+  editing the theme set.
 
 ### Agent workflow and project history
 
