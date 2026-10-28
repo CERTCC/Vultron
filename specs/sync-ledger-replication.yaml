@@ -131,10 +131,10 @@ groups:
     statement: Each log entry MUST include a cryptographic hash of its own content and MUST reference the hash of its immediate
       predecessor, forming a forward-linked hash chain (Merkle chain style)
     rationale: >-
-      The content hash lets a receiver check that an entry has the content the
-      CASE_MANAGER committed, in transit and in storage. The link to the predecessor's
-      hash fixes the entry's place in the chain. A receiver can then detect an entry
-      with other content and an entry in the wrong place.
+      The content hash lets a receiver check that an entry's content matches the hash
+      the entry states. The link to the predecessor's hash fixes the entry's place in
+      the chain. A receiver can then detect an entry whose content does not match its
+      hash and an entry in the wrong place.
     verification: >-
       Unit tests confirm that each log entry's entry_hash and prev_log_hash fields are
       correctly populated and form a valid forward-linked hash chain.
@@ -197,8 +197,9 @@ groups:
     rationale: >-
       The receiver needs the sender to check that the message comes from the
       CASE_MANAGER. It needs the two hashes to find the entry's place in its chain
-      before it applies anything (SYNC-03-001). The recipient lets each peer get its
-      own message and its own replication state (SYNC-04-001).
+      before it applies anything (SYNC-03-001). Naming the recipient makes each message
+      belong to one peer, so the CASE_MANAGER can track each peer's replication state
+      (SYNC-04-001).
     verification: >-
       Integration tests in `test/demo/` confirm that each Announce(CaseLedgerEntry)
       identifies the sender, recipient, entry hash, and predecessor hash.
@@ -213,11 +214,11 @@ groups:
       CASE_MANAGER role) and be sent individually to every active participant
       (CM-10-004).
     rationale: >-
-      Only the CASE_MANAGER holds the canonical ledger, so only it can send entries
-      that a replica can trust. A separate message to each active participant lets the
+      Only the CASE_MANAGER holds the canonical ledger, so only it can send entries that
+      a replica can trust. A separate message to each active participant lets the
       CASE_MANAGER track and repair each peer on its own (SYNC-04-001). Case content
-      goes only to active participants, so an inert participant receives nothing
-      (CM-10-004, ADR-0114).
+      goes only to active participants, so an inert participant receives no ledger
+      entries (CM-10-004, ADR-0114).
     verification: >-
       Integration tests in `test/demo/` confirm that replication originates from the
       actor holding the CASE_MANAGER role, is addressed to each active participant
@@ -253,10 +254,10 @@ groups:
       `Announce(CaseLedgerEntry)` and MUST NOT use a URI-only reference there.
     rationale: >-
       An inline entry lets the recipient check the hash chain without a request back to
-      the sender. This codebase never dereferences a ledger entry (AKM-05-007), so
-      without the inline entry a recipient in this codebase could not apply the Announce
-      at all. An entry fetched by reference passes the same checks, so another
-      implementation may send a reference (SYNC-02-004).
+      the sender. This codebase never fetches a ledger entry that a message names by
+      reference, so without the inline entry a recipient in this codebase could not
+      apply the Announce at all. An entry fetched by reference passes the same checks,
+      so another implementation may send a reference (SYNC-02-004).
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py::test_handle_outbox_item_preserves_inline_case_ledger_entry_fields`
       confirms the delivered Announce(CaseLedgerEntry) carries the full inline entry,
@@ -357,11 +358,12 @@ groups:
       applying or storing the entry. An entry that states no hash, or whose content does
       not reproduce it, MUST be refused, and MUST NOT be buffered, applied or stored.
     rationale: >-
-      The predecessor check (SYNC-03-001) proves that an entry claims the right place
-      in the chain. It does not prove that the content is what the CASE_MANAGER hashed.
-      A refused entry gets no `Reject(CaseLedgerEntry)`: a replay sends the same entry
-      again, and the receiver's unchanged tail already makes the next entry cause one.
-      The receiver reports the refusal with a processing fault instead (SYNC-03-007).
+      The predecessor check (SYNC-03-001) proves only that an entry claims the right
+      place in the chain. It does not prove that the content matches the entry's hash. A
+      refused entry gets no `Reject(CaseLedgerEntry)`, because a replay would send the
+      same entry again. The receiver's tail does not move, so the next entry does not
+      extend it and causes a Reject in the usual way. The receiver reports the refusal
+      with a processing fault instead (SYNC-03-007).
     verification: >-
       Tests marked `SYNC-03-006` deliver an entry whose content no longer matches its
       hash and assert it is not stored and not buffered.
@@ -520,7 +522,7 @@ groups:
     rationale: >-
       If a restart loses the per-peer state, the leader forgets which peers are behind
       and how recently it replayed to them. The replay cooldown then starts again from
-      zero, and a stuck peer can cause a new replay storm (SYNC-15-003).
+      zero, and a stuck peer can again cause replays without limit (SYNC-15-003).
     verification: >-
       Integration tests in `test/demo/` confirm that per-peer replication state
       survives a leader restart by verifying the acknowledged hash is restored
@@ -600,10 +602,11 @@ groups:
     kind: protocol
     statement: Replication leadership SHOULD be treated as distinct from case ownership
     rationale: >-
-      The case owner decides about the case, and the replication leader writes and
-      sends the ledger. The case owner can hold the CASE_MANAGER role or give it to
-      another actor, and a multi-node CASE_MANAGER can change its leader with no change
-      of owner. If the two concepts are one, each of these changes breaks the other.
+      The Case Owner decides about the case, and the replication leader writes and sends
+      the ledger. The Case Owner can hold the CASE_MANAGER role or give it to another
+      actor, and a multi-node CASE_MANAGER can change its leader with no change of
+      owner. If the two concepts are one, a change of either one forces a change of the
+      other.
     verification: >-
       Inspection of the protocol design confirms that replication leadership is
       modelled as a distinct concept from case ownership.
@@ -820,9 +823,9 @@ groups:
     statement: 'Append-only integrity: log entries MUST be immutable once committed and MUST be uniquely identified by their
       content hash'
     rationale: >-
-      Replicas, replays and the drain all find an entry by its hash. If two different
-      entries could have the same hash, or an entry could change after commit, a
-      replica could apply the wrong entry and still pass the chain check.
+      Replays and the drain find an entry by its hash. If two different entries could
+      have the same hash, or an entry could change after commit, a replica could apply
+      the wrong entry and still pass the chain check.
     verification: >-
       Unit tests confirm that log entries are immutable once committed and that each
       entry is uniquely identified by its content hash.
@@ -1233,11 +1236,11 @@ groups:
       semantic (ANNOUNCE_CASE_LEDGER_ENTRY) on first delivery using the typed inline object
       obtained during parsing, without a DataLayer round-trip.
     rationale: >-
-      This codebase never dereferences a ledger entry (AKM-05-007), so the inline object
-      is the only input the classifier has. Classification from it works because this
-      codebase sends the entry inline (SYNC-02-005). A classifier that needed a stored
-      entry would fail on the first delivery of each entry, which the receiver has not
-      stored yet.
+      This codebase never fetches a ledger entry that a message names by reference, so
+      the inline object is the only input the classifier has. Classification from it
+      works because this codebase sends the entry inline (SYNC-02-005). A classifier
+      that needed a stored entry would fail on the first delivery of each entry, which
+      the receiver has not stored yet.
     verification: >-
       `test/core/use_cases/received/test_sync.py::TestAnnounceLedgerEntryReceivedUseCase::test_semantic_type_is_correct` confirms an inbound
       Announce(CaseLedgerEntry) carrying the typed inline entry is classified as
@@ -1399,9 +1402,9 @@ groups:
       next one, so the cascade (SYNC-14-003) needs no loop in the use case.
     rationale: >-
       One delivery runs one tree (CLP-10-005), so a drain that ran its successor inline
-      would run several trees in one delivery. A drain folded into the tree would nest
-      one bridge run inside another, which hides an internal error in the inner run. A
-      delivery of its own uses the same path as in-order delivery by construction
+      would run several trees in one delivery. A drain inside the tree would run one
+      tree inside another, and an internal error in the inner tree would then not be
+      reported. A delivery of its own goes through the same path as in-order delivery
       (SYNC-14-008, ADR-0135). The replay must be the Announce that arrived, because
       intake archives what it receives as received evidence. A receiver that did not
       receive an Announce cannot make one up.
@@ -1659,11 +1662,11 @@ groups:
       is held, including the genesis entry (log_index 0) whose prev_log_hash equals the
       per-case genesis hash.
     rationale: >-
-      The reject and replay backstop (SYNC-15-001) does not converge when deliveries
-      arrive out of order, for the same reason that forward gaps are held (SYNC-14).
-      The replay sends entries one by one over the same unordered transport, so each
-      early entry is rejected again. This adds load, and each round can lose an entry.
-      Holding the entry lets it drain in order once the case is seeded.
+      The reject and replay recovery (SYNC-15-001) does not converge when deliveries
+      arrive out of order, for the same reason that forward gaps are held (SYNC-14). The
+      replay sends entries one by one over the same unordered transport, so each early
+      entry is rejected again. This adds load, and each round can lose an entry. Holding
+      the entry lets it drain in order once the case is seeded.
     adr:
     - ADR-0059
     verification: >-
@@ -1700,7 +1703,7 @@ groups:
       Announce extends the current tail.
     rationale: >-
       A participant can compute the genesis hash from the case object alone: it comes
-      from the case id, the creation time and the case owner's actor id (CLP-08-002).
+      from the case id, the creation time and the Case Owner's actor id (CLP-08-002).
       Seeding the case therefore anchors the chain, and the participant need not wait
       for a second delivery of the genesis entry. Draining on seed turns the pre-genesis
       hold (SYNC-15-004) into convergence.
@@ -1762,10 +1765,10 @@ groups:
     rationale: >-
       A fixed cooldown ends the Reject and replay loop only when one round trip
       completes inside it. On a loaded host, or with a peer that can never anchor its
-      chain, the loop runs for as long as the peer rejects. A cooldown that doubles
-      limits a stuck peer to a logarithmic number of replays over any period, whatever
-      the round-trip time. The ceiling keeps it a rate limit and not a stop
-      (SYNC-15-011 note).
+      chain, the loop runs for as long as the peer rejects. A cooldown that doubles soon
+      makes replays to a stuck peer rare, whatever the round-trip time. The ceiling
+      makes sure that a stuck peer still gets a replay at a fixed interval, so the
+      cooldown is a rate limit and not a stop (SYNC-15-011 note).
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003

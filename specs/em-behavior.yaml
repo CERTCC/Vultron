@@ -255,9 +255,9 @@ groups:
       Every participant must agree on whether an embargo is in force. If the receiver
       kept EM at Proposed after the EA, it would act as if no embargo binds the case,
       and it could disclose while the other participants keep the vulnerability private.
-      While another proposal stays open, Revise keeps that proposal visible, so its
-      later answer still has a state to move from (ADR-0130). The EK tells the sender
-      that the receiver applied the change.
+      Another open proposal stays open as a revision of the embargo now in force,
+      because the consent already given to its terms stays valid (ADR-0130). Revise
+      records both facts. The EK tells the sender that the receiver got the EA.
     adr:
     - ADR-0130
     verification: >-
@@ -408,8 +408,8 @@ groups:
       A participant must know that a change to the embargo is open while the current
       terms still bind it. Revise records both facts: an embargo is in force, and a
       revision of it waits for an answer. If the receiver stayed in Active, it could not
-      tell that a later EA or EJ answers a revision. The revision does not change any
-      participant's consent to the embargo in force until the case owner activates it
+      tell that a later EC or EJ answers a revision. The revision does not change any
+      participant's consent to the embargo in force until the Case Owner activates it
       (EP-05-002).
     adr:
     - ADR-0113
@@ -700,7 +700,7 @@ groups:
       `Accept(EmbargoEvent, target=Case)`, fanned out as
       `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
-      EC says that the case owner accepts a revision. The revised terms replace the
+      EC says that the Case Owner accepts a revision. The revised terms replace the
       terms in force, so when no other proposal is open, EM returns to Active under the
       revised terms. While another proposal stays open, EM stays in Revise under the
       revised terms, because the register still holds an open proposal (ADR-0130). The
@@ -815,9 +815,9 @@ groups:
       If the receiver stayed in Proposed after the last open proposal is rejected, it
       would wait for an answer that does not come, and it would show an embargo
       negotiation that has ended. None tells every participant that no embargo binds the
-      case. While another proposal stays open, Proposed keeps that proposal visible, so
-      its later answer still has a state to move from (ADR-0130). The EK tells the
-      sender that the receiver applied the change.
+      case. While another proposal is open, EM stays in Proposed, because that proposal
+      still waits for an answer (ADR-0130). The EK tells the sender that the receiver
+      got the ER.
     adr:
     - ADR-0130
     verification: >-
@@ -1638,9 +1638,9 @@ groups:
       and the OnEmbargoExit actuator.
     rationale: >-
       A Selector of Evaluator call-out points gives actors a clear interface with three
-      choices, and it lets a deployment inject a policy-rule backend (ADR-0025). The
-      reason for the termination then comes from one place, so each deployment can
-      supply it in its own way with no change to the tree.
+      choices, and it lets a deployment inject a policy-rule backend (ADR-0025). Each
+      deployment can then supply the termination reason in its own way with no change to
+      the tree.
     adr:
     - ADR-0025
     verification: >-
@@ -2166,13 +2166,14 @@ groups:
       abandonment of the case's open proposals, and MUST NOT write the
       abandonment to its own EM state.
     rationale: >-
-      Abandoning the case's open proposals is a decision for the case. The case owner
-      makes it, or the CASE_MANAGER it delegates to (EMB-16-001, EP-09-008). The P/X/A
-      signal already reaches the CASE_MANAGER as a status declaration, and the
-      CASE_MANAGER abandons the proposals on its own detection. An ER that another
-      Participant sends on the case's behalf arrives at the CASE_MANAGER as that
-      Participant declining the proposal (MSM-07-004). It would therefore record an
-      abandonment that the Participant has no standing to make.
+      Abandoning the case's open proposals is a decision for the case, and only the
+      actor that holds the CASE_MANAGER role writes shared EM state (EMB-16-001,
+      EP-09-008). The P/X/A signal already reaches the CASE_MANAGER as a status
+      declaration, and the CASE_MANAGER abandons the proposals when it detects that
+      signal. An ER that another Participant sends arrives at the CASE_MANAGER as that
+      Participant declining the proposal (MSM-07-004). The CASE_MANAGER records only
+      that decline, so the ER cannot abandon the proposals, and it misstates what the
+      Participant meant.
     note: >-
       Two rules sit side by side. This one covers the abandonment of
       proposals already open on the case: only the CASE_MANAGER makes it.
@@ -2647,15 +2648,14 @@ groups:
       names it by bare id. For a ledger entry, the case's reports are those of the
       replica's stored case.
     rationale: >-
-      An embargo belongs to the case that its `context` names. The inbox stores a
-      carried embargo before the handler's trust checks, and the first write wins. An
-      unchecked event would therefore let a sender plant the embargo of another case
-      under an id that case will name later. The case would then name the held record,
-      not the carried copy. A check of only the copy, or of a bare id only when it is
-      resolved, leaves the case pointing at the embargo of another case. A Reporter's
-      proposal names its report until the case exists, and it keeps its id when it is
-      about the case (EP-04-004). The Reporter holds it about the report, so refusing
-      that would refuse the Reporter its own case.
+      An embargo belongs to the case that its `context` names. A handler stores a
+      carried embargo when its store does not hold that id yet, and the first write
+      wins. An unchecked event would therefore let a sender plant the embargo of another
+      case under an id that case will name later. That case would then name the planted
+      record. The check therefore covers the record already held under the id, not only
+      the carried copy. A Reporter's proposal names its report until the case exists,
+      and it keeps its id after that (EP-04-004). A refusal of an embargo about one of
+      the case's reports would refuse the Reporter its own case.
     verification: >-
       A receiver is given a case that carries an inline `EmbargoEvent` whose `context`
       names a different case. The receiver refuses it, holds no record of the event
@@ -2755,7 +2755,7 @@ groups:
       The teardown changes canonical case state, so the actor that holds the
       CASE_MANAGER role announces it, and the participants are its audience. The tree
       that commits the teardown runs as the CASE_MANAGER, because the ledger commit is
-      gated on that role. An announcement addressed to the Case Manager would therefore
+      gated on that role. An announcement addressed to the CASE_MANAGER would therefore
       go to the announcing actor itself, and the teardown would reach nobody.
     note: >-
       This is the general rule of CLP-10-001 as amended by ADR-0109, not an exception to it: the

@@ -171,10 +171,11 @@ groups:
     rationale: >-
       The refused participant must learn that it was refused and why, so it can stop
       waiting for its entry. Other participants need only the case history, and a
-      refusal changes nothing in the case. A ledgered refusal would also put a
-      non-event into the hash chain that every replica must hold. A sender with no
-      standing and traffic after closure get no answer, because an answer would give
-      them a channel into a case they have no part in.
+      refusal changes nothing in the case. A ledgered refusal would also put a non-event
+      into the hash chain that every replica must hold. A sender that is not entitled to
+      make the assertion is owed no answer (HP-01-006, ADR-0141). After the case has
+      fully closed, the CASE_MANAGER acts like a process that has exited, and a `Reject`
+      of a late activity could be read as a protocol decision (CM-23-013, ADR-0131).
     adr:
     - ADR-0131
     - ADR-0141
@@ -225,9 +226,10 @@ groups:
     statement: '`CaseLedgerEntry` MAY include an optional `term` field reserved for
       Raft cluster use.'
     rationale: >-
-      A cluster of CASE_MANAGER nodes needs to know which leader wrote an entry. A
-      reserved field lets a cluster add that value without a change to the entry format
-      that single-node deployments also read.
+      In Raft, each entry carries the term of the leader that wrote it, and nodes
+      compare terms to find entries from an old leader. A reserved field lets a cluster
+      add that value without a change to the entry format that single-node deployments
+      also read.
   - id: CLP-02-010
     priority: SHOULD
     kind: project
@@ -532,10 +534,11 @@ groups:
       The case ledger MUST contain only canonical admitted entries. A refusal from any
       processing path MUST NOT be written as a ledger entry.
     rationale: >-
-      Every replica applies every entry. A refusal in the ledger would make each
-      replica tell a refusal from a change, and an implementation that fails to do this
-      would apply a change that never happened. A refusal is recorded in the process
-      log and answered to the sender.
+      Every replica applies every entry. A refusal in the ledger would make each replica
+      tell a refusal from a change, and an implementation that fails to do this would
+      apply a change that never happened. A refusal is recorded in the process log. A
+      refusal by a precondition guard is also answered with a refusal notice
+      (CLP-02-005).
     verification: >-
       `test/core/models/test_case_ledger.py::test_entry_carries_no_disposition_fields`
       asserts that a `CaseLedgerEntry` has no disposition, reason-code or reason-detail
@@ -975,10 +978,10 @@ groups:
       naming a registered, reasoned exemption. For an embargo act, it MUST trial-apply
       every entry before the first commit.
     rationale: >-
-      One transaction is the default of every received tree, and a tree does not need
-      to ask for it. A new tree therefore cannot lose it by accident. A trial apply
-      before the first commit finds an embargo entry that will not apply while nothing
-      is written yet.
+      One transaction is the default of every received tree that commits to a case, and
+      a tree does not need to ask for it. A new tree therefore cannot lose it by
+      accident. A trial apply before the first commit finds an embargo entry that will
+      not apply while nothing is written yet.
     verification: >-
       An architecture test in
       `test/architecture/test_embargo_consequences_in_one_act.py` asserts every received
@@ -1013,10 +1016,9 @@ groups:
     rationale: >-
       Replicas apply each entry as the act of the actor that the snapshot names. If the
       CASE_MANAGER puts its own identity there, the act is attributed to the wrong
-      participant, and its effects land on the wrong record. Authority is a role, not
-      an identity (ADR-0088), so a CASE_MANAGER that also holds a participant role can
-      assert as that participant. The check runs in the receive pipeline because the
-      sender's actor id is available for comparison only there.
+      participant, and its effects land on the wrong record. Authority is a role, not an
+      identity (ADR-0088), so a CASE_MANAGER that also holds a participant role can
+      assert as that participant.
     verification: A unit test in `test/core/behaviors/case/nodes/` verifies that
       `lifecycle.CommitCaseLedgerEntryNode` raises `VultronCanonicalEntryError` when
       `payloadSnapshot.actor` does not match the inbound activity's `actor_id`, and
@@ -1239,9 +1241,9 @@ groups:
       hash as its tail hash; it MUST NOT report a globally-shared constant sentinel.
     rationale: >-
       A shared constant is the same for every case. An empty ledger that reports it
-      cannot show that it belongs to this case, and a ledger with its entries removed
-      looks the same as a new one. The per-case hash makes an empty ledger specific to
-      its case.
+      cannot show which case it belongs to, and the empty ledger of one case looks the
+      same as the empty ledger of any other case. The per-case hash makes an empty
+      ledger specific to its case.
     verification: Unit tests in `test/core/models/test_case_ledger.py` confirm that
       `CaseLedger.tail_hash` returns the per-case genesis hash when the recorded entry
       list is empty and returns the hash of the last recorded entry otherwise.
@@ -1511,11 +1513,11 @@ groups:
       makes appliable is its own delivery (SYNC-14-009), never a second run in this
       one.'
     rationale: >-
-      Behavior trees exist to compose steps, and the tree is where the guards, the
-      stage order and the checks can see each step. Python code that runs a second
-      tree, or that chooses between trees, puts a protocol decision outside the tree. A
-      helper that `execute()` calls is part of `execute()`, so the rule follows it. One
-      tree from one factory keeps each decision in a place that the ratchets can check
+      Behavior trees exist to compose steps, and the tree is where the guards, the stage
+      order and the checks can see each step. Python code that runs a second tree, or
+      that chooses between trees, puts a protocol decision outside the tree. A helper
+      that `execute()` calls is part of `execute()`, so the rule follows it. One tree
+      from one factory keeps each decision where the architecture tests can check it
       (ADR-0022, ADR-0135).
     verification: '`test/architecture/test_single_bt_execution_received_side.py` greps
       every module under `vultron/core/use_cases/` for imports of `create_guarded_commit_case_ledger_entry_tree`;
@@ -1859,13 +1861,14 @@ groups:
       replica) is written by an effect node from the copy the event carries, after the
       precondition guards.
     rationale: >-
-      One shared intake node is the only store step the ratchet can see. An object
-      inside an activity is only a message shaped like that object. If intake wrote it
-      as a record before the guards, any sender could seed a case replica or a ledger
-      entry ahead of the trust and chain checks (PCR-03-004). The archive is the sealed
-      body (ADR-0149), because a summary drops what core does not name. The receiver
-      mints the row id, so a sender cannot take an id that the receiver derives for its
-      own record.
+      An architecture test checks that every received tree begins with the shared intake
+      node, so intake is the one store step for a received activity. An object inside an
+      activity is only a message shaped like that object. If intake wrote it as a record
+      before the guards, any sender could seed a case replica or a ledger entry ahead of
+      the trust and chain checks (PCR-03-004). The archive is the sealed body
+      (ADR-0149), because a summary drops what core does not name. The receiver mints
+      the row id, so a sender cannot take an id that the receiver derives for its own
+      record.
     verification: '`test/architecture/test_receive_side_intake_first.py` asserts
       the intake node is the first child of every tree `create_receive_activity_tree`
       returns and that every receive-side factory returns that tree. A unit test for
@@ -1910,10 +1913,11 @@ groups:
       per-tree store node, or a call in `execute()` — and MUST NOT write a core record
       from a received object anywhere but an effect node of its tree.
     rationale: >-
-      A store step in a helper is invisible to the mutation ratchet, which reads only
-      `execute()` and the tree. One shared intake node is the DRY form (CS-22-001) and
-      the only form the ratchet can see. A core record written in an effect node comes
-      after the guards, so a refused activity writes none (ADR-0111).
+      A second store path, in a helper, a per-tree node or `execute()`, can store the
+      activity in a different form, or store it twice. One shared intake node is the DRY
+      form (CS-22-001), and every received tree gets it from the shared factory. A core
+      record written in an effect node comes after the guards, so a refused activity
+      writes none (ADR-0111).
     verification: '`test/architecture/test_no_dl_mutations_in_execute.py` (CLP-10-020)
       flags any DataLayer write an `execute()` body reaches through a use-case-layer
       helper, so a handler-local store path fails the build unless enumerated in
@@ -1933,11 +1937,11 @@ groups:
       that `execute()`, and MUST enumerate the remaining violations as an exact
       `KNOWN_VIOLATIONS` set.'
     rationale: >-
-      A write that a helper does for `execute()` is still a write by `execute()`. A
-      detector that sees only writes in the `execute()` body misses them, so the
-      ratchet would pass code that the rule forbids. A write inside a BT node is
-      allowed, so the resolution stops at the use-case package boundary. Trigger-side
-      `execute()` and `_prepare()` bodies follow BT-15-001, not this rule.
+      A write that a helper does for `execute()` is still a write by `execute()`. A test
+      that sees only the writes in the `execute()` body misses them, so it would pass
+      code that the rule forbids. A write inside a BT node is allowed, so the resolution
+      stops at the use-case package boundary. Trigger-side `execute()` and `_prepare()`
+      bodies follow BT-15-001, not this rule.
     verification: Detector self-tests in the same module write synthetic sources to a
       temporary directory and assert that a helper containing a DataLayer write and
       called from `execute()` is flagged, that a helper two calls deep is flagged, and
@@ -2145,10 +2149,10 @@ groups:
       Some deliveries get an answer from the receiver in place of the admitted path. If
       the use case chooses between trees to give that answer, the choice is outside the
       tree, which the one-tree rule forbids (ADR-0135). These answers are not refusal
-      effects. The late-Accept answer commits and writes consent, and the P/X/A ER is
-      owed by a participant too and is idempotent by its own sealed record (ID-04-005).
-      A diversion keeps each answer in the one tree, where the ratchets and a reader
-      can see it.
+      effects. The late-Accept answer commits and writes consent. The P/X/A ER is owed
+      by a participant too, and its derived id lets a redelivery find it already sent
+      (HP-01-003). A diversion keeps each answer in the one tree, where the architecture
+      tests and a reader can see it.
     verification: >-
       `test/core/behaviors/case/nodes/test_diversion_stage.py` asserts a
       diversion that does not hold lets the tree continue, one that holds runs
@@ -2320,10 +2324,10 @@ groups:
     statement: '`Add(CaseStatus)` ledger entries authored by the CASE_MANAGER MUST be
       accepted as canonical entries by the ledger validation step.'
     rationale: >-
-      The CASE_MANAGER writes an `Add(CaseStatus)` entry when it creates a case
-      natively (CM-22-003). If the validator does not accept that entry, case creation
-      fails at its last step, or the vendor must write the entry, which the native
-      model forbids (ADR-0041).
+      The CASE_MANAGER writes an `Add(CaseStatus)` entry when it creates a case natively
+      (CM-22-003). If the validator does not accept that entry, case creation fails at
+      its last step, or the report receiver must write the entry, which CM-22-003
+      forbids (ADR-0041).
     relationships:
     - rel_type: implements
       spec_id: CM-22-003
@@ -2711,9 +2715,9 @@ groups:
       ActivityStreams makes `published` optional. A receiver that fills in the field
       cannot later tell a time the sender claimed from one it made. Each check that
       reads the claimed time then compares the receiver's clock with itself and never
-      fires (CLP-14-007, CLP-14-008). A refusal at the edge keeps the difference. A
-      receiver that creates its own outbound activity stamps its own clock, which is
-      correct.
+      fires (CLP-14-007, CLP-14-008). A refusal at message validation keeps the
+      difference. A receiver that creates its own outbound activity stamps its own
+      clock, which is correct.
     verification: '`parse_activity` in `vultron/wire/as2/parser.py` raises
       `VultronParseMissingPublishedError`, which the FastAPI inbox adapter maps to
       HTTP 422. Covered by `test/wire/as2/test_parser.py`, including a non-vacuity

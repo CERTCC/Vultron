@@ -40,6 +40,9 @@ from vultron.wire.as2.vocab.objects.case_ledger_entry import (
 )
 
 _ZERO_HASH: str = "0" * 64  # arbitrary hash for test chains
+_GENESIS_HASH: str = compute_genesis_hash(
+    CASE_ID, datetime(2024, 1, 1, tzinfo=UTC), OWNER_ACTOR_ID
+)
 
 
 def _make_reject_event(
@@ -500,11 +503,6 @@ def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
         )
         is None
     )
-
-
-_GENESIS_HASH: str = compute_genesis_hash(
-    CASE_ID, datetime(2024, 1, 1, tzinfo=UTC), OWNER_ACTOR_ID
-)
 
 
 @pytest.mark.spec("CLP-08-005")

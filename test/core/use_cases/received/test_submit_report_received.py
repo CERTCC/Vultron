@@ -180,6 +180,7 @@ class TestSubmitReportCreatesCase:
 
     @pytest.mark.xfail(
         strict=True,
+        raises=AssertionError,
         reason=(
             "CLP-03-003: no case ledger exists before the case (ADR-0041), so "
             "report receipt writes no CaseLedgerEntry. Tracked by #5326."

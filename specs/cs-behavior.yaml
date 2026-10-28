@@ -2007,11 +2007,11 @@ groups:
       or in the case status, only along a transition the PXA state machine permits.
       Restating the current state is permitted. A backward move MUST NOT be recorded.
     rationale: >-
-      PXA events are forward-only (p→P, x→X, a→A): a vulnerability that is public does
-      not become private again. A backward PXA write would show a false regression of
-      public disclosure in the case record, and every participant reads that record. The
-      fail-closed rule that protects the vf and d paths (CSB-16-001) applies to PXA for
-      the same reason.
+      PXA events are forward-only (p→P, x→X, a→A). Public awareness, a public exploit or
+      observed attacks cannot become untrue later. A backward PXA write would show a
+      false regression in the case record, and every participant reads that record. The
+      rule that limits the vf and d paths to permitted transitions (CSB-16-001) applies
+      to PXA for the same reason.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_ac3_backward_pxa_raises_and_persists_nothing`) confirms a backward PXA move
@@ -2050,9 +2050,9 @@ groups:
       MUST make the node return `Status.FAILURE`, or the helper raise, without writing
       to the DataLayer.
     rationale: >-
-      A backward PXA move would say that public information, a public exploit or an
-      attack is no longer true, which cannot happen. The guards can miss such a move, as
-      they can miss a vf or d jump (CSB-16-003). The write boundary refuses it and
+      A backward PXA move would say that public awareness, a public exploit or observed
+      attacks are no longer true, which cannot happen. The guards can miss such a move,
+      as they can miss a vf or d jump (CSB-16-003). The write boundary refuses it and
       persists nothing, so the store never holds a backward PXA state.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
@@ -2465,15 +2465,15 @@ groups:
       vulnerability has been accepted for action.
     rationale: >-
       The F bit records that the vendor has a fix. A vendor makes a fix only after it
-      accepts the report for action, so an F bit with an RM state before acceptance
-      (RECEIVED, INVALID or VALID) is causally impossible. The true rule is about
-      history: the participant passed through ACCEPTED at some time. A participant
-      status holds only the current RM state, so the check uses the set of RM states
-      that ACCEPTED can reach. DEFERRED and CLOSED can also be reached without ACCEPTED,
-      so the check is sound but not complete. The set keeps them because a peer can pass
-      through ACCEPTED and report a ready fix in one message (CSB-16-001). A check of
-      ACCEPTED alone would refuse much more valid traffic than it stops. Only the RM
-      history of the participant can give a complete check.
+      accepts the report for action. An F bit with an RM state before acceptance (START,
+      RECEIVED, INVALID or VALID) is therefore causally impossible. The true rule is
+      about history: the participant passed through ACCEPTED at some time. A participant
+      status holds only the current RM state, so the check uses the RM states that
+      ACCEPTED can reach. DEFERRED and CLOSED can also be reached without ACCEPTED, so
+      the check is sound but not complete. The set keeps them because a peer can move
+      through ACCEPTED to DEFERRED or CLOSED and report a ready fix in one message. A
+      check of ACCEPTED alone would refuse that valid update. Only the RM history of the
+      participant can give a complete check.
     testable: true
     preconditions:
     - description: Any participant state snapshot is available for inspection
@@ -2501,11 +2501,11 @@ groups:
       P event causes embargo termination, so EM cannot remain ACTIVE once P
       has occurred.
     rationale: >-
-      The P event (public disclosure) makes the embargo end. An embargo that stays
-      ACTIVE or REVISE after P is recorded is therefore a causal contradiction, not a
-      question of timing, and it misstates the case to every participant that reads it.
-      The emit path does not check it, because the contradiction comes from the order of
-      the events and not from one write.
+      The P event (public awareness) makes the embargo end. An embargo that stays ACTIVE
+      or REVISE after P is recorded is therefore a causal contradiction, and it
+      misstates the case to every participant that reads it. The emit path does not
+      refuse a P report while an embargo is active, because that report is what causes
+      the embargo to end.
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
@@ -2523,9 +2523,8 @@ groups:
     rationale: >-
       A public exploit lets attackers use the vulnerability, so secrecy no longer
       protects users. An embargo that stays ACTIVE or REVISE after X tells participants
-      to keep a secret that attackers already have. It also holds back the fix
-      information that defenders need now, and it misstates the case to every
-      participant that reads it.
+      to keep a secret that attackers already have. It also holds back information that
+      defenders need now, and it misstates the case to every participant that reads it.
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
