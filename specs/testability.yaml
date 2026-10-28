@@ -18,11 +18,21 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: The system MUST use pytest as the testing framework
+    rationale: >-
+      One test framework lets one command run every test, in CI and on a developer
+      machine. The suite depends on pytest features: fixtures, markers, `pytest-xdist`
+      workers and `pytest-timeout` ceilings (TB-14-001). Tests written for a second
+      framework would need their own runner and could not use these features.
   - id: TB-01-002
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: Test configuration MUST be defined in `pyproject.toml`
+    rationale: >-
+      pytest reads its settings from one file. With the markers, the timeouts and the
+      default options in `pyproject.toml`, a local run and a CI run use the same
+      settings. pytest reads a `pytest.ini` file before `pyproject.toml`, so a second
+      file would replace the shared settings.
 - id: TB-02
   title: Test Coverage
   specs:
@@ -31,11 +41,19 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: Unit tests MUST achieve 80%+ line coverage
+    rationale: >-
+      Code that no test runs can break with no test failing. Line coverage shows which
+      code that is. A floor of 80% for unit tests keeps most code under test, and it
+      still permits code that a unit test cannot easily reach.
   - id: TB-02-002
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: Critical paths MUST achieve 100% line coverage
+    rationale: >-
+      A defect on a critical path, such as message dispatch or a case state change, can
+      corrupt case data or stop the protocol. Full line coverage of these paths makes
+      sure that a change to any of their lines runs at least one test.
 - id: TB-03
   title: Integration Test Coverage
   specs:
@@ -43,6 +61,10 @@ groups:
     priority: MUST
     kind: project
     statement: Integration tests MUST cover inbox POST → handler invocation flow
+    rationale: >-
+      Unit tests check the parser, the dispatcher and each use case alone. Only a test
+      that posts to the inbox shows that they work together: that a valid activity
+      reaches the correct use case and changes the DataLayer as expected.
     verification: Integration tests confirm that a `POST /inbox/` with a valid AS2 activity triggers the correct handler
       invocation and produces the expected DataLayer side effects.
     stories:
@@ -52,6 +74,10 @@ groups:
     priority: MUST
     kind: project
     statement: Integration tests MUST cover validation → error response flow
+    rationale: >-
+      A sender that posts a bad payload needs an error it can act on. An unhandled
+      server error gives no reason, and it looks like a server fault. Only a test
+      through the HTTP stack shows the status and the body that the sender gets.
     verification: Integration tests confirm that a `POST /inbox/` with a malformed or invalid payload returns a
       structured error response (HTTP 400 or 422) rather than an unhandled server error.
     stories:
@@ -60,6 +86,11 @@ groups:
     priority: MUST
     kind: project
     statement: Integration tests MUST verify async processing behavior
+    rationale: >-
+      The inbox answers with HTTP 202 and processes the activity in a background task.
+      A test that checks only the response cannot see that processing. The test must
+      also check the DataLayer after the task ends, or a failure in the task stays
+      hidden.
     verification: Integration tests confirm that inbox processing returns HTTP 202 for activities dispatched to background
       processing, and that the resulting DataLayer state is updated after the handler completes asynchronously.
     stories:
@@ -73,17 +104,32 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: Test structure MUST mirror source code structure
+    rationale: >-
+      When the test tree has the same layout as the source tree, a reader finds the
+      tests for a module at the matching path under `test/`. A change to a module then
+      shows which tests to run and to update, and a module with no tests is easy to
+      see.
   - id: TB-04-002
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: Test files MUST use descriptive names starting with `test_`
+    rationale: >-
+      pytest collects only files whose names match its file pattern, and this
+      repository uses the default, `test_*.py`. A test file with a different name never
+      runs, so its tests can never fail. A descriptive name also tells a reader which
+      area a failure is in.
   - id: TB-04-003
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: >-
       Unit and integration tests MUST be in separate directories or marked with pytest markers
+    rationale: >-
+      Integration tests are slower and need more setup than unit tests. The
+      `integration` marker lets the default options in `pyproject.toml` leave them out
+      (`-m 'not integration'`), so the unit suite stays fast. A run with `-m ""`
+      includes both.
 - id: TB-05
   title: Test Data Management
   specs:
@@ -92,16 +138,28 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: The system MUST provide reusable test fixtures
+    rationale: >-
+      Many tests need the same setup, such as a DataLayer, actors or a case. A shared
+      fixture defines that setup once. Copies of a setup drift apart when the code
+      changes, and the tests that use them then check different things.
   - id: TB-05-002
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: Test data MUST be generated via factories, not hardcoded
+    rationale: >-
+      Hard-coded test data goes stale when a model gets a new required field or
+      validator, and each copy must then be fixed by hand. A factory builds valid
+      objects in one place, so one change updates every test that uses it.
   - id: TB-05-003
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: Test fixtures MUST be defined in `conftest.py` files
+    rationale: >-
+      pytest gives every test in a directory, and in the directories below it, the
+      fixtures from that directory's `conftest.py`, with no import. Fixtures kept there
+      are easy to find and to share, so tests do not define the same fixture again.
   - id: TB-05-004
     priority: MUST
     kind: project
@@ -126,16 +184,30 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: Tests MUST be independent and runnable in any order
+    rationale: >-
+      A test that depends on another test, or on the order of tests, passes or fails
+      because of the schedule and not because of the code. Under `pytest-xdist`, the
+      order of tests and the worker that runs each test change between runs. Only
+      independent tests give the same result every time.
   - id: TB-06-002
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: Tests MUST use test database or mocked database
+    rationale: >-
+      A test that writes to a real deployment's database can change or delete data that
+      is not test data. It can also fail because of data that an earlier run left. A
+      test database or a mock holds only what the test puts in it. The test session
+      sets `VULTRON_DATABASE__DB_URL` to an in-memory SQLite database by default.
   - id: TB-06-003
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: Test state MUST be reset between tests
+    rationale: >-
+      State that one test leaves, such as a cached config, a registry entry or
+      blackboard keys, changes what the next test sees. The next test can then pass or
+      fail because of the earlier one. A reset gives each test the same start.
   - id: TB-06-004
     priority: MUST
     kind: project
@@ -200,15 +272,27 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: External services MUST be mocked in unit tests
+    rationale: >-
+      A unit test that calls a real external service depends on the network and on that
+      service. It is slow, and it fails when the service is unavailable. A mock keeps
+      the test about the unit's own logic.
   - id: TB-07-002
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: Database access MUST be stubbed in unit tests
+    rationale: >-
+      A unit test checks the logic of one unit. When that unit reads and writes through
+      a stub, a failure points at the unit and not at the storage layer, and the test
+      does not depend on database setup.
   - id: TB-07-003
     priority: MAY
     kind: project
     statement: Integration tests MAY use real database with test data
+    rationale: >-
+      Some behavior exists only when data is stored: serialization, round trips and
+      queries. An integration test with a real database and test data checks that
+      behavior, which a stub cannot show.
 - id: TB-08
   title: Test Documentation
   specs:
@@ -217,14 +301,26 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: Tests MUST use descriptive names explaining what is tested
+    rationale: >-
+      A test name is the first thing a reader sees when a test fails. A name that
+      states the behavior under test tells the reader what broke without reading the
+      test body.
   - id: TB-08-002
     priority: SHOULD
     kind: project
     statement: Complex tests SHOULD include docstrings
+    rationale: >-
+      A complex test sets up state and checks results that the code alone does not
+      explain. A docstring states the scenario and the expected result, so a reader can
+      tell whether a failure is a defect in the code or a stale test.
   - id: TB-08-003
     priority: SHOULD
     kind: project
     statement: Tests SHOULD serve as usage examples
+    rationale: >-
+      Tests show how to call the code with real inputs, and they fail when the code
+      changes. A test that reads as an example is documentation that stays current,
+      because the test fails when it goes out of date.
 - id: TB-09
   title: Test Maintainability
   specs:
@@ -237,15 +333,28 @@ groups:
       conditional branching logic (if/else). Exception-assertion patterns using
       pytest.raises as a context manager are permitted; bare try/except blocks that
       catch and suppress unexpected errors are not.
+    rationale: >-
+      A test with branches checks different things on different runs, and a reader
+      cannot tell which branch ran. A bare `try`/`except` can hide the error the test
+      must report. One scenario per test, with no branches, makes each failure point at
+      one behavior.
   - id: TB-09-002
     priority: SHOULD
     kind: project
     statement: Test duplication SHOULD be avoided via fixtures and helpers
+    rationale: >-
+      Duplicated setup must be changed in every copy when the code changes, and a
+      missed copy tests old behavior. A shared fixture or helper changes in one place
+      (CS-22-001).
   - id: TB-09-003
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: Tests MUST be refactored along with production code
+    rationale: >-
+      A refactor changes how the code works. A test that is not changed with it either
+      fails, or it passes against code that it does not describe. Changing the tests
+      together with the code keeps the suite a correct description of the code.
 - id: TB-11
   title: Test Infrastructure Consistency
   specs:
@@ -259,13 +368,11 @@ groups:
       (e.g., `-m "mark_name"` in `pytest` invocations), and (c) any test files
       that apply the mark.
     rationale: >-
-      A mark renamed in test files but not in a workflow YAML causes `pytest` to
-      select 0 tests matching the old name and exit with code 5 (no tests
-      collected). CI treats a non-zero exit code as a failure, but the failure
-      message ("no tests ran") is easily misread as an environment issue rather
-      than a naming mismatch. Issue #934 observed this after renaming
-      `case_log_invariants` to `case_ledger_invariants` across test files while
-      leaving the workflow YAML referencing the old name.
+      When `pyproject.toml`, a workflow and the test files name a mark differently, a
+      run selects the wrong tests. If a workflow selects by a mark name that no test
+      uses, pytest collects no tests and exits with code 5. CI then fails with "no
+      tests ran", which looks like a problem with the environment, not with a name. A
+      change that updates all three places together prevents this.
     verification: >-
       After any pytest mark rename: grep `.github/workflows/` for the old mark
       name and confirm zero matches; confirm `pyproject.toml` registers the new
@@ -273,23 +380,12 @@ groups:
       test collection.
     relationships:
     - rel_type: refines
-      spec_id: TB-07-001
+      spec_id: TB-01-002
       note: Mark consistency between source, config, and CI is part of test
         infrastructure correctness
 - id: TB-10
   title: Architecture Boundary Tests
   specs:
-  - id: TB-10-001
-    priority: SHOULD
-    kind: process
-    statement: >-
-      Once the `core` and `wire` packages are fully separated (see `specs/architecture.yaml`
-      and `archived_notes/architecture-review.md`), architecture boundary tests SHOULD be
-      added to enforce layer separation rules
-    rationale: >-
-      Automated boundary tests catch accidental cross-layer imports earlier than code review.
-    scope:
-    - production
   - id: TB-10-002
     priority: MUST
     kind: process
@@ -300,8 +396,10 @@ groups:
       it allows the violation set to grow without failing the test. When a violation is
       resolved, its entry MUST be removed from `KNOWN_VIOLATIONS` in the same commit.
     rationale: >-
-      See ARCH-18-001 for the architecture-level rule. This entry specifies the test
-      implementation obligation.
+      With a subset check, a violation that is fixed can stay on the known list. A
+      later change can then bring the same violation back, and the test still passes.
+      An equality check fails as soon as a listed violation is fixed, so the list is
+      cleaned in the same commit and always matches the code (ARCH-18-001).
     relationships:
     - rel_type: implements
       spec_id: ARCH-18-001
@@ -313,15 +411,13 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: >-
-      BT leaf and composite node tests MUST use the `BTTestScenario` deep-module test
-      harness. The `setup_node_blackboard()` helper is an anti-pattern for integration
-      tests of BT nodes: it creates shallow, manually wired blackboard state that
-      diverges from the tree structure the node expects in production.
+      BT leaf and composite node tests MUST use the `BTTestScenario` harness in
+      `test/core/behaviors/bt_harness.py`.
     rationale: >-
-      `BTTestScenario` instantiates the full tree (or a representative subtree) and
-      exercises nodes in their actual execution context, catching structural assumptions
-      (e.g., parent Sequence providing the blackboard namespace) that `setup_node_blackboard()`
-      tests cannot detect.
+      `BTTestScenario` runs a node through the real `BTBridge` steps (setup,
+      initialise, update and shutdown) with the acting actor's own DataLayer. A test
+      that builds the blackboard by hand can give a node state that the real tree never
+      gives it. Such a test can pass while the node fails in production.
     relationships:
     - rel_type: refines
       spec_id: TB-03-001
@@ -333,6 +429,11 @@ groups:
       Each BT scenario test MUST run the BT tree exactly once per test case. Running the
       same tree instance multiple times in a single test produces accumulated blackboard
       state that masks isolation failures. Each test case MUST get a fresh tree instance.
+    rationale: >-
+      A tree instance keeps its blackboard state and node statuses after a run. A
+      second run of the same instance starts from that state, so it can pass because of
+      what the first run left. A fresh tree for each test case starts every run from
+      the same state.
     relationships:
     - rel_type: refines
       spec_id: TB-12-001
@@ -354,10 +455,13 @@ groups:
     priority: SHOULD
     kind: project
     statement: >-
-      When a BT test scenario produces a `SUBFAILED` status (partial-success in a
-      `memory=True` Sequence), the test SHOULD explicitly assert the expected leaf
-      statuses rather than asserting only the root status. `SUBFAILED` on the root
-      masks which children succeeded and which failed.
+      When a BT scenario's root `Sequence` fails, the test SHOULD assert the status of
+      each leaf, not only the root status.
+    rationale: >-
+      A `Sequence` with `memory=True` reports `FAILURE` when any child fails, also when
+      the children before it succeeded. A root status alone does not show which
+      children succeeded and which failed, so a test can pass with the wrong child
+      failing. Leaf statuses show where the tree stopped.
     relationships:
     - rel_type: refines
       spec_id: TB-12-001
@@ -390,11 +494,11 @@ groups:
       (`test/architecture/_corpus.py`) rather than calling `pathlib.Path.rglob` or
       reading files directly.
     rationale: >-
-      Scanning 1 179 Python files at module-import time (exempt from the per-test
-      timeout) costs ~1 s for source reads and populates an 18 MB string cache. All
-      subsequent ratchets share those bytes for free. Direct `rglob` calls inside test
-      functions compete for disk I/O inside the timeout window and accumulate as more
-      ratchets are added. Source: CONCERN-2020.
+      Each architecture test scans the source tree. If each test reads and parses the
+      files itself, the suite pays that cost once per test, and the cost grows with
+      each new test. `test/architecture/_corpus.py` reads the files once, when the
+      module is imported, and every test uses that copy. Module import happens at
+      collection, outside the per-test timeout (TB-14-001).
   - id: TB-13-002
     priority: MUST
     kind: project
@@ -403,12 +507,10 @@ groups:
       Architecture ratchet tests MUST apply a substring prefilter before calling
       `ast.parse()`.
     rationale: >-
-      `ast.parse()` is the dominant per-file cost (~1 ms each). A plain `in` substring
-      check is ~1 µs. For import-boundary ratchets the prefilter string is the module
-      path being guarded (e.g., `"vultron.wire.as2.vocab.activities"`); for
-      attribute-name ratchets it is the attribute string (e.g., `"ASGITransport"`).
-      Measured reduction: `test_vocab_activities_boundary` 3.8 s → 0.04 s.
-      Source: CONCERN-2020.
+      `ast.parse()` costs much more per file than a substring check. Most files cannot
+      match a given architecture test, because they do not contain the module path or
+      the name that the test looks for. A substring check first lets the test parse
+      only the files that can match.
     relationships:
     - rel_type: refines
       spec_id: TB-13-001
@@ -424,13 +526,11 @@ groups:
       fail when any sibling file contains a bare `ast.parse(` or `.rglob(` call
       outside of `_corpus.py`.
     rationale: >-
-      The meta-ratchet makes the shared-corpus pattern self-enforcing. Without it, the
-      next ratchet author can inadvertently reintroduce the pattern the corpus was
-      designed to eliminate, and the problem silently recurs with each new ratchet.
-      The hygiene check itself MUST use plain substring scanning on source strings
-      (via `_corpus.py`) rather than calling `ast.parse()` directly — otherwise it
-      would violate the rule it enforces.
-      Source: CONCERN-2020.
+      Without a check, a new architecture test can read or parse files on its own and
+      bring back the cost that the shared corpus removes.
+      `test/architecture/test_ratchet_hygiene.py` fails on a bare `ast.parse(` or
+      `.rglob(` in any file of the directory except `_corpus.py`. It searches the
+      source text for those strings and parses nothing, so it obeys its own rule.
     relationships:
     - rel_type: refines
       spec_id: TB-13-001
@@ -440,36 +540,28 @@ groups:
     statement: >-
       Each architecture ratchet test SHOULD complete in under 0.5 seconds.
     rationale: >-
-      Ratchets run on every local gate (PAD-18-002) and scan the whole source tree,
-      so their cost is paid on every fix commit. The shared corpus (TB-13-001) and
-      the substring prefilter (TB-13-002) make this budget reachable. Per-test
-      timeouts are a hang detector, not this budget (TB-14-001). Source:
-      CONCERN-2020.
-  - id: TB-13-005
-    priority: SHOULD
-    kind: project
-    statement: >-
-      The test suite SHOULD be validated for `pytest-xdist` (`-n auto`) compatibility
-      before parallel execution is enabled in CI.
-    rationale: >-
-      `pytest-xdist` is already a declared dependency. Enabling `-n auto` on a
-      fully compatible suite can reduce full-suite wall-clock by 50–70% on multi-core
-      runners.
-      Source: CONCERN-2020.
+      Architecture tests scan the whole source tree, and the unit suite runs them on
+      every run, so a slow one adds its cost to each run. The shared corpus (TB-13-001)
+      and the substring check (TB-13-002) make the budget reachable. The per-test
+      timeout (TB-14-001) is much higher and does not enforce this budget.
   - id: TB-13-006
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: >-
-      Tests that rely on shared global state (e.g., `py_trees` blackboard,
-      module-level singletons) MUST be identified and either isolated or marked
-      `xdist`-unsafe before `pytest-xdist` parallel execution is enabled in CI.
+      A test that relies on shared global state MUST reset that state or carry an
+      `xdist_group` mark shared with the tests that change it. Shared global state
+      includes the `py_trees` blackboard and module-level singletons.
     rationale: >-
-      Unguarded shared state causes non-deterministic failures under xdist.
-      Source: CONCERN-2020.
+      `pytest-xdist` runs tests on several workers, in an order that changes between
+      runs. A test that depends on global state that another test changed then fails at
+      random (TB-06-006). A reset, such as the autouse fixture in `test/conftest.py`
+      that clears the `py_trees` blackboard, removes the dependency. An `xdist_group`
+      mark, which `--dist loadgroup` obeys, keeps tests that must share state on one
+      worker.
     relationships:
     - rel_type: refines
-      spec_id: TB-13-005
+      spec_id: TB-06-001
   - id: TB-13-007
     priority: MUST
     kind: project

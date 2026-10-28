@@ -15,14 +15,28 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Code MUST follow PEP 8 style guidelines
+    rationale: >-
+      PEP 8 is the style most Python contributors already know. One shared style lets
+      a reader follow any module without first learning a local one. The `E` and `W`
+      pycodestyle rules that `ruff check` selects in `pyproject.toml` check much of
+      it, and `ruff format` sets the layout.
   - id: CS-01-004
     priority: SHOULD
     kind: project
     statement: Functions and methods SHOULD have docstrings following PEP 257 conventions
+    rationale: >-
+      A docstring tells a reader what a function does and what it expects without
+      reading its body. The code reference pages under `docs/reference/code/` are
+      built from docstrings by mkdocstrings, so a missing docstring is also a gap in
+      the published reference. No lint rule checks this; review does.
   - id: CS-01-005
     priority: SHOULD
     kind: project
     statement: Docstrings SHOULD follow Google style for structured sections
+    rationale: >-
+      mkdocstrings parses Google-style `Args:`, `Returns:` and `Raises:` sections into
+      structured entries on the code reference pages. One style for every module gives
+      each reader the same layout and gives the parser one format to read.
 - id: CS-02
   title: Import Organization
   specs:
@@ -30,14 +44,28 @@ groups:
     priority: SHOULD
     kind: project
     statement: 'Imports SHOULD be organized in three groups: standard library, third-party libraries, local application'
+    rationale: >-
+      The three groups show at a glance which dependencies come from outside the
+      project. A fixed order also means two contributors write the same import block,
+      so a diff shows only the imports that really changed. The `I001` rule in `ruff
+      check` reports an import block that is not grouped and sorted.
   - id: CS-02-002
     priority: SHOULD
     kind: project
     statement: Import statements SHOULD be placed at the top of the file after module comments or docstrings
+    rationale: >-
+      Imports at the top show all of a module's dependencies in one place. An import
+      lower in a module runs later than a reader expects and can hide an import cycle
+      (CS-05-005). The `E402` rule in `ruff check` reports a module-level import that
+      is not at the top.
   - id: CS-02-003
     priority: SHOULD
     kind: project
     statement: Multi-line import statements SHOULD use parentheses for readability
+    rationale: >-
+      Parentheses let `ruff format` put one name on each line. A diff that adds or
+      removes a name then changes one line. A backslash continuation breaks when a
+      space follows the backslash, and the formatter cannot lay it out.
 - id: CS-03
   title: Import Practices
   specs:
@@ -46,11 +74,22 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Wildcard imports (e.g., `from module import *`) MUST NOT be used
+    rationale: >-
+      A wildcard import hides where a name comes from, so a reader and a type checker
+      cannot tell which names a module defines. A name that the source module adds
+      later can also replace a local name without warning. The `F403` and `F405` rules
+      in `ruff check` report wildcard imports; each sanctioned use carries a `# noqa:
+      F403` marker.
   - id: CS-03-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Unused imports MUST be removed
+    rationale: >-
+      An unused import adds a dependency that does nothing. It makes a module load
+      code it does not use, and it can create an import cycle with no reason. The
+      `F401` rule in `ruff check` reports it. `__init__.py` files are exempt in
+      `pyproject.toml`, because there an import re-exports a name.
   - id: CS-03-003
     priority: MUST
     kind: project
@@ -62,6 +101,10 @@ groups:
     kind: project
     statement: In test modules, avoid multiple imports from the module under test; consider importing the module and using
       attribute access for clarity.
+    rationale: >-
+      A test that imports the module under test and uses `module.name` shows at each
+      use which module a name comes from. The import list then stays short as the test
+      file grows.
 - id: CS-04
   title: Import Style Preferences
   specs:
@@ -69,10 +112,18 @@ groups:
     priority: MAY
     kind: project
     statement: Relative imports MAY be used for local application imports when appropriate
+    rationale: >-
+      Inside one package, a relative import is short and keeps working when the parent
+      package moves. The permission records that neither form is a defect, so a review
+      does not ask for a rewrite of one to the other.
   - id: CS-04-002
     priority: MAY
     kind: project
     statement: Module imports MAY use aliases for clarity or to avoid naming conflicts
+    rationale: >-
+      Two modules can export the same name, for example a wire class and a core class.
+      An alias lets one module use both without a clash, and it can give a long module
+      path a short, clear name.
 - id: CS-05
   title: Circular Import Prevention
   specs:
@@ -81,6 +132,11 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: Core modules SHALL NOT import from application layer modules
+    rationale: >-
+      Core holds the protocol rules, and every adapter and driver depends on it. An
+      import from a layer above would make core depend on the code that depends on it.
+      That creates import cycles, and core could not load or run its tests without
+      those layers. ARCH-01-001 states the full layer rule.
     relationships:
     - rel_type: refines
       spec_id: ARCH-01-001
@@ -91,10 +147,12 @@ groups:
       the shared symbol to the side of the cycle that owns it). Deferring the import into a function body is a **last
       resort** that hides the cycle rather than removing it, and every such deferral is tracked toward structural removal
       (CS-05-005).
-    rationale: 'A measurement while planning #2199 (recorded in ADR-0094) found function-local imports throughout the
-      tree. A follow-up measurement for #3350 (hoisting every one in `vultron/` and importing every module) showed that
-      only a handful actually break a cycle; the rest were habit. "Last resort" therefore describes the design correctly, and the gap was enforcement, not
-      the requirement. The resolution is tracked from #3350.'
+    rationale: >-
+      A function-local import hides a cycle but does not remove it. The cycle stays in
+      the module graph, and the next import that reaches it fails at load time or
+      needs one more deferral. Reorganization removes the cause, so the cycle cannot
+      come back through a different import. Most function-local imports break no cycle
+      at all, and module level is the right place for them.
     verification: With `PLC0415` (`import-outside-top-level`) selected in `[tool.ruff.lint]` of `pyproject.toml`, every
       function-local import in production code is either absent or carries a marker per CS-05-005; the count of markers
       is the size of the remaining cycle backlog.
@@ -106,10 +164,14 @@ groups:
       issue that tracks its structural removal (the IMPLTS-07-020 baseline form). A function-local import with no cycle
       to break MUST be hoisted to module level. A `TYPE_CHECKING`-guarded import is not a function-local import and
       needs no marker.'
-    rationale: Enabling the rule makes the exception the visible, reviewable artifact. Because `RUF100` (`unused-noqa`)
-      stays selected, a marker whose cycle has been removed fails lint, so the backlog can only shrink and the last marker
-      cannot be left as decoration. Growth fails, silent progress fails, and completion forces the marker's deletion,
-      which is the ratchet property set ADR-0064 requires (ADR-0094 chose `RUF100` as that forcing function).
+    rationale: >-
+      The marker makes each deferred import visible in review, and its comment names
+      the issue that removes the cycle. A new function-local import without a marker
+      fails `ruff check` under `PLC0415`. `RUF100` (`unused-noqa`) stays selected, so
+      a marker left behind after its import moves to module level also fails. The
+      markers in `vultron/` therefore list every function-local import that remains.
+    adr:
+    - ADR-0094
     verification: '`ruff check` invoked with no path operands (IMPLTS-07-021) reports no `PLC0415` finding; each surviving
       marker in `vultron/` cites an open issue.'
     relationships:
@@ -131,11 +193,22 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: Shared types and errors SHALL be placed in neutral modules
+    rationale: >-
+      A type that two layers both need cannot live in either one. If it did, the other
+      layer would have to import it, and that import goes in the wrong direction or
+      closes a cycle. A neutral module such as `vultron/errors.py` or `vultron/enums/`
+      depends on no layer, so every layer can import it.
   - id: CS-05-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Before adding imports between modules, trace the import chain to prevent cycles
+    rationale: >-
+      An import cycle fails at load time, often in a module other than the one a
+      change edited. CS-05-005 does not let a function-local import hide a cycle, so
+      the only remedy after the fact is to reorganize modules. Tracing the chain first
+      finds the cycle before the import exists, when a different placement costs
+      nothing.
 - id: CS-06
   title: Module Size
   specs:
@@ -143,6 +216,10 @@ groups:
     priority: SHOULD
     kind: project
     statement: Prefer modules that are < ~400 lines; split large modules by responsibility and avoid single-file catchalls
+    rationale: >-
+      A small module with one responsibility is easier to read, review and test. A
+      catch-all file collects unrelated code, so changes to it conflict more often,
+      and a reader must scan code that has nothing to do with the task.
 - id: CS-07
   title: '`as_` Field Prefix Policy'
   specs:
@@ -150,8 +227,15 @@ groups:
     priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
-    statement: use the `as_` prefix on Pydantic **field names** anywhere in the codebase. Class names (e.g., `as_Activity`,
-      `as_Object`) retain the `as_` prefix as an ActivityStreams provenance marker.
+    statement: >-
+      Pydantic **field names** MUST NOT use the `as_` prefix anywhere in the codebase.
+      Class names (e.g., `as_Activity`, `as_Object`) keep the `as_` prefix as an
+      ActivityStreams provenance marker.
+    rationale: >-
+      Field names become wire keys through the `to_camel` alias generator. A field
+      named `as_object` would serialize as `asObject`, which is not an ActivityStreams
+      key. On a class name the prefix marks ActivityStreams vocabulary. On a field it
+      adds no information and gives the wrong key.
   - id: CS-07-002
     priority: MUST
     kind: project
@@ -159,13 +243,6 @@ groups:
     statement: 'For fields whose plain name collides with a Python builtin or reserved word (e.g., `object`, `type`, `id`,
       `context`), use a trailing underscore: `object_`, `type_`, `id_`, `context_`'
     rationale: Idiomatic Python (PEP 8); keeps models readable and decoupled from AS2 naming conventions.
-  - id: CS-07-003
-    priority: MUST
-    kind: project
-    statement: Do not introduce new `as_`-prefixed field names anywhere. All wire-layer and core-layer field names use the
-      trailing-underscore convention where needed. Class names retain `as_`.
-    verification: Inspection of `vultron/` confirms no Pydantic field name (as opposed to class name) begins with `as_`;
-      the `as_` prefix convention applies only to class names.
 - id: CS-08
   title: Optional Field Non-Emptiness
   specs:
@@ -220,9 +297,11 @@ groups:
     statement: In this Python codebase, port boundary types MUST be named Pydantic model classes (e.g., `VulnerabilityCase`,
       `CaseParticipant`), not plain `dict`s or bare `BaseModel` subclasses without semantic meaning. Port `Protocol` signatures
       MUST declare parameters and return values as these specific domain types.
-    rationale: 'Prior to domain-typed core objects, "use Pydantic `BaseModel`" was the correct guidance (vs. plain `dict`s).
-      With named domain types in place the standard is higher: bare `BaseModel` at a port is equivalent to `dict` from a contract-clarity
-      perspective. See also ARCH-08-001 for the port Protocol obligation.'
+    rationale: >-
+      A bare `BaseModel` at a port says no more about its content than a `dict`: any
+      model passes the type check. A named domain type lets mypy and pyright reject a
+      wrong object at the call site, and it tells the reader what crosses the port.
+      CS-10-001 states the general rule; this is its Python form.
     relationships:
     - rel_type: implements
       spec_id: CS-10-001
@@ -281,15 +360,31 @@ groups:
       `datetime.now()`, `utcnow()` or `date.today()` call outside the body
       of `now_utc` itself.
     statement: All datetime values MUST be created via the `now_utc()` helper in `vultron.core.models._helpers`
+    rationale: >-
+      One clock function gives every time the application creates the same form:
+      timezone-aware, in UTC and at second precision (CS-13-001, CS-13-003). A direct
+      `datetime.now()` call can give a naive or local time. Tests can also replace the
+      clock in one place to control time.
   - id: CS-13-003
     priority: SHOULD
     kind: architecture
     statement: All datetime values SHOULD be stored at second precision (microseconds set to zero)
+    rationale: >-
+      A value with microseconds serializes with a fractional second, and a value
+      without them does not. Two stores or peers can then hold different strings for
+      the same instant, and an exact comparison fails. `now_utc()` drops microseconds,
+      so every time the application creates has one form.
   - id: CS-13-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Embargo deadline datetimes MUST be computed using the `from_now_utc(delta)` / `days_from_now_utc(n)` helpers in `vultron.core.models._helpers` rather than inline arithmetic
+    rationale: >-
+      An embargo deadline is a protocol commitment that every Participant compares
+      with its own clock. The helpers build each deadline from `now_utc()`, so it is
+      timezone-aware, in UTC and at second precision. Inline arithmetic can start from
+      a naive or local time and give a deadline that peers read as a different
+      instant.
   - id: CS-13-005
     priority: MUST
     kind: protocol
@@ -299,11 +394,10 @@ groups:
       offset it arrived with, which need not be UTC (CLP-15-007).
     rationale: >-
       UTC is the form every node can write without configuration. A carried timestamp
-      is part of an activity recorded verbatim (CLP-07-011) and compared byte for byte
-      across replicas, so converting `+05:00` to `Z` would keep the instant and break
-      the record. #4164 owns pinning both halves (resolves CONCERN-3808). That every
-      wire timestamp carries an explicit offset at all is the ActivityStreams rule
-      CS-13-006 holds, split from this spec (MS-12-010).
+      is part of an activity that the case ledger records verbatim (CLP-07-011). A
+      change from `+05:00` to `Z` keeps the instant but changes the recorded text, so
+      replicas then hold different records. CS-13-006 holds the separate rule that
+      every wire timestamp has an explicit offset.
     verification: >-
       `test_carried_non_utc_offset_round_trips_through_storage` asserts that an
       inbound `+05:00` `endTime` round-trips through parse, storage and
@@ -324,10 +418,10 @@ groups:
       Wire-format datetime fields MUST serialize as RFC 3339 date-times with an
       explicit offset; a naive or offset-free value MUST NOT reach the wire.
     rationale: >-
-      ActivityStreams 2.0 requires every date-time value to follow RFC 3339's
-      `date-time` form, whose offset is mandatory. An explicit offset is what makes
-      timestamps comparable as instants. Split from CS-13-005 (MS-12-010), which keeps
-      Vultron's rules on which offset a timestamp carries.
+      ActivityStreams 2.0 requires every date-time value to follow the RFC 3339
+      `date-time` form, in which the offset is mandatory. A peer cannot read a value without
+      an offset as one instant, so it cannot compare it with other times. CS-13-005
+      holds Vultron's rules on which offset a timestamp carries.
     verification: >-
       In `test/wire/as2/test_timestamp_offsets.py`,
       `test_a_naive_time_reaches_the_wire_as_an_rfc3339_date_time` and
@@ -347,18 +441,34 @@ groups:
     verification_debt: '#2575'
     statement: Wire-layer Pydantic models (classes in `vultron/wire/as2/vocab/`) MUST inherit `model_config` from `as_Base`,
       which sets `alias_generator=to_camel`, `validate_by_name=True`, and `validate_by_alias=True`
+    rationale: >-
+      One inherited `model_config` gives every wire class the same mapping from Python
+      field names to camelCase ActivityStreams keys. A class with its own settings
+      could serialize a field under the wrong key, or refuse a valid inbound key. The
+      two `validate_by_*` settings let a model accept both the wire key and the Python
+      name.
   - id: CS-14-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Core/domain-layer Pydantic models (classes in `vultron/core/models/`) MUST set `populate_by_name=True` in their
       `model_config`
+    rationale: >-
+      Core code builds objects with Python field names such as `id_` and `type_`,
+      while stored rows and serialized forms use the alias spelling. With
+      `populate_by_name=True`, one model accepts both spellings, so core code does not
+      need to know the alias to build an object.
   - id: CS-14-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Domain event subclasses MUST narrow the `semantic_type` field to a `Literal[MessageSemantics.FOO]` type with
       the corresponding default value
+    rationale: >-
+      The `Literal` ties each event class to one `MessageSemantics` value. Pydantic
+      then refuses an event built with a different value, so an event cannot claim
+      a meaning its class does not handle. The default fills the value, so a caller
+      does not repeat it.
 - id: CS-15
   title: No Compatibility Shims
   specs:
@@ -430,8 +540,11 @@ groups:
     verification_debt: '#2575'
     statement: A subpackage created by splitting a flat module MUST re-export all previously public names from its `__init__.py`
       to preserve import compatibility with callers.
-    rationale: Callers that previously imported `from vultron.foo.nodes import SomeNode` MUST continue to work without modification.
-      Exposing all names via `__init__.py` prevents a split from becoming a breaking change.
+    rationale: >-
+      A split changes how a module is organized, not what it offers. When the package
+      `__init__.py` exports every public name of the flat module, an import such as
+      `from vultron.foo.nodes import SomeNode` keeps working. The split then changes
+      no caller, and its diff holds only the moved code.
     relationships:
     - rel_type: supersedes
       spec_id: CS-15-001
@@ -452,11 +565,11 @@ groups:
     statement: When a field or method is removed from a concrete class that structurally conforms to a `Protocol`, the matching
       declaration MUST also be removed from the Protocol (and vice versa). Protocol members that no longer exist on any conforming
       concrete class MUST NOT be left as stale declarations.
-    rationale: 'Static type checkers (mypy, pyright) verify the concrete→Protocol direction only: they confirm that the concrete
-      class satisfies the Protocol, but they do NOT flag Protocol members that have been removed from every concrete implementation.
-      A stale Protocol member silently breaks future callers that accept a `Protocol`-typed parameter and access the removed
-      attribute — typically surfacing only at runtime. Issue #792 exposed this gap when `CaseModel.events` was left in `protocols.py`
-      after `VulnerabilityCase.events` was removed.'
+    rationale: >-
+      mypy and pyright check only one direction: that a concrete class satisfies the
+      Protocol. They do not report a Protocol member that no concrete class has any
+      more. A caller typed against the Protocol can then use that member, pass the
+      type check, and fail at runtime.
     verification: Diff any PR that removes a field or method from a Protocol-conforming class; confirm the matching Protocol
       declaration is also removed.
   - id: CS-20-002
@@ -465,11 +578,13 @@ groups:
     statement: '`TypeGuard` discriminator functions (e.g., `is_case_model()`) MUST use only fields or methods that are explicitly
       declared on the target `Protocol` as their `hasattr`/`isinstance` checks. Using a method or field that is NOT in the
       Protocol as a discriminator is forbidden.'
-    rationale: 'If a discriminator tests a method that later gets removed from the concrete class (and not from the Protocol),
-      the guard silently starts returning `False` for valid objects. Issue #888 caused `is_case_model()` to return `False`
-      for all stored cases when `record_event()` — which was never a Protocol member — was removed from `VulnerabilityCase`.
-      440 tests failed downstream before the root cause was traced. Using only Protocol-declared members as discriminators
-      ensures the guard stays correct as long as the Protocol itself is maintained (per CS-20-001).'
+    rationale: >-
+      A guard that tests a member outside the Protocol depends on a detail that the
+      Protocol does not promise. When that member goes away from the concrete class,
+      the guard returns `False` for valid objects and gives no error. Code that relies
+      on the guard can then skip those objects, far from the cause. A guard that tests
+      only Protocol members stays correct for as long as CS-20-001 keeps the Protocol
+      current.
     verification: Inspect each `TypeGuard` function; confirm every `hasattr(obj, "x")` check uses an attribute `x` that is
       declared on the target `Protocol`.
 - id: CS-19
@@ -482,12 +597,12 @@ groups:
       semantic-type strings mirroring `MessageSemantics`) MUST derive its values from the
       enum at import/collection time rather than duplicating them as
       separately-maintained literals.
-    rationale: '`EXPECTED_SEMANTIC_TYPES` in the case-ledger invariant harness (now
-      `test/ci/invariants/`) hardcoded values that silently diverged
-      from `MessageSemantics` (issue #998/#1020): five of ten values used legacy names that no longer matched the enum. The
-      mismatch produced no failure on its own — it only surfaced when the invariant using it was audited by hand. Deriving
-      the fixture from the enum makes the two sets impossible to drift apart; a rename in the enum either propagates automatically
-      or fails loudly at collection time.'
+    rationale: >-
+      A copied list of enum values does not change when the enum changes. After a
+      rename, the test then checks for values that the enum does not have, and it can
+      pass while it checks nothing. A list built from the enum follows each rename,
+      and an exclusion that names a removed member fails at collection time, where the
+      cause is clear.
     verification: Grep test fixtures for literal string lists that parallel a production enum's member names; replace with
       `[e.value for e in EnumName]` or equivalent, narrowed with an explicit exclusion list where the fixture intentionally
       covers a subset.
@@ -505,12 +620,12 @@ groups:
       rule: `param: set[str] | None = None` with an `x or set()` guard in the body is the correct idiom for optional collection
       parameters, as it avoids the Python mutable-default-argument hazard (`= set()` shares a single object across all calls
       that omit the argument).'
-    rationale: 'Pydantic v2 does not copy mutable class-level defaults — a field declared as `roles: list[str] = []` on a
-      BaseModel gives every instance a reference to the same list. `Field(default_factory=list)` ensures each instance gets
-      its own fresh collection. Plain function parameters are different: the conventional `None` sentinel with an inline `x
-      or set()` guard is safe and idiomatic Python, and avoids the mutable-default aliasing hazard that `= set()` introduces.
-      Issue #1359 identified the Pydantic-field pattern; issue #1371 initially over-applied the rule to plain function parameters
-      — corrected by PR #1410.'
+    rationale: >-
+      A `None` default for a collection gives two values for "nothing here". Every
+      reader must then guard against `None` before it can iterate, and a missed guard
+      fails at runtime. An empty default gives one value. Function parameters differ:
+      a `= set()` default is one object shared by every call, so there the `None`
+      sentinel with an `x or set()` guard is the safe form.
     verification: 'Grep `vultron/` for Pydantic `BaseModel` subclass field declarations that use a bare mutable literal as
       a default (e.g., `field: list[str] = []`, `field: dict[str, Any] = {}`). Each such hit is a violation; replace with
       `Field(default_factory=list)` etc. Plain function/method parameter defaults (`param: set[str] | None = None`) are exempt
@@ -533,11 +648,11 @@ groups:
       extract; copy-pasting a function body is not acceptable. DRY is a project
       standard.
     rationale: >-
-      Every piece of code written by copying an existing implementation
-      propagates latent bugs alongside valid patterns. Reactive DRY-up (e.g.,
-      PR #1629 extracting five helper modules after five scenarios had already
-      been written) is more expensive and less reliable than proactive
-      extraction. Extraction-first keeps the codebase clean incrementally.
+      Copied code copies its defects too. A later fix then has to find and change each
+      copy, and a missed copy keeps the defect. Extraction after many copies exist
+      costs more, because the copies have usually changed in small ways that must be
+      reconciled first. Extraction at the second use keeps one implementation from the
+      start.
 
 - id: CS-23
   title: Exception Handler Breadth
@@ -559,13 +674,13 @@ groups:
       type that covers the boundary and MUST carry an inline comment stating
       what it guards and why.
     rationale: >-
-      In this codebase an undocumented broad catch is more likely to be masking
-      a defect than handling a real case; the absence of a rationale is itself
-      the signal. Two witnesses established the pattern — #3217 (a parser
-      `except Exception` that fired 52 times with one wire/core layering cause,
-      not the stubs it appeared to tolerate) and #3192 (a lookup returning an
-      arbitrary `Service`, reporting SUCCESS under a different identity). Both
-      were single bug-shaped causes. Source: CONCERN-3295.
+      A broad catch handles every error the same way, including defects nobody
+      expected. In this codebase an undocumented broad catch more often hides a defect
+      than handles a real case. The error then shows up later as a wrong result, far
+      from its cause, or not at all. A narrow catch lets an unexpected error stop the
+      work where it happens. The inline comment at a sanctioned boundary tells a
+      reviewer what the catch is for, so a reviewer can tell a real boundary from a
+      hidden defect.
     verification: >-
       Enforced for `vultron/core/behaviors/` by
       `test/architecture/test_no_broad_except_outside_bt_update.py`: an AST scan

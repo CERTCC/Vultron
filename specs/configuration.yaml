@@ -17,39 +17,62 @@ groups:
     verification_debt: '#2575'
     statement: The application MUST provide a top-level neutral package `vultron/config/` whose `app.py` module contains `AppConfig`, `get_config()`,
       and `reload_config()`.
+    rationale: >-
+      Every layer needs the same settings. One neutral package gives core, wire, adapter
+      and demo code one place to read them. Without it, each layer reads the environment
+      in its own way, and two layers can disagree about the value of one setting.
   - id: CFG-01-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`get_config()` MUST return a cached `AppConfig` instance — loaded once on first call, cached for all subsequent
       calls.'
+    rationale: >-
+      Code reads settings in many places, some of them on each request. A cached
+      instance reads the file and the environment once, so all callers see the same
+      values and no caller reads the file again.
   - id: CFG-01-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`reload_config()` MUST clear the cached instance so the next `get_config()` call re-reads configuration from
       the file and environment.'
+    rationale: >-
+      Tests and tools change environment variables while the process runs. Because
+      `get_config()` caches its result, a changed variable has no effect until the cache
+      is cleared. `reload_config()` gives callers one known way to clear the cache and
+      load again.
   - id: CFG-01-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: All code that previously called `os.environ.get()` for Vultron application settings MUST be updated to call
-      `get_config()` instead.
+    statement: >-
+      Code outside `vultron/config/` MUST read Vultron application settings through
+      `get_config()`, not through `os.environ.get()`.
+    rationale: >-
+      A direct environment read skips the YAML file, the field defaults and the field
+      validators. It also skips the cache, so a test that changes the configuration does
+      not reach that code. One read path keeps the precedence and the validation the
+      same for every setting.
   - id: CFG-01-005
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`AppConfig` MUST be injectable in FastAPI routers via `Depends(get_config)`.'
+    rationale: >-
+      A router that receives `AppConfig` through `Depends(get_config)` does not read
+      global state itself. A test can then give the router a different configuration
+      through FastAPI dependency overrides, with no change to the environment.
   - id: CFG-01-006
     priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
     statement: '`vultron/config/` MUST NOT import from adapter-layer or FastAPI modules; it is a neutral shared module usable
       by all layers.'
-    relationships:
-    - rel_type: refines
-      spec_id: ARCH-05-001
-      note: core and neutral modules have no adapter-layer imports
+    rationale: >-
+      Core, wire and adapter code all import the configuration. If `vultron/config/`
+      imported an adapter or FastAPI module, core code would depend on the adapter layer
+      through it, and import cycles between the layers would become likely.
 - id: CFG-02
   title: Config File Format and Loading
   specs:
@@ -59,41 +82,73 @@ groups:
     verification_debt: '#2575'
     statement: The application MUST support loading configuration from a YAML file. The default path MUST be `config.yaml`
       in the project root (current working directory at startup).
+    rationale: >-
+      An operator needs one file that holds all settings for a node, in a format that
+      people can read and edit. A fixed default path lets a node start with no extra
+      arguments when the file is in the working directory.
   - id: CFG-02-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The default config file path MUST be overridable via the `VULTRON_CONFIG` environment variable.
+    rationale: >-
+      One host can run more than one node, and a container can mount its file at any
+      path. An environment variable lets each node select its own file with no code
+      change and no change to the working directory.
   - id: CFG-02-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The application MUST use `pydantic-settings` (`BaseSettings`) with a custom YAML settings source to implement
       config loading.
+    rationale: >-
+      `pydantic-settings` already gives typed fields, validation, environment variable
+      parsing and source precedence. A custom YAML source adds the file to that system.
+      A loader written by hand would have to do all of this again, and it could get the
+      precedence wrong.
   - id: CFG-02-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: 'Config loading precedence (lowest to highest) MUST be: YAML file < environment variables. Environment variable
       values MUST override YAML values for the same field.'
+    rationale: >-
+      Container platforms and CI set environment variables for each deployment, while
+      the file holds the shared values. When the environment wins, an operator can
+      change one value for one deployment without an edit to the shared file. A fixed
+      order also tells the reader which value is in effect.
   - id: CFG-02-005
     priority: MUST
     kind: architecture
     verification_debt: '#2569'
     statement: The application MUST start successfully with no config file and no relevant environment variables set; all
       fields have sensible defaults.
+    rationale: >-
+      A developer or a test must be able to run a node with no setup. If a missing file
+      or variable stopped the start, every test and every first run would need
+      configuration that adds nothing. Defaults that work on a local host remove this
+      step.
   - id: CFG-02-006
     priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
     statement: If `VULTRON_CONFIG` is set and points to a non-existent file, the application MUST raise a descriptive error
       at startup (MUST NOT silently ignore a missing explicit config path).
+    rationale: >-
+      When an operator sets `VULTRON_CONFIG`, the operator expects the node to use that
+      file. If the node ignored a wrong path, it would start with defaults, and the
+      operator could think that the file is in effect. An error at startup shows the
+      mistake before the node does any work.
   - id: CFG-02-007
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: If no config file exists at the default path and `VULTRON_CONFIG` is unset, the application MUST start using
       defaults only with no error.
+    rationale: >-
+      The default path is a convenience, not a demand. A node with no file at the
+      default path has no configuration error, so it starts with its defaults. Without
+      this rule, every test and every first run would need a file that contains nothing.
 - id: CFG-03
   title: Environment Variable Naming
   specs:
@@ -102,17 +157,30 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: All Vultron application environment variables MUST use the `VULTRON_` prefix.
+    rationale: >-
+      `AppConfig` reads only variables that have this prefix, so a Vultron setting
+      without it has no effect. One prefix also shows which variables belong to Vultron,
+      and it prevents a collision with a variable of the same name that another tool on
+      the host uses.
   - id: CFG-03-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Nested config section fields MUST use double-underscore (`__`) as the hierarchy separator, following `pydantic-settings`
       nested-model conventions (e.g., `VULTRON_SERVER__BASE_URL`, `VULTRON_DATABASE__DB_URL`).
+    rationale: >-
+      Nested sections need a separator that cannot occur inside a field name. Field
+      names use single underscores, so a double underscore is not ambiguous. It is also
+      the separator that `pydantic-settings` uses, so no custom parsing is necessary.
   - id: CFG-03-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: 'The following legacy environment variable names MUST be removed from all source files and replaced with their normalized equivalents: VULTRON_API_BASE_URL → VULTRON_SERVER__BASE_URL; DEVLOGS_DIR → VULTRON_DEVLOGS_DIR'
+    rationale: >-
+      An old name that stays in some files gives two names for one setting. An operator
+      can then set one name while the code reads the other, and the setting has no
+      effect. One normalized name for each setting prevents this.
 - id: CFG-04
   title: AppConfig Structure
   specs:
@@ -122,59 +190,105 @@ groups:
     verification_debt: '#2575'
     statement: '`AppConfig` MUST have a `server` sub-section (a nested `ServerConfig` model) containing at minimum: `base_url`
       (str) and `log_level` (str).'
+    rationale: >-
+      The server needs its own base URL to create object IDs, and it needs a log level
+      at startup. A separate section keeps these values together and gives them one
+      shared prefix in the environment.
   - id: CFG-04-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`AppConfig` MUST have a `database` sub-section (a nested `DatabaseConfig` model) containing at minimum: `db_url`
       (str).'
+    rationale: >-
+      The storage location changes between a test, a demo and a deployment. A separate
+      section keeps the storage settings apart from the server settings, so a new
+      storage setting does not change another section.
   - id: CFG-04-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
-    statement: '`ServerConfig.base_url` MUST default to `"http://localhost:7999"`.'
+    statement: >-
+      `ServerConfig.base_url` MUST default to `"http://localhost:7999/api/v2"`.
+    rationale: >-
+      Object IDs and actor IDs start with the base URL, and an actor ID must be the URL
+      that reaches the actor (DL-07-006). The API serves actors under `/api/v2`, so a
+      default without that path creates IDs that reach nothing. This default matches the
+      local port and the URL form that the compose files set.
   - id: CFG-04-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`ServerConfig.log_level` MUST default to `"INFO"` and MUST be validated as one of `DEBUG`, `INFO`, `WARNING`,
       `ERROR`, `CRITICAL` (case-insensitive on input; stored upper-case).'
+    rationale: >-
+      A wrong log level name must stop the start with a clear error. A silent fallback
+      to another level could hide the logs an operator needs, or fill the logs with
+      detail. Case-insensitive input accepts the forms that operators type, and
+      upper-case storage matches the names that the `logging` module uses.
   - id: CFG-04-005
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`DatabaseConfig.db_url` MUST default to `"sqlite:///vultron.db"`.'
+    rationale: >-
+      A SQLite file in the working directory lets a node keep its data across restarts
+      with no database server to install. This keeps the start with defaults only
+      (CFG-02-005) useful, not only possible.
   - id: CFG-04-006
     priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
     statement: Field validators MUST enforce per-field constraints (URL format, valid log level name) but MUST NOT implement
       cross-field business rules.
+    rationale: >-
+      Field validators run when the configuration loads, so they are the correct place
+      to refuse a malformed value. A rule that compares two fields is about how the node
+      behaves, not about the form of a value. That rule belongs with the code that owns
+      the behavior, where its tests are, and not in the configuration model.
   - id: CFG-04-007
     priority: MUST_NOT
     kind: project
     verification_debt: '#2575'
     statement: '`AppConfig` MUST NOT include seed actor or demo scenario configuration; those belong in `SeedConfig`.'
+    rationale: >-
+      Seed actors and demo scenarios exist only for demos and tests. If `AppConfig` held
+      them, every production node would load and validate demo settings, and production
+      code could start to depend on them. A separate `SeedConfig` keeps demo settings
+      out of the production configuration.
 - id: CFG-05
   title: SeedConfig Alignment
   specs:
   - id: CFG-05-001
     priority: SHOULD
     kind: project
-    statement: '`SeedConfig` (in `vultron/demo/seed_config.py`) SHOULD be refactored to use `pydantic-settings` `BaseSettings`
-      for consistency with `AppConfig`.'
+    statement: >-
+      `SeedConfig` (in `vultron/demo/seed_config.py`) SHOULD use `pydantic-settings`
+      `BaseSettings`, as `AppConfig` does.
+    rationale: >-
+      When both models load in the same way, a developer learns one set of rules for
+      files, environment variables and precedence. A second loader written by hand could
+      read the same variables in a different way.
   - id: CFG-05-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`SeedConfig` MUST remain a separate class and file from `AppConfig`; it is demo/seed tooling, not production
       config.'
+    rationale: >-
+      Seed settings change with each demo scenario, but production settings must stay
+      stable. Separate classes and files keep a demo change out of the production model,
+      and they let a production node run with no demo module loaded.
   - id: CFG-05-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: '`SeedConfig` env var names MUST use the `VULTRON_` prefix (e.g., `VULTRON_ACTOR_NAME`, `VULTRON_ACTOR_TYPE`,
       `VULTRON_ACTOR_ID`, `VULTRON_SEED_CONFIG`).'
+    rationale: >-
+      Seed variables are set in the same environment as the other Vultron variables. The
+      same prefix shows that they belong to Vultron, and it prevents a collision with
+      the variables of other tools (CFG-03-001).
 - id: CFG-06
   title: Testing
   specs:
@@ -184,11 +298,19 @@ groups:
     verification_debt: '#2575'
     statement: Config loading MUST be testable using `pytest`'s `monkeypatch.setenv()` to inject environment variable overrides
       without modifying the process environment permanently.
+    rationale: >-
+      Tests must change configuration values without leaking them into later tests.
+      `monkeypatch.setenv()` undoes each change when the test ends, so tests stay
+      independent and can run in any order.
   - id: CFG-06-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Config loading MUST be testable using `pytest`'s `tmp_path` fixture to supply a temporary YAML config file.
+    rationale: >-
+      Tests of the YAML source need a real file. A file in `tmp_path` is unique to each
+      test and pytest removes it later, so a test does not change the project's own
+      `config.yaml` and does not depend on it.
   - id: CFG-06-003
     priority: MUST
     kind: project
@@ -198,19 +320,30 @@ groups:
       in teardown triggers an immediate cache reload before `pytest`'s `monkeypatch` reverts environment-variable changes,
       which locks in the test's environment state for the reload and pollutes the next test. Clearing the cache defers the
       reload until the next `get_config()` call, by which time `monkeypatch` has already restored the environment.
-    rationale: '`reload_config()` = reset + immediate reload. In teardown the env is still the test''s env, so the reload
-      bakes that env into the next test''s starting state. `clear_config_cache()` = reset only; reload happens lazily under
-      clean env. The cache is owned by `functools.cache` on `get_config()`, not a module global (#3985).'
+    rationale: >-
+      `reload_config()` loads the configuration again at once. In teardown, the test's
+      environment changes are still in force, so that reload puts the test's values in
+      the cache, and the next test starts with them. `clear_config_cache()` only drops
+      the cache. The next `get_config()` call then loads after `monkeypatch` has
+      restored the environment.
   - id: CFG-06-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Tests MUST verify that environment variables override YAML values for the same field.
+    rationale: >-
+      Environment-over-file precedence (CFG-02-004) lets an operator change one value
+      for each deployment. If a change to the source order reversed it, the node would
+      use the file value and give no error. A test shows that reversal when it occurs.
   - id: CFG-06-005
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Tests MUST verify that the application starts successfully with all defaults (no file, no env vars set).
+    rationale: >-
+      Every test and every first run depends on a start with defaults only (CFG-02-005).
+      A new field with no default, or a default that fails validation, would stop that
+      start. A test finds this before a user does.
   - id: CFG-06-006
     priority: MUST
     kind: project
@@ -222,10 +355,11 @@ groups:
       again — including when the body raises an exception (i.e., the restore MUST happen in a
       `finally` block).
     rationale: >-
-      Calling `reload_config()` in fixture teardown while env patches are still active bakes
-      stale values into the config cache for subsequent tests (ISSUE-2086,
-      CONCERN-2323). `config_override()` owns both the env mutation and the cache lifecycle, making
-      the incorrect reload-before-undo ordering impossible by construction.
+      If a fixture reloads the configuration before it restores the environment, the
+      cache keeps the test's values for later tests. `config_override()` changes the
+      environment, reloads and restores in the correct order in one place. The `finally`
+      block restores the environment and the cache also when the body raises, so a
+      failed test does not change the next test.
   - id: CFG-06-007
     priority: SHOULD
     kind: project
@@ -235,9 +369,10 @@ groups:
       `monkeypatch` is used directly (e.g., in session-scoped fixtures), `monkeypatch.undo()` MUST
       precede any `reload_config()` call in teardown (CFG-06-003).
     rationale: >-
-      `config_override()` (CFG-06-006) eliminates the ordering footgun: the correct
-      undo-then-reload sequence is impossible to get wrong. The explicit ordering rule
-      is still required for code that cannot adopt `config_override()`.
+      With `config_override()` (CFG-06-006), a fixture cannot put the restore and the
+      reload in the wrong order. Some fixtures cannot use it, for example session-scoped
+      fixtures that use `monkeypatch` directly. Those fixtures must undo the environment
+      changes before they reload, or the cache keeps the test's values (CFG-06-003).
     relationships:
     - rel_type: refines
       spec_id: CFG-06-003
@@ -251,31 +386,37 @@ groups:
     verification_debt: '#2575'
     statement: A neutral `ActorConfig` Pydantic model MUST be defined outside the demo layer (e.g., in `vultron/core/models/`
       or `vultron/config/actor.py`) so it can be used by BT nodes, API adapters, and CLI entry points without importing from `vultron/demo/`.
-    rationale: '`LocalActorConfig` (in `vultron/demo/seed_config.py`) is demo scaffolding. BT nodes that need actor role information
-      MUST NOT import from the demo layer (BTND-04-002). A neutral `ActorConfig` provides the same information without the
-      layering violation.'
+    rationale: >-
+      BT nodes, API adapters and CLI entry points all need the local actor's policy, for
+      example its default CVD roles. BT nodes must not import from the demo layer
+      (BTND-04-002), and demo code is not part of a production node. A neutral
+      `ActorConfig` gives all of them that policy with no import from `vultron/demo/`.
   - id: CFG-07-002
     priority: MUST
     kind: project
     statement: '`ActorConfig` MUST include a `default_case_roles` field of type `list[CVDRoles]`, defaulting to an empty list,
       representing the CVD roles the local actor assumes when creating or owning a `VulnerabilityCase`.'
+    rationale: >-
+      The local actor states its CVD roles on the case proposal, and its participant
+      record carries them. These roles are a fact about the actor, so they come from its
+      configuration and are not inferred (CP-09-008). An empty default is safe, because
+      the Case Owner role is added when the participant record is created.
     verification: 'Inspection of `ActorConfig` confirms a `default_case_roles: list[CVDRoles]` field is declared with
       `Field(default_factory=list)` or an equivalent empty-list default.'
     stories:
     - story_2022_006
     - story_2022_012
     - story_2022_046
-  - id: CFG-07-003
-    priority: SHOULD
-    kind: project
-    statement: '`LocalActorConfig` in `vultron/demo/seed_config.py` SHOULD compose or extend `ActorConfig` so that the seed
-      actor configuration includes CVD role defaults without duplicating the field definition.'
   - id: CFG-07-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: BT nodes that create a case-owner participant record for the local actor MUST source the actor's CVD roles
       from `ActorConfig.default_case_roles`, not from a hardcoded constant.
+    rationale: >-
+      A hardcoded constant would give every node the same roles. A Vendor, a Coordinator
+      and a Reporter have different roles in a case, and the participant record must
+      show the roles that the operator set for this actor.
   - id: CFG-07-005
     priority: MUST
     kind: project
@@ -284,10 +425,10 @@ groups:
       A `load_actor_config()` function MUST exist in `vultron/config/` (the neutral config
       sub-package).
     rationale: >-
-      PR #1331 introduced a direct `SeedConfig` import in
-      `vultron/adapters/driving/fastapi/inbox_port_factories.py`, making `vultron/demo/` a
-      de-facto production dependency (concern #1334). A neutral `load_actor_config()` in
-      `vultron/config/` severs that dependency without losing YAML seed-file support.
+      Production adapters need the local actor's policy. If they loaded it from the demo
+      `SeedConfig`, the demo layer would become a dependency of every production node.
+      `load_actor_config()` in the neutral `vultron/config/` package gives them the
+      policy from `AppConfig`, with no demo import.
   - id: CFG-07-006
     priority: MUST
     kind: project
@@ -295,9 +436,13 @@ groups:
     statement: '`CVDRole` and its associated helpers (`serialize_roles`, `validate_roles`) MUST reside in a top-level neutral
       enum module (`vultron/enums/roles.py`) rather than inside `vultron/core/`, so that `vultron/config/` and other neutral
       modules can import them without violating the constraint that neutral modules MUST NOT import from `vultron/core/`.'
-    rationale: '`ActorConfig` in `vultron/config/actor.py` needs `CVDRole`.  If `CVDRole` stays in `vultron/core/states/roles.py`,
-      `vultron/config/` must import from core — a layering violation.  Moving `CVDRole` to the top-level neutral layer resolves
-      this for all layers simultaneously.'
+    adr:
+    - ADR-0031
+    rationale: >-
+      `vultron/config/` must not import from `vultron/core/`, but `ActorConfig` needs
+      `CVDRole` to type its roles field. A neutral enum module that every layer can
+      import lets config, core and adapter code use one `CVDRole`, with no import from
+      core and no import cycle.
   - id: CFG-07-007
     priority: MUST
     kind: project
@@ -305,11 +450,10 @@ groups:
     statement: >-
       `LocalActorConfig` in `vultron/demo/seed_config.py` MUST be decoupled from `ActorConfig`.
     rationale: >-
-      `LocalActorConfig` currently extends `ActorConfig`, mixing bootstrap identity data with
-      runtime policy. In the target architecture, identity data seeds the DataLayer once at
-      startup while policy is read at dispatch time from `AppConfig.actor`. Decoupling the two
-      models reflects this distinct lifecycle and prevents demo scaffolding from leaking policy
-      concerns into production paths.
+      Identity data and actor policy have different lifecycles. Identity seeds the
+      DataLayer once at startup. Policy comes from `AppConfig.actor` each time a
+      behavior needs it. If one model held both, demo seed code could change production
+      policy, and a policy change could need a new seed file.
   - id: CFG-07-008
     priority: MUST
     kind: project
@@ -317,11 +461,12 @@ groups:
     statement: A YAML sub-block loader (e.g., `_actor_config_from_seed_yaml()`) MUST check for the presence of the target
       key in the raw YAML dict before calling `model_validate`. If the key is absent, the loader MUST return `None` so the
       caller falls through to the next source in the resolution order (env vars, then defaults).
-    rationale: '`pydantic.model_validate({})` on a model whose every field has a default succeeds silently and returns an
-      all-defaults instance.  This makes it impossible to distinguish "key absent from YAML" from "key explicitly set to defaults",
-      causing `load_actor_config()` to return early and skip `VULTRON_ACTOR__*` env vars — violating the documented YAML →
-      env → defaults resolution order (CFG-03-001).  The fix is a key-presence check before `model_validate`, not a post-validate
-      comparison.'
+    rationale: >-
+      `model_validate({})` succeeds on a model whose fields all have defaults, and it
+      returns an instance that holds only defaults. A loader that validates a missing
+      key therefore cannot tell an absent key from a key set to its defaults. It returns
+      that instance and skips the sources after the file, such as environment variables.
+      A check for the key before validation keeps the order of sources.
     relationships:
     - rel_type: refines
       spec_id: CFG-03-001
@@ -331,12 +476,13 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: >-
-      `load_actor_config()` MUST return an `ActorConfig` by reading `VULTRON_SEED_CONFIG` YAML
-      (extracting `local_actor` fields with `extra="ignore"` to discard demo-only fields) or
-      falling back to `VULTRON_ACTOR_*` environment variables.
+      `load_actor_config()` MUST return the `ActorConfig` that `get_config()` holds in
+      `AppConfig.actor`.
     rationale: >-
-      Defines the resolution order (YAML seed file then env vars then defaults) so that both
-      seed-file and environment-variable-only deployments are supported.
+      Actor policy must use the same file, environment variables and precedence as every
+      other setting. If `load_actor_config()` read its own sources, its result could
+      differ from the `actor` section that `get_config()` returns. A test that changes
+      the configuration would then not reach the actor policy.
   - id: CFG-07-010
     priority: MUST
     kind: project
@@ -345,8 +491,10 @@ groups:
       Production adapter modules MUST import `load_actor_config()` from `vultron/config/` rather
       than importing from `vultron/demo/` to obtain actor policy configuration.
     rationale: >-
-      Prevents the demo layer from becoming a de-facto production dependency, as introduced by
-      concern #1334.
+      A production adapter that imports from `vultron/demo/` makes the demo layer part
+      of every production node. Demo code can then change production behavior, and a
+      deployment cannot leave the demo layer out. The neutral `load_actor_config()`
+      gives the adapter the same policy with no demo import.
   - id: CFG-07-011
     priority: MUST
     kind: project
@@ -354,8 +502,9 @@ groups:
     statement: >-
       `LocalActorConfig` MUST carry only demo/bootstrap fields (`name`, `actor_type`, `id_`).
     rationale: >-
-      Restricting `LocalActorConfig` to identity bootstrap fields ensures policy concerns do not
-      leak into demo scaffolding.
+      `LocalActorConfig` exists only to seed the actor record with a name, a type and an
+      ID. A policy field in it would be a second source for that policy beside
+      `AppConfig.actor`, and the two sources could disagree.
   - id: CFG-07-012
     priority: MUST_NOT
     kind: project
