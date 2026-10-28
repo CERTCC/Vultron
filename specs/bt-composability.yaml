@@ -30,6 +30,11 @@ groups:
     verification_debt: '#2574'
     statement: After locating a node in `notes/vultron-bt.txt`, a developer MUST examine the corresponding class in `vultron/bt/`
       to understand the node's children, structure, and composites.
+    rationale: >-
+      The text tree in `notes/vultron-bt.txt` is a rendering: it gives node names,
+      composite symbols and nesting, but not what each condition checks or what each
+      action changes. The simulator class holds that logic, so a port that skips it can
+      keep the shape of the tree but get its behavior wrong.
     relationships:
     - rel_type: refines
       spec_id: BT-06-002
@@ -38,6 +43,10 @@ groups:
     kind: process
     statement: If a corresponding simulator class does NOT exist for the behavior being implemented, the developer MUST document
       the divergence with a brief rationale comment before proceeding.
+    rationale: >-
+      A node with no simulator counterpart is a departure from the canonical design.
+      Without a written reason, a later reader cannot tell a deliberate extension from
+      a mistake, and cannot check the node against the protocol.
     verification: Inspection of BT behavior implementations in `vultron/core/behaviors/` confirms that any node without
       a counterpart in `notes/vultron-bt.txt` includes a comment explaining the divergence.
     relationships:
@@ -63,6 +72,10 @@ groups:
     verification_debt: '#2574'
     statement: Use cases MUST NOT construct ad-hoc BT composite trees inline. Inline construction means calling `py_trees.composites.Sequence(children=[
       NodeA(), NodeB(), ...])` or equivalent directly inside a use case's `execute()` method.
+    rationale: >-
+      A tree built inline in `execute()` is invisible to anyone who reads
+      `core/behaviors/`, cannot be reused or tested on its own, and moves business
+      logic into the use-case layer, which BTC-02-001 keeps out of it.
     relationships:
     - rel_type: refines
       spec_id: BTC-02-001
@@ -71,6 +84,10 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: 'Use cases MUST follow the instantiate-then-invoke pattern when using BTs: (1) import the pre-defined BT class from `vultron/core/behaviors/`, (2) instantiate it to obtain a root node, (3) wrap it in a `py_trees.trees.BehaviourTree`, and (4) call `tick_once()` or equivalent to execute it.'
+    rationale: >-
+      One fixed way to run a tree keeps use cases thin and alike. A reader finds the
+      behavior in the named class, and the use case only wires it to the blackboard and
+      returns its result, so no use case grows its own tree-running logic.
     relationships:
     - rel_type: refines
       spec_id: BTC-02-002
@@ -96,6 +113,10 @@ groups:
     verification_debt: '#2574'
     statement: Precondition-then-action logic MUST be modeled as a Sequence where leading children are Condition nodes and
       trailing children are Action nodes.
+    rationale: >-
+      A Sequence of conditions then actions makes each precondition a visible, named
+      node, so a reader sees the guard before the effect and the tree stops before any
+      action runs when a guard fails.
     relationships:
     - rel_type: refines
       spec_id: BTC-03-001
@@ -104,6 +125,10 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: Try-A-or-else-B fallback logic MUST be modeled as a Selector (Fallback) composite with A and B as children.
+    rationale: >-
+      A Selector shows each alternative as a child in priority order, so the fallback
+      is visible in the tree and in its trace. The same logic in an `if`/`else` inside
+      one node hides which branch ran.
     relationships:
     - rel_type: refines
       spec_id: BTC-03-001
@@ -112,6 +137,10 @@ groups:
     kind: project
     statement: When a leaf node in the canonical simulator BT requires complex implementation logic, that logic SHOULD be
       expanded into a subtree using BT composite idioms rather than procedural code in a single `update()` method.
+    rationale: >-
+      A leaf that hides complex logic in one `update()` method puts behavior out of
+      reach of the tree's structure, its trace and its tests. A subtree keeps each step
+      named and visible, as BTC-03-001 requires at the leaf level.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
@@ -124,6 +153,10 @@ groups:
     verification_debt: '#2574'
     statement: The compose-and-reuse principle MUST apply at every depth level of the behavior tree — from single-purpose
       leaf nodes up to use-case entry trees.
+    rationale: >-
+      Duplication and opacity can arise at any level of a tree, not only at the top. If
+      the principle held only for entry trees, the same logic could still be copied
+      between leaves or mid-level subtrees.
     relationships:
     - rel_type: refines
       spec_id: BTND-02-002
@@ -133,6 +166,10 @@ groups:
     verification_debt: '#2574'
     statement: When the canonical simulation tree shows the same named behavior appearing at two or more locations, that behavior
       MUST be implemented as a single reusable class in `vultron/core/behaviors/`, instantiated separately at each use site.
+    rationale: >-
+      The simulator reuses a behavior where the protocol means the same thing in
+      several places. One class keeps those places in step, so a fix or a protocol
+      change lands once instead of in each copy.
     relationships:
     - rel_type: refines
       spec_id: BTND-02-001
@@ -141,6 +178,10 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: 'Reusable protocol behaviors MUST be implemented as BT subtrees in core/behaviors/ and reused across all call sites; inline duplication of equivalent logic MUST NOT occur. The extraction depth SHOULD be the deepest level at which more than one call site requires the same subtree — not forced uniformly to the top level.'
+    rationale: >-
+      Copies of one protocol behavior drift apart, and then actors act differently on
+      the same event. Extracting at the deepest shared level gives one implementation
+      per behavior without forcing large subtrees on call sites that share only a part.
     relationships:
     - rel_type: refines
       spec_id: BT-06-002
@@ -149,6 +190,10 @@ groups:
     kind: project
     statement: Every pre-defined BT class in `vultron/core/behaviors/` SHOULD be usable both as a standalone use-case entry
       point AND as a composable child of a larger BT.
+    rationale: >-
+      A class that runs both alone and as a child can be tested on its own and then
+      composed into larger trees without change. That avoids a second, parallel version
+      of the behavior for the composed case.
     relationships:
     - rel_type: refines
       spec_id: BTND-02-002

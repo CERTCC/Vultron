@@ -97,6 +97,7 @@ def _offer_of_stored_report(dl: SqliteDataLayer) -> dict[str, Any]:
 
 
 @pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("SE-01-002")
 def test_by_id_rehydration_carries_the_evidence_as_received(
     dl: SqliteDataLayer,
 ):
@@ -495,6 +496,7 @@ def test_a_replayed_deferral_is_archived_as_its_first_delivery(
 
 
 @pytest.mark.spec("VM-08-002")
+@pytest.mark.spec("SE-01-002")
 def test_in_place_hydration_carries_the_evidence(
     dl: SqliteDataLayer, monkeypatch: pytest.MonkeyPatch
 ):

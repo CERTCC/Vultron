@@ -18,6 +18,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: All dispatcher implementations MUST implement ActivityDispatcher protocol
+    rationale: >-
+      Driving adapters such as the inbox call the dispatcher only through the
+      `ActivityDispatcher` port. If every implementation honors that protocol, an
+      adapter or a test can swap one dispatcher for another without a code change.
   - id: DR-01-002
     priority: MUST
     kind: project
@@ -25,6 +29,10 @@ groups:
     statement: >-
       Dispatchers MUST construct use-case instances with the complete `VultronEvent` and `DataLayer`
       before calling `execute()`, so that `execute()` takes no arguments
+    rationale: >-
+      A use case that gets its event and DataLayer at construction has one fixed entry
+      point, `execute()`. The dispatcher can then run every use case the same way, and
+      a test can build a use case with a fake DataLayer and run it with no dispatcher.
   - id: DR-01-003
     priority: MUST
     kind: project
@@ -32,6 +40,10 @@ groups:
     statement: >-
       Dispatchers MUST perform semantic type validation at dispatch time using the configured
       semantics-to-use-case mapping
+    rationale: >-
+      Routing on the semantic type, read from the one configured mapping, sends each
+      event to the use case that handles that meaning. A dispatcher that chose by other
+      fields, or kept its own table, could send the same message to different handlers.
     relationships:
     - rel_type: implements
       spec_id: HP-02-001
@@ -45,6 +57,10 @@ groups:
     statement: >-
       The system MUST look up use-case classes by semantic type using the mapping returned
       by `use_case_map()`
+    rationale: >-
+      `use_case_map()` derives the routing table from the semantic registry, which is
+      the one place a message meaning is tied to its use case. Reading routes from it
+      keeps the dispatcher and the registry from disagreeing about who handles what.
     relationships:
     - rel_type: derives_from
       spec_id: HP-03-001
@@ -56,6 +72,11 @@ groups:
       The mapping returned by `use_case_map()` MUST contain an entry for every
       `MessageSemantics` value whose `SEMANTIC_REGISTRY` entry names a use case, and
       none for a value the registry recognizes but no use case handles (SE-05-002)
+    rationale: >-
+      A missing entry would leave a handled meaning with no route, and an extra entry
+      would route a meaning that no use case claims. Matching the map to the registry
+      entries keeps every handled message routed and every unhandled one refused as "no
+      use case found".
     relationships:
     - rel_type: derives_from
       spec_id: SE-05-002
@@ -67,6 +88,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The DirectActivityDispatcher MUST execute handlers synchronously
+    rationale: >-
+      The direct dispatcher is the in-process implementation: the caller runs in a
+      background task already, and running the use case in the same call keeps the
+      handler's result and any exception with that caller, which decides the inbox
+      outcome.
   - id: DR-03-002
     priority: MUST
     kind: project
@@ -99,7 +125,14 @@ groups:
     priority: SHOULD
     kind: project
     statement: An async dispatcher SHOULD queue activities for processing
+    rationale: >-
+      A queue lets the inbox accept a message and return at once while handlers run
+      later, and it absorbs bursts of messages without blocking the receiver.
   - id: DR-04-002
     priority: SHOULD
     kind: project
     statement: An async dispatcher SHOULD process activities in FIFO order
+    rationale: >-
+      Many protocol messages depend on earlier ones, such as a reply to an offer or a
+      status update after a join. Processing in arrival order keeps the receiver from
+      handling a message before the one it follows.

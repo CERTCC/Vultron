@@ -39,6 +39,11 @@ groups:
           trees, not procedural use-case code. Procedural sync logic in
           `received/sync.py` and `triggers/sync.py` MUST be replaced by BT
           invocations via BTBridge.
+        rationale: >-
+          Ledger replication is protocol behavior: it decides what a replica accepts,
+          when it rejects, and what gets resent. In a tree each of those decisions is a
+          named, traced and testable node, while procedural code in a use case hides
+          them from the behavior layer (BT-06-001).
         relationships:
           - rel_type: implements
             spec_id: BT-06-001
@@ -59,6 +64,11 @@ groups:
           statement (SYNC-17-002), and (5) the participant's
           StateLedgerPositions tree that sends one (SYNC-17-007). This
           preserves the one-message-type-per-use-case pattern.
+        rationale: >-
+          Each sync message has its own guards and effects. One tree per message type
+          keeps each flow small enough to read and test alone, and keeps the
+          dispatcher's route from a message meaning to exactly one use case and one
+          tree.
 
       - id: SBT-01-003
         priority: MUST
@@ -68,6 +78,10 @@ groups:
           Sync BT nodes MUST reside in `vultron/core/behaviors/sync/` with
           separate modules for node definitions (`nodes.py`) and tree
           composition functions (one module per tree).
+        rationale: >-
+          A fixed place for sync nodes and trees lets a developer find the existing
+          node before writing a new one, and keeping nodes apart from tree composition
+          lets several trees reuse one node without importing each other.
 
       - id: SBT-01-004
         priority: MUST
@@ -77,6 +91,11 @@ groups:
           Driven ports (SyncActivityPort, DataLayer) MUST be injected into
           BT nodes via the blackboard context set up by BTBridge.setup_tree().
           BT nodes MUST NOT construct or acquire ports themselves.
+        rationale: >-
+          A node that acquires its own ports binds core logic to one adapter and cannot
+          run against a test double. Injection through the bridge's blackboard keeps
+          nodes on the port protocols and lets each test or deployment choose the
+          adapters.
         relationships:
           - rel_type: extends
             spec_id: BT-07-001
@@ -91,6 +110,10 @@ groups:
           Triggers exist as external API entry points (demo puppeteering);
           core work flows through BTs. The CommitLogEntryBT replaces
           `commit_log_entry_trigger()` for core-initiated log commits.
+        rationale: >-
+          Triggers are entry points for an outside caller. A core use case that calls
+          one runs a second, nested path around the tree it belongs to, which splits
+          its guards, commit order and trace across two places.
 
   - id: SBT-02
     title: AnnounceLogEntryReceivedBT
@@ -104,6 +127,11 @@ groups:
           determines whether the receiving actor is the case-actor for the
           case referenced in the log entry. The case-actor path and the
           non-case-actor (participant) path MUST have distinct subtrees.
+        rationale: >-
+          The CASE_MANAGER and a participant do different things with an announced
+          entry: the manager holds the canonical log and only checks its own echo,
+          while a participant validates and stores a replica. Distinct subtrees keep
+          those two rule sets from mixing in one set of nodes.
 
       - id: SBT-02-002
         priority: MUST
@@ -112,6 +140,11 @@ groups:
         statement: >-
           The non-case-actor (participant) path MUST validate the received
           log entry's hash chain before persisting.
+        rationale: >-
+          A replica that stores an entry without checking its chain can accept a
+          forged, reordered or gapped entry and drift from the canonical log.
+          Validating before persisting keeps each stored replica a true prefix of the
+          CASE_MANAGER's log.
         relationships:
           - rel_type: implements
             spec_id: SYNC-03-001
@@ -150,6 +183,10 @@ groups:
           The non-case-actor path MUST check for duplicate entries before
           persisting (idempotency). If the entry is already stored, the
           BT MUST return SUCCESS without re-persisting.
+        rationale: >-
+          Announcements can arrive more than once through retries and replay. Without a
+          duplicate check a repeat would be stored twice or fail the chain check and
+          trigger a needless reject and replay.
         relationships:
           - rel_type: implements
             spec_id: SYNC-03-003
@@ -162,6 +199,10 @@ groups:
         statement: >-
           The case-actor path MUST verify that the log entry's sender
           matches the case-actor's own identity (actor-ID comparison).
+        rationale: >-
+          Only the CASE_MANAGER writes the canonical log, so an entry that claims to
+          come from it but has another sender is not authentic. The identity check is
+          what keeps another actor from writing into the canonical ledger.
 
       - id: SBT-02-009
         priority: MUST
@@ -196,6 +237,10 @@ groups:
           as a replaceable condition node so that cryptographic signature
           verification can replace actor-ID comparison in a future phase
           without restructuring the tree.
+        rationale: >-
+          Actor-ID comparison trusts the transport's claim of who sent a message. A
+          single replaceable condition node lets a stronger check, such as a signature,
+          take its place later without changing the tree around it.
 
       - id: SBT-02-006
         priority: MUST
@@ -207,6 +252,10 @@ groups:
           confirmation) and return SUCCESS. No state update or
           re-persistence is performed. Delivery confirmation tracking is
           deferred to a future phase.
+        rationale: >-
+          The CASE_MANAGER already holds the entry it announced, so its own echo
+          carries nothing new. Treating the echo as success with no write keeps the
+          round trip from changing the canonical log or reading as an error.
 
   - id: SBT-03
     title: RejectLogEntryReceivedBT
@@ -219,6 +268,10 @@ groups:
           RejectLogEntryReceivedBT MUST update the VultronReplicationState
           for the rejecting peer with the last-accepted hash reported in
           the rejection.
+        rationale: >-
+          Replay starts from what the peer last accepted. Recording that position per
+          peer lets the CASE_MANAGER resend only the entries that peer is missing, and
+          keeps the position for later replays.
         relationships:
           - rel_type: implements
             spec_id: SYNC-04-001
@@ -233,6 +286,10 @@ groups:
           replay all missing entries from the peer's last-accepted hash
           forward by queuing `Announce(CaseLedgerEntry)` activities via
           SyncActivityPort.
+        rationale: >-
+          A peer that rejected an entry stays behind until it gets every entry after
+          its last accepted one. Replaying that whole range through the port lets the
+          replica catch up in order and converge on the canonical log.
         relationships:
           - rel_type: implements
             spec_id: SYNC-03-002
@@ -246,6 +303,10 @@ groups:
           RejectLogEntryReceivedBT MUST resolve the case-actor for the
           referenced case and use the case-actor's identity as the sender
           for replayed Announce activities.
+        rationale: >-
+          A participant accepts a log entry only from the CASE_MANAGER (SBT-02-004).
+          Replayed entries sent under any other identity would be refused, so the
+          replay would never repair the replica.
 
   - id: SBT-04
     title: CommitLogEntryBT
@@ -259,6 +320,11 @@ groups:
           (1) reconstruct chain tail hash, (2) create CaseLedgerEntry with
           computed entry_hash, (3) persist entry to DataLayer, (4) fan out
           Announce(CaseLedgerEntry) to case participants via SyncActivityPort.
+        rationale: >-
+          Each step of a commit can fail on its own: the chain tail may not rebuild,
+          the write may fail, or the port may be missing. Discrete nodes in a Sequence
+          stop the commit at the failing step, name that step in the trace, and let
+          each step be tested and reused alone.
         relationships:
           - rel_type: implements
             spec_id: SYNC-02-002
@@ -275,6 +341,11 @@ groups:
           Fan-out MUST be a separate BT action node (not inlined into the
           persist step) so that the commit and replication concerns are
           independently testable and composable.
+        rationale: >-
+          Persisting and announcing fail for different reasons and are tested apart. A
+          separate fan-out node can be reused, tested with a fake port, and placed
+          after the persist step so a failed write never announces an entry that does
+          not exist.
 
       - id: SBT-04-003
         priority: MUST
@@ -285,6 +356,10 @@ groups:
           `vultron/core/behaviors/case/nodes/lifecycle.py` MUST be
           refactored to invoke CommitLogEntryBT as a subtree rather than
           calling `commit_log_entry_trigger()` procedurally.
+        rationale: >-
+          One commit path keeps every ledger entry built, chained and announced the
+          same way. If the case node kept its own procedural commit, the two paths
+          could produce entries with different hashes or skip the fan-out.
 
       - id: SBT-04-004
         priority: MUST
@@ -323,6 +398,11 @@ groups:
           and any future ports) MUST be injected via the BTBridge blackboard
           context using a consistent pattern. BT nodes MUST read ports from
           the blackboard at `update()` time, never at construction time.
+        rationale: >-
+          One injection pattern means every node finds its ports the same way, so a
+          test or a new deployment can supply all of them in one place. Reading at
+          `update()` time binds each run to the ports set up for it, not to ones
+          captured when the tree was built.
 
       - id: SBT-05-002
         priority: MUST
@@ -333,4 +413,8 @@ groups:
           naming convention: `{noun}_{last_url_segment}` with no slashes.
           Recommended keys: `sync_port` for SyncActivityPort,
           `datalayer` for DataLayer (already established).
+        rationale: >-
+          Blackboard keys with slashes are parsed as paths by py_trees and break key
+          lookup. Fixed, shared key names let any node read an injected port without
+          knowing which code set it.
 
