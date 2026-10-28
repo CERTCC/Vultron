@@ -20,8 +20,8 @@ groups:
       state, not as commands to perform work
     rationale: >-
       Each actor owns its own state and decisions. If a receiver obeyed a message as a
-      command, any sender could make it act, and the receiver would do the work again on
-      each redelivery. When the receiver reads a message as an assertion, the message
+      command, any sender could make it act. The receiver would also do the work again
+      on each redelivery. When the receiver reads a message as an assertion, the message
       only updates what the receiver knows about the sender. The receiver keeps its own
       decisions.
     verification: Inspection of all handler `execute()` methods confirms they update local state machine records from
@@ -35,11 +35,11 @@ groups:
       A receiver MUST update its local RM/EM/CS state to reflect the state transition
       asserted by the received activity
     rationale: >-
-      A receiver uses its view of the other parties to decide what to do next, for
-      example whether an embargo is still active or whether a fix exists. The message is
-      the only way that the receiver learns that the state of the sender changed. If the
-      receiver did not record it, the receiver would act on a state that the sender has
-      left.
+      A receiver uses its view of the other parties to decide what to do next. For
+      example, it checks whether an embargo is still active or whether a fix exists. The
+      message is the only way that the receiver learns that the state of the sender
+      changed. If the receiver did not record it, the receiver would act on a state that
+      the sender has left.
     verification: Integration tests in `test/demo/` confirm that each inbound activity type results in the expected
       RM, EM, or CS state change in the receiver's DataLayer after the handler completes.
     stories:
@@ -161,12 +161,12 @@ groups:
       `processed`. The inbox of the receiver would then show a misaddressed message as a
       successful receipt. The disposition is the report of the receiver on its own
       handling (HP-01-004). It never says anything about a different actor. If the
-      receiver cannot act on a message, the sender addressed it to the wrong party. Or
-      the message is a courtesy copy that the protocol gives the receiver no standing to
-      act on, so it asks nothing of the receiver. `REFUSED` with a reason records this.
-      `SKIPPED` means only a re-delivery. Thus, when an addressee first receives a
-      message that now waits for its own decision, the disposition is `APPLIED`: for
-      example, the Case Owner and `Offer(CaseParticipant)`. That message is not a
+      receiver cannot act on a message, the sender addressed it to the wrong party. A
+      courtesy copy also gives the receiver no standing to act, because it asks nothing
+      of the receiver. In both situations, `REFUSED` with a reason records this.
+      `SKIPPED` means only a re-delivery. Thus the first receipt of a message that now
+      waits for the receiver's own decision is `APPLIED`. An example is the first
+      `Offer(CaseParticipant)` that the Case Owner receives. That message is not a
       duplicate and not a refusal. The same applies when a participant first receives
       the direct notice from the CASE_MANAGER of its removal or reinstatement
       (CM-31-006, CM-31-011). The participant is the correct addressee of the notice. It
@@ -230,9 +230,9 @@ groups:
       MUST NOT have a twin.
     rationale: >-
       When each handler has its own sender check, the check gets copied in slightly
-      different forms, and some handlers do not get it. Only an audit finds the missing
-      checks. One declaration, which the factory and a ratchet test read, makes a
-      missing check a test failure. It also shows the remaining gaps as a visible
+      different forms. Some handlers do not get it at all. Only an audit finds the
+      missing checks. The factory and a test read one declaration. Thus a missing check
+      is a test failure. The declaration also shows the remaining gaps as a visible
       exemption list (ADR-0115).
     verification: >-
       An architecture test under `test/architecture/` walks `SEMANTIC_REGISTRY`, fails on a
@@ -255,10 +255,10 @@ groups:
       MUST NOT add a sender check narrower than its declaration.
     rationale: >-
       If the full rule were inside the trees, a declaration could state less than the
-      receiver enforces, for example one kind for a check that has two sides. A
-      declaration that is only a minimum is a second sender predicate in a different
-      form. Anything that comes from it, for example "Sent by" in the occasion table
-      (MSM-08-005), then shows fewer senders than the receiver accepts (ADR-0129).
+      receiver enforces. For example, it could state one kind for a check that has two
+      sides. A declaration that is only a minimum is a second sender predicate in a
+      different form. Anything that comes from it, for example "Sent by" in the occasion
+      table (MSM-08-005), then shows fewer senders than the receiver accepts (ADR-0129).
     verification: >-
       A unit test composes a guard from an any-of declaration and from a two-sided
       declaration and asserts each side admits exactly its kinds. The HP-01-007 ratchet also
@@ -365,7 +365,7 @@ groups:
       MUST NOT write its own copy of the check.
     rationale: >-
       HP-01-005 applies to every handler. If each tree must ask for the check, a tree
-      can forget it, and that tree then acts on copies addressed to a different party. A
+      can forget it. That tree then acts on copies addressed to a different party. A
       check written one time in the factory cannot be forgotten. A closed exemption
       list, with a reason for each entry, makes each tree that is different a visible
       decision (CS-22-001).
@@ -394,9 +394,9 @@ groups:
     kind: architecture
     statement: All handlers MUST have semantic type verification before execution
     rationale: >-
-      If a handler runs on an activity of a different semantic type, it reads fields
-      that the activity does not have, or it applies the wrong state change. A type
-      check before the handler runs makes a routing error a refusal, not a wrong write.
+      A handler that runs on an activity of a different semantic type reads fields that
+      the activity does not have. It can also apply the wrong state change. A type check
+      before the handler runs makes a routing error a refusal, not a wrong write.
     verification: >-
       `test/test_behavior_dispatcher.py::test_dispatch_refuses_a_semantics_with_no_registered_use_case`
       shows `DispatcherBase._handle()` resolving the handler from `event.semantic_type`
@@ -438,8 +438,8 @@ groups:
     kind: architecture
     statement: Registry keys MUST match handler semantic verification types
     rationale: >-
-      If a registry key named one semantic type and its handler expected a different
-      type, each message of that type would go to a handler that reads the wrong event
+      A registry key can name one semantic type while its handler expects a different
+      type. Then each message of that type goes to a handler that reads the wrong event
       class.
     verification: >-
       `test/test_semantic_registry.py::test_use_case_map_holds_exactly_the_handled_entries`
@@ -539,7 +539,7 @@ groups:
     rationale: >-
       State transitions are the lifecycle events that an operator monitors, and INFO is
       the level for them (SL-03). When the log gives the state before and after the
-      transition, a reader sees what changed and from what state, and DEBUG is not
+      transition, a reader sees what changed and from what state. Thus DEBUG is not
       necessary.
     verification: >-
       `test/core/behaviors/test_narrative_log.py` (`TestLogCsTransition`,
@@ -700,12 +700,12 @@ groups:
       MUST NOT replace a stored note; a change to one would be an `Update(Note)`,
       which this implementation does not route.
     rationale: >-
-      Notes are persisted and linked to cases, as in the case management data model. The
-      refusal uses only the id, because the routing rebuild of the inbox gives the
-      handler the note stored under the id, not the carried note (IO-03-004). Thus a
-      rule that compares the two copies could never find a difference on the inbox path.
-      Without the refusal, an `Add` that names a note of a different case would attach
-      it and send its content to the participants of the target case.
+      The handler stores each note and links it to its case, as the case management data
+      model requires. The refusal uses only the id. The inbox routing rebuild gives the
+      handler the stored note, not the carried note (IO-03-004). Thus a rule that
+      compares the two copies could never find a difference on the inbox path. Without
+      the refusal, an `Add` that names a note of a different case would attach it. Its
+      content would then go to the participants of the target case.
     relationships:
     - rel_type: depends_on
       spec_id: IO-03-004
@@ -734,9 +734,9 @@ groups:
       stored under the object's id when one is held, else the carried copy.
     rationale: >-
       A note or status belongs to one case. If a handler attached an object of a
-      different case, it would commit the object to the ledger of the target case and
-      send it to the participants of that case. The check uses the stored record,
-      because the inbox routes the stored record (IO-03-004).
+      different case, it would commit that object to the case ledger of the target case.
+      It would also send the object to the participants of the target case. The check
+      uses the stored record, because the inbox routes the stored record (IO-03-004).
     relationships:
     - rel_type: extends
       spec_id: HP-08-006
@@ -760,9 +760,10 @@ groups:
       has no case and MUST be refused before the commit.
     rationale: >-
       The receiver appends the status to the participant record that it holds. Thus the
-      case that owns that record is the case that changes. If the status of the sender
-      selected the case, the sender guard, the commit and the case-status update would
-      run on one case, and the status would go to a participant of a different case.
+      case that owns that record is the case that changes. Suppose that the status of
+      the sender selected the case. Then the sender guard, the commit and the
+      case-status update would run on one case. The status itself would go to a
+      participant of a different case.
     relationships:
     - rel_type: depends_on
       spec_id: IO-03-004
@@ -786,8 +787,8 @@ groups:
     rationale: >-
       `to` names the actors that a message asks to act. Only an addressee can make the
       decision to create a case. If eligibility came from a different field, a courtesy
-      copy could create a case at an actor that the message did not ask, and that
-      duplicates cases.
+      copy could create a case at an actor that the message did not ask. That duplicates
+      cases.
     verification: >-
       `test/core/use_cases/received/test_submit_report_received.py::TestOfferAddressingSemantics`
       drives `SubmitReportReceivedUseCase` with the receiver in `to`, in `cc` only, and in

@@ -115,7 +115,7 @@ groups:
     kind: project
     statement: State changes MUST be committed to DataLayer on successful execution
     rationale: >-
-      A successful run tells that the protocol step occurred. If the run does not save
+      A successful run shows that the protocol step occurred. If the run does not save
       its changes, the actor reports the step as done, but its store still shows the
       earlier state. Then peers act on a step that the actor does not record.
     verification: >-
@@ -214,12 +214,13 @@ groups:
       Case Actor never delivers the activity, and its outbox names an activity that its
       own store does not hold. The bridge makes the store and the actor agree one time.
       Thus every node writes to the correct store, and each caller does not have to
-      supply a matching DataLayer. In the same way, isolation must not depend on each
-      query that remembers a filter. If the store authority does not host the
-      `actor_id`, no store is available to agree with. Thus the bridge raises an error
-      and does not run the tree in the store of the requester. A participant whose
-      container does not host the CASE_MANAGER sends a message to it (CM-24-004,
-      ADR-0109).
+      supply a matching DataLayer. A fix only at the trigger is not sufficient. Store
+      isolation must not depend on each caller doing the correct thing, in the same way
+      that it must not depend on each query using a filter. If the store authority does
+      not host the `actor_id`, no store is available to agree with. Thus the bridge
+      raises an error and does not run the tree in the store of the requester. A
+      participant whose container does not host the CASE_MANAGER sends a message to it
+      (CM-24-004, ADR-0109).
     relationships:
     - rel_type: implements
       spec_id: DL-07-001
@@ -474,12 +475,12 @@ groups:
       The CASE_MANAGER is a role that a participant holds. It is not a separate entity.
       An actor takes part in many cases and keeps one identity in all of them. The
       activity's `context` identifies the case that a message is about. A container
-      cannot host a per-case actor identity. The sender gets that identity from the
-      report or case id, so no container can register it, and every message to it fails.
-      A container cannot prepare it before use either, because the id is not known until
-      a report exists. A `Service` record for each case only repeats what the role
-      already shows. A future process that runs one case gets its own actor identity for
-      the same reason.
+      cannot host a per-case actor identity. The sender calculates that identity from
+      the report id or case id. Thus no container can register it, and every message to
+      it fails. A container cannot prepare it before use either, because the id is not
+      known until a report exists. A `Service` record for each case only repeats what
+      the role already shows. A future process that runs one case gets its own actor
+      identity for the same reason.
     relationships:
     - rel_type: refines
       spec_id: CP-04-002
@@ -1280,13 +1281,14 @@ groups:
       BT-18-002 is enforceable only if the layer that must obey the contract can read it
       as data. Nobody can check a contract that is only docstring text. Core cannot read
       a contract in vultron/demo/ at all (BTND-04-002 forbids the import, and BT-16-001
-      tells why the probabilistic nodes are there). Then the DETERMINISTIC default
-      cannot write outputs that it cannot list. When the declaration is separate from
-      the simulation node, both rules apply at the same time. Core owns what the
-      capability promises, and demo owns one way to simulate it. ADR-0044 already
-      requires typed ports for every node in vultron/core/behaviors/. Typed ports check
-      types at runtime on read and on write. Thus, with typed ports, the capability
-      contract is enforceable without a second registry.
+      tells why the probabilistic nodes are there). Without a contract that core can
+      read, the DETERMINISTIC default cannot know which outputs to write (BT-23-013).
+      When the declaration is separate from the simulation node, both rules apply at the
+      same time. Core owns what the capability promises, and demo owns one way to
+      simulate it. ADR-0044 already requires typed ports for every node in
+      vultron/core/behaviors/. Typed ports check types at runtime on read and on write.
+      Thus, with typed ports, the capability contract is enforceable without a second
+      registry.
     adr:
     - ADR-0097
     - ADR-0044
@@ -1363,9 +1365,9 @@ groups:
       A call-out point gives its answer in the same tick that asks. Thus you can use it
       only where an answer already exists. A decision that belongs to a different actor
       does not exist when the tree asks for it. Thus a gate that is a call-out point can
-      only answer no. ADR-0080 found this in the Case Owner approval gates. The two
-      mechanisms are not interchangeable. The party that holds the answer sets the
-      choice, so the criterion is normative, not advisory.
+      only answer no. The Case Owner approval gates show this problem (ADR-0080). The
+      two mechanisms are not interchangeable. The party that holds the answer sets the
+      choice. Thus the rule is a MUST, not a recommendation.
     adr:
     - ADR-0097
     - ADR-0080
@@ -1518,8 +1520,8 @@ groups:
     rationale: >-
       The five-node simulator sequence uses boolean flags to show one policy decision:
       if the actor gets an exploit. Production does not need these flags. Two call-out
-      points, a Retriever and an Evaluator, decrease the number of call-out points. They
-      also let you replace the exploit-repository query by itself. See ADR-0027 and
+      points, a Retriever and an Evaluator, replace the five simulator nodes. They also
+      let you replace the exploit-repository query by itself. See ADR-0027 and
       `docs/developer/reference/bt-fuzzer/rm-exploit.md`.
     tracking_issue: '#1200 (planning); #1249 (factory-fn Idea — already implemented on main); #1309 (implementation — closed by PR #1566)'
     adr:
@@ -1820,10 +1822,11 @@ groups:
     statement: The domain bundle dataclass and its DETERMINISTIC singleton (e.g., `VALIDATION_DETERMINISTIC`) MUST be
       defined in the core layer (`vultron/core/behaviors/call_out/bundles/<domain>.py`).
     rationale: >-
-      The DETERMINISTIC bundle is the happy-path backend that a real actor can use in
-      production before a capability implementation is available. Thus a core tree
-      builder must find its default without access to the simulation layer. If the
-      bundle is in vultron/demo/, core depends on demo (BT-16-001, BTND-04-002).
+      The DETERMINISTIC bundle is the default backend that lets the protocol move
+      forward. A real actor can use it in production before a capability implementation
+      is available. Thus a core tree builder must find its default without access to the
+      simulation layer. If the bundle is in vultron/demo/, core depends on demo
+      (BT-16-001, BTND-04-002).
     adr:
     - ADR-0025
   - id: BT-23-009
@@ -1928,8 +1931,8 @@ groups:
       similar gates do not qualify, for example the accept-direction
       CaseOwnerApprovesEmbargoResponse (EMB-15-001) and the trigger-side
       EmbargoExitPolicyGuard. This rule sets only the default posture. RSH-07-004
-      (ADR-0080) tells how to compose a qualifying gate. Its verification does not let
-      an unconditional-FAILURE factory be that default.
+      (ADR-0080) tells how to compose a qualifying gate. A backend factory that always
+      returns FAILURE must not be that default (RSH-07-004).
     relationships:
     - rel_type: supersedes
       spec_id: BT-23-002
@@ -1967,8 +1970,8 @@ groups:
       downstream gate reads a missing key, and the arm does nothing. To move forward
       through an arm that needs data, the tree must have the data. Thus the status
       direction alone does not fully specify the default. The failure is silent, because
-      a downstream read declared optional gives FAILURE, not an error. For this reason,
-      the obligation is a requirement on the default, and nobody must find the problem
+      a downstream read declared optional gives FAILURE, not an error. Thus the rule
+      puts the obligation on the default. A reviewer does not have to find the problem
       by chance. BT-18-012 lets core read the declared contract, so a conforming default
       is possible. The same obligation applies to a STOCHASTIC backend under BT-18-003.
       This includes the generic WeightedBehavior backends for production-only domains

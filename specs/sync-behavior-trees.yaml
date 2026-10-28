@@ -68,7 +68,7 @@ groups:
         rationale: >-
           Each sync message has its own guards and effects. With one tree for each
           message type, each flow is small enough to read and test alone. Also, the
-          dispatcher continues to route each message meaning to exactly one use case and
+          dispatcher continues to route each semantic type to exactly one use case and
           one tree.
 
       - id: SBT-01-003
@@ -239,10 +239,9 @@ groups:
           verification can replace actor-ID comparison in a future phase
           without restructuring the tree.
         rationale: >-
-          Actor-ID comparison trusts the claim of the transport about who sent a
-          message. A single replaceable condition node lets a stronger check, such as a
-          signature, replace the comparison later. The tree around the node does not
-          change.
+          Actor-ID comparison trusts the sender identity that the message claims. A
+          single replaceable condition node lets a stronger check, such as a signature,
+          replace the comparison later. The tree around the node does not change.
 
       - id: SBT-02-006
         priority: MUST
@@ -309,9 +308,9 @@ groups:
           for replayed Announce activities.
         rationale: >-
           Ledger entries replicate in one direction, from the CASE_MANAGER to each
-          participant (SYNC-00-002). Replayed entries under a different identity do not
-          come from the source of the replica. Thus the replay does not repair the
-          replica.
+          participant (SYNC-00-002). A participant replica accepts case-state updates
+          only from the CASE_MANAGER for that case (PCR-03-001). Thus a replay sent
+          under another identity does not bring the replica up to date.
 
   - id: SBT-04
     title: CommitLogEntryBT

@@ -21,8 +21,8 @@ groups:
     rationale: >-
       Vultron messages are ActivityStreams 2.0 activities. Thus a payload that is not a
       correct AS2 activity has no defined meaning for the receiver. When the parser
-      refuses it, the malformed input does not get to semantic extraction or to the
-      handlers, and these can then rely on the AS2 structure.
+      refuses the payload, the malformed input does not get to semantic extraction or to
+      the handlers. These stages can then rely on the AS2 structure.
     verification: >-
       Integration tests in `test/demo/` confirm that the inbox handler rejects
       payloads missing required AS2 fields (e.g., `type`) with an HTTP 4xx response
@@ -53,7 +53,8 @@ groups:
     rationale: >-
       An activity can pass the vocabulary check and still omit a field that the patterns
       read. If a lookup of a missing field raises an exception, one incomplete message
-      causes a dispatch failure, and the message does not go to the unrecognized route.
+      causes a dispatch failure. The message then does not get the semantic type
+      `UNKNOWN`.
     verification: >-
       A unit test confirms that passing activities with `None` or absent `type`,
       `actor`, and `object` fields to the dispatch router returns a dispatch result
@@ -209,10 +210,10 @@ groups:
     kind: protocol
     statement: The system MUST validate that object types are recognized Vultron types
     rationale: >-
-      The type of the object decides the semantic type of an activity, and thus its
-      handler. The receiver cannot route or validate an object whose type is not in the
-      Vultron vocabulary. If the receiver accepts it, the failure only moves to a
-      handler that cannot act on it.
+      The activity type and the object type together decide the semantic type of an
+      activity, and thus its handler. The receiver cannot route or validate an object
+      whose type is not in the Vultron vocabulary. If the receiver accepts the object,
+      the failure only moves to a later stage that cannot act on it.
     verification: >-
       A unit test confirms that an activity carrying an `object` whose `type` is not
       in the Vultron vocabulary is rejected with a validation error before dispatch.
@@ -227,9 +228,10 @@ groups:
       human-readable string identifying the actor, created object ID, and context (case
       ID)
     rationale: >-
-      The ids in a `Create` of a sub-object do not tell a person who reads a log or a
-      timeline who created which object in which case. A descriptive `name` lets an
-      operator read the activity without a lookup of its ids.
+      A person who reads a log or a timeline cannot learn much from ids alone. The ids
+      in a `Create` of a sub-object do not show who created which object in which case.
+      A descriptive `name` lets an operator read the activity without a lookup of its
+      ids.
   - id: MV-04-003
     priority: MUST_NOT
     kind: project
@@ -242,8 +244,8 @@ groups:
       field to validate.
     rationale: >-
       If the parser uses a weaker type in place of the correct type, it loses data
-      silently. For example, an `Accept(Invite(...))` with one corrupt inner field
-      parses as a bare `as_Link`, gets the semantic type `UNKNOWN` and gets a 202
+      silently. For example, an `Accept(Invite(...))` with one corrupt inner field can
+      then parse as a bare `as_Link`. It gets the semantic type `UNKNOWN` and a 202
       status. A refusal is safe only when type resolution looks at wire classes alone.
       If a lookup uses `CORE_TYPE_MAP` as a fallback (ARCH-12-003), it resolves the
       `inbox` of an inline actor to a core instance that its wire parent refuses
@@ -308,9 +310,9 @@ groups:
       activity's semantic type: it is carried inline as a typed object, or by a reference
       the recipient can dereference to a typed object (AKM-05-003, AKM-05-004).
     rationale: >-
-      A recipient routes an activity by the type of its object (SE-01-001). If the
-      recipient cannot read the object inline or get it by its URI, it cannot classify
-      the activity. It then cannot act on the message.
+      A recipient routes an activity by its activity type and the type of its object
+      (SE-01-001). If the recipient cannot read the object inline or get it by its URI,
+      it cannot classify the activity. It then cannot act on the message.
     verification: >-
       Satisfied in this codebase through AKM-03-003, which carries every `object` inline:
       `vultron/adapters/driving/fastapi/outbox_delivery.py` raises
@@ -455,9 +457,10 @@ groups:
       A participant MUST be active (CM-10-004) before the CASE_MANAGER delivers full
       case details to it.
     rationale: >-
-      Full case details can include embargoed vul information. When the CASE_MANAGER
-      sends them only to an active participant, only an actor that agreed to the active
-      embargo receives them (CM-10-004).
+      Full case details can include embargoed vul information. An active participant
+      has joined the case and has not been removed. When an embargo is active, it has
+      also agreed to that embargo (CM-10-004). Thus no actor gets the details before it
+      joins, or before it agrees to the active embargo.
     verification: >-
       `test_ledger_fanout_reaches_only_active_participants` in
       `test/core/behaviors/sync/nodes/test_active_participant_fanout.py` confirms that,
@@ -574,9 +577,9 @@ groups:
       a context without the AS2 aliases. It intended the `id` and `type` that Vultron
       reads. If the parser ignores the keywords, the object loses its identity and type,
       and more refusals follow. If Vultron declares the keywords as aliases, it becomes
-      a partial JSON-LD processor with no clear limit, because full-IRI property names
-      and `@value` objects are also legal JSON-LD. The refusal tells the peer the
-      compact form to send.
+      a partial JSON-LD processor with no clear limit. Full-IRI property names and
+      `@value` objects are also legal JSON-LD. The refusal tells the peer the compact
+      form to send.
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` asserts that a case variant and a
       separator variant (`attributed-to`) on the envelope and on an inline object, and a retired
@@ -608,14 +611,14 @@ groups:
       set-aside key MUST NOT be carried into the parsed object or appear in any dump of it;
       the raw body remains available as received evidence (VM-08-002).
     rationale: >-
-      AS2 is designed for extension. If the receiver refuses all of a message because of
-      one property that Vultron does not read, peers lose interoperability and the
-      protocol gets no benefit. But the receiver must not stay silent. An operator must
-      see what peers send that Vultron ignores. Also, a misspelling in Vultron that the
-      near-miss test does not find shows here first. If the parser keeps the key on the
-      object, the key goes into the stored form, and `extra="forbid"` refuses it when
-      the object is validated again. Thus the report is the only record of the key, and
-      the received evidence is its only copy.
+      AS2 is designed for extension. Some peers send properties that Vultron does not
+      read. If the receiver refuses each such message, peers lose interoperability, and
+      the protocol gets no benefit. But the receiver must not stay silent. An operator
+      must see what peers send that Vultron ignores. Also, a misspelling in Vultron that
+      the near-miss test does not find shows here first. If the parser keeps the key on
+      the object, the key goes into the stored form, and `extra="forbid"` refuses it
+      when the object is validated again. Thus the report is the only record of the
+      key, and the received evidence is its only copy.
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` asserts, for an unknown key in each
       position MV-11-001 names, that `parse_activity` returns an activity, that the parsed

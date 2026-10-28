@@ -78,8 +78,8 @@ groups:
     rationale: >-
       A missing entry leaves a handled meaning with no route. An extra entry routes a
       meaning that no use case claims. When the map agrees with the registry entries,
-      each handled message has a route, and each unhandled message gets the refusal "no
-      use case found".
+      each handled message has a route. Each unhandled message gets the refusal "no use
+      case found".
     relationships:
     - rel_type: derives_from
       spec_id: SE-05-002

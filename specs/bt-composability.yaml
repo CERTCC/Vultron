@@ -141,7 +141,8 @@ groups:
     rationale: >-
       When a leaf hides complex logic in one `update()` method, the tree structure, the
       trace and the tests cannot see that behavior. A subtree keeps each step named and
-      visible, as BTC-03-001 requires at the leaf level.
+      visible. This is the reason that BTC-03-001 uses composites, not `if`/`else`
+      chains.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004

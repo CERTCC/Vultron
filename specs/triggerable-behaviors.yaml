@@ -20,8 +20,8 @@ groups:
     statement: The system MUST expose trigger endpoints using the path pattern `POST /actors/{actor_id}/trigger/{behavior-name}`
     rationale: >-
       The path names the actor and the behavior, so a client does not need to learn a
-      different route for each verb. The server takes the actor from the path, never
-      from the body. Thus a caller cannot change the body to act as a different actor.
+      different route for each verb. The server takes the actor only from the path,
+      never from the body. Thus each request names one actor in one place.
   - id: TRIG-01-002
     priority: MUST
     kind: project
@@ -58,7 +58,7 @@ groups:
     rationale: >-
       A behavior tree run and its outbox delivery can take much longer than an HTTP
       client waits. If the server held the response, each call would use a server worker
-      for that time, and a caller timeout would look like a failed behavior. Thus the
+      for that time. A caller timeout would also look like a failed behavior. Thus the
       trigger sends the response first and runs the behavior after it, as the inbox does
       (IE-05-002).
     relationships:
@@ -78,9 +78,9 @@ groups:
       Each of these steps is a decision that an actor makes about a report. A person or
       an agentic client must be able to make that decision through the behavior tree of
       the actor. When a case holds a report, the case refuses `Close(Report)` from all
-      senders (CM-23-019, ADR-0144), and an actor closes its part when it leaves the
-      case (TRIG-13-001). Thus no report trigger closes a report that a case holds. To
-      close a report that no case holds, an actor uses reject-report (ADR-0145).
+      senders (CM-23-019, ADR-0144). An actor closes its part when it leaves the case
+      (TRIG-13-001). Thus no report trigger closes a report that a case holds. To close
+      a report that no case holds, an actor uses reject-report (ADR-0145).
     adr:
     - ADR-0145
   - id: TRIG-02-002
@@ -132,8 +132,8 @@ groups:
     rationale: >-
       Invitations, suggestions and answers to invitations decide who takes part in a
       case. This is an actor decision. One trigger for each step lets a client make each
-      decision through the behavior tree of the actor, which applies the role checks and
-      the addressing checks.
+      decision through the behavior tree of the actor. That tree applies the role checks
+      and the addressing checks.
   - id: TRIG-02-006
     priority: MUST_NOT
     kind: project
@@ -146,12 +146,12 @@ groups:
       be mounted in production mode (see TRIG-09-002): add-note-to-case,
       sync-log-entry
     rationale: >-
-      These verbs make an actor do steps that its own behavior tree does in a real
-      deployment. Each state change commits a SYNC entry as a side effect, and
-      add-object-to-case adds a Note. If a production server mounted these verbs, a
-      caller could make an actor go past its own decisions. Leaving a case is an actor
-      decision, not a demo step that a script controls. Thus it is the general-purpose
-      leave-case trigger (TRIG-13-001), not a demo verb (ADR-0145).
+      Production needs neither verb. A correct implementation commits a SYNC entry each
+      time the state changes. Thus sync-log-entry only lets a demo script insert entries
+      by hand (TRIG-10-004). add-note-to-case is a shortcut for add-object-to-case,
+      which already adds a Note (TRIG-10-003). Leaving a case is an actor decision, not
+      a demo step that a script controls. Thus it is the general-purpose leave-case
+      trigger (TRIG-13-001), not a demo verb (ADR-0145).
     adr:
     - ADR-0145
   - id: TRIG-02-007
@@ -165,8 +165,8 @@ groups:
     rationale: >-
       Only the Case Owner can delegate its roles or transfer the case. Thus the Case
       Owner needs an entry point for each delegation step. Without one, the only way to
-      delegate is to build the Offer or the Accept by hand, and that skips the behavior
-      tree of the owner.
+      delegate is to build the Offer or the Accept by hand. That skips the behavior tree
+      of the owner.
 - id: TRIG-03
   title: Request Body
   specs:
@@ -180,8 +180,8 @@ groups:
       Full per-behavior field requirements are defined in the API schema.
     rationale: >-
       A case-scoped behavior with no case id has nothing to act on. An offer response
-      with no offer id also has nothing to act on. When the edge requires the id, it
-      refuses a call that cannot run, before the server queues anything.
+      with no offer id also has nothing to act on. When the request schema requires the
+      id, the server refuses a call that cannot run, before it queues anything.
   - id: TRIG-03-002
     priority: MUST
     kind: project
@@ -442,8 +442,9 @@ groups:
       == RunMode.PROTOTYPE`'
     rationale: >-
       Demo-only verbs move an actor through steps that it would do by itself. If a
-      production server mounted them, any caller could make an actor go past its own
-      decisions. A caller cannot call a route that the server does not mount.
+      production server mounted them, any caller could make an actor do a step in place
+      of its own behavior tree. A caller cannot call a route that the server does not
+      mount.
   - id: TRIG-09-003
     priority: MUST
     kind: project
@@ -538,7 +539,7 @@ groups:
       as a demo-only convenience wrapper around `add-object-to-case`'
     rationale: >-
       `add-object-to-case` already adds a Note to a case. A second production path for
-      the same act would need its own checks, and these checks must stay the same as the
+      the same act would need its own checks. These checks must stay the same as the
       checks of the first path. Only demo scripts use the note shortcut, so the shortcut
       is in the demo layer.
     relationships:
@@ -758,10 +759,11 @@ groups:
       captured before any trigger route is rewritten, so it freezes the shipped
       contract rather than whatever a rewrite happened to emit.
     rationale: >-
-      A change to all trigger routes at one time, for example adding `response_model` or
-      collapsing route bodies, needs mechanical evidence that the contract that clients
-      see did not change. Only a snapshot taken before the routes change gives this
-      evidence. A snapshot taken after the change records the change as the baseline.
+      Some changes touch all trigger routes at one time, for example a new
+      `response_model` on each route. Such a change needs mechanical evidence that the
+      contract that clients see did not change. Only a snapshot taken before the routes
+      change gives this evidence. A snapshot taken after the change records the change
+      as the baseline.
     verification: >-
       A test compares `app.openapi()` for the trigger and demo paths against
       the committed snapshot and fails on any difference; the snapshot's commit
@@ -784,7 +786,7 @@ groups:
       its verb. With enumeration, tests can assert TRIG-08-003/004, TRIG-12-001, and
       TRIG-12-002, so inspection is not necessary. Enumeration also finds a use case
       that no route reaches. When the registry holds no behavior, it cannot become a
-      facade for each verb (ADR-0110).
+      second layer of code for each verb (ADR-0110).
     verification: >-
       Architecture tests assert the route-to-registry bijection and the
       use-case-to-row bijection, both as exact set equalities (ARCH-18-001).
@@ -823,8 +825,8 @@ groups:
       case (CM-23-001). It never uses `Close(Report)`, which a case refuses from all
       senders (CM-23-019, ADR-0144). A production deployment needs a trigger for this
       step, because production mode does not mount demo verbs (TRIG-09-002). The verb
-      has the name of the message, because the case stays open for a participant that is
-      not the owner (ADR-0145).
+      has the name of the message, not 'close'. When a participant that is not the owner
+      leaves, the case stays open (ADR-0145).
     relationships:
     - rel_type: refines
       spec_id: TRIG-02-004

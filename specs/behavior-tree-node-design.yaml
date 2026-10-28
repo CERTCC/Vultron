@@ -870,11 +870,11 @@ groups:
       `composite_state_violations()` does, all paths use the same rules. Shared
       individual predicates do not give that result. The rule applies to every writer,
       not to every validator (ADR-0089). Otherwise a writer that validates nothing, or a
-      writer that is not a node, is not covered. Thus the ratchet keys on the
-      construction of a dimension, not on the name of a predicate, and a writer that
-      validates less cannot hide. A dimension-construction gate does not include the
-      wire projection (`as_CaseParticipant.append_rm_state`), which builds
-      `as_ParticipantStatus` from flat fields. That shape needs its own trigger.
+      writer that is not a node, is not covered. Thus the check finds each place that
+      constructs a dimension, not each call to a named predicate. A writer that
+      validates less cannot avoid the check. This check does not find the wire
+      projection (`as_CaseParticipant.append_rm_state`), which builds
+      `as_ParticipantStatus` from flat fields. That code needs its own check.
     relationships:
     - rel_type: refines
       spec_id: BTND-10-001

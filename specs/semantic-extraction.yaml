@@ -407,9 +407,9 @@ groups:
       is maintained for all registered patterns. The test MUST fail if the guard raises
       `RegistryOrderError` on the current registry.
     rationale: >-
-      The import-time guard protects the registry only while it runs in full. A test
-      that fails when the guard raises makes an order defect a CI failure on the change
-      that caused it.
+      The import-time guard protects the registry only when a process imports the
+      module. A test that calls the guard on the current registry makes an order defect
+      a named CI failure on the change that caused it.
     relationships:
     - rel_type: implements
       spec_id: SE-06-001
@@ -455,7 +455,7 @@ groups:
       The `SemanticEntry` dataclass `phrase` field MUST have no default value so
       that omitting it is a construction-time `TypeError`, not a silent empty string.
     rationale: >-
-      A default, also an empty string, lets an entry exist without a phrase, and the
+      Any default, including an empty string, lets an entry exist without a phrase. The
       summary is then blank. With no default, Python refuses to build the entry, so the
       gap shows when the module loads.
     relationships:
