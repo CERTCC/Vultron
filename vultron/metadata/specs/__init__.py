@@ -15,7 +15,7 @@ from vultron.metadata.specs.coverage import (
 )
 from vultron.metadata.specs.llm_export import CROSS_CUTTING_TOPICS
 from vultron.metadata.specs.registry import SpecRegistry, load_registry
-from vultron.metadata.specs.schema import SPEC_ID_CITATION_RE
+from vultron.metadata.specs.schema import SPEC_ID_CITATION_RE, cited_spec_ids
 
 
 class UnknownSpecIdWarning(UserWarning):
@@ -84,6 +84,7 @@ __all__ = [
     "SpecRegistry",
     "SpecRegistryUnavailableWarning",
     "UnknownSpecIdWarning",
+    "cited_spec_ids",
     "collect_marked_ids",
     "compute_implementer_coverage",
     "load_registry",
