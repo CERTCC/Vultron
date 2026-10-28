@@ -32,13 +32,20 @@ GITHUB_BODY_LIMIT = 65536
 """The most characters GitHub accepts in an Issue body."""
 
 
+WORD_JOINER = "\u2060"
+"""An invisible character that keeps ``@`` and the name after it apart."""
+
+
 def _no_mentions(text: str) -> str:
-    """*text* with each ``@`` as an HTML entity.
+    """*text* with a :data:`WORD_JOINER` after each ``@``.
 
     An Issue title can hold an ``@word``, such as ``@context``. Posted in an
-    Issue body, it would notify whoever owns that name.
+    Issue body, it would notify whoever owns that name. GitHub reads mentions
+    from the rendered text, where an HTML entity is already a plain ``@``
+    again, and shows an entity literally inside a code span; an invisible
+    character between ``@`` and the name breaks the mention in both places.
     """
-    return text.replace("@", "&#64;")
+    return text.replace("@", "@" + WORD_JOINER)
 
 
 def _share(row: TierCoherence) -> str:

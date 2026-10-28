@@ -111,10 +111,16 @@ _RULES: dict[FindingKind, str] = {
 
 @dataclass(frozen=True)
 class Ancestor:
-    """One step up an Issue's parent chain."""
+    """One step up an Issue's parent chain.
+
+    ``repo`` names the parent's repository when it is not the one being
+    checked (GitHub allows a sub-issue's parent to live elsewhere); its
+    ``number`` then means nothing in the checked repository.
+    """
 
     number: int
     issue_type: str | None
+    repo: str | None = None
 
     @property
     def is_epic(self) -> bool:

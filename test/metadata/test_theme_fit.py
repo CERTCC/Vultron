@@ -7,6 +7,7 @@ through a fake runner that answers with a canned GraphQL page list.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -19,6 +20,7 @@ from vultron.metadata.planning.theme_fit import (
     AUTO_CALVED_MARKER,
     GITHUB_BODY_LIMIT,
     UNSCHEDULED,
+    WORD_JOINER,
     Ancestor,
     FindingKind,
     OpenIssue,
@@ -434,6 +436,34 @@ class TestNearestEpic:
         b = _issue(3, parents=[(2, "Task")])
         assert nearest_epic(a, {2: a, 3: b}) is None
 
+    def test_parent_in_another_repository_ends_the_walk(self) -> None:
+        foreign = Ancestor(1, "Epic", repo="other/repo")
+        child = OpenIssue(
+            number=2,
+            title="Issue 2",
+            issue_type="Task",
+            labels=frozenset({"theme:alpha"}),
+            body="Theme: theme:alpha — x\n",
+            ancestors=(foreign,),
+        )
+        local_one = _epic_issue(1, "theme:alpha")
+        assert nearest_epic(child, {1: local_one, 2: child}) is None
+
+    def test_foreign_parent_is_reported(self, catalog: ThemeCatalog) -> None:
+        child = OpenIssue(
+            number=2,
+            title="Issue 2",
+            issue_type="Task",
+            labels=frozenset({"theme:alpha"}),
+            body="Theme: theme:alpha — x\n",
+            ancestors=(Ancestor(1, "Epic", repo="other/repo"),),
+        )
+        report = analyze([_epic_issue(1, "theme:alpha"), child], catalog)
+        assert _kinds(report) == [(FindingKind.UNPARENTED, 2)]
+        assert report.findings[0].detail == (
+            "ancestor other/repo#1 is in another repository"
+        )
+
 
 @pytest.mark.spec("PAD-02-008")
 class TestAutoCalved:
@@ -599,8 +629,23 @@ class TestRender:
             body="",
         )
         text = render_markdown(analyze([issue], catalog))
-        assert "@" not in text.split("## Findings")[1]
-        assert "Carry &#64;context and &#64;octocat" in text
+        findings = text.split("## Findings")[1]
+        assert not re.search(r"@[A-Za-z0-9]", findings)
+        assert f"Carry @{WORD_JOINER}context and @{WORD_JOINER}octocat" in text
+
+    def test_code_span_titles_stay_readable(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        issue = OpenIssue(
+            number=2,
+            title="Carry `@context`",
+            issue_type="Bug",
+            labels=frozenset(),
+            body="",
+        )
+        text = render_markdown(analyze([issue], catalog))
+        assert "&#" not in text
+        assert f"Carry `@{WORD_JOINER}context`" in text
 
     def test_empty_tier_reads_n_a(self, catalog: ThemeCatalog) -> None:
         report = analyze([_epic_issue(1, "theme:alpha")], catalog)
@@ -686,8 +731,13 @@ def _node(
     }
 
 
-def _page(*nodes: dict[str, object]) -> dict[str, object]:
-    return {"data": {"repository": {"issues": {"nodes": list(nodes)}}}}
+def _page(
+    *nodes: dict[str, object], home: str | None = None
+) -> dict[str, object]:
+    repository: dict[str, object] = {"issues": {"nodes": list(nodes)}}
+    if home is not None:
+        repository["nameWithOwner"] = home
+    return {"data": {"repository": repository}}
 
 
 class TestParse:
@@ -716,6 +766,25 @@ class TestParse:
         assert child.body == ""
         assert child.ancestors == (Ancestor(4, "Task"), Ancestor(1, "Epic"))
         assert child.schedule is None
+
+    def test_parent_in_another_repository(self) -> None:
+        parent = {
+            "number": 4,
+            "issueType": {"name": "Task"},
+            "repository": {"nameWithOwner": "certcc/vultron"},
+            "parent": {
+                "number": 1,
+                "issueType": {"name": "Epic"},
+                "repository": {"nameWithOwner": "CERTCC/elsewhere"},
+                "parent": {"number": 7, "issueType": {"name": "Epic"}},
+            },
+        }
+        page = _page(_node(2, parent=parent), home="CERTCC/Vultron")
+        (child,) = parse_pages([page])
+        assert child.ancestors == (
+            Ancestor(4, "Task"),
+            Ancestor(1, "Epic", repo="CERTCC/elsewhere"),
+        )
 
     def test_untyped_issue(self) -> None:
         (issue,) = parse_pages([_page(_node(3, kind=None))])
@@ -766,6 +835,7 @@ class TestFetch:
         query = next(a for a in call if a.startswith("query="))
         assert "mutation" not in query
         assert "states: OPEN" in query
+        assert "repository { nameWithOwner }" in query
 
     @pytest.mark.parametrize("repo", ["noslash", "/r", "o/", "o/r/x"])
     def test_malformed_repo_raises(self, repo: str) -> None:

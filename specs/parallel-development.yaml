@@ -321,7 +321,8 @@ groups:
           a wrong classification is visible.
         verification: >-
           A query for open Issues with a `theme:` label returns none whose body
-          has no line that starts with `Theme:` and names that label.
+          has no line that starts with `Theme:`, names that label, and follows
+          it with a spaced dash and outcome text.
           `theme-fit` is that query: it reports each such Issue as a
           `missing-reason-line` finding, which `TestReasonLine` in
           `test/metadata/test_theme_fit.py` checks.

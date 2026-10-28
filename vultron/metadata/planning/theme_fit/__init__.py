@@ -42,6 +42,7 @@ from vultron.metadata.planning.theme_fit.model import (
 )
 from vultron.metadata.planning.theme_fit.render import (
     GITHUB_BODY_LIMIT,
+    WORD_JOINER,
     render_coherence,
     render_markdown,
 )
@@ -57,6 +58,7 @@ __all__ = [
     "ThemeFitReport",
     "TierCoherence",
     "UNSCHEDULED",
+    "WORD_JOINER",
     "analyze",
     "fetch_open_issues",
     "main",

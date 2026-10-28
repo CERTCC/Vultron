@@ -312,9 +312,10 @@ and 2 when the catalog or `gh` fails.
   body.
 - **Finding kinds**: a leaf without exactly one theme, an Epic without one
   theme or a named split, a missing `Theme:` line, a child theme its Epic does
-  not carry, a non-Epic with no open Epic ancestor, an Epic nested under an
-  Epic, an auto-calved Epic still single-child, and a label the catalog does
-  not list or lists as retiring.
+  not carry, a non-Epic with no open Epic ancestor (a parent in another
+  repository ends the walk, since its number means nothing here), an Epic
+  nested under an Epic, an auto-calved Epic still single-child, and a label
+  the catalog does not list or lists as retiring.
 - **A `Theme:` line counts** only when a dash with a space on each side
   follows the label and some outcome text follows the dash. The check does
   not judge whether the outcome is right; a reviewer does (PAD-02-016).

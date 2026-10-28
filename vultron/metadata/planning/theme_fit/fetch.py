@@ -34,6 +34,7 @@ from vultron.metadata.planning.theme_fit.model import Ancestor, OpenIssue
 QUERY = """
 query($owner: String!, $name: String!, $endCursor: String) {
   repository(owner: $owner, name: $name) {
+    nameWithOwner
     issues(states: OPEN, first: 100, after: $endCursor) {
       pageInfo { hasNextPage endCursor }
       nodes {
@@ -41,10 +42,12 @@ query($owner: String!, $name: String!, $endCursor: String) {
         issueType { name }
         labels(first: 50) { nodes { name } }
         parent {
-          number issueType { name }
+          number issueType { name } repository { nameWithOwner }
           parent {
-            number issueType { name }
-            parent { number issueType { name } }
+            number issueType { name } repository { nameWithOwner }
+            parent {
+              number issueType { name } repository { nameWithOwner }
+            }
           }
         }
         projectItems(first: 10) {
@@ -63,24 +66,44 @@ query($owner: String!, $name: String!, $endCursor: String) {
 """The GraphQL query ``gh api graphql --paginate`` runs."""
 
 
-def _ancestors(node: dict[str, Any]) -> tuple[Ancestor, ...]:
+def _foreign_repo(parent: dict[str, Any], home: str | None) -> str | None:
+    """The parent's repository when it is not *home*, else ``None``."""
+    repo = (parent.get("repository") or {}).get("nameWithOwner")
+    if home is None or repo is None or repo.casefold() == home.casefold():
+        return None
+    return str(repo)
+
+
+def _ancestors(
+    node: dict[str, Any], home: str | None = None
+) -> tuple[Ancestor, ...]:
+    """The fetched parent chain, ending at the first parent outside *home*."""
     chain: list[Ancestor] = []
     parent = node.get("parent")
     while parent:
+        foreign = _foreign_repo(parent, home)
         chain.append(
             Ancestor(
                 number=int(parent["number"]),
                 issue_type=(parent.get("issueType") or {}).get("name"),
+                repo=foreign,
             )
         )
+        if foreign is not None:
+            break
         parent = parent.get("parent")
     return tuple(chain)
 
 
 def parse_issue(
-    node: dict[str, Any], project_number: int = PLANNING_PROJECT_NUMBER
+    node: dict[str, Any],
+    project_number: int = PLANNING_PROJECT_NUMBER,
+    home: str | None = None,
 ) -> OpenIssue:
     """One GraphQL issue node as an :class:`OpenIssue`.
+
+    *home* is the ``OWNER/NAME`` of the repository being checked; a parent
+    from any other repository is marked with its own (``Ancestor.repo``).
 
     Raises:
         KeyError, TypeError, ValueError: If a required field is missing or
@@ -95,7 +118,7 @@ def parse_issue(
             for label in (node.get("labels") or {}).get("nodes") or []
         ),
         body=str(node.get("body") or ""),
-        ancestors=_ancestors(node),
+        ancestors=_ancestors(node, home),
         schedule=schedule_of(node, project_number),
     )
 
@@ -119,8 +142,10 @@ def parse_pages(
             errors = graphql_errors(page)
             if errors:
                 raise GhError("the issue query failed: " + "; ".join(errors))
-            nodes = page["data"]["repository"]["issues"]["nodes"]
-            issues.extend(parse_issue(n, project_number) for n in nodes)
+            repository = page["data"]["repository"]
+            home = repository.get("nameWithOwner")
+            nodes = repository["issues"]["nodes"]
+            issues.extend(parse_issue(n, project_number, home) for n in nodes)
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         raise GhError(f"could not read the issue query: {exc!r}") from exc
     return tuple(issues)

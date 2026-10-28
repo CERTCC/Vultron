@@ -41,12 +41,14 @@ def nearest_epic(
 
     Walks the fetched parent chain; where it stops short, continues through
     the last ancestor's own chain when that ancestor is an open Issue in
-    *by_number*. A cycle ends the walk.
+    *by_number*. A cycle, or a parent in another repository, ends the walk.
     """
     seen: set[int] = {issue.number}
     current = issue
     while True:
         for ancestor in current.ancestors:
+            if ancestor.repo is not None:
+                return None
             if ancestor.is_epic:
                 return ancestor.number
         if not current.ancestors:
@@ -131,11 +133,21 @@ def _epic_findings(
         )
 
 
+def _open_epic(
+    epic_number: int | None, by_number: Mapping[int, OpenIssue]
+) -> OpenIssue | None:
+    """The nearest Epic when it is open; one outside the set is closed."""
+    return None if epic_number is None else by_number.get(epic_number)
+
+
 def _unparented_detail(issue: OpenIssue, epic_number: int | None) -> str:
     if epic_number is not None:
         return f"its nearest Epic, #{epic_number}, is closed"
     if issue.parent is None:
         return "no parent"
+    foreign = next((a for a in issue.ancestors if a.repo is not None), None)
+    if foreign is not None:
+        return f"ancestor {foreign.repo}#{foreign.number} is in another repository"
     return f"parent #{issue.parent} has no Epic ancestor"
 
 
@@ -163,7 +175,7 @@ def _hierarchy_findings(
     if issue.is_epic:
         yield from _epic_findings(issue, epic_number, open_children)
         return
-    epic = None if epic_number is None else by_number.get(epic_number)
+    epic = _open_epic(epic_number, by_number)
     if epic is None:
         yield FindingKind.UNPARENTED, _unparented_detail(issue, epic_number)
         return
@@ -198,7 +210,7 @@ def _coherence(
             epics[issue.schedule or UNSCHEDULED] += 1
             continue
         epic_number = epic_of[issue.number]
-        epic = None if epic_number is None else by_number.get(epic_number)
+        epic = _open_epic(epic_number, by_number)
         if epic is None:
             continue
         tier = epic.schedule or UNSCHEDULED
