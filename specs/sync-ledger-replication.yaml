@@ -1998,7 +1998,8 @@ groups:
       so they carry the sender's position. A
       `Create(ProcessingFault)` is about the processing of one activity, not about a
       case: any receiver sends one, including for an activity it could not parse and
-      so cannot place in any case (ASK-07-001), and it names no case (ASK-07-004). The
+      so cannot place in any case (ASK-07-001), and it names no case (ASK-07-004); the
+      maintainer decided it is out of scope, the replica faults included (#5109). The
       property is the `ledgerPosition` term a case copy already carries (SYNC-16-005),
       so one fact keeps one wire form.
     relationships:

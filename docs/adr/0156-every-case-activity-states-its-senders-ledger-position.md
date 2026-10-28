@@ -60,6 +60,7 @@ Chosen option: "Every case activity, from any sender, carries `ledgerPosition`; 
   Activities sent before the sender holds the ledger carry none, and so do activities whose object already states its position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`).
   `Read(CaseLedgerEntry)` is in scope: the entry it names is the sender's tail, so its `ledgerPosition` is the stamp.
   `Create(ProcessingFault)` is out of scope: any receiver sends one about an activity it could not process, including one it could not parse and so cannot place in a case, and the fault names no case.
+  The maintainer decided this, the replica faults CaseDiverged, HashMismatch and ImpossibleState included ([#5109 comment](https://github.com/CERTCC/Vultron/issues/5109#issuecomment-6470569658)).
   A `Reject(CaseLedgerEntry)` from a peer that does not hold the case yet carries none, and a receiver does not refuse it for that.
 - **One mechanism.** The full-case Invite, its replies and `Reject(CaseLedgerEntry)` move their positions to `ledgerPosition`.
   SYNC-03-004's `context` hash is retired, and `context` returns to its AS2 meaning.
