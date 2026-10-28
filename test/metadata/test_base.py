@@ -15,9 +15,18 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
+
 import pytest
 
+from vultron.metadata import base as base_module
 from vultron.metadata.base import (
+    GH_LOOKUP_ERRORS,
+    gh_issue_missing,
+    gh_issue_state,
+    gh_lookup_failure,
+    issue_number,
     iter_tree_texts,
     mkdocs_config,
     parse_mkdocs_config,
@@ -78,3 +87,57 @@ class TestMkDocsConfigFaults:
         )
 
         assert mkdocs_config(tmp_path)["nav"] == ["a.md"]
+
+
+# ---------------------------------------------------------------------------
+# The shared single-issue gh lookup
+
+
+def test_issue_number_strips_the_hash() -> None:
+    assert issue_number("#4206") == 4206
+
+
+def test_gh_issue_state_asks_gh_for_the_issue_number(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        assert kwargs["check"] is True
+        return subprocess.CompletedProcess(
+            argv, 0, stdout=json.dumps({"state": "CLOSED"}), stderr=""
+        )
+
+    monkeypatch.setattr(base_module.subprocess, "run", fake_run)
+    assert gh_issue_state("#12") == "CLOSED"
+    assert calls == [["gh", "issue", "view", "12", "--json", "state"]]
+
+
+@pytest.mark.parametrize("stdout", ["[]", "not json", "{}"])
+def test_gh_issue_state_raises_a_lookup_error_on_unexpected_output(
+    monkeypatch, stdout: str
+) -> None:
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(base_module.subprocess, "run", fake_run)
+    with pytest.raises(GH_LOOKUP_ERRORS):
+        gh_issue_state("#12")
+
+
+def test_gh_issue_missing_reads_only_gh_not_found() -> None:
+    missing = subprocess.CalledProcessError(
+        1,
+        ["gh"],
+        stderr="GraphQL: Could not resolve to an issue or pull request with"
+        " the number of 9. (repository.issue)\n",
+    )
+    forbidden = subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 403\n")
+    assert gh_issue_missing(missing)
+    assert not gh_issue_missing(forbidden)
+    assert not gh_issue_missing(FileNotFoundError("gh"))
+
+
+def test_gh_lookup_failure_adds_gh_stderr_when_present() -> None:
+    exc = subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 403: nope\n")
+    assert gh_lookup_failure(exc).endswith(": HTTP 403: nope")
+    assert gh_lookup_failure(FileNotFoundError("gh")) == "gh"

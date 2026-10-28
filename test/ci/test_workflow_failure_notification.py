@@ -477,10 +477,13 @@ def _run_notify_action(
     open_pull_requests: tuple[int, ...] = (),
     api_fails: bool = False,
     details: str | None = None,
+    details_file_missing: bool = False,
 ) -> list[str]:
     """Run the action's lookup step against a fake ``gh``; return its calls.
 
-    ``details`` is written to a file passed as the ``details-file`` input.
+    ``details`` is written to a file passed as the ``details-file`` input;
+    ``details_file_missing`` passes a path no step wrote, as when setup or
+    the scan failed first.
 
     ``open_pull_requests`` are listed on the page as the list-issues endpoint
     lists a labelled pull request, with a ``pull_request`` key. The step's
@@ -519,6 +522,8 @@ def _run_notify_action(
         details_file = tmp_path / "details.md"
         details_file.write_text(details)
         env["DETAILS_FILE"] = str(details_file)
+    if details_file_missing:
+        env["DETAILS_FILE"] = str(tmp_path / "never-written.md")
     subprocess.run(
         ["bash", "-e", "-o", "pipefail", "-c", _notify_action_lookup_script()],
         env=env,
@@ -644,3 +649,17 @@ def test_notify_action_adds_nothing_for_an_empty_details_file(
     assert comment.endswith(
         "[run](https://github.com/OWNER/REPO/actions/runs/1)"
     )
+
+
+def test_notify_action_files_without_a_details_file_that_was_never_written(
+    tmp_path: Path,
+) -> None:
+    """A failed setup step leaves no details file; the tracker still files."""
+    calls = _run_notify_action(
+        tmp_path, "notify", [], details_file_missing=True
+    )
+    assert sum(c.startswith("issue create") for c in calls) == 1, calls
+    assert (
+        "actions/runs/1)\n\nThis issue is closed automatically"
+        in "\n".join(calls)
+    ), calls

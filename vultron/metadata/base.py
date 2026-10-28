@@ -22,13 +22,14 @@ NonEmptyStrList = list[NonEmptyStr]
 
 #: What a single-issue ``gh`` lookup can raise: ``gh`` missing
 #: (:class:`OSError`), ``gh`` failing (:class:`subprocess.CalledProcessError`),
-#: or output without the expected field (:class:`KeyError`,
-#: :class:`ValueError`). A caller that catches these treats the lookup as
-#: failed, never as a pass.
+#: or output that is not JSON or lacks the expected field (:class:`KeyError`,
+#: :class:`TypeError`, :class:`ValueError`). A caller that catches these
+#: treats the lookup as failed, never as a pass.
 GH_LOOKUP_ERRORS: tuple[type[Exception], ...] = (
     OSError,
     subprocess.CalledProcessError,
     KeyError,
+    TypeError,
     ValueError,
 )
 

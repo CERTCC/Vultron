@@ -24,7 +24,6 @@ from textwrap import dedent
 import pytest
 
 from vultron.metadata import ratchet_owners
-from vultron.metadata.base import gh_issue_missing
 from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.ratchet_markers import Baseline
 from vultron.metadata.ratchet_owners import (
@@ -172,12 +171,6 @@ def test_owner_findings_defaults_to_the_gh_lookup(
     assert finding.reason == "is CLOSED"
 
 
-def test_gh_issue_missing_reads_only_gh_not_found() -> None:
-    assert gh_issue_missing(_MISSING)
-    assert not gh_issue_missing(_FORBIDDEN)
-    assert not gh_issue_missing(FileNotFoundError("gh"))
-
-
 @pytest.mark.spec("ARCH-18-004")
 def test_report_lists_each_affected_baseline_under_its_owner() -> None:
     findings = owner_findings(
@@ -283,4 +276,21 @@ def test_main_writes_the_report_and_exits_one_on_a_closed_owner(
     assert main(["--report", str(report)], _client({"#11": "CLOSED"})) == 1
     text = report.read_text(encoding="utf-8")
     assert "`test/pkg/test_ratchet.py:2` `KNOWN_VIOLATIONS`" in text
+    assert capsys.readouterr().out == text
+
+
+def test_main_reports_a_scan_failure_in_the_tracker_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A broken test file is named in the report, not just a failed run."""
+    (tmp_path / "test").mkdir()
+    (tmp_path / "test" / "broken.py").write_text("KNOWN_X = (\n")
+    monkeypatch.setattr(ratchet_owners, "repo_root", lambda: tmp_path)
+    report = tmp_path / "report.md"
+    assert main(["--report", str(report)], _client({})) == 1
+    text = report.read_text(encoding="utf-8")
+    assert "no owner was checked" in text
+    assert "- test/broken.py:1:" in text
     assert capsys.readouterr().out == text

@@ -435,13 +435,7 @@ def check_closing_pr(
         closing_issues = gh_pr_closing_issues
     try:
         closing = closing_issues(pr_number)
-    except (
-        OSError,
-        subprocess.CalledProcessError,
-        KeyError,
-        TypeError,
-        ValueError,
-    ) as exc:
+    except GH_LOOKUP_ERRORS as exc:
         return [
             f"could not read the issues PR #{pr_number} closes "
             f"({_lookup_failure(exc)}); the closing-PR check needs gh and a "

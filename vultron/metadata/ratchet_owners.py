@@ -159,15 +159,30 @@ def main(
     argv: Sequence[str] | None = None,
     issue_state: IssueStateLookup | None = None,
 ) -> int:
-    """Run the report; 0 when every cited owner is open, 1 otherwise."""
+    """Run the report; 0 when every cited owner is open, 1 otherwise.
+
+    A scan that cannot read a test file also returns 1, with the file's
+    ``path:line:col`` in the report, since no owner was checked.
+    """
     args = _parser().parse_args(argv)
-    baselines = baselines_under_test(repo_root())
-    findings = owner_findings(baselines, issue_state)
-    owners = {o for b in baselines for o in b.owners}
-    if not findings:
-        print(f"All {len(owners)} ratchet baseline owner issue(s) are open.")
-        return 0
-    report = report_markdown(findings)
+    try:
+        baselines = baselines_under_test(repo_root())
+    except MetadataLoadError as exc:
+        # The tracker should say why no owner was checked, not only that
+        # the run failed.
+        report = (
+            "The ratchet-baseline owner scan could not read a test file, so"
+            f" no owner was checked (ARCH-18-004):\n\n- {exc}\n"
+        )
+    else:
+        findings = owner_findings(baselines, issue_state)
+        if not findings:
+            owners = {o for b in baselines for o in b.owners}
+            print(
+                f"All {len(owners)} ratchet baseline owner issue(s) are open."
+            )
+            return 0
+        report = report_markdown(findings)
     if args.report is not None:
         args.report.write_text(report, encoding="utf-8")
     sys.stdout.write(report)
