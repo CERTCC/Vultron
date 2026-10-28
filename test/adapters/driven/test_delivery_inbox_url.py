@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
 
 from test.support.emitter import RecordingEmitter
 from vultron.adapters.driven.datalayer import get_datalayer
+from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.http_delivery import (
     HttpDeliveryAdapter,
@@ -63,7 +64,7 @@ def _derive_inbox_url(actor_id: str) -> str:
 
 
 @pytest.fixture
-def http_delivery_attempts(monkeypatch) -> list[str]:
+def http_delivery_attempts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """Every activity id handed to a real ``HttpDeliveryAdapter``.
 
     A tripwire, not a stub: a route test that reaches it would otherwise wait
@@ -71,7 +72,12 @@ def http_delivery_attempts(monkeypatch) -> list[str]:
     """
     attempts: list[str] = []
 
-    async def _record(self, activity_id, *args, **kwargs) -> None:
+    async def _record(
+        self: HttpDeliveryAdapter,
+        activity_id: str,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
         attempts.append(activity_id)
 
     monkeypatch.setattr(HttpDeliveryAdapter, "emit", _record)
@@ -79,7 +85,18 @@ def http_delivery_attempts(monkeypatch) -> list[str]:
 
 
 @pytest.fixture
-def inbox_client(dl, monkeypatch, http_delivery_attempts) -> TestClient:
+def recording_emitter() -> RecordingEmitter:
+    """The emitter the inbox client's outbox delivers to."""
+    return RecordingEmitter()
+
+
+@pytest.fixture
+def inbox_client(
+    dl: SqliteDataLayer,
+    monkeypatch: pytest.MonkeyPatch,
+    recording_emitter: RecordingEmitter,
+    http_delivery_attempts: list[str],
+) -> TestClient:
     """A client on the actors router whose outbox sends nothing over HTTP.
 
     No dispatcher is installed, so every inbox post raises and is answered
@@ -87,14 +104,29 @@ def inbox_client(dl, monkeypatch, http_delivery_attempts) -> TestClient:
     instead of delivering it (notes/testing-pitfalls.md § "Patch Both Outbox
     Emitter Paths").
     """
-    emitter = RecordingEmitter()
-    monkeypatch.setattr(outbox_handler._DEFAULT_EMITTER_SLOT, "value", emitter)
+    monkeypatch.setattr(
+        outbox_handler._DEFAULT_EMITTER_SLOT, "value", recording_emitter
+    )
     app = FastAPI()
     app.include_router(actors_router.router)
     app.dependency_overrides[get_datalayer] = lambda: dl
     app.dependency_overrides[actors_router.get_actor_dl] = lambda: dl
-    app.state.emitter = emitter
+    app.state.emitter = recording_emitter
     return TestClient(app, raise_server_exceptions=False)
+
+
+def _assert_fault_recorded_not_sent(
+    emitter: RecordingEmitter, http_delivery_attempts: list[str]
+) -> None:
+    """The fault reply reached the recorder, and nothing went over HTTP.
+
+    The recorder holding the fault proves the outbox drain ran, so the empty
+    tripwire is not vacuous.
+    """
+    assert [body["object"]["type"] for body, _ in emitter.sent] == [
+        "ProcessingFault"
+    ], "the outbox drain did not deliver the fault reply"
+    assert http_delivery_attempts == []
 
 
 # ---------------------------------------------------------------------------
@@ -193,8 +225,11 @@ def test_held_inboxes_reads_a_wire_profile_inbox_collection():
 
 @pytest.mark.spec("OX-12-009")
 def test_the_inbox_a_hosted_profile_states_accepts_post(
-    dl, inbox_client, http_delivery_attempts
-):
+    dl: SqliteDataLayer,
+    inbox_client: TestClient,
+    recording_emitter: RecordingEmitter,
+    http_delivery_attempts: list[str],
+) -> None:
     """A sender holding a hosted actor's profile posts to its stated inbox.
 
     ``hosted_endpoints`` states ``{id}/inbox`` without the trailing slash the
@@ -226,12 +261,15 @@ def test_the_inbox_a_hosted_profile_states_accepts_post(
     resp = inbox_client.post(path, json=payload)
 
     assert resp.status_code == 202, (resp.status_code, path)
-    assert http_delivery_attempts == []
+    _assert_fault_recorded_not_sent(recording_emitter, http_delivery_attempts)
 
 
 def test_derived_inbox_path_matches_fastapi_route(
-    dl, inbox_client, http_delivery_attempts
-):
+    dl: SqliteDataLayer,
+    inbox_client: TestClient,
+    recording_emitter: RecordingEmitter,
+    http_delivery_attempts: list[str],
+) -> None:
     """G6: POST to derived inbox path returns 202, not 404.
 
     Creates an actor this node hosts, derives its inbox URL with the delivery
@@ -282,7 +320,7 @@ def test_derived_inbox_path_matches_fastapi_route(
         f"Path: {path_relative_to_app_v2}. "
         "This indicates inbox URL derivation is inconsistent with FastAPI routing."
     )
-    assert http_delivery_attempts == []
+    _assert_fault_recorded_not_sent(recording_emitter, http_delivery_attempts)
 
 
 def test_inbox_url_path_relative_to_app_v2_has_actors_prefix():
