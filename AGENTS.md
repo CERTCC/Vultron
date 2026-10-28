@@ -295,7 +295,7 @@ linked file before touching that area. New pitfalls MUST be routed per
 | Devcontainer / tooling | [devcontainer-tooling](notes/devcontainer-tooling.md) | always `uv run`, `PYTHONPATH=` cleared, `UV_NO_SYNC=1` on sync failure; ruff runs bare (IMPLTS-07-021); `SKIP=actionlint` (hangs); `git push -u origin HEAD`, HTTP/1.1 retry (#3893, #3905); edit `.agents/skills`, not the `.claude` symlink |
 | Spec/notes/ADR/history tooling | [`vultron/metadata/AGENTS.md`](vultron/metadata/AGENTS.md), [agentic-workflow](notes/agentic-workflow.md) | learning filename slug ≠ `source` (BW-01-003, #1857); loaders name failing files `path:line:col` via `file_loading.py` (MS-17) — YAML errors aren't `ValueError`; pre-code spec needs `lint_suppress: [phantom_path_ref]` |
 | git / branches / PRs | [git-workflow-pitfalls](notes/git-workflow-pitfalls.md) | false-positive rebase "local changes"; conflict-free ≠ working merge; integration branches for related fixes; re-check ADR numbers; verify ACs on `origin/main`, always `Closes #N`, prose ACs skip the pre-claim gate (#1907) |
-| Issue themes / epic scope | [epic-themes](notes/epic-themes.md) | one `theme:` per leaf, judged from its own outcome, never copied from the parent; an Epic's children share its theme; `Theme: <label> — <outcome>` body line; labels come only from the catalog block via `theme-labels`, which never deletes (PAD-02-014–021) |
+| Issue themes / epic scope | [epic-themes](notes/epic-themes.md) | one `theme:` per leaf, judged from its own outcome, never copied from the parent; an Epic's children share its theme; `Theme: <label> — <outcome>` body line; labels come only from the catalog block via `theme-labels`, which never deletes; `theme-fit` reports every breach, read-only (PAD-02-014–021) |
 | GH Actions / CI YAML | [ci-workflow-authoring](notes/ci-workflow-authoring.md) | red job ≠ assertions ran, all-skipped = green; `notify-failure` mandatory (CISEC-05); bare `on:` → `True`; matrix booleans job vs. step; `python3 -c` breaks `actionlint`; YAML apostrophes |
 | Spec authoring | [spec-authoring-rules](notes/spec-authoring-rules.md) | strict `kind`/`priority`/`rel_type` enums, a link recorded at one end only (SR-13); `adr:` not `references:`; `kind: protocol` needs marker test or strict `xfail`; CASE_MANAGER not "CaseActor" (ADR-0088); item format = field presence, not `isinstance` (ADR-0101); advisories need an owner and a terminal state |
 | Specs vs. ADRs, doc drift | [specs-vs-adrs](notes/specs-vs-adrs.md), [documentation-sweeps](notes/documentation-sweeps.md) | an ADR is a historical record — a refactor never obliges an ADR edit, an aged code reference in a body is not a defect and no scrub is owed, live constraints go to a spec or note citing it as provenance, and neither may dereference an ADR body (ADR-0127); ADR "what is removed" is scoped to one use; no counts in long-lived docs (MS-16-001); moving a claim ≠ verifying it, share by `include-markdown` fragment (DF-10-001/002) |
@@ -374,9 +374,9 @@ SHOULD be discussed via Issue or PR. Include rationale in the commit message.
 
 ### Issue tracker
 
-Issues live in GitHub Issues. See
-[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) for the full rules.
-Non-negotiables:
+Issues live in GitHub Issues. Full rules and CLI patterns:
+[notes/parallel-development.md](notes/parallel-development.md)
+§ "GitHub Issue Tracker". Non-negotiables:
 
 - **Never use `gh issue create`** — it cannot set issue types or parent/child
   and blocker links. Use
@@ -390,9 +390,11 @@ Non-negotiables:
 
 ### Triage labels
 
-`needs-info` (the only hold), `ready-for-human` (agents skip it). The other
-labels in `docs/agents/triage-labels.md` are being retired (#3717).
+`needs-info` (the only hold), `ready-for-human` (agents skip it); see
+[notes/epic-themes.md](notes/epic-themes.md) § "Triage Labels" (#3717).
 
 ### Domain docs
 
-Single-context repo: one `CONTEXT.md` + `docs/adr/` at root. See `docs/agents/domain.md`.
+Single-context repo: one `CONTEXT.md` + `docs/adr/` at root; if absent, proceed
+silently, never propose creating them (`domain-modeling` does, lazily). Use glossary
+terms (a missing one is a gap, not a licence to invent); flag ADR contradictions.

@@ -20,7 +20,7 @@ def _logins(node: dict) -> list[str]:
     ]
 
 
-def _schedule_of(node: dict, project_number: int) -> str | None:
+def schedule_of(node: dict, project_number: int) -> str | None:
     """Read the Schedule single-select value from one project item set."""
     for item in (node.get("projectItems") or {}).get("nodes") or []:
         if ((item.get("project") or {}).get("number")) != project_number:
@@ -63,7 +63,7 @@ def parse_graphql(
         "issue"
     ) or {}
     epic = issue.get("number")
-    epic_schedule = _schedule_of(issue, project_number)
+    epic_schedule = schedule_of(issue, project_number)
 
     candidates: list[Candidate] = []
     for node in (issue.get("subIssues") or {}).get("nodes") or []:
@@ -89,7 +89,7 @@ def parse_graphql(
                 ],
                 child_count=(node.get("subIssues") or {}).get("totalCount")
                 or 0,
-                schedule=_schedule_of(node, project_number),
+                schedule=schedule_of(node, project_number),
             )
         )
     return epic, epic_schedule, candidates
