@@ -23,9 +23,9 @@ groups:
     rationale: >-
       The owner of an upstream action can move a tag or a branch to new code. Then
       changed code runs in CI with no change in this repository, and it can read
-      secrets or change what CI builds. A commit SHA cannot move, so the code that
-      runs is the code that a person reviewed. A local action is already fixed to the
-      commit that CI checks out.
+      secrets or change what CI builds. A commit SHA cannot move, so CI runs the same
+      code until a change in this repository updates the pin. A local action is
+      already fixed to the commit that CI checks out.
     adr:
     - ADR-0014
   - id: CISEC-01-002

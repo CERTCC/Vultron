@@ -64,7 +64,7 @@ groups:
         rationale: >-
           All demo steps and checks already run inside these context managers. When the
           error accumulation is in the same place, every step and every check records
-          its failure the same way, and no scenario needs its own error code.
+          its failure the same way, and no scenario needs its own error-handling code.
           `demo_gate` records a failure in the same way as `demo_check`, and it also
           stops the steps that need the failed precondition (DEMOCI-01-007).
 
@@ -181,9 +181,9 @@ groups:
           DEMOCI-01-003 requires all errors of a run to be reported together. A wait
           that raises outside a demo context stops the scenario at the first timeout.
           Then the other failures of the run are not reported, and the one failure that
-          is reported can point at the wrong cause. Different scenarios use the same
-          raising waits, so a review alone does not find each bare call. An
-          architecture test checks the scenario phases instead. When the shared helper
+          is reported can point at the wrong cause. Many scenario phases call these
+          waits, and a bare call looks correct in a review. Thus an architecture test
+          checks the scenario phases. When the shared helper
           does the wrap itself, as `wait_for_participants_on_replicas` and
           `wait_for_replica_ledger_coverage` do, every caller is safe.
         relationships:
@@ -255,8 +255,8 @@ groups:
           shared build action are in the filter, so a change to either one runs the
           workflow. The CI matrix comes from `.github/demo-scenarios.json`
           (DEMOCI-06-004). That file is generated from the scenario registry in the
-          same commit as each registry change (DEMOCI-11-004), so the filter on the
-          file finds every scenario change.
+          same commit as each registry change (DEMOCI-11-004, DEMOCI-11-005), so the
+          filter on the file finds every scenario change.
 
       - id: DEMOCI-02-004
         priority: MUST
@@ -308,8 +308,8 @@ groups:
           A demo job builds several images. Layer caching can make the build shorter
           when only the source code changed. GitHub gives the cache tokens
           (`ACTIONS_RUNTIME_TOKEN`, `ACTIONS_CACHE_URL`) only to `uses:` steps, not to
-          `run:` steps in a composite action. Thus a cache export from such a step
-          cannot work, and the workflow does not use one.
+          `run:` steps in a composite action. Thus a cache export must run in a `uses:`
+          step. A `run:` step in a composite action cannot export to the GitHub cache.
 
       - id: DEMOCI-02-008
         priority: MUST
@@ -603,7 +603,7 @@ groups:
           The invariant job runs on a different runner from the demo job. The artifact
           is the only path from the output of the demo to the invariant checks. When
           the job uses the artifact from the same workflow run, the checks examine the
-          run that the pull request started, not an older or a local output.
+          demo output of that run, not an older or a local output.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-04-001
@@ -639,14 +639,14 @@ groups:
           the demo job's exclusion (DEMOCI-02-004).
         rationale: >-
           A Dependabot pull request skips the demo job (DEMOCI-02-004), so no case-log
-          artifact exists. If the invariant job runs, `actions/download-artifact`
-          fails, and each Dependabot pull request shows a failed check that has no
-          relation to its change. The requirement is this result, not a specific
-          expression. The `scenarios` job applies the exclusion one time
-          (DEMOCI-06-004), and the invariant job inherits it through
-          `needs.scenarios.result`. One check in one place cannot become different from
-          a copy. `always()` alone is not sufficient, because it runs the job when an
-          upstream job was skipped (DEMOCI-04-006).
+          artifact exists. If the invariant job runs, `actions/download-artifact` fails,
+          and each Dependabot pull request shows a failed check that has no relation to
+          its change. The requirement is this result, not a specific expression. The
+          `scenarios` job applies the exclusion one time (DEMOCI-06-004), and the
+          invariant job inherits it through `needs.scenarios.result`. When the check is
+          in one place, no copy of it can become different. `always()` alone is not
+          sufficient, because it runs the job when an upstream job was skipped
+          (DEMOCI-04-006).
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-04-002
@@ -843,17 +843,17 @@ groups:
           the `pull_request` matrix and run only these scenarios on every PR
           commit.
         rationale: >-
-          Each scenario in the PR set adds to the time that the invariant jobs wait for
-          the slowest demo job. The minimum set keeps every protocol semantic type of
-          the full suite covered, at a lower cost for each pull request. `rv` covers
-          the baseline with two actors. `rvcv-handoff` adds invite, accept and
-          ownership transfer. `rcvcv` adds `offer_case_participant`,
-          `accept_actor_recommendation` and invite and accept chains with three or more
-          actors. `rcv-reject` adds `reject_invite_actor_to_case`, the only scenario
-          where a Vendor rejects an invitation after it enters RM.RECEIVED.
-          `rcv-embargo` and `rcvv-embargo` are the only sources of the embargo semantic
-          types, by different paths. The coverage matrix is in
-          `notes/demo-ci-scenario-coverage.md`. See ADR-0052.
+          The invariant jobs start only when every demo job in the set has finished
+          (ADR-0052), so each extra scenario can make the wait longer. The minimum set
+          keeps every protocol semantic type of the full suite covered, at a lower cost
+          for each pull request. `rv` covers the baseline with two actors.
+          `rvcv-handoff` adds invite, accept and ownership transfer. `rcvcv` adds
+          `offer_case_participant`, `accept_actor_recommendation` and invite and accept
+          chains with three or more actors. `rcv-reject` adds
+          `reject_invite_actor_to_case`, the only scenario where a Vendor rejects an
+          invitation after it enters RM.RECEIVED. `rcv-embargo` and `rcvv-embargo` are
+          the only sources of the embargo semantic types, by different paths. The
+          coverage matrix is in `notes/demo-ci-scenario-coverage.md`. See ADR-0052.
         adr:
           - ADR-0052
         relationships:
@@ -899,8 +899,10 @@ groups:
           workflow at startup: no jobs start, there are no logs, no annotations and no
           job status, and the run shows the file path in place of the workflow name.
           Almost nothing shows this failure. It can stop the workflow on every branch,
-          main included, for many runs before somebody sees it. A workflow that shows
-          red on branches it does not run on also looks like noise, not a real failure.
+          main included, for many runs before somebody sees it. GitHub reports the
+          startup failure before it applies the branch filter. Thus the failure also
+          shows on branches that the workflow does not run on, where it looks like
+          noise.
           When both matrices come from one JSON file, the `demo` and
           `invariant-harness` jobs also have no copies of the matrix that can become
           different. `actionlint` finds the illegal context reference in CI and in
@@ -981,7 +983,7 @@ groups:
           (reporter role), `coordinator`, `vendor`, and `case-actor` services.
         rationale: >-
           The embargo semantic types come only from the embargo scenarios
-          (DEMOCI-07-009). In the PR set, `rcv-embargo` checks the embargo lifecycle on
+          (DEMOCI-06-002). In the PR set, `rcv-embargo` checks the embargo lifecycle on
           each pull request. The registry is the authority, and the JSON file is its
           generated copy. The CI log directories use the scenario role names
           (`reporter` for the `reporter` service). The invariant checks can then load
@@ -1939,12 +1941,12 @@ groups:
           MUST NOT be hand-declared, and the CLI MUST NOT be a place a scenario
           can be omitted from or added to independently of the registry.
         rationale: >-
-          The registry is the one place that declares the scenarios (DEMOCI-11-001). A
+          The registry is the one place that declares the scenarios. A
           sub-command that is declared by hand is a second list, which can leave out a
           registered scenario. Nobody can then run that scenario from the CLI. When the
           CLI reads the registry, it has one sub-command for each registered scenario.
-          The container URL options are different for each scenario, but they cannot be
-          derived, so they are not on the registry decorator (DEMOCI-11-001). Each
+          The container URL options are different for each scenario, and the registry
+          decorator holds only what the demo knows about itself (ADR-0098). Each
           scenario module declares them as a role Type Object, and one command factory
           uses them, as in the `ActorSession` model (DEMOMA-26). A test checks that the
           role declaration agrees with the `main()` signature of the scenario, so the
@@ -1983,8 +1985,8 @@ groups:
           demo-integration workflow gives the current answer, because it runs every
           registered scenario (DEMOCI-06-003). Thus a page for a scenario that is not
           registered describes a scenario that no CI run exercises. The `maturity` key
-          is refused for the same reason (ADR-0106). Prose that claims a result is
-          wrong for the same reason, but a review must find it.
+          is refused too, because a page has no maturity tier (ADR-0106). Prose that
+          claims a result is wrong for the same reason, but a review must find it.
         verification: >-
           `uv run demo-scenarios --check` (the pre-commit hook, DEMOCI-11-005)
           reports a page under `docs/topics/scenarios/` that no registered

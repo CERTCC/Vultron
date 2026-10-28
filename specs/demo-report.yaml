@@ -52,9 +52,10 @@ groups:
       directory that contains its JSONL file (e.g. `finder`, `vendor`,
       `case-actor`).
     rationale: >-
-      The JSONL entries do not always identify which replica they came from. The demo
-      run writes each replica of an actor into a directory with the name of that actor.
-      Thus the directory name is a reliable source for the actor name of each replica.
+      A ledger entry is the same in every replica, so it does not show which actor's
+      replica holds it. The demo run writes the replica of each actor into a directory
+      with the name of that actor. Thus the directory name is a reliable source for the
+      actor name.
   - id: DRPT-01-004
     priority: MUST
     kind: project
@@ -637,8 +638,8 @@ groups:
     rationale: >-
       Name resolution has three steps: collect the names, set them on the events, and
       use them in the label. If one step fails, the label falls back to a hex fragment
-      of the UUID, and the report still renders. Only a test of each step finds this
-      error.
+      of the UUID, and the report still renders. A test of each step finds the step
+      that failed.
     relationships:
     - rel_type: verifies
       spec_id: DRPT-03-003

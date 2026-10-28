@@ -429,18 +429,13 @@ groups:
       only on the reporter container and then immediately asserting on
       the receiver container with a single-shot check is not permitted.
     rationale: >-
-      Each of these helpers calls `_check_participant_vfd_state_in` or
-      `_assert_participant_vfd_pxa` as a single-shot, non-retrying assertion.
-      VFD state updates are broadcast asynchronously via
-      `Announce(CaseLedgerEntry)` fan-out; if the broadcast has not yet
-      reached the receiver container when the assertion fires, the check
-      fails with a spurious "vfd_state is not VFD" error.  Adding a
-      `wait_for_participant_vfd_state` poll on every target container
-      before the single-shot assertion eliminates this race.  Additionally,
-      the `receiver_actor_id` argument MUST be the full URI of an actor that
-      holds `CVDRole.VENDOR` in the case (see DEMOMA-15-001); passing a
-      Coordinator or other non-Vendor actor whose VFD path never advances
-      will always fail the VFD check.
+      A demo step must wait for its cause, not for a fixed time or a fixed order
+      (ADR-0058). A VFD change reaches each container through
+      `Announce(CaseLedgerEntry)`, at a time that nobody can predict. The `verify_*`
+      helpers check each container once and do not retry. Thus a check on a container
+      that has not yet received the change fails, although the protocol is correct. A
+      wait on every container that the helper checks makes the check depend on the
+      change, not on timing.
     adr:
     - ADR-0058
     relationships:
@@ -465,11 +460,11 @@ groups:
     rationale: >-
       CS transitions are participant facts, so they travel as `Add(ParticipantStatus)`
       to the CASE_MANAGER, which commits them to the case ledger. A dedicated
-      state-machine endpoint would change state with no message and no ledger entry.
-      RM closure is different: the participant leaves the case. The
-      Leave(VulnerabilityCase) round-trip makes the CASE_MANAGER the authority for
-      that departure, so a lost message cannot mark a participant as departed
-      (ADR-0050).
+      state-machine endpoint would change state with no message and no ledger entry. RM
+      closure is different: the participant leaves the case. The
+      Leave(VulnerabilityCase) round-trip makes the CASE_MANAGER the authority for that
+      departure, so a participant cannot be closed on its own replica while its peers
+      never learn of it (ADR-0050).
     adr:
     - ADR-0050
     relationships:
@@ -693,11 +688,11 @@ groups:
       immediately as signatories (no invite/accept round-trip), and set EM state to
       ACTIVE before the trust bootstrap is sent to the Reporter
     rationale: >-
-      The Reporter consented to an embargo when it submitted the report, and the
-      Vendor sets the default embargo when it accepts the report. An invite and accept
-      exchange for these two parties would record an invitation that did not occur. EM
-      must be ACTIVE before the trust bootstrap, so that the Reporter receives a case
-      that already has its embargo.
+      The Reporter consented to the default embargo of the Case Owner when it submitted
+      the report (CM-14-005, EP-04-001), and the Vendor is that Case Owner. An invite
+      and accept exchange for these two parties would record an invitation that did not
+      occur. EM must be ACTIVE before the trust bootstrap, so that the Reporter
+      receives a case that already has its embargo.
   - id: DEMOMA-08-005
     priority: MUST
     kind: project
@@ -822,7 +817,8 @@ groups:
     rationale: >-
       A scenario that is not registered does not run in CI, so it can break without
       notice. A separate concurrent CI job keeps each scenario failure visible on its
-      own. It also keeps the total CI time from growing with each new scenario.
+      own. It also keeps the total CI time from growing in proportion to the number of
+      scenarios.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-03-004
@@ -1035,9 +1031,9 @@ groups:
       MUST be runnable end-to-end via a single orchestration command (e.g., `docker compose`).
     rationale: >-
       A scenario that does not run in CI can break without notice. A separate
-      concurrent job keeps its failures visible on their own and keeps CI time from
-      growing with each scenario. A single command lets a developer run the same
-      scenario in the same way.
+      concurrent job keeps its failures visible on their own. It also keeps the total
+      CI time from growing in proportion to the number of scenarios. A single command
+      lets a developer run the same scenario in the same way.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-09-005
@@ -1077,8 +1073,9 @@ groups:
       DataLayers and a separate CaseActor container, as required by DEMOMA-10-001.
     rationale: >-
       The RVCV-handoff scenario must keep the same separation as RVCV-extension. Then
-      the only difference between the two scenarios is the ownership transfer, and a
-      difference in their results points to that transfer.
+      the two scenarios differ in their protocol steps and not in their topology. A
+      difference in their results then points to the ownership transfer and the steps
+      that follow it.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-10-001
@@ -2077,9 +2074,10 @@ groups:
       (RM→VALID), and engage the case (RM→ACCEPTED), holding
       CVDRole.CASE_OWNER until it completes the ownership transfer to C2.
     rationale: >-
-      C1 receives the report and creates the case before it gives ownership to C2.
-      This follows the RVCV-handoff pattern (DEMOMA-11), except that the first Case
-      Owner is a Coordinator, not a Vendor.
+      C1 is the first Case Owner, so this scenario tests the ownership transfer from a
+      Coordinator. RVCV-handoff (DEMOMA-11) tests it from a Vendor. C1 must receive the
+      report and engage the case first, because only a Case Owner can offer the
+      transfer.
     preconditions:
     - description: >-
         All five containers running (Reporter, C1, C2, Vendor, CaseActor);
@@ -2132,10 +2130,10 @@ groups:
       accept (TRIG-11-002).
     rationale: >-
       The ownership transfer is the step that makes this scenario different from
-      RCCV-extension. The trigger pair (TRIG-11-001, TRIG-11-002) is the same
-      mechanism that RVCV-handoff uses (DEMOMA-11-002). Two scenarios with different
-      first owners show that the transfer does not depend on the role of the actor
-      that gives up ownership.
+      RCCV-extension. The trigger pair (TRIG-11-001, TRIG-11-002) is the same mechanism
+      that RVCV-handoff uses (DEMOMA-11-002). Thus the transfer is tested from a Vendor
+      and from a Coordinator, and a defect that occurs for only one of these roles is
+      found.
     preconditions:
     - description: C2 is a participant; case attributed_to=C1.
     steps:
@@ -2806,7 +2804,7 @@ groups:
       real network transport is permitted.
     rationale: >-
       A direct call to the dispatcher of the receiving actor delivers each emitted
-      activity without network setup. The receiver still runs its own inbox processing
+      activity without network setup. The receiver still runs its own received use case
       and behavior tree, so the simulation tests the protocol logic of both actors and
       not only that of the sender.
     relationships:
@@ -3029,10 +3027,10 @@ groups:
       (EM.EXITED) before V2 publishes.
     rationale: >-
       When V1 publishes first, a VENDOR participant that is not the Case Owner starts
-      the embargo teardown through ThreatTerminationBranchNode (DEMOMA-07-003). This
-      shows that teardown does not depend on the role of the sender. If V2 publishes
-      before the teardown commits, the two publications race, and the ledger order
-      changes from run to run.
+      the embargo teardown through ThreatTerminationBranchNode, which does not gate
+      teardown on the role of the sender (RSH-03-002). If V2 publishes before the
+      teardown commits, the two publications race, and the ledger order changes from
+      run to run.
     relationships:
     - rel_type: refines
       spec_id: DEMOMA-07-003
@@ -3088,9 +3086,9 @@ groups:
       v2, case-actor), and `_RCVCV_EXPECTED_SEMANTIC_TYPES` per DEMOMA-16-009.
     rationale: >-
       The invariant harness is the CI acceptance test for the scenario. The
-      scenario-specific count checks show that the invitation and suggest flows ran
-      for each party. The chain checks for each actor show that each of the five
-      devlogs holds a ledger with no gaps.
+      scenario-specific count checks show that the invitation and suggest flows ran for
+      each party. The chain checks for each actor show that each of the six devlogs
+      holds a ledger with no gaps.
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-04-001
@@ -3401,11 +3399,11 @@ groups:
       replica for `em_state == EM.ACTIVE`. No participant polls for another
       participant's message.
     rationale: >-
-      Extracting the propose-and-activate sequence as a reusable exchange
-      helper follows DEMOMA-17-001 (DRY for demo code). The three-party
-      propose→accept→active flow is a composable unit that both rcv-embargo
-      and rcvv-embargo scenarios require; a single helper prevents duplication
-      and ensures both scenarios exercise identical protocol steps.
+      The CASE_MANAGER relays every embargo proposal and records each step (ADR-0113).
+      Each participant then reads the relayed `Invite(EmbargoEvent)` from its own
+      replica. One helper runs that relayed sequence the same way in the rcv-embargo
+      and rcvv-embargo scenarios (DEMOMA-17-001), so both scenarios test the same
+      protocol steps.
     adr:
     - ADR-0113
     note: >-
@@ -3702,10 +3700,12 @@ groups:
       revision (canonical `em_state: REVISE → ACTIVE`); the helper then polls
       every replica for `em_state == EM.ACTIVE`.
     rationale: >-
-      The revision exchange (EV→EC) is a self-contained composable unit that
-      can be reused if future scenarios add multiple revision cycles. Accepting
-      from REVISE state uses the same `trigger_accept_embargo` endpoint as
-      accepting from PROPOSED; no new endpoint is needed.
+      The CASE_MANAGER relays every embargo revision, and only the answer of the Case
+      Owner decides it (ADR-0113). An answer from another participant records its
+      consent. One helper runs that relayed revision sequence the same way in each
+      scenario that revises an embargo (DEMOMA-17-001). Accepting a revision uses the
+      same `trigger_accept_embargo` endpoint as accepting a proposal, so no new
+      endpoint is needed.
     adr:
     - ADR-0113
     note: >-
@@ -4024,9 +4024,9 @@ groups:
     rationale: >-
       This applies DEMOMA-17-001 (extract before reuse) to gate predicates. A polling
       loop written in a scenario module is a copy that the next fix does not reach, so
-      a defect fixed in one scenario stays in another. The split has a reason: the
-      control-flow primitive stays with the other context managers, and the
-      observables that it waits on stay in the helper vocabulary.
+      a defect fixed in one scenario stays in another. `demo_gate` stays in
+      `vultron/demo/utils.py` with `demo_step` and `demo_check`, and the functions that
+      read actor state stay in the helpers.
     adr:
     - ADR-0058
     relationships:
@@ -4268,12 +4268,12 @@ groups:
       for a departed participant's replica to end at its own closure MUST also
       be performed through a helper in `vultron/demo/helpers/sync.py`.
     rationale: >-
-      Every scenario must wait for its replicas to catch up with the authority, before
-      the notes phase and after closure. A copy of this wait in each scenario lets its
-      timeouts drift by module and by replica, and some copies then use the short
-      default of the primitive. A choice between gate and check must also be made in
-      each copy. One helper keeps the loop, the named timeouts and the demo context in
-      one place.
+      Every scenario waits for its replicas twice. Before the notes phase, it waits
+      until each replica holds the ledger of the authority. After closure, it waits
+      until each departed replica ends at its own closure. A copy of these waits in
+      each scenario lets the timeouts differ by module and by replica, and a copy can
+      forget a timeout and use a value that is too short. One helper keeps the loop,
+      the named timeouts and the demo context in one place.
     verification: >-
       Unit tests for the shared helper assert that the per-replica wait is
       skipped when the authority-tail read yields nothing, that a late joiner
@@ -4306,7 +4306,7 @@ groups:
       `_get_log_entries_for_case` directly. Defining the primitive and
       re-exporting either name from a package `__init__` are exempt.
     rationale: >-
-      The shared helper (DEMOMA-23-005) is useful only if nothing calls around it. A
+      The shared helper (DEMOMA-23-005) is useful only if every scenario calls it. A
       direct call to the primitive is how a copy of the coverage loop gets back into a
       new scenario, which is often written from an earlier one. The ban also covers
       helper modules, because a copy moved into a helper module is still a copy, and a
@@ -4829,8 +4829,9 @@ groups:
     rationale: >-
       A scenario that is not registered does not run in CI, so it can break without
       notice. The invariant test checks the ledger types and the Observer final state
-      that make VC different from the other scenarios. Without those checks, a run
-      that admitted the Coordinator with the wrong role could still pass.
+      that make VC different from the other scenarios. Without those checks, a run in
+      which the Coordinator never joined, or ended in a state that has a fix path,
+      could still pass.
     lint_suppress:
     - phantom_path_ref
     relationships:

@@ -384,7 +384,7 @@ groups:
       `plan/retired-specs/` and `archived_notes/`.
     rationale: >-
       A line limit that only people check is applied unevenly, and each miss becomes a
-      review finding. `MD013` checks every line in the linted directories.
+      review finding. `MD013` checks the limit on each line in the linted directories.
       `plan/history/` is append-only (HM-01-005) and `plan/retired-specs/` keeps
       retired text as it was (MS-09-005), so nobody can wrap their lines again. The
       same is true for the retired notes in `archived_notes/`. `docs/` has its own

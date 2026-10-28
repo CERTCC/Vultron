@@ -65,9 +65,9 @@ groups:
       Write documentation in Markdown and prepare it for the MkDocs site defined by `mkdocs.yml`.
     rationale: >-
       One source format and one site build let every page go through the same lint
-      checks and the same strict build. A page in a different format, or outside the
-      site that `mkdocs.yml` defines, gets neither check and does not appear in the
-      published site.
+      checks and the same strict build. A page in a different format gets neither
+      check. A page outside the site that `mkdocs.yml` defines gets no strict build and
+      does not appear in the published site.
 - id: DF-02
   title: Documentation maintenance
   specs:
@@ -611,8 +611,8 @@ groups:
       Specification, gets no check. But a fragment is not a page. A rule about a page,
       such as the first use of an acronym (DF-09-003) or the order of concepts
       (DF-09-005), gives false findings when it is applied to one part of a page. For
-      the same reason, `.markdownlint-cli2.yaml` turns off MD041, which wants a top-
-      level heading as the first line.
+      the same reason, `.markdownlint-cli2.yaml` turns off MD041, which wants a
+      top-level heading as the first line.
     verification: >-
       Resolving the lint target set over a directory of `{% include-markdown %}` fragments yields
       a non-empty list, and findings cite the fragment's own line numbers.
@@ -806,7 +806,7 @@ groups:
       implementation was traced against. A contributor reads a story when a question
       about that requirement comes up, not in sequence. The reader-facing index that
       introduces the stories keeps its level. The pages stay published and reachable,
-      because contributors and auditors still need them.
+      because contributors still need them and other pages link to them.
     verification: >-
       `uv run docs-frontmatter` fails when a page matched by `WORKING_RECORD_PATTERNS`
       (`vultron/metadata/docs/page_schema.py`) is listed in the `mkdocs.yml` nav or matched
@@ -871,13 +871,14 @@ groups:
       A hand-written landing page is a second copy of the navigation, and it becomes
       different from the navigation when a page is added, moved or removed. A fix to
       each missing entry does not stop the next one, because the copy is the cause. A
-      page generated from frontmatter cannot drift, as
-      `vultron/metadata/adr/index_gen.py` and `demo-scenarios-sync` (ADR-0098) already
-      show. The two exempt shapes exist because generation can only list pages, and it
-      cannot give an argument or a theme. A routing page must still link every member of
-      its section. That completeness can be derived, so it is checked, the same split
-      that DEMOCI-11-007 makes between what is generated and what is checked. The shape
-      is a required declaration, so that no section can be left without a decision. Each
+      generated page that a check mode gates cannot drift without a failure, as
+      `vultron/metadata/adr/index_gen.py` (from ADR frontmatter) and
+      `demo-scenarios-sync` (from the scenario registry, ADR-0098) already show. The two
+      exempt shapes exist because generation can only list pages, and it cannot give an
+      argument or a theme. A routing page must still link every member of its section.
+      That completeness can be derived, so it is checked, the same split that
+      DEMOCI-11-007 makes between what is generated and what is checked. The shape is a
+      required declaration, so that no section can be left without a decision. Each
       index records its decision in its `contents:` frontmatter, and
       `test/metadata/docs/test_site_sync.py` pins that set.
     verification: >-
@@ -948,8 +949,8 @@ groups:
       The matrix turns "we do not serve audience X" from an impression into a
       recorded fact planning can act on. Gating currency rather than fullness
       keeps it a checked object rather than an advisory one; requiring fullness
-      would harden into "every type at every level", which the divergence-
-      above-100 shape contradicts. It sits outside `docs/` because it is a
+      would harden into "every type at every level", which the
+      divergence-above-100 shape contradicts. It sits outside `docs/` because it is a
       planning artifact, and a per-page level table shown to readers would defeat
       DF-11-004 page by page.
     verification: >-
@@ -1217,10 +1218,10 @@ groups:
       page about the reference implementation.
     rationale: >-
       A reader who wants the protocol must be able to trust that every page in a
-      protocol section binds them or explains what binds them; a reference-
-      implementation page beside them reads as part of the protocol. The nav is the
-      only place the two are grouped together, and pages move between its sections
-      often enough that a review rule alone would let one slip.
+      protocol section binds them or explains what binds them; a
+      reference-implementation page beside them reads as part of the protocol. The nav
+      is the only place the two are grouped together, and pages move between its
+      sections often enough that a review rule alone would let one slip.
     verification: >-
       `docs-nav-subjects`, run as a pre-commit hook and by
       `test/metadata/docs/test_nav_subjects.py`, reads each nav page's `subject`

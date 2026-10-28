@@ -30,8 +30,9 @@ groups:
           The workflow file MUST be named
           `.github/workflows/docs-build-check.yml`.
         rationale: >-
-          Specs, tests and documentation refer to this workflow by its file path.
-          A fixed file name keeps those references correct.
+          Another workflow calls this workflow by its file path, and specs, tests
+          and documentation refer to it by that path. A fixed file name keeps those
+          calls and references correct.
       - id: DOCBW-01-002
         priority: MUST
         kind: project
@@ -78,8 +79,8 @@ groups:
           manual runs at any time.
         rationale: >-
           A maintainer sometimes needs the docs check with no pull request, for
-          example to check `main` after a change outside this repository, or to
-          run a failed check again.
+          example to check a branch or `main` directly, or to run a failed check
+          again.
       - id: DOCBW-02-003
         priority: MUST_NOT
         kind: project
@@ -137,8 +138,7 @@ groups:
         rationale: >-
           Maintainers read the pages under `docs/developer/` with `mkdocs serve`,
           so a broken page there misleads them. `mkdocs build` leaves out draft
-          pages whatever configuration file it reads. Thus the production build
-          in CI does not check these pages, and the requirement is a SHOULD.
+          pages, so the production build in CI does not check them.
       - id: DOCBW-03-005
         priority: MUST
         kind: project
