@@ -94,7 +94,10 @@ def test_a_mislabelled_entry_is_recorded_not_raised(monkeypatch):
             payload_snapshot=snapshot,
         ),
     ]
-    monkeypatch.setattr(helpers, "_hosted_ledger_entries", lambda: entries)
+    monkeypatch.setattr(
+        helpers, "_hosted_ledger_entries", lambda: iter([(None, entries)])
+    )
+    monkeypatch.setattr(helpers, "_case_manager_stores", dict)
     monkeypatch.setattr(helpers, "_managed_cases", lambda: iter([]))
     monkeypatch.setattr(helpers, "_multi_party_cases", set)
 
@@ -107,6 +110,39 @@ def test_a_mislabelled_entry_is_recorded_not_raised(monkeypatch):
     assert "entry 1" in failures[0]
     assert "'consent_row_written'" in failures[0]
     assert "'create_embargo_consent'" in failures[0]
+
+
+def test_each_entry_is_labelled_against_its_case_managers_store(monkeypatch):
+    """Every copy is read as its CASE_MANAGER read it, replicas included.
+
+    Entries of a case whose CASE_MANAGER is not hosted are read against
+    the store holding them; the count covers every store's entries.
+    """
+    manager, replica = object(), object()
+    held = SimpleNamespace(case_id="managed")
+    copied = SimpleNamespace(case_id="managed")
+    foreign = SimpleNamespace(case_id="elsewhere")
+    stores = [(manager, [held]), (replica, [copied, foreign])]
+    monkeypatch.setattr(
+        helpers, "_hosted_ledger_entries", lambda: iter(stores)
+    )
+    monkeypatch.setattr(
+        helpers, "_case_manager_stores", lambda: {"managed": manager}
+    )
+    used: list[tuple[object, object]] = []
+
+    def _record(entries, dl):
+        used.extend((entry, dl) for entry in entries)
+        return []
+
+    monkeypatch.setattr(helpers, "label_mismatches", _record)
+    helpers.LABELLED_ENTRIES.clear()
+
+    helpers.check_entries_carry_registry_labels()
+
+    assert helpers.LABELLED_ENTRIES == [3]
+    helpers.LABELLED_ENTRIES.clear()
+    assert used == [(held, manager), (copied, manager), (foreign, replica)]
 
 
 @pytest.mark.parametrize(

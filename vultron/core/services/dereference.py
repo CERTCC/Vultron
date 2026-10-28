@@ -37,13 +37,14 @@ import logging
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
-from vultron.core.models.events import MessageSemantics, VultronEvent
+from vultron.core.models.events import VultronEvent
 from vultron.core.models.events.case_proposal import (
     CreateCaseProposalReceivedEvent,
 )
 from vultron.core.models.events.embargo import (
     AnnounceEmbargoEventToCaseReceivedEvent,
 )
+from vultron.core.models.events.unknown import UnresolvableObjectReceivedEvent
 from vultron.core.models.object_fetch import (
     ObjectFetchSource,
     ObjectFetchUse,
@@ -113,7 +114,7 @@ def _case_host_reference(
 
 
 def _unresolvable_object_references(
-    event: VultronEvent,
+    event: UnresolvableObjectReceivedEvent,
     dl: CasePersistence,
     receiving_actor_id: str,
     context_id: str | None,
@@ -122,11 +123,14 @@ def _unresolvable_object_references(
 
     The activity's type has patterns, but its ``object`` stayed a bare id
     because the receiver does not hold it (``UNKNOWN_UNRESOLVABLE_OBJECT``).
+    When the ``object`` is an inline activity, the bare id ends its
+    ``object`` chain, at whatever depth: the event's
+    ``unresolved_object_id`` (VAM-01-009).
     A replication ``Announce`` of a ledger entry is never fetched: it carries
     its entry inline (SYNC-02-005), and replay needs no fetch (AKM-05-007).
     """
-    object_id = event.object_id
-    if object_id is None or dl.read(object_id) is not None:
+    object_id = event.unresolved_object_id
+    if dl.read(object_id) is not None:
         return []
     host = _case_host_of(dl, context_id, receiving_actor_id)
     if host is None:
@@ -205,7 +209,7 @@ def references_to_fetch(
         return _proposer_profile_references(event)
     if isinstance(event, AnnounceEmbargoEventToCaseReceivedEvent):
         return _replaced_embargo_references(event, dl, receiving_actor_id)
-    if event.semantic_type is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT:
+    if isinstance(event, UnresolvableObjectReceivedEvent):
         return _unresolvable_object_references(
             event, dl, receiving_actor_id, context_id
         )

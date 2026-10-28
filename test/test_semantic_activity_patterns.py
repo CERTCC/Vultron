@@ -20,7 +20,7 @@ from vultron.wire.as2.extractor._instances import RefusalNoticePattern
 from vultron.wire.as2.extractor._pattern import (
     InlineActivityObjectPattern,
     LedgerPositionReadPattern,
-    _match_activity_field,
+    bare_object_id,
 )
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
@@ -36,6 +36,8 @@ from vultron.wire.as2.factories import (
     undo_case_ownership_transfer_activity,
 )
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
+from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Invite,
@@ -842,40 +844,75 @@ def test_case_proposal_with_string_object_returns_unresolvable():
     )
 
 
-def _offer_with_bare_string_object(*, strict: bool) -> bool:
-    """Whether an ``Offer(VulnerabilityCase)`` pattern matches a bare URI.
-
-    The activity's ``object_`` is left as an unresolved string, as it is when
-    rehydration finds no record for the URI.
-    """
+def _offer_case_pattern(**fields: Any) -> ActivityPattern:
+    """An ``Offer(VulnerabilityCase)`` pattern carrying *fields*."""
     from vultron.core.models.enums import VultronObjectType as VOtype
     from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
+
+    return ActivityPattern(
+        activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_CASE, **fields
+    )
+
+
+def _offer_of_bare_case(**fields: Any) -> as_Activity:
+    """An ``Offer`` whose ``object_`` is left an unresolved string.
+
+    That is the shape rehydration leaves when it finds no record for the URI.
+    """
     from vultron.wire.as2.vocab.base.objects.activities.transitive import (
         as_Offer,
     )
 
-    pattern = ActivityPattern(
-        activity_=TAtype.OFFER,
-        object_=VOtype.VULNERABILITY_CASE,
-        strict=strict,
-    )
-    activity = as_Offer(
+    return as_Offer(
         actor=_VENDOR_URI,
         object_="https://example.org/cases/unresolved",
+        **fields,
     )
-    return pattern.match(activity)
 
 
 @pytest.mark.spec("VAM-01-012")
-def test_non_strict_pattern_matches_bare_string_object():
-    """A non-strict scalar ``object_`` constraint accepts an unresolved URI."""
-    assert _offer_with_bare_string_object(strict=False)
+@pytest.mark.spec("SE-01-006")
+def test_a_scalar_object_constraint_refuses_a_bare_uri_by_default():
+    """A default pattern's scalar ``object_`` does not accept an unresolved URI."""
+    assert not _offer_case_pattern().match(_offer_of_bare_case())
+
+
+@pytest.mark.spec("VAM-01-012")
+def test_a_pattern_that_accepts_a_bare_object_matches_one():
+    """``accepts_bare_object`` is the one opt-in to a bare ``object``."""
+    pattern = _offer_case_pattern(accepts_bare_object=True)
+    assert pattern.match(_offer_of_bare_case())
 
 
 @pytest.mark.spec("VAM-01-013")
-def test_strict_pattern_rejects_bare_string_object():
-    """A strict pattern does not match an unresolved ``object_`` URI."""
-    assert not _offer_with_bare_string_object(strict=True)
+@pytest.mark.spec("SE-01-007")
+def test_strict_governs_target_alone():
+    """``strict`` tightens ``target_`` and leaves ``object_`` as it was."""
+    from vultron.wire.as2.enums import as_ObjectType as AOtype
+
+    bare_target = "https://example.org/actors/alice"
+    lenient = _offer_case_pattern(
+        target_=AOtype.ACTOR, accepts_bare_object=True
+    )
+    strict = _offer_case_pattern(
+        target_=AOtype.ACTOR, accepts_bare_object=True, strict=True
+    )
+
+    assert lenient.match(_offer_of_bare_case(target=bare_target))
+    assert not strict.match(_offer_of_bare_case(target=bare_target))
+    # A strict pattern's object_ is no stricter than a lenient one's.
+    assert strict.matches_object("https://example.org/cases/unresolved")
+    assert not _offer_case_pattern().matches_object(
+        "https://example.org/cases/unresolved"
+    )
+
+
+@pytest.mark.spec("VAM-01-013")
+@pytest.mark.spec("SE-08-004")
+def test_strict_without_a_target_constraint_is_refused():
+    """``strict`` on a pattern with no ``target_`` would tighten nothing."""
+    with pytest.raises(ValueError, match="strict governs target_ alone"):
+        _offer_case_pattern(strict=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1335,16 +1372,10 @@ def _object_check_admits_bare_uri(pattern: ActivityPattern) -> bool:
     if isinstance(pattern, InlineActivityObjectPattern):
         # Overrides match() and requires an inline activity.
         return False
-    return _match_activity_field(
-        pattern.object_, "https://example.org/objects/unheld", pattern.strict
-    )
+    return pattern.matches_object("https://example.org/objects/unheld")
 
 
 @pytest.mark.spec("SE-01-006")
-@pytest.mark.xfail(
-    strict=True,
-    reason="#5264: object_ matching is not yet strict by default",
-)
 def test_bare_object_satisfies_no_object_type_constraint() -> None:
     """Only a pattern told apart by another field admits a bare ``object``.
 
@@ -1363,6 +1394,183 @@ def test_bare_object_satisfies_no_object_type_constraint() -> None:
         }
     )
     assert admitting == []
+
+
+def _bare_object_body(verb: str, **fields: Any) -> dict[str, Any]:
+    """A received *verb* whose ``object`` is an id the receiver lacks."""
+    return {
+        "type": verb,
+        "id": f"https://example.org/activities/bare-{verb.lower()}",
+        "actor": _VENDOR_URI,
+        "object": "https://example.org/objects/unheld",
+        "published": "2026-10-26T12:00:00Z",
+        **fields,
+    }
+
+
+@pytest.mark.spec("SE-01-006")
+def test_only_read_case_ledger_entry_accepts_a_bare_object() -> None:
+    """The opted-in set is pinned, and each member needs a discriminator.
+
+    A pattern that opts in to a bare ``object`` must be told apart from its
+    verb's other patterns by a field other than the object's type
+    (SE-01-006): an activity of its verb that carries nothing but a bare
+    ``object`` must not match it.
+    """
+    opted_in = {
+        entry.semantics: entry.pattern
+        for entry in SEMANTIC_REGISTRY
+        if entry.pattern is not None and entry.pattern.accepts_bare_object
+    }
+    assert set(opted_in) == {MessageSemantics.READ_CASE_LEDGER_ENTRY}
+    for semantics, pattern in opted_in.items():
+        bare = parse_activity(_bare_object_body(str(pattern.activity_)))
+        assert not pattern.match(bare), (
+            f"{semantics} accepts a bare object with no other discriminator"
+        )
+
+
+_CASE_URI = "https://example.org/cases/bare-object"
+
+
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.spec("VAM-01-009")
+@pytest.mark.parametrize(
+    "verb",
+    sorted({str(e.pattern.activity_) for e in SEMANTIC_REGISTRY if e.pattern}),
+)
+@pytest.mark.parametrize(
+    "qualifiers",
+    [{}, {"target": _CASE_URI}, {"context": _CASE_URI}],
+    ids=["bare", "case-target", "case-context"],
+)
+def test_a_bare_object_of_every_registered_verb_is_unresolvable(
+    verb: str, qualifiers: dict[str, str]
+) -> None:
+    """No pattern that tests the object only by its type takes a bare one."""
+    activity = parse_activity(_bare_object_body(verb, **qualifiers))
+    assert (
+        find_matching_semantics(activity)
+        is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    )
+
+
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.parametrize(
+    ("verb", "qualifiers", "formerly"),
+    [
+        ("Announce", {}, MessageSemantics.ANNOUNCE_VULNERABILITY_CASE),
+        (
+            "Remove",
+            {"target": _CASE_URI},
+            MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE,
+        ),
+        ("Add", {"target": _CASE_URI}, MessageSemantics.ADD_REPORT_TO_CASE),
+        (
+            "Accept",
+            {"target": _CASE_URI},
+            MessageSemantics.ACTIVATE_EMBARGO_ON_CASE,
+        ),
+        (
+            "Leave",
+            {"context": _CASE_URI},
+            MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE,
+        ),
+        ("Create", {}, MessageSemantics.CREATE_REPORT),
+    ],
+)
+def test_a_bare_object_is_not_read_as_its_verbs_first_pattern(
+    verb: str, qualifiers: dict[str, str], formerly: MessageSemantics
+) -> None:
+    """Each shape the first pattern of its verb once took is unresolvable.
+
+    An ``Announce`` of an embargo by id was read as an ``Announce`` of a
+    case, a ``Remove`` of a participant as the removal of an embargo, and so
+    on (#5243); the receiver fetches the object instead (AKM-05-007).
+    """
+    activity = parse_activity(_bare_object_body(verb, **qualifiers))
+    result = find_matching_semantics(activity)
+    assert result is not formerly
+    assert result is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+
+
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.spec("VAM-01-009")
+@pytest.mark.parametrize(
+    ("verb", "inner_verb", "inner_qualifiers"),
+    [
+        ("Accept", "Invite", {"target": _CASE_URI}),
+        ("Reject", "Invite", {"context": _CASE_URI}),
+        ("Accept", "Offer", {}),
+    ],
+)
+def test_a_bare_object_inside_a_nested_activity_is_unresolvable(
+    verb: str, inner_verb: str, inner_qualifiers: dict[str, str]
+) -> None:
+    """A nested pattern refuses a bare object as the outer one does.
+
+    ``Accept(Invite(<id>))`` matches no pattern, so it is
+    ``UNKNOWN_UNRESOLVABLE_OBJECT``, the outcome the inbox fetches for, not
+    ``UNKNOWN``.
+    """
+    inner = _bare_object_body(inner_verb, **inner_qualifiers)
+    activity = parse_activity(
+        {**_bare_object_body(verb, context=_CASE_URI), "object": inner}
+    )
+    assert (
+        find_matching_semantics(activity)
+        is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    )
+
+
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.spec("VAM-01-009")
+@pytest.mark.parametrize(
+    ("outer", "middle", "inner"),
+    [("Undo", "Offer", "Offer"), ("Undo", "Accept", "Invite")],
+)
+def test_a_bare_object_two_activities_deep_is_unresolvable(
+    outer: str, middle: str, inner: str
+) -> None:
+    """The chain is followed to its end, not one level down.
+
+    ``Undo(Offer(Offer(<id>)))`` is the shape of the registered depth-2
+    ownership-transfer Undo; with a bare innermost object it matches nothing
+    and names that innermost id as the one to fetch.
+    """
+    innermost = _bare_object_body(inner, context=_CASE_URI)
+    activity = parse_activity(
+        {
+            **_bare_object_body(outer, context=_CASE_URI),
+            "object": {
+                **_bare_object_body(middle, context=_CASE_URI),
+                "object": innermost,
+            },
+        }
+    )
+    assert (
+        find_matching_semantics(activity)
+        is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    )
+    assert bare_object_id(activity) == innermost["object"]
+
+
+@pytest.mark.spec("VAM-01-009")
+def test_an_object_chain_ending_inline_has_no_bare_id() -> None:
+    """An inline innermost object leaves nothing to fetch."""
+    activity = parse_activity(
+        {
+            **_bare_object_body("Accept", context=_CASE_URI),
+            "object": {
+                **_bare_object_body("Invite", target=_CASE_URI),
+                "object": {
+                    "type": "Person",
+                    "id": "https://example.org/actors/invitee",
+                },
+            },
+        }
+    )
+    assert bare_object_id(activity) is None
 
 
 @pytest.mark.spec("SE-01-007")

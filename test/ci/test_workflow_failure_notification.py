@@ -17,7 +17,10 @@ and at least one step uses it in ``close`` mode (CISEC-05-002).
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -416,4 +419,190 @@ def test_issue_type_helper_fails_visibly_without_the_type() -> None:
         "A missing issue type must fail the step with an `::error::` "
         "annotation, not leave the filed issue silently untyped "
         "(CISEC-05-007)."
+    )
+
+
+# A stand-in for the ``gh`` CLI: it logs every call and answers the direct
+# list-issues REST call with the JSON page ``$FAKE_ISSUES_PAGE``, filtered
+# through the caller's real ``--jq`` expression, while a search-backed
+# ``gh issue list`` answers with nothing, as the lagging search index did when
+# it let the ADR Status Drift workflow file a second tracker (#5105). With
+# ``$FAKE_API_FAIL`` set, the list-issues call fails as an API error would.
+_FAKE_GH = r"""#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FAKE_GH_LOG"
+case "$1 $2" in
+  "api graphql")
+    case "$*" in
+      *issueTypes*) printf 'Bug\tBUG_TYPE_ID\n' ;;
+      *) echo "Set issue type: Bug" ;;
+    esac ;;
+  "api "*)
+    jq_expr="" prev=""
+    for arg in "$@"; do
+      [ "$prev" = "--jq" ] && jq_expr="$arg"
+      prev="$arg"
+    done
+    for arg in "$@"; do
+      case "$arg" in
+        repos/*/issues\?*)
+          if [ -n "${FAKE_API_FAIL:-}" ]; then
+            echo "HTTP 502: Bad Gateway" >&2
+            exit 1
+          fi
+          printf '%s' "$FAKE_ISSUES_PAGE" | jq -r "$jq_expr" ;;
+      esac
+    done ;;
+  "issue view") printf 'ISSUE_NODE_ID\nBug\n' ;;
+  "issue create") echo "https://github.com/OWNER/REPO/issues/999" ;;
+esac
+"""
+
+
+def _notify_action_lookup_script() -> str:
+    """Return the composite-action step that finds, files, and closes issues."""
+    scripts = _notify_action_run_scripts()
+    lookup = [s for s in scripts if "ISSUE_NUMS" in s]
+    assert len(lookup) == 1, (
+        "Expected exactly one step in notify-failure/action.yml to look up "
+        f"the open failure issue; found {len(lookup)} (CISEC-05-003)."
+    )
+    return lookup[0]
+
+
+def _run_notify_action(
+    tmp_path: Path,
+    mode: str,
+    open_issues: list[int],
+    *,
+    open_pull_requests: tuple[int, ...] = (),
+    api_fails: bool = False,
+) -> list[str]:
+    """Run the action's lookup step against a fake ``gh``; return its calls.
+
+    ``open_pull_requests`` are listed on the page as the list-issues endpoint
+    lists a labelled pull request, with a ``pull_request`` key. The step's
+    exit status is checked: a failing run raises ``CalledProcessError``, and
+    its calls stay readable in ``tmp_path / "gh.log"``.
+    """
+    page = [{"number": n} for n in open_issues] + [
+        {"number": n, "pull_request": {"url": f"https://example/pulls/{n}"}}
+        for n in open_pull_requests
+    ]
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_gh = bin_dir / "gh"
+    fake_gh.write_text(_FAKE_GH)
+    fake_gh.chmod(0o755)
+    log = tmp_path / "gh.log"
+    log.touch()
+    env = {
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "FAKE_GH_LOG": str(log),
+        "FAKE_ISSUES_PAGE": json.dumps(page),
+        "GH_TOKEN": "fake-token",
+        "REPO": "OWNER/REPO",
+        "MODE": mode,
+        "WORKFLOW_LABEL": "ci:workflow-example",
+        "WORKFLOW_NAME": "Example",
+        "RUN_URL": "https://github.com/OWNER/REPO/actions/runs/1",
+        "REF": "refs/heads/main",
+        # The runner sets this in a composite action; the step finds the
+        # shared ensure-issue-type.sh helper through it.
+        "GITHUB_ACTION_PATH": str(NOTIFY_FAILURE_ACTION.parent),
+    }
+    if api_fails:
+        env["FAKE_API_FAIL"] = "1"
+    subprocess.run(
+        ["bash", "-e", "-o", "pipefail", "-c", _notify_action_lookup_script()],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return log.read_text().splitlines()
+
+
+def test_notify_action_finds_existing_issue_without_search_index(
+    tmp_path: Path,
+) -> None:
+    """CISEC-05-003: an open tracker is found, not duplicated (#5105).
+
+    ``gh issue list --label`` runs through the search index, which lags: it
+    once returned nothing while the ADR Status Drift tracker was open, so the
+    action filed a second one. The lookup must use the direct list-issues
+    call, which matches both labels against current data.
+    """
+    calls = _run_notify_action(tmp_path, "notify", [5087])
+    assert not any(c.startswith("issue create") for c in calls), (
+        "The notify action filed a new issue although one was open; its "
+        f"lookup must not depend on the search index (#5105). Calls: {calls}"
+    )
+    assert any(c.startswith("issue comment 5087") for c in calls), (
+        f"The notify action must comment on the open issue. Calls: {calls}"
+    )
+
+
+def test_notify_action_closes_duplicate_trackers(tmp_path: Path) -> None:
+    """MS-14-007, CISEC-05-003: notify leaves one tracker, the oldest, open.
+
+    A duplicate filed before this lookup was fixed, or by any future miss,
+    is closed as a duplicate of the oldest open tracker on the next run.
+    """
+    calls = _run_notify_action(tmp_path, "notify", [5087, 5105])
+    assert any(c.startswith("issue comment 5087") for c in calls), (
+        f"The notify action must comment on the oldest tracker. Calls: {calls}"
+    )
+    closes = [c for c in calls if c.startswith("issue close")]
+    assert len(closes) == 1 and closes[0].startswith("issue close 5105"), (
+        f"The notify action must close the newer tracker only. Calls: {calls}"
+    )
+    assert "#5087" in closes[0], (
+        "A closed duplicate must point to the tracker that stays open. "
+        f"Calls: {calls}"
+    )
+    assert not any(c.startswith("issue create") for c in calls), calls
+
+
+def test_close_mode_closes_every_open_tracker(tmp_path: Path) -> None:
+    """CISEC-05-002: recovery closes every open tracker for the workflow."""
+    calls = _run_notify_action(tmp_path, "close", [5087, 5105])
+    closes = sorted(c.split()[2] for c in calls if c.startswith("issue close"))
+    assert closes == ["5087", "5105"], calls
+
+
+def test_notify_action_files_a_tracker_when_none_is_open(
+    tmp_path: Path,
+) -> None:
+    """CISEC-05-001, CISEC-05-007: with no open tracker, notify files one.
+
+    A labelled pull request on the list-issues page is not a tracker: the
+    endpoint lists pull requests too, and the lookup must drop them.
+    """
+    calls = _run_notify_action(
+        tmp_path, "notify", [], open_pull_requests=(4242,)
+    )
+    creates = [c for c in calls if c.startswith("issue create")]
+    assert len(creates) == 1, (
+        f"The notify action must file exactly one tracker. Calls: {calls}"
+    )
+    assert not any(
+        c.startswith(("issue comment", "issue close")) for c in calls
+    ), (
+        "A labelled pull request must not be taken for an open tracker. "
+        f"Calls: {calls}"
+    )
+
+
+def test_notify_action_fails_when_the_lookup_fails(tmp_path: Path) -> None:
+    """CISEC-05-003: an API error fails the step, never files a duplicate.
+
+    Read through ``mapfile < <(...)``, a failed lookup escapes ``set -e``
+    and looks like "no open tracker", so the action would file a second one.
+    """
+    with pytest.raises(subprocess.CalledProcessError):
+        _run_notify_action(tmp_path, "notify", [5087], api_fails=True)
+    calls = (tmp_path / "gh.log").read_text().splitlines()
+    assert not any(c.startswith("issue create") for c in calls), (
+        "A failed lookup must stop the step before it files a tracker. "
+        f"Calls: {calls}"
     )

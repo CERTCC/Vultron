@@ -41,7 +41,9 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.embargo_event import EmbargoEvent
+from vultron.core.models.events import MessageSemantics
 from vultron.core.models.use_case_result import HandlerDisposition
+from vultron.core.services.dereference import references_to_fetch
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import (
@@ -63,6 +65,8 @@ from vultron.core.use_cases.triggers.requests import (
 )
 from vultron.wire.as2.factories import em_propose_embargo_activity
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.rehydration import rehydrate
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import as_EmbargoEvent
 
@@ -371,24 +375,66 @@ def test_a_participant_with_pxa_set_answers_a_revision_with_er_never_et():
     assert after.active_embargo_id == active_before
 
 
-@pytest.mark.spec("EMB-01-002")
-@pytest.mark.spec("MSM-05-001")
-def test_a_bare_uri_invite_with_pxa_set_gets_an_er_naming_the_invite():
-    """Terms held by bare URI only: the ER still names the Invite by id.
+def _bare_uri_invite_at_owner(net: _Network) -> tuple[Any, dict[str, Any]]:
+    """The relayed Invite to OWNER, its terms cut to a bare URI.
 
-    The ER answers the Invite, not the terms, so a receiver that holds no
-    copy of them can still decline (EMB-01-002, MSM-05-001).
+    OWNER holds no copy of the terms, so the bare ``object`` cannot show
+    that the Invite proposes an embargo rather than invites an actor: it is
+    ``UNKNOWN_UNRESOLVABLE_OBJECT`` (SE-01-006), and the receiver names the
+    terms to fetch from the CASE_MANAGER (AKM-05-007).
     """
-    net = _Network("https://example.org/cases/relay-replay-pxa-uri")
-    _propose(net, "public-uri", 90)
-    _set_pxa(net, OWNER)
     (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
     body = read_sealed_body_dict(net.stores[MANAGER], invite.id_)
     assert body is not None
     body["object"] = body["object"]["id"]
+    event = received_event(parse_activity(body), receiving_actor_id=OWNER)
+    assert event.semantic_type is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    (reference,) = references_to_fetch(
+        event, net.stores[OWNER], OWNER, net.case_id
+    )
+    assert reference.object_id == body["object"]
+    assert reference.host_actor_id == MANAGER
+    return invite, body
 
-    verdict = net.receive(OWNER, body)
-    again = net.receive(OWNER, body)
+
+def _receive_rehydrated(
+    net: _Network, receiver: str, body: dict[str, Any]
+) -> Any:
+    """Route *body* at *receiver* after rehydrating it, as the inbox does."""
+    activity = rehydrate(parse_activity(body), net.stores[receiver])
+    assert isinstance(activity, as_Activity)
+    return net.receive_event(
+        receiver, received_event(activity, receiving_actor_id=receiver)
+    )
+
+
+def _receive_after_fetch(net: _Network, body: dict[str, Any]) -> Any:
+    """OWNER stores the fetched terms, then rehydrates and routes *body*."""
+    terms = net.stores[MANAGER].read(body["object"])
+    assert isinstance(terms, EmbargoEvent)
+    net.stores[OWNER].save(terms)
+    return _receive_rehydrated(net, OWNER, body)
+
+
+@pytest.mark.spec("EMB-01-002")
+@pytest.mark.spec("MSM-05-001")
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.spec("AKM-05-007")
+def test_a_bare_uri_invite_with_pxa_set_gets_an_er_once_its_terms_are_fetched():
+    """Terms held by bare URI only: fetched, then the ER names the Invite.
+
+    The ER answers the Invite, not the terms (EMB-01-002), but a bare
+    ``object`` does not say the Invite is an embargo's (SE-01-006), so the
+    receiver fetches the terms first (AKM-05-007) and then declines.
+    """
+    net = _Network("https://example.org/cases/relay-replay-pxa-uri")
+    _propose(net, "public-uri", 90)
+    _set_pxa(net, OWNER)
+    invite, body = _bare_uri_invite_at_owner(net)
+    assert net.queued(OWNER, to=MANAGER, type_="Reject") == []
+
+    verdict = _receive_after_fetch(net, body)
+    again = _receive_after_fetch(net, body)
 
     assert verdict.disposition is HandlerDisposition.REFUSED
     assert verdict.reason is not None and "EMB-01-002" in verdict.reason
@@ -397,8 +443,9 @@ def test_a_bare_uri_invite_with_pxa_set_gets_an_er_naming_the_invite():
     sealed = read_sealed_body_dict(net.stores[OWNER], reject.id_)
     assert sealed is not None
     assert sealed["object"]["id"] == invite.id_
-    # The proposer understands it: the ER arrives as the answer to its Invite.
-    received = net.receive(MANAGER, sealed)
+    # The proposer understands it: the ER echoes the Invite as received, its
+    # terms bare, and the CASE_MANAGER, which holds them, rehydrates it.
+    received = _receive_rehydrated(net, MANAGER, sealed)
     assert received.disposition is HandlerDisposition.APPLIED, received.reason
 
 
@@ -996,16 +1043,14 @@ def test_an_invite_naming_no_embargo_gets_a_processing_fault():
 
 @pytest.mark.spec("EMB-01-002")
 @pytest.mark.spec("MV-09-001")
-def test_a_bare_uri_invite_on_a_private_case_is_stored_and_not_answered():
-    """Outside P/X/A a bare-URI Invite is not refused; a replica holding no terms keeps it."""
+@pytest.mark.spec("SE-01-006")
+def test_a_bare_uri_invite_on_a_private_case_is_fetched_and_not_answered():
+    """Outside P/X/A a bare-URI Invite is not refused once its terms arrive."""
     net = _Network("https://example.org/cases/relay-replay-uri-private")
     _propose(net, "uri-private", 90)
-    (invite,) = net.queued(MANAGER, to=OWNER, type_="Invite")
-    body = read_sealed_body_dict(net.stores[MANAGER], invite.id_)
-    assert body is not None
-    body["object"] = body["object"]["id"]
+    _, body = _bare_uri_invite_at_owner(net)
 
-    verdict = net.receive(OWNER, body)
+    verdict = _receive_after_fetch(net, body)
 
     assert verdict.disposition is not HandlerDisposition.REFUSED, (
         verdict.reason

@@ -29,12 +29,22 @@ groups:
     statement: BT nodes MUST NOT read actor identity, case ID, or CVD role from environment variables, module-level globals,
       or any implicit ambient context. All variable inputs MUST arrive via constructor parameters or the documented blackboard
       interface.
+    rationale: >-
+      A value that a node reads from the environment or from a global is a hidden input.
+      Several actors can run in one process. Thus ambient context can give the identity
+      or the case of one actor to the tree of a different actor. A test also cannot set
+      such a value without a change to shared state. When all inputs are explicit, the
+      behavior of a node depends only on what its tree gives it.
   - id: BTND-01-003
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: When a BT node name is derived from a parameterized value (e.g., role or actor ID), the name MUST be constructed
       from that parameter at instantiation time, not hard-coded as a string literal.
+    rationale: >-
+      Tree traces and logs show node names. If a parameterized node uses a literal name,
+      all its instances have the same label. Then a trace cannot show which role or
+      actor each instance served.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
@@ -47,6 +57,10 @@ groups:
     verification_debt: '#2574'
     statement: Logic that appears in two or more BT nodes or subtrees MUST be extracted into a shared, parameterized node
       or factory function in a neutral shared module (see `BTND-04-001`).
+    rationale: >-
+      Copies of the same logic drift apart, because each copy gets its own fixes. Then
+      two trees enforce different rules for the same protocol step. One shared node
+      gives one version to test and to change.
     relationships:
     - rel_type: refines
       spec_id: BT-06-004
@@ -64,6 +78,11 @@ groups:
     kind: project
     statement: New BT subtrees SHOULD be verified against `notes/vultron-bt.txt` (the canonical simulation BT structure) to
       confirm structural correspondence before committing.
+    rationale: >-
+      The canonical simulation tree is the reference design for protocol behavior. A
+      check before commit finds a subtree that does not agree with that design while the
+      change is still small. After other trees depend on the subtree, the correction
+      costs more.
     relationships:
     - rel_type: refines
       spec_id: BT-06-002
@@ -94,6 +113,11 @@ groups:
     kind: project
     verification_debt: '#2574'
     statement: A BT node MUST NOT read a blackboard key that was not registered with at least `READ` access in `setup()`.
+    rationale: >-
+      Registration is the contract that a node declares with the blackboard, and
+      py_trees uses this contract to enforce access. If a node reads a key that it did
+      not register, one of two problems occurs. The read fails at tick time, or the read
+      hides a dependency that a reader of `setup()` cannot see.
     relationships:
     - rel_type: refines
       spec_id: BT-03-003
@@ -102,6 +126,11 @@ groups:
     kind: project
     statement: A BT node's docstring SHOULD document all blackboard keys it reads and writes, including the expected type
       and the node that produces the value for each READ key.
+    rationale: >-
+      The docstring tells a reader the data flow of a node without the code. When the
+      docstring gives the type and the producer of each key, the reader sees which node
+      must run first. The reader also sees what a consumer can expect. Thus a broken
+      handoff is easier to find.
   - id: BTND-03-004
     priority: MUST
     kind: project
@@ -111,12 +140,15 @@ groups:
       the `{noun}_{id_segment}` convention (`id_segment` = `recommendation_id.split('/')[-1]` for HTTP URIs, or the last colon-delimited
       segment for URN IDs). The same namespaced key MUST be used consistently by all nodes in the tree that read or write
       that value.
-    rationale: The py_trees blackboard is process-global. When a tree factory is called concurrently (e.g., two `Offer(Actor,
-      Case)` messages arriving in parallel futures), two tree instances share the same blackboard namespace. A flat key like
-      `suggested_roles` written by the first instance is silently overwritten by the second before the first instance reads
-      it — causing the wrong role list to be emitted to the Case Owner. Namespacing by the execution-scoped ID (e.g., `suggested_roles_abc123`)
-      guarantees collision-free per-execution storage. See `notes/bt-pitfalls.md` § "Namespaced Inter-Node Handoff Keys".
-      Discovered in CONCERN-1335.
+    rationale: >-
+      The py_trees blackboard is global to the process. A tree factory can run
+      concurrently, for example for two `Offer(Actor, Case)` messages that the actor
+      handles in parallel. Then both tree instances share one blackboard namespace. The
+      first instance can write a flat key such as `suggested_roles`, and the second
+      instance can overwrite it before the first instance reads it. Then the Case Owner
+      gets the wrong role list. A key that contains the execution-scoped ID, such as
+      `suggested_roles_abc123`, gives each execution its own key. See
+      `notes/bt-pitfalls.md` § "Namespaced Inter-Node Handoff Keys".
     relationships:
     - rel_type: refines
       spec_id: BTND-03-001
@@ -177,15 +209,20 @@ groups:
       `INPUT_PORTS` / `OUTPUT_PORTS` class attributes constitute the node's formal blackboard contract and MUST declare
       every port the node reads or writes. A subclass extends its parent's ports by spreading the parent attribute
       (`{**Parent.INPUT_PORTS, ...}`) and MUST NOT override the `input_ports()` / `output_ports()` accessors.
-    rationale: Typed port declarations are machine-readable, appear at the class level, and are the single source of truth
-      for a node's data-flow contract. The imperative `register_key()` approach scatters declarations across `setup()`,
-      `initialise()`, and `update()`. py_trees >= 2.6 treats a ports class lacking either attribute as abstract and
-      refuses to instantiate it, so an accessor override is not a valid declaration (#3610, #3613). See ADR-0044.
+    rationale: >-
+      Typed port declarations are machine-readable and are at the class level. They are
+      the one source of truth for the data-flow contract of a node. The imperative
+      `register_key()` approach puts declarations in `setup()`, `initialise()` and
+      `update()`. py_trees 2.6 and later treats a ports class without both attributes as
+      abstract, and does not instantiate it. Thus an accessor override is not a valid
+      declaration (ADR-0044).
     relationships:
     - rel_type: extends
       spec_id: BTND-03-001
     - rel_type: refines
       spec_id: BTND-03-003
+    adr:
+    - ADR-0044
   - id: BTND-03-010
     priority: MUST
     kind: project
@@ -204,6 +241,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-03-009
+    adr:
+    - ADR-0044
   - id: BTND-03-011
     priority: MUST
     kind: project
@@ -217,6 +256,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: BTND-03-009
+    adr:
+    - ADR-0044
   - id: BTND-03-012
     priority: MUST
     kind: project
@@ -275,6 +316,10 @@ groups:
     verification_debt: '#2574'
     statement: BT nodes MUST NOT import from `vultron/demo/` or any other demo-layer module. Demo-specific context (step descriptions,
       demo loggers, demo flags) belongs in demo scripts, not in BT nodes.
+    rationale: >-
+      The demo layer is outside core and depends on core. A behavior node that imports
+      demo code reverses that dependency. It also puts demo-only context into the
+      protocol logic. A deployment that ships core without the demos then fails.
   - id: BTND-04-003
     priority: MUST_NOT
     kind: project
@@ -294,6 +339,11 @@ groups:
     verification_debt: '#2574'
     statement: Logic shared between `behaviors/` and `use_cases/` MUST be extracted to a common helper in `vultron/core/`
       or `vultron/core/behaviors/helpers.py`.
+    rationale: >-
+      `behaviors/` must not import `use_cases/` (BTND-04-003). Thus logic that both
+      layers need must be in a location that both layers can import. Without that
+      location, only two choices remain: an import that breaks the layering, or a second
+      copy that drifts.
     relationships:
     - rel_type: refines
       spec_id: BTND-04-003
@@ -494,6 +544,11 @@ groups:
       Memory composites (`memory=True` in py_trees) MAY be used **only** in contexts that are fully deterministic
       and non-reactive: no external actor can undo a child's outcome between ticks, and the agent operates in a closed-loop,
       human-supervised environment.
+    rationale: >-
+      A memory composite does not tick again a child that succeeded on an earlier tick.
+      Between ticks, a message from a different actor can make the result of that child
+      false. Then the tree acts on a success that is not true. The skip is safe only in
+      a closed, deterministic setting.
     relationships:
     - rel_type: refines
       spec_id: BT-06-003
@@ -579,6 +634,10 @@ groups:
     verification_debt: '#2574'
     statement: The `nodes/` subpackage `__init__.py` MUST re-export all public node names to preserve import compatibility
       with callers.
+    rationale: >-
+      Callers import node names from the package. When a module splits into a `nodes/`
+      subpackage, those imports must continue to work. Thus the package must export each
+      public name that it exported before the split.
     relationships:
     - rel_type: refines
       spec_id: BTND-07-001
@@ -749,16 +808,16 @@ groups:
       adjacency validation relaxed for that dimension; a backward move is still
       refused at the write boundary.
     rationale: >-
-      The dimension objects' transition() machinery (SDO-02-002) and the
-      is_valid_*_transition() helpers in vultron/core/states/ enforce forward-only
-      state machine rules, but constructing VfDimension(state=target) or DDimension(state=target)
-      directly bypasses them. A BT guard upstream is necessary but not sufficient: if the
-      guard is too weak (as in issue #1825) or absent (as in the trigger path),
-      an illegal state jump reaches the write boundary unchecked. Validating at
-      the write node makes illegal transitions fail-closed regardless of guard
-      coverage. Same-state writes are permitted because a ParticipantStatus
-      snapshot records current state; confirming "still at VFd" is a legitimate
-      protocol observation, not a transition error.
+      The `transition()` methods of the dimension objects (SDO-02-002) and the
+      `is_valid_*_transition()` helpers in `vultron/core/states/` enforce forward-only
+      state machine rules. But code that constructs `VfDimension(state=target)` or
+      `DDimension(state=target)` directly does not go through these checks. An upstream
+      BT guard is necessary but not sufficient. A guard can be too weak, and some paths,
+      such as the trigger path, reach the write node with no guard. When the write node
+      validates, an illegal transition fails closed, whether a guard ran or not.
+      Same-state writes are permitted. A ParticipantStatus snapshot records the current
+      state, and a confirmation such as "still at VFd" is a correct protocol
+      observation, not a transition error.
     testable: true
     preconditions:
     - description: A non-None target VFD, RM, or PXA state is passed to the write node
@@ -805,23 +864,17 @@ groups:
       invoking the individual `is_valid_*_transition()` or `violation_*` predicates
       directly, and MUST report every violation the evaluator returns.
     rationale: >-
-      `ValidateTriggerTransitionsNode` and `CreateParticipantStatusNode` each
-      implemented the VF, D and PXA transition checks and the role gates
-      independently, with byte-identical message text (ARCH-15-004 violation, live
-      drift hazard), and each enforced a subset the other did not. ISSUE-2906
-      established that composing the rule set once — not sharing the individual
-      predicates — is what keeps two paths from drifting; `composite_state_violations()`
-      is the existing instance of that shape.
-      Amended by ADR-0089: the original wording bound "every node that validates
-      such a write", and three writers escaped through it by validating nothing at
-      all (`_get_or_create_accepted_status`, `_build_owner_initial_status`,
-      `_build_bootstrap_statuses`) while a fourth escaped by not being a node
-      (`CaseParticipant.append_rm_state`). Binding the writer rather than the
-      validator closes both gaps, and the ratchet keys on constructing a dimension
-      rather than on naming a predicate — so validating less no longer confers
-      invisibility. A dimension-construction gate does not by itself reach the wire
+      Two paths that each have their own copy of the transition checks and role gates
+      drift apart. Each path enforces some rules that the other path does not, and their
+      messages diverge (ARCH-15-004). When the rule set is composed one time, as
+      `composite_state_violations()` does, all paths use the same rules. Shared
+      individual predicates do not give that result. The rule applies to every writer,
+      not to every validator (ADR-0089). Otherwise a writer that validates nothing, or a
+      writer that is not a node, is not covered. Thus the check finds each place that
+      constructs a dimension, not each call to a named predicate. A writer that
+      validates less cannot avoid the check. This check does not find the wire
       projection (`as_CaseParticipant.append_rm_state`), which builds
-      `as_ParticipantStatus` from flat fields; that shape needs its own trigger.
+      `as_ParticipantStatus` from flat fields. That code needs its own check.
     relationships:
     - rel_type: refines
       spec_id: BTND-10-001
@@ -905,17 +958,15 @@ groups:
       obtain the subject actor as an explicit argument, and MUST NOT fall back to the
       executing actor on the blackboard when that argument is absent.
     rationale: >-
-      A port is the only mechanism for `case_id` that works everywhere: in received
-      trees the case is discovered at tick time by dereferencing the report, so it
-      cannot be supplied at build time. Trees that do know it at build time seed
-      `/case_id` through `BTBridge.execute_with_setup(**context_data)`, so one
-      mechanism suffices for both. The subject actor is the opposite: the blackboard
-      `actor_id` is the *executing* actor and the subject of the write is frequently
-      someone else — the deferring actor, the sender, the leaver — and conflating the
-      two was bug #2300. `_ReportPhaseRMTransition._acting_actor_id()`'s
-      `sender_actor_id or actor_id` fallback is the two-path shape this rule removes:
-      a fallback means both branches need their own tests and the wrong one is
-      selected silently.
+      A port is the only way to supply `case_id` that works in all trees. In received
+      trees, the tree finds the case at tick time from the report, so the case is not
+      known at build time. Trees that know the case at build time seed `/case_id`
+      through `BTBridge.execute_with_setup(**context_data)`. Thus one mechanism serves
+      both. The subject actor is different. The blackboard `actor_id` is the executing
+      actor, and the subject of the write is often a different actor, such as the
+      deferring actor, the sender or the leaver. A fallback from the subject to the
+      executing actor writes the status onto the wrong participant, and no error shows.
+      The fallback also gives the node two paths, and each path needs its own tests.
     relationships:
     - rel_type: depends_on
       spec_id: BTND-10-004

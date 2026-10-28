@@ -68,14 +68,16 @@ upward-reflection checklist before finishing a `build` or `bugfix` session
 (BW-07-001; [`upward-reflection.md`](../.agents/skills/shared/upward-reflection.md))
 and send each triggered item to exactly one destination:
 
-- Something that exists but is wrong → a GitHub `type:Concern` issue.
+- Something that exists but is wrong → a GitHub `type:Bug`, `type:Task` or
+  `type:Concern` issue, chosen by the shape of the work
+  (`.agents/skills/shared/issue-creation-requirements.md` § "Determining the
+  right values").
 - Something that should exist but does not → a GitHub `type:Idea` issue.
 - A broken tool, skill or tracking artefact → a fix in the same session.
 - A narrow, true fact about the code → an assertion at the site (test, type
   annotation or comment) in the same session.
-- A code-review finding in a file the change did not touch → a `type:Bug` or
-  `type:Concern` issue, never a learning file or a PR-comment advisory
-  (BW-07-009).
+- A code-review finding in a file the change did not touch → an issue typed
+  the same way, never a learning file or a PR-comment advisory (BW-07-009).
 
 A decision made, applied and shipped in the session is not a learning; its
 record is the commit and the PR body (BW-07-008). Completion summaries go

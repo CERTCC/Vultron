@@ -18,6 +18,11 @@ groups:
     priority: MUST
     kind: foundation
     statement: Incoming payloads MUST conform to ActivityStreams 2.0 structure
+    rationale: >-
+      Vultron messages are ActivityStreams 2.0 activities. Thus a payload that is not a
+      correct AS2 activity has no defined meaning for the receiver. When the parser
+      refuses the payload, the malformed input does not get to semantic extraction or to
+      the handlers. These stages can then rely on the AS2 structure.
     verification: >-
       Integration tests in `test/demo/` confirm that the inbox handler rejects
       payloads missing required AS2 fields (e.g., `type`) with an HTTP 4xx response
@@ -45,6 +50,11 @@ groups:
       The semantic-dispatch stage — the type lookup that runs after `parse_activity`
       has already accepted the activity against the AS2 vocabulary — MUST handle
       missing or null fields without raising unhandled exceptions.
+    rationale: >-
+      An activity can pass the vocabulary check and still omit a field that the patterns
+      read. If a lookup of a missing field raises an exception, one incomplete message
+      causes a dispatch failure. The message then does not get the semantic type
+      `UNKNOWN`.
     verification: >-
       A unit test confirms that passing activities with `None` or absent `type`,
       `actor`, and `object` fields to the dispatch router returns a dispatch result
@@ -65,12 +75,12 @@ groups:
       absent from the AS2 vocabulary is rejected at parse (MV-01-001) and never
       reaches this stage.
     rationale: >-
-      Two registries look the activity up on the same value, so a bare
-      "unrecognized type" is ambiguous between them. Reject-at-parse and
-      route-to-`UNKNOWN` are both correct answers to differently-scoped questions;
-      naming the registry is what disambiguates. Routing an unmatched *semantic*
-      pattern to `UNKNOWN` lets the system log and continue rather than crashing the
-      dispatch pipeline (ISSUE-3217).
+      Two registries look up the activity on the same value, so an "unrecognized type"
+      message alone does not tell which registry refused it. A refusal at parse time and
+      a route to `UNKNOWN` are both correct answers, to two different questions. The
+      registry name in the message tells them apart. When the system routes an unmatched
+      semantic pattern to `UNKNOWN`, it logs the activity and continues. The dispatch
+      pipeline does not fail.
     note: >-
       A vocabulary-recognised type can still resolve to `UNKNOWN` semantics — e.g.
       an `Accept` whose nested object was silently downgraded, so it matches no
@@ -108,6 +118,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The system MUST use Pydantic models to validate activities
+    rationale: >-
+      A Pydantic model declares one schema for each activity type and checks it when it
+      builds the object. Thus each activity that a handler gets already has the field
+      types and required fields of its type. Hand-written checks can become different
+      from the classes that they protect.
     relationships:
     - rel_type: implements
       spec_id: VP-15-001
@@ -116,16 +131,28 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The system MUST reject activities that fail Pydantic validation with HTTP 422
+    rationale: >-
+      A 422 status tells the sender that the receiver could read its message but that
+      the message is not a valid activity. The sender can then correct the content and
+      not send the same message again. If the receiver processes an invalid activity,
+      its handlers act on data that the schema identifies as incorrect.
   - id: MV-02-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Validation error responses MUST include detailed error information
+    rationale: >-
+      A sender can correct a refused activity only if it knows which field failed and
+      why. A refusal without this data leaves a peer implementer to guess.
   - id: MV-02-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The system MUST log validation failures at WARNING level
+    rationale: >-
+      A validation failure means that a peer sent data that Vultron could not use. The
+      receiver recovers when it refuses the data, but an operator must see the failure.
+      The log is the only record that the receiver keeps of a message that it refused.
 - id: MV-03
   title: Required Field Validation
   specs:
@@ -133,6 +160,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: The system MUST validate required fields based on activity type
+    rationale: >-
+      Each activity type needs some fields to have a meaning. For example, an `Accept`
+      with no `object` accepts nothing. A check for each type refuses such an activity
+      at the edge. Thus handlers do not need to check for a missing field that their
+      activity type requires.
     verification: >-
       A unit test confirms that activity-type-specific validators raise
       `ValidationError` when required per-type fields are absent from an otherwise
@@ -149,13 +181,12 @@ groups:
       and non-blank but unparseable MUST be reported as a schema fault instead,
       not as a missing field.
     rationale: >-
-      These guards enforce requirements about values, not keys: CLP-15-006 refuses
-      an activity that "carries no `published`", and a field present but empty
-      carries none — CS-08-001's "if present, then non-empty". Testing the key let
-      `published: ""` reach schema validation, replacing that explanation with a
-      Pydantic dump, and `type: ""` reach the vocabulary lookup, so two spellings
-      of one omission drew two status codes. Unparseable values stay on the schema
-      path.
+      A blank value has no data, so it is the same omission as a missing key (CS-08-001:
+      if present, then non-empty). One omission must cause one error and one status
+      code, whatever its form. If a guard tests only the key, a blank `published` goes
+      on to schema validation. That validation gives a Pydantic error dump in place of
+      the explanation in CLP-15-006. A value that is not blank but does not parse is a
+      different fault, so it stays on the schema path.
     verification: >-
       Unit tests in `test/wire/as2/test_parser.py` confirm that every blank
       spelling of `type` and `published` — empty, spaces, tabs, newlines — raises
@@ -178,6 +209,11 @@ groups:
     priority: MUST
     kind: protocol
     statement: The system MUST validate that object types are recognized Vultron types
+    rationale: >-
+      The activity type and the object type together decide the semantic type of an
+      activity, and thus its handler. The receiver cannot route or validate an object
+      whose type is not in the Vultron vocabulary. If the receiver accepts the object,
+      the failure only moves to a later stage that cannot act on it.
     verification: >-
       A unit test confirms that an activity carrying an `object` whose `type` is not
       in the Vultron vocabulary is rejected with a validation error before dispatch.
@@ -191,6 +227,11 @@ groups:
       `Create(CaseParticipant)`), the activity `name` field SHOULD be a descriptive
       human-readable string identifying the actor, created object ID, and context (case
       ID)
+    rationale: >-
+      A person who reads a log or a timeline cannot learn much from ids alone. The ids
+      in a `Create` of a sub-object do not show who created which object in which case.
+      A descriptive `name` lets an operator read the activity without a lookup of its
+      ids.
   - id: MV-04-003
     priority: MUST_NOT
     kind: project
@@ -202,12 +243,14 @@ groups:
       wire-branch classes; an unresolved type leaves the object for its parent
       field to validate.
     rationale: >-
-      Substituting a weaker type is silent data loss: an `Accept(Invite(...))` with
-      one corrupt inner field parsed clean as a bare `as_Link`, extracted as
-      `UNKNOWN`, and drew a 202. Wire-only resolution makes refusal safe: while the
-      `CORE_TYPE_MAP` fallback (ARCH-12-003) was the lookup's default, an inline
-      actor's `inbox` resolved to a core instance its wire parent rejects
-      (ARCH-22-001). The fallback is now opt-in (VM-06-008).
+      If the parser uses a weaker type in place of the correct type, it loses data
+      silently. For example, an `Accept(Invite(...))` with one corrupt inner field can
+      then parse as a bare `as_Link`. It gets the semantic type `UNKNOWN` and a 202
+      status. A refusal is safe only when type resolution looks at wire classes alone.
+      If a lookup uses `CORE_TYPE_MAP` as a fallback (ARCH-12-003), it resolves the
+      `inbox` of an inline actor to a core instance that its wire parent refuses
+      (ARCH-22-001). The parser then refuses valid messages. The core fallback is opt-in
+      (VM-06-008).
     verification: >-
       Unit tests in `test/wire/as2/test_parser.py` confirm that an
       `Accept(Invite(...))` whose inner object carries an unparseable timestamp is
@@ -266,6 +309,10 @@ groups:
       The `object` of an outbound Vultron activity MUST let its recipient determine the
       activity's semantic type: it is carried inline as a typed object, or by a reference
       the recipient can dereference to a typed object (AKM-05-003, AKM-05-004).
+    rationale: >-
+      A recipient routes an activity by its activity type and the type of its object
+      (SE-01-001). If the recipient cannot read the object inline or get it by its URI,
+      it cannot classify the activity. It then cannot act on the message.
     verification: >-
       Satisfied in this codebase through AKM-03-003, which carries every `object` inline:
       `vultron/adapters/driving/fastapi/outbox_delivery.py` raises
@@ -283,6 +330,10 @@ groups:
       `as_Link` as its `object`. The handler MUST NOT attempt to expand the reference from the
       DataLayer first: it is a dumb relay (VM-08-003), so a reference in `object` is refused as a
       factory defect, not repaired at delivery time.
+    rationale: >-
+      The outbox sends the body that the act sealed, so the factory must put the object
+      inline. If delivery expands a reference, the sent body is different from the body
+      that the act recorded. This also hides the factory defect that made the reference.
     verification: >-
       A unit test confirms that an outbound activity whose sealed body has `object` set to a
       bare string raises `VultronOutboxObjectIntegrityError` before any delivery attempt and
@@ -296,6 +347,11 @@ groups:
       or `None` `object_` renders the activity semantically meaningless because `ActivityPattern._match_field`
       returns `False` for `None`, causing every pattern that inspects `object_.type` to fail,
       which forces dispatch to `UNKNOWN`.
+    rationale: >-
+      A pattern that examines the type of the object fails when the object is missing.
+      Thus an activity built without an object always goes to `UNKNOWN`. When the field
+      is required at construction, this silent routing error becomes an error at the
+      point where the code builds the activity.
     verification: >-
       Inspection of activity class definitions in `vultron/wire/` confirms that classes
       whose dispatch logic inspects `object_.type` declare `object_` as a required field
@@ -317,12 +373,12 @@ groups:
       exception is the actor reference of AKM-05-005: an actor the sender knows only by
       URI MAY travel as an inline object carrying exactly its `id` and `type`.
     rationale: >-
-      The stub form is a narrow affordance, not a substitute for a full object. It
-      serves one need: an invitee must decide whether to join a case before it may
-      receive the case (MV-10-005), so the stub stands in for the case until the
-      participant is active (CM-10-004). No other type has that need or is implemented.
-      The summary is what tells the invitee what it is being asked to join; what it
-      says is the sender's choice (CM-17-010); #4165 implemented the enforcement.
+      The stub form has one narrow purpose. It is not a replacement for a full object.
+      An invitee must decide whether to join a case before it can receive the case
+      (MV-10-005). The stub represents the case until the participant is active
+      (CM-10-004). No other type has this need, and no other stub type is implemented.
+      The summary tells the invitee which case it is asked to join. The sender decides
+      what the summary says (CM-17-010).
     note: >-
       Partial inline objects of other types were never designed — a parser fallback
       swallowed their validation failures and handed the parent a raw dict, which
@@ -370,6 +426,7 @@ groups:
     - missing_story_reference
     adr:
     - ADR-0114
+    - ADR-0090
   - id: MV-10-003
     priority: MUST_NOT
     kind: project
@@ -384,6 +441,11 @@ groups:
     priority: MUST_NOT
     kind: project
     statement: Inbound stubs MUST NOT be used to create new domain records
+    rationale: >-
+      A stub has only an id, a type and a summary. A record built from a stub is an
+      empty copy, and later reads use it as the real object. The full case arrives only
+      when the participant is active (MV-10-005), and a record created from the stub
+      goes around that gate.
     verification: >-
       `test/core/use_cases/received/actor/test_invite.py::TestInviteActorUseCases::test_a_received_stub_invite_stores_no_case`
       delivers a stub Invite, asserts it was processed, and asserts no
@@ -394,11 +456,17 @@ groups:
     statement: >-
       A participant MUST be active (CM-10-004) before the CASE_MANAGER delivers full
       case details to it.
+    rationale: >-
+      Full case details can include embargoed vul information. An active participant
+      has joined the case and has not been removed. When an embargo is active, it has
+      also agreed to that embargo (CM-10-004). Thus no actor gets the details before it
+      joins, or before it agrees to the active embargo.
     verification: >-
-      Integration tests in `test/demo/test_invite_actor_demo.py` confirm that the case
-      replica is delivered to a joining participant only after it has accepted the stub
-      Invite and, when an embargo is active, it is a signatory to that embargo, and that
-      an invitee that has not joined receives no case replica.
+      `test_ledger_fanout_reaches_only_active_participants` in
+      `test/core/behaviors/sync/nodes/test_active_participant_fanout.py` confirms that,
+      under an active embargo, case content fans out only to the participant that agreed
+      to it, and not to a seated participant whose consent is still `INVITED` or to an
+      invitee that never answered its stub Invite.
     adr:
     - ADR-0114
     relationships:
@@ -416,9 +484,16 @@ groups:
       VulnerabilityCaseStub))`) and the case has an active embargo, the acceptance MUST
       imply consent to the active embargo, marking that participant's consent row
       for it `AGREED` (CM-11-001).
+    rationale: >-
+      An invitee uses the stub to decide whether to join. To join a case under an active
+      embargo is to take part under that embargo. When the acceptance counts as consent,
+      no participant becomes active without a recorded answer to the embargo. The
+      delivery gate of MV-10-005 relies on this.
     verification: >-
-      Integration tests in `test/demo/test_invite_actor_demo.py` confirm that
-      accepting the stub Invite marks the accepting participant's consent row for the active embargo `AGREED` when an embargo is active.
+      `test_accept_invite_actor_to_case_records_active_embargo` in
+      `test/core/use_cases/received/actor/test_invite.py` confirms that accepting the
+      stub Invite while an embargo is active marks the accepting participant's consent
+      row for that embargo `AGREED`.
     relationships:
     - rel_type: depends_on
       spec_id: CM-03-008
@@ -444,15 +519,14 @@ groups:
       the class generates for it, an explicit validation alias, or `@context`. The disposition
       MUST NOT depend on which branch the resolved class belongs to.
     rationale: >-
-      Measured on 2026-09-30, an unknown key was refused with a 422 when the inline object
-      happened to be a domain type (a core class carrying `extra="forbid"`, ARCH-12-003) and
-      dropped silently when it landed on the envelope, a generic AS2 object, a `Link`, or an
-      untyped inline dict (wire classes inheriting Pydantic's default `extra="ignore"`).
-      Neither outcome was chosen for inbound data; both were inherited from a configuration
-      whose purpose is elsewhere. Under one object model (ADR-0099) the parser is the inbound
-      wire-to-core seam, so it is the one place a receive-side rule can be stated once and
-      hold everywhere (ADR-0032: validate at the edge; ARCH-21-002: inbound wire data stays
-      lenient).
+      Without one rule at the parse edge, the result for an unknown key depends on the
+      class of its object. A core class with `extra="forbid"` (ARCH-12-003) refuses the
+      key with a 422 status. A wire class with the Pydantic default `extra="ignore"`
+      drops the key silently. Neither result is a decision of the receiver. Both come
+      from configuration that has a different purpose. Under one object model
+      (ADR-0099), the parser is the inbound point where wire data becomes core data.
+      Thus it is the one place where one receive-side rule applies to all messages
+      (ADR-0032: validate at the edge; ARCH-21-002: inbound wire data stays lenient).
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` drives `parse_activity` with an unknown
       key in each of the positions this requirement names and asserts the same disposition in
@@ -491,20 +565,21 @@ groups:
       the retired-name list: edit distance, prefix matching, or any other similarity measure
       MUST NOT be used.
     rationale: >-
-      A near miss is a key the sender meant us to read. Proceeding without it loses their data
-      with a log line attached, which is the #2232 shape; refusing tells the sender which field
-      to fix. The normalisation is deliberately shallow: AS2 has many two- and three-letter
-      property names within one character of each other, so an edit-distance model would
-      misfire constantly, and pinning down a richer notion of "near" is not worth the time
-      (ARCH-25-008; ADR-0099). A retired name is not a spelling of anything, so it is in the
-      list by name rather than by normalisation. The JSON-LD keywords are named so the refusal is
-      understood as a decision: a peer that emits `@id`/`@type` skipped compaction or compacted
-      under a context without the AS2 aliases, and it meant the `id`/`type` Vultron reads.
-      Setting the keywords aside would strip the object's identity and type and cascade into
-      other refusals; declaring them as aliases would make Vultron a partial JSON-LD processor
-      with no principled place to stop (full-IRI property names and `@value` objects are
-      equally legal JSON-LD). Refusing tells the peer the compact spelling to send
-      (CONCERN-3958).
+      A near miss is a key that the sender intended Vultron to read. If the receiver
+      continues without the key, it loses the data of the sender and writes only a log
+      line. A refusal tells the sender which field to correct. The normalization is
+      shallow on purpose. AS2 has many property names of two or three letters that are
+      one character apart, so an edit-distance model gives many false matches. A wider
+      definition of "near" is not worth its cost (ARCH-25-008; ADR-0099). A retired name
+      is not a misspelling, so the list names it directly, not through normalization.
+      The list names the JSON-LD keywords so that the peer sees the refusal as a
+      decision. A peer that sends `@id` or `@type` did not compact its JSON-LD, or used
+      a context without the AS2 aliases. It intended the `id` and `type` that Vultron
+      reads. If the parser ignores the keywords, the object loses its identity and type,
+      and more refusals follow. If Vultron declares the keywords as aliases, it becomes
+      a partial JSON-LD processor with no clear limit. Full-IRI property names and
+      `@value` objects are also legal JSON-LD. The refusal tells the peer the compact
+      form to send.
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` asserts that a case variant and a
       separator variant (`attributed-to`) on the envelope and on an inline object, and a retired
@@ -536,13 +611,14 @@ groups:
       set-aside key MUST NOT be carried into the parsed object or appear in any dump of it;
       the raw body remains available as received evidence (VM-08-002).
     rationale: >-
-      AS2 is designed to be extended, and refusing a peer's whole message for one property
-      Vultron does not read is a federation cost with no benefit to the protocol. Silence is
-      not acceptable either: an operator needs to see what peers send that Vultron ignores,
-      and a spelling defect on Vultron's own side that escapes the near-miss net shows up here
-      first. Carrying the key on the object would leak it into the stored form, which
-      `extra="forbid"` refuses (the cross-class revalidation break of ISSUE-3489), so the
-      report is the only trace and the received evidence is the only copy.
+      AS2 is designed for extension. Some peers send properties that Vultron does not
+      read. If the receiver refuses each such message, peers lose interoperability, and
+      the protocol gets no benefit. But the receiver must not stay silent. An operator
+      must see what peers send that Vultron ignores. Also, a misspelling in Vultron that
+      the near-miss test does not find shows here first. If the parser keeps the key on
+      the object, the key goes into the stored form, and `extra="forbid"` refuses it
+      when the object is validated again. Thus the report is the only record of the
+      key, and the received evidence is its only copy.
     verification: >-
       `test/wire/as2/test_unknown_key_disposition.py` asserts, for an unknown key in each
       position MV-11-001 names, that `parse_activity` returns an activity, that the parsed
@@ -571,13 +647,14 @@ groups:
       and be consulted only at the parse edge; core types MUST NOT carry a per-class
       retired-key reject-guard (SDO-03-005).
     rationale: >-
-      The two rules answer different questions. `extra="forbid"` asks "did this process build
-      or store an object with a key it does not know?" — always a bug. The parse edge asks
-      "did a peer send a property we do not read?" — usually an extension. Keeping them
-      separate is what lets the receive side be liberal without reopening the #2232 hole on
-      the stored side. `ParticipantStatus._reject_retired_vfd_keys` predated this rule and was
-      the one guard SDO-03-005 already forbade; #3921 deleted it when the wire-side list
-      arrived.
+      The two rules answer different questions. `extra="forbid"` asks: "Did this process
+      build or store an object with a key that it does not know?" The answer yes is
+      always a bug. The parse edge asks: "Did a peer send a property that Vultron does
+      not read?" The answer yes is usually an extension. When the two rules stay
+      separate, the receive side can accept unknown properties and the stored side still
+      refuses each unknown key. Thus lenient intake cannot let a dropped or misspelled
+      field get to storage. A retired-key guard on a core class copies the wire-side
+      list into a second place, and the two lists can become different.
     verification: >-
       `test/architecture/test_core_extra_forbid.py` continues to assert every `CoreObject`
       subclass forbids extras with no exemption list. A grep of `vultron/core/models/` finds no
@@ -604,13 +681,10 @@ groups:
       each slot; the raw body is received evidence, kept for audit, not a second source to
       parse from.
     rationale: >-
-      A re-parse from the raw body sees the keys the parse edge set aside and, on a core class,
-      fails on them. `inbox_storage._reparse_as_specific_type` did exactly that and fell back
-      to a base class on failure with a DEBUG line, so once keys were set aside it would have
-      stored the wrong class silently; #3922 deleted it.
-      Its purpose — recovering the specific class when the parser
-      had validated an inline object as the base type — ended when the parser began resolving
-      inline objects to their specific class itself (MV-04-003).
+      A second parse from the raw body sees the keys that the parse edge set aside, and
+      fails on them for a core class. If the code then uses a base class as a fallback,
+      it stores the wrong class silently. The parser itself resolves each inline object
+      to its specific class (MV-04-003), so a second parse cannot recover anything more.
     verification: >-
       `test/architecture/test_no_receive_path_reparse.py` fails on any `model_validate` or
       `model_validate_json` call under `vultron/adapters/driving/` or `vultron/core/` whose

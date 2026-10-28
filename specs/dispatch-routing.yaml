@@ -18,6 +18,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: All dispatcher implementations MUST implement ActivityDispatcher protocol
+    rationale: >-
+      Driving adapters, such as the inbox, call the dispatcher only through the
+      `ActivityDispatcher` port. If all implementations obey that protocol, an adapter
+      or a test can replace one dispatcher with a different one without a code change.
   - id: DR-01-002
     priority: MUST
     kind: project
@@ -25,6 +29,11 @@ groups:
     statement: >-
       Dispatchers MUST construct use-case instances with the complete `VultronEvent` and `DataLayer`
       before calling `execute()`, so that `execute()` takes no arguments
+    rationale: >-
+      A use case gets its event and its DataLayer at construction, and has one fixed
+      entry point, `execute()`. Thus the dispatcher can run all use cases in the same
+      way. A test can also build a use case with a fake DataLayer and run it without a
+      dispatcher.
   - id: DR-01-003
     priority: MUST
     kind: project
@@ -32,6 +41,11 @@ groups:
     statement: >-
       Dispatchers MUST perform semantic type validation at dispatch time using the configured
       semantics-to-use-case mapping
+    rationale: >-
+      The dispatcher routes on the semantic type, from the one configured mapping. Thus
+      each event goes to the use case that handles its meaning. If a dispatcher chose by
+      other fields, or kept its own table, it could send the same message to different
+      handlers.
     relationships:
     - rel_type: implements
       spec_id: HP-02-001
@@ -45,6 +59,11 @@ groups:
     statement: >-
       The system MUST look up use-case classes by semantic type using the mapping returned
       by `use_case_map()`
+    rationale: >-
+      `use_case_map()` derives the routing table from the semantic registry. The
+      registry is the one location that ties a message meaning to its use case. When the
+      dispatcher reads routes from the registry, the two agree about which use case
+      handles each message.
     relationships:
     - rel_type: derives_from
       spec_id: HP-03-001
@@ -56,6 +75,11 @@ groups:
       The mapping returned by `use_case_map()` MUST contain an entry for every
       `MessageSemantics` value whose `SEMANTIC_REGISTRY` entry names a use case, and
       none for a value the registry recognizes but no use case handles (SE-05-002)
+    rationale: >-
+      A missing entry leaves a handled meaning with no route. An extra entry routes a
+      meaning that no use case claims. When the map agrees with the registry entries,
+      each handled message has a route. Each unhandled message gets the refusal "no use
+      case found".
     relationships:
     - rel_type: derives_from
       spec_id: SE-05-002
@@ -67,6 +91,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The DirectActivityDispatcher MUST execute handlers synchronously
+    rationale: >-
+      The direct dispatcher is the in-process implementation. The caller already runs in
+      a background task. When the use case runs in the same call, the caller gets the
+      result of the handler and any exception. The caller then decides the inbox
+      outcome.
   - id: DR-03-002
     priority: MUST
     kind: project
@@ -99,7 +128,16 @@ groups:
     priority: SHOULD
     kind: project
     statement: An async dispatcher SHOULD queue activities for processing
+    rationale: >-
+      A queue lets the inbox accept a message and return immediately, and the handlers
+      run later. The queue also absorbs bursts of messages, so the receiver does not
+      block.
   - id: DR-04-002
     priority: SHOULD
     kind: project
     statement: An async dispatcher SHOULD process activities in FIFO order
+    rationale: >-
+      Many protocol messages depend on earlier messages, for example a reply to an
+      offer, or a status update after a participant joins. When the receiver processes
+      messages in arrival order, it does not handle a message before the message that it
+      follows.

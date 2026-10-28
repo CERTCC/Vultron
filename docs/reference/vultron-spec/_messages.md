@@ -27,7 +27,7 @@ A proposal, such as an embargo invitation, asks for a decision, and its answer r
 A message from the CASE_MANAGER may reach a participant before the bootstrap message that establishes the case and its trust ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
 Such a message MUST NOT update the participant's case state before that bootstrap message has been validated ([CBT-03-002](../specs/protocol.md#cbt-03-002)).
 The participant SHOULD hold it only for a short, bounded interval ([CBT-03-001](../specs/protocol.md#cbt-03-001)).
-When the interval expires, the participant MUST drop the message and require it to be resent after the bootstrap ([CBT-03-003](../specs/protocol.md#cbt-03-003)).
+When the interval expires, the participant MUST drop the message ([CBT-03-003](../specs/protocol.md#cbt-03-003)).
 Applying it early would create case state from a message whose context was never established.
 
 Messages are addressed according to the routing rules of [§10 Case Coordination](interactions.md#10-case-coordination-n).

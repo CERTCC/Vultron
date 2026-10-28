@@ -54,7 +54,7 @@ from vultron.metadata.specs.registry import (
     load_registry,
     load_spec_files,
 )
-from vultron.metadata.specs.schema import SPEC_ID_CITATION_RE
+from vultron.metadata.specs.schema import cited_spec_ids
 
 #: Rationale text that usually narrates how a requirement came about
 #: (MS-10-013).
@@ -200,12 +200,14 @@ def adr_link_candidates(
 
     Returns:
         One candidate per (requirement, record) pair, sorted by requirement
-        then record. An ID in a body that names no requirement is ignored.
+        then record. A body names an ID literally, inside a range, or in a
+        slash list (:func:`~vultron.metadata.specs.schema.cited_spec_ids`);
+        an ID that names no requirement is ignored.
     """
     specs = registry.all_specs
     found: set[tuple[str, str]] = set()
     for adr_id, body in adr_bodies.items():
-        for spec_id in set(SPEC_ID_CITATION_RE.findall(body)):
+        for spec_id in cited_spec_ids(body, specs):
             spec = specs.get(spec_id)
             if spec is not None and adr_id not in (spec.adr or []):
                 found.add((spec_id, adr_id))

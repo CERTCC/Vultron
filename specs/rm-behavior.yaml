@@ -800,13 +800,12 @@ groups:
       CASE_MANAGER, a receiver MUST NOT forward an RK it receives, and RK MUST
       NOT be ledgered.
     rationale: >-
-      The reporter checks who may acknowledge its Offer against its own
-      record of that Offer (RMB-08-004); an addressee's store holds one
-      too. RK answers the reporter's original
-      Offer and sits outside the case, which is why it is the stated exception
-      to PCR-08-001. The CASE_MANAGER holds no record of the Offer's
-      addressee, so it could not check an RK sent to it. Decided by the
-      maintainer on #4325 and #4560.
+      The reporter checks who may acknowledge its Offer against its own record of that
+      Offer (RMB-08-004). The store of each addressee also holds a record. RK answers
+      the reporter's Offer and is outside the case, so it is the stated exception to
+      PCR-08-001. The CASE_MANAGER has no record of the addressees of the Offer, so it
+      cannot check an RK that it receives. A forwarded or ledgered RK can also go to
+      parties that did not receive the report.
     verification: >-
       Tests marked `RMB-08-003` confirm that the ack-report trigger addresses
       RK to the reporter alone, with or without a case, and that the received
@@ -846,9 +845,10 @@ groups:
       refuse it (HP-01-006) when the sender is not one, or when it holds no
       record of that Offer, writing nothing past intake and sending nothing.
     rationale: >-
-      The reporter sent the Offer, so its record of the Offer's `to` is the
-      only trustworthy statement of who received it; the copy embedded in the
-      RK was written by the sender. Decided by the maintainer on #4325.
+      The reporter sent the Offer, so only its record of the `to` of the Offer tells
+      correctly who received it. The sender of the RK wrote the copy in the RK, and that
+      copy can name any actor. If the reporter accepts an RK on the word of its sender,
+      any actor can claim that it has the report.
     verification: >-
       Tests marked `RMB-08-004` drive the received AckReport handler with the
       Offer's addressee, which is admitted, and with another actor, which is
@@ -1393,9 +1393,13 @@ groups:
       (EM, CS, GI) on a closed case is covered by VP-03-013, and the
       CASE_MANAGER's kill switch once the case is fully closed by CM-23-013.
     rationale: >-
-      Closed is a terminal state. The protocol permits silent discard to avoid
-      generating traffic for completed work. ADR-0085 broadened the post-close rule
-      beyond R*: the CASE_MANAGER records no message of any class after owner close.
+      Closed is a terminal state. A response to more R* messages creates work for a
+      report that is complete. The limit for the CASE_MANAGER is wider: after the Case
+      Owner closes the case, it records no message of any class (CM-23-013, ADR-0085).
+      Thus this rule controls only what a closed participant does with the R* messages
+      that it continues to receive.
+    adr:
+    - ADR-0085
     testable: false
     lint_suppress:
     - testable_without_steps
@@ -1473,10 +1477,11 @@ groups:
       participant at RM Valid that leaves the case (`Leave(VulnerabilityCase)`,
       CM-23-012) MUST be recorded as V → D → C.
     rationale: >-
-      Closing from *Received* and from *Valid* used to go through the
-      `force_rm_state` override, which skips the table. With R → C in the table
-      (RMB-14-004) and *Valid* routed through *Deferred*, every closure is an
-      ordinary transition (ADR-0114).
+      An override that skips the RM transition table lets a closure write a state that
+      no permitted sequence reaches. The write-boundary check (RMB-15-001) and every
+      replica then disagree with that state. R to C is in the table (RMB-14-004), and
+      Valid goes through Deferred. Thus every closure is an ordinary transition, and no
+      closure path needs the override (ADR-0114).
     verification: >-
       A test confirms a `Leave` from RM Valid records V → D → C, and an
       architecture test confirms no closure path calls `force_rm_state`.
@@ -1556,13 +1561,12 @@ groups:
     verification: A unit test confirms that a BT write node returns `Status.FAILURE` without writing to the DataLayer
       when passed an illegal RM state transition (e.g., START → CLOSED directly).
     rationale: >-
-      ParticipantStatus.rm is written via direct-construction
-      (e.g. RmDimension(state=target)) at sites such as rm_transitions.py,
-      bypassing the transition() contract in SDO-02-002. Upstream BT guards
-      are necessary but insufficient: a weak or missing guard allows an
-      invalid RM state jump to reach the write node unchecked. Validating
-      at the write boundary makes illegal RM transitions fail-closed
-      regardless of guard coverage. Source: concern #1896.
+      Some sites write `ParticipantStatus.rm` directly, for example with
+      `RmDimension(state=target)`, and do not use the `transition()` contract in
+      SDO-02-002. The BT guards before the write node are necessary but not sufficient.
+      A weak or missing guard lets an incorrect RM jump reach the write node with no
+      check. A check at the write boundary refuses an incorrect RM transition, whatever
+      the guards do.
     testable: true
     preconditions:
     - description: A non-None RM target state is passed to a ParticipantStatus write node

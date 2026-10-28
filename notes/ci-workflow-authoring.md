@@ -6,7 +6,8 @@ description: >
   Pitfalls when writing or reading GitHub Actions workflows and the YAML that
   drives them: PyYAML's bare `on:` key, matrix booleans coerced to strings,
   `actionlint` and block-scalar indentation, single-quoted apostrophes, the
-  mandatory `notify-failure` wiring and its one-job-per-label rule, why a
+  mandatory `notify-failure` wiring and its one-job-per-label rule, why an
+  automated find-or-file lookup must not go through the search index, why a
   `GITHUB_TOKEN`-raised event never triggers another workflow, and how to read a
   red CI job correctly.
 related_notes:
@@ -49,6 +50,16 @@ that `needs:` all of them and keys on `needs.*.result`, as `python-app.yml` does
 The workflow MUST grant `issues: write` (CISEC-02-002). A root-level
 `permissions: contents: read` block MUST become a map that also lists
 `issues: write`, or the action's issue calls fail with 403.
+
+## A Find-or-File Lookup Must Not Use the Search Index
+
+A step that files an issue only when none is open must find the open one through
+the list-issues REST endpoint (`gh api "repos/$REPO/issues?labels=a,b"`), never
+`gh issue list --label` or `gh search`. Both run a search query, and the search
+index lags: it once returned nothing while a tracker was open, and a second one
+was filed (#5105). Read the result through a command substitution, not
+`mapfile < <(...)`, so an API error fails the step under `set -e` instead of
+reading as "none open" (CISEC-05-003).
 
 ## Events Raised With `GITHUB_TOKEN` Never Trigger Other Workflows
 

@@ -51,6 +51,7 @@ Run the check-priority-status skill. The skill will:
    - Per-tier and per-Epic progress
    - Coverage audit (issues not on board, Epics with no open sub-issues)
    - Health check (stale items, long-pending PRs, blockers)
+   - Theme coherence per tier, from `theme-fit --coherence`
 6. **Stop** — the report is the complete output; no further actions taken
 
 ## Data Sources
@@ -90,6 +91,19 @@ done
 
 Group results by `fieldValueByName.name` (Now / Next / Later / Someday /
 null = unset).
+
+### Theme Coherence per Tier
+
+```bash
+PYTHONPATH= uv run theme-fit --coherence
+```
+
+Prints one Markdown table row per `Schedule` tier: Epics, children, children
+that match their Epic's theme, and the share. A child is an open non-Epic
+Issue in its nearest Epic's tier. Exit 1 only means some theme-fit finding
+exists, so read the table either way; exit 2 is a failed `gh` call or catalog
+load, so report the figures as unavailable. The full finding list is
+`theme-fit` without flags (`notes/epic-themes.md` § "The Structural Check").
 
 ### Querying Sub-Issues of an Epic
 
@@ -187,6 +201,12 @@ nit — it usually means the dependent is parented on the wrong epic, or that th
 dependent and its blocker are one coherent chunk that should calve into a single
 schedulable iceberg. This skill only surfaces the inversion (see the hard stop);
 `calve-epics` decides how to resolve it.
+
+### Theme Coherence
+
+Paste the `theme-fit --coherence` table as is and name the tier with the
+lowest share. Low coherence means that tier's Epics hold work from other
+themes, which `calve-epics` resolves.
 
 ### Triage Summary
 

@@ -257,9 +257,10 @@ groups:
     statement: 'Endpoints returning JSON that is not an ActivityStreams document (e.g., health checks, error bodies, the
       datalayer dump) MUST use `Content-Type: application/json`.'
     rationale: >-
-      Split from HTTP-04-001 (MS-12-010), which keeps the media type ActivityStreams
-      defines. Which media type this codebase's other JSON responses carry is its own
-      choice.
+      ActivityStreams defines the media type for its own documents (HTTP-04-001), but
+      not for other JSON. This codebase chooses the media type of its other JSON
+      responses. A plain `application/json` tells a client not to read the body as an
+      ActivityStreams document.
     verification: >-
       `test_datalayer_contents_is_plain_json_not_as2` in
       `test/adapters/driving/fastapi/routers/test_datalayer_serialization.py`
@@ -279,12 +280,20 @@ groups:
     priority: SHOULD
     kind: project
     statement: API SHOULD accept `X-Correlation-ID` or `X-Request-ID` headers for request tracing
+    rationale: >-
+      An operator traces one request through the logs of several actors and services. If
+      the server reuses the caller's tracing id, the logs on both sides carry the same
+      key, and the operator does not have to match them by time or content.
     scope:
     - production
   - id: HTTP-05-002
     priority: SHOULD
     kind: project
     statement: API SHOULD generate correlation ID from activity `id` field if header not provided
+    rationale: >-
+      The activity id is already unique (ID-01-001), and the sender and the receiver
+      both know it. A correlation id taken from it gives the logs of both sides the same
+      key when no header supplies one.
     scope:
     - production
 - id: HTTP-06
@@ -303,10 +312,18 @@ groups:
     priority: SHOULD
     kind: project
     statement: Processing exceeding 100ms SHOULD return HTTP 202 and queue for background processing
+    rationale: >-
+      Work that does not fit the response target (HTTP-06-001) is done after the answer.
+      The sender then gets its answer at once and does not time out and send again,
+      while the work still finishes in the background.
   - id: HTTP-06-003
     priority: SHOULD
     kind: project
     statement: Timeout occurrences SHOULD be logged at WARNING level
+    rationale: >-
+      A timeout is recoverable, but it shows that the server is too slow or that a peer
+      cannot be reached. WARNING is the level for a recoverable anomaly (SL-03-001), so
+      an operator sees timeouts without treating them as failures.
     scope:
     - production
 - id: HTTP-07
@@ -321,18 +338,27 @@ groups:
     priority: MAY
     kind: project
     statement: API MAY include `X-RateLimit-Limit` header (maximum requests per window)
+    rationale: >-
+      The limit lets a client pace its requests before it gets a 429. No peer relies on
+      the header, and HTTP does not define it, so the server may omit it.
     scope:
     - production
   - id: HTTP-07-002
     priority: MAY
     kind: project
     statement: API MAY include `X-RateLimit-Remaining` header (requests remaining)
+    rationale: >-
+      The number of requests left lets a client slow down before it reaches the limit
+      and gets a 429. No peer relies on the header, so the server may omit it.
     scope:
     - production
   - id: HTTP-07-003
     priority: MAY
     kind: project
     statement: API MAY include `X-RateLimit-Reset` header (UTC timestamp for window reset)
+    rationale: >-
+      The reset time tells a client when it can send at the full rate again, so it does
+      not have to guess. No peer relies on the header, so the server may omit it.
     scope:
     - production
   - id: HTTP-07-004
@@ -341,6 +367,11 @@ groups:
     verification_debt: '#2575'
     statement: A response with status 429 Too Many Requests or 503 Service Unavailable MUST include a `Retry-After` header
       indicating when the client should retry
+    rationale: >-
+      Without `Retry-After`, a client has to guess when to try again. A client that
+      tries again at once adds load to a server that is already overloaded or limited,
+      and a client that waits too long delays its work. A stated time tells the client
+      how long to wait.
     scope:
     - production
 - id: HTTP-08
@@ -352,6 +383,10 @@ groups:
     verification_debt: '#2575'
     statement: API responses MUST include all fields of the actual returned object type, not only fields declared on the annotated
       base class
+    rationale: >-
+      A route can return a subclass of the class its annotation names. If the response
+      keeps only the fields of the annotated class, the client gets an incomplete object
+      and no error shows the loss (HTTP-09).
 - id: HTTP-09
   title: AS2 Response Class Convention
   rationale: 'FastAPI''s `response_model=` serves two purposes: OpenAPI schema generation and runtime response filtering.
@@ -385,5 +420,11 @@ groups:
     kind: project
     statement: '`AS2JSONResponse` MUST serialize using `model_dump(mode="json", by_alias=True, exclude_none=True)` and set
       `Content-Type: application/activity+json`.'
+    rationale: >-
+      ActivityStreams uses camelCase property names, so the response uses the aliases.
+      JSON mode makes values such as datetimes and URIs into strings. A field whose
+      value is None stays out of the body and is not sent as `null`, which a consumer
+      can read as a value. The media type is the one HTTP-04-001 requires for
+      ActivityStreams documents.
     verification: 'Unit test confirms `AS2JSONResponse(as_VulnerabilityCase(...)).body` includes camelCase field names and
       the response headers contain `Content-Type: application/activity+json`.'

@@ -17,6 +17,10 @@ Convert `docs/reference/codebase/CONCERNS.md` into GitHub `type:Concern`
 issues. One issue per table row. Deduplicates against open Concern issues
 before creating anything.
 
+A row whose correct fix is already known, with no decision left open, is a
+`Bug` or `Task` by `shared/issue-creation-requirements.md` § "Determining the
+right values", not a Concern. File such a row with `new-item` instead.
+
 ## Constants
 
 ```text

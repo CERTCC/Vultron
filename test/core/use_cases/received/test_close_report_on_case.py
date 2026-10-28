@@ -140,6 +140,7 @@ def _run(
 @pytest.mark.spec("CM-23-019")
 @pytest.mark.spec("CM-23-001")
 @pytest.mark.spec("CLP-04-007")
+@pytest.mark.spec("CLP-04-001")
 @pytest.mark.parametrize("sender", [_OWNER, _VENDOR], ids=["owner", "vendor"])
 def test_close_report_on_an_open_case_is_refused(sender: str) -> None:
     """The owner's and a participant's ``Close(Report)`` are both refused."""
