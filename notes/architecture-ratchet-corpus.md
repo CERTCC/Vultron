@@ -112,10 +112,12 @@ the one marker parser `vultron/metadata/ratchet_markers.py`:
 
 - **Which constants.** Module-level constant-case names matching `KNOWN_*`,
   `*_BASELINE`, `MAX_*` or `*_EXEMPTIONS` (leading underscores ignored)
-  anywhere under `test/`, including inside import-time `if`/`try`/`with`
-  blocks and tuple unpacking. A constant with a ratchet name that is not a baseline
-  (a search depth, a fixture host list) is renamed out of the pattern rather
-  than given an invented marker.
+  anywhere under `test/`, including inside import-time `if`/`for`/`while`/
+  `try`/`with`/`match` blocks and (nested) tuple or list unpacking. A constant
+  with a ratchet name that is not a baseline (a search depth, a fixture host
+  list) is renamed out of the pattern rather than given an invented marker.
+  The check finds baselines only by name, so a real baseline named otherwise
+  (a `*_BACKLOG`) is renamed into the pattern, or the rule cannot see it.
 - **Terminal needs no marker.** An empty literal, a zero, or an empty
   `frozenset()` / `MappingProxyType({})` call. A computed value, or one grown
   in place at module level (`|=`, `.add()`, item assignment), counts as

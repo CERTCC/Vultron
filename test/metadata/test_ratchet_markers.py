@@ -213,6 +213,11 @@ def test_a_bare_annotation_binds_no_baseline() -> None:
         "try:\n    pass\nexcept ImportError:\n    KNOWN_X = {'a'}\n",
         "try:\n    pass\nfinally:\n    KNOWN_X = {'a'}\n",
         "with ctx():\n    KNOWN_X = {'a'}\n",
+        "for _ in ():\n    KNOWN_X = {'a'}\n",
+        "while False:\n    KNOWN_X = {'a'}\n",
+        "try:\n    pass\nexcept ImportError:\n    pass\nelse:\n    KNOWN_X = {'a'}\n",
+        "try:\n    pass\nexcept* ImportError:\n    KNOWN_X = {'a'}\n",
+        "match 1:\n    case 1:\n        KNOWN_X = {'a'}\n",
     ],
 )
 def test_a_baseline_in_an_import_time_block_is_checked(block: str) -> None:
@@ -231,6 +236,23 @@ def test_unpacked_baselines_pair_with_their_elements() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("[KNOWN_A, KNOWN_B] = [frozenset(), {'x'}]\n", [True, False]),
+        ("(KNOWN_A, KNOWN_B), C = (frozenset(), {'x'}), 1\n", [True, False]),
+        ("(KNOWN_A, KNOWN_B), C = _pair(), 1\n", [False, False]),
+        ("KNOWN_A, KNOWN_B = frozenset(), set(), set()\n", [False, False]),
+    ],
+)
+def test_list_nested_and_mismatched_unpacking(
+    source: str, expected: list[bool]
+) -> None:
+    found = baselines_in_source(source, _PATH)
+    assert [b.name for b in found] == ["KNOWN_A", "KNOWN_B"]
+    assert [b.terminal for b in found] == expected
+
+
 def test_unpacking_a_computed_value_is_non_terminal() -> None:
     found = baselines_in_source("KNOWN_A, KNOWN_B = _pair()\n", _PATH)
     assert [b.terminal for b in found] == [False, False]
@@ -243,12 +265,57 @@ def test_unpacking_a_computed_value_is_non_terminal() -> None:
         "KNOWN_A.add('x')",
         "KNOWN_A.update({'x'})",
         "KNOWN_A['k'] = 1",
+        "KNOWN_A['k']: int = 1",
+        "_ = KNOWN_A.add('x')",
+        "if True:\n    KNOWN_A.add('x')",
     ],
 )
 def test_a_baseline_grown_in_place_is_not_terminal(mutation: str) -> None:
     found = baselines_in_source(f"KNOWN_A = set()\n{mutation}\n", _PATH)
     assert [b.terminal for b in found] == [False]
     assert len(violations(found)) == 1
+
+
+def test_a_mutation_inside_a_function_does_not_count() -> None:
+    source = "KNOWN_A = set()\ndef grow():\n    KNOWN_A.add('x')\n"
+    (baseline,) = baselines_in_source(source, _PATH)
+    assert baseline.terminal
+
+
+def test_a_permanent_marker_citing_issue_zero_cites_nothing() -> None:
+    problems = _problems("# permanent: #0\nKNOWN_X = frozenset({'a'})\n")
+    assert len(problems) == 1
+    assert "cites no issue" in problems[0]
+
+
+def test_a_trailing_sphinx_marker_counts() -> None:
+    assert _one("MAX_ITEMS = 5  #: owner: #12\n").owners == (12,)
+
+
+def test_a_trailing_comment_on_the_line_above_ends_the_block() -> None:
+    source = "# owner: #12\nX = 1  # unrelated\nKNOWN_X = frozenset({'a'})\n"
+    (baseline,) = baselines_in_source(source, _PATH)
+    assert baseline.owners == ()
+    assert len(baseline.violations()) == 1
+
+
+@pytest.mark.parametrize("separator", ["\x0c", "\u2028", "\x85"])
+def test_a_line_separator_inside_a_string_does_not_shift_comments(
+    separator: str,
+) -> None:
+    source = (
+        f's = "a{separator}b"\n'
+        "if True:\n"
+        "    # owner: #12\n"
+        "    KNOWN_X = {'a'}\n"
+        "Y = 1  # owner: #99\n"
+        "KNOWN_Y = {'a'}\n"
+    )
+    found = baselines_in_source(source, _PATH)
+    assert [(b.name, b.owners) for b in found] == [
+        ("KNOWN_X", (12,)),
+        ("KNOWN_Y", ()),
+    ]
 
 
 # --- names and values ----------------------------------------------------

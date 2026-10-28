@@ -57,7 +57,7 @@ _PERMANENT_MARKER = re.compile(r"#:?\s*permanent:\s*(.*)$")
 
 #: What a permanent reference must cite: an issue, an ADR, or a spec ID.
 _CITATION = re.compile(
-    r"#\d+\b|\bADR-\d{4}\b|\b[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-\d{2}-\d{3}\b"
+    r"#[1-9]\d*\b|\bADR-\d{4}\b|\b[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-\d{2}-\d{3}\b"
 )
 
 #: Methods that grow a collection in place, so a module-level call on a
@@ -197,13 +197,14 @@ def _comments(source: str) -> tuple[dict[int, str], frozenset[int]]:
     that hold nothing but a comment."""
     by_line: dict[int, str] = {}
     alone: set[int] = set()
-    lines = source.splitlines()
     for token in tokenize.generate_tokens(io.StringIO(source).readline):
         if token.type != tokenize.COMMENT:
             continue
         row, col = token.start
         by_line[row] = token.string
-        if not lines[row - 1][:col].strip():
+        # The token's own physical line: ``str.splitlines`` also breaks at
+        # form feeds and Unicode separators, so its rows drift from these.
+        if not token.line[:col].strip():
             alone.add(row)
     return by_line, frozenset(alone)
 
@@ -223,15 +224,18 @@ def _marker_comments(
 
 def _module_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
     """Module-level statements, including those nested in ``if``, ``for``,
-    ``while``, ``try`` and ``with`` blocks (which still run at import), but
-    not in a function or class body."""
+    ``while``, ``try``, ``with`` and ``match`` blocks (which still run at
+    import), but not in a function or class body."""
     for node in body:
         yield node
         if isinstance(node, (ast.If, ast.For, ast.While)):
             yield from _module_statements(node.body + node.orelse)
         elif isinstance(node, ast.With):
             yield from _module_statements(node.body)
-        elif isinstance(node, ast.Try):
+        elif isinstance(node, ast.Match):
+            for case in node.cases:
+                yield from _module_statements(case.body)
+        elif isinstance(node, (ast.Try, ast.TryStar)):
             yield from _module_statements(node.body)
             for handler in node.handlers:
                 yield from _module_statements(handler.body)
@@ -252,40 +256,65 @@ def _bindings(node: ast.stmt) -> Iterator[tuple[str, ast.expr]]:
     if not isinstance(node, ast.Assign):
         return
     for target in node.targets:
-        if isinstance(target, ast.Name):
-            yield target.id, node.value
-        elif isinstance(target, (ast.Tuple, ast.List)):
-            value = node.value
-            elements: list[ast.expr] = (
-                value.elts
-                if isinstance(value, (ast.Tuple, ast.List))
-                and len(value.elts) == len(target.elts)
-                else [value] * len(target.elts)
-            )
-            for element, bound in zip(target.elts, elements, strict=True):
-                if isinstance(element, ast.Name):
-                    yield element.id, bound
+        yield from _bind_target(target, node.value)
+
+
+def _bind_target(
+    target: ast.expr, value: ast.expr
+) -> Iterator[tuple[str, ast.expr]]:
+    """Pair the names in *target* (a name, or a tuple or list of targets,
+    nested to any depth) with the parts of *value* bound to them."""
+    if isinstance(target, ast.Name):
+        yield target.id, value
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        elements: list[ast.expr] = (
+            value.elts
+            if isinstance(value, (ast.Tuple, ast.List))
+            and len(value.elts) == len(target.elts)
+            else [value] * len(target.elts)
+        )
+        for element, bound in zip(target.elts, elements, strict=True):
+            yield from _bind_target(element, bound)
+
+
+def _import_time_nodes(node: ast.AST) -> Iterator[ast.AST]:
+    """*node* and its descendants, stopping at function and lambda bodies
+    (which do not run at import)."""
+    yield node
+    for child in ast.iter_child_nodes(node):
+        if isinstance(
+            child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+        ):
+            continue
+        yield from _import_time_nodes(child)
 
 
 def _mutated_names(node: ast.stmt) -> Iterator[str]:
     """Names a module-level statement grows in place: ``X |= ...``,
-    ``X[k] = ...``, ``X.add(...)`` and the other :data:`_MUTATORS`."""
-    if isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name):
-        yield node.target.id
-    elif isinstance(node, ast.Assign):
-        for target in node.targets:
-            if isinstance(target, ast.Subscript) and isinstance(
-                target.value, ast.Name
-            ):
-                yield target.value.id
-    elif (
-        isinstance(node, ast.Expr)
-        and isinstance(node.value, ast.Call)
-        and isinstance(func := node.value.func, ast.Attribute)
-        and func.attr in _MUTATORS
-        and isinstance(func.value, ast.Name)
-    ):
-        yield func.value.id
+    ``X[k] = ...`` (annotated or not), and ``X.add(...)`` or another of the
+    :data:`_MUTATORS` anywhere in the statement, its result used or not."""
+    targets: list[ast.expr] = []
+    if isinstance(node, ast.Assign):
+        targets = list(node.targets)
+    elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+        targets = [node.target]
+    for target in targets:
+        if isinstance(target, ast.Subscript) and isinstance(
+            target.value, ast.Name
+        ):
+            yield target.value.id
+        elif isinstance(node, ast.AugAssign) and isinstance(target, ast.Name):
+            yield target.id
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return
+    for sub in _import_time_nodes(node):
+        if (
+            isinstance(sub, ast.Call)
+            and isinstance(func := sub.func, ast.Attribute)
+            and func.attr in _MUTATORS
+            and isinstance(func.value, ast.Name)
+        ):
+            yield func.value.id
 
 
 def _read_markers(
