@@ -31,10 +31,8 @@ def _git(path: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=path, check=True)
 
 
-def _init_repo(path: Path) -> None:
-    """Commit *path* and point ``origin/main`` at it: the published base."""
-    (path / "pyproject.toml").write_text("")
-    _git(path, "init", "-q")
+def _commit(path: Path, message: str) -> None:
+    """Stage everything under *path* and commit it."""
     _git(path, "add", "-A")
     _git(
         path,
@@ -45,8 +43,15 @@ def _init_repo(path: Path) -> None:
         "commit",
         "-q",
         "-m",
-        "base",
+        message,
     )
+
+
+def _init_repo(path: Path) -> None:
+    """Commit *path* and point ``origin/main`` at it: the published base."""
+    (path / "pyproject.toml").write_text("")
+    _git(path, "init", "-q")
+    _commit(path, "base")
     _git(path, "update-ref", "refs/remotes/origin/main", "HEAD")
 
 
@@ -213,16 +218,34 @@ def test_retire_finds_id_line_with_trailing_comment(repo: Path) -> None:
     assert retired_spec_ids(repo) == {"TST-01-001"}
 
 
+def _edit_statement(repo: Path, new: str) -> None:
+    """Change TST-01-001's statement in the working tree to *new*."""
+    spec_file = repo / "specs/specs.yaml"
+    spec_file.write_text(
+        spec_file.read_text().replace(
+            "TST-01-001 MUST do the thing", f"TST-01-001 MUST {new}", 1
+        )
+    )
+
+
+def _assert_nothing_changed(repo: Path, spec_text_before: str) -> None:
+    """The spec file, the archive and the history are as they were."""
+    assert (repo / "specs/specs.yaml").read_text() == spec_text_before
+    assert not (repo / "plan/retired-specs").exists()
+    assert not (repo / "plan/history").exists()
+
+
+def _publish_branch(repo: Path, branch: str) -> None:
+    """Point ``origin/<branch>`` at ``HEAD``."""
+    _git(repo, "update-ref", f"refs/remotes/origin/{branch}", "HEAD")
+
+
+@pytest.mark.spec("MS-09-008")
 def test_retire_archives_base_text_when_block_edited_on_branch(
     repo: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The archive keeps the published text, not a branch edit (#5400)."""
-    spec_file = repo / "specs/specs.yaml"
-    spec_file.write_text(
-        spec_file.read_text().replace(
-            "TST-01-001 MUST do the thing", "TST-01-001 MUST do an edit", 1
-        )
-    )
+    _edit_statement(repo, "do an edit")
 
     _retire(repo)
 
@@ -233,25 +256,43 @@ def test_retire_archives_base_text_when_block_edited_on_branch(
     assert "edit is dropped" in caplog.text
 
 
+@pytest.mark.spec("MS-09-008")
+def test_retire_finds_base_text_in_another_spec_file(repo: Path) -> None:
+    """The base lookup scans every spec file, not the working-tree one."""
+    _git(repo, "mv", "specs/specs.yaml", "specs/moved.yaml")
+    moved = repo / "specs/moved.yaml"
+    moved.write_text(
+        moved.read_text().replace(
+            "TST-01-001 MUST do the thing", "TST-01-001 MUST do a move", 1
+        )
+    )
+
+    _retire(repo)
+
+    entry = (repo / "plan/retired-specs/TST-01-001.md").read_text()
+    assert "TST-01-001 MUST do the thing" in entry
+    assert "do a move" not in entry
+
+
+@pytest.mark.spec("MS-09-008")
 def test_retire_refuses_id_absent_on_base_and_changes_nothing(
     repo: Path,
 ) -> None:
     """An ID added on the branch was never published, so it is refused."""
-    spec_file = repo / "specs/specs.yaml"
     data = _two_spec_file()
     data["groups"][0]["specs"].append(
         _minimal_spec("TST-01-003")["groups"][0]["specs"][0]
     )
     write_yaml(repo / "specs", data)
-    before = spec_file.read_text()
+    before = (repo / "specs/specs.yaml").read_text()
 
     with pytest.raises(RetireError, match="not declared at the merge base"):
         retire_spec("TST-01-003", why="x", retired_by="#1", repo_root=repo)
 
-    assert spec_file.read_text() == before
-    assert not (repo / "plan/retired-specs").exists()
+    _assert_nothing_changed(repo, before)
 
 
+@pytest.mark.spec("MS-09-008")
 def test_retire_refuses_unresolvable_base_and_changes_nothing(
     repo: Path,
 ) -> None:
@@ -260,29 +301,34 @@ def test_retire_refuses_unresolvable_base_and_changes_nothing(
     with pytest.raises(RetireError, match="no-such-ref"):
         _retire(repo, base_ref="no-such-ref")
 
-    assert (repo / "specs/specs.yaml").read_text() == before
-    assert not (repo / "plan/retired-specs").exists()
+    _assert_nothing_changed(repo, before)
 
 
+@pytest.mark.spec("MS-09-008")
+def test_retire_refuses_unreadable_base_tree_and_changes_nothing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure reading the base tree is a refusal, not a traceback."""
+    import vultron.metadata.specs.retire as retire_mod
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise OSError("no space left on device")
+
+    monkeypatch.setattr(retire_mod, "materialize_tree", boom)
+    before = (repo / "specs/specs.yaml").read_text()
+
+    with pytest.raises(RetireError, match="no space left"):
+        _retire(repo)
+
+    _assert_nothing_changed(repo, before)
+
+
+@pytest.mark.spec("MS-09-008")
 def test_retire_uses_explicit_base(repo: Path) -> None:
     """``--base`` names the published tree when it is not ``origin/main``."""
-    spec_file = repo / "specs/specs.yaml"
-    spec_file.write_text(
-        spec_file.read_text().replace(
-            "TST-01-001 MUST do the thing", "TST-01-001 MUST do v2", 1
-        )
-    )
-    _git(
-        repo,
-        "-c",
-        "user.name=t",
-        "-c",
-        "user.email=t@example.org",
-        "commit",
-        "-qam",
-        "v2",
-    )
-    _git(repo, "update-ref", "refs/remotes/origin/release", "HEAD")
+    _edit_statement(repo, "do v2")
+    _commit(repo, "v2")
+    _publish_branch(repo, "release")
 
     _retire(repo, base_ref="origin/release")
 
@@ -290,15 +336,35 @@ def test_retire_uses_explicit_base(repo: Path) -> None:
     assert "TST-01-001 MUST do v2" in entry
 
 
+@pytest.mark.spec("MS-09-008")
+def test_retire_defaults_base_to_github_base_ref(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no ``--base``, a PR run reads ``origin/$GITHUB_BASE_REF``."""
+    _edit_statement(repo, "do v2")
+    _commit(repo, "v2")
+    _publish_branch(repo, "release")
+    monkeypatch.setenv("GITHUB_BASE_REF", "release")
+
+    _retire(repo)
+
+    entry = (repo / "plan/retired-specs/TST-01-001.md").read_text()
+    assert "TST-01-001 MUST do v2" in entry
+
+
+@pytest.mark.spec("MS-09-008")
 def test_cli_passes_base_and_reports_refusal(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.chdir(repo)
     argv = ["TST-01-001", "--why", "x", "--by", "#1", "--base", "no-such-ref"]
+    before = (repo / "specs/specs.yaml").read_text()
 
     with pytest.raises(SystemExit) as exc:
         main(argv)
 
     assert exc.value.code == 1
     assert "no-such-ref" in capsys.readouterr().err
-    assert not (repo / "plan/retired-specs").exists()
+    _assert_nothing_changed(repo, before)

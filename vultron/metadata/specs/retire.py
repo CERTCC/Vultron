@@ -2,9 +2,10 @@
 
 A requirement is removed from ``specs/`` rather than marked deprecated
 (MS-09-001).
-Its last published text is kept, one file per ID, in ``plan/retired-specs/``
-(MS-09-005) so a citation of the ID still resolves to something, while the retired text
-stays out of every spec loader and out of agent context.
+Its last published text is kept, one file per ID, in
+``plan/retired-specs/`` (MS-09-005) so a citation of the ID still resolves to
+something, while the retired text stays out of every spec loader and out of
+agent context.
 An ID in the archive is never reused (MS-09-004).
 
 Usage::
@@ -32,6 +33,7 @@ import logging
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -159,9 +161,9 @@ def published_text(
     (:func:`~vultron.metadata.specs.growth_guard.base_ref_name`).
 
     Raises:
-        RetireError: The base cannot be resolved, or *spec_id* is not declared
-            in ``specs/`` there (it was added on this branch, so it was never
-            published).
+        RetireError: The base cannot be resolved or read, or *spec_id* is not
+            declared in ``specs/`` there (it was added on this branch, so it
+            was never published).
     """
     ref = base_ref or base_ref_name()
     try:
@@ -169,7 +171,12 @@ def published_text(
         with tempfile.TemporaryDirectory(prefix="spec-retire-") as tmp:
             materialize_tree(root, base, ["specs"], Path(tmp))
             found = _find_in_dir(Path(tmp) / "specs", spec_id)
-    except BaseUnavailableError as exc:
+    except (
+        BaseUnavailableError,
+        OSError,
+        tarfile.TarError,
+        UnicodeDecodeError,
+    ) as exc:
         raise RetireError(
             f"cannot read the published text of {spec_id}: {exc}; "
             f"pass --base to name the branch it was published on"

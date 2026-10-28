@@ -470,14 +470,24 @@ groups:
       another. When the item is not declared at that merge base, or the merge base
       cannot be resolved, the tool changes nothing.
     rationale: >-
-      A branch that edits a requirement and then retires it would otherwise archive text
-      that was never published (#5400). An ID absent at the base was never published, so
-      no citation outside the branch can name it. It is deleted, not archived, and the
-      tool does not guess which text to keep.
+      A branch can change a requirement and then retire it. The archive must then keep
+      the text that was published, not the change that nobody approved. The merge base
+      holds the last published text. An item that is not at the merge base was never
+      published, so you delete it; you do not retire it. If the tool cannot find the
+      merge base, it cannot find the published text, so it stops and does not guess.
     verification: >-
-      `test/metadata/specs/test_retire.py` retires an item edited on the branch and
-      checks that the archive holds its text at the base, and checks the refusals for an
-      item absent at the base and for a base that cannot be resolved.
+      `test/metadata/specs/test_retire.py`, in the tests marked
+      `@pytest.mark.spec("MS-09-008")`:
+      `test_retire_archives_base_text_when_block_edited_on_branch` and
+      `test_retire_finds_base_text_in_another_spec_file` check that the archive holds
+      the merge-base text of an item edited or moved on the branch;
+      `test_retire_defaults_base_to_github_base_ref` and
+      `test_retire_uses_explicit_base` check the choice of base branch;
+      `test_retire_refuses_id_absent_on_base_and_changes_nothing`,
+      `test_retire_refuses_unresolvable_base_and_changes_nothing`,
+      `test_retire_refuses_unreadable_base_tree_and_changes_nothing` and
+      `test_cli_passes_base_and_reports_refusal` check that each refusal leaves the
+      spec file, the archive and the history unchanged.
     relationships:
     - rel_type: refines
       spec_id: MS-09-006
