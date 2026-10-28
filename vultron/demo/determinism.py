@@ -119,10 +119,10 @@ def deterministic_run(
 ) -> Generator[None]:
     """Replace the id source and the clock for the duration of the block.
 
-    Import every module that generates ids before entering the block: a module
-    imported inside it that runs ``from uuid import uuid4`` binds the patched
-    generator, which is correct, but a module imported earlier is only found
-    by the sweep made on entry.
+    A module imported inside the block that runs ``from uuid import uuid4``
+    binds the seeded generator, which is correct while the block runs.  On
+    exit those bindings are put back to the real ``uuid4`` too, so a later run
+    in the same process does not depend on what this one imported.
 
     Args:
         seed: Seeds the id generator.  The same seed gives the same ids.
@@ -132,13 +132,17 @@ def deterministic_run(
     ids = SeededUuid4(seed)
     clock = SteppingClock(start, step=step)
     real_uuid4 = uuid.uuid4
-    with ExitStack() as stack:
-        for module_name in _modules_binding(real_uuid4, "uuid4"):
-            stack.enter_context(
-                patch.object(sys.modules[module_name], "uuid4", ids)
-            )
-        stack.enter_context(patch.object(_helpers, "datetime", clock))
-        yield
+    try:
+        with ExitStack() as stack:
+            for module_name in _modules_binding(real_uuid4, "uuid4"):
+                stack.enter_context(
+                    patch.object(sys.modules[module_name], "uuid4", ids)
+                )
+            stack.enter_context(patch.object(_helpers, "datetime", clock))
+            yield
+    finally:
+        for module_name in _modules_binding(ids, "uuid4"):
+            vars(sys.modules[module_name])["uuid4"] = real_uuid4
 
 
 __all__ = [

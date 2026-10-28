@@ -20,6 +20,11 @@ depend on the process that made it.  No scenario needs a normalized
 comparison.
 
 Each scenario runs for up to two minutes, so this is an integration test.
+
+It lives outside ``test/demo/`` on purpose: that directory's autouse fixtures
+stub protocol steps for mock-driven tests (``stub_full_case_reply`` skips the
+full-case Invite reply), so a recording made there would not be the recording
+the CLI writes.
 """
 
 import pytest
@@ -31,6 +36,8 @@ from vultron.demo.recordings import (
     recording_path,
 )
 from vultron.demo.scenario.registry import discover_scenarios
+
+pytestmark = pytest.mark.integration
 
 #: The slowest scenario (rcvcv) runs in about 95 seconds on an idle machine.
 _SCENARIO_TIMEOUT_SECONDS = 900

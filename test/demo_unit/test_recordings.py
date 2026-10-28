@@ -14,7 +14,7 @@
 """Tests for the committed scenario recordings and the recorder's parts (#3901).
 
 Running a scenario takes up to two minutes, so the drift test that does it
-lives in ``test/demo/test_recordings_drift.py``, in the integration suite.  The
+lives in ``test/demo_recordings/test_recordings_drift.py``, in the integration suite.  The
 checks here read only committed files.
 """
 
@@ -132,6 +132,32 @@ class TestLoadTopology:
         with pytest.raises(DemoRecordingError, match="VULTRON_NOWHERE"):
             topology.url_for(role)
 
+    def test_a_compose_file_without_services_is_refused(self, tmp_path):
+        compose = tmp_path / "compose.yml"
+        compose.write_text("version: '3'\n", encoding="utf-8")
+        with pytest.raises(DemoRecordingError, match="services"):
+            load_topology(compose)
+
+    def test_a_mapping_environment_is_read(self, tmp_path):
+        compose = tmp_path / "compose.yml"
+        compose.write_text(
+            "services:\n"
+            "  demo-runner:\n"
+            "    environment:\n"
+            "      VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL: http://ca/api/v2\n"
+            "      VULTRON_VENDOR_BASE_URL: http://vendor:7999/api/v2\n"
+            "  vendor:\n"
+            "    environment:\n"
+            "      VULTRON_ACTOR__DEFAULT_CASE_ROLES: '[\"vendor\"]'\n"
+            "  coordinator: {}\n",
+            encoding="utf-8",
+        )
+        topology = load_topology(compose)
+        assert topology.slot_urls == {
+            "VULTRON_VENDOR_BASE_URL": "http://vendor:7999/api/v2"
+        }
+        assert topology.case_roles == {"vendor": [CVDRole.VENDOR]}
+
     def test_a_compose_file_without_the_runner_is_refused(self, tmp_path):
         compose = tmp_path / "compose.yml"
         compose.write_text("services:\n  vendor: {}\n", encoding="utf-8")
@@ -189,6 +215,13 @@ class TestLayoutProblems:
         )
         assert recordings.REGENERATE_COMMAND in result.output
 
+    def test_the_check_option_takes_no_scenario(self):
+        result = CliRunner().invoke(
+            recordings.main, ["--check", "--scenario", "rv"]
+        )
+        assert result.exit_code == 2
+        assert "takes no --scenario" in result.output
+
     def test_the_check_option_passes_on_the_committed_recordings(self):
         result = CliRunner().invoke(recordings.main, ["--check"])
         assert result.exit_code == 0, result.output
@@ -213,6 +246,14 @@ class TestReadDump:
             encoding="utf-8",
         )
         with pytest.raises(DemoRecordingError, match=r"vendor.*404"):
+            recordings._read_dump(tmp_path, "rv")
+
+    def test_an_entry_without_a_reason_still_names_the_actor(self, tmp_path):
+        (tmp_path / "rv").mkdir()
+        (tmp_path / "rv" / "dump-manifest.json").write_text(
+            json.dumps({"actors": [{"actorName": "vendor"}]}), encoding="utf-8"
+        )
+        with pytest.raises(DemoRecordingError, match="no reason recorded"):
             recordings._read_dump(tmp_path, "rv")
 
     def test_captured_ledgers_are_returned_in_dump_order(self, tmp_path):

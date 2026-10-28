@@ -34,7 +34,7 @@ Each scenario runs in this process, through its own ``main()``:
   give byte-identical recordings.
 
 Output goes to ``ui/src/recordings/<scenario>/<actor>.jsonl``.  The drift test
-``test/demo/test_recordings_drift.py`` fails when a
+``test/demo_recordings/test_recordings_drift.py`` fails when a
 committed recording differs from a fresh run.
 
 Usage::
@@ -48,6 +48,7 @@ import asyncio
 import contextlib
 import importlib
 import json
+import logging
 import os
 import shutil
 import tempfile
@@ -132,10 +133,17 @@ class ContainerTopology:
         return list(self.case_roles.get(urlparse(actor_id).hostname or "", []))
 
 
-def _service_env(service: dict[str, Any]) -> dict[str, str]:
-    """Return a compose service's ``environment`` list as a mapping."""
+def _service_env(service: object) -> dict[str, str]:
+    """Return a compose service's ``environment`` as a mapping.
+
+    Compose accepts a ``KEY=value`` list or a mapping; a service with neither
+    has no environment.
+    """
+    raw = service.get("environment") if isinstance(service, dict) else None
+    if isinstance(raw, dict):
+        return {str(key): str(value) for key, value in raw.items()}
     env: dict[str, str] = {}
-    for item in service.get("environment", []):
+    for item in raw if isinstance(raw, list) else []:
         key, _, value = str(item).partition("=")
         env[key] = value
     return env
@@ -148,9 +156,12 @@ def load_topology(compose_path: Path = COMPOSE_PATH) -> ContainerTopology:
         DemoRecordingError: When the compose file lacks the demo runner, its
             CaseActor URL, or a well-formed case-roles setting.
     """
-    services = yaml.safe_load(compose_path.read_text(encoding="utf-8"))[
-        "services"
-    ]
+    compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+    services = compose.get("services") if isinstance(compose, dict) else None
+    if not isinstance(services, dict):
+        raise DemoRecordingError(
+            f"{compose_path.name} has no 'services' mapping."
+        )
     if _RUNNER_SERVICE not in services:
         raise DemoRecordingError(
             f"{compose_path.name} has no {_RUNNER_SERVICE!r} service."
@@ -307,10 +318,11 @@ def _read_dump(devlogs: Path, scenario: str) -> dict[str, str]:
     )
     ledgers: dict[str, str] = {}
     for actor in manifest["actors"]:
-        if not actor["captured"] or not actor["ledgerFile"]:
+        if not actor.get("captured") or not actor.get("ledgerFile"):
             raise DemoRecordingError(
-                f"scenario {scenario!r}: the ledger of {actor['actorName']!r} "
-                f"was not captured ({actor['reason']})."
+                f"scenario {scenario!r}: the ledger of "
+                f"{actor.get('actorName')!r} was not captured "
+                f"({actor.get('reason') or 'no reason recorded'})."
             )
         ledgers[actor["actorName"]] = (
             devlogs / scenario / actor["ledgerFile"]
@@ -449,35 +461,57 @@ def layout_problems(scenario_names: Sequence[str]) -> list[str]:
     help="Run nothing; fail when the set of recorded scenarios is not the "
     "registry's.",
 )
-def main(scenarios: tuple[str, ...], check: bool) -> None:
+@click.option(
+    "--log-level",
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
+    default="ERROR",
+    show_default=True,
+    help="Log level of the scenario runs. Below ERROR, the in-process "
+    "harness's known shared-store warnings are shown too.",
+)
+def main(scenarios: tuple[str, ...], check: bool, log_level: str) -> None:
     """Record every registered demo scenario into ui/src/recordings/."""
+    logging.basicConfig(level=log_level)
     specs = {spec.name: spec for spec in discover_scenarios()}
     if check:
-        problems = layout_problems(tuple(specs))
-        for problem in problems:
-            click.echo(f"ui/src/recordings/{problem}", err=True)
-        if problems:
-            click.echo(f"Regenerate with: {REGENERATE_COMMAND}", err=True)
-            raise SystemExit(1)
+        if scenarios:
+            raise click.UsageError(
+                "--check compares the whole recorded set with the registry; "
+                "it takes no --scenario."
+            )
+        _check_layout(tuple(specs))
         return
     unknown = sorted(set(scenarios) - set(specs))
     if unknown:
         raise click.BadParameter(
             f"not registered: {', '.join(unknown)}", param_hint="--scenario"
         )
-    selected = scenarios or tuple(specs)
     if not scenarios:
-        # A full run also drops recordings of scenarios no longer registered.
-        for stale in sorted(RECORDINGS_DIR.glob("*/")):
-            if stale.name not in specs:
-                shutil.rmtree(stale)
-                click.echo(f"Removed {stale.relative_to(REPO_ROOT)}")
+        _remove_unregistered(set(specs))
     topology = load_topology()
-    for name in selected:
+    for name in scenarios or tuple(specs):
         for path in write_recording(
             name, record_scenario(specs[name], topology)
         ):
             click.echo(f"Wrote {path.relative_to(REPO_ROOT)}")
+
+
+def _check_layout(scenario_names: Sequence[str]) -> None:
+    """Report each layout problem; exit 1 when there is one."""
+    problems = layout_problems(scenario_names)
+    for problem in problems:
+        click.echo(f"ui/src/recordings/{problem}", err=True)
+    if problems:
+        click.echo(f"Regenerate with: {REGENERATE_COMMAND}", err=True)
+        raise SystemExit(1)
+
+
+def _remove_unregistered(registered: set[str]) -> None:
+    """Drop the recordings of scenarios no longer registered (a full run)."""
+    for stale in sorted(RECORDINGS_DIR.glob("*/")):
+        if stale.name not in registered:
+            shutil.rmtree(stale)
+            click.echo(f"Removed {stale.relative_to(REPO_ROOT)}")
 
 
 if __name__ == "__main__":

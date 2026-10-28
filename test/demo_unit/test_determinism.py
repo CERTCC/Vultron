@@ -13,6 +13,8 @@
 
 """Tests for the seeded ids and stepping clock of a recording run (#3901)."""
 
+import importlib
+import sys
 import threading
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -135,6 +137,18 @@ class TestDeterministicRun:
         assert uuid.uuid4 is real_uuid4
         assert adapter_utils.uuid4 is real_uuid4
         assert _helpers.datetime is real_datetime
+
+    def test_a_module_imported_inside_the_block_is_restored(
+        self, tmp_path, monkeypatch
+    ):
+        (tmp_path / "late_uuid_user.py").write_text("from uuid import uuid4\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        monkeypatch.delitem(sys.modules, "late_uuid_user", raising=False)
+        real_uuid4 = uuid.uuid4
+        with deterministic_run("rv"):
+            late = importlib.import_module("late_uuid_user")
+            assert isinstance(late.uuid4, SeededUuid4)
+        assert late.uuid4 is real_uuid4
 
     def test_everything_is_restored_when_the_block_raises(self):
         real_uuid4 = uuid.uuid4
