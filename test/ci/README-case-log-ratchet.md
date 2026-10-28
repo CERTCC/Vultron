@@ -236,7 +236,9 @@ pass/fail to CI.
    harness file `test_<scenario>_invariants.py`, where `<scenario>` is the
    decorator's `name` with hyphens replaced by underscores — the registry
    derives the path and does not store it, so a mismatched filename fails
-   rather than being silently described (DEMOCI-11-003).
+   rather than being silently described (DEMOCI-11-003). The decorator's
+   `path` places the scenario on the scenario tree; discovery fails unless it
+   is a new ending (DEMOCI-11-014).
 
 6. Run `uv run demo-scenarios --write` to regenerate the three committed
    artifacts, and commit them. The `demo-scenarios-sync` pre-commit hook fails

@@ -726,6 +726,11 @@ def run_rcv_reject_demo(
     participants="Reporter + Coordinator + Vendor (Vendor rejects)",
     feature="Invite rejection path",
     in_pr_set=True,
+    path=(
+        ("reporter-whom-to-tell", "coordinator"),
+        ("coordinator-invite-whom", "vendor"),
+        ("vendor-join", "reject"),
+    ),
 )
 def main(
     skip_health_check: bool = False,

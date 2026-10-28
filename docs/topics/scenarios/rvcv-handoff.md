@@ -119,20 +119,28 @@ entries appear in the ledger.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 4. Vendor1 invites the Coordinator
+### 4. The Reporter asks and Vendor1 answers
+
+The Reporter asks a question in a case note, and Vendor1 answers it.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
+These steps are shared with the `rv` scenario, and Vendor1's choice of whom to invite comes after them.
+
+*Antecedent:* `engage_case` is in the ledger.
+
+### 5. Vendor1 invites the Coordinator
 
 Vendor1 sends the Coordinator an `invite_actor_to_case` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 5. Coordinator accepts the invitation
+### 6. Coordinator accepts the invitation
 
 The Coordinator joins the case.  An `accept_invite_actor_to_case` entry is
 recorded.
 
-*Antecedent:* `invite_actor_to_case` is in the ledger (step 4).
+*Antecedent:* `invite_actor_to_case` is in the ledger (step 5).
 
-### 6. Vendor1 offers case ownership to the Coordinator
+### 7. Vendor1 offers case ownership to the Coordinator
 
 Vendor1 decides that the Coordinator is better positioned to manage the case and initiates a case-ownership transfer.
 Vendor1 proposes the transfer to the **Case Actor**, not to the Coordinator (ADR-0053, ADR-0148).
@@ -141,7 +149,7 @@ The offer the Coordinator receives is the Case Actor's own, with an identity the
 
 *Antecedent:* Coordinator's `accept_invite_actor_to_case` entry is in the ledger.
 
-### 7. Coordinator accepts case ownership
+### 8. Coordinator accepts case ownership
 
 The Coordinator formally accepts the ownership transfer, addressing the acceptance to the Case Actor.
 The Case Actor commits an `accept_case_ownership_transfer` ledger entry and applies the role change: the `CASE_OWNER` role moves from Vendor1 to the Coordinator, and the case's `attributed_to` field is updated to the Coordinator.
@@ -150,39 +158,39 @@ That broadcast is how the Reporter, who is neither the old nor the new owner, le
 
 *Antecedent:* the Case Actor's ownership offer has reached the Coordinator.
 
-### 8. Coordinator invites Vendor2
+### 9. Coordinator invites Vendor2
 
 The Coordinator, now the case owner, identifies Vendor2 as affected and sends
 a second `invite_actor_to_case` entry.
 
 *Antecedent:* `accept_case_ownership_transfer` is in the ledger (the Coordinator must own the case before inviting others as its owner).
 
-### 9. Vendor2 accepts the invitation
+### 10. Vendor2 accepts the invitation
 
 Vendor2 reviews and accepts.  An `accept_invite_actor_to_case` entry is recorded.
 
 *Antecedent:* The Coordinator's `invite_actor_to_case` entry is in the ledger.
 
-### 10. Participants exchange notes
+### 11. The Coordinator and Vendor2 add notes
 
-All participants communicate through case notes.
-{% include-markdown "./_case_notes.md" trailing-newlines=false %}
+The Coordinator and Vendor2, now participants, reply in the same thread.
+Each note is recorded as one more `add_note_to_case` entry.
 
-*Antecedent:* `engage_case` is in the ledger.
+*Antecedent:* Vendor2's `accept_invite_actor_to_case` entry is in the ledger.
 
-### 11. Both vendors reach fix-ready
+### 12. Both vendors reach fix-ready
 
 Vendor1 and Vendor2 each advance to VFd (fix-ready) status.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 12. Participants publish; embargo terminates
+### 13. Participants publish; embargo terminates
 
 All participants publish.  The embargo exits ACTIVE.
 
 *Antecedent:* At least one vendor has reached fix-ready.
 
-### 13. All participants close the case
+### 14. All participants close the case
 
 `close_case` entries appear for each participant.
 Vendor1, Vendor2, and the Reporter leave first; the Coordinator, the Case Owner since the handoff, leaves last.

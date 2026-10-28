@@ -138,6 +138,7 @@ class TestReporterCaseReplicaWaitBeforeV1Triage(_Helpers):
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
+            patch.object(demo, "_phase_notes_exchange"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -397,6 +398,7 @@ class TestReporterCaseReplicaGenesisWaitInReportSubmission(_Helpers):
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
+            patch.object(demo, "_phase_notes_exchange"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -752,6 +754,7 @@ class TestRcvcvRmTriageTimeout(_Helpers):
                 "find_case_invite_for_actor",
                 return_value="urn:test:invite",
             ),
+            patch.object(demo, "_phase_notes_exchange"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo,
@@ -927,6 +930,7 @@ class TestRcvcvPhase1DrainViaSharedHelper(_Helpers):
                 "verify_object_stored",
                 "wait_for_case_on_container",
                 "run_invite_path_rm_triage",
+                "_phase_notes_exchange",
             )
         }
         demo_patches["find_case_invite_for_actor"] = {
@@ -1021,6 +1025,68 @@ class TestRcvcvPhase1DrainViaSharedHelper(_Helpers):
         assert "holds no CaseLedgerEntry" in failure
         for label in ("Reporter", "V1", "C2"):
             assert label not in failure, failure
+
+
+class TestNotesExchangePrecedesC2Invite(_Helpers):
+    """#4759: C1 invites C2 only after the notes exchange it shares with rcv.
+
+    On the scenario tree, inviting a second Coordinator is C1's choice after
+    the Reporter asks and the Vendor answers, so the exchange runs between
+    V1's invite chain and C2's, and V1's note is handed back for C2's reply.
+    """
+
+    def test_order_within_report_submission(self) -> None:
+        order: list[str] = []
+        v1_note = MagicMock()
+
+        def _chain(**kwargs):
+            order.append(f"invite {kwargs['invitee_name']}")
+
+        def _notes(**_kwargs):
+            order.append("notes")
+            return v1_note
+
+        with patched_report_submission(
+            demo,
+            seed_fn="seed_containers_rcvcv",
+            seeded_actors=(
+                self._actor("urn:test:reporter"),
+                self._actor("urn:test:c1"),
+                self._actor("urn:test:v1"),
+                self._actor("urn:test:c2"),
+                MagicMock(),
+            ),
+            actor_lookups=[
+                self._actor("urn:test:c1"),
+                self._actor("urn:test:v1"),
+                self._actor("urn:test:c2"),
+            ],
+            case=self._case("urn:test:case"),
+            demo_patches={
+                "wait_for_case_participants": {},
+                "wait_for_case_on_container": {},
+                "wait_for_replica_ledger_coverage": {},
+                "verify_case_active": {},
+                "run_case_invite_chain": {"side_effect": _chain},
+                "_phase_notes_exchange": {"side_effect": _notes},
+            },
+        ):
+            result = demo._phase_report_submission(
+                reporter_client=self._client(),
+                c1_client=self._client(),
+                v1_client=self._client(),
+                c2_client=self._client(),
+                v2_client=self._client(),
+                case_actor_client=self._client(),
+                reporter_id=None,
+                c1_id=None,
+                v1_id=None,
+                c2_id=None,
+                v2_id=None,
+            )
+
+        assert order == ["invite V1", "notes", "invite C2"], order
+        assert result[-1] is v1_note
 
 
 # ---------------------------------------------------------------------------

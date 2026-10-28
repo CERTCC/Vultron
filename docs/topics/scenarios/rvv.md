@@ -95,42 +95,50 @@ Each record seated at case creation is ledgered as a `create_case_participant` e
 
 *Antecedent:* `engage_case` is present in the ledger.
 
-### 4. Vendor1 invites Vendor2
+### 4. The Reporter asks and Vendor1 answers
+
+The Reporter asks a question in a case note, and Vendor1 answers it.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
+These steps are shared with the `rv` scenario, and Vendor1's choice of whom to invite comes after them.
+
+*Antecedent:* `engage_case` is in the ledger.
+
+### 5. Vendor1 invites Vendor2
 
 After confirming that Vendor2 is affected, Vendor1 sends Vendor2 an invitation
 to join the case.  This is recorded as an `invite_actor_to_case` entry.
 
 *Antecedent:* `engage_case` is present in the ledger.
 
-### 5. Vendor2 accepts the invitation
+### 6. Vendor2 accepts the invitation
 
 Vendor2 receives and reviews the invitation and decides to participate.  The
 acceptance is recorded as an `accept_invite_actor_to_case` entry.
 
-*Antecedent:* `invite_actor_to_case` is present in the ledger (step 4).
+*Antecedent:* `invite_actor_to_case` is present in the ledger (step 5).
 
-### 6. Participants exchange notes
+### 7. Vendor2 adds a note
 
-Reporter, Vendor1, and Vendor2 communicate via case notes.
-{% include-markdown "./_case_notes.md" trailing-newlines=false %}
+Vendor2, now a participant, replies in the same thread with its own status.
+Its note is recorded as one more `add_note_to_case` entry.
 
-*Antecedent:* `engage_case` is present in the ledger.
+*Antecedent:* Vendor2's `accept_invite_actor_to_case` entry is in the ledger.
 
-### 7. Both vendors develop and ship fixes
+### 8. Both vendors develop and ship fixes
 
 Vendor1 and Vendor2 each advance through the fix lifecycle independently.  Both
 reach fix-ready (VFd) state; participant status updates reflect progress.
 
 *Antecedent:* `engage_case` is present in the ledger.
 
-### 8. Vendors and Reporter publish; embargo terminates
+### 9. Vendors and Reporter publish; embargo terminates
 
 All three participants publish.  The embargo exits ACTIVE.  The CS PXA state
 advances towards publicly-known for each participant.
 
 *Antecedent:* Both vendors have reached fix-ready status.
 
-### 9. All participants close the case
+### 10. All participants close the case
 
 Vendor1, Vendor2, and Reporter each close the case.
 `close_case` entries appear for each.

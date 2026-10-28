@@ -609,6 +609,13 @@ def run_rcv_demo(
     participants="Reporter + Coordinator + Vendor",
     feature="Coordinator-mediated report and vendor onboarding",
     in_pr_set=False,
+    path=(
+        ("reporter-whom-to-tell", "coordinator"),
+        ("coordinator-invite-whom", "vendor"),
+        ("vendor-join", "accept"),
+        ("reporter-after-join", "ask-vendor"),
+        ("coordinator-after-answer", "publish"),
+    ),
 )
 def main(
     skip_health_check: bool = False,

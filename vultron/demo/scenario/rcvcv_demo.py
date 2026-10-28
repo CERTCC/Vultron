@@ -274,8 +274,14 @@ def _phase_report_submission(
     as_VulnerabilityReport,
     as_Offer,
     as_VulnerabilityCase,
+    as_Note | None,
 ]:
-    """Reset, seed, submit report, validate, engage, invite V1 and C2."""
+    """Reset, seed, submit, validate, engage, invite V1, exchange notes, invite C2.
+
+    Returns:
+        The cast, the report and offer, the refreshed case, and V1's note
+        (``None`` when the exchange failed), which C2's note answers later.
+    """
     logger.info("─" * 80)
     logger.info("Phase 1: Report submission and case activation")
     logger.info("─" * 80)
@@ -290,6 +296,7 @@ def _phase_report_submission(
     )
 
     reporter = c1 = v1 = c2 = v2 = None
+    v1_note: as_Note | None = None
     with demo_step("Seeding all five containers with actor records"):
         reporter, c1, v1, c2, v2 = seed_containers_rcvcv(
             reporter_client=reporter_client,
@@ -384,6 +391,20 @@ def _phase_report_submission(
             then=_v1_rm_triage,
         )
 
+        # The Reporter asks, C1 answers and V1 adds its status before C1
+        # decides to invite a second Coordinator: on the scenario tree that
+        # invite is C1's choice after the notes exchange it shares with rcv
+        # (notes/demo-scenario-tree.md).
+        v1_note = _phase_notes_exchange(
+            reporter_client=reporter_client,
+            c1_client=c1_client,
+            v1_client=v1_client,
+            reporter=reporter,
+            c1_in_c1=c1_in_c1,
+            v1_in_v1=v1_in_v1,
+            case=case,
+        )
+
         # C1 invites C2 with CVDRole.COORDINATOR.  Same nesting as V1 above.
         def _check_c2_joined() -> None:
             # 5 participants: Reporter + C1 + V1 + C2 + CaseActor
@@ -461,6 +482,7 @@ def _phase_report_submission(
         report,
         offer,
         case,
+        v1_note,
     )
 
 
@@ -635,26 +657,25 @@ def _phase_notes_exchange(
     reporter_client: DataLayerClient,
     c1_client: DataLayerClient,
     v1_client: DataLayerClient,
-    c2_client: DataLayerClient,
-    v2_client: DataLayerClient,
-    reporter_in_reporter: as_Actor,
+    reporter: as_Actor,
     c1_in_c1: as_Actor,
     v1_in_v1: as_Actor,
-    c2_in_c2: as_Actor,
-    v2_in_v2: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[
-    as_Note | None,
-    as_Note | None,
-    as_Note | None,
-    as_Note | None,
-    as_Note | None,
-]:
-    """Run a five-way note exchange among all participants."""
+) -> as_Note | None:
+    """The Reporter asks a question, C1 answers and V1 adds its status.
+
+    Runs before C1 invites C2, so C1's branch point (invite a second
+    Coordinator) follows it on the scenario tree.
+
+    Returns:
+        V1's note, or ``None`` when the exchange failed (the failure is
+        recorded by the note helper); the joiners' notes answer it.
+    """
     logger.info("─" * 80)
-    logger.info("Phase 4: Notes exchange")
+    logger.info("Notes exchange: Reporter asks, C1 and V1 answer")
     logger.info("─" * 80)
 
+    reporter_in_reporter = get_actor_by_id(reporter_client, reporter.id_)
     question_note = participant_adds_note_to_case(
         posting_client=reporter_client,
         watching_client=c1_client,
@@ -678,7 +699,7 @@ def _phase_notes_exchange(
         in_reply_to=question_note.id_ if question_note is not None else None,
     )
 
-    v1_note = participant_adds_note_to_case(
+    return participant_adds_note_to_case(
         posting_client=v1_client,
         watching_client=c1_client,
         poster=v1_in_v1,
@@ -689,6 +710,21 @@ def _phase_notes_exchange(
         ),
         in_reply_to=c1_reply.id_ if c1_reply is not None else None,
     )
+
+
+def _phase_joiner_notes(
+    c1_client: DataLayerClient,
+    c2_client: DataLayerClient,
+    v2_client: DataLayerClient,
+    c2_in_c2: as_Actor,
+    v2_in_v2: as_Actor,
+    case: as_VulnerabilityCase,
+    v1_note: as_Note | None,
+) -> tuple[as_Note | None, as_Note | None]:
+    """C2 and V2, once joined, add to the notes thread."""
+    logger.info("─" * 80)
+    logger.info("Phase 4: C2 and V2 notes")
+    logger.info("─" * 80)
 
     c2_note = participant_adds_note_to_case(
         posting_client=c2_client,
@@ -718,7 +754,7 @@ def _phase_notes_exchange(
     logger.info(
         "✓ Notes exchange complete (five notes committed to case ledger)"
     )
-    return question_note, c1_reply, v1_note, c2_note, v2_note
+    return c2_note, v2_note
 
 
 def _phase_fix_lifecycle(
@@ -1116,6 +1152,7 @@ def run_rcvcv_demo(
             report,
             offer,
             case,
+            v1_note,
         ) = _phase_report_submission(
             reporter_client,
             c1_client,
@@ -1177,18 +1214,14 @@ def run_rcvcv_demo(
             c2_in_c2,
             v2,
         )
-        _phase_notes_exchange(
-            reporter_client=reporter_client,
+        _phase_joiner_notes(
             c1_client=c1_client,
-            v1_client=v1_client,
             c2_client=c2_client,
             v2_client=v2_client,
-            reporter_in_reporter=reporter_in_reporter,
-            c1_in_c1=c1_in_c1,
-            v1_in_v1=v1_in_v1,
             c2_in_c2=c2_in_c2,
             v2_in_v2=v2_in_v2,
             case=case,
+            v1_note=v1_note,
         )
         _phase_fix_lifecycle(
             c1_client,
@@ -1248,6 +1281,13 @@ def run_rcvcv_demo(
     participants="Reporter + C1 + V1 + C2 + V2",
     feature="Actor-suggestion flow (ADR-0026)",
     in_pr_set=True,
+    path=(
+        ("reporter-whom-to-tell", "coordinator"),
+        ("coordinator-invite-whom", "vendor"),
+        ("vendor-join", "accept"),
+        ("reporter-after-join", "ask-vendor"),
+        ("coordinator-after-answer", "invite-coordinator"),
+    ),
 )
 def main(
     skip_health_check: bool = False,

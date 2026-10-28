@@ -1040,6 +1040,11 @@ def run_rccv_extension_demo(
     participants="Reporter + C1 + C2 + Vendor",
     feature="Second coordinator suggests vendor",
     in_pr_set=False,
+    path=(
+        ("reporter-whom-to-tell", "coordinator"),
+        ("coordinator-invite-whom", "coordinator"),
+        ("owner-keep-case", "keep"),
+    ),
 )
 def main(
     skip_health_check: bool = False,

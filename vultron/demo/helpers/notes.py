@@ -106,11 +106,13 @@ def reporter_asks_vendor_answers(
     watching_client: DataLayerClient,
     case: as_VulnerabilityCase,
 ) -> None:
-    """The Reporter asks about the embargo and the Vendor answers.
+    """The Reporter asks about the proposed embargo and the Vendor answers.
 
     The shared note exchange of the embargo scenarios; it puts
-    ``add_note_to_case`` in the case ledger (DEMOMA-16-001).  Failures are
-    recorded by :func:`participant_adds_note_to_case`.
+    ``add_note_to_case`` in the case ledger (DEMOMA-16-001).  It runs after
+    the Reporter proposes new embargo terms, so the Vendor's next decision on
+    the scenario tree follows it (``notes/demo-scenario-tree.md``).  Failures
+    are recorded by :func:`participant_adds_note_to_case`.
 
     Args:
         reporter: Session in the Reporter's container; posts the question.
@@ -125,7 +127,7 @@ def reporter_asks_vendor_answers(
         poster=reporter.actor,
         case=case,
         note_name="Question from Reporter",
-        note_content="Could the embargo be shorter than the default?",
+        note_content="Does the proposed embargo leave enough time for a fix?",
     )
     participant_adds_note_to_case(
         posting_client=vendor.client,
@@ -133,6 +135,6 @@ def reporter_asks_vendor_answers(
         poster=vendor.actor,
         case=case,
         note_name="Vendor Status Update",
-        note_content="A fix is in progress; a shorter embargo is workable.",
+        note_content="A fix is in progress; we will confirm the timeline.",
         in_reply_to=question.id_ if question is not None else None,
     )

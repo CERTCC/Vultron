@@ -267,12 +267,13 @@ These describe unbuilt work. Each one ends when the issues it tracks close.
   Writing a demo without faking the protocol: puppeteer via triggers, shared helpers.
   **Load when**: writing or reviewing a demo scenario or scenario helper.
 - **`demo-scenario-registry.md`** · `guidance`
-  The self-registering scenario registry, derived paths, generate-versus-check.
-  **Load when**: adding a scenario or editing a scenario table or its generator.
+  The self-registering scenario registry, derived paths, the branch-point table
+  and path declarations, generate-versus-check.
+  **Load when**: adding a scenario, declaring its path, or editing a scenario table
+  or its generator.
 - **`demo-scenario-tree.md`** · `plan`
-  The scenario tree made explicit: path declarations, names, tree index, prefix check.
-  **Load when**: declaring a scenario's path, renaming a scenario, or building the
-  tree index.
+  The rest of the scenario tree: names, tree index, prefix check, test starting points.
+  **Load when**: renaming a scenario, building the tree index, or the prefix check.
 - **`demo-ci-invariants.md`** · `guidance`
   The demo CI case-ledger invariant harness and its expected semantic types.
   **Load when**: changing the demo CI workflow or a scenario's expected events.

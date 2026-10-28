@@ -116,66 +116,74 @@ entries appear in the ledger.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 4. Vendor1 invites the Coordinator
+### 4. The Reporter asks and Vendor1 answers
+
+The Reporter asks a question in a case note, and Vendor1 answers it.
+{% include-markdown "./_case_notes.md" trailing-newlines=false %}
+These steps are shared with the `rv` scenario, and Vendor1's choice of whom to invite comes after them.
+
+*Antecedent:* `engage_case` is in the ledger.
+
+### 5. Vendor1 invites the Coordinator
 
 Vendor1 sends the Coordinator an `invite_actor_to_case` entry.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 5. Coordinator accepts the invitation
+### 6. Coordinator accepts the invitation
 
 The Coordinator joins the case.  An `accept_invite_actor_to_case` entry is
 recorded.
 
-*Antecedent:* `invite_actor_to_case` is in the ledger (step 4).
+*Antecedent:* `invite_actor_to_case` is in the ledger (step 5).
 
-### 6. Coordinator suggests Vendor2
+### 7. Coordinator suggests Vendor2
 
 The Coordinator recognizes that Vendor2 is affected and submits an
 `offer_case_participant` entry proposing Vendor2 for membership (ADR-0026).
 
 *Antecedent:* Coordinator's `accept_invite_actor_to_case` entry is in the ledger.
 
-### 7. Vendor1 approves the recommendation
+### 8. Vendor1 approves the recommendation
 
 Vendor1, as case owner, reviews and approves the suggestion.  An
 `accept_actor_recommendation` entry is recorded.
 
 *Antecedent:* `offer_case_participant` is in the ledger.
 
-### 8. Case Actor invites Vendor2
+### 9. Case Actor invites Vendor2
 
 The Case Actor, acting on Vendor1's approval, sends Vendor2 an
 `invite_actor_to_case` entry.
 
 *Antecedent:* `accept_actor_recommendation` is in the ledger.
 
-### 9. Vendor2 accepts the invitation
+### 10. Vendor2 accepts the invitation
 
 Vendor2 reviews and accepts.  An `accept_invite_actor_to_case` entry is recorded.
 
 *Antecedent:* The Case Actor's `invite_actor_to_case` entry is in the ledger.
 
-### 10. Participants exchange notes
+### 11. The Coordinator and Vendor2 add notes
 
-All participants communicate through case notes.
-{% include-markdown "./_case_notes.md" trailing-newlines=false %}
+The Coordinator and Vendor2, now participants, reply in the same thread.
+Each note is recorded as one more `add_note_to_case` entry.
 
-*Antecedent:* `engage_case` is in the ledger.
+*Antecedent:* Vendor2's `accept_invite_actor_to_case` entry is in the ledger.
 
-### 11. Both vendors reach fix-ready
+### 12. Both vendors reach fix-ready
 
 Vendor1 and Vendor2 each advance to VFd (fix-ready) status.
 
 *Antecedent:* `engage_case` is in the ledger.
 
-### 12. Participants publish; embargo terminates
+### 13. Participants publish; embargo terminates
 
 All participants publish.  The embargo exits ACTIVE.
 
 *Antecedent:* At least one vendor has reached fix-ready.
 
-### 13. All participants close the case
+### 14. All participants close the case
 
 `close_case` entries appear for each participant.
 Vendor2, the Coordinator, and the Reporter leave first; Vendor1, the Case Owner, leaves last.

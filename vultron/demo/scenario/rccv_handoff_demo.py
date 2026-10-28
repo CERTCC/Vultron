@@ -1155,6 +1155,11 @@ def run_rccv_handoff_demo(
     participants="Reporter + C1 → C2 + Vendor",
     feature="Ownership transfer between two coordinators",
     in_pr_set=False,
+    path=(
+        ("reporter-whom-to-tell", "coordinator"),
+        ("coordinator-invite-whom", "coordinator"),
+        ("owner-keep-case", "offer-ownership"),
+    ),
 )
 def main(
     skip_health_check: bool = False,

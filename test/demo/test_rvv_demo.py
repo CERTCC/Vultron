@@ -706,6 +706,7 @@ class TestRvvMilestoneAssertions:
             patch_chain_shared(demo, "wait_for_case_on_container"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(demo, "run_invite_path_rm_triage"),
+            patch.object(demo, "_phase_notes_exchange"),
             patch.object(demo, "verify_case_active") as mock_m1,
             patch.object(
                 demo,
@@ -962,6 +963,13 @@ class TestReporterCaseReplicaWaitBeforeVendor2Triage:
         def _triage(**_kw):
             call_order.append("triage")
 
+        def _notes(**_kw):
+            call_order.append("notes")
+
+        def _invite(*_a, **_kw):
+            call_order.append("invite")
+            return SimpleNamespace(activity=invite)
+
         with (
             patch.object(demo, "reset_containers"),
             patch.object(
@@ -983,7 +991,7 @@ class TestReporterCaseReplicaWaitBeforeVendor2Triage:
             patch.object(
                 ActorSession,
                 "invite_actor_to_case",
-                return_value=SimpleNamespace(activity=invite),
+                side_effect=_invite,
             ),
             patch.object(ActorSession, "accept_case_invite"),
             patch.object(invite_chain, "find_case_invite_for_actor"),
@@ -992,6 +1000,7 @@ class TestReporterCaseReplicaWaitBeforeVendor2Triage:
                 "wait_for_case_on_container",
                 side_effect=_wait_for_case,
             ),
+            patch.object(demo, "_phase_notes_exchange", side_effect=_notes),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
             patch.object(
                 demo, "run_invite_path_rm_triage", side_effect=_triage
@@ -1030,6 +1039,13 @@ class TestReporterCaseReplicaWaitBeforeVendor2Triage:
         assert reporter_idx < triage_idx, (
             "Reporter replica wait must precede run_invite_path_rm_triage; "
             f"got order: {call_order}"
+        )
+        # #4759: the Reporter asks and Vendor1 answers before Vendor1 invites
+        # Vendor2, so the invite is Vendor1's choice at its branch point.
+        assert call_order.count("notes") == 1, call_order
+        assert call_order.index("notes") < call_order.index("invite"), (
+            "the Reporter/Vendor1 notes exchange must precede the Vendor2 "
+            f"invite; got order: {call_order}"
         )
 
 
@@ -1436,6 +1452,7 @@ class TestRvvDedicatedCaseActorRouting:
             patch.object(demo, "wait_for_case_on_container"),
             patch.object(demo, "run_case_invite_chain") as chain_mock,
             patch.object(demo, "run_invite_path_rm_triage") as triage_mock,
+            patch.object(demo, "_phase_notes_exchange"),
             patch.object(demo, "verify_case_active"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
         ):

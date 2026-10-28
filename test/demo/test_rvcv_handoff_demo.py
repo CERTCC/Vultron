@@ -371,6 +371,7 @@ class TestRvcvHandoffMilestoneAssertions:
             patch.object(demo, "_phase_coordinator_invites_vendor2"),
             patch.object(demo, "_phase_sync_verification"),
             patch.object(demo, "_phase_notes_exchange"),
+            patch.object(demo, "_phase_joiner_notes"),
             patch.object(demo, "_phase_fix_lifecycle"),
             patch.object(demo, "_phase_publication"),
             patch.object(demo, "_phase_case_closure"),
@@ -394,6 +395,90 @@ class TestRvcvHandoffMilestoneAssertions:
                 vendor2_client=vendor2_client,
             )
         mock_m1.assert_called()
+
+    def test_notes_exchange_precedes_the_coordinator_invite(self):
+        """#4759: the Reporter asks and Vendor1 answers before the invite.
+
+        Vendor1's choice to invite a Coordinator is its branch point on the
+        scenario tree, so the shared rv steps (the question and the answer)
+        run before ``_phase_ownership_handoff`` sends the invite, and the
+        joiners' notes run after they join.
+        """
+        import contextlib
+
+        order = MagicMock()
+        case = self._case()
+        reply = MagicMock()
+        order._phase_notes_exchange.return_value = reply
+        order._phase_ownership_handoff.return_value = case
+
+        with (
+            patch.object(
+                demo,
+                "_phase_report_submission",
+                return_value=(
+                    self._actor("f"),
+                    self._actor("v"),
+                    self._actor("v_v"),
+                    self._actor("c"),
+                    self._actor("c_c"),
+                    self._actor("v2"),
+                    MagicMock(),
+                    MagicMock(),
+                    case,
+                ),
+            ),
+            patch.object(
+                demo,
+                "find_case_actor_participant_id",
+                return_value="urn:test:case-actor",
+            ),
+            patch.object(
+                demo,
+                "_phase_ownership_handoff",
+                order._phase_ownership_handoff,
+            ),
+            patch.object(
+                demo,
+                "_phase_coordinator_invites_vendor2",
+                order._phase_coordinator_invites_vendor2,
+            ),
+            patch.object(demo, "_phase_sync_verification"),
+            patch.object(
+                demo, "_phase_notes_exchange", order._phase_notes_exchange
+            ),
+            patch.object(
+                demo, "_phase_joiner_notes", order._phase_joiner_notes
+            ),
+            patch.object(demo, "_phase_fix_lifecycle"),
+            patch.object(demo, "_phase_publication"),
+            patch.object(demo, "_phase_case_closure"),
+            patch.object(demo, "_phase_dump_case_ledgers"),
+            patch.object(demo, "get_actor_by_id", return_value=self._actor()),
+            patch.object(demo, "verify_case_active"),
+            patch.object(
+                demo,
+                "demo_check",
+                side_effect=lambda _: contextlib.nullcontext(),
+            ),
+        ):
+            demo.run_rvcv_handoff_demo(
+                reporter_client=self._client(),
+                vendor_client=self._client(),
+                coordinator_client=self._client(),
+                case_actor_client=self._client(),
+                vendor2_client=self._client(),
+            )
+
+        called = [name for name, _args, _kwargs in order.mock_calls]
+        assert called == [
+            "_phase_notes_exchange",
+            "_phase_ownership_handoff",
+            "_phase_coordinator_invites_vendor2",
+            "_phase_joiner_notes",
+        ], called
+        # Vendor1's reply is the note the joiners answer.
+        assert order._phase_joiner_notes.call_args.args[-1] is reply
 
     def test_phase_fix_lifecycle_calls_verify_fix_ready(self):
         """_phase_fix_lifecycle calls verify_fix_ready at M4/M5."""

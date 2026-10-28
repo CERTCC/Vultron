@@ -1415,3 +1415,79 @@ class TestRvcvExtensionPhase1DrainViaSharedHelper:
             "case_id",
             "phase_label",
         }
+
+
+class TestNotesExchangePrecedesCoordinatorInvite:
+    """#4759: the Reporter asks and Vendor1 answers before Vendor1's invite.
+
+    Vendor1's choice to invite a Coordinator is its branch point on the
+    scenario tree, so the shared rv steps run before the invite chain, gated
+    on the Reporter's replica holding the case, and the reply note is handed
+    back for the joiners' notes.
+    """
+
+    def test_order_within_report_submission(self) -> None:
+        reporter = MagicMock(id_="urn:test:reporter")
+        vendor = MagicMock(id_="urn:test:vendor")
+        coordinator = MagicMock(id_="urn:test:coordinator")
+        vendor2 = MagicMock(id_="urn:test:vendor2")
+        case = MagicMock(id_="urn:test:case")
+        reporter_client = MagicMock()
+        reply = MagicMock()
+        order = MagicMock()
+        order._phase_notes_exchange.return_value = reply
+
+        with (
+            patch.object(demo, "reset_containers"),
+            patch.object(
+                demo,
+                "seed_containers_rvcv",
+                return_value=(reporter, vendor, coordinator, vendor2),
+            ),
+            patch.object(demo, "get_actor_by_id", side_effect=lambda _c, i: i),
+            patch.object(
+                demo,
+                "reporter_submits_report",
+                return_value=(MagicMock(), MagicMock()),
+            ),
+            patch.object(demo, "run_direct_path_rm_triage", return_value=case),
+            patch.object(demo, "wait_for_case_participants"),
+            patch.object(
+                demo,
+                "wait_for_case_on_container",
+                order.wait_for_case_on_container,
+            ),
+            patch.object(
+                demo, "_phase_notes_exchange", order._phase_notes_exchange
+            ),
+            patch.object(
+                demo, "run_case_invite_chain", order.run_case_invite_chain
+            ),
+            patch.object(demo, "verify_case_active"),
+            patch.object(demo, "wait_for_replica_ledger_coverage"),
+            patch.object(demo, "as_VulnerabilityCase") as mock_vc,
+        ):
+            mock_vc.model_validate.return_value = case
+            result = demo._phase_report_submission(
+                reporter_client=reporter_client,
+                vendor_client=MagicMock(),
+                coordinator_client=MagicMock(),
+                vendor2_client=MagicMock(),
+                case_actor_client=MagicMock(),
+                reporter_id=None,
+                vendor_id=None,
+                coordinator_id=None,
+                vendor2_id=None,
+            )
+
+        called = [name for name, _args, _kwargs in order.mock_calls]
+        assert called == [
+            "wait_for_case_on_container",
+            "_phase_notes_exchange",
+            "run_case_invite_chain",
+        ], called
+        assert (
+            order.wait_for_case_on_container.call_args.kwargs["client"]
+            is reporter_client
+        )
+        assert result[-1] is reply
