@@ -4606,10 +4606,10 @@ groups:
       own CI matrix job and CI failures are independently reported per
       DEMOCI-03-003.
     rationale: >-
-      A scenario that is not registered does not run in CI, so it can break without
-      notice. Registration in the same pull request as the script makes sure that the
-      scenario is never in the repository without CI coverage. Its own CI job keeps
-      its failures separate from those of other scenarios.
+      A scenario that is not registered has no entry in the CI matrix, so it can break
+      without notice. Registration in the same pull request as the script gives the
+      scenario a matrix entry from the time that it is in the repository. Its own CI job
+      keeps its failures separate from those of other scenarios (DEMOCI-03-003).
     relationships:
     - rel_type: refines
       spec_id: DEMOCI-03-002
