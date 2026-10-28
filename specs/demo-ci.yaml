@@ -249,14 +249,15 @@ groups:
           to docs or specs. The push filter and the pull_request filter must be the
           same, so that main checks every change that the pull request checked.
           `vultron/metadata/**` contains only tooling, which the actor services and the
-          demo runner never import. `vultron/bt/**` is the legacy simulation layer,
-          which the demo layer must not import
-          (`test/architecture/test_demo_no_bt_imports.py`). The workflow file and the
-          shared build action are in the filter, so a change to either one runs the
-          workflow. The CI matrix comes from `.github/demo-scenarios.json`
-          (DEMOCI-06-004). That file is generated from the scenario registry in the
-          same commit as each registry change (DEMOCI-11-004, DEMOCI-11-005), so the
-          filter on the file finds every scenario change.
+          demo runner never import. `vultron/bt/**` is the legacy simulator. Only the
+          `vultrabot` group in `vultron/demo/cli.py` imports it
+          (`test/architecture/test_demo_no_bt_imports.py`), and no CI scenario runs that
+          group. The workflow file and the shared build action are in the filter, so a
+          change to either one runs the workflow. The CI matrix comes from
+          `.github/demo-scenarios.json` (DEMOCI-06-004). Scenario code is already under
+          `vultron/**`. The file is generated from the scenario registry (DEMOCI-11-004,
+          DEMOCI-11-005), so a change to which scenarios run also changes the file, and
+          the filter on it runs the workflow.
 
       - id: DEMOCI-02-004
         priority: MUST
@@ -309,7 +310,7 @@ groups:
           when only the source code changed. GitHub gives the cache tokens
           (`ACTIONS_RUNTIME_TOKEN`, `ACTIONS_CACHE_URL`) only to `uses:` steps, not to
           `run:` steps in a composite action. Thus a cache export must run in a `uses:`
-          step. A `run:` step in a composite action cannot export to the GitHub cache.
+          step.
 
       - id: DEMOCI-02-008
         priority: MUST
@@ -480,13 +481,15 @@ groups:
         kind: project
         verification_debt: '#2573'
         statement: >-
-          When a new demo scenario is added to the codebase, the demo CI
-          workflow MUST be updated in the same PR to include that scenario
-          in the demo-integration.yml trigger.
+          When a new demo scenario is added to the codebase, it MUST be registered in
+          the scenario registry in the same PR. The generated
+          `.github/demo-scenarios.json` then includes it in the demo-integration.yml
+          matrix (DEMOCI-11-001, DEMOCI-11-004).
         rationale: >-
           A scenario that CI does not run can stop working, and nobody sees it until a
-          person runs the demo. When the CI change is in the same pull request as the
-          scenario, no scenario merges without CI coverage.
+          person runs the demo. The CI matrix is generated from the registry, so
+          registration in the same pull request as the scenario gives the scenario a
+          matrix entry when it merges.
 
       - id: DEMOCI-03-003
         priority: SHOULD
@@ -642,7 +645,7 @@ groups:
           artifact exists. If the invariant job runs, `actions/download-artifact` fails,
           and each Dependabot pull request shows a failed check that has no relation to
           its change. The requirement is this result, not a specific expression. The
-          `scenarios` job applies the exclusion one time (DEMOCI-06-004), and the
+          `scenarios` job applies the exclusion one time (DEMOCI-02-004), and the
           invariant job inherits it through `needs.scenarios.result`. When the check is
           in one place, no copy of it can become different. `always()` alone is not
           sufficient, because it runs the job when an upstream job was skipped
@@ -677,21 +680,20 @@ groups:
           `always() && needs.scenarios.result == 'success' &&
           needs.demo.result != 'cancelled'`.
         rationale: >-
-          `always()` with the check on the `scenarios` result lets the invariant job
-          run after a demo failure, but not when the `scenarios` job was skipped. The
-          check on the demo result is for a different case. The concurrency group
+          `always()` with the check on the `scenarios` result lets the invariant job run
+          after a demo failure, but not when the `scenarios` job was skipped. The check
+          on the demo result is for a different case. The concurrency group
           (DEMOCI-02-013) can cancel a push-to-main run before the demo job uploads its
           case-log artifact. Then `download-artifact` (DEMOCI-04-003) fails with
-          "Artifact not found", and the cancellation becomes a job failure. The
-          `notify` step (CISEC-05-001) then files a `ci:main-failure` issue for a
-          failure that did not occur. When the invariant job is skipped after a
-          cancellation, the run has no `failure` result, and `notify` leaves the result
-          to the newer run. The pass path and the true failure path (DEMOCI-04-002) do
-          not change. Sometimes one demo leg fails and a newer push then cancels the
-          other legs. GitHub does not document whether the combined `needs.demo.result`
-          is then `failure` or `cancelled`. If it is `failure`, the invariant job runs
-          and `notify` files an issue, which is correct, because a real failure
-          occurred.
+          "Artifact not found", and the cancellation becomes a job failure. The `notify`
+          job (CISEC-05-001) then files a `ci:main-failure` issue for a failure that did
+          not occur. When the invariant job is skipped after a cancellation, the run has
+          no `failure` result, and `notify` leaves the result to the newer run. The pass
+          path and the true failure path (DEMOCI-04-002) do not change. Sometimes one
+          demo matrix job fails and a newer push then cancels the other matrix jobs.
+          GitHub does not document whether the combined `needs.demo.result` is then
+          `failure` or `cancelled`. If it is `failure`, the invariant job runs and
+          `notify` files an issue, which is correct, because a real failure occurred.
         verification: >-
           The test `test_invariant_harness_skipped_when_demo_cancelled` in
           `test/ci/test_workflow_failure_notification.py` asserts the
@@ -763,10 +765,10 @@ groups:
           conditions (which are empty on push events) in a way that would
           skip the on-main run entirely.
         rationale: >-
-          The Dependabot guards (DEMOCI-02-004, DEMOCI-04-005) test `github.head_ref`,
-          which is empty on a push event. An empty string does not start with
-          `dependabot/`, so the current guards pass on push. A different condition on
-          `github.head_ref` can evaluate differently on push and skip the on-main run
+          The Dependabot guard on the `scenarios` job (DEMOCI-02-004) tests
+          `github.head_ref`, which is empty on a push event. An empty string does not
+          start with `dependabot/`, so the guard passes on push. A different condition
+          on `github.head_ref` can evaluate differently on push and skip the on-main run
           with no error. Then main has no demo result at all.
         relationships:
           - rel_type: refines
@@ -790,8 +792,6 @@ groups:
           were often copied from simpler scenarios and may under-report what a
           scenario actually exercises. A complete per-scenario coverage matrix
           is prerequisite to designing a minimum PR validation set.
-        adr:
-          - ADR-0052
         relationships:
           - rel_type: implements
             spec_id: DEMOCI-03-001
@@ -876,8 +876,6 @@ groups:
           The post-merge run is the safety net for cross-PR regressions; it
           must cover all scenarios to ensure no scenario silently degrades after
           its covered phases are removed from the PR validation set.
-        adr:
-          - ADR-0052
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-06-002
@@ -901,9 +899,8 @@ groups:
           Almost nothing shows this failure. It can stop the workflow on every branch,
           main included, for many runs before somebody sees it. GitHub reports the
           startup failure before it applies the branch filter. Thus the failure also
-          shows on branches that the workflow does not run on, where it looks like
-          noise.
-          When both matrices come from one JSON file, the `demo` and
+          shows on branches that the workflow does not run on, where a reader can ignore
+          it. When both matrices come from one JSON file, the `demo` and
           `invariant-harness` jobs also have no copies of the matrix that can become
           different. `actionlint` finds the illegal context reference in CI and in
           pre-commit (DEMOCI-08-001).
@@ -985,9 +982,7 @@ groups:
           The embargo semantic types come only from the embargo scenarios
           (DEMOCI-06-002). In the PR set, `rcv-embargo` checks the embargo lifecycle on
           each pull request. The registry is the authority, and the JSON file is its
-          generated copy. The CI log directories use the scenario role names
-          (`reporter` for the `reporter` service). The invariant checks can then load
-          the devlogs by role, not by Docker service name.
+          generated copy.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-04-001
@@ -1116,9 +1111,9 @@ groups:
           - ci-cd
           - demo
         statement: >-
-          When the follow-up coverage analysis is performed, it MUST update
-          `notes/demo-ci-scenario-coverage.md`, DEMOCI-06-002, and DEMOCI-06-003
-          to reflect its conclusions.
+          When the follow-up coverage analysis is performed, it SHOULD update
+          `notes/demo-ci-scenario-coverage.md`, DEMOCI-06-002, and DEMOCI-06-003 to
+          reflect its conclusions.
         rationale: >-
           The analysis findings must be propagated to all three documents so
           that the coverage matrix, minimum PR set, and full scenario suite
@@ -1146,9 +1141,8 @@ groups:
           - ci-cd
           - demo
         statement: >-
-          DEMOCI-06-003 MUST be updated to include `rcv-embargo` and
-          `rcvv-embargo` in the full scenario suite list when they are wired
-          into CI.
+          DEMOCI-06-003 SHOULD be updated to include `rcv-embargo` and `rcvv-embargo` in
+          the full scenario suite list when they are wired into CI.
         rationale: >-
           DEMOCI-06-003 names the full scenario suite explicitly; once the
           embargo scenarios are wired in, the list must be updated so the
@@ -1247,15 +1241,11 @@ groups:
           The `actions-lint.yml` workflow MUST verify that
           `.github/demo-scenarios.json` is a non-empty array.
         rationale: >-
-          The matrix is data, not inline YAML, so bad data does not cause an error. It
-          changes the matrix without a message. A string `"false"` does not equal
-          `false` in `jq`, so the filter drops the scenario from the PR set. A missing
-          `test_file` key makes a job that runs `pytest ""`. Two entries with the same
-          `demo` name use the same artifact name, and the logs of one scenario
-          overwrite the logs of the other. An empty PR set lets `pull_request` runs
-          pass with no scenario run, which is the same false pass that DEMOCI-06-004
-          prevents. This check also finds a `test_file` that does not exist before a
-          demo runs for 15 minutes.
+          The matrix is data, not inline YAML, so an error in it causes no YAML error.
+          An empty array gives the `scenarios` job no scenario to run, and that job then
+          fails on every pull request and on every push to main, far from the change
+          that caused it. This check finds an empty array in the change that caused it,
+          before any demo runs.
         relationships:
           - rel_type: refines
             spec_id: DEMOCI-08-001
@@ -1645,7 +1635,7 @@ groups:
           MAY the message call the outcome a ledger invariant failure.
         rationale: >-
           A demo that stopped early still fails the harness (DEMOCI-10-003). But a
-          message that calls a delivery fault "a real invariant failure" sends the
+          message that calls an upstream demo fault "a real invariant failure" sends the
           person who examines it to the ledger, when the run tested nothing about the
           ledger. The manifest already holds the information that tells the cases apart
           (DEMOCI-10-002, DEMOCI-10-012). The message uses it, and it does not state a
@@ -1941,16 +1931,16 @@ groups:
           MUST NOT be hand-declared, and the CLI MUST NOT be a place a scenario
           can be omitted from or added to independently of the registry.
         rationale: >-
-          The registry is the one place that declares the scenarios. A
-          sub-command that is declared by hand is a second list, which can leave out a
-          registered scenario. Nobody can then run that scenario from the CLI. When the
-          CLI reads the registry, it has one sub-command for each registered scenario.
-          The container URL options are different for each scenario, and the registry
+          The registry is the one place that declares the scenarios. A sub-command that
+          is declared by hand is a second list, which can leave out a registered
+          scenario. Nobody can then run that scenario from the CLI. When the CLI reads
+          the registry, it has one sub-command for each registered scenario. The
+          container URL options are different for each scenario, and the registry
           decorator holds only what the demo knows about itself (ADR-0098). Each
-          scenario module declares them as a role Type Object, and one command factory
-          uses them, as in the `ActorSession` model (DEMOMA-26). A test checks that the
-          role declaration agrees with the `main()` signature of the scenario, so the
-          two cannot become different.
+          scenario module declares them in a `ROLES` list of `ActorRole` values, and one
+          command factory reads that list, as in the `ActorSession` model (DEMOMA-26). A
+          test checks that the role declaration agrees with the `main()` signature of
+          the scenario, so the two cannot become different.
         verification: >-
           A test asserts every registered scenario has exactly one CLI
           sub-command. Because a factory-built command and a hand-declared one
@@ -2090,13 +2080,13 @@ groups:
           the path's choices.
         rationale: >-
           A name is the stem of the module, the invariant harness, the narrative page,
-          the `scenario_start` marker and the CI matrix entry, so a new name changes
-          all of them. A name generated from choices changes for every scenario below a
-          new branch point. The grammar is a naming convention that review keeps, not a
+          the `scenario_start` marker and the CI matrix entry, so a new name changes all
+          of them. A name generated from choices changes for every scenario below a new
+          branch point. The grammar is a naming convention that review keeps, not a
           registry check. Some joins occur in scripted steps that no choice records, so
           a check of the name needs the recording, and such a check costs more to keep
-          than it is worth for demo names. The Reporter letter `f` is retired with the
-          role (ADR-0078).
+          than it is worth for demo names. The Finder letter `f` is retired with the
+          Finder role (ADR-0078).
         adr:
           - ADR-0098
           - ADR-0078

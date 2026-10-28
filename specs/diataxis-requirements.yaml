@@ -876,10 +876,10 @@ groups:
       `demo-scenarios-sync` (from the scenario registry, ADR-0098) already show. The two
       exempt shapes exist because generation can only list pages, and it cannot give an
       argument or a theme. A routing page must still link every member of its section.
-      That completeness can be derived, so it is checked, the same split that
-      DEMOCI-11-007 makes between what is generated and what is checked. The shape is a
-      required declaration, so that no section can be left without a decision. Each
-      index records its decision in its `contents:` frontmatter, and
+      That completeness can be derived, so a check enforces it. DEMOCI-11-007 makes the
+      same split between what is generated and what is checked. The shape is a required
+      declaration, so that no section can be left without a decision. Each index records
+      its decision in its `contents:` frontmatter, and
       `test/metadata/docs/test_site_sync.py` pins that set.
     verification: >-
       The generator's `--check` mode (`uv run docs-site --check`) runs as a pre-commit hook
@@ -1252,8 +1252,8 @@ groups:
       Reference is not a top-level tab (ADR-0136), so a returning reader has no view of
       the site by content type. One generated page gives that view without a top level
       organized by type. A subgroup listed through its index keeps the page short enough
-      to scan (DF-11-006). A page derived from the navigation and the frontmatter cannot
-      drift from them (DF-11-005).
+      to scan (DF-11-006). The check mode fails when the listing differs from the
+      navigation and the frontmatter, so the page stays current (DF-11-005).
     verification: >-
       `uv run docs-site --check` (the `docs-site-sync` pre-commit hook, and
       `test/metadata/docs/test_site_sync.py::TestSiteSync::test_committed_site_artifacts_are_in_sync`
@@ -1311,11 +1311,12 @@ groups:
     rationale: >-
       The author knows where on a page the directions to the next page belong. An
       automatic insert can only guess, and the only safe guess is the end of the page,
-      which is wrong for a long page. A committed fragment shows the box in a diff. Its
-      content stays generated, so a box that the author places by hand cannot drift from
-      the thread. The message-vocabulary fragments use the same pattern (ADR-0128). A
-      check over the built site finds a missing box however the page is assembled, and
-      the placement does not need to be mechanical.
+      which is wrong for a long page. A committed fragment shows the box in a diff. The
+      generator's check mode fails when the fragment differs from the thread, so a box
+      that the author places by hand keeps the content of the thread. The
+      message-vocabulary fragments use the same pattern (ADR-0128). A check over the
+      built site finds a missing box however the page is assembled, and the placement
+      does not need to be mechanical.
     verification: >-
       The generator's check mode fails when a committed fragment differs from what its
       thread implies, or when a fragment exists for a page no longer on its thread.

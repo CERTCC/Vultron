@@ -48,9 +48,8 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The tool MUST derive each entry's actor name from the name of the
-      directory that contains its JSONL file (e.g. `finder`, `vendor`,
-      `case-actor`).
+      The tool MUST derive each entry's actor name from the name of the directory that
+      contains its JSONL file (e.g. `reporter`, `vendor`, `case-actor`).
     rationale: >-
       A ledger entry is the same in every replica, so it does not show which actor's
       replica holds it. The demo run writes the replica of each actor into a directory
@@ -126,8 +125,8 @@ groups:
       `payloadSnapshot`/`payload_snapshot`), consistent with the tolerance
       already present in `test/ci/invariants/common.py`.
     rationale: >-
-      Ledger files can spell the same field in camelCase or in snake_case. If the
-      parser reads only one spelling, it silently drops data from files that use the
+      Ledger files can spell the same field in camelCase or in snake_case. If the parser
+      reads only one spelling, it drops data, with no error, from files that use the
       other one, and the report shows an incomplete case.
   - id: DRPT-02-004
     priority: MUST
@@ -264,9 +263,9 @@ groups:
       MAY be retained as secondary detail (e.g. a tooltip, title attribute, or
       trailing reference column).
     rationale: >-
-      A reader can follow "Finder submitted report" at a glance. A reader cannot follow
-      a long URI or a UUID in the same position. The full identifier stays available as
-      secondary detail, so a reader can still find the exact object.
+      A reader can follow "Reporter submitted report" at a glance. A reader cannot
+      follow a long URI or a UUID in the same position. The full identifier stays
+      available as secondary detail, so a reader can still find the exact object.
   - id: DRPT-03-003
     priority: MUST
     kind: project
@@ -397,9 +396,8 @@ groups:
       single file.
     rationale: >-
       A report with no external assets shows the same content offline, in a CI artifact
-      or in an archive. The parsing stays in Python, so there is one parser, the output
-      is deterministic and tests can check it, and the project needs no JavaScript
-      tools.
+      or in an archive. The tool writes the HTML in Python, so the report needs no
+      JavaScript build step, its output is deterministic, and tests can check it.
   - id: DRPT-04-003
     priority: MUST
     kind: project

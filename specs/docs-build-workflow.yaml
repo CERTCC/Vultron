@@ -78,9 +78,9 @@ groups:
           The workflow MUST trigger on `workflow_dispatch` events to allow
           manual runs at any time.
         rationale: >-
-          A maintainer sometimes needs the docs check with no pull request, for
-          example to check a branch or `main` directly, or to run a failed check
-          again.
+          The workflow has no `push` trigger, so it runs only on a pull request that
+          changes a watched path. A maintainer sometimes needs the docs check when there
+          is no such pull request, for example to check a branch or `main` directly.
       - id: DOCBW-02-003
         priority: MUST_NOT
         kind: project
@@ -254,11 +254,11 @@ groups:
           Every workflow that builds the site MUST run `mkdocs build --strict`,
           so that any warning the build emits fails the workflow.
         rationale: >-
-          `mkdocs.yml` raises dead in-page anchors and pages missing from the nav
-          to `warn`, so that a strict build fails on them (DOCBW-03-011). If a
-          workflow builds without `--strict`, the warnings print and the job
-          stays green. Strict mode does not cover every link. `--strict` sees
-          only the links that MkDocs parsed, so DOCBW-03-007 checks the built
+          `mkdocs.yml` raises dead in-page anchors, and pages that are in neither the
+          nav nor `not_in_nav`, to `warn`, so that a strict build fails on them
+          (DOCBW-03-011). If a workflow builds without `--strict`, the warnings print
+          and the job stays green. Strict mode does not cover every link. `--strict`
+          sees only the links that MkDocs parsed, so DOCBW-03-007 checks the built
           output.
         verification: >-
           `test/ci/test_docs_build_strict.py` asserts every workflow running
@@ -304,16 +304,16 @@ groups:
           step MUST fail when the merge result builds no pages, and MUST NOT run
           on pull requests to any other base branch.
         rationale: >-
-          The record stays complete only if each publish is recorded before it
-          ships. A check on every incoming publish also covers all earlier
-          publishes. The merge result is checked because
-          it is what `publish` will serve once the pull request merges. A path
-          filter would skip a release that changes no docs while pages from an
-          earlier unchecked publish are still unrecorded. On a pull request to
-          `main` a new page is not yet due, so the step would fail every page
-          addition. `publish` has no required status checks, so the gate holds
-          through the rule that a pull request never merges on a red check; a
-          direct push or manual deploy goes unchecked, an accepted gap. See
+          The record stays complete only if each publish is recorded before it ships.
+          Each pull request to `publish` checks every page that its merge result builds,
+          so it also finds a page that an earlier publish shipped unrecorded. The merge
+          result is checked because it is what `publish` will serve once the pull
+          request merges. A path filter would skip a release that changes no docs while
+          pages from an earlier unchecked publish are still unrecorded. On a pull
+          request to `main` a new page is not yet due, so the step would fail every page
+          addition. `publish` has no required status checks, so the gate holds through
+          the rule that a pull request never merges on a red check; a direct push or
+          manual deploy goes unchecked, an accepted gap. See
           `notes/documentation-strategy.md`.
         verification: >-
           A `docs-legacy-urls` mode (`vultron/metadata/docs/legacy_urls.py`)
@@ -414,9 +414,9 @@ groups:
           The workflow MUST declare `permissions: contents: read` at the
           workflow level and no additional permissions, per CISEC-02-002.
         rationale: >-
-          The workflow only reads the repository and builds the site, so it needs
-          no write access. A read-only token limits what a compromised step or
-          action can change (CISEC-02-002).
+          The workflow reads the repository, builds the site and checks it. It writes
+          nothing, so it needs no write access. A read-only token limits what a
+          compromised step or action can change (CISEC-02-002).
 
   - id: DOCBW-06
     title: Site Publication

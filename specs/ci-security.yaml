@@ -96,10 +96,10 @@ groups:
     statement: SHA pins SHOULD be reviewed and updated on a documented periodic cadence, at minimum when a security advisory
       is issued for the pinned action or when a new minor version is released
     rationale: >-
-      A pin that nobody updates keeps the known vulnerabilities of the pinned
-      release, and the distance to the current release grows. A review on a fixed
-      cadence, and a review when an advisory is published, keeps the pins current.
-      Each update is still a change that a person reviews.
+      A pin that nobody updates keeps the known vulnerabilities of the pinned release,
+      and the distance to the current release grows. A review on a fixed cadence, a
+      review when an advisory is published, and a review for each new minor version keep
+      the pins current. Each update is still a change that a person reviews.
     adr:
     - ADR-0014
   - id: CISEC-04-002
@@ -262,13 +262,13 @@ groups:
       label-to-issue-type workflow to convert, and it MUST fail visibly if no
       `Bug` issue type exists.
     rationale: >-
-      `gh issue create` cannot set an issue type. Without a separate mutation, a
-      failure issue has no type, and no issue-type query finds it. The
-      label-to-issue-type workflow cannot fix this. An event that a workflow causes
-      with its own `GITHUB_TOKEN` does not start other workflows, so nothing converts a
-      `bug` label that the action applies. A lookup by name still works when someone
-      creates the type again. A later run sets the type when one mutation failed. If
-      no `Bug` type exists, the action fails visibly, so nobody misses the problem.
+      `gh issue create` cannot set an issue type. Without a separate mutation, a failure
+      issue has no type, and no issue-type query finds it. The label-to-issue-type
+      workflow cannot fix this. An event that a workflow causes with its own
+      `GITHUB_TOKEN` does not start other workflows, so nothing converts a `bug` label
+      that the action applies. A lookup by name still works when someone creates the
+      type again. A later run sets the type when one mutation failed. If no `Bug` type
+      exists, the action fails with an error, so the problem shows in the run.
     verification: >-
       In `test/ci/test_workflow_failure_notification.py`,
       `test_notify_action_sets_bug_issue_type` asserts the action resolves the

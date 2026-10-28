@@ -182,10 +182,10 @@ groups:
     statement: '`mkdocs build --strict` MUST pass without warnings before any changes to `docs/` directory files are staged
       for commit'
     rationale: >-
-      A warning from a docs build often shows a broken link, a page that is not in
-      the navigation, or an include that failed. `--strict` makes each warning fail
-      the build. Then the problem stops the commit, and it does not get to the
-      published site.
+      A warning from a docs build often shows a broken link, a page that is not in the
+      navigation, or an include that failed. `--strict` makes each warning fail the
+      build. When the author runs it before staging, the author fixes the problem before
+      the commit, and the problem does not get to the published site.
   - id: PD-04-002
     priority: MUST
     kind: project
@@ -216,7 +216,7 @@ groups:
     rationale: >-
       A history file keeps its entries in time order. An insert at a line number or
       under a heading breaks that order, and it can put the new text inside another
-      entry. Several writers that each add to the end do not write over each other.
+      entry. An append at the end cannot change an entry that is already there.
   - id: PD-05-002
     priority: MUST_NOT
     kind: process

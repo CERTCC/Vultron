@@ -37,8 +37,8 @@ groups:
     verification_debt: '#2573'
     statement: The CLI MUST provide an `all` sub-command that runs every demo in sequence
     rationale: >-
-      The `all` sub-command runs every demo with one command. This lets a user or a CI
-      job check all demos at once and find a demo that is broken.
+      The `all` sub-command runs every exchange demo with one command, so a user can
+      check them all at once and find a demo that is broken.
   - id: DC-01-004
     priority: MUST
     kind: project
@@ -48,7 +48,7 @@ groups:
       which demos passed and which failed
     rationale: >-
       When many demos run in sequence, the output of one demo is hard to find in the
-      log. A summary at the end tells the user which demos failed, so the user knows
+      log. The summary shows which demos passed and which demo failed, so the user knows
       where to look.
   - id: DC-01-005
     priority: MUST
@@ -59,7 +59,7 @@ groups:
       points so they remain directly invokable
     rationale: >-
       A developer who works on one demo can run that script directly, without the CLI.
-      This keeps the debug loop for one demo short.
+      This keeps the time to test a change to one demo short.
 - id: DC-02
   title: Demo Utilities
   specs:
@@ -147,8 +147,8 @@ groups:
     statement: >-
       The unified demo MUST be packaged as a Docker service (`demo` service in `docker/docker-compose.yml`)
     rationale: >-
-      A Docker service lets a user run the demos against the containerized API without
-      a local Python environment. It also gives CI the same setup that a user runs.
+      A Docker service lets a user run the demos against the containerized API without a
+      local Python environment.
   - id: DC-04-002
     priority: MUST
     kind: project
@@ -180,7 +180,8 @@ groups:
     statement: The unified CLI MUST have unit tests in `test/demo/test_cli.py`
     rationale: >-
       The CLI is the entry point for every demo. Unit tests in a known location find
-      errors in the sub-command wiring before a user or a CI job runs the demos.
+      errors in the way the CLI connects sub-commands to demos before a user or a CI job
+      runs the demos.
   - id: DC-05-002
     priority: MUST
     kind: project
@@ -244,5 +245,5 @@ groups:
     statement: >-
       The integration test SHOULD be runnable via a `Makefile` target (e.g., `make integration-test`)
     rationale: >-
-      A `Makefile` target gives one short command that is easy to remember, and it
-      hides the script path and its arguments.
+      A `Makefile` target gives one short command that is easy to remember, so a
+      developer does not need to know the script path.
