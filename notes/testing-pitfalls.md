@@ -5,8 +5,9 @@ kind: guidance
 description: >
   Full write-ups for pytest pitfalls in this repo: reading a killed run, a dead
   xdist worker hanging the run, the two-tier timeout guardrail and why the
-  timeout *method* matters more than the ceiling, measuring effective markers
-  rather than declarations,
+  timeout *method* matters more than the ceiling, profiling a near-ceiling test
+  before re-tiering it, proving off-loop work without a wall-clock window,
+  measuring effective markers rather than declarations,
   `filterwarnings` precedence, `nproc` in a worktree slot, `xdist_group` for
   order-dependent tests, retry backoff hiding in a passing demo, fixture and
   blackboard isolation, py_trees test patterns, CoreObject subclass isolation,
@@ -119,6 +120,21 @@ it `integration` if it exercises the full stack. `@pytest.mark.timeout(N)` is a
 last resort and MUST carry a comment saying why. If a tier fires on honest work
 rather than hangs, change the tier, and do not add a
 [flaky-tests.md](flaky-tests.md) row for a test that is merely near its ceiling.
+
+Profile a near-ceiling test before you move it to another tier. Its cost is often
+work repeated per call rather than honest work: a check that parses the whole spec
+corpus once per sub-check, or an adapter that re-reads the whole outbox on every
+send. Removing the repeat also speeds up every other test on that path
+(#5341, #4906). Also look for a second test that runs the same expensive fixture
+only to inspect what the first test's run already recorded (#5227).
+
+#### A Count of Events in a Wall-Clock Window Is Not a Concurrency Proof
+
+Do not prove that work runs off the event loop by counting loop ticks in a fixed
+window. CPU contention from other xdist workers starves the loop, and the test
+fails with nothing wrong. Park the work on an event that only a coroutine on the
+loop can set: the work then finishes released only if the loop ran while it
+waited. Load can delay that release but cannot fake it (#4913).
 
 #### The Timeout Method Sets What a Trip Costs
 

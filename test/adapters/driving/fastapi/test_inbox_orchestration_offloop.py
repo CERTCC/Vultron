@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import asyncio
 import threading
-import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -91,47 +90,58 @@ def test_process_payload_runs_off_the_event_loop(monkeypatch, quiet_pipeline):
     )
 
 
+#: How long a parked ``process_payload`` waits for the loop to release it.
+#: It bounds only the failing case: when the loop is free the release comes
+#: as soon as the loop runs a coroutine, however loaded the machine is.
+_RELEASE_WAIT_SECONDS = 10.0
+
+
 @pytest.mark.spec("IE-06-003")
 @pytest.mark.spec("BT-11-002")
 def test_event_loop_keeps_serving_while_a_payload_is_processed(
     monkeypatch, quiet_pipeline
 ):
-    """A concurrent coroutine progresses while process_payload blocks.
+    """The loop runs a coroutine while ``process_payload`` is parked.
 
-    A 0.3 s synchronous block on the loop would let the ticker run at most
-    once (before the block) — the assertion of several ticks leaves a wide
-    margin either way, so this is not a timing-sensitive test.
+    ``process_payload`` blocks until a coroutine on the loop releases it, so
+    it can return released only if the loop kept running while it waited.
+    Run on the loop thread, it would hold the loop until its wait timed out
+    and return unreleased.  No count of loop ticks in a fixed window is
+    involved: CPU contention can slow the release but cannot fake it (#4913).
     """
+    parked = threading.Event()
+    release = threading.Event()
+    released: list[bool] = []
 
-    def blocking_process_payload(*args: Any, **kwargs: Any) -> InboxOutcome:
-        time.sleep(0.3)
+    def parked_process_payload(*args: Any, **kwargs: Any) -> InboxOutcome:
+        parked.set()
+        released.append(release.wait(timeout=_RELEASE_WAIT_SECONDS))
         return InboxOutcome(status=InboxOutcomeStatus.PROCESSED)
 
-    _install_process_payload(monkeypatch, blocking_process_payload)
+    _install_process_payload(monkeypatch, parked_process_payload)
 
-    async def _run() -> int:
-        done = asyncio.Event()
-        ticks = 0
+    async def _run() -> bool:
+        pipeline = asyncio.create_task(
+            run_inbox_pipeline({}, quiet_pipeline, _ACTOR_ID, None, None)
+        )
+        while not parked.is_set() and not pipeline.done():
+            await asyncio.sleep(0.001)
+        if not parked.is_set():
+            # The pipeline finished without reaching process_payload: surface
+            # its own exception rather than spin until the test timeout.
+            await pipeline
+            pytest.fail("run_inbox_pipeline never called process_payload")
+        # The loop is running this coroutine while process_payload waits.
+        served_while_parked = not pipeline.done()
+        release.set()
+        await pipeline
+        return served_while_parked
 
-        async def _pipeline() -> None:
-            try:
-                await run_inbox_pipeline(
-                    {}, quiet_pipeline, _ACTOR_ID, None, None
-                )
-            finally:
-                done.set()
+    served_while_parked = asyncio.run(_run())
 
-        async def _ticker() -> None:
-            nonlocal ticks
-            while not done.is_set():
-                ticks += 1
-                await asyncio.sleep(0.01)
-
-        await asyncio.gather(_pipeline(), _ticker())
-        return ticks
-
-    ticks = asyncio.run(_run())
-    assert ticks >= 5, (
-        f"the event loop advanced only {ticks} time(s) during a 0.3 s"
-        " process_payload — the inbox pipeline is blocking the loop"
+    assert released == [True], (
+        "process_payload was never released: the loop could not run while"
+        " it was processed, so the inbox pipeline is blocking the loop"
+        " (IE-06-002, BT-11-002)"
     )
+    assert served_while_parked

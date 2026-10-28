@@ -78,7 +78,7 @@ from vultron.metadata.markdown_tables import (
     iter_tables,
     split_row,
 )
-from vultron.metadata.specs.registry import load_registry
+from vultron.metadata.specs.registry import SpecRegistry, load_registry
 
 _REPO_ROOT = Path(__file__).parents[2]
 
@@ -239,14 +239,17 @@ def test_column_raises_on_an_unknown_header() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_scenario_groups_name_only_known_scenarios() -> None:
+@pytest.mark.spec_corpus
+def test_scenario_groups_name_only_known_scenarios(
+    real_registry: SpecRegistry,
+) -> None:
     """Every marked group names a scenario in one of the two registers.
 
     A marker value matching neither register is a group specifying a scenario
     nobody can find, which is the failure the partition check would otherwise
     report as "absent from both" without saying the name was wrong.
     """
-    named = set(scenario_spec_groups())
+    named = set(scenario_spec_groups(real_registry))
     known = {spec.name for spec in discover_scenarios()}
     known.update(entry.name for entry in planned_scenarios())
     assert named <= known, (
@@ -255,7 +258,10 @@ def test_scenario_groups_name_only_known_scenarios() -> None:
     )
 
 
-def test_every_planned_scenario_has_a_spec_group() -> None:
+@pytest.mark.spec_corpus
+def test_every_planned_scenario_has_a_spec_group(
+    real_registry: SpecRegistry,
+) -> None:
     """A planned-register row is backed by a marked spec group.
 
     This is the direction that closes the ``vc`` defect: a row asserting a
@@ -264,7 +270,7 @@ def test_every_planned_scenario_has_a_spec_group() -> None:
     """
     missing = sorted(
         {entry.name for entry in planned_scenarios()}
-        - set(scenario_spec_groups())
+        - set(scenario_spec_groups(real_registry))
     )
     assert not missing, (
         f"planned scenarios with no spec group: {missing}. Add "
@@ -273,7 +279,10 @@ def test_every_planned_scenario_has_a_spec_group() -> None:
     )
 
 
-def test_every_registered_scenario_is_named_by_a_spec_group() -> None:
+@pytest.mark.spec_corpus
+def test_every_registered_scenario_is_named_by_a_spec_group(
+    real_registry: SpecRegistry,
+) -> None:
     """Every registered scenario has a spec group naming it (ISSUE-3495 AC-5).
 
     The registry-to-group direction, which completes DEMOCI-11-010's partition.
@@ -287,7 +296,7 @@ def test_every_registered_scenario_is_named_by_a_spec_group() -> None:
     edit to a documented constant rather than a loosened assertion.
     """
     unspecified = {spec.name for spec in discover_scenarios()} - set(
-        scenario_spec_groups()
+        scenario_spec_groups(real_registry)
     )
     assert unspecified == _UNSPECIFIED_REGISTERED, (
         "registered scenarios with no spec group changed: expected "
@@ -359,20 +368,26 @@ def test_scenario_spec_groups_rejects_a_duplicated_scenario(
 # ---------------------------------------------------------------------------
 
 
-def test_every_registered_scenario_has_an_semantic_type_requirement() -> None:
+@pytest.mark.spec_corpus
+def test_every_registered_scenario_has_an_semantic_type_requirement(
+    real_registry: SpecRegistry,
+) -> None:
     """Each registered scenario has its own DEMOMA-16 requirement."""
-    missing = missing_semantic_type_requirements()
+    missing = missing_semantic_type_requirements(registry=real_registry)
     assert not missing, (
         f"registered scenarios with no per-scenario DEMOMA-16 requirement: "
         f"{missing} (DEMOCI-11-007)"
     )
 
 
+@pytest.mark.spec_corpus
 @pytest.mark.parametrize(
     "spec_id",
     ["DEMOMA-16-001", "DEMOMA-16-008", "DEMOMA-16-012", "DEMOMA-16-013"],
 )
-def test_non_per_scenario_requirements_are_not_selected(spec_id: str) -> None:
+def test_non_per_scenario_requirements_are_not_selected(
+    spec_id: str, real_registry: SpecRegistry
+) -> None:
     """The four DEMOMA-16 requirements that are not per-scenario stay excluded.
 
     Named individually because an ID-range selector would take three of them
@@ -383,20 +398,25 @@ def test_non_per_scenario_requirements_are_not_selected(spec_id: str) -> None:
     """
     selected = {
         requirement
-        for requirements in per_scenario_semantic_type_requirements().values()
+        for requirements in per_scenario_semantic_type_requirements(
+            real_registry
+        ).values()
         for requirement in requirements
     }
     assert spec_id not in selected
 
 
-def test_per_scenario_requirements_cover_the_unbuilt_scenarios() -> None:
+@pytest.mark.spec_corpus
+def test_per_scenario_requirements_cover_the_unbuilt_scenarios(
+    real_registry: SpecRegistry,
+) -> None:
     """``rcvd`` and ``vc`` are mapped even though neither is registered.
 
     The registry-to-spec direction alone would ignore DEMOMA-16-014 and -015,
     which is the blind spot that let a ``vc`` row sit in a table of available
     demos with a spec group, a tracking issue and no implementation.
     """
-    mapping = per_scenario_semantic_type_requirements()
+    mapping = per_scenario_semantic_type_requirements(real_registry)
     assert mapping["rcvd"] == ("DEMOMA-16-014",)
     assert mapping["vc"] == ("DEMOMA-16-015",)
 
@@ -427,13 +447,19 @@ def test_planned_register_requires_its_heading(prose_root: Path) -> None:
         planned_scenarios(prose_root)
 
 
-def test_partition_holds_on_the_committed_tree() -> None:
+@pytest.mark.spec_corpus
+def test_partition_holds_on_the_committed_tree(
+    real_registry: SpecRegistry,
+) -> None:
     """Every spec'd scenario sits in exactly one register (DEMOCI-11-010)."""
-    problems = partition_problems()
+    problems = partition_problems(registry=real_registry)
     assert not problems, "\n".join(problems)
 
 
-def test_partition_reports_a_scenario_in_both_registers() -> None:
+@pytest.mark.spec_corpus
+def test_partition_reports_a_scenario_in_both_registers(
+    real_registry: SpecRegistry,
+) -> None:
     """A planned scenario that is also registered is reported."""
     both = (
         *discover_scenarios(),
@@ -445,24 +471,28 @@ def test_partition_reports_a_scenario_in_both_registers() -> None:
             in_pr_set=False,
         ),
     )
-    problems = partition_problems(specs=both)
+    problems = partition_problems(registry=real_registry, specs=both)
     assert any("in both registers" in problem for problem in problems)
 
 
-def test_partition_reports_a_scenario_in_neither_register() -> None:
+@pytest.mark.spec_corpus
+def test_partition_reports_a_scenario_in_neither_register(
+    real_registry: SpecRegistry,
+) -> None:
     """A spec'd scenario that is neither registered nor planned is reported."""
     without_rv = tuple(
         spec for spec in discover_scenarios() if spec.name != "rv"
     )
-    problems = partition_problems(specs=without_rv)
+    problems = partition_problems(registry=real_registry, specs=without_rv)
     assert any(
         "'rv' (DEMOMA-06) is in neither register" in problem
         for problem in problems
     )
 
 
+@pytest.mark.spec_corpus
 def test_partition_reports_a_planned_row_with_no_spec_group(
-    prose_root: Path,
+    prose_root: Path, real_registry: SpecRegistry
 ) -> None:
     """A register row nothing specifies is reported."""
     target = prose_root / PLANNED_REGISTER
@@ -471,13 +501,14 @@ def test_partition_reports_a_planned_row_with_no_spec_group(
             "| `vc` |", "| `zz-fake` | #1 | DEMOMA-99 | fixture |\n| `vc` |", 1
         )
     )
-    problems = partition_problems(root=prose_root)
+    problems = partition_problems(root=prose_root, registry=real_registry)
     assert any(
         "'zz-fake'" in problem and "no spec group specifies it" in problem
         for problem in problems
     )
 
 
+@pytest.mark.spec_corpus
 @pytest.mark.parametrize(
     ("cell", "expected"),
     [
@@ -486,7 +517,7 @@ def test_partition_reports_a_planned_row_with_no_spec_group(
     ],
 )
 def test_partition_reports_an_incomplete_planned_row(
-    prose_root: Path, cell: str, expected: str
+    prose_root: Path, cell: str, expected: str, real_registry: SpecRegistry
 ) -> None:
     """DEMOCI-11-010 requires both the tracking issue and the spec IDs.
 
@@ -498,7 +529,7 @@ def test_partition_reports_an_incomplete_planned_row(
     front, sep, body = target.read_text().partition("\n---\n")
     assert body.count(cell) >= 1
     target.write_text(front + sep + body.replace(cell, "", 1))
-    problems = partition_problems(root=prose_root)
+    problems = partition_problems(root=prose_root, registry=real_registry)
     assert any(expected in problem for problem in problems)
 
 
@@ -642,13 +673,19 @@ def test_status_claim_check_reports_malformed_frontmatter_by_file(
 # ---------------------------------------------------------------------------
 
 
-def test_notes_scenario_tables_agree_with_the_registry() -> None:
+@pytest.mark.spec_corpus
+def test_notes_scenario_tables_agree_with_the_registry(
+    real_registry: SpecRegistry,
+) -> None:
     """Every declared ``notes/`` scenario table holds the registry's rows."""
-    problems = scenario_table_problems()
+    problems = scenario_table_problems(registry=real_registry)
     assert not problems, "\n".join(problems)
 
 
-def test_scenario_table_check_reports_a_missing_row(prose_root: Path) -> None:
+@pytest.mark.spec_corpus
+def test_scenario_table_check_reports_a_missing_row(
+    prose_root: Path, real_registry: SpecRegistry
+) -> None:
     """Dropping a row from a checked table is reported, naming the table.
 
     The row is located by parsing its first cell, not by a string prefix: the
@@ -664,12 +701,13 @@ def test_scenario_table_check_reports_a_missing_row(prose_root: Path) -> None:
         if not (line.startswith("|") and split_row(line)[0].strip() == "rv")
     ]
     target.write_text("\n".join(kept) + "\n")
-    problems = scenario_table_problems(prose_root)
+    problems = scenario_table_problems(prose_root, registry=real_registry)
     assert any(table.heading in problem for problem in problems)
 
 
+@pytest.mark.spec_corpus
 def test_scenario_table_check_reports_a_wrong_spec_id(
-    prose_root: Path,
+    prose_root: Path, real_registry: SpecRegistry
 ) -> None:
     """The ``Spec`` column is checked against the spec corpus, not just present.
 
@@ -690,7 +728,7 @@ def test_scenario_table_check_reports_a_wrong_spec_id(
             "| rv | DEMOMA-16-002 |", "| rv | DEMOMA-16-003 |", 1
         )
     )
-    problems = scenario_table_problems(prose_root)
+    problems = scenario_table_problems(prose_root, registry=real_registry)
     assert any(
         "DEMOMA-16-003" in problem and "'rv'" in problem
         for problem in problems
@@ -748,8 +786,9 @@ def test_count_check_exempts_a_history_section(
     assert not restated_counts(prose_root)
 
 
+@pytest.mark.spec_corpus
 def test_scenario_table_check_reports_a_wrong_pr_set_mark(
-    prose_root: Path,
+    prose_root: Path, real_registry: SpecRegistry
 ) -> None:
     """PR-set membership is ratcheted against ``in_pr_set`` (MS-16-002).
 
@@ -768,7 +807,7 @@ def test_scenario_table_check_reports_a_wrong_pr_set_mark(
             "| rv | ✓ (member) |", "| rv | covered by rvcv-handoff |", 1
         )
     )
-    problems = scenario_table_problems(prose_root)
+    problems = scenario_table_problems(prose_root, registry=real_registry)
     assert any(
         "'rv'" in problem and "in_pr_set=True" in problem
         for problem in problems
@@ -917,6 +956,31 @@ def test_consistency_problems_is_clean_on_the_committed_tree() -> None:
     """``demo-scenarios --check`` reports nothing on a correct repository."""
     problems = consistency_problems()
     assert not problems, "\n".join(problems)
+
+
+def test_consistency_problems_loads_the_spec_corpus_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every spec-side check reads the one registry the aggregate loads.
+
+    Parsing the corpus is the expensive part of ``--check``, and each check
+    loading its own copy parsed it four times per run, enough to push the
+    clean-tree test past its timeout under ``-n auto`` load (#5341).
+    """
+    from vultron.metadata.specs import registry as registry_module
+
+    loads: list[Path] = []
+    load_spec_files = registry_module.load_spec_files
+
+    def _counting(spec_dir: Path):
+        loads.append(spec_dir)
+        return load_spec_files(spec_dir)
+
+    monkeypatch.setattr(registry_module, "load_spec_files", _counting)
+
+    consistency_problems()
+
+    assert len(loads) == 1, loads
 
 
 def test_consistency_problems_survives_a_broken_register(
@@ -1068,9 +1132,10 @@ def test_column_raises_key_error_naming_the_columns_it_found() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_semantic_type_requirement_check_reports_an_unspecified_scenario() -> (
-    None
-):
+@pytest.mark.spec_corpus
+def test_semantic_type_requirement_check_reports_an_unspecified_scenario(
+    real_registry: SpecRegistry,
+) -> None:
     """``missing_semantic_type_requirements`` can be made to fire.
 
     Without this the check was inert-by-construction: stubbing the function to
@@ -1078,12 +1143,15 @@ def test_semantic_type_requirement_check_reports_an_unspecified_scenario() -> (
     that every registered scenario has a per-scenario DEMOMA-16 entry was
     enforced by a function nothing could falsify.
     """
-    missing = missing_semantic_type_requirements(specs=(_FAKE,))
+    missing = missing_semantic_type_requirements(
+        specs=(_FAKE,), registry=real_registry
+    )
     assert missing == [_FAKE.name]
 
 
+@pytest.mark.spec_corpus
 def test_scenario_table_check_reports_a_renamed_heading(
-    prose_root: Path,
+    prose_root: Path, real_registry: SpecRegistry
 ) -> None:
     """A renamed table heading is a structural failure naming the heading."""
     table = SCENARIO_TABLES[0]
@@ -1095,7 +1163,7 @@ def test_scenario_table_check_reports_a_renamed_heading(
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="expected exactly one table under"):
-        scenario_table_problems(prose_root)
+        scenario_table_problems(prose_root, registry=real_registry)
 
 
 def test_consistency_problems_reports_a_renamed_column_not_a_traceback(
@@ -1345,8 +1413,9 @@ def test_planned_register_rejects_a_renamed_column(prose_root: Path) -> None:
         planned_scenarios(prose_root)
 
 
+@pytest.mark.spec_corpus
 def test_partition_reports_a_scenario_listed_twice_in_the_register(
-    prose_root: Path,
+    prose_root: Path, real_registry: SpecRegistry
 ) -> None:
     """A duplicated planned row is reported.
 
@@ -1359,7 +1428,7 @@ def test_partition_reports_a_scenario_listed_twice_in_the_register(
     row = [line for line in text.splitlines() if line.startswith("| `vc`")]
     assert row, "expected a `vc` row in the planned register"
     target.write_text(text.replace(row[0], f"{row[0]}\n{row[0]}", 1))
-    problems = partition_problems(prose_root)
+    problems = partition_problems(prose_root, registry=real_registry)
     assert any("vc" in problem for problem in problems), problems
 
 

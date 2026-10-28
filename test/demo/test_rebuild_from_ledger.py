@@ -16,11 +16,14 @@
 ``route_exchange_demo_at_testclient`` rebuilds every case a hosted actor
 manages before each demo's teardown clears the node, and the conftest fails
 the test that left a case its ledger cannot rebuild (CLP-07-013, CM-23-016).
-This module shows the check runs: an embargo demo's negotiated case is
-rebuilt, embargo and consent entries included.  The multi-container scenario
-demos (``rcv-embargo``, ``rcvv-embargo`` and the ``rcv`` family) need Docker;
-their in-process equivalents are the per-actor-store scenarios under
-``test/core/use_cases/received/``, each rebuilt by that package's conftest.
+This module checks how the rebuild check records what it finds.  That it runs
+on a real demo, rebuilding an embargo demo's negotiated case with its embargo
+and consent entries, is asserted on the run ``test_establish_embargo_demo``
+already makes, not on a second run of the same demo (#5227).  The
+multi-container scenario demos (``rcv-embargo``, ``rcvv-embargo`` and the
+``rcv`` family) need Docker; their in-process equivalents are the
+per-actor-store scenarios under ``test/core/use_cases/received/``, each
+rebuilt by that package's conftest.
 """
 
 import logging
@@ -29,41 +32,8 @@ from types import SimpleNamespace
 import pytest
 
 import test.demo._helpers as helpers
-from test.demo._helpers import route_exchange_demo_at_testclient
 from test.support.case_owner import CASE_OWNER_ID
 from vultron.core.models.case import VulnerabilityCase
-from vultron.demo.exchange import (
-    establish_embargo_demo as demo,
-    initialize_case_demo as init_demo,
-)
-
-
-@pytest.fixture(scope="module")
-def demo_env(client):
-    with route_exchange_demo_at_testclient(client, demo, init_demo):
-        yield
-
-
-@pytest.mark.spec("CLP-07-013")
-@pytest.mark.spec("CM-23-016")
-def test_an_embargo_demo_case_is_rebuilt_from_its_ledger(demo_env):
-    demo.main(skip_health_check=True, demos=[demo.demo_propose_embargo_accept])
-
-    rebuilt = dict(helpers.REBUILT_CASES)
-    negotiated = [
-        semantic_types
-        for semantic_types in rebuilt.values()
-        if "activate_embargo_on_case" in semantic_types
-    ]
-    assert negotiated, f"no negotiated case was rebuilt: {rebuilt}"
-    (semantic_types,) = negotiated
-    assert semantic_types[0] == "create_case"
-    assert "create_embargo_consent" in semantic_types
-    assert "update_embargo_consent" in semantic_types
-    assert helpers.REBUILD_FAILURES == []
-    # The label check read every entry the rebuilt case holds, and more
-    # (#4724 AC-3): it reads every hosted store, replicas included.
-    assert sum(helpers.LABELLED_ENTRIES) >= len(semantic_types)
 
 
 @pytest.mark.spec("SE-02-001")
