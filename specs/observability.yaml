@@ -17,8 +17,20 @@ groups:
     kind: architecture
     verification_debt: '#2569'
     statement: The system MUST provide liveness endpoint at `/health/live`
+    rationale: >-
+      A container platform must know when a process has stopped working, so that it can
+      restart the process. The liveness endpoint answers only when the process runs and
+      serves HTTP, and it checks nothing else. A slow dependency therefore does not
+      cause a restart.
   - id: OB-05-002
     priority: MUST
     kind: architecture
     verification_debt: '#2569'
     statement: The system MUST provide readiness endpoint at `/health/ready`
+    rationale: >-
+      A node can run but still be unable to serve requests, for example when its storage
+      location is not available. The readiness endpoint reports this. A load balancer
+      then sends no traffic to the node, and compose starts the services that depend on
+      it only after it is ready. The
+      multi-actor compose file uses this endpoint as the health check of each actor
+      service.

@@ -18,6 +18,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: All log entries MUST include `timestamp` field in ISO 8601 format
+    rationale: >-
+      An operator puts logs from several actors and services together to follow one
+      case. An ISO 8601 timestamp with its offset names one instant in every log,
+      whatever the time zone or locale of the host that wrote it.
     scope:
     - production
   - id: SL-01-002
@@ -26,6 +30,10 @@ groups:
     verification_debt: '#2575'
     statement: >-
       All log entries MUST include `level` field (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    rationale: >-
+      Operators filter logs by severity to find failures among a large volume of normal
+      output. A `level` field on each entry makes that filter possible without a parse
+      of the message text.
     scope:
     - production
   - id: SL-01-003
@@ -33,6 +41,9 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: All log entries MUST include `component` field (module or function name)
+    rationale: >-
+      The `component` field tells a reader which module wrote an entry. Without it, a
+      reader must guess from the message text where to look in the code.
     scope:
     - production
   - id: SL-01-004
@@ -40,6 +51,9 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: All log entries MUST include `message` field (human-readable text)
+    rationale: >-
+      A person reads the message to learn what happened. Structured fields serve tools,
+      but they do not tell a person the event in words.
     scope:
     - production
   - id: SL-01-005
@@ -81,16 +95,30 @@ groups:
     priority: MUST
     kind: project
     statement: Log entries MUST include `activity_id` field when activity is available
-    verification: Integration tests confirm that log records produced during inbox activity processing include the
-      `activity_id` field set to the processed activity's `as_id`.
+    rationale: >-
+      One received activity can cause log entries in many modules. An `activity_id`
+      field lets a reader collect all entries for one activity, across modules and
+      actors, with one filter.
+    verification: >-
+      A test posts an activity to an actor's inbox, captures the log records written
+      while the activity is processed, and asserts that each record carries an
+      `activity_id` attribute equal to the activity's `id_`. The test comes with the
+      correlation filter (SL-02-003) in #3992.
     scope:
     - production
   - id: SL-02-002
     priority: MUST
     kind: project
     statement: Log entries MUST include `actor_id` field when actor is available
-    verification: Integration tests confirm that log records produced during actor-scoped operations include the
-      `actor_id` field set to the actor's canonical URI.
+    rationale: >-
+      One server can host several actors, and their log entries mix in one stream. An
+      `actor_id` field lets a reader separate the entries for each actor and follow what
+      one actor did.
+    verification: >-
+      A test runs a behavior tree for an actor, captures the log records written during
+      the run, and asserts that each record carries an `actor_id` attribute equal to the
+      actor's canonical URI. The test comes with the correlation filter (SL-02-003) in
+      #3992.
     scope:
     - production
   - id: SL-02-003
@@ -103,14 +131,13 @@ groups:
       actor) and applied to every record by a `logging.Filter`, not supplied per call
       through `extra=`.
     rationale: >-
-      A per-call `extra=` at every log site repeats the same value hundreds of times
-      and is missed wherever a site forgets it, which is the duplication failure the
-      template rule (SL-01-005) exists to avoid on the message side. Context set once
-      at the boundary and copied by a filter reaches every record emitted inside that
-      boundary, including records from code that knows nothing about correlation.
-      Rendering stays the formatter's decision: a text formatter can print the
-      attributes beside the message and a structured formatter can emit them as
-      fields, without touching any call site.
+      A per-call `extra=` must repeat the same value at every log site, and a site that
+      omits it writes a record with no correlation. Context that is set once at the
+      processing boundary and copied by a filter reaches every record written inside
+      that boundary, also from code that knows nothing about correlation. The formatter
+      decides how to show the fields: a text formatter can print them next to the
+      message, and a structured formatter can write them as separate fields. No call
+      site changes.
     verification: >-
       A test enters the boundary context, emits a record through a handler carrying
       the filter, and asserts the record object exposes `activity_id` and `actor_id`
@@ -152,6 +179,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: 'Log levels MUST follow standard Python `logging` severity semantics: DEBUG for diagnostic detail, INFO for normal protocol operations, WARNING for recoverable anomalies, ERROR for failures requiring attention, and CRITICAL for system-threatening failures.'
+    rationale: >-
+      Operators set a log level to choose how much output they see. When each level
+      means the same thing in every module, a WARNING threshold shows all recoverable
+      problems and failures and hides normal operation. The standard Python meanings are
+      the ones that every library in the process already uses.
 - id: SL-04
   title: State Transition Logging
   specs:
@@ -160,26 +192,46 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: All state transitions MUST be logged at INFO level
+    rationale: >-
+      State transitions tell the protocol story. A reader of an actor's INFO log must
+      see each change of RM, EM, CS and participant state, without the volume of DEBUG
+      detail. The default log level is INFO, so a transition logged only at DEBUG does
+      not appear.
   - id: SL-04-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: State transition logs MUST include before state
+    rationale: >-
+      A transition shows a change only when the reader knows the start state. With the
+      before state in the entry, a reader can see an unexpected transition without a
+      search through the earlier log.
   - id: SL-04-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: State transition logs MUST include after state
+    rationale: >-
+      The after state is the result of the transition. A reader needs it to know the
+      actor's current state without a read of the code that ran.
   - id: SL-04-004
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: State transition logs MUST include triggering event (activity type + semantic)
+    rationale: >-
+      A reader who sees a state change must know what caused it. The activity type and
+      its semantic tell the reader which message caused the transition, so the reader
+      can find the same message in the sender's log.
   - id: SL-04-005
     priority: SHOULD
     kind: project
     statement: >-
       Demo scripts and stepwise workflows SHOULD use structured, consistent lifecycle logs
+    rationale: >-
+      People run the demos to learn the protocol. Lifecycle lines with one consistent
+      form let a reader follow the demo steps in order and see at once which step or
+      check failed.
   - id: SL-04-006
     priority: SHOULD
     kind: project
@@ -189,6 +241,11 @@ groups:
       that reading an actor's INFO log tells the complete protocol story
       without requiring DEBUG. See notes/structured-logging.md for the
       full template inventory.
+    rationale: >-
+      One sentence form lets a reader scan an actor's INFO log as a story: who did what
+      to which object, and how the state changed. Tests can also find a transition with
+      one pattern. With this form, the INFO log is enough to follow the protocol, and a
+      reader does not need DEBUG output.
   - id: SL-04-007
     priority: MUST
     kind: project
@@ -198,6 +255,11 @@ groups:
       HTTP handler parsing echoes, pipeline completion repeats, FSM internal
       callbacks, per-recipient sync queue entries) MUST NOT be logged at INFO;
       they MUST be logged at DEBUG or lower.
+    rationale: >-
+      Infrastructure lines, such as a store write or a BT setup step, repeat for each
+      activity and say nothing about the protocol. At INFO they hide the state
+      transitions that the INFO log exists to show (SL-04-001). At DEBUG they stay
+      available for diagnosis.
 - id: SL-05
   title: Error Context
   specs:
@@ -205,14 +267,25 @@ groups:
     priority: SHOULD
     kind: project
     statement: ERROR level logs SHOULD include exception type and message
+    rationale: >-
+      The exception type and message tell an operator what failed without a debugger. An
+      ERROR entry with no exception detail tells only that something failed.
   - id: SL-05-002
     priority: SHOULD
     kind: project
     statement: ERROR level logs SHOULD include stack trace for unexpected exceptions
+    rationale: >-
+      An unexpected exception is a defect, and the stack trace shows where in the code
+      it started. Without the trace, a person must reproduce the fault to find it. An
+      expected error that the code handles does not need a trace.
   - id: SL-05-003
     priority: SHOULD
     kind: project
     statement: ERROR level logs SHOULD include original activity ID if available
+    rationale: >-
+      When an ERROR entry names the activity, an operator can find the activity that
+      caused the failure and read its other log entries. Without the ID, the operator
+      must match the failure to an activity by time alone.
 - id: SL-06
   title: Authorization Logging
   specs:
@@ -220,24 +293,38 @@ groups:
     priority: SHOULD
     kind: project
     statement: Authorization decisions SHOULD be logged with decision (allowed/denied)
+    rationale: >-
+      A security review must show which actions the system allowed or denied. A log
+      entry for each authorization decision gives that record, and a series of denials
+      can show misuse while it occurs.
     scope:
     - production
   - id: SL-06-002
     priority: SHOULD
     kind: project
     statement: Authorization logs SHOULD include actor performing action
+    rationale: >-
+      An authorization record must name who asked. Without the actor, a reviewer cannot
+      tell which actor made the request.
     scope:
     - production
   - id: SL-06-003
     priority: SHOULD
     kind: project
     statement: Authorization logs SHOULD include resource being accessed
+    rationale: >-
+      A reviewer must know what the actor tried to access. The resource tells which
+      case, report or other object the decision protected.
     scope:
     - production
   - id: SL-06-004
     priority: SHOULD
     kind: project
     statement: Authorization logs SHOULD include denial reason if denied
+    rationale: >-
+      A denial with no reason is hard to tell apart from a configuration fault. The
+      reason lets an operator see whether the system worked as designed or a rule needs
+      a change.
     scope:
     - production
 - id: SL-07
@@ -248,18 +335,28 @@ groups:
     kind: project
     statement: >-
       Sensitive data operations SHOULD log operation type (CREATE, READ, UPDATE, DELETE)
+    rationale: >-
+      A record of sensitive data operations must show what each operation did. A read of
+      embargoed vulnerability data has a different risk from an update or a delete, so
+      the entry must give the operation type.
     scope:
     - production
   - id: SL-07-002
     priority: SHOULD
     kind: project
     statement: Data access logs SHOULD include resource type and ID
+    rationale: >-
+      The resource type and ID tell a reviewer which record an operation touched. The
+      reviewer can then find all operations on one case or report.
     scope:
     - production
   - id: SL-07-003
     priority: SHOULD
     kind: project
     statement: Data access logs SHOULD include actor performing operation
+    rationale: >-
+      An audit record must name who did each operation. A reviewer can then hold each
+      actor responsible for its access to sensitive data.
     scope:
     - production
 - id: SL-08
@@ -269,5 +366,8 @@ groups:
     priority: MAY
     kind: project
     statement: System MAY log performance metrics at DEBUG level
+    rationale: >-
+      Timing data helps find slow steps, but at INFO it hides the protocol story
+      (SL-04-001). At DEBUG the data is available when an operator asks for it.
     scope:
     - production
