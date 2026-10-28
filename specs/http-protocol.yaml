@@ -258,9 +258,9 @@ groups:
       datalayer dump) MUST use `Content-Type: application/json`.'
     rationale: >-
       ActivityStreams defines the media type for its own documents (HTTP-04-001), but
-      not for other JSON. Which media type the other JSON responses of this codebase
-      carry is its own choice. A plain `application/json` tells a client not to read the
-      body as an ActivityStreams document.
+      not for other JSON. This codebase chooses the media type of its other JSON
+      responses. A plain `application/json` tells a client not to read the body as an
+      ActivityStreams document.
     verification: >-
       `test_datalayer_contents_is_plain_json_not_as2` in
       `test/adapters/driving/fastapi/routers/test_datalayer_serialization.py`
@@ -422,8 +422,8 @@ groups:
       `Content-Type: application/activity+json`.'
     rationale: >-
       ActivityStreams uses camelCase property names, so the response uses the aliases.
-      JSON mode makes values such as datetimes and URIs into strings. An omitted
-      optional field stays out of the body and is not sent as `null`, which a consumer
+      JSON mode makes values such as datetimes and URIs into strings. A field whose
+      value is None stays out of the body and is not sent as `null`, which a consumer
       can read as a value. The media type is the one HTTP-04-001 requires for
       ActivityStreams documents.
     verification: 'Unit test confirms `AS2JSONResponse(as_VulnerabilityCase(...)).body` includes camelCase field names and

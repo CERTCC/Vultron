@@ -528,13 +528,14 @@ groups:
       earlier delivery, so the early filter that ID-05-002 permits goes there. The
       evidence is under a key the receiver derives, because a row under the sender's id
       reads as one of the receiver's own activities (DL-06-006). Intake's archive is the
-      received body (ADR-0149), so a resend of an archived activity is routed as the
-      parse of that body, with that body as its evidence. Handler idempotency then
-      answers it (ID-04). A committed act is a repeat. An act that did not commit, such
-      as one whose consequence failed, runs as a first delivery and records the archived
-      body (CLP-07-015). The archive records receipt, not the act, so "already archived"
-      does not mean "already applied". Only a resend of the same body is a redelivery.
-      If the held copy replaced a different body, that body would be lost with no trace.
+      received body (ADR-0149), so a resend of an archived activity is parsed again from
+      the archived body, and that body is its evidence. Handler idempotency then answers
+      it (ID-04). A committed act is a repeat. An act that did not commit, such as one
+      whose consequence failed, runs as a first delivery and records the archived body
+      (CLP-07-015). The archive records receipt, not the act, so "already archived" does
+      not mean "already applied". Only a resend of the same body is a redelivery: if the
+      receiver routed its held copy in place of a different body, that body would be
+      lost with no trace (IE-10-002).
     verification: >-
       `test/adapters/driving/fastapi/test_ingress_received_evidence.py::test_resend_of_the_held_body_under_a_deferred_id_routes_the_held_copy`
       asserts that a resend of the held body under a deferred id routes the held copy

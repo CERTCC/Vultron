@@ -126,8 +126,8 @@ groups:
     kind: foundation
     statement: Each outbox activity MUST conform to ActivityStreams 2.0 structure
     rationale: >-
-      Recipients are ActivityStreams 2.0 (AS2) and ActivityPub peers. A peer can parse
-      and route only a body that has the AS2 structure, such as `@context` and `type`. A
+      Recipients are ActivityStreams 2.0 (AS2) and ActivityPub peers. A peer routes a
+      body by its AS2 `type`, and it reads the terms of the body through `@context`. A
       body without that structure does not mean anything to the recipient.
     verification: >-
       `test_handle_outbox_item_delivers_an_activitystreams_activity` in
@@ -193,8 +193,8 @@ groups:
     rationale: >-
       The sender's POST waits for the inbox response. If that response waited for the
       deliveries of the receiving actor, one slow or unreachable recipient would slow
-      every sender before it, and their POST requests could time out. Thus the inbox
-      answers 202 first (IE-07-002) and delivers later.
+      every sender whose delivery waits behind it, and their POST requests could time
+      out. Thus the inbox answers 202 first (IE-07-002) and delivers later.
     verification: >-
       Inspection of `post_actor_inbox` in
       `vultron/adapters/driving/fastapi/routers/actors/_routes.py` confirms the endpoint

@@ -189,9 +189,9 @@ groups:
       typed as the plain AS2 base type
     rationale: >-
       The internal subclass holds the validation and the fixed fields of its activity,
-      such as its type and the shape of its object. To instantiate it first applies
-      those rules. To return it as the plain AS2 type keeps callers on the public types
-      (AF-01-002).
+      such as its type and the shape of its object. The factory instantiates the
+      subclass first, so those rules apply. The factory then returns the plain AS2 type,
+      which keeps callers on the public types (AF-01-002).
     verification: Inspection of `vultron/wire/as2/factories/` confirms that each factory function instantiates the
       internal Vultron subclass and returns it annotated as the plain AS2 base type (e.g., `as_Offer`, `as_Accept`).
   - id: AF-05-003

@@ -39,7 +39,7 @@ groups:
       management
     rationale: >-
       The wire layer encodes and decodes messages. Handler logic, case management and
-      the case ledger are domain behaviour, and they belong in core. If the wire layer
+      the case ledger are domain behavior, and they belong in core. If the wire layer
       holds domain logic, a change of wire format must also change that logic, and core
       then does not own its own rules. The wire layer may name core types in its
       annotations (ARCH-22-001), because AS2 is a serialization of the core model
@@ -366,9 +366,9 @@ groups:
       also catches typos, renamed fields and stale keys from an older schema. A reader
       that accepts two spellings for the same field, as `ParticipantStatus.rm` does,
       still knows what the data means, so it does not cause this problem (ARCH-25-007).
-      Inbound data reaches a core class only after `parse_activity` has handled its
-      unknown keys (MV-11), so `extra="forbid"` never decides what happens to an
-      extension property of a peer (MV-11-004).
+      A received activity reaches a core class only after `parse_activity` has handled
+      its unknown keys (MV-11). On that path, `extra="forbid"` does not decide what
+      happens to an extension property of a peer (MV-11-004).
     relationships:
     - rel_type: depends_on
       spec_id: ARCH-23-005
@@ -565,7 +565,7 @@ groups:
       Duplicate implementations of the same logic are prohibited.'
     rationale: >-
       When one helper has two copies, a fix to one copy does not reach the other, and
-      the copies drift apart in their behaviour. Callers then get different answers to
+      the copies drift apart in their behavior. Callers then get different answers to
       the same question, for example different handling of a missing value. One copy in
       a known place lets every caller share each fix. See notes/domain-validation.md and
       ADR-0032.
@@ -959,10 +959,11 @@ groups:
       not a failure.
     rationale: >-
       A payload snapshot in core shape cannot be rebuilt by a receiver (CLP-07-011), and
-      at the call site it looks the same as a correct one. A loud failure shows the
-      error where it starts (ARCH-15-002). The `CoreObject` check stops a bookkeeping
-      record such as `VultronOfferRecord` from going into a delivered payload. Each core
-      type is its own wire form, so a missing wire class is not a reason to refuse.
+      at the call site it looks the same as a correct one. An error raised at once shows
+      the problem where it starts (ARCH-15-002). The `CoreObject` check stops a
+      bookkeeping record such as `VultronOfferRecord` from going into a delivered
+      payload. Each core type is its own wire form, so a missing wire class is not a
+      reason to refuse.
     verification: >-
       `test/adapters/driven/test_wire_render_adapter.py` asserts the port raises for a
       `CoreRecord` and renders every `CORE_VOCABULARY` entry.
@@ -1241,7 +1242,7 @@ groups:
       AS2 is a serialization of the core object model, so the wire layer must name the
       classes that it serializes and the states that they carry. Hexagonal dependencies
       point inward, so the import that breaks the architecture is core to wire
-      (ARCH-01-001), not this one. Core behaviour must still stay out of the wire layer:
+      (ARCH-01-001), not this one. Core behavior must still stay out of the wire layer:
       if wire code calls a use case or a service, the wire layer cannot be replaced as
       one unit (ARCH-06-001). An allow-list makes each new core package forbidden until
       a person decides to admit it.
@@ -1387,9 +1388,9 @@ groups:
       The project must read back what it writes. A computed field in a dump is a key
       that the model does not store, and `extra="forbid"` (ARCH-12-003) refuses an
       unknown key, so validation needs a rule for it. A computed value is derived from
-      the state of the object, so an honest producer always emits a value that agrees
+      the state of the object, so a correct producer always emits a value that agrees
       with that state, and validation can discard it safely. A value that contradicts
-      the state cannot come from an honest producer, and a derived value that gates
+      the state cannot come from a correct producer, and a derived value that gates
       disclosure must fail closed. Validation thus refuses it and does not discard it.
       Receivers use the wire key names (`id`, `type`, `@context`), and stored rows use
       `id` and `type` (ARCH-25-001). A dump that emits Python field names thus matches
@@ -1672,8 +1673,8 @@ groups:
       place of the other, and data can be misread. One class for each domain type makes
       that mistake impossible. A class in a message slot goes on the wire, so it must be
       exactly AS2-representable. Records that never go on the wire, such as dead
-      letters, pending-queue entries, and role and lifecycle participant subclasses,
-      stay free of AS2 limits.
+      letters, pending-queue entries and offer records (`CoreRecord` subclasses), stay
+      free of AS2 limits.
     verification: >-
       `test_every_wire_name_for_a_domain_type_is_its_core_class` in
       `test/architecture/test_hierarchy_invariants.py` asserts every `as_<Name>` the wire
@@ -1721,7 +1722,7 @@ groups:
       carries the spelling. SDO-01-004 refines this.
     rationale: >-
       A dimension object holds one data field, `state`. All its other members are
-      behaviour, and behaviour does not serialize, so the bare state value is the full
+      behavior, and behavior does not serialize, so the bare state value is the full
       data of the object. When the dimension writes the bare value, its core form and
       its wire form are the same. The alias of the enclosing field keeps the published
       AS2 form unchanged for peers. A serializer and a reader on the class keep the rule
@@ -1746,7 +1747,7 @@ groups:
     rationale: >-
       Hexagonal dependencies point inward: outer layers depend on inner layers
       (ADR-0009). The wire layer is outside core, so it may name the core types that it
-      serializes. Core behaviour must stay out of the wire layer, so that the wire layer
+      serializes. Core behavior must stay out of the wire layer, so that the wire layer
       stays replaceable as one unit. An allow-list keyed on the importing directory
       still holds when a file moves, and it forbids a new core package until a person
       admits it.
@@ -1852,9 +1853,9 @@ groups:
       placeholder or a synthesized actor states facts that no actor asserted, and
       activity can then be attributed to the wrong actor. The slot type already says
       whether an IRI is allowed, so the rule for an unresolved reference needs no second
-      source. Embedded copies defer data normalization and do not solve it. A production
-      system is expected to use references, one backing store, and join objects where a
-      relationship carries its own data.
+      source. An embedded copy only delays the work of normalizing the data. It does not
+      do that work. A production system is expected to use references, one backing
+      store, and join objects where a relationship carries its own data.
     verification: >-
       `test/wire/as2/test_rehydration_materialisation.py` asserts `rehydrate()` materialises a
       bare ID in a model-only slot, refuses an unresolvable reference there, leaves a
@@ -1872,12 +1873,12 @@ groups:
       reconciling artifact. The message-shape classes, which subclass AS2 activity verbs, MUST
       live under `vultron/wire/`: they are the AS2 encoding of a message, not its identity.
     rationale: >-
-      AS2 can express more sentences than Vultron needs. The formal protocol counts in
-      the other direction: to propose an embargo and to propose a revision of one are
-      the same sentence with different start and end states. Neither list is thus a
-      subset of the other, and the mapping between them reconciles them (ADR-0083). The
-      message-shape classes are AS2 encodings of a message, so they live in the wire
-      layer.
+      AS2 can express more sentences than Vultron needs. The formal protocol has the
+      opposite problem: it treats two messages as one. To propose an embargo and to
+      propose a revision of one are the same sentence with different start and end
+      states. Neither list is thus a subset of the other, and the mapping between them
+      reconciles them (ADR-0083). The message-shape classes are AS2 encodings of a
+      message, so they live in the wire layer.
     verification: >-
       `test/test_message_semantics_mapping.py` (MSM-03 to MSM-05) asserts the formal shorthands
       map onto the semantic registry rather than onto AS2 types one-for-one, including one AS2

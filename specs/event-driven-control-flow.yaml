@@ -20,8 +20,8 @@ groups:
       to an actor''s inbox, or a trigger invocation representing an actor choosing to begin an action.'
     rationale: >-
       The EDF rules treat a primary event differently from what follows from it. For
-      example, only a primary event may enter from outside the system (EDF-05-001). A
-      fixed definition lets each rule and each reviewer tell the two apart.
+      example, a demo may inject only primary events (EDF-05-001). A fixed definition
+      lets each rule and each reviewer tell the two apart.
   - id: EDF-01-002
     priority: MUST
     kind: architecture
@@ -83,8 +83,8 @@ groups:
     statement: The inbox MUST be the sole entry point for inbound activity processing; handlers MUST NOT be invoked directly
       by callers that bypass the inbox dispatch pipeline.
     rationale: >-
-      The inbox pipeline parses each activity, extracts its semantics and records its
-      receipt before a handler runs. A caller that invokes a handler directly skips
+      The inbox pipeline parses each activity, extracts its semantics and checks its
+      case context before a handler runs. A caller that invokes a handler directly skips
       those steps. The handler then acts on input that the pipeline did not check.
   - id: EDF-02-004
     priority: MUST_NOT
@@ -130,9 +130,10 @@ groups:
     statement: 'A use case''s `execute()` method MUST contain only infrastructure glue: BT instantiation, blackboard setup,
       bridge execution, status check, and output extraction.'
     rationale: >-
-      When `execute()` holds only glue, all protocol logic is in the tree, where nodes
-      can be tested and composed. Logic in `execute()` is hidden from the tree. If that
-      logic writes state, it skips the checks that the tree applies (CLP-10-020).
+      When `execute()` only builds, sets up and runs the tree, all protocol logic is in
+      the tree, where nodes can be tested and composed. Logic in `execute()` is hidden
+      from the tree. If that logic writes state, it skips the checks that the tree
+      applies (CLP-10-020).
   - id: EDF-03-004
     priority: MUST
     kind: protocol
@@ -352,10 +353,9 @@ groups:
       the awaited effect is committed asynchronously after that request returns.
     rationale: >-
       An observable that becomes true during the triggering request shows only that the
-      cause started, not that it completed. For example, the case exists as soon as
-      `validate-report` runs, but the participant reaches RM.VALID only after the HTTP
-      202 returns. A gate on case existence lets the next step run before the effect it
-      needs.
+      cause started, not that it completed. The awaited effect commits after the request
+      returns, so a gate on that observable lets the next step run before the effect it
+      needs. A gate on the committed effect removes that race (ADR-0058).
     adr:
     - ADR-0058
     tags:
@@ -374,10 +374,11 @@ groups:
     rationale: >-
       In the forwarding and propose-then-execute patterns, the recipient gets a new
       activity under an id that the received-side use case derives, and not the sender's
-      activity. For example, the CASE_MANAGER answers an ownership-transfer proposal of
-      the owner with its own `Offer(VulnerabilityCase)` under a derived id (CM-21-005,
-      ADR-0148). A poll for the id of the sender's activity can never find the derived
-      activity. A scan for its type, target and object can find it.
+      activity. For example, on an ownership-transfer proposal from the Case Owner, the
+      CASE_MANAGER makes its own `Offer(VulnerabilityCase)` for the transferee under a
+      derived id (CM-21-005, ADR-0148). A poll for the id of the sender's activity can
+      never find the derived activity. A scan for its type, target and object can find
+      it.
     adr:
     - ADR-0058
     tags:

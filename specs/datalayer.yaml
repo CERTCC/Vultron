@@ -545,10 +545,11 @@ groups:
       are the wire/adapter envelope-reconstitution seam of DL-06-004 and core's reads of
       an archive's loaded view (DL-06-001).
     rationale: >-
-      The exemption set records the activity reads that still break DL-06-001. Each
-      migrated read takes its type off the set, so the set shows the work that remains.
-      The test fails on a read-back of any type that is not in the set, so a new
-      read-back cannot pass without notice. See ADR-0035.
+      The exemption set names the AS2 activity types that `dl.read()` may still return
+      to core. When a core read moves off activity read-back, its type leaves the set,
+      so the set shows the work that remains. When the set is empty, no core semantic
+      read of an activity is left (DL-06-001). A test fails when an exempt type gets a
+      core counterpart, so a stale entry cannot stay in the set. See ADR-0035.
     relationships:
     - rel_type: refines
       spec_id: DL-05-004
@@ -918,22 +919,22 @@ groups:
       activity names has no record in the store of the sending actor, because actor
       discovery is not implemented (ADR-0024). Dehydration is reversible only against
       such a record (DL-08-001), so a peer actor stored as its id cannot be expanded
-      again. Four activities name a peer: `_RmInviteToCaseActivity` and
-      `_RecommendActorActivity` in `object_`, and `_OfferCaseParticipantRoleActivity`
-      and `_OfferCaseOwnershipTransferActivity` in `target`. The role offer also
-      declares its `object_`, a `CaseParticipantRole` that the factory creates inline
-      and no path persists. Each factory wraps a peer named by a bare id as an
-      `as_Actor`, so the peer travels inline. Each other required typed reference names
-      an activity, which stays inline, or a case, report, status, participant or
-      embargo, which the sender holds. A received activity is stored as the base class
-      of the parser, so storage also uses the declaration of the semantic class that the
-      activity matches. For example, the CASE_MANAGER holds no record of an ownership
-      transferee, so its ledger snapshot must carry the transferee inline (CLP-07-006).
-      Without the declaration, outbox delivery refuses the stored activity for
-      AKM-03-003, and the invitee is never told about its invitation. Read-back must
-      also re-type the inline object, or semantic matching classifies the activity as
-      UNKNOWN. For this reason the re-typing set (`_inline_typed_fields` in
-      `db_record.py`) is wider than the dehydration set and includes `context`.
+      again. Each activity that names a peer, such as `_RmInviteToCaseActivity` in
+      `object_` or `_OfferCaseOwnershipTransferActivity` in `target`, declares that
+      field in `inline_required_refs`. The role offer also declares its `object_`, a
+      `CaseParticipantRole` that the factory creates inline and no path persists. Each
+      factory wraps a peer named by a bare id as an `as_Actor`, so the peer travels
+      inline. Each other required typed reference names an activity, which stays inline,
+      or a case, report, status, participant or embargo, which the sender holds. The
+      parser stores a received activity as its base class. Storage therefore also reads
+      the inline declaration of the semantic class that the activity matches. For
+      example, the CASE_MANAGER holds no record of an ownership transferee, so its
+      ledger snapshot must carry the transferee inline (CLP-07-006). Without the
+      declaration, outbox delivery refuses the stored activity for AKM-03-003, and the
+      invitee is never told about its invitation. Read-back must also re-type the inline
+      object, or semantic matching classifies the activity as UNKNOWN. For this reason
+      the re-typing set (`_inline_typed_fields` in `db_record.py`) is wider than the
+      dehydration set and includes `context`.
     relationships:
     - rel_type: refines
       spec_id: DL-08-001

@@ -193,14 +193,14 @@ groups:
       One bad dimension often causes more violations. A list that does not rank them
       becomes a long list of errors that one fix mostly clears. The root and derived
       labels tell the caller which violations to fix first. The label uses dimension
-      overlap and not a graph of which rule depends on which. Thus a new rule gets the
-      correct label with no extra work, and the labels cannot go out of date. A root
-      violation that reads several dimensions is the most useful one: each dimension
-      moved legally on its own, but the combination is not possible. The statement makes
-      the remediation premise explicit because the overlap rule is correct only while
-      that premise holds. A reader who treats overlap as a pure graph property expects a
-      role gate to mislabel its consequences. That expectation needs a participant on a
-      dimension it has no role for, which ADR-0075 makes unreachable.
+      overlap and not a graph of which rule depends on which. Thus a new rule whose fix
+      is a legal value or a withdrawn assertion gets the correct label with no extra
+      work. A root violation that reads several dimensions is the most useful one: each
+      dimension moved legally on its own, but the combination is not possible. The
+      overlap rule is correct only while the expected fix holds, so the statement names
+      that fix. For a role gate the fix is to withdraw the assertion. A participant has
+      no value on a dimension it has no role for (ADR-0075), so a role gate cannot
+      mislabel its consequences.
     relationships:
     - rel_type: refines
       spec_id: EH-07-001

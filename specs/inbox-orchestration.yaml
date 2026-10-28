@@ -177,11 +177,11 @@ groups:
       and a dispatch adapter (VultronEvent to use-case execution). The dispatch adapter MUST return the handler''s HandlerResult
       (UCORG-05-010), which is the only channel by which the verdict reaches InboxOutcome.'
     rationale: >-
-      Two adapters with clear names make each input of the pipeline explicit. Each
-      additional adapter is one more interface for every caller to supply and for the
-      module to hide. The dispatch adapter returns the HandlerResult, so a handler does
-      not have to write the verdict to a blackboard key, and InboxOutcome's vocabulary
-      stays out of handlers (HP-01-004).
+      Two adapters with clear names make the two required inputs of the pipeline
+      explicit. Each additional adapter is one more interface for every caller to supply
+      and for the module to hide. The dispatch adapter returns the HandlerResult, so a
+      handler does not have to write the verdict to a blackboard key, and InboxOutcome's
+      vocabulary stays out of handlers (HP-01-004).
     tags:
     - tooling
     relationships:
@@ -204,9 +204,10 @@ groups:
     verification_debt: '#2575'
     statement: The inbox orchestration module MUST NOT access pending-queue storage directly from `vultron/adapters/`.
     rationale: >-
-      Pending-queue storage is an adapter detail. If core reads that storage directly,
-      it depends on an adapter, against ARCH-01-001, and a test cannot give it a
-      different queue. The injected port (IO-03-002) is the only path.
+      Pending-queue storage is an adapter detail. If the inbox orchestration module
+      reads that storage directly, it depends on an adapter, against ARCH-01-001, and a
+      test cannot give it a different queue. In this module, the injected port
+      (IO-03-002) is the only path to the queue.
     relationships:
     - rel_type: refines
       spec_id: IO-03-002
@@ -312,10 +313,11 @@ groups:
       `process_payload` MUST NOT raise an exception for protocol-invalid payloads; all error
       conditions MUST be encoded in the returned `InboxOutcome`.
     rationale: >-
-      The FastAPI inbox background task, the inbox queue drain, the deferred replay and
-      the tests all call `process_payload`. If a protocol-invalid payload raises, each
-      caller needs its own handler for the raise, and a caller that has none loses the
-      outcome. An outcome value gives every caller the same result for every payload.
+      The FastAPI inbox background task, the inbox queue drain (which also replays
+      deferred activities) and the tests all call `process_payload`. If a
+      protocol-invalid payload raises, each caller needs its own handler for the raise,
+      and a caller that has none loses the outcome. An outcome value gives every caller
+      the same result for every payload.
     relationships:
     - rel_type: refines
       spec_id: IO-04-001
