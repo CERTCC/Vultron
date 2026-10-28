@@ -36,6 +36,7 @@ NOTIFY_FAILURE_ACTION = (
     REPO_ROOT / ".github" / "actions" / "notify-failure" / "action.yml"
 )
 DEMO_WORKFLOW = WORKFLOWS_DIR / "demo-integration.yml"
+ENSURE_ISSUE_TYPE = REPO_ROOT / ".github" / "scripts" / "ensure-issue-type.sh"
 PUBLICATION_WORKFLOW = WORKFLOWS_DIR / "deploy_site.yml"
 # ``main`` for CISEC-05-001; ``publish`` for the publication workflow, whose
 # failed run leaves the live site stale with no failing pull request to notice
@@ -334,61 +335,88 @@ def _notify_action_create_script() -> str:
     return creating[0]
 
 
+def _type_setting_calls(script: str, type_name: str) -> list[str]:
+    """Return each call of the shared type helper for *type_name* in *script*."""
+    return re.findall(
+        rf'^\s*bash "\$ensure_type" .* {type_name}\s*$',
+        script,
+        flags=re.MULTILINE,
+    )
+
+
 def test_notify_action_sets_bug_issue_type() -> None:
     """CISEC-05-007: a failure issue must carry the Bug type, in both arms.
 
     ``gh issue create`` cannot set an issue type, and a ``bug`` label applied
     with ``GITHUB_TOKEN`` never fires the label-to-issue-type workflow, so the
-    action has to resolve the repository's ``Bug`` type by name and apply it
-    through the ``updateIssue`` mutation itself. The resolution is by *name*:
-    a hardcoded node ID would break silently if the type were re-created. The
-    same helper runs on the comment-on-existing arm so an issue left untyped
-    by a failed assignment is repaired on the next notify run.
+    action sets the type itself through the shared helper
+    (``ensure-issue-type.sh``). The helper runs on the comment-on-existing arm
+    too, so an issue left untyped by a failed assignment is repaired on the
+    next notify run.
     """
     script = _notify_action_create_script()
-    assert "issueTypes" in script and 'select(.name == "Bug")' in script, (
-        "The notify-failure action must resolve the repository's `Bug` issue "
-        "type by name via the `issueTypes` GraphQL field (CISEC-05-007)."
-    )
-    assert "updateIssue" in script and "issueTypeId" in script, (
-        "The notify-failure action must apply the Bug type to the new issue "
-        "via the `updateIssue` mutation's `issueTypeId` (CISEC-05-007)."
+    assert "scripts/ensure-issue-type.sh" in script, (
+        "The notify-failure action must set the issue type through "
+        f"{ENSURE_ISSUE_TYPE.relative_to(REPO_ROOT)} (CISEC-05-007)."
     )
     assert '--label "bug"' not in script and "--label bug" not in script, (
         "The notify-failure action must not rely on a `bug` label for the "
         "label-to-issue-type workflow: GITHUB_TOKEN events never trigger it "
         "(CISEC-05-007)."
     )
-    calls = re.findall(r"^\s*ensure_bug_type \"", script, flags=re.MULTILINE)
+    calls = _type_setting_calls(script, "Bug")
     assert len(calls) == 2, (
-        "ensure_bug_type must run once on the create arm and once on the "
+        "The Bug type must be set once on the create arm and once on the "
         "comment-on-existing arm, so an issue left untyped by a transient "
         f"mutation failure is repaired on the next run; found {len(calls)} "
         "call(s) (CISEC-05-007)."
     )
 
 
-def test_notify_action_fails_visibly_without_bug_type() -> None:
-    """CISEC-05-007: no ``Bug`` type in the repository is a loud step failure.
+def test_recordings_workflow_sets_task_issue_type() -> None:
+    """CISEC-05-007: the refresh Task is typed by the same helper, both arms."""
+    workflow = (WORKFLOWS_DIR / "demo-recordings.yml").read_text()
+    assert "ensure_type=.github/scripts/ensure-issue-type.sh" in workflow
+    assert len(_type_setting_calls(workflow, "Task")) == 2
+
+
+def test_issue_type_helper_resolves_the_type_by_name() -> None:
+    """CISEC-05-007: the type is resolved by name and applied by mutation.
+
+    By *name*: a hardcoded node ID would break silently if the type were
+    re-created.
+    """
+    script = ENSURE_ISSUE_TYPE.read_text()
+    assert "issueTypes" in script, (
+        "The helper must resolve the issue type by name via the `issueTypes` "
+        "GraphQL field (CISEC-05-007)."
+    )
+    assert "updateIssue" in script and "issueTypeId" in script, (
+        "The helper must apply the type via the `updateIssue` mutation's "
+        "`issueTypeId` (CISEC-05-007)."
+    )
+
+
+def test_issue_type_helper_fails_visibly_without_the_type() -> None:
+    """CISEC-05-007: no type of that name in the repository is a loud failure.
 
     The guard has to come *after* a jq expression that tolerates a null
     ``issueTypes`` connection (an owner with no issue types at all); otherwise
     ``set -e`` kills the step before the ``::error::`` line can name the issue.
     """
-    script = _notify_action_create_script()
+    script = ENSURE_ISSUE_TYPE.read_text()
     assert "(.data.repository.issueTypes.nodes // [])" in script, (
-        "The Bug-type lookup must default a null `issueTypes` connection to "
-        "an empty list, or jq aborts the step before the guard runs "
+        "The type lookup must default a null `issueTypes` connection to an "
+        "empty list, or jq aborts the step before the guard runs "
         "(CISEC-05-007)."
     )
-    assert 'if [ -z "$bug_type_id" ]' in script, (
-        "The notify-failure action must guard on an empty Bug type ID "
-        "(CISEC-05-007)."
+    assert 'if [ -z "$type_id" ]' in script, (
+        "The helper must guard on an empty type ID (CISEC-05-007)."
     )
-    guard = script.index('if [ -z "$bug_type_id" ]')
+    guard = script.index('if [ -z "$type_id" ]')
     guard_body = script[guard : script.index("fi", guard)]
     assert "::error::" in guard_body and "exit 1" in guard_body, (
-        "A missing `Bug` issue type must fail the step with an `::error::` "
+        "A missing issue type must fail the step with an `::error::` "
         "annotation, not leave the filed issue silently untyped "
         "(CISEC-05-007)."
     )
@@ -405,7 +433,7 @@ printf '%s\n' "$*" >> "$FAKE_GH_LOG"
 case "$1 $2" in
   "api graphql")
     case "$*" in
-      *issueTypes*) echo "BUG_TYPE_ID" ;;
+      *issueTypes*) printf 'Bug\tBUG_TYPE_ID\n' ;;
       *) echo "Set issue type: Bug" ;;
     esac ;;
   "api "*)
@@ -478,6 +506,9 @@ def _run_notify_action(
         "WORKFLOW_NAME": "Example",
         "RUN_URL": "https://github.com/OWNER/REPO/actions/runs/1",
         "REF": "refs/heads/main",
+        # The runner sets this in a composite action; the step finds the
+        # shared ensure-issue-type.sh helper through it.
+        "GITHUB_ACTION_PATH": str(NOTIFY_FAILURE_ACTION.parent),
     }
     if api_fails:
         env["FAKE_API_FAIL"] = "1"

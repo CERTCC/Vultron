@@ -66,9 +66,9 @@ A scenario module declares itself, and nothing else anywhere does:
   container without failing.
 
 A scenario specified but not yet built goes in `notes/demo-future-ideas.md`, never the
-registry (DEMOCI-11-010). Full write-up, including why the role bindings cannot live on
-the decorator: [demo-scenario-registry](../../notes/demo-scenario-registry.md).
-DEMOCI-11, ADR-0098. (ISSUE-3450, ISSUE-3475)
+registry (DEMOCI-11-010). Its recording is generated, never hand-edited, and each
+role's `url_env` must name a `demo-runner` compose slot. Full write-up, recordings
+included: [demo-scenario-registry](../../notes/demo-scenario-registry.md). DEMOCI-11.
 
 ### Extract Before Reuse: No Copy-Paste from Existing Scenario Files
 

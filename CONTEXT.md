@@ -279,6 +279,7 @@ One path through the scenario tree from its root to an ending, registered as a
 *Avoid*: demo (the whole demo program), story (the tree as a whole)
 
 **Recording**:
-The case ledgers a scenario writes when it runs, captured deterministically so that
-replaying it shows exactly what Vultron did.
+The canonical case ledger a scenario writes when it runs, captured deterministically so
+that replaying it shows exactly what Vultron did. Each replica is checked against it,
+not kept.
 *Avoid*: sample log, fixture

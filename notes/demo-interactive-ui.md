@@ -6,7 +6,6 @@ tracks:
   - "#676"
   - "#3642"
   - "#3643"
-  - "#3901"
   - "#4723"
   - "#4726"
   - "#4730"
@@ -37,6 +36,7 @@ related_specs:
 relevant_packages:
   - ui
   - vultron/demo/scenario
+  - vultron/demo/recordings
   - vultron/metadata/demo_scenarios
   - vultron/semantic_registry
   - vultron/adapters/driving/fastapi/routers
@@ -85,7 +85,7 @@ exchange that tells a story.
 2. **The audience sees only what Vultron did.** Live mode reads the running
    system's ledgers. Offline mode replays **recordings**: the case ledgers each
    scenario writes, produced by running the real scenario code
-   deterministically and drift-tested against a fresh run. Neither mode
+   deterministically and checked daily against a fresh run. Neither mode
    invents protocol state; the whole UI holds to this once the TypeScript
    simulation is deleted (#4732, decision 5).
 3. **The scenarios form one scenario tree.** Its root is a Reporter who has
@@ -121,7 +121,9 @@ exchange that tells a story.
 ## Interface Contract between `ui/` and Python
 
 Every protocol fact the UI uses comes from Python as a generated, committed,
-drift-tested artifact (ADR-0128's rule), never as a hand-kept TypeScript copy.
+drift-checked artifact (ADR-0128's rule), never as a hand-kept TypeScript copy.
+Most are checked on every change; the recordings are checked daily on `main`
+(table below).
 Nothing in `vultron/` imports `ui/`; the only dependency runs from the
 exporters to the files they write.
 
@@ -129,7 +131,7 @@ exporters to the files they write.
 |---|---|---|---|---|
 | State machines (`ui/src/data/protocol_states.json`) | `uv run export-demo-states` | `ui/src/protocol.ts` | drift test in `test/metadata/demo_scenarios/` | built (EM read from the EM transition table since #4427) |
 | Semantic registry table (`ui/src/data/semantic_registry.json`) | `uv run export-demo-semantics` | `ui/src/semanticRegistry.ts` (ledger parser and mapper) | drift test in `test/metadata/demo_scenarios/` | built (#4725) |
-| Recordings | deterministic in-process scenario runner (#3901) | Log Replay, offline mode | byte-identical drift test; `CaseLedgerEntry` validation | planned |
+| Recordings (`ui/src/recordings/<scenario>/case-actor.jsonl`, the canonical ledger only) | `uv run export-demo-recordings` (`vultron/demo/recordings/`), each scenario run in process with seeded ids and a stepping clock; every replica is checked against the canonical ledger and not stored | Log Replay, offline mode | the daily `demo-recordings` workflow files a refresh Task when a recording differs from a fresh run on `main` (PRs are never blocked; a few days of lag is accepted); a smoke test in `test/demo_recordings/`; `CaseLedgerEntry` validation in `test/demo_unit/test_recordings.py` | built (#3901) |
 | Scenario-tree index | branch-point table and `@scenario` path declarations (#4727; design in `demo-scenario-tree.md`) | offline mode, live branch points | drift test; isomorphic shared-prefix check | planned |
 | Live ledger stream | `GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream` | live mode (#3642) | stream integration tests | server built (#3641); client planned |
 | Branch-point choices | trigger endpoints (`/actors/{id}/trigger/{behavior}` and `/actors/{id}/demo/{behavior}`) | live mode (#3643) | — | planned |

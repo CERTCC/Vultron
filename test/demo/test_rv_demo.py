@@ -185,7 +185,7 @@ def _create_case_from_offer(
 
     This docstring used to blame "nested ASGI delivery is blocked at depth > 0 to
     prevent deadlocks".  That is not so: nothing implements such a guard, and
-    ``_TestClientRouter`` dispatches each POST via ``anyio.to_thread.run_sync``
+    ``InProcessRouter`` dispatches each POST via ``anyio.to_thread.run_sync``
     precisely so nested sends cannot deadlock — multi-hop deliveries are
     observably completing with 202s.  What actually stops the round-trip is
     ordinary bugs in what the sender queues, so do not treat the incompleteness
@@ -215,7 +215,7 @@ def _create_case_from_offer(
     report_id, reporter_id = _extract_offer_ids(client, offer)
 
     # Under ADR-0041, validate-report triggers CaseProposal → CaseActor.
-    # When delivery works (e.g. _TestClientRouter in isolated tests),
+    # When delivery works (e.g. InProcessRouter in isolated tests),
     # the case is created by CaseActor before we get here.  Detect that and
     # skip trigger/create-case to avoid creating a duplicate case.
     case_id = _find_case_for_report(client, report_id)
@@ -1535,7 +1535,7 @@ class TestDeliveryIsolation:
 
     These tests use two isolated FastAPI app instances (created via
     ``create_app()``) each with their own in-memory ``SqliteDataLayer``.
-    A ``_TestClientRouter`` replaces each app's HTTP fallback emitter so that
+    A ``InProcessRouter`` replaces each app's HTTP fallback emitter so that
     outbound deliveries are routed to the correct actor's TestClient inbox
     in-process rather than making real HTTP requests.
 
@@ -1563,15 +1563,15 @@ class TestDeliveryIsolation:
         """
         from _pytest.monkeypatch import MonkeyPatch
 
-        from test.demo.conftest import (
-            _TestClientRouter,
-            create_isolated_actor_app,
-        )
         from vultron.adapters.driving.fastapi.outbox_handler import (
             configure_default_emitter,
             get_default_emitter,
         )
         from vultron.config import reload_config
+        from vultron.demo.in_process import (
+            InProcessRouter,
+            create_isolated_actor_app,
+        )
 
         _VENDOR_BASE = "http://vendor.test"
         mp = MonkeyPatch()
@@ -1581,7 +1581,7 @@ class TestDeliveryIsolation:
         )
         reload_config()
 
-        router = _TestClientRouter()
+        router = InProcessRouter()
         reporter_isolated = create_isolated_actor_app(
             base_url="http://reporter.test",
             router=router,
@@ -1686,7 +1686,7 @@ class TestDeliveryIsolation:
         This is the core delivery-path test for #530.  Without the fix,
         Reporter's DataLayer would remain empty because delivery was never
         exercised.  With the fix, the outbox→inbox chain runs in-process
-        via ``_TestClientRouter`` and Reporter's isolated DataLayer receives the
+        via ``InProcessRouter`` and Reporter's isolated DataLayer receives the
         case announcement.
         """
         import types
@@ -1806,7 +1806,7 @@ class TestDeliveryIsolation:
         )
 
         # The case announcement should have been delivered to Reporter's inbox
-        # via the outbox→_TestClientRouter→inbox chain.  Reporter's isolated
+        # via the outbox→InProcessRouter→inbox chain.  Reporter's isolated
         # DataLayer must contain the case.
         # The reporter's own store, for the same reason.
         reporter_case = reporter_isolated.store_for(reporter_id).read(case.id_)

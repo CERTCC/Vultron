@@ -27,7 +27,7 @@ AC-1 tests (``TestBootstrapSequence.test_announce_creates_case_replica`` and
 separate owner app creates a case by processing a submitted report and then
 validates it.  Validation triggers the CaseActor to emit
 ``Announce(as_VulnerabilityCase)`` via the outbox, which is routed to the
-participant app via ``_TestClientRouter``.  This exercises the full
+participant app via ``InProcessRouter``.  This exercises the full
 create-case → emit-Announce path, catching regressions where case creation
 no longer sends the announcement (PCR-07-006).
 
@@ -40,8 +40,6 @@ the handler's side effect (note appended to ``replica.notes``).
 import pytest
 
 from test.demo.conftest import (
-    _TestClientRouter,
-    create_isolated_actor_app,
     submit_report_through_reporter,
 )
 from test.support.case_owner import CASE_OWNER_ID
@@ -52,6 +50,10 @@ from vultron.core.models.dimensions import (
 from vultron.core.models.pending_case_inbox import VultronPendingCaseInbox
 from vultron.core.models.report_case_link import VultronReportCaseLink
 from vultron.core.states.rm import RM
+from vultron.demo.in_process import (
+    InProcessRouter,
+    create_isolated_actor_app,
+)
 from vultron.enums.roles import CVDRole
 from vultron.wire.as2.factories import (
     add_note_to_case_activity,
@@ -91,7 +93,7 @@ def participant_setup():
 
     The test seeds the case replica directly in the participant's store
     (fast, sufficient for routing coverage).
-    The ``_TestClientRouter`` is installed as the default emitter so that any
+    The ``InProcessRouter`` is installed as the default emitter so that any
     outbound deliveries from the participant stay in-process (ADR-0042).
 
     Yields:
@@ -102,7 +104,7 @@ def participant_setup():
         get_default_emitter,
     )
 
-    router = _TestClientRouter()
+    router = InProcessRouter()
     participant_isolated = create_isolated_actor_app(
         base_url=_PARTICIPANT_BASE,
         router=router,
@@ -120,7 +122,7 @@ def two_app_setup():
     """Owner app + participant app wired for end-to-end bootstrap delivery.
 
     Uses two isolated FastAPI app instances each with their own in-memory
-    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
+    ``SqliteDataLayer``.  A shared ``InProcessRouter`` routes outbound
     deliveries between the apps in-process so the full
     outbox → inbox → inbox-handler chain is exercised.
 
@@ -144,7 +146,7 @@ def two_app_setup():
     )
     from vultron.config import get_config
 
-    router = _TestClientRouter()
+    router = InProcessRouter()
     owner_iso = create_isolated_actor_app(
         base_url=_OWNER_BASE,
         router=router,
@@ -243,7 +245,7 @@ def _bootstrap_case_for_participant(
     2. Owner validates the report (``trigger/validate-report``), which
        triggers the ``create_validate_report_tree`` BT and causes the
        CaseActor to emit ``Announce(as_VulnerabilityCase)`` to participant.
-    3. The Announce is delivered via the outbox → ``_TestClientRouter`` →
+    3. The Announce is delivered via the outbox → ``InProcessRouter`` →
        participant inbox chain.
     4. Participant's inbox handler processes the ``Announce``.
 
@@ -386,7 +388,7 @@ def _bootstrap_case_for_participant(
 
     # Owner validates the report: this triggers the validate-report BT
     # and causes the CaseActor to emit Announce(as_VulnerabilityCase) to
-    # participant via the outbox → _TestClientRouter → inbox chain.
+    # participant via the outbox → InProcessRouter → inbox chain.
     resp = owner_tc.post(
         f"/api/v2/actors/{_actor_slug(owner_actor_id)}"
         "/trigger/validate-report",
