@@ -154,8 +154,8 @@ groups:
     kind: project
     verification_debt: '#2573'
     statement: >-
-      The Docker entry point MUST launch the unified CLI so that the container runs interactively
-      and prompts the user to select a demo
+      The Docker entry point MUST launch the unified CLI so that the container runs
+      interactively and shows the list of demos and how to run one
     rationale: >-
       A user who starts the demo container sees a list of the demos and how to run one.
       The user does not need to know the sub-command names before they start.
