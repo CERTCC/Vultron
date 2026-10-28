@@ -224,7 +224,7 @@ def reconstruct_tail_hash(
 def first_case_with_ledger(
     case_ids: Sequence[str], dl: CasePersistence
 ) -> str | None:
-    """The first of *case_ids* whose ledger *dl* holds, or ``None`` for none.
+    """The one of *case_ids* whose ledger *dl* holds, or ``None`` for none.
 
     *dl* holds a case's ledger once it stores the case with its per-case
     genesis hash, the anchor of an empty chain (CLP-08-004), or an entry of
@@ -234,8 +234,11 @@ def first_case_with_ledger(
     :func:`ledger_tail_position` would raise.  ``None`` is an answer, not a
     failure: the sender holds no ledger for any of them.
 
-    Each id is first read as a case (one keyed read); the stored entries are
-    listed at most once, only when no id names a case *dl* holds.
+    Each id is first read as a case (one keyed read), and the first id naming
+    a case *dl* stores with its genesis hash wins; only when none does are the
+    stored entries listed, once, and the first id with a stored chain wins.  A
+    stored case is so preferred over an earlier id held only by its chain,
+    which keeps the entry table off the common path.
     """
     for case_id in case_ids:
         if _get_case_genesis_hash(case_id, dl):

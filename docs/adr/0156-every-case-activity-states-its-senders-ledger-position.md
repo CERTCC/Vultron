@@ -1,12 +1,13 @@
 ---
 status: proposed
 status_override: >-
-  Decided in planning (#5080); SYNC-18-006 holds by construction, but nothing of
-  the decision is built yet, so the record stays editable while its two
-  implementation tasks land.
+  Decided in planning (#5080); SYNC-18-006 holds by construction. The stamp and
+  its parse-edge refusal (SYNC-18-001..003) are built (#5109); the CASE_MANAGER's
+  judgment of a received position (SYNC-18-004/005/007) is not yet (#5110), so
+  the record stays editable until that task lands.
 date: 2026-10-22
 created: 2026-10-22
-updated: 2026-10-27
+updated: 2026-10-28
 revision: 2
 deciders: Allen D. Householder
 consulted: >-
@@ -57,7 +58,7 @@ Chosen option: "Every case activity, from any sender, carries `ledgerPosition`; 
 - **Slot.** The position travels as the activity's `ledgerPosition` property, an object with `logIndex` and `entryHash`, the same JSON-LD term (`vultron:ledgerPosition`) and shape SYNC-16-005 puts on a case copy.
   `content` cannot be the general slot, because `Create(Note)` and other activities carry their text there.
 - **Scope.** Every activity about a case whose ledger its sender holds carries the sender's tail as of building the activity, the CASE_MANAGER's activities included.
-  Activities sent before the sender holds the ledger carry none, and so do activities whose object already states its position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`).
+  Activities sent before the sender holds the ledger carry none, and so do activities whose object already states its position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`, `Update(VulnerabilityCase)`).
   `Read(CaseLedgerEntry)` is in scope: the entry it names is the sender's tail, so its `ledgerPosition` is the stamp.
   `Create(ProcessingFault)` is out of scope: any receiver sends one about an activity it could not process, including one it could not parse and so cannot place in a case, and the fault names no case.
   The maintainer decided this, the replica faults CaseDiverged, HashMismatch and ImpossibleState included ([#5109 comment](https://github.com/CERTCC/Vultron/issues/5109#issuecomment-6470569658)).

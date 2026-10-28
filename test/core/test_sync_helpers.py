@@ -523,6 +523,20 @@ class TestFirstCaseWithLedger:
 
         assert first_case_with_ledger([OTHER_CASE_ID, CASE_ID], dl) == CASE_ID
 
+    def test_a_stored_case_wins_over_an_earlier_chain_only_id(self, dl):
+        dl.create(_make_case())
+        _store(dl, _entry(0, _ZERO_HASH, case_id=OTHER_CASE_ID))
+
+        assert first_case_with_ledger([OTHER_CASE_ID, CASE_ID], dl) == CASE_ID
+
+    def test_the_first_chain_only_id_wins_when_no_case_is_stored(self, dl):
+        _store(dl, _entry(0, _ZERO_HASH))
+        _store(dl, _entry(0, _ZERO_HASH, case_id=OTHER_CASE_ID))
+
+        assert first_case_with_ledger([OTHER_CASE_ID, CASE_ID], dl) == (
+            OTHER_CASE_ID
+        )
+
     def test_no_case_and_no_chain_is_none(self, dl):
         _store(dl, _entry(0, _ZERO_HASH, case_id=OTHER_CASE_ID))
 

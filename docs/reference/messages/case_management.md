@@ -32,7 +32,7 @@ It sends no answer when the sender may not send the message at all, or when the 
 Each message on this page also states its sender's ledger position.
 The sender puts the tail of its copy of the case ledger in the activity's `ledgerPosition`, an object with `logIndex` and `entryHash`, when it builds the message ([SYNC-18-001](../specs/protocol.md#sync-18-001)).
 A receiver refuses such a message when it carries no position or one that does not parse, and writes nothing ([SYNC-18-003](../specs/protocol.md#sync-18-003)).
-`Create(VulnerabilityCase)` and `Announce(VulnerabilityCase)` carry none, because the case they carry states its own position.
+`Create(VulnerabilityCase)`, `Update(VulnerabilityCase)` and `Announce(VulnerabilityCase)` carry none, because the case they carry states its own position.
 A reply to a stub `Invite` carries none either, because its sender does not hold the case yet.
 
 A refused `Offer` or `Invite` is answered with a `Reject` of it, which the sender reads as the decline of its request.
