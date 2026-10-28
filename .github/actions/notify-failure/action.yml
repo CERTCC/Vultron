@@ -56,14 +56,13 @@ runs:
       run: |
         set -euo pipefail
 
-        # Collect all open issue numbers matching both labels.
-        mapfile -t ISSUE_NUMS < <(gh issue list \
-          --repo "$REPO" \
-          --label "ci:main-failure" \
-          --label "$WORKFLOW_LABEL" \
-          --state open \
-          --json number \
-          --jq '.[].number')
+        # Collect all open issue numbers matching both labels, oldest first.
+        # `gh issue list --label` goes through the search index, which lags
+        # and once missed an open tracker, filing a duplicate (#5105); the
+        # list-issues endpoint ANDs the labels against current data.
+        mapfile -t ISSUE_NUMS < <(gh api --paginate \
+          "repos/$REPO/issues?labels=ci:main-failure,$WORKFLOW_LABEL&state=open&sort=created&direction=asc&per_page=100" \
+          --jq '.[] | select(.pull_request == null) | .number')
 
         # `gh issue create` cannot set an issue type, and a label applied
         # with GITHUB_TOKEN never fires the label-to-issue-type workflow,
@@ -111,11 +110,18 @@ runs:
 
         if [ "$MODE" = "notify" ]; then
           if [ "${#ISSUE_NUMS[@]}" -gt 0 ]; then
-            # Add a comment to the first open failure issue.
+            # Add a comment to the oldest open failure issue, and close any
+            # others as its duplicates so one tracker remains (CISEC-05-003).
             gh issue comment "${ISSUE_NUMS[0]}" \
               --repo "$REPO" \
               --body "CI still failing — [run]($RUN_URL)"
             ensure_bug_type "${ISSUE_NUMS[0]}"
+            for NUM in "${ISSUE_NUMS[@]:1}"; do
+              gh issue close "$NUM" \
+                --repo "$REPO" \
+                --duplicate-of "${ISSUE_NUMS[0]}" \
+                --comment "Duplicate of #${ISSUE_NUMS[0]}, which tracks this failure."
+            done
           else
             # Create a new failure issue.
             BODY=$(printf \
