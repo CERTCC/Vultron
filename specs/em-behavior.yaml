@@ -35,14 +35,18 @@ groups:
     statement: >-
       A Participant in EM None (q^em ∈ N) with CS not yet public/exploit/attack
       (q^cs ∈ ···pxa) receiving EP MUST transition their EM state to Proposed
-      (q^em N → P) and emit EK to acknowledge receipt.
+      (q^em N → P). "Emit EK" is discharged by the CASE_MANAGER's commit of the
+      received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
+      is emitted (EP-09-009).
     rationale: >-
       EP is the EM message that initiates embargo negotiation. When no embargo
       exists and the case is still pre-public, the receiver transitions to
       Proposed to signal they are evaluating the proposal.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EP when EM is NONE
-      and CS matches ...pxa transitions EM to PROPOSED and queues EK to the sender.
+      and CS matches ...pxa transitions EM to PROPOSED, and that the CASE_MANAGER's
+      ledger commit and announcement of the received EP discharge EK with no EK
+      message queued.
     testable: true
     preconditions:
     - em_state:
@@ -56,10 +60,10 @@ groups:
       expected: Receiver EM state is PROPOSED
     - order: 2
       actor: receiver
-      action: Emit EK to acknowledge receipt of EP
-      expected: EK queued for sender
+      action: CASE_MANAGER commits the received EP and announces the ledger entry (discharges EK)
+      expected: Ledger entry committed and fanned out; no EK message exists
     postconditions:
-    - description: Receiver EM state is PROPOSED; EK emitted to sender
+    - description: Receiver EM state is PROPOSED; EK discharged by the ledger commit
     relationships:
     - rel_type: satisfies
       spec_id: VP-11-004

@@ -25,33 +25,47 @@ A proposal, such as an embargo invitation, asks for a decision, and its answer r
 
 **A message that arrives before its case is held, not applied.**
 A message from the CASE_MANAGER may reach a participant before the bootstrap message that establishes the case and its trust ([§10.3 Case Bootstrap and the Trust Root](interactions.md#103-case-bootstrap-and-the-trust-root)).
-Such a message MUST NOT update the participant's case state before that bootstrap message has been validated ([CBT-03-002](../specs/protocol.md#cbt-03-002)).
-The participant SHOULD hold it only for a short, bounded interval ([CBT-03-001](../specs/protocol.md#cbt-03-001)).
-When the interval expires, the participant MUST drop the message ([CBT-03-003](../specs/protocol.md#cbt-03-003)).
+The participant holds such a message for a short, bounded interval, and drops it if the bootstrap message has not been validated by then.
 Applying it early would create case state from a message whose context was never established.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CBT-03-001", "CBT-03-002", "CBT-03-003"))
+```
 
 Messages are addressed according to the routing rules of [§10 Case Coordination](interactions.md#10-case-coordination-n).
 
 ### 4.2 Knowledge Model and Actor Isolation
 
 Each participant knows only what it has been told.
-This subsection states what follows from that, including why a recipient must be able to obtain every object a message names ([§5.2 Serialization](layers.md#52-serialization)).
+This subsection states what follows from that, including why a recipient can obtain every object a message names ([§5.2 Serialization](layers.md#52-serialization)).
 
 **What a participant knows versus what is true.**
 A participant's replica reflects the messages it has received.
 Two participants in the same case may hold different views at the same moment, because a message is in transit or because a participant has not yet reported a change.
-The protocol does not require every participant to agree at every instant.
-It requires that each converge on the case's canonical state as ledger entries reach it.
+The protocol does not keep every participant in agreement at every instant.
+Each participant converges on the case's canonical state as ledger entries reach it.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VP-01-003"))
+```
 
 **No participant reads another's state.**
-An implementation MUST NOT read or write another actor's state directly.
-Everything it knows about another participant MUST be derived from a message that participant sent, or from the canonical ledger.
+Actors exchange information only through protocol messages, even when they run in one process.
+What a participant knows about another comes from the messages it has received, including the entries of the canonical ledger.
 This is what makes a participant's knowledge independent of any other participant being reachable.
 
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("AKM-01-002", "PCR-01-003"))
+```
+
 **A recipient can obtain what a message names.**
-A participant MUST NOT assume a recipient holds an object it was never sent ([AKM-02-001](../specs/protocol.md#akm-02-001)).
-An object the recipient cannot be expected to hold is carried inline, or by a reference the recipient can dereference ([AKM-02-002](../specs/protocol.md#akm-02-002)).
+A sender does not assume that a recipient holds an object it was never sent.
+An object the recipient cannot be expected to hold is carried inline, or by a reference the recipient can dereference.
 Either form satisfies the protocol.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("AKM-02-001", "AKM-02-002"))
+```
 
 !!! info "See also"
     - [Actor Knowledge Model](../../topics/actor-knowledge-model.md)
@@ -98,8 +112,7 @@ classDiagram
 | `Note` | The AS2 `Note` type, used unchanged for narrative posted to the case |
 
 **An embargo is sent as `type: EmbargoEvent`.**
-A sender MUST give an embargo the `type` value `EmbargoEvent`, never the plain AS2 `Event` it extends ([Wire Activity Notation](annex-c-notation.md#wire-activity-notation)).
-A receiver that expects an embargo does not treat a plain `Event` as one.
+A sender gives an embargo the `type` value `EmbargoEvent`, not the plain AS2 `Event` it extends, and the occasion tables name it that way ([Wire Activity Notation](annex-c-notation.md#wire-activity-notation)).
 
 ### 4.4 Message Tables
 
@@ -135,7 +148,12 @@ A participant that joined the case by invitation never saw the report offer, so 
     It does not report that the recipient has read the report, assessed it, or agreed to work on it: those are `RV`, `RI`, Report/Case Accepted (`RA`) and Report/Case Deferred (`RD`).
 
     The protocol defines no message meaning "I have read the report".
-    An implementation MUST NOT infer from `RK` that the recipient has examined the content, and MUST NOT treat `RK` as a substitute for a report management state message.
+    `RK` carries no report management state, so it tells the reporter nothing about whether the recipient has examined the content.
+    The recipient's report management state messages are what report that.
+
+    ```python exec="true" idprefix=""
+    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RMB-08-003", "VP-03-009"))
+    ```
 
 ### 4.6 Case Proposal Messages
 
@@ -159,12 +177,17 @@ Conflating them loses a round trip in which the Case Owner decides:
 - `Invite(Actor)[target=VulnerabilityCaseStub]` is the CASE_MANAGER inviting an actor to join on the Case Owner's behalf.
   It is answered with `Accept` or `Reject`.
 - `Offer(Actor)[target=VulnerabilityCase]` is a participant *recommending* an actor ([§4.10 General Messages](layers.md#410-general-messages)).
+  It goes to the CASE_MANAGER, which passes it to the Case Owner as an `Offer(CaseParticipant)`.
   The Case Owner decides on it, and its approval may cause an `Invite` to be sent.
-  An implementation MUST NOT treat it as an invitation to the recommended actor.
+  It is not an invitation to the recommended actor.
 
 Both paths end in an `Accept` of the stub `Invite` ([§12.2 Invitation and Acceptance](interactions.md#122-invitation-and-acceptance-n)).
 That `Accept` joins the case; it is not `RV`.
-The joined participant judges the case by answering the full-case `Invite`, `Invite(Actor)[target=VulnerabilityCase]`, and that answer is `RV`, `RI` or `RC` ([VAM-04-011](../specs/protocol.md#vam-04-011), [CM-11-020](../specs/protocol.md#cm-11-020)).
+The joined participant judges the case by answering the full-case `Invite`, `Invite(Actor)[target=VulnerabilityCase]`, and that answer is `RV`, `RI` or `RC`.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("CM-16-001", "CM-16-004", "CM-11-011", "CM-11-020"))
+```
 
 ### 4.8 Embargo Management Messages
 
@@ -177,7 +200,7 @@ A participant proposes or answers terms by writing to the CASE_MANAGER, which as
     Embargo Revision Proposal (`EV`), Embargo Revision Rejection (`EJ`) and Embargo Revision Acceptance (`EC`) share their wire activities with Embargo Proposal (`EP`), Embargo Proposal Rejection (`ER`) and Embargo Proposal Acceptance (`EA`).
     The activity does not encode the difference.
 
-    An implementation MUST determine which it has received from its own embargo state, as the "Distinguished by" column states.
+    A receiver tells which it has received from its own embargo state, as the "Distinguished by" column states.
     If the case embargo is Active or Revise, an arriving proposal is a revision.
     If it is None or Proposed, the same message is an initial proposal.
 
@@ -185,9 +208,17 @@ A participant proposes or answers terms by writing to the CASE_MANAGER, which as
     An implementation that treats the activity as self-describing will mishandle every revision.
     Because a mishandled revision rejection returns the case to None, it silently drops embargoes that every participant still believes are in force.
 
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EMB-01-001", "EMB-03-001"))
+```
+
 **Choosing between `EV` and `ET`.**
 Embargo Termination (`ET`) takes effect immediately.
-A sender that wants the embargo to end at some future point SHOULD send `EV` proposing that end date rather than `ET`.
+A sender that wants the embargo to end at some future point proposes that end date with `EV` instead.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VP-11-008"))
+```
 
 **Tacit acceptance of a default embargo.**
 Submitting a report without proposing terms accepts the receiver's default embargo policy ([§7.2 Transitions and Guards](tracking-models.md#72-transitions-and-guards)).
@@ -206,7 +237,11 @@ A participant reports them as a claim in a `ParticipantStatus`, and the CASE_MAN
     The fact travels in the status record's fields, as the "Distinguished by" column states, so an implementation that dispatches on the activity alone cannot tell Fix Readiness (`CF`) from Attacks Observed (`CA`).
 
     The two activities differ by the sender's authority, not by the fact.
-    A participant MUST NOT send `Add(CaseStatus)` ([§10.5 Claims and Canonical Status](interactions.md#105-claims-and-canonical-status)).
+    Only the CASE_MANAGER sends `Add(CaseStatus)` ([§10.5 Claims and Canonical Status](interactions.md#105-claims-and-canonical-status)).
+
+    ```python exec="true" idprefix=""
+    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("RSH-04-001", "RSH-04-005"))
+    ```
 
 The Vendor aware, Fix ready, fix Deployed (VFD) occasions report the sender's own progress, so receiving one updates the receiver's model of the sender rather than the receiver's own state ([§8.4 Receiving CS Messages: Own State vs. Model of Others](tracking-models.md#84-receiving-cs-messages-own-state-vs-model-of-others)).
 The Public aware, eXploit public, Attacks observed (PXA) occasions in a `ParticipantStatus` report a claim about the world.
@@ -215,24 +250,28 @@ That claim becomes canonical case state only if the CASE_MANAGER adopts it ([§1
 ### 4.10 General Messages
 
 These messages carry narrative and actor suggestions.
-Together they realize the formal General Inquiry (`GI`), which spans two exchanges ([MSM-04-001](../specs/project.md#msm-04-001), [MSM-04-002](../specs/project.md#msm-04-002)):
+Together they realize the formal General Inquiry (`GI`), which spans two exchanges:
 
 - the note lifecycle, `Add(Note)[target=VulnerabilityCase]` and `Remove(Note)[target=VulnerabilityCase]`;
 - the actor-suggestion exchange, in which a participant suggests an actor, the CASE_MANAGER presents the suggestion to the Case Owner, and the CASE_MANAGER tells the recommender the Case Owner's decision.
 
 {% include-markdown "../messages/_occasions/lookup-general.md" %}
 
-A received `Create(Note)` is not a protocol message, and its receiver does not change the case because of it ([VAM-01-011](../specs/protocol.md#vam-01-011)).
-General Acknowledgment (`GK`) and General Error (`GE`) have no wire activity of their own; the mechanisms of [§4.11 Faults and Acknowledgments](layers.md#411-faults-and-acknowledgments) serve their purposes ([MSM-04-003](../specs/project.md#msm-04-003)).
+A received `Create(Note)` is not a protocol message, and its receiver does not change the case because of it.
+General Acknowledgment (`GK`) and General Error (`GE`) have no wire activity of their own; the mechanisms of [§4.11 Faults and Acknowledgments](layers.md#411-faults-and-acknowledgments) serve their purposes.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VAM-01-011"))
+```
 
 ### 4.11 Faults and Acknowledgments
 
 The formal message set defines an acknowledgment and an error message for each of its four groups: `RK`, `EK`, `CK` and `GK`, and `RE`, `EE`, `CE` and `GE`.
-Their status here is **not uniform**, and an implementation MUST NOT assume symmetry across the groups.
+Their status here is **not uniform**: the groups are not symmetric.
 
 Of the eight, only `RK` has a wire activity, `Read(Offer(VulnerabilityReport))` ([§4.5 Report Management Messages](layers.md#45-report-management-messages)).
 The other seven have none.
-An implementation MUST NOT expect to receive any of the seven, and MUST NOT wait on one.
+No participant sends any of the seven, so a participant that waits for one waits forever.
 
 The absences have two different reasons.
 
@@ -241,10 +280,14 @@ Changes to a case are replicated through the case ledger, and a participant show
 A per-message acknowledgment would restate what the chain already shows.
 `RK` survives because report submission happens before the case exists, so there is no ledger to carry it.
 
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("EP-09-009"))
+```
+
 **`RE`, `EE`, `CE` and `GE` are deliberately unmodeled, not merely unimplemented.**
 The protocol does not type an error message by the state machine that produced it, because that grouping tells a receiver nothing it can act on.
 Knowing *which* machine was confused does not indicate what to do about it.
-Errors are grouped by **failure mode** instead, which is actionable ([MSM-05-001](../specs/protocol.md#msm-05-001)):
+Errors are grouped by **failure mode** instead, which is actionable:
 
 | Failure mode | When it applies | Wire activity | What the sender can do |
 |---|---|---|---|
@@ -252,27 +295,43 @@ Errors are grouped by **failure mode** instead, which is actionable ([MSM-05-001
 | Understood but declined | The message was well-formed and meaningful, but the receiver will not act on it given the case's state | `Reject` of the message being declined | Reconsider; the state, not the message, is the obstacle |
 | Needs explanation | The condition cannot be expressed as a structured message and requires prose | `Add(Note)[target=VulnerabilityCase]` | Read the explanation; there is no automatic recovery |
 
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-001"))
+```
+
 {% include-markdown "../messages/_occasions/lookup-faults_and_acknowledgements.md" %}
 
-An actor that cannot process an inbound activity from an authenticated sender notifies that sender with `Create(ProcessingFault)` ([ASK-07-001](../specs/protocol.md#ask-07-001)).
-It sends no fault to a sender that is not authenticated ([ASK-07-002](../specs/protocol.md#ask-07-002)).
+An actor that cannot process an inbound activity from an authenticated sender notifies that sender with `Create(ProcessingFault)`.
+It sends no fault to a sender that is not authenticated.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("ASK-07-001", "ASK-07-002"))
+```
 
 !!! warning "`Reject` does not mean error"
-    An implementation MUST NOT infer error semantics from the `Reject` verb alone ([MSM-05-003](../specs/protocol.md#msm-05-003)).
+    The `Reject` verb alone does not signal an error.
     `Reject` also carries legitimate protocol answers, including closing a report and declining an embargo invitation, a case invitation, a case proposal or a case ownership transfer.
+
+    ```python exec="true" idprefix=""
+    from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-003"))
+    ```
 
 {% include-markdown "./_oq-negative-ack.md" %}
 
 ### 4.12 Ledger Replication Messages
 
-These messages keep every participant's replica of the case ledger in step with the CASE_MANAGER's ([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)).
+These messages keep every active participant's replica of the case ledger in step with the CASE_MANAGER's ([§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery)).
 
 {% include-markdown "../messages/_occasions/lookup-ledger_replication.md" %}
 
-Acknowledgment of the ledger is cumulative and implicit ([MSM-05-002](../specs/protocol.md#msm-05-002)).
+Acknowledgment of the ledger is cumulative and implicit.
 A participant whose local tail matches a received entry's previous-entry hash sends nothing, because the match is the acknowledgment.
 On a mismatch it sends `Reject(CaseLedgerEntry)`, and the CASE_MANAGER replays every entry after the last one the participant accepted.
-A participant that wants to check its replica is current, after a restart for example, states its position with `Read(CaseLedgerEntry)` naming the last entry it applied, and the CASE_MANAGER answers a lag the same way ([SYNC-17-001](../specs/protocol.md#sync-17-001), [SYNC-17-004](../specs/protocol.md#sync-17-004)).
+A participant that wants to check its replica is current, after a restart for example, states its position with `Read(CaseLedgerEntry)` naming the last entry it applied, and the CASE_MANAGER answers a lag the same way.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MSM-05-002", "SYNC-17-001", "SYNC-17-004"))
+```
 
 ### 4.13 Formal Message Set
 

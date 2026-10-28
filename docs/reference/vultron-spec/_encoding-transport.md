@@ -15,7 +15,7 @@ Meaning comes from the combination of verb, object and the fields that tell occa
 
 Every Vultron message is an AS2 **Activity**: an object describing an action, with the actor who performed it and the thing it was performed on.
 
-Four fields are required on every Activity:
+Every Activity carries these fields:
 
 | Field | Contains |
 |---|---|
@@ -23,10 +23,14 @@ Four fields are required on every Activity:
 | `actor` | The Uniform Resource Identifier (URI) of the actor that performed the action |
 | `object` | The thing acted on, inline or by reference ([§5.2 Serialization](layers.md#52-serialization)) |
 | `id` | A URI uniquely identifying this Activity, used for deduplication ([§15.3 Replay and Idempotency](considerations.md#153-replay-and-idempotency)) |
+| `published` | The time the sender stamps on the Activity when it sends it |
 
 The fields that tell occasions apart, such as `target` and `context`, are the bracketed fields of the [Wire Activity Notation](annex-c-notation.md#wire-activity-notation).
 Vultron's own types are declared in the vocabulary namespace `https://certcc.github.io/Vultron/ns`.
-An implementation MUST use the Vultron ActivityStreams vocabulary for message structure.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("MV-01-001", "OX-02-002", "OID-01-001", "CLP-15-006"))
+```
 
 Vultron uses AS2 verbs rather than defining its own:
 `Create`, `Offer`, `Accept`, `Reject`, `TentativeReject`, `Announce`, `Update`, `Add`, `Remove`, `Invite`, `Read`, `Join`, `Leave`, `Ignore` and `Undo`.
@@ -35,8 +39,8 @@ Because the verbs are generic, meaning often comes from **nesting**: an Activity
 Accepting an embargo is `Accept(Invite(EmbargoEvent)[context=VulnerabilityCase])`, an `Accept` whose object is the `Invite` being accepted, which in turn carries the embargo.
 The nesting is what distinguishes accepting an embargo from accepting a report, `Accept(Offer(VulnerabilityReport))`.
 
-This version does not require full ActivityPub server behavior.
-Inbox and outbox Hypertext Transfer Protocol (HTTP) delivery, WebFinger discovery and HTTP Signatures are not conformance requirements here.
+This version uses the AS2 vocabulary, not full ActivityPub server behavior.
+Its conformance requirements do not include ActivityPub's inbox and outbox Hypertext Transfer Protocol (HTTP) delivery, WebFinger discovery or HTTP Signatures.
 
 !!! note "Informative: ActivityPub conformance is not required by this version"
     A future version is expected to raise the floor to ActivityPub; [§1.3 Relationship to Existing Standards](introduction.md#13-relationship-to-existing-standards) states the roadmap.
@@ -47,19 +51,27 @@ Vultron messages are serialized as JavaScript Object Notation for Linked Data (J
 JSON-LD is JavaScript Object Notation (JSON) with a context that maps short names to full URIs.
 A message is therefore readable as ordinary JSON while remaining unambiguous about which vocabulary each term comes from.
 
-An outbound message MUST set `@context` to the Vultron JSON-LD context document URI, `https://certcc.github.io/Vultron/ns/context.jsonld` ([VM-10-001](../specs/protocol.md#vm-10-001)).
+An outbound message sets `@context` to the Vultron JSON-LD context document URI, `https://certcc.github.io/Vultron/ns/context.jsonld`.
 That context document imports the AS2 namespace and declares every Vultron type name.
 An implementation therefore cites only the Vultron URI and does not need to declare the AS2 namespace separately.
 
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("VM-10-001"))
+```
+
 **Objects travel inline or by reference.**
-As AS2 allows, an Activity MAY carry an object inline or name it by URI, and a receiver MUST cope with either form ([SE-01-002](../specs/foundation.md#se-01-002)).
-An actor that names by reference an object its recipient cannot be expected to hold MUST use a reference the recipient can dereference ([AKM-02-002](../specs/protocol.md#akm-02-002), [§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).
-A production implementation MUST be able to fetch an object named by a URI it holds no record of ([AKM-05-004](../specs/protocol.md#akm-05-004)).
+As AS2 allows, an Activity carries an object inline or names it by URI, and a receiver copes with either form.
+An object the recipient cannot be expected to hold is named only by a reference the recipient can dereference ([§4.2 Knowledge Model and Actor Isolation](layers.md#42-knowledge-model-and-actor-isolation)).
+A production implementation can fetch an object named by a URI it holds no record of.
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("SE-01-002", "AKM-05-004"))
+```
 
 How a case ledger entry records the objects of the activity it records is specified at [§10.4 Ledger Replication and Case Delivery](interactions.md#104-ledger-replication-and-case-delivery).
 
 !!! note "The reference implementation inlines every object"
-    The reference implementation dereferences only a few references, so it carries every object inline and refuses a bare URI it cannot fetch where it needs the object ([AKM-03-003](../specs/project.md#akm-03-003)).
+    The reference implementation dereferences only a few references, so it carries every object inline and refuses a bare URI it cannot fetch where it needs the object.
     That is a shortcut of the prototype, not a Vultron rule.
 
 !!! note "Provisional namespace URI"
@@ -80,11 +92,15 @@ This version recognizes one required transport profile and describes a second th
 
 #### REST (HTTP) profile [N]
 
-This Representational State Transfer (REST) profile is the transport an implementation MUST provide.
+This Representational State Transfer (REST) profile is the transport this version requires.
 
 - Each actor exposes an inbox endpoint that accepts inbound Activities.
 - An outbound Activity is delivered by HTTP POST to the recipient's inbox.
 - Authentication and authorization requirements are at [§15 Security Considerations](considerations.md#15-security-considerations-ni).
+
+```python exec="true" idprefix=""
+from vultron.metadata.specs.docs_render import requirement_callout; print(requirement_callout("IE-02-001", "IE-02-002"))
+```
 
 {% include-markdown "./_oq-transport-status-codes.md" %}
 
@@ -96,7 +112,7 @@ The roadmap is at [§1.3 Relationship to Existing Standards](introduction.md#13-
 
 #### Participant discovery [I]
 
-Before two actors can exchange messages they must locate each other.
+Before two actors can exchange messages, each needs to locate the other.
 WebFinger is the anticipated mechanism, consistent with its use alongside ActivityPub in federated systems.
 This version does not specify participant discovery.
 
@@ -292,7 +308,7 @@ The `vfState` value `VF` is what distinguishes this occasion from the other clai
 
 #### Replicating a ledger entry
 
-The CASE_MANAGER has committed a case event to the case ledger and sends the entry to every participant.
+The CASE_MANAGER has committed a case event to the case ledger and sends the entry to every active participant ([§3.4 How the Dimensions Interact](introduction.md#34-how-the-dimensions-interact)).
 Each participant checks that the entry's `prevLogHash` matches the `entryHash` of the last entry it holds ([§4.12 Ledger Replication Messages](layers.md#412-ledger-replication-messages)).
 The entry shown is the first in its case's ledger, so its `prevLogHash` is the case's own genesis hash ([CLP-08-001](../specs/protocol.md#clp-08-001)).
 Its `published` is the CASE_MANAGER's commit stamp ([CLP-14-002](../specs/protocol.md#clp-14-002)).

@@ -57,6 +57,8 @@ RECONCILED_FRAGMENTS: tuple[str, ...] = (
     "reference/vultron-spec/_introduction.md",
     "reference/vultron-spec/_terminology.md",
     "reference/vultron-spec/_protocol-overview.md",
+    "reference/vultron-spec/_messages.md",
+    "reference/vultron-spec/_encoding-transport.md",
     "reference/vultron-spec/includes/_state-ownership-table.md",
     "reference/vultron-spec/includes/_dimensions-vs-machines.md",
     "reference/vultron-spec/_iana.md",
