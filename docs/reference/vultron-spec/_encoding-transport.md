@@ -94,7 +94,7 @@ This version recognizes one required transport profile and describes a second th
 
 This Representational State Transfer (REST) profile is the transport this version requires.
 
-- Each actor exposes an inbox endpoint that accepts inbound Activities.
+- Each actor exposes an inbox endpoint, named in its actor profile, that accepts inbound Activities.
 - An outbound Activity is delivered by HTTP POST to the recipient's inbox.
 - Authentication and authorization requirements are at [§15 Security Considerations](considerations.md#15-security-considerations-ni).
 
@@ -114,7 +114,8 @@ The roadmap is at [§1.3 Relationship to Existing Standards](introduction.md#13-
 
 Before two actors can exchange messages, each needs to locate the other.
 WebFinger is the anticipated mechanism, consistent with its use alongside ActivityPub in federated systems.
-This version does not specify participant discovery.
+This version does not specify how an actor is found.
+Once an actor's profile is known, its inbox is the endpoint the profile names.
 
 !!! note "Transport is not routing"
     Which inbox a message may go to is a protocol rule, specified at [§10.2 Routing Topology](interactions.md#102-routing-topology), and it applies whichever transport carries the message.
