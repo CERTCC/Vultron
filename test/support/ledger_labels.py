@@ -22,30 +22,48 @@ entry's ``payload_snapshot`` (ADR-0140 item 3, #4724).
 :func:`label_mismatches` lists every entry whose stored type differs.  The
 in-process demo and per-actor-store harnesses call them on every entry their
 scenarios leave behind.
+
+A snapshot carries a nested object bare where its sender named one the case
+already holds (CLP-07-006), and a bare object satisfies no ``object_`` type
+(SE-01-006), so the CASE_MANAGER labels such a payload after rehydrating it.
+A caller that holds the CASE_MANAGER's store passes it as *dl*, and the
+payload is rehydrated against it before it is labelled.
 """
 
 from collections.abc import Iterable, Mapping
 from typing import Any
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
+from vultron.core.ports.datalayer import DataLayer
 from vultron.semantic_registry import find_matching_semantics
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.rehydration import rehydrate
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 
-def registry_label(payload_snapshot: Mapping[str, Any]) -> str:
+def registry_label(
+    payload_snapshot: Mapping[str, Any], dl: DataLayer | None = None
+) -> str:
     """The semantic type the registry assigns to *payload_snapshot*.
+
+    *dl*, when given, is the store the payload is rehydrated against first.
 
     Raises:
         VultronParseError: when the snapshot is not a parseable AS2 activity,
             which ADR-0140 item 2 rules out for every ledger payload.
     """
-    return find_matching_semantics(
-        parse_activity(dict(payload_snapshot))
-    ).value
+    activity = parse_activity(dict(payload_snapshot))
+    if dl is not None:
+        rehydrated = rehydrate(activity, dl)
+        assert isinstance(rehydrated, as_Activity)
+        activity = rehydrated
+    return find_matching_semantics(activity).value
 
 
 def label_mismatch(
-    semantic_type: str, payload_snapshot: Mapping[str, Any]
+    semantic_type: str,
+    payload_snapshot: Mapping[str, Any],
+    dl: DataLayer | None = None,
 ) -> str | None:
     """Why *semantic_type* is not the registry's label for the payload, or ``None``.
 
@@ -53,7 +71,7 @@ def label_mismatch(
     so a caller collects every one before it fails (EH-07-001).
     """
     try:
-        label = registry_label(payload_snapshot)
+        label = registry_label(payload_snapshot, dl)
     except Exception as exc:  # noqa: BLE001 — reported, not raised
         label = f"<unparseable: {type(exc).__name__}: {exc}>"
     if label == semantic_type:
@@ -64,14 +82,19 @@ def label_mismatch(
     )
 
 
-def label_mismatches(entries: Iterable[CaseLedgerEntry]) -> list[str]:
-    """One message per entry whose ``semantic_type`` is not its registry label."""
+def label_mismatches(
+    entries: Iterable[CaseLedgerEntry], dl: DataLayer | None = None
+) -> list[str]:
+    """One message per entry whose ``semantic_type`` is not its registry label.
+
+    *dl* is passed to :func:`label_mismatch` for each entry.
+    """
     return [
         f"case '{entry.case_id}' entry {entry.log_index}: {reason}"
         for entry in entries
         if (
             reason := label_mismatch(
-                entry.semantic_type, entry.payload_snapshot
+                entry.semantic_type, entry.payload_snapshot, dl
             )
         )
         is not None

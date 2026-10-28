@@ -111,9 +111,10 @@ the last one writes what it carries:
    patterns match, so the activity's row and its inline objects are staged in
    `InlineObjectStaging` (`vultron/adapters/inbox_staging.py`): an
    in-memory store read after the receiver's own store for every other id, and
-   emptied around each use. Without the staged object the bare id mis-routes,
-   because permissive patterns accept a string `object_`: `Create(id)` routes as a
-   report.
+   emptied around each use. Without the staged object the activity's `object_`
+   stays a bare id, which no pattern's object type accepts (SE-01-006), so an
+   activity whose sender carried its object inline would be read as
+   `UNKNOWN_UNRESOLVABLE_OBJECT`.
 3. **The handler writes the core record, after its guards** (CLP-10-019). Intake
    archives the received body as a `ReceivedActivityRecord` under the receiver's key, and
    an effect node writes any record from the copy the event carries (the add-note

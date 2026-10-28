@@ -264,8 +264,9 @@ if the core write path that applies effects is the sole writer. So:
    delivery.
 2. `FastAPIIngressAdapter.rehydrate` hydrates the in-memory `Announce(CaseLedgerEntry)`
    instead of re-reading it by id, so the inline entry survives for routing
-   (SYNC-13-003/004). A bare-string `object_` would match both permissive
-   Announce patterns.
+   (SYNC-13-003/004). A bare-string `object_` matches no Announce
+   pattern (SE-01-006), so the entry would be read as
+   `UNKNOWN_UNRESOLVABLE_OBJECT`, and a ledger entry is never fetched (AKM-05-007).
 3. Inline nested subtypes survive serialization end to end
    (`serialize_as_any=True`; the entry inside a stored `Announce` stays inline in
    `_dehydrate_data`).

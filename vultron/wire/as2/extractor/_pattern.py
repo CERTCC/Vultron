@@ -8,7 +8,7 @@ dispatch entries. This is the primitive building block imported by both
 
 from typing import Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from vultron.core.models.actor import CoreActor
 from vultron.core.models.embargo_event import EmbargoEvent as CoreEmbargoEvent
@@ -29,36 +29,62 @@ class ActivityPattern(BaseModel):
 
     Supports nested patterns for activities whose object is itself an activity.
 
-    ``strict``: when True, a bare string in ``object_`` (an unresolved URI
-    reference) will NOT match a scalar VOtype/AOtype pattern.  Use this when
-    the activity type has competing scalar and nested-activity patterns for
-    ``object_`` so that an unresolved reference cannot be wrongly dispatched.
-    Defaults to False for backward compatibility with patterns that rely on
-    URI-string ``object_`` values (e.g. ``Reject(CaseLedgerEntry)``).
+    ``object_`` is strict: a bare string there (a URI still unresolved
+    after rehydration) names an object the receiver does not hold, so its
+    type is unknown and it satisfies no scalar ``object_`` constraint
+    (SE-01-006).  ``find_matching_semantics()`` then returns
+    ``UNKNOWN_UNRESOLVABLE_OBJECT``, which the inbox answers by fetching the
+    object (AKM-05-007).  ``accepts_bare_object`` opts a pattern out of
+    that rule; only a pattern a field other than the object's type tells
+    apart from every other pattern of its verb may set it, as
+    ``LedgerPositionReadPattern`` does with ``ledgerPosition``.
+
+    ``strict`` governs ``target_`` alone: when True, a bare string in
+    ``target`` does NOT match a scalar ``target_`` constraint.  Set it on a
+    pattern whose ``target_`` is the sole field that tells it apart from a
+    competing pattern (SE-08-004).  Otherwise ``target_``, like
+    ``context_`` and ``to_``, accepts a bare URI: a case there travels as
+    its URI or a stub by rule (SE-01-007).
     """
 
     description: str | None = None
     activity_: TAtype | IAtype
     strict: bool = False
+    accepts_bare_object: bool = False
 
     to_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
     object_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
     target_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
     context_: Union[AOtype, VOtype, "ActivityPattern"] | None = None
 
+    @model_validator(mode="after")
+    def _strict_needs_target(self) -> "ActivityPattern":
+        """Refuse ``strict`` on a pattern with no ``target_`` to govern."""
+        if self.strict and self.target_ is None:
+            raise ValueError(
+                "strict governs target_ alone (SE-08-004); a pattern with no"
+                " target_ has nothing for it to tighten"
+            )
+        return self
+
     def match(self, activity: as_Activity) -> bool:
         """Return True if the given activity matches this pattern."""
         if self.activity_ != activity.type_:
             return False
 
-        # object_ strictness is per-pattern (self.strict).  Strict patterns
-        # reject bare string refs; permissive patterns (default) accept them.
-        # context_ and to_ are always permissive: string URIs (e.g. case
-        # context URIs) are intentional and accepted as valid matches.
-        # target_ follows self.strict (permissive by default).
-        return _match_activity_field(
-            self.object_, getattr(activity, "object_", None), self.strict
+        return self.matches_object(
+            getattr(activity, "object_", None)
         ) and self._match_qualifiers(activity)
+
+    def matches_object(self, value: object) -> bool:
+        """True if *value*, an activity's ``object``, satisfies ``object_``.
+
+        A bare string satisfies a scalar ``object_`` only when the pattern
+        sets ``accepts_bare_object`` (SE-01-006).
+        """
+        return _match_activity_field(
+            self.object_, value, strict=not self.accepts_bare_object
+        )
 
     def _match_qualifiers(self, activity: as_Activity) -> bool:
         """Match ``target_``, ``context_`` and ``to_`` against *activity*."""
@@ -132,12 +158,14 @@ class LedgerPositionReadPattern(ActivityPattern):
     """``Read(CaseLedgerEntry)``: a participant's stated ledger position.
 
     The entry goes by reference (SYNC-17-001), and the receiver may not hold
-    it, so a bare id in ``object_`` matches as the base pattern lets it.
-    What makes the ``Read`` a position statement is the ``ledgerPosition``
-    it carries: a ``Read`` without one is not matched here, so an
-    acknowledgment ``Read`` whose object did not resolve is never read as a
-    ledger position.
+    it, so this is the one pattern that accepts a bare id in ``object_``
+    (SE-01-006).  What makes the ``Read`` a position statement is the
+    ``ledgerPosition`` it carries: a ``Read`` without one is not matched
+    here, so an acknowledgment ``Read`` whose object did not resolve is
+    never read as a ledger position.
     """
+
+    accepts_bare_object: bool = True
 
     def match(self, activity: as_Activity) -> bool:
         if getattr(activity, "ledger_position", None) is None:
@@ -159,11 +187,12 @@ def _match_activity_field(
             activity_field
         )
     # Scalar type patterns (VOtype / AOtype).
-    # In strict mode (object_ field): a bare string means the reference was
-    # not rehydrated — we cannot confirm the type, so the pattern must NOT
-    # match.  find_matching_semantics() returns UNKNOWN_UNRESOLVABLE_OBJECT.
-    # In permissive mode (context_, to_, target_): string URIs are intentional
-    # (e.g. a case context URI) and are accepted as matching the pattern.
+    # Strict (object_, and target_ on a strict pattern): a bare string means
+    # the reference was not rehydrated, so its type cannot be confirmed and
+    # the pattern must NOT match; find_matching_semantics() returns
+    # UNKNOWN_UNRESOLVABLE_OBJECT for an unmatched bare object_.
+    # Permissive (context_, to_, a lenient target_): string URIs are
+    # intentional (e.g. a case context URI) and match the pattern.
     if activity_field is None:
         return False
     if isinstance(activity_field, str):
