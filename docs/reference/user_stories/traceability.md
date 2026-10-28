@@ -13,7 +13,7 @@ Stories are grouped by theme. Each story entry lists the mapped spec
 requirements with a brief traceability note. Stories with no clear mapping
 to an existing requirement are marked *No mapped requirements*.
 
-Source user stories: `docs/reference/user_stories/story_2022_NNN.md`
+Source user stories: `docs/reference/user_stories/story_YYYY_NNN.md`
 Source specifications: `specs/*.yaml`
 
 <!-- EDITOR NOTES (for anyone hand-editing the section tables below):
@@ -46,6 +46,7 @@ Source specifications: `specs/*.yaml`
 | [7. Publication and Disclosure](#7-publication-and-disclosure) | ~1457 | 101–106 | Coordinated publication, advisories, disclosure timing |
 | [8. Bug Bounty and Incentives](#8-bug-bounty-and-incentives) | ~1708 | 107–109 | Bug bounty programs and incentives |
 | [9. Prioritization, Assessment, and Fix Verification](#9-prioritization-assessment-and-fix-verification) | ~1763 | 110–111 | SSVC scoring, fix readiness |
+| [10. Stories Added in 2026](#10-stories-added-in-2026) | ~1863 | 2026_001–2026_009 | Embargo consent, case ledger, ownership transfer, automation, federation, answers, simulation, CSAF, conformance |
 
 ---
 
@@ -1857,6 +1858,25 @@ Source specifications: `specs/*.yaml`
 </tr>
 </tbody>
 </table>
+
+---
+
+## 10. Stories Added in 2026
+
+These stories were added after the 2022 catalog.
+No requirement cites them yet.
+
+| User Story ID | Story text | Spec ID |
+|---|---|---|
+| [2026_001](story_2026_001.md) | {% include-markdown "./story_2026_001.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
+| [2026_002](story_2026_002.md) | {% include-markdown "./story_2026_002.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
+| [2026_003](story_2026_003.md) | {% include-markdown "./story_2026_003.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
+| [2026_004](story_2026_004.md) | {% include-markdown "./story_2026_004.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
+| [2026_005](story_2026_005.md) | {% include-markdown "./story_2026_005.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
+| [2026_006](story_2026_006.md) | {% include-markdown "./story_2026_006.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
+| [2026_007](story_2026_007.md) | {% include-markdown "./story_2026_007.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
+| [2026_008](story_2026_008.md) | {% include-markdown "./story_2026_008.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
+| [2026_009](story_2026_009.md) | {% include-markdown "./story_2026_009.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} | *No mapped requirements yet* |
 
 ---
 
