@@ -262,8 +262,6 @@ idle stretches after it were demo checks timing out once the Invite wait failed,
 and the later entries were ordinary fan-out from later phases. A late joiner's
 backfill on `main` takes about 15 s for 45 entries.
 
----
-
 ### A job that hit the 15-minute cap
 
 Check whether the demo step is green before you debug the demo. The step has its
@@ -273,6 +271,8 @@ its "demo passed" notice on the run summary, means the runner hung later, in a
 post step that runs no project code, such as `Post Run actions/checkout`. The
 demo's verdict stands and a re-run is the remedy; do not file it as a demo
 defect (#4573).
+
+---
 
 ## Async Race Window Patterns
 

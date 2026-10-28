@@ -328,7 +328,7 @@ jobs:
             NAME="${DEMO}-case-logs-attempt-${attempt}"
             if grep -qxF -- "$NAME" <<< "$NAMES"; then
               if [ "$attempt" -ne "$RUN_ATTEMPT" ]; then
-                echo "::notice::The $DEMO demo did not re-run in attempt" \
+                echo "::notice::No $DEMO case log from attempt" \
                   "$RUN_ATTEMPT; judging its attempt-$attempt case log."
               fi
               echo "name=$NAME" >> "$GITHUB_OUTPUT"

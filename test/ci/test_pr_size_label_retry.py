@@ -186,6 +186,22 @@ def test_a_lasting_add_failure_keeps_the_old_label_and_fails(
     assert len(edits) > 1, "The add was not retried."
 
 
+def test_a_transient_removal_failure_is_retried(tmp_path: Path) -> None:
+    """A removal is safe to repeat, so a server error on it is retried."""
+    result, calls = _run_step(
+        tmp_path,
+        _step(APPLY),
+        current="size:L,size:M",
+        fail_match="--remove-label",
+        fail_times=1,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (
+        _edits(calls)
+        == ["pr edit 4509 --repo OWNER/REPO --remove-label size:M"] * 2
+    )
+
+
 def test_a_transient_failure_reading_the_labels_is_retried(
     tmp_path: Path,
 ) -> None:

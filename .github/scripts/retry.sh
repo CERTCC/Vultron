@@ -10,6 +10,9 @@
 #
 # Usage:   source .github/scripts/retry.sh; retry <command> [args...]
 # Returns: 0 on the first success; otherwise the command's last exit status.
+# Output:  each attempt writes straight to stdout, so `$(retry ...)` also holds
+#          whatever a failed attempt printed before it failed. Only capture a
+#          call whose partial output the caller can tolerate (or parse it so).
 # Tunables (environment):
 #   GH_RETRY_ATTEMPTS  total attempts, including the first (default 4)
 #   GH_RETRY_DELAY     seconds before the first retry, doubled after each

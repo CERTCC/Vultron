@@ -108,17 +108,24 @@ def test_harness_downloads_the_artifact_it_resolved() -> None:
 
 def _run_resolver(
     tmp_path: Path, artifacts: list[str], *, demo: str, attempt: int
-) -> tuple[subprocess.CompletedProcess[str], str]:
+) -> tuple[subprocess.CompletedProcess[str], str, list[str]]:
     """Run the harness's resolve step against a fake ``gh``.
 
-    The fake answers the run's list-artifacts call with *artifacts*, one name
-    per line, as the step's ``--jq`` would print them.
+    The fake logs its arguments and answers the run's list-artifacts call with
+    *artifacts*, one name per line, as the step's ``--jq`` would print them.
+    Returns the result, the step's ``$GITHUB_OUTPUT`` and the ``gh`` calls.
     """
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_gh = bin_dir / "gh"
-    fake_gh.write_text('#!/usr/bin/env bash\nprintf "%s" "$FAKE_NAMES"\n')
+    fake_gh.write_text(
+        "#!/usr/bin/env bash\n"
+        'printf \'%s\\n\' "$*" >> "$FAKE_GH_LOG"\n'
+        'printf "%s" "$FAKE_NAMES"\n'
+    )
     fake_gh.chmod(0o755)
+    gh_log = tmp_path / "gh.log"
+    gh_log.touch()
     output = tmp_path / "output"
     output.touch()
     step = _step("invariant-harness", key="id", needle="case-log-artifact")
@@ -128,6 +135,7 @@ def _run_resolver(
         cwd=REPO_ROOT,
         env={
             "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            "FAKE_GH_LOG": str(gh_log),
             "FAKE_NAMES": "".join(f"{a}\n" for a in artifacts),
             "GH_RETRY_DELAY": "0",
             "GH_TOKEN": "fake-token",
@@ -140,7 +148,7 @@ def _run_resolver(
         capture_output=True,
         text=True,
     )
-    return result, output.read_text()
+    return result, output.read_text(), gh_log.read_text().splitlines()
 
 
 @pytest.mark.parametrize(
@@ -175,17 +183,25 @@ def _run_resolver(
 def test_harness_picks_the_latest_demo_attempt_at_or_before_its_own(
     tmp_path: Path, artifacts: list[str], attempt: int, expected: str
 ) -> None:
-    result, output = _run_resolver(
+    result, output, calls = _run_resolver(
         tmp_path, artifacts, demo="rcv", attempt=attempt
     )
     assert result.returncode == 0, result.stderr
     assert output == f"name={expected}\n"
+    assert calls == [
+        "api --paginate repos/OWNER/REPO/actions/runs/1/artifacts?per_page=100"
+        " --jq .artifacts[].name"
+    ], "The step must list every artifact of this run, all attempts included."
+    fell_back = not expected.endswith(f"-attempt-{attempt}")
+    assert ("::notice::" in result.stderr + result.stdout) is fell_back, (
+        "An earlier attempt's log is judged only with a notice saying so."
+    )
 
 
 def test_harness_fails_when_no_attempt_uploaded_a_case_log(
     tmp_path: Path,
 ) -> None:
-    result, output = _run_resolver(
+    result, output, _ = _run_resolver(
         tmp_path, ["rcv-embargo-case-logs-attempt-1"], demo="rcv", attempt=1
     )
     assert result.returncode != 0
