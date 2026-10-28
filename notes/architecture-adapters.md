@@ -8,6 +8,7 @@ description: >
   (ADR-0042). Adapter categories live in notes/architecture-hexagonal.md.
 related_specs:
   - specs/outbox.yaml
+  - specs/datalayer.yaml
 related_notes:
   - notes/architecture-hexagonal.md
   - notes/outbox.md
@@ -123,7 +124,9 @@ Practically: each actor gets its own SQLite file, named by
 `actor_slug(actor_id)`, and its inbox/outbox queues live in that file rather than
 being keyed by an `actor_id` column. There is no unscoped or "admin" mode to fall
 back to, so a node-wide view must fan out over stores explicitly —
-`hosted_actor_ids()` enumerates them.
+`hosted_actor_ids()` enumerates them. Enumerate from the node's own deployment and
+base URL, never the process-wide store cache: in-process nodes share that cache, so
+reading it lists, and then opens, other nodes' actors (DL-07-011 to DL-07-014).
 
 ### Identity contract: canonical URI must match
 
