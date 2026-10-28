@@ -19,8 +19,8 @@ groups:
     verification_debt: '#2574'
     statement: BT execution MUST be event-driven, triggered by handler invocation
     rationale: >-
-      Case state changes only in response to an event: a received message or a local
-      trigger. A tree that ran on any other cue could change state with no activity to
+      Case state changes only when an event occurs: a received message or a local
+      trigger. A tree that runs on any other cue can change state with no activity to
       record, attribute or answer for.
   - id: BT-01-002
     priority: MUST
@@ -28,28 +28,29 @@ groups:
     verification_debt: '#2574'
     statement: BTs MUST execute to completion (or max iterations) per invocation
     rationale: >-
-      The bridge holds no tree between requests, so a tree stopped part-way would lose
-      its place. Running each tree to completion, with an iteration cap as a backstop
-      against a node that never settles, gives every request a known result.
+      The bridge keeps no tree between requests, so a tree that stops part of the way
+      loses its place. Each tree runs to completion. An iteration limit stops a node
+      that never settles. Thus every request gets a known result.
   - id: BT-01-003
     priority: MUST_NOT
     kind: project
     verification_debt: '#2574'
     statement: BT execution MUST NOT use continuous tick-based polling loops
     rationale: >-
-      A polling loop needs a long-lived process that ticks trees between messages,
-      which this design has no place to hold. It would also spend work and could change
-      state with no event to answer for. Event-driven runs (BT-01-001) cover every case
-      the protocol needs.
+      A polling loop needs a long-lived process that ticks trees between messages, and
+      this design has no place for that process. A polling loop also does unnecessary
+      work, and it can change state with no event to answer for. Event-driven runs
+      (BT-01-001) cover every case that the protocol needs.
   - id: BT-01-004
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: BTs MUST be single-shot executions within handler context
     rationale: >-
-      A tree that runs once inside the handler call shares that call's store, actor and
-      error handling, so the tree's result is the handler's result. A tree that
-      outlived the handler would act after the inbox outcome was already decided.
+      A tree that runs once inside the handler call uses the same store, actor and error
+      handling as that call. Thus the result of the tree is the result of the handler. A
+      tree that continues after the handler returns acts after the inbox outcome is
+      already set.
 - id: BT-02
   title: BT Library
   specs:
@@ -67,10 +68,10 @@ groups:
     verification_debt: '#2574'
     statement: Simulation code in `vultron/bt/` MUST remain unchanged
     rationale: >-
-      The legacy simulator in `vultron/bt/` is the reference that new trees are checked
-      against (BTC-01-002). Changing it to suit new code would erase the record it
-      exists to keep, and would put the simulator's demos and tests at risk for no
-      protocol gain.
+      New trees are checked against the legacy simulator in `vultron/bt/` (BTC-01-002).
+      If you change the simulator to suit new code, you remove the reference that it
+      keeps. You also put the demos and tests of the simulator at risk, with no gain for
+      the protocol.
     adr:
     - ADR-0003
 - id: BT-03
@@ -81,9 +82,9 @@ groups:
     kind: project
     statement: BTs MUST use DataLayer as persistent state store
     rationale: >-
-      The DataLayer is the only state that outlives a tree run and the only state other
-      components read. State a tree kept anywhere else would be lost when the run ends,
-      or would disagree with the store.
+      The DataLayer is the only state that continues after a tree run, and the only
+      state that other components read. If a tree keeps state in a different location,
+      that state is lost when the run ends, or it does not agree with the store.
     verification: >-
       Inspection of BT node implementations in `vultron/core/behaviors/` confirms that
       all state reads and writes go through DataLayer method calls, with no in-memory-only
@@ -97,26 +98,26 @@ groups:
     verification_debt: '#2574'
     statement: BTs MUST NOT maintain separate blackboard persistence
     rationale: >-
-      A second persistent copy of state on the blackboard would drift from the
-      DataLayer and give two answers to one question. The blackboard storage is
-      process-global, so persisted values would also leak from one run into the next
+      A second persistent copy of state on the blackboard gradually becomes different
+      from the DataLayer. Then one question has two answers. Blackboard storage is
+      process-global, so persisted values also go from one run into the next
       (BT-17-003).
   - id: BT-03-003
     priority: MAY
     kind: project
     statement: BT blackboard MAY cache DataLayer state during execution
     rationale: >-
-      A node that reads the same object many times in one run wastes store reads. A
-      cache that lives only for that run cannot drift far from the store, because the
-      store is still where every write goes (BT-03-001, BT-03-004).
+      A node that reads the same object many times in one run causes unnecessary store
+      reads. A cache that exists only for that run stays close to the store, because
+      every write still goes to the store (BT-03-001, BT-03-004).
   - id: BT-03-004
     priority: MUST
     kind: project
     statement: State changes MUST be committed to DataLayer on successful execution
     rationale: >-
-      A successful run claims that the protocol step happened. If its changes were not
-      saved, the actor would report the step as done while its store still showed the
-      earlier state, and peers would act on a step the actor does not record.
+      A successful run tells that the protocol step occurred. If the run does not save
+      its changes, the actor reports the step as done, but its store still shows the
+      earlier state. Then peers act on a step that the actor does not record.
     verification: >-
       A unit test confirms that a BT node's successful `update()` path calls `dl.save()`
       (or equivalent DataLayer commit) before returning `Status.SUCCESS`.
@@ -132,34 +133,34 @@ groups:
     verification_debt: '#2574'
     statement: Handler protocol MUST be preserved (decorator, signature, registration)
     rationale: >-
-      Moving the work inside a handler into a tree must not change how messages reach
-      the handler. A fixed handler contract lets the dispatcher, the routing table and
-      the existing tests stay as they are while the handler's internals change.
+      When the work inside a handler moves into a tree, the path of messages to the
+      handler must not change. A fixed handler contract keeps the dispatcher, the
+      routing table and the current tests the same while the internal parts of the
+      handler change.
   - id: BT-04-002
     priority: MAY
     kind: project
     statement: Handlers MAY invoke BTs via bridge layer
     rationale: >-
-      A bridge gives every handler one way to set up and run a tree, so each handler
-      does not repeat the setup of the store, the actor and the blackboard.
+      A bridge gives every handler one procedure to set up and run a tree. Thus each
+      handler does not repeat the setup of the store, the actor and the blackboard.
   - id: BT-04-003
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: Handlers MUST remain synchronous (BT execution within handler)
     rationale: >-
-      The inbox already runs handlers off the request path (BT-11-002), so a
-      synchronous handler does not hold up the HTTP response. Running the tree inside
-      that synchronous call means the run finishes, and its errors surface, before the
-      handler returns.
+      The inbox runs handlers outside the request path (BT-11-002), so a synchronous
+      handler does not delay the HTTP response. When the tree runs inside that
+      synchronous call, the run finishes and its errors show before the handler returns.
   - id: BT-04-004
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: BT execution errors MUST propagate to handler error handling
     rationale: >-
-      An error that stopped at the tree would leave the handler reporting success for a
-      step that failed. Propagating it lets the inbox outcome and the logs show the
+      If an error stops at the tree, the handler reports success for a step that failed.
+      When the error goes up to the caller, the inbox outcome and the logs show the
       failure.
 - id: BT-05
   title: BT Bridge Layer
@@ -169,33 +170,34 @@ groups:
     kind: project
     statement: System SHOULD provide BT execution bridge for handler-to-BT invocation
     rationale: >-
-      The bridge is where the handler-to-tree seam lives. With one bridge, locking
-      (BT-11-004), blackboard cleanup (BT-17-007) and failure reporting (BT-13-001) are
-      written once for every tree, and they cannot differ between handlers.
+      The bridge is the one connection between handlers and trees. With one bridge, the
+      code for locking (BT-11-004), blackboard cleanup (BT-17-007) and failure reports
+      (BT-13-001) exists once for every tree. Thus it cannot be different between
+      handlers.
   - id: BT-05-002
     priority: SHOULD
     kind: project
     statement: Bridge SHOULD set up py_trees context with DataLayer access
     rationale: >-
-      Nodes read and write through the DataLayer (BT-03-001). Putting the store on the
-      blackboard is how every node in a tree gets the same store without each node
-      being handed it.
+      Nodes read and write through the DataLayer (BT-03-001). When the store is on the
+      blackboard, every node in a tree gets the same store, and no node must receive it
+      separately.
   - id: BT-05-003
     priority: SHOULD
     kind: project
     statement: Bridge SHOULD populate blackboard with activity and actor state
     rationale: >-
-      Nodes need the activity being processed and the identity of the actor running the
-      tree. Putting both on the blackboard gives every node in the tree the same view
-      of the request.
+      Nodes need the activity that the tree processes and the identity of the actor that
+      runs the tree. When both are on the blackboard, every node in the tree has the
+      same view of the request.
   - id: BT-05-004
     priority: SHOULD
     kind: project
     statement: Bridge SHOULD execute tree and return execution result
     rationale: >-
-      The caller needs the tree's outcome to decide its own result and to report why a
-      run failed (BT-13-001). The bridge returns it, so callers do not tick trees or
-      read tree internals themselves.
+      The caller uses the outcome of the tree to set its own result and to report why a
+      run failed (BT-13-001). The bridge returns the outcome, so callers do not tick
+      trees or read the internal parts of trees.
   - id: BT-05-005
     lint_suppress:
     - rationale_too_long
@@ -205,18 +207,19 @@ groups:
       A behavior tree's blackboard `datalayer` MUST be the store of its blackboard `actor_id`. The
       bridge MUST reconcile the two rather than accepting whatever store the caller injected.
     rationale: >-
-      Under per-actor storage a store is always some actor's own, so the executing
-      actor's identity decides which store the tree uses. If the blackboard's store and
-      actor could disagree, a tree emitting on the CaseActor's behalf would create an
-      activity in one store and queue it in another actor's outbox. The CaseActor would
-      then never deliver it, and its outbox would name an activity its own store does
-      not hold. Reconciling once in the bridge makes every node write to the right
-      store by construction, not only when each caller injects a matching DataLayer, in
-      the same way that isolation must not depend on every query remembering a filter.
-      An `actor_id` that the store's authority does not host has no store to reconcile
-      against, so the bridge raises rather than run the tree in the requester's store.
-      A participant whose container does not host the CASE_MANAGER reaches it by
-      message (CM-24-004, ADR-0109).
+      With per-actor storage, each store belongs to one actor. Thus the identity of the
+      executing actor selects the store that the tree uses. If the store and the actor
+      on the blackboard do not agree, a tree that emits for the Case Actor can create an
+      activity in one store and queue it in the outbox of a different actor. Then the
+      Case Actor never delivers the activity, and its outbox names an activity that its
+      own store does not hold. The bridge makes the store and the actor agree one time.
+      Thus every node writes to the correct store, and each caller does not have to
+      supply a matching DataLayer. In the same way, isolation must not depend on each
+      query that remembers a filter. If the store authority does not host the
+      `actor_id`, no store is available to agree with. Thus the bridge raises an error
+      and does not run the tree in the store of the requester. A participant whose
+      container does not host the CASE_MANAGER sends a message to it (CM-24-004,
+      ADR-0109).
     relationships:
     - rel_type: implements
       spec_id: DL-07-001
@@ -291,9 +294,9 @@ groups:
     kind: project
     statement: Prototype use-case BTs MUST correspond to identifiable subtrees of the canonical CVD protocol BT
     rationale: >-
-      Correspondence with the canonical protocol tree is what lets a reviewer check a
-      use-case tree against the protocol design. A tree with no identifiable
-      counterpart can drift from the protocol with nothing to show it (BTC-01-001).
+      When a use-case tree agrees with the canonical protocol tree, a reviewer can check
+      it against the protocol design. A tree with no known equivalent can become
+      different from the protocol, and nothing shows the difference (BTC-01-001).
     verification: >-
       Inspection of `vultron/core/behaviors/` confirms that each use-case BT implements a
       subtree identifiable in `vultron/bt/` by name or documented correspondence in the
@@ -303,9 +306,9 @@ groups:
     kind: project
     statement: BT nodes SHOULD be deterministic
     rationale: >-
-      A deterministic node gives the same result for the same store and input, so a run
-      can be reproduced in a test and a failure can be traced to its cause. Randomness
-      belongs in the simulation backends (BT-23-001), not in protocol nodes.
+      A deterministic node gives the same result for the same store and input. Thus a
+      test can repeat a run, and you can find the cause of a failure. Randomness belongs
+      in the simulation backends (BT-23-001), not in protocol nodes.
   - id: BT-06-004
     priority: MUST
     kind: project
@@ -321,10 +324,10 @@ groups:
       Cascades from a parent subtree to a child subtree MUST be expressed as subtrees within
       the use case's behavior tree, not as procedural calls made after the tree has run.
     rationale: >-
-      A cascade run after the tree returns is outside the tree's guards, logging and
-      failure reporting, and it can run even when the tree's outcome should have
-      stopped it. As a subtree it is visible in the tree's structure and does not run
-      when its parent fails.
+      A cascade that runs after the tree returns is outside the guards, logs and failure
+      reports of the tree. It can also run when the outcome of the tree must stop it. As
+      a subtree, the cascade shows in the tree structure, and it does not run when its
+      parent fails.
     verification: >-
       Inspection of all use-case `execute()` methods confirms that no protocol-observable
       state changes or message sends occur in procedural code after
@@ -340,10 +343,10 @@ groups:
       the BT.
     statement: Protocol-observable actions and state transitions MUST NOT be performed as procedural code outside the BT.
     rationale: >-
-      Code outside the tree escapes the tree's guards, ledger commit and failure
-      reporting, so a protocol action taken there is neither audited nor refusable by
-      the tree. Keeping every such action in the tree makes the tree the full account
-      of what the actor did.
+      Code outside the tree is not subject to the guards, the ledger commit or the
+      failure reports of the tree. Thus a protocol action in that code has no audit, and
+      the tree cannot refuse it. When every such action is in the tree, the tree is the
+      full record of what the actor did.
 - id: BT-07
   title: DataLayer Integration
   specs:
@@ -353,26 +356,26 @@ groups:
     verification_debt: '#2574'
     statement: BT nodes MUST interact with DataLayer via Protocol interface
     rationale: >-
-      Nodes that depend on the DataLayer Protocol rather than on a concrete store work
-      with any adapter, including per-actor stores and test doubles, and keep the core
-      free of adapter imports.
+      Nodes that depend on the DataLayer Protocol, not on one specific store, operate
+      with any adapter. This includes per-actor stores and test doubles. It also keeps
+      adapter imports out of the core.
   - id: BT-07-002
     priority: MUST
     kind: project
     verification_debt: '#2574'
     statement: BT nodes MUST use type-safe DataLayer operations
     rationale: >-
-      Typed reads and writes catch an object of the wrong type where it is read, not in
-      a later node that trusts the value. An untyped read would let a node act on the
-      wrong kind of object and fail far from the cause.
+      Typed reads and writes find an object of the incorrect type at the point where a
+      node reads it. They do not let a later node trust that value. With an untyped
+      read, a node can act on the incorrect kind of object and fail far from the cause.
   - id: BT-07-003
     priority: MUST
     kind: project
     statement: State transitions MUST be logged at the level specified by SL-04-001
     rationale: >-
-      State transitions are the events an operator follows to understand a case.
-      Logging each one at the agreed level makes it findable in every component's log
-      and keeps it out of debug noise.
+      An operator follows state transitions to understand a case. When each transition
+      goes to the log at the agreed level, the operator can find it in the log of every
+      component. It also stays separate from debug messages.
     verification: >-
       Integration tests in `test/demo/` confirm that every RM, EM, and CS state
       transition produces a structured log entry at the level specified by SL-04-001.
@@ -392,22 +395,22 @@ groups:
     kind: project
     statement: System MAY provide CLI interface for BT execution
     rationale: >-
-      Running a tree from the command line lets a developer exercise it without a
-      server, an inbox or a peer.
+      When a developer can run a tree from the command line, the developer can test it
+      without a server, an inbox or a peer.
   - id: BT-08-002
     priority: SHOULD
     kind: project
     statement: CLI SHOULD support invoking specific trees with test data
     rationale: >-
-      Running one tree with chosen data isolates it from the inbox and dispatch path,
-      so a defect in the tree itself is easier to find and reproduce.
+      When you run one tree with selected data, the inbox and dispatch path do not have
+      an effect on it. Thus you can find and repeat a defect in the tree more easily.
   - id: BT-08-003
     priority: SHOULD
     kind: project
     statement: CLI SHOULD log BT execution visualization
     rationale: >-
-      A rendering of the tree as it ran shows which branch was taken and where it
-      failed, which a pass or fail result alone does not show.
+      A diagram of the tree as it ran shows which branch the tree took and where it
+      failed. A result of pass or fail alone does not show this.
 - id: BT-09
   title: Actor Isolation
   specs:
@@ -416,9 +419,9 @@ groups:
     kind: project
     statement: Each actor MUST have isolated BT execution context
     rationale: >-
-      Each actor makes its own decisions from its own state. If two actors shared a run
-      context, one actor's run could read or change the other's state, and the two
-      actors' records of a case would not be independent.
+      Each actor makes its own decisions from its own state. If two actors use one run
+      context, the run of one actor can read or change the state of the other actor.
+      Then the case records of the two actors are not independent.
     verification: >-
       Integration tests in `test/demo/` confirm that processing messages for two
       different actors produces independent DataLayer writes with no cross-actor state
@@ -432,9 +435,9 @@ groups:
     verification_debt: '#2574'
     statement: Actor blackboards MUST NOT share state
     rationale: >-
-      Blackboard storage is process-global, and several actors can run in one process.
-      A shared key would let one actor's run read a value that another actor's run
-      wrote (BT-17-007).
+      Blackboard storage is process-global, and many actors can run in one process. With
+      a shared key, the run of one actor can read a value that the run of a different
+      actor wrote (BT-17-007).
 - id: BT-10
   title: Case Manager Role Management
   specs:
@@ -443,9 +446,9 @@ groups:
     kind: project
     statement: Report validation MUST trigger VulnerabilityCase creation
     rationale: >-
-      A valid report is the point at which the receiving actor takes on coordination of
-      the vulnerability, and every later CVD activity is scoped to a case. Without the
-      case, nothing that follows has a context to carry it.
+      When a report is valid, the receiving actor starts to coordinate the
+      vulnerability. Every later CVD activity is part of a case. Without the case, the
+      activities that follow have no context.
     verification: >-
       Integration tests in `test/demo/test_receive_report_demo.py` confirm that
       processing a valid `CreateReport` activity results in a new `VulnerabilityCase`
@@ -468,15 +471,15 @@ groups:
       keeps its own actor identity, and the case a message concerns is carried by the
       activity's `context`.
     rationale: >-
-      The CASE_MANAGER is a role that a participant holds, not a separate entity. An
-      actor takes part in many cases and keeps one identity across them, and the case a
-      message concerns travels in the activity's `context`. A per-case actor identity
-      cannot be hosted: the sender would derive it from the report or case id, so no
-      container could have registered it, and every message to it would fail. It could
-      not be provisioned in advance either, because the id is not known until a report
-      exists. A `Service` record per case would only repeat what the role already
-      marks. A future process that runs one case gets its own first-class actor
-      identity for the same reason.
+      The CASE_MANAGER is a role that a participant holds. It is not a separate entity.
+      An actor takes part in many cases and keeps one identity in all of them. The
+      activity's `context` identifies the case that a message is about. A container
+      cannot host a per-case actor identity. The sender gets that identity from the
+      report or case id, so no container can register it, and every message to it fails.
+      A container cannot prepare it before use either, because the id is not known until
+      a report exists. A `Service` record for each case only repeats what the role
+      already shows. A future process that runs one case gets its own actor identity for
+      the same reason.
     relationships:
     - rel_type: refines
       spec_id: CP-04-002
@@ -497,10 +500,11 @@ groups:
       The actor holding the `CASE_MANAGER` role for a case MUST process that case's
       messages. The authority is that role, not any particular actor that enacts it.
     rationale: >-
-      Tying message processing to the role, not to a particular object, lets any actor
-      the case owner delegates the role to do the work, including the owner itself. An
-      obligation stated on a distinct case actor leads implementations to create one
-      per case, which BT-10-002 forbids.
+      When message processing follows the role and not one specific object, any actor
+      that holds the role can do the work. This includes an actor that the Case Owner
+      delegates the role to, and the Case Owner itself. If an obligation names a
+      separate case actor, implementations create one for each case, which BT-10-002
+      forbids.
     relationships:
     - rel_type: refines
       spec_id: BT-10-002
@@ -520,10 +524,10 @@ groups:
       authorization decisions, and MUST do so because it holds that role, not because of
       a per-case actor identity.
     rationale: >-
-      Authority that follows the role moves with a delegation and does not depend on
-      any one software actor existing. It also works when the case manager is a person
-      or an organization rather than a service, which is the general case. How this
-      codebase's gates test for the role is BT-10-006.
+      When authority follows the role, it moves with a delegation, and it does not
+      depend on one specific software actor. It also operates when the Case Manager is a
+      person or an organization and not a service, which is the general case. BT-10-006
+      tells how the gates in this codebase test for the role.
     scope:
     - production
     relationships:
@@ -551,11 +555,11 @@ groups:
       `Join(VulnerabilityCase)` or `Ignore(VulnerabilityCase)` (RM.ACCEPTED or
       RM.DEFERRED).
     rationale: >-
-      Accepting the stub Invite only asks for the full case; it says nothing about the
-      report's validity. RM.RECEIVED records that the invitee holds the case but has
-      made no triage decision. Leaving it there until the invitee answers the full-case
-      Invite keeps the CASE_MANAGER's record from claiming a decision the invitee has
-      not made.
+      When the invitee accepts the Stub Invite, it only asks for the full case. It does
+      not say if the report is valid. RM.RECEIVED shows that the invitee holds the case
+      but has not made a triage decision. The invitee stays in RM.RECEIVED until it
+      answers the Full-Case Invite. Thus the record of the CASE_MANAGER does not show a
+      decision that the invitee has not made.
     relationships:
     - rel_type: implements
       spec_id: CM-11-006
@@ -604,12 +608,12 @@ groups:
       starts below the required entry point. Callers MUST NOT be required to
       pre-advance through intermediate states before invoking such a node.
     rationale: >-
-      A vendor that reports a fix ready has been aware of the vulnerability since it
-      engaged, but the VFD machine reaches fix-ready (VFd) only through vendor-aware
-      (Vfd). Requiring each caller to step through Vfd first leaks the machine's
-      ordering into every call site. The node takes the implied V step itself when the
-      actor is still at vfd. That records two ParticipantStatus entries and logs two CS
-      transitions, one per step.
+      A vendor that reports a fix as ready has known about the vulnerability since it
+      engaged. But the VFD machine gets to fix-ready (VFd) only through vendor-aware
+      (Vfd). If each caller must go through Vfd first, each call site must know the
+      order of the machine. Thus, when the actor is still at vfd, the node does the
+      implied V step itself. The node then records two ParticipantStatus entries and
+      logs two CS transitions, one for each step.
 - id: BT-11
   title: Concurrency
   specs:
@@ -634,17 +638,19 @@ groups:
       background.
     statement: Sequential processing MUST NOT block HTTP response (BackgroundTasks)
     rationale: >-
-      A sending peer waits on the HTTP response. Processing a payload inside the
-      request would make every sender wait for the receiver's tree runs and would time
-      out under load, so the inbox answers first and processes in the background.
+      A sending peer waits for the HTTP response. If the inbox processes a payload
+      inside the request, every sender waits for the tree runs of the receiver, and
+      requests time out under load. Thus the inbox answers first and then processes the
+      payload in the background.
   - id: BT-11-003
     priority: MAY
     kind: project
     statement: Future optimizations MAY introduce resource-level locking
     rationale: >-
-      Processing one message at a time is simple but limits throughput. A lock per
-      resource, such as per case, would let unrelated messages run in parallel while
-      still serializing the ones that touch the same state.
+      When the inbox processes one message at a time, the design is simple, but
+      throughput is low. A lock for each resource, for example each case, lets unrelated
+      messages run at the same time. Messages that touch the same state still run one
+      after the other.
     scope:
     - production
   - id: BT-11-004
@@ -686,9 +692,9 @@ groups:
     statement: The `BTBridge.get_failure_reason()` pattern MUST be applied consistently across all BT execution sites, not
       only for a single BT class or protocol flow. Any place in the codebase that logs a BT result MUST use this helper.
     rationale: >-
-      A failure reason reported at one execution site but lost at another still leaves
-      silent failures. One helper used at every site gives every log the failing node's
-      message (BT-13-001).
+      If one execution site reports a failure reason and a different site loses it, some
+      failures stay silent. One helper at every site puts the message of the failing
+      node in every log (BT-13-001).
     relationships:
     - rel_type: refines
       spec_id: BT-13-001
@@ -728,9 +734,9 @@ groups:
       following the same pattern as received-side use cases.
     rationale: >-
       State machine transitions are protocol-significant behavior (BT-06-001). A
-      transition made inline in `execute()` skips the tree's audit, logging and failure
-      reporting through `get_failure_reason()`. With one pattern on both sides, a
-      reader finds every transition in a tree, whichever side started it.
+      transition inside `execute()` is not subject to the audit, logs and failure
+      reports of the tree through `get_failure_reason()`. When both sides use one
+      pattern, a reader finds every transition in a tree, on whichever side it started.
     relationships:
     - rel_type: refines
       spec_id: BT-06-001
@@ -769,10 +775,10 @@ groups:
       terminate-embargo takes the sweep alone. A trigger that runs no tree
       changes no case state and takes no clock decision.
     rationale: >-
-      An overdue embargo is a fact about the case, whatever the entry point. Without
-      the check, a trigger such as accepting a pending revision would extend an embargo
-      whose end time has passed. Running the check as the first stage of the trigger's
-      own tree keeps one tree per request, so the check and the trigger's effects share
+      An overdue embargo is a fact about the case, at every entry point. Without the
+      check, a trigger can extend an embargo whose end time has passed, for example when
+      it accepts a pending revision. The check runs as the first stage of the trigger
+      tree. Thus each request has one tree, and the check and the trigger effects have
       one run and one outcome (ADR-0135).
     verification: >-
       `test/core/use_cases/triggers/test_base.py` asserts a case-scoped
@@ -804,14 +810,14 @@ groups:
       composite using `CheckIsCaseManagerNode` at tree-composition time, not enforced via application-layer guards outside
       the tree.
     rationale: >-
-      Received-side trees run as the receiving actor. Without a role guard inside the
-      tree, a CASE_MANAGER-only node runs at every actor that receives the activity,
-      including participants that must only record it. Paired with a once-only marker,
-      such a run can also take the slot and block the CASE_MANAGER's own run
-      (BT-17-002). A guard placed in the tree is visible in the tree's structure and
-      applies on every path that runs the subtree. The canonical role-guard composite
-      is a Selector with a guarded Sequence (`CheckIsCaseManagerNode` and the action
-      node) and a `Success("Skipped")` fallback.
+      Received-side trees run as the receiving actor. Without a role guard in the tree,
+      a CASE_MANAGER-only node runs at every actor that receives the activity. This
+      includes participants that must only record it. If such a run also sets a
+      once-only marker, it can take the slot and stop the run of the CASE_MANAGER
+      (BT-17-002). A guard in the tree shows in the tree structure, and it applies on
+      every path that runs the subtree. The canonical role-guard composite is a
+      Selector. It has a guarded Sequence (`CheckIsCaseManagerNode` and the action node)
+      and a `Success("Skipped")` fallback.
     verification: For any BT node whose docstring or name implies CASE_MANAGER-only semantics, grep the tree-composition function
       that instantiates it and confirm a `CheckIsCaseManagerNode` wraps the subtree.
     relationships:
@@ -839,12 +845,12 @@ groups:
       MUST explicitly write `None` to any output blackboard key it would normally set before returning FAILURE or SUCCESS.
       It MUST NOT leave a stale value from a previous execution in the blackboard.
     rationale: >-
-      `py_trees.blackboard.Blackboard.storage` is process-global. `execute_with_setup`
-      resets only the keys on its `managed_keys` allowlist on exit, so a key a node
-      writes survives the run unless it is listed there. A consumer that reads such a
-      key can get the value from an earlier run when the producer short-circuits
-      without writing `None`. That contaminates otherwise independent runs with no
-      error to show it.
+      `py_trees.blackboard.Blackboard.storage` is process-global. On exit,
+      `execute_with_setup` resets only the keys on its `managed_keys` allowlist. Thus a
+      key that a node writes stays after the run, unless the allowlist includes it. A
+      consumer that reads such a key can get the value from an earlier run, when the
+      producer stops early and does not write `None`. Then independent runs share data,
+      and no error shows it.
     verification: Add a regression test that runs two `execute_with_setup` calls back-to-back without clearing the blackboard
       between them; assert the second run does not observe output values from the first when the node takes a no-op path.
     relationships:
@@ -872,10 +878,10 @@ groups:
       ID.
     rationale: >-
       `CheckIsCaseManagerNode` compares `actor_id` with the participant that holds
-      `CVDRole.CASE_MANAGER` in `actor_participant_index`, not with the `CaseActor`
-      service resource id. A test that passes the service id fails the role check with
-      no error: the guarded commit never runs, the RM state takes the deferred path,
-      and the test can pass for the wrong reason.
+      `CVDRole.CASE_MANAGER` in `actor_participant_index`. It does not compare it with
+      the id of the `CaseActor` service resource. A test that uses the service id fails
+      the role check, and no error shows. The guarded commit does not run, the RM state
+      takes the deferred path, and the test can pass for the incorrect reason.
     verification: In any test fixture for a received-side use case with a guarded-commit BT, assert that `receiving_actor_id`
       matches the actor whose ID is stored as `CVDRole.CASE_MANAGER` in the test case's `actor_participant_index`.
     relationships:
@@ -898,15 +904,15 @@ groups:
       not overwrite.
     rationale: >-
       In a received-side use case, `request.actor_id` is the sender of the inbound
-      activity. The receiving actor is the CASE_MANAGER that owns the ledger, and its
-      role is what `CheckIsCaseManagerNode` checks. Running the tree as the sender
-      fails that check, so the guarded commit never runs and the ledger entry is
-      skipped with no error. Under per-actor storage `actor_id` also selects the store,
-      so any identity other than the receiver's routes every read and write into a
-      store other than the replica being updated. A received-side use case is always
-      invoked with the receiving actor's store, so that store's owner is the one safe
-      fallback, and the sender never is. A write about the sender still needs the
-      sender's id, which is why it goes in an attribute the setup does not overwrite.
+      activity. The receiving actor is the CASE_MANAGER that owns the ledger, and
+      `CheckIsCaseManagerNode` checks its role. If the tree runs as the sender, that
+      check fails. Then the guarded commit does not run, and the tree skips the ledger
+      entry with no error. With per-actor storage, `actor_id` also selects the store.
+      Thus any identity that is not the receiver sends every read and write to a store
+      that is not the replica under update. The system always calls a received-side use
+      case with the store of the receiving actor. Thus the owner of that store is the
+      one safe fallback, and the sender never is. A write about the sender still needs
+      the sender id, so that id goes in an attribute that the setup does not overwrite.
     verification: >-
       Search all received-side use-case call sites of `execute_with_setup` that
       contain a `GuardedCommitCaseLedgerEntryBT`; assert each passes
@@ -932,13 +938,13 @@ groups:
       returns a value to its caller through a mutable object the caller holds a
       reference to (e.g. a `result_out` dict), not through a managed key.
     rationale: >-
-      `Blackboard.storage` is process-global, so a nested `execute_with_setup` that
-      reuses a key overwrites the outer run's value. Nodes re-read `/actor_id` in
-      `initialise()`, so a nested run as another actor would leak its identity to later
-      siblings and into `payloadSnapshot.actor` (CLP-07-003). A key a node writes
-      mid-tree needs the same reset, because a `memory=False` Sequence can
-      short-circuit before the owning node ticks. A restored key cannot carry a result
-      out.
+      `Blackboard.storage` is process-global. Thus a nested `execute_with_setup` that
+      uses the same key overwrites the value of the outer run. Nodes read `/actor_id`
+      again in `initialise()`. Thus a nested run as a different actor can give its
+      identity to later siblings and to `payloadSnapshot.actor` (CLP-07-003). A key that
+      a node writes during the tree needs the same reset, because a `memory=False`
+      Sequence can stop before the owning node ticks. A restored key cannot carry a
+      result out.
     verification: >-
       For each managed key, assert that a nested `execute_with_setup` passing
       that key leaves the outer execution's value in place after it returns, and
@@ -970,12 +976,13 @@ groups:
       MUST refuse an emit-capable node in `replica_effects` unless the tree
       declares a named exemption carrying a reason.
     rationale: >-
-      An emit outside the gate runs at every receiver. Re-sending another actor's act
-      under one's own name claims an act one did not author; an on-behalf send names the
-      doer in `actor` and the asker in `attributedTo` (CM-24-001, CM-24-002). An actor
-      does not mail its own emission to itself (ADR-0109), so a self-addressed emit is a
-      loop. Acquiring the gate only in the factory gives every received tree the same
-      gate, and the exemption check makes each ungated emit a declared choice.
+      An emit outside the gate runs at every receiver. If an actor sends the act of a
+      different actor again under its own name, it claims an act that it did not author.
+      An on-behalf send names the doer in `actor` and the requester in `attributedTo`
+      (CM-24-001, CM-24-002). An actor does not send its own emission to itself
+      (ADR-0109), so a self-addressed emit is a loop. When only the factory adds the
+      gate, every received tree gets the same gate. The exemption check makes each
+      ungated emit a choice.
     verification: >-
       `test_every_effect_is_inside_the_case_manager_gate` in
       `test/core/behaviors/case/test_suggest_actor_tree.py` checks gate
@@ -1052,10 +1059,11 @@ groups:
       automation limited to notifications or task triggers), or TerminalPlaceholder (terminal placeholder node with no real
       decision logic — an AlwaysSucceed or AlwaysFail fallback leaf with no external dependency).'
     rationale: >-
-      Automation potential tells a future implementer what kind of integration a stub
-      needs: an API or policy rule, a step a person oversees, or only a notification or
-      task. TerminalPlaceholder names a leaf with no decision logic, so that it is not
-      read as "not applicable" or confused with a node of high automation potential.
+      Automation potential tells a future implementer which type of integration a stub
+      needs: an API or policy rule, a step that a person supervises, or only a
+      notification or task. TerminalPlaceholder identifies a leaf with no decision
+      logic. Thus nobody reads it as "not applicable" or as a node with high automation
+      potential.
 - id: BT-18
   title: Call-Out Point Abstraction Layer
   specs:
@@ -1146,14 +1154,15 @@ groups:
       — regardless of how automated the implementation may be.
     rationale: >-
       Automation potential and call-out shape describe different things. Automation
-      potential says whether the logic can run without a person; shape says what flows
-      into and out of the seam, and in which direction. A Retriever backed by a REST
-      API is still a Retriever; the automation only means its implementation needs no
-      human action. Assigning shape from automation potential builds the wrong seam,
-      and the work built on that seam must then be redone. The canonical shapes are
-      listed in BT-18-013. A node that calls an external system to cause a side effect
-      without producing a content artifact is an Actuator, not a Composer, because what
-      leaves the seam is the effect, not an artifact.
+      potential tells if the logic can run without a person. Shape tells what goes into
+      and out of the call-out point, and in which direction. A Retriever that uses a
+      REST API is still a Retriever. The automation only means that its implementation
+      needs no human action. If you select the shape from the automation potential, you
+      build the incorrect call-out point, and you must then do the work on it again.
+      BT-18-013 lists the canonical shapes. A node that calls an external system to
+      cause a side effect, and makes no content artifact, is an Actuator, not a
+      Composer. The reason is that the effect, not an artifact, comes out of the
+      call-out point.
     relationships:
     - rel_type: implements
       spec_id: BT-16-005
@@ -1172,11 +1181,11 @@ groups:
       protocol → query → external system.
     rationale: >-
       Nodes such as MitigationDeployed, MitigationAvailable and HaveExploit return only
-      SUCCESS or FAILURE, so they look like Sentinels. But the tree calls them on
-      demand, and they query an external system for the current status, which is the
-      Retriever pattern. A true Sentinel is not called by the tree: it runs on its own
-      and calls a trigger endpoint when a condition holds. Stating the criterion keeps
-      on-demand binary queries from being classified as Sentinels.
+      SUCCESS or FAILURE, so they look like Sentinels. But the tree calls them when it
+      needs them, and they ask an external system for the current status. That is the
+      Retriever pattern. The tree does not call a true Sentinel. A Sentinel runs by
+      itself and calls a trigger endpoint when a condition is true. This criterion
+      prevents the classification of on-demand binary queries as Sentinels.
     relationships:
     - rel_type: refines
       spec_id: BT-18-005
@@ -1212,12 +1221,12 @@ groups:
       Setting a structured output field to a "rejected" value while returning Status.SUCCESS does not block a Sequence and
       MUST NOT be used as a blocking mechanism.
     rationale: >-
-      A Sequence stops and returns FAILURE as soon as a child returns FAILURE; that is
-      the py_trees blocking idiom. A field value such as `approved=False` does not stop
-      a Sequence, because no node reads it as a gate, so a rejection reported that way
-      lets the next step run. A boolean approval flag on an Evaluator's output record
-      is therefore a design smell, unless that flag is the only input to a later
-      ProtocolInternal gate node.
+      A Sequence stops and returns FAILURE when a child returns FAILURE. That is how
+      py_trees blocks a path. A field value such as `approved=False` does not stop a
+      Sequence, because no node reads it as a gate. Thus, if a rejection uses such a
+      field, the next step runs. A boolean approval flag on the output record of an
+      Evaluator is thus a sign of a bad design. The exception is a flag that is the only
+      input to a later ProtocolInternal gate node.
     tracking_issue: '#1783'
     relationships:
     - rel_type: refines
@@ -1235,12 +1244,13 @@ groups:
       (not a VultronError, so the bridge classifies it as an internal error rather than a protocol outcome), and a static
       architecture check MUST fail if any node under vultron/ returns Status.RUNNING.
     rationale: >-
-      Vultron's execution model has nowhere to suspend a tree: the bridge busy-loops on
-      a root RUNNING until it exhausts max_iterations, then fails without naming the
-      offending node. A node asks and terminates rather than suspending (ADR-0080). A
-      call-out backend is injected from outside the repository, so a static scan cannot
-      see it; only a runtime guard at the seam can. Raising a non-VultronError surfaces
-      a mis-wired backend as an internal error, not as a protocol outcome.
+      The execution model of Vultron cannot pause a tree. If the root returns RUNNING,
+      the bridge ticks it again until max_iterations, and then fails without the name of
+      the node. A node asks and stops, and it does not pause (ADR-0080). A call-out
+      backend comes from outside the repository, so a static scan cannot see it. Only a
+      runtime guard at the call-out point can. The guard raises an error that is not a
+      VultronError, so bad backend wiring shows as an internal error, not as a protocol
+      outcome.
     adr:
     - ADR-0080
     verification: A test injects a call-out backend whose update() returns Status.RUNNING and asserts the guard raises a
@@ -1267,17 +1277,16 @@ groups:
       vultron/demo/fuzzer/ (BT-16-001) and binds to the core declaration rather
       than restating the contract.
     rationale: >-
-      BT-18-002 is enforceable only if the contract is machine-readable from the layer
-      that must satisfy it. A contract written as docstring prose cannot be checked,
-      and one written in vultron/demo/ cannot be read by core at all (BTND-04-002
-      forbids the import; BT-16-001 is why the probabilistic nodes are there). That
-      would leave the DETERMINISTIC default unable to write outputs it has no way to
-      list. Splitting the declaration from the simulation node lets both rules hold at
-      once: core owns what the capability promises, and demo owns one way of pretending
-      to keep it. Typed ports are the mechanism ADR-0044 already requires for every
-      node in vultron/core/behaviors/, and they check types at runtime on both read and
-      write, so reusing them makes the capability contract enforceable without a second
-      registry.
+      BT-18-002 is enforceable only if the layer that must obey the contract can read it
+      as data. Nobody can check a contract that is only docstring text. Core cannot read
+      a contract in vultron/demo/ at all (BTND-04-002 forbids the import, and BT-16-001
+      tells why the probabilistic nodes are there). Then the DETERMINISTIC default
+      cannot write outputs that it cannot list. When the declaration is separate from
+      the simulation node, both rules apply at the same time. Core owns what the
+      capability promises, and demo owns one way to simulate it. ADR-0044 already
+      requires typed ports for every node in vultron/core/behaviors/. Typed ports check
+      types at runtime on read and on write. Thus, with typed ports, the capability
+      contract is enforceable without a second registry.
     adr:
     - ADR-0097
     - ADR-0044
@@ -1313,19 +1322,19 @@ groups:
       participant that observes case state through ledger replication and acts by
       emitting protocol messages.
     rationale: >-
-      A capability shape is defined by the call-out machinery it takes part in: a
-      backend factory, a domain bundle field, a blackboard contract, the
+      The call-out machinery that a capability shape uses defines that shape. This
+      machinery is a backend factory, a domain bundle field, a blackboard contract, the
       synchronous-answer guard (BT-18-011), and a ceiling or floor default (BT-23-002).
-      None of that applies to a monitor, because the protocol never invokes it: the
-      flow runs from monitor to trigger endpoint to protocol, the reverse of a
-      call-out. Classifying a monitor as a capability shape therefore asserts a
-      contract it cannot have, and invites the misclassification BT-18-006 exists to
-      refuse. Naming it a call-in pattern states the flow direction that actually sets
-      it apart, and places it with the concerns an independently-acting process brings:
-      its own schedule, its own credentials, and possibly its own protocol identity.
-      Defining it by information source instead would misclassify a participant
-      monitor, which reads the case's own replicated state and is still never
-      consulted.
+      None of this applies to a monitor, because the protocol never calls it. The flow
+      goes from the monitor to a trigger endpoint and then to the protocol, which is the
+      opposite direction of a call-out. Thus a monitor classified as a capability shape
+      claims a contract that it cannot have. That causes the incorrect classification
+      that BT-18-006 prevents. The name call-in pattern tells the flow direction that
+      makes the monitor different. It also puts the monitor with the concerns of a
+      process that acts independently: its own schedule, its own credentials, and
+      possibly its own protocol identity. A definition by information source gives the
+      incorrect classification for a participant monitor. That monitor reads the
+      replicated state of the case, but the protocol never asks it for an answer.
     adr:
     - ADR-0097
     verification: >
@@ -1351,12 +1360,12 @@ groups:
       An action with no representable not-yet state MUST be refused rather than
       asked about.
     rationale: >-
-      A call-out point is answered within the tick that asks, so it can only be used
-      where an answer already exists to be fetched. A decision that belongs to another
-      actor does not exist when it is asked for, so a gate modelled as a call-out point
-      can only ever answer no, which is what ADR-0080 found in the Case Owner approval
-      gates. The two mechanisms are not interchangeable, and who holds the answer
-      forces the choice, so the criterion is normative rather than advisory.
+      A call-out point gives its answer in the same tick that asks. Thus you can use it
+      only where an answer already exists. A decision that belongs to a different actor
+      does not exist when the tree asks for it. Thus a gate that is a call-out point can
+      only answer no. ADR-0080 found this in the Case Owner approval gates. The two
+      mechanisms are not interchangeable. The party that holds the answer sets the
+      choice, so the criterion is normative, not advisory.
     adr:
     - ADR-0097
     - ADR-0080
@@ -1385,17 +1394,18 @@ groups:
       in an implementation, and a backend that exceeds it MUST surface as an
       internal error naming the offending node, not as a protocol FAILURE.
     rationale: >-
-      A backend runs on the ticking thread under FastAPI BackgroundTasks, so unbounded
-      blocking I/O in update() stalls a worker with no diagnostic while the bridge
-      ticks toward max_iterations and then fails without naming the node. That is the
-      same opaque failure BT-18-011 refuses, reached by blocking rather than by
-      suspending. Answering synchronously is therefore necessary but not sufficient;
-      the answer must also be prompt. The duration is not protocol, because it is local
-      to one actor and no peer can observe it, so two deployments that choose different
-      values do not diverge. An ask deadline differs in the respect that matters: it
-      travels on the wire in the AS2 endTime field, so both parties read the same
-      number (ASK-03-004). Both durations are actor configuration (compare ASK-03-005);
-      what separates them is wire visibility, not configurability.
+      A backend runs on the ticking thread under FastAPI BackgroundTasks. Thus unlimited
+      blocking I/O in update() stops a worker, and no diagnostic shows. The bridge ticks
+      until it gets to max_iterations, and then it fails without the name of the node.
+      That is the same unclear failure that BT-18-011 refuses, but it comes from
+      blocking, not from a pause. Thus a synchronous answer is necessary, but it is not
+      sufficient. The answer must also be fast. The duration is not part of the
+      protocol, because it is local to one actor and no peer can see it. Thus two
+      deployments with different values do not become different in their protocol
+      behavior. An ask deadline is different in one important way. It goes on the wire
+      in the AS2 endTime field, so both parties read the same number (ASK-03-004). Both
+      durations are actor configuration (compare ASK-03-005). Wire visibility, not
+      configuration, makes them different.
     adr:
     - ADR-0097
     verification: >
@@ -1474,10 +1484,10 @@ groups:
       (e.g., embargo termination). Duplicate monolithic BT nodes that inline both state mutation and activity dispatch in
       a single `update()` method MUST NOT exist alongside a canonical factory-composed equivalent.
     rationale: >-
-      Copies of one lifecycle operation drift apart. One copy may check routing before
-      it changes state while another changes state first, so the divergence defect
-      BT-19-001 prevents returns on one path only. A single shared factory gives every
-      call site the same semantics and the same guard ordering.
+      Copies of one lifecycle operation gradually become different. One copy can check
+      routing before it changes state, while a different copy changes state first. Then
+      the defect that BT-19-001 prevents occurs again on one path. A single shared
+      factory gives every call site the same semantics and the same guard order.
     relationships:
     - rel_type: refines
       spec_id: BT-14-002
@@ -1506,10 +1516,10 @@ groups:
       record containing `have_exploit`, `acquire`, and `rationale`. The `HaveExploit` Retriever is kept as a separate seam
       for independent swapability (ADR-0027).
     rationale: >-
-      The five-node simulator sequence encodes one policy decision, whether to acquire
-      an exploit, as boolean flags that production does not need. Two call-out points,
-      a Retriever and an Evaluator, reduce the seam count and keep the
-      exploit-repository query swappable on its own. See ADR-0027 and
+      The five-node simulator sequence uses boolean flags to show one policy decision:
+      if the actor gets an exploit. Production does not need these flags. Two call-out
+      points, a Retriever and an Evaluator, decrease the number of call-out points. They
+      also let you replace the exploit-repository query by itself. See ADR-0027 and
       `docs/developer/reference/bt-fuzzer/rm-exploit.md`.
     tracking_issue: '#1200 (planning); #1249 (factory-fn Idea — already implemented on main); #1309 (implementation — closed by PR #1566)'
     adr:
@@ -1526,9 +1536,9 @@ groups:
       (see BT-20-004).
     rationale: >-
       The `NoPublish*` bypass leaves and the `PublicationIntentsSet` flag check exist
-      only because of how the simulator represents the tree; they are not call-out
-      points. In production the `PrioritizePublicationIntents` Evaluator's output
-      drives which arms run. The `ShouldPublishX` gate nodes are named positively per
+      only because of how the simulator shows the tree. They are not call-out points. In
+      production, the output of the `PrioritizePublicationIntents` Evaluator selects
+      which arms run. The `ShouldPublishX` gate nodes have positive names per
       BTND-08-001. See ADR-0028 and
       `docs/developer/reference/bt-fuzzer/rm-publication.md`.
     tracking_issue: '#1200 (planning); #1310 (implementation)'
@@ -1546,14 +1556,14 @@ groups:
       candidate (actor_id, role) pairs and an Actuator per pair that fires `suggest-actor-to-case` with the explicit
       `CVDRole` parameter.
     rationale: >-
-      Party discovery has no source inside the tree: blackboard queues of identified
-      vendors, coordinators and others would have no production mechanism to fill them.
-      An external monitor that inspects the case, on a schedule or on an event, and
-      fires `suggest-actor-to-case` for each uninvited candidate does the
-      identification where the information is. The monitor is on the call-in surface
-      rather than a call-out capability (BT-18-013), so its seam is a trigger endpoint
-      and not a bundle field. The downstream accept, invite and bootstrap cascade
-      already handles the rest, so no inline loop is needed.
+      The tree has no source for party discovery. No production mechanism can fill
+      blackboard queues of identified vendors, coordinators and other parties. An
+      external monitor examines the case on a schedule or on an event. It sends
+      `suggest-actor-to-case` for each candidate that has no invitation. Thus the
+      identification occurs where the information is. The monitor is on the call-in
+      surface, not a call-out capability (BT-18-013). Thus it connects through a trigger
+      endpoint, not a bundle field. The accept, invite and bootstrap cascade that
+      follows already does the remaining work, so no inline loop is necessary.
     tracking_issue: '#1311 (partial implementation, superseded); #1252 (planning — closed; sentinel approach adopted); #1848 (removal — closed by PR)'
     adr:
     - ADR-0029
@@ -1568,10 +1578,10 @@ groups:
       platform. An optional revision Composer MAY be included between the Evaluator and Actuator. Whether the review phase
       includes a broadcast-for-participant-comment step is an open design question to be resolved at implementation time.'
     rationale: >-
-      The simulator's single `Publish` leaf stands in for a whole advisory publication
-      workflow. In production, drafting, review and submission are distinct operations
-      with separate external seams. Submission causes an external effect without
-      producing an artifact, which makes it an Actuator (ADR-0024). See ADR-0030 and
+      The single `Publish` leaf of the simulator represents a full advisory publication
+      workflow. In production, draft, review and submission are different operations,
+      each with its own external call-out point. Submission causes an external effect
+      but makes no artifact, so it is an Actuator (ADR-0024). See ADR-0030 and
       `docs/developer/reference/bt-fuzzer/rm-publication.md`.
     tracking_issue: '#1200 (planning); #1312 (implemented)'
     adr:
@@ -1586,11 +1596,11 @@ groups:
       for already-active mitigations, a deferred-RM arm, a deploy-if-available
       arm, and a monitor-if-desired arm.
     rationale: >-
-      Mitigation deployment is the fallback when no definitive fix is available yet.
-      Each arm covers one situation the deployer can be in, so the tree reaches a
-      defined outcome in each. `MitigationDeployed` and `MitigationAvailable` ask an
-      external system for the current state, which makes them call-out Retrievers
-      rather than DataLayerCondition nodes.
+      Mitigation deployment is the fallback when no definitive fix is available. Each
+      arm covers one condition of the deployer, so the tree gets to a defined outcome in
+      each condition. `MitigationDeployed` and `MitigationAvailable` ask an external
+      system for the current state. Thus they are call-out Retrievers, not
+      DataLayerCondition nodes.
     tracking_issue: '#1826 (planning Idea — peer to #1248)'
     relationships:
     - rel_type: extends
@@ -1622,10 +1632,9 @@ groups:
     statement: A `create_deploy_tree` combinator factory SHOULD compose fix and mitigation arms into an overarching
       `DeployOrMitigateBT` Fallback (fix arm first).
     rationale: >-
-      A deployer that has a fix should deploy it, and fall back to a mitigation only
-      when it cannot. A combinator with the fix arm first states that preference in one
-      tree, so the two deploy trees cannot be composed in the wrong order at each call
-      site.
+      A deployer that has a fix must deploy it, and use a mitigation only when it
+      cannot. A combinator with the fix arm first shows that preference in one tree.
+      Thus no call site can put the two deploy trees in the incorrect order.
 
 - id: BT-21
   title: Fuzzer Node Replacement Lifecycle
@@ -1741,11 +1750,11 @@ groups:
       builders, integration tests, and demo scenarios that do not explicitly
       opt into STOCHASTIC or REAL.
     rationale: >-
-      Deterministic defaults make integration tests and demo scenarios repeatable
-      without configuration at each call site. A stochastic default would make CI
-      non-deterministic, and the probabilistic mode is useful only for simulation and
-      fuzz testing. The three mode names also show the intended path from DETERMINISTIC
-      to REAL as production implementations are built.
+      Deterministic defaults make integration tests and demo scenarios repeatable, with
+      no configuration at each call site. A stochastic default makes CI
+      non-deterministic. The probabilistic mode is useful only for simulation and fuzz
+      tests. The three mode names also show the intended path from DETERMINISTIC to REAL
+      as the production implementations become available.
     relationships:
     - rel_type: extends
       spec_id: BT-18-004
@@ -1811,10 +1820,10 @@ groups:
     statement: The domain bundle dataclass and its DETERMINISTIC singleton (e.g., `VALIDATION_DETERMINISTIC`) MUST be
       defined in the core layer (`vultron/core/behaviors/call_out/bundles/<domain>.py`).
     rationale: >-
-      The DETERMINISTIC bundle is the production-usable happy-path backend a real actor
-      uses before a capability implementation is wired in, so a core tree builder must
-      resolve its default without reaching into the simulation layer. Placing it in
-      vultron/demo/ would make core depend on demo (BT-16-001, BTND-04-002).
+      The DETERMINISTIC bundle is the happy-path backend that a real actor can use in
+      production before a capability implementation is available. Thus a core tree
+      builder must find its default without access to the simulation layer. If the
+      bundle is in vultron/demo/, core depends on demo (BT-16-001, BTND-04-002).
     adr:
     - ADR-0025
   - id: BT-23-009
@@ -1906,21 +1915,21 @@ groups:
       ceiling/floor rules BT-23-002, BT-23-006, and BT-23-007 apply only to
       gates that do NOT have this property.
     rationale: >-
-      BT-23-002, BT-23-006 and BT-23-007 pick the DETERMINISTIC backend from the
-      simulation's success probability. For a security-significant gate that maps a
-      high-probability node to the permissive AlwaysSucceed, which would let a party
-      other than the Case Owner adopt case state or tear down an embargo by default.
-      For such a gate, permissiveness is a protocol-security risk rather than a
-      prototype convenience, so the floor (the most restrictive semantically-correct
-      backend) is the default and permissiveness is an explicit, documented operator
-      opt-in (ADR-0076). Stating the rule generally makes each gate's author apply it
-      when the gate is added, rather than leaving an audit to find it later. Which
-      gates qualify, and why similar gates such as the accept-direction
+      BT-23-002, BT-23-006 and BT-23-007 select the DETERMINISTIC backend from the
+      success probability of the simulation. For a security-significant gate, this gives
+      a high-probability node the permissive AlwaysSucceed. Then, by default, a party
+      that is not the Case Owner can adopt case state or end an embargo. For such a
+      gate, a permissive default is a protocol-security risk, not a prototype
+      convenience. Thus the floor (the most restrictive backend with correct semantics)
+      is the default. A permissive backend is an explicit operator choice that the
+      operator must document (ADR-0076). Because the rule is general, each gate author
+      applies it when the gate is added, and an audit does not have to find it later.
+      notes/call-out-configuration.md tells which gates qualify. It also tells why
+      similar gates do not qualify, for example the accept-direction
       CaseOwnerApprovesEmbargoResponse (EMB-15-001) and the trigger-side
-      EmbargoExitPolicyGuard do not, is analysis kept in
-      notes/call-out-configuration.md. This rule sets the default posture only. How a
-      qualifying gate is composed is RSH-07-004 (ADR-0080), whose verification rules
-      out an unconditional-FAILURE factory as that default.
+      EmbargoExitPolicyGuard. This rule sets only the default posture. RSH-07-004
+      (ADR-0080) tells how to compose a qualifying gate. Its verification does not let
+      an unconditional-FAILURE factory be that default.
     relationships:
     - rel_type: supersedes
       spec_id: BT-23-002
@@ -1953,17 +1962,17 @@ groups:
       direction, which this requirement does not change.
     rationale: >-
       BT-23-002 and BT-23-007 select the deterministic backend so that deterministic
-      demo scenarios make forward protocol progress. For a capability that produces
-      data, a bare constant SUCCESS defeats that goal: the capability reports success,
-      the downstream gate reads an absent key, and the arm does nothing. Forward
-      progress through a data-gated arm needs the data, so the status direction alone
-      does not fully specify the default. The failure is silent rather than loud,
-      because a downstream read declared optional yields FAILURE rather than an error,
-      which is why the obligation is a requirement on the default rather than left to
-      be noticed. BT-18-012 makes the declared contract readable from core, which is
-      what makes a conforming default possible. The same obligation binds a STOCHASTIC
-      backend under BT-18-003, including the generic WeightedBehavior backends used for
-      production-only domains that have no named fuzzer node.
+      demo scenarios move the protocol forward. For a capability that makes data, a
+      constant SUCCESS with no data prevents that. The capability reports success, the
+      downstream gate reads a missing key, and the arm does nothing. To move forward
+      through an arm that needs data, the tree must have the data. Thus the status
+      direction alone does not fully specify the default. The failure is silent, because
+      a downstream read declared optional gives FAILURE, not an error. For this reason,
+      the obligation is a requirement on the default, and nobody must find the problem
+      by chance. BT-18-012 lets core read the declared contract, so a conforming default
+      is possible. The same obligation applies to a STOCHASTIC backend under BT-18-003.
+      This includes the generic WeightedBehavior backends for production-only domains
+      that have no named fuzzer node.
     adr:
     - ADR-0097
     verification: >
