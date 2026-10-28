@@ -1,0 +1,37 @@
+name: Build site
+description: >
+  Builds the MkDocs site into `site/` the one way every site-building workflow
+  builds it (docs-build-check.yml, deploy_site.yml), so a green review is
+  evidence about the site that publishes (DOCBW-06-004). It fixes the checkout,
+  the dependency set and the build command, and takes no inputs, so no caller
+  can build a different site. A caller checks the repository out first (a
+  local action cannot load without it) and adds its own steps only after this
+  one.
+
+runs:
+  using: composite
+  steps:
+    # Full history and every tag: setuptools_scm derives the package version
+    # from them when `uv sync` installs the project, and the pages that render
+    # history read it. This re-checkout overrides whatever the caller fetched.
+    - name: Check out full history and tags
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+        fetch-tags: true
+
+    # What ships: the project's own dependencies, which carry mkdocs and its
+    # plugins, without the dev group.
+    - name: Set up Python and uv
+      uses: ./.github/actions/setup-python-uv
+      with:
+        uv-sync-args: "--no-dev"
+
+    # --strict makes mkdocs.yml's `validation: warn` settings (dead in-page
+    # anchors, pages missing from the nav) fail the build (DOCBW-03-009).
+    # Never add --quiet (DOCBW-03-010): it hides the warnings --strict counts,
+    # so the build passes over them.
+    - name: Build Site
+      shell: bash
+      run: |
+        uv run mkdocs build --strict --clean --config-file mkdocs.yml

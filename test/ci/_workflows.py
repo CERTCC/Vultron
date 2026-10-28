@@ -17,6 +17,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
 MKDOCS_BUILD = "mkdocs build"
+# A mkdocs command that builds the site: ``build`` or ``gh-deploy`` (which
+# builds and pushes), with any global options (and their values) before the
+# subcommand, so ``mkdocs -v build``, ``mkdocs -f mkdocs.yml build`` and
+# ``python -m mkdocs gh-deploy`` count too.
+MKDOCS_SITE_BUILD = re.compile(
+    r"\bmkdocs(?:\s+-\S+(?:\s+[^-\s]\S*)?)*\s+(?:build|gh-deploy)\b"
+)
+# The one composite action every site-building workflow builds through
+# (DOCBW-06-004).
+BUILD_SITE_ACTION = "./.github/actions/build-site"
 
 # An ``if:`` that still runs the step after an earlier step failed. It widens
 # when the step runs rather than narrowing it, so it cannot skip a gate.
@@ -64,12 +74,51 @@ def index_of(
     return None
 
 
+def local_action_steps(uses: str) -> list[dict[str, Any]]:
+    """Return the steps of the local composite action a ``uses:`` names."""
+    action_dir = REPO_ROOT / uses.removeprefix("./")
+    action_file = next(
+        (
+            action_dir / name
+            for name in ("action.yml", "action.yaml")
+            if (action_dir / name).is_file()
+        ),
+        None,
+    )
+    assert action_file is not None, f"Local action {uses} has no action.yml."
+    runs = load_workflow(action_file).get("runs", {})
+    return [s for s in runs.get("steps", []) if isinstance(s, dict)]
+
+
+def expanded_steps(step_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return *step_list* in run order, each local action replaced by its steps.
+
+    Expansion recurses, so a step a local action reaches through another local
+    action is returned too.
+    """
+    flat: list[dict[str, Any]] = []
+    for step in step_list:
+        uses = str(step.get("uses", ""))
+        if uses.startswith("./"):
+            flat.extend(expanded_steps(local_action_steps(uses)))
+        else:
+            flat.append(step)
+    return flat
+
+
 def site_building_workflows() -> list[Path]:
-    """Return every workflow that runs ``mkdocs build``."""
+    """Return every workflow that builds the site.
+
+    A workflow builds the site when it calls the shared build action or runs
+    a site build itself (``MKDOCS_SITE_BUILD``); the second is what
+    DOCBW-06-004 forbids, and it still counts here so every gate on a site
+    build sees it.
+    """
     return sorted(
         path
         for path in WORKFLOWS_DIR.glob("*.yml")
-        if MKDOCS_BUILD in path.read_text(encoding="utf-8")
+        if BUILD_SITE_ACTION in (text := path.read_text(encoding="utf-8"))
+        or MKDOCS_SITE_BUILD.search(text)
     )
 
 

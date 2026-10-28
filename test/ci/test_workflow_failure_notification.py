@@ -6,6 +6,8 @@ Implements CISEC-05-004 from specs/ci-security.yaml: every qualifying workflow
 
 A qualifying workflow is one whose ``on:`` trigger includes:
 - ``push`` to the ``main`` branch, OR
+- ``push`` to the ``publish`` branch — the publication workflow, which
+  DOCBW-06-003 binds to the same notify and close steps, OR
 - a ``schedule`` entry.
 
 For each qualifying workflow the test asserts that at least one step across all
@@ -31,6 +33,11 @@ NOTIFY_FAILURE_ACTION = (
     REPO_ROOT / ".github" / "actions" / "notify-failure" / "action.yml"
 )
 DEMO_WORKFLOW = WORKFLOWS_DIR / "demo-integration.yml"
+PUBLICATION_WORKFLOW = WORKFLOWS_DIR / "deploy_site.yml"
+# ``main`` for CISEC-05-001; ``publish`` for the publication workflow, whose
+# failed run leaves the live site stale with no failing pull request to notice
+# it (DOCBW-06-003).
+QUALIFYING_PUSH_BRANCHES = frozenset({"main", "publish"})
 
 
 def _normalize_expr(expr: str) -> str:
@@ -43,7 +50,7 @@ def _load_workflow(path: Path) -> dict[str, Any]:
 
 
 def _is_qualifying(wf_data: dict[str, Any]) -> bool:
-    """Return True when the workflow triggers on push-to-main or schedule."""
+    """Return True when the workflow triggers on schedule or a qualifying push."""
     on = triggers(wf_data)
     if not isinstance(on, dict):
         return False
@@ -52,7 +59,9 @@ def _is_qualifying(wf_data: dict[str, Any]) -> bool:
     push = on.get("push", {})
     if isinstance(push, dict):
         branches = push.get("branches", [])
-        if isinstance(branches, list) and "main" in branches:
+        if isinstance(branches, list) and QUALIFYING_PUSH_BRANCHES & set(
+            branches
+        ):
             return True
     return False
 
@@ -98,6 +107,23 @@ def qualifying_workflows() -> list[Path]:
 def test_qualifying_workflows_found(qualifying_workflows: list[Path]) -> None:
     """At least one qualifying workflow must exist."""
     assert len(qualifying_workflows) >= 1
+
+
+@pytest.mark.spec("DOCBW-06-003")
+def test_publication_workflow_qualifies(
+    qualifying_workflows: list[Path],
+) -> None:
+    """The per-workflow checks below cover the publication workflow.
+
+    It triggers on a push to ``publish``, not ``main``, so without the
+    ``publish`` branch in the qualifying set its notify and close steps would
+    go untested.
+    """
+    assert PUBLICATION_WORKFLOW in qualifying_workflows, (
+        f"{PUBLICATION_WORKFLOW.name} is not in the qualifying set, so nothing "
+        "checks that a failed publish files a ci:main-failure issue "
+        "(DOCBW-06-003)."
+    )
 
 
 @pytest.mark.parametrize(

@@ -30,7 +30,7 @@ import pytest
 import yaml
 
 from test.ci._workflows import (
-    MKDOCS_BUILD,
+    BUILD_SITE_ACTION,
     REPO_ROOT,
     RUN_EVEN_AFTER_FAILURE,
     WORKFLOWS_DIR,
@@ -45,6 +45,12 @@ from test.ci._workflows import (
 PRE_COMMIT_CONFIG = REPO_ROOT / ".pre-commit-config.yaml"
 DOCS_DIR = REPO_ROOT / "docs"
 REVIEW_WORKFLOW = WORKFLOWS_DIR / "docs-build-check.yml"
+# The steps that check the built site; the source gates run after them, so a
+# failed gate cannot skip one (DOCBW-03-014).
+BUILT_SITE_CHECKS = (
+    "./.github/actions/check-site-publication",
+    "docs-legacy-urls",
+)
 
 # A hook whose own command no workflow runs, and the command that checks the
 # same thing in CI. ``validate-adr-frontmatter`` only loads the ADR registry,
@@ -327,7 +333,7 @@ def _review_problems(
     job_steps: list[dict[str, Any]], hooks: list[Hook]
 ) -> list[str]:
     """Return every way one job's gates fail DOCBW-03-014's ordering rule."""
-    build = index_of(job_steps, MKDOCS_BUILD, "run")
+    build = index_of(job_steps, BUILD_SITE_ACTION, "uses")
     gates = [
         i
         for i, step in enumerate(job_steps)
@@ -339,10 +345,19 @@ def _review_problems(
         return [
             "the job that builds the site runs no docs source gate (DF-09-009)"
         ]
+    last_site_step = max(
+        [build]
+        + [
+            i
+            for i, step in enumerate(job_steps)
+            if any(c in live_text(step) for c in BUILT_SITE_CHECKS)
+        ]
+    )
     problems = [
-        f"'{job_steps[i].get('name')}' runs after the build"
+        f"'{job_steps[i].get('name')}' runs before the build or a built-site "
+        "check"
         for i in gates
-        if i > build
+        if i < last_site_step
     ]
     problems += [
         f"'{job_steps[i].get('name')}' cannot fail the job: {problem}"
@@ -350,24 +365,26 @@ def _review_problems(
         for problem in swallowed_failure(job_steps[i])
     ]
     problems += [
-        f"'{job_steps[i].get('name')}' does not run after an earlier gate fails "
+        f"'{job_steps[i].get('name')}' does not run after an earlier step fails "
         f"(if: {job_steps[i].get('if')!r})"
-        for i in [*gates[1:], build]
+        for i in gates
         if job_steps[i].get("if") not in RUN_EVEN_AFTER_FAILURE
     ]
     return problems
 
 
 @pytest.mark.spec("DOCBW-03-014")
-def test_review_workflow_gates_precede_the_build_and_do_not_stop_it():
-    """In the job that builds the site, a failed gate still lets the rest run."""
+def test_review_workflow_gates_follow_the_build_and_do_not_stop_each_other():
+    """In the job that builds the site, the gates run last and each runs."""
     jobs = load_workflow(REVIEW_WORKFLOW).get("jobs", {})
     building = [
         [s for s in job.get("steps", []) if isinstance(s, dict)]
         for job in jobs.values()
         if isinstance(job, dict)
         and any(
-            MKDOCS_BUILD in str(s.get("run", "")) for s in job.get("steps", [])
+            s.get("uses") == BUILD_SITE_ACTION
+            for s in job.get("steps", [])
+            if isinstance(s, dict)
         )
     ]
     assert len(building) == 1, (
@@ -383,57 +400,56 @@ def test_review_workflow_gates_precede_the_build_and_do_not_stop_it():
 
 
 _GATE = Hook("gate", re.compile(""), None, ("docs-gate",))
-_BUILD = {"name": "Build", "run": "uv run mkdocs build --strict"}
-_KEPT_BUILD = {**_BUILD, "if": "${{ !cancelled() }}"}
+_BUILD = {"name": "Build", "uses": BUILD_SITE_ACTION}
+_SITE_CHECK = {"name": "Check", "uses": BUILT_SITE_CHECKS[0]}
+_KEPT_GATE = {"name": "A", "run": "docs-gate", "if": "${{ !cancelled() }}"}
 
 
 @pytest.mark.parametrize(
     "job_steps,expected",
     [
+        ([_BUILD, _SITE_CHECK, _KEPT_GATE], []),
         (
-            [{"name": "A", "run": "docs-gate"}, _KEPT_BUILD],
-            [],
-        ),
-        (
-            [{"name": "A", "run": "docs-gate"}],
+            [_KEPT_GATE],
             ["the job that runs the gates does not build the site"],
         ),
         (
-            [_KEPT_BUILD],
+            [_BUILD, _SITE_CHECK],
             [
                 "the job that builds the site runs no docs source gate (DF-09-009)"
             ],
         ),
         (
-            [_KEPT_BUILD, {"name": "A", "run": "docs-gate"}],
-            ["'A' runs after the build"],
+            [_KEPT_GATE, _BUILD],
+            ["'A' runs before the build or a built-site check"],
         ),
         (
-            [
-                {"name": "A", "run": "docs-gate", "continue-on-error": True},
-                _KEPT_BUILD,
-            ],
+            [_BUILD, _KEPT_GATE, _SITE_CHECK],
+            ["'A' runs before the build or a built-site check"],
+        ),
+        (
+            [_BUILD, {**_KEPT_GATE, "continue-on-error": True}],
             ["'A' cannot fail the job: it sets continue-on-error"],
         ),
         (
-            [{"name": "A", "run": "docs-gate || true"}, _KEPT_BUILD],
+            [_BUILD, {**_KEPT_GATE, "run": "docs-gate || true"}],
             [
                 "'A' cannot fail the job: its command ignores its own exit status"
             ],
         ),
         (
             [
+                _BUILD,
                 {"name": "A", "run": "docs-gate"},
                 {"name": "B", "run": "docs-gate"},
-                _BUILD,
             ],
             [
-                "'B' does not run after an earlier gate fails (if: None)",
-                "'Build' does not run after an earlier gate fails (if: None)",
+                "'A' does not run after an earlier step fails (if: None)",
+                "'B' does not run after an earlier step fails (if: None)",
             ],
         ),
         (
-            [{"name": "A", "run": "# docs-gate"}, _KEPT_BUILD],
+            [_BUILD, {**_KEPT_GATE, "run": "# docs-gate"}],
             [
                 "the job that builds the site runs no docs source gate (DF-09-009)"
             ],

@@ -47,6 +47,8 @@ groups:
           paths include at least one of: `docs/**`, `overrides/**`,
           `mkdocs.yml`, `pyproject.toml`, `uv.lock`, `vultron/**`, `specs/**`,
           the gates' composite action (`.github/actions/check-site-publication/**`),
+          the shared build action and the environment action it calls
+          (`.github/actions/build-site/**`, `.github/actions/setup-python-uv/**`),
           or the workflow file itself (`.github/workflows/docs-build-check.yml`).
         rationale: >-
           A page renders from more than its `docs/` file: mkdocstrings reads
@@ -318,20 +320,23 @@ groups:
         priority: MUST
         kind: project
         statement: >-
-          Each DOCBW-03-013 gate that the review workflow runs MUST run before
-          the Build Site step, failing the job without stopping later steps.
-          Nothing swallows its failure (no `continue-on-error`, no `|| true`),
-          and every later gate and the build run on `!cancelled()`.
+          Each DOCBW-03-013 gate that the review workflow runs MUST run after
+          the shared build step and the built-site checks, on `!cancelled()`,
+          failing the job without stopping later steps. Nothing swallows its
+          failure (no `continue-on-error`, no `|| true`).
         rationale: >-
-          The gates check the `docs/` sources, not the built site, so they do
-          not need the build. A failed gate that skipped the rest would hide
-          every later broken gate and the build's own findings until the next
-          push.
+          The gates check the `docs/` sources, not the built site, so they
+          need only the environment the shared build step sets up
+          (DOCBW-06-004); running them first would mean a second install in
+          the same job. A built-site check has no `if:`, so it is skipped
+          after any earlier failure: placed after those checks, a failed gate
+          cannot hide them, and `!cancelled()` lets every gate run whatever
+          failed before it, so one push reports every broken gate.
         verification: >-
           `test/ci/test_docs_source_gates_in_workflows.py` asserts, within the
-          one job that builds the site, that each gate precedes the build, that
-          nothing swallows its failure, and that every gate after the first,
-          and the build, runs on `!cancelled()`.
+          one job that calls the shared build action, that each gate follows
+          the build and every built-site check, that nothing swallows its
+          failure, and that every gate runs on `!cancelled()`.
         relationships:
           - rel_type: depends_on
             spec_id: DOCBW-03-013
@@ -396,10 +401,10 @@ groups:
           which the site reaches readers; a second uploader would be a path no
           DOCBW-06 obligation covers.
         verification: >-
-          A test under `test/ci/` that fails when any workflow other than
-          `deploy_site.yml` uses `actions/upload-pages-artifact` or
-          `actions/deploy-pages`. Not yet written; owned by #4167.
-        tracking_issue: '#4167'
+          `test_no_other_workflow_uploads_to_pages` in
+          `test/ci/test_site_build_shared_action.py` fails when any workflow
+          other than `deploy_site.yml` reaches `actions/upload-pages-artifact`
+          or `actions/deploy-pages`, local actions expanded.
       - id: DOCBW-06-002
         priority: MUST
         kind: project
@@ -430,11 +435,9 @@ groups:
           to notice it, so the failure has to be reported by the run itself.
         verification: >-
           `test/ci/test_workflow_failure_notification.py` asserts the notify and
-          close steps for workflows that trigger on a push to `main` or on a
-          schedule, which does not include `deploy_site.yml`'s push to `publish`;
-          extending its qualifying set to the publication workflow is owned by
-          #4167.
-        tracking_issue: '#4167'
+          close steps for every workflow that triggers on a push to `main` or
+          `publish` or on a schedule, and `test_publication_workflow_qualifies`
+          asserts `deploy_site.yml` is in that set.
         relationships:
           - rel_type: implements
             spec_id: CISEC-05-001
@@ -452,11 +455,12 @@ groups:
           the installed dependency group, on whether git tags are fetched, and on
           the build flags, so a green review did not prove the published site.
         verification: >-
-          A test under `test/ci/`, sibling to
-          `test/ci/test_publication_gates_in_workflows.py`, that fails when any
-          workflow runs `mkdocs build` outside the shared action. Not yet written;
-          owned by #4167.
-        tracking_issue: '#4167'
+          `test/ci/test_site_build_shared_action.py` fails when any workflow or
+          any other local action runs `mkdocs build` outside
+          `.github/actions/build-site`, when a site-building workflow runs a
+          step other than its checkout before that action, and when the action
+          takes inputs or stops fixing the checkout, the dependency set or the
+          single build.
         relationships:
           - rel_type: refines
             spec_id: DOCBW-03-009

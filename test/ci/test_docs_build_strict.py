@@ -29,7 +29,8 @@ import pytest
 import yaml
 
 from test.ci._workflows import (
-    MKDOCS_BUILD,
+    MKDOCS_SITE_BUILD,
+    expanded_steps,
     load_workflow,
     site_building_workflows,
     steps,
@@ -43,16 +44,18 @@ QUIET_FLAGS = ("--quiet", "-q")
 
 
 def _build_commands(workflow: Path) -> list[str]:
-    """Return every ``mkdocs build`` command in the workflow's steps.
+    """Return every site-build command (``MKDOCS_SITE_BUILD``) the workflow runs.
 
-    Backslash continuations are joined first, so a flag on a continued line is
-    still part of its command.
+    Local actions are expanded, so the command inside the shared build action
+    (DOCBW-06-004) counts for every workflow that calls it. Backslash
+    continuations are joined first, so a flag on a continued line is still
+    part of its command.
     """
     return [
         line.strip()
-        for step in steps(load_workflow(workflow))
+        for step in expanded_steps(steps(load_workflow(workflow)))
         for line in str(step.get("run", "")).replace("\\\n", " ").splitlines()
-        if MKDOCS_BUILD in line
+        if MKDOCS_SITE_BUILD.search(line)
     ]
 
 
