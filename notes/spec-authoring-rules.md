@@ -14,7 +14,8 @@ description: >
   fits (SR-13-017, SR-13-018); `adr:`
   versus `references:`; reading the item format off its fields (ADR-0101); the
   PR-only marker-coverage guard and the strict-xfail pattern; priority tiers
-  (MS-02-003/004); the `verification_debt` ratchet (MS-10-005..009); one
+  (MS-02-003/004); the `verification_debt` ratchet and its growth guard
+  (MS-10-005 to MS-10-009, MS-10-016); one
   obligation per requirement in plain sentences, and how to split a compound
   one (MS-03); guards that
   state a domain truth (MS-05-005); the rationale rule and its growth guard

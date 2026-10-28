@@ -676,6 +676,13 @@ def test_debt_marker_moved_to_another_file_is_not_an_addition(debt_repo):
 
 
 @pytest.mark.spec("MS-10-016")
+def test_debt_marked_requirement_renamed_is_added(debt_repo):
+    """A new ID is a new requirement, so its marker is new debt."""
+    _write_specs(debt_repo, _marked("TST-01-003"), _verified("TST-01-002"))
+    assert _debt(debt_repo).added == {"TST-01-003 verification_debt: '#1'"}
+
+
+@pytest.mark.spec("MS-10-016")
 def test_debt_relabel_keeping_its_marker_is_not_an_addition(debt_repo):
     """spec-lint, not this guard, fails a marker its new kind does not own."""
     _write_specs(

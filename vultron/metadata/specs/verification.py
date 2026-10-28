@@ -69,7 +69,7 @@ from __future__ import annotations
 import json
 import subprocess
 from collections import Counter
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -86,7 +86,8 @@ from vultron.metadata.specs.schema import (
 #: warns; the PR that closes the owner issue fails until it is removed), and
 #: the kind's entry with its last owner; from then on any marker of that kind is a hard
 #: error (MS-10-007). Never add an owner to admit new debt — the growth guard
-#: (:func:`verification_debt_items`) rejects a PR that adds a marker.
+#: (``test/architecture/test_verification_debt_guard.py``, MS-10-016) rejects
+#: a PR that adds a marker.
 VERIFICATION_DEBT_OWNERS: Mapping[SpecKind, frozenset[str]] = MappingProxyType(
     {
         SpecKind.PROTOCOL: frozenset({"#3612"}),
@@ -139,16 +140,24 @@ class DebtReport:
         return Counter(self.markers.values())
 
 
+def marked_specs(
+    registry: SpecRegistry,
+) -> Iterator[tuple[str, StatementSpec, str]]:
+    """Each ``(spec_id, spec, marker)`` that carries a marker, in ID order."""
+    for spec_id in sorted(registry.all_specs):
+        spec = registry.all_specs[spec_id]
+        if spec.verification_debt:
+            yield spec_id, spec, spec.verification_debt
+
+
 def debt_by_kind(registry: SpecRegistry) -> dict[SpecKind, DebtReport]:
     """Group every ``verification_debt`` marker by its item's kind.
 
     Every kind gets a report, so a caller can tell "zero" from "not counted".
     """
     reports = {kind: DebtReport(kind) for kind in SpecKind}
-    for spec_id in sorted(registry.all_specs):
-        spec = registry.all_specs[spec_id]
-        if spec.verification_debt:
-            reports[spec.kind].markers[spec_id] = spec.verification_debt
+    for spec_id, spec, marker in marked_specs(registry):
+        reports[spec.kind].markers[spec_id] = marker
     return reports
 
 
@@ -159,9 +168,8 @@ def debt_marker_items(registry: SpecRegistry) -> frozenset[str]:
     reads as a new item, not as the old one kept.
     """
     return frozenset(
-        f"{spec_id} verification_debt: '{spec.verification_debt}'"
-        for spec_id, spec in registry.all_specs.items()
-        if spec.verification_debt
+        f"{spec_id} verification_debt: '{marker}'"
+        for spec_id, _spec, marker in marked_specs(registry)
     )
 
 
@@ -309,11 +317,7 @@ def debt_owner_refs(
 ) -> set[str]:
     """Every issue a marker or an owner-table entry names."""
     refs = {ref for kind_owners in owners.values() for ref in kind_owners}
-    refs.update(
-        spec.verification_debt
-        for spec in registry.all_specs.values()
-        if spec.verification_debt
-    )
+    refs.update(marker for _id, _spec, marker in marked_specs(registry))
     return refs
 
 
@@ -429,11 +433,7 @@ def closing_pr_problems(
     no marker names it and it is gone from the owner table — so the backfill
     PR that finishes an owner's work also removes the entry (MS-10-007).
     """
-    marked = Counter(
-        spec.verification_debt
-        for spec in registry.all_specs.values()
-        if spec.verification_debt
-    )
+    marked = Counter(marker for _id, _spec, marker in marked_specs(registry))
     tabled = {ref for kind_owners in owners.values() for ref in kind_owners}
     errors: list[str] = []
     for ref in sorted(set(closing), key=issue_number):
