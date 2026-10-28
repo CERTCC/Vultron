@@ -103,9 +103,6 @@ sense the docs actually use.
 *[FAQ]: Frequently Asked Questions
 *[FBI]: U.S. Federal Bureau of Investigation
 *[FCC]: U.S. Federal Communications Commission
-*[RCCV]: Reporter, Coordinator, Coordinator, Vendor (demo scenario)
-*[RCV]: Reporter, Coordinator, Vendor (demo scenario)
-*[RCVCV]: Reporter, Coordinator, Vendor, Coordinator, Vendor (demo scenario)
 *[FDA]: U.S. Food and Drug Administration
 *[FEP]: Fediverse Enhancement Proposal
 *[FERPA]: Family Educational Rights and Privacy Act
@@ -113,8 +110,6 @@ sense the docs actually use.
 *[FIRST]: Forum of Incident Response and Security Teams
 *[FTC]: U.S. Federal Trade Commission
 *[FTP]: File Transfer Protocol
-*[RVCV]: Reporter, Vendor, Coordinator, Vendor (demo scenario)
-*[RVV]: Reporter, Vendor, Vendor (demo scenario)
 
 *[GE]: General Error (general message)
 *[GI]: General Inquiry (general message)
@@ -196,6 +191,9 @@ sense the docs actually use.
 
 *[RA]: Report/Case Accepted (RM message)
 *[RC]: Report Closed (RM message)
+*[RCCV]: Reporter, Coordinator, Coordinator, Vendor (demo scenario)
+*[RCV]: Reporter, Coordinator, Vendor (demo scenario)
+*[RCVCV]: Reporter, Coordinator, Vendor, Coordinator, Vendor (demo scenario)
 *[RD]: Report/Case Deferred (RM message)
 *[RE]: Report Error (RM message)
 *[REST]: Representational State Transfer
@@ -211,6 +209,8 @@ sense the docs actually use.
 *[RSS]: Really Simple Syndication
 *[RSVP]: Répondez s'il vous plaît (please respond; used for an invitation's respond-by deadline)
 *[RV]: Report Valid (RM message)
+*[RVCV]: Reporter, Vendor, Coordinator, Vendor (demo scenario)
+*[RVV]: Reporter, Vendor, Vendor (demo scenario)
 
 *[SAAS]: Software as a Service
 *[SaaS]: Software as a Service

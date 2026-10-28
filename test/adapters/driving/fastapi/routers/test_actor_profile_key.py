@@ -32,6 +32,8 @@ _NO_KEY = "actor profiles do not publish a key yet. Tracked by #5381."
 def _profile(store: Path, segment: str) -> dict[str, Any]:
     """The profile a fresh store at *store* serves for the actor at *segment*."""
     actor_id = canonical_actor_uri(segment)
+    # A file per store: two in-memory stores for one actor id share their
+    # rows, so the second would find the first one's actor record.
     dl = SqliteDataLayer(f"sqlite:///{store}", actor_id=actor_id)
     with served_store(dl, actor_id, segment) as (client, _emitter):
         response = client.get(f"/api/v2/actors/{segment}/profile")
