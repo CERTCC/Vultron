@@ -1564,15 +1564,19 @@ groups:
     kind: project
     statement: In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
       subtree (composed via `create_guarded_commit_case_ledger_entry_tree`), the commit
-      subtree MUST appear after the intake node, after the clock-decision stage
-      (CLP-10-025), and after all pure precondition-guard nodes, and before any
-      protocol-effect nodes. The intake node is the single shared
+      subtree MUST appear after the intake node, after the ledger-position answer
+      (SYNC-18-007), after the clock-decision stage (CLP-10-025), and after all pure
+      precondition-guard nodes, and before any protocol-effect nodes. The intake
+      node is the single shared
       node that archives the received activity as received (CLP-10-017). A
       precondition-guard node is one that only reads state and returns
       FAILURE on mismatch, making no writes. A protocol-effect node is any other node
       that writes to the DataLayer, mutates actor or participant state, or enqueues an
       outbox item; the intake node is not a protocol-effect node, and neither is a
-      clock decision (CLP-10-025), which commits its own entry. A refusal effect
+      clock decision (CLP-10-025), which commits its own entry, nor the
+      ledger-position answer, which records the sender's replication state and may
+      queue a replay or a re-seed `Announce(VulnerabilityCase)` but commits no
+      ledger entry and never decides the act's disposition. A refusal effect
       (CLP-10-022) is a protocol-effect node that runs only when a precondition
       guard has refused, so the tree fails before the commit; it never runs on a
       delivery the guards accept, and so never precedes a commit.
@@ -1589,7 +1593,10 @@ groups:
       composed `create_case_manager_gated_tree` directly before #3870), so the tree
       has the intake node as its first child; `test_receive_side_bt_commit_ordering.py`
       asserts the guarded commit comes after every guard and no protocol-effect node
-      ahead of the commit, counting `refusal_effects` as effects; `test/core/behaviors/case/nodes/test_refusal_stage.py`
+      ahead of the commit, counting `refusal_effects` as effects, that nothing writes ahead of the commit outside the clock
+      decisions, a diversion, a refusal reply or the ledger-position answer,
+      and that the ledger-position answer commits nothing;
+      `test/core/behaviors/case/nodes/test_refusal_stage.py`
       asserts no refusal effect runs on an admitted delivery.'
     adr:
     - ADR-0111
@@ -1601,11 +1608,15 @@ groups:
     statement: 'In any receive-side BT tree that includes a `GuardedCommitCaseLedgerEntryBT`
       subtree, the ordering MUST be: (1) intake, (2) door guards, in order: the
       post-close write boundary (CM-23-013), the addressee check (HP-01-005) and
-      the sender guard (HP-01-006), (3) clock decisions
+      the sender guard (HP-01-006), (2a) the ledger-position answer (SYNC-18-004,
+      SYNC-18-005, SYNC-18-007), (3) clock decisions
       (CLP-10-025), (4) precondition guards, (5) commit, (6) all protocol effects.
       Clock decisions are the only commits before stage (5), other than a
       diversion (CLP-10-026), which answers its delivery in place of stages (5)
-      and (6). Refusal effects (CLP-10-022) belong to stage (4): they run only
+      and (6). The ledger-position answer is the only other write before stage
+      (5): it records replication state and may queue a replay or re-seed, commits
+      nothing and leaves the disposition of the act to the later stages. Refusal
+      effects (CLP-10-022) belong to stage (4): they run only
       after a precondition guard refuses, and the tree then ends without
       reaching (5) or (6).'
     rationale: Intake records what arrived. The canonical case ledger records the cause
@@ -1613,7 +1624,10 @@ groups:
       participants, so cause precedes effects. A clock decision is the CASE_MANAGER's
       own act, ledgered even when the activity is then admitted (CM-21-014), so it
       runs before the guards that read it, and after the door guards so an
-      unentitled sender never makes it write (ADR-0135).
+      unentitled sender never makes it write (ADR-0135). The ledger-position answer
+      runs before the guards because it answers the sender's stated position
+      whatever the act's own outcome (SYNC-18-007), and after the door guards for
+      the same reason as a clock decision.
     verification: Covered by the structural test named in CLP-10-006.
     adr:
     - ADR-0111

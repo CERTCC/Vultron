@@ -316,10 +316,12 @@ answer, clock decisions, guards, commit, effects.
    the factory places the CASE_MANAGER's answer to the sender's stamped
    `ledgerPosition` (`create_ledger_position_stage`, SYNC-18-004/005/007): it
    records a held position, replays a lag and re-seeds a split, and never
-   decides the act. It writes replication state and the outbox ahead of the
-   commit, which CLP-10-006/010 do not yet name as an allowed pre-commit stage;
-   see `notes/sync-ledger-replication.md` § "Every Case Activity States Its
-   Sender's Ledger Position (SYNC-18)".
+   decides the act. It is the one write ahead of the commit besides the clock
+   decisions (CLP-10-006, CLP-10-010 stage 2a): it records replication state and
+   may queue a replay or re-seed, but commits no entry. Reason: it answers the
+   sender's position whatever the act's outcome (SYNC-18-007). See
+   `notes/sync-ledger-replication.md` § "Every Case Activity States Its Sender's
+   Ledger Position (SYNC-18)".
 3. **Clock decisions** — a decision the CASE_MANAGER takes from its own clock or policy
    before judging the activity: an expiry, or the embargo end-time check (CLP-10-025).
    It runs after the door guards, so an unentitled sender never makes it write, and

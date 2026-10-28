@@ -73,6 +73,7 @@ Chosen option: "Every case activity, from any sender, carries `ledgerPosition`; 
 - **A split is repaired.** A position that names an entry the CASE_MANAGER does not hold means the sender's chain has split from the canonical ledger.
   The act is still judged on its own merits; the split is logged at ERROR and an active participant is re-seeded through the rate-bounded path of SYNC-16-003 and SYNC-16-004.
   This differs from ADR-0155's answer to a `Read(CaseLedgerEntry)` naming such a position, which is logged at WARNING and answered with nothing (SYNC-17-005); the two are reconciled when the open question on answering a split is decided.
+- **Answered before the act is judged.** The answer runs after the door guards and before the guards and commit, so it does not depend on the act's outcome; it is the one write ahead of the commit besides the clock decisions, and it commits no ledger entry (CLP-10-006, CLP-10-010).
 - **Ledgered by construction.** The position is part of the received body, which the entry records verbatim (ADR-0107).
 
 ### Consequences

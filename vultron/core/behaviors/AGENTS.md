@@ -95,8 +95,10 @@ storing it. "Signatory" and "lapsed" are reads, never writes (ADR-0122); see
 
 Every received tree is built by `create_receive_activity_tree`
 (`case/receive_activity_tree.py`): **intake → guards → guarded commit → effects**
-(CLP-10-006, CLP-10-010). The factory supplies `IntakeReceivedActivityNode`
-(`case/nodes/intake.py`) first. Intake **archives the mail**: the event's sealed
+(CLP-10-006, CLP-10-010); the only writes ahead of the commit are the clock
+decisions and the ledger-position answer, which commits nothing (SYNC-18-007).
+The factory supplies `IntakeReceivedActivityNode` (`case/nodes/intake.py`) first.
+Intake **archives the mail**: the event's sealed
 `received_evidence`, verbatim, as a `ReceivedActivityRecord` keyed by the **receiver**
 (`build_id(sender_id)`, never the sender's id), nothing else (CLP-10-017, ADR-0149); a
 body-less event it holds nothing for fails (hand-built test events need
