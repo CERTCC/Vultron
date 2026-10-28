@@ -1598,8 +1598,8 @@ groups:
       writes ahead of the commit outside intake, the clock decisions, a
       diversion, a refusal reply or the ledger-position answer (a writer being
       a marked emit or state-write node or an unmarked writer
-      `test_received_tree_state_writes_are_gated.py` pins; one known exception
-      is pinned with its issue, #5395), that trees whose commit is nested are
+      `test_received_tree_state_writes_are_gated.py` pins, with no exception),
+      that trees whose commit is nested are
       a pinned set, and that the ledger-position answer commits nothing and
       writes only replication state, a replay and a re-seed;
       `test/core/behaviors/case/nodes/test_refusal_stage.py`

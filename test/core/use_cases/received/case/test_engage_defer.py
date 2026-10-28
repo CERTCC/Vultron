@@ -17,7 +17,7 @@ import logging
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.embargo_register import activate
+from test.support.embargo_register import activate, register
 from test.support.received import (
     TEST_SENDER_POSITION,
     in_step_position,
@@ -29,12 +29,14 @@ from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
 )
 from vultron.adapters.driven.wire_render.as2 import As2WireRenderAdapter
+from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import CoreObject
 from vultron.core.models.case import VulnerabilityCase
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
 from vultron.core.models.case_participant import CaseParticipant
 from vultron.core.models.dimensions import RmDimension
+from vultron.core.models.embargo_event import EmbargoEvent
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.events.case import (
     DeferCaseReceivedEvent,
@@ -707,6 +709,76 @@ class TestEngageCaseLedgerCommit:
         assert isinstance(updated, CaseParticipant)
         latest_status = updated.participant_statuses[-1]
         assert latest_status.rm.state == RM.ACCEPTED
+
+    def _carried_embargo(self) -> EmbargoEvent:
+        return EmbargoEvent(
+            id_=f"{self._CASE_ID}/embargo_events/carried",
+            context=self._CASE_ID,
+            end_time=days_from_now_utc(45),
+        )
+
+    def _engage_carrying(
+        self, dl: SqliteDataLayer, embargo: EmbargoEvent
+    ) -> EngageCaseReceivedEvent:
+        """The Engage, its case snapshot naming *embargo* inline."""
+        snapshot = VulnerabilityCase(
+            attributed_to=CASE_OWNER_ID,
+            id_=self._CASE_ID,
+            embargo_register=register(active=embargo),
+        )
+        return self._engage_event(dl).model_copy(update={"object_": snapshot})
+
+    def _execute(self, dl: SqliteDataLayer, event: EngageCaseReceivedEvent):
+        return EngageCaseReceivedUseCase(
+            dl,
+            event,
+            trigger_activity=TriggerActivityAdapter(dl),
+            wire_render_port=As2WireRenderAdapter(),
+            sync_port=SyncActivityAdapter(dl),
+        ).execute()
+
+    @pytest.mark.spec("CLP-10-006")
+    @pytest.mark.spec("CLP-10-010")
+    def test_a_refused_engage_stores_no_carried_embargo(self):
+        """A refusal writes nothing: the carried embargo is stored only as an
+        effect of the committed act, never among the guards (#5395).
+
+        The Engage reaches a participant that is not the CASE_MANAGER, which
+        refuses it and commits nothing (HP-01-005).
+        """
+        finder_id = "https://example.org/actors/finder-2300"
+        dl = self._seed(
+            SqliteDataLayer("sqlite:///:memory:", actor_id=finder_id)
+        )
+        embargo = self._carried_embargo()
+        event = self._engage_carrying(dl, embargo)
+        assert event.activity is not None
+        event = event.model_copy(
+            update={
+                "receiving_actor_id": finder_id,
+                "activity": event.activity.model_copy(
+                    update={"to": [self._CASE_MANAGER_ID, finder_id]}
+                ),
+            }
+        )
+
+        result = self._execute(dl, event)
+
+        assert result.disposition is HandlerDisposition.REFUSED
+        assert dl.list_objects("CaseLedgerEntry") == []
+        assert dl.read(embargo.id_) is None
+
+    @pytest.mark.spec("EMB-18-003")
+    def test_an_admitted_engage_stores_its_carried_embargo(self, seeded_dl):
+        """The admitted act's effects hold the embargo its snapshot names."""
+        embargo = self._carried_embargo()
+
+        result = self._execute(
+            seeded_dl, self._engage_carrying(seeded_dl, embargo)
+        )
+
+        assert result.disposition is HandlerDisposition.APPLIED
+        assert isinstance(seeded_dl.read(embargo.id_), EmbargoEvent)
 
 
 class TestDeferCaseLedgerCommit:

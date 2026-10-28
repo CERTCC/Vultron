@@ -795,16 +795,6 @@ def test_trees_with_a_nested_commit_are_known() -> None:
     assert nested == NESTED_COMMIT_TREES
 
 
-#: Known writers ahead of the commit, each with the issue that retires it.
-#: Held to equality, so a fixed one must be removed here.
-EARLY_WRITERS_PENDING: dict[str, list[str]] = {
-    # #5395: the carried-embargo store runs among the Engage guards.
-    "vultron/core/behaviors/report/prioritize_tree.py:create_engage_case_tree": [
-        "HoldCarriedEmbargoNode"
-    ],
-}
-
-
 @pytest.mark.spec("CLP-10-006")
 @pytest.mark.spec("CLP-10-010")
 def test_only_permitted_stages_write_ahead_of_the_commit() -> None:
@@ -815,7 +805,7 @@ def test_only_permitted_stages_write_ahead_of_the_commit() -> None:
         for (path, factory), tree in built_received_trees().items()
         if (found := _early_writers(tree))
     }
-    assert offenders == EARLY_WRITERS_PENDING, (
+    assert offenders == {}, (
         "Writes ahead of the guarded commit outside the clock decisions, a"
         " diversion, a refusal reply or the ledger-position answer"
         f" (CLP-10-006, CLP-10-010): {offenders}"
