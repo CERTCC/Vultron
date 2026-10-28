@@ -130,6 +130,7 @@ Route each consumer by what it is:
 | `test/ci/README-case-log-ratchet.md`, `vultron/demo/scenario/README.md` | generate + `--check` | Outside the mkdocs tree, read raw, so an include directive would render literally |
 | `notes/` scenario tables | check in place (DEMOCI-11-006/007) | Rows interleave hand-written columns; a generator would have to write cells nobody wrote |
 | `vultron/demo/cli.py` sub-commands | built at import time (DEMOCI-11-011) | No committed copy at all |
+| `ui/src/recordings/` | generate (`uv run export-demo-recordings`); `--check` hook on the recorded set; content checked daily on `main`, which files a refresh Task | A run of every scenario takes minutes, and a stale recording is work to schedule, not a reason to block a PR: a few days of lag is accepted, so no PR has to regenerate |
 | `specs/` DEMOCI-06-002/003 and per-scenario DEMOMA-16 | check only | A requirement keeps its prose so it stays citable |
 | `mkdocs.yml` nav | check completeness | Hand-written labels |
 | `docs/topics/scenarios/*.md` narrative pages | check page set and frontmatter (DEMOCI-11-012) | Hand-written prose |
@@ -140,6 +141,16 @@ comes from the registry, `Spec` from the spec corpus, `Covered by minimum set`
 membership from `in_pr_set`, and the semantic-type ticks from each harness's
 `_XXX_EXPECTED_SEMANTIC_TYPES` constant (read by AST, so the hook never imports a
 test module). A column with no named authority goes unratcheted and drifts.
+
+**A recording is generated, never hand-edited.** Run
+`uv run export-demo-recordings --scenario <name>` (`vultron/demo/recordings/`)
+to rewrite `ui/src/recordings/<name>/case-actor.jsonl`. A PR need not regenerate:
+the daily `demo-recordings` workflow files a refresh Task when one lags `main`.
+Regenerate in the PR only when the change needs current recordings (a UI change,
+or a new scenario, which the `--check` hook requires). Each role's `url_env` must
+name a container slot the `demo-runner` service in
+`docker/docker-compose-multi-actor.yml` sets: the recorder reads the container
+layout from there and refuses a role it cannot place (#3901).
 
 **The mkdocs-tree boundary is load-bearing.** `include-markdown` expands only at
 build time and only under `docs/`; in `notes/` or `test/ci/` it renders as

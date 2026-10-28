@@ -472,8 +472,14 @@ needs a human.
 #### Step 5 — Wait for CI
 
 ```bash
-bash .agents/skills/shared/wait-for-ci.sh <number>
+WAIT_CI_HEAD_SHA="$(git rev-parse HEAD)" bash .agents/skills/shared/wait-for-ci.sh <number>
 ```
+
+Local `HEAD` is now the PR head: Step 4 pushed it, or Step 2 fast-forwarded to
+GitHub's `update-branch` commit. Pass it explicitly. Left unset, the script
+checks the head only when the local branch is named `<head_ref>`, so a push
+through `HEAD:<head_ref>` or from a detached checkout reads the previous head's
+green run as a pass (#3902).
 
 | Exit | Meaning | Action |
 |---|---|---|

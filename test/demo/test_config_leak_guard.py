@@ -21,7 +21,7 @@ Several demo fixtures repoint ``VULTRON_SERVER__BASE_URL`` and
 test.
 
 When it does outlive the test, every later demo test derives its CaseActor ID
-from a host no ``_TestClientRouter`` has registered.  ``_TestClientRouter.emit``
+from a host no ``InProcessRouter`` has registered.  ``InProcessRouter.emit``
 silently drops the ``Create(CaseProposal)`` delivery, the CaseActor never
 creates the canonical case, and ``trigger/validate-report`` fails with
 "no routable recipients".  Because it depends on test order (pytest-randomly
@@ -47,14 +47,16 @@ from fastapi.testclient import TestClient
 
 from test.demo.conftest import (
     _CASE_ACTOR_SERVICE_URL,
-    _KNOWN_FICTIONAL_HOSTS,
-    _TestClientRouter,
     config_leak_ledger,
     config_snapshot,
     config_url_snapshot,
     restore_config_if_leaked,
 )
 from vultron.config.app import reload_config
+from vultron.demo.in_process import (
+    _KNOWN_FICTIONAL_HOSTS,
+    InProcessRouter,
+)
 
 _FAKE_HOST = "http://leaky-host.invalid/api/v2"
 
@@ -246,11 +248,11 @@ _BODY = '{"id": "urn:test:act1", "type": "Create", "actor": "urn:test:actor"}'
 
 
 class TestTestClientRouterDropLogging:
-    """_TestClientRouter.emit logs WARNING for unexpected drops, DEBUG for allowlisted ones."""
+    """InProcessRouter.emit logs WARNING for unexpected drops, DEBUG for allowlisted ones."""
 
     def test_warning_for_unregistered_non_allowlisted_host(self, caplog):
         """emit() logs WARNING when dropping to a host not in _KNOWN_FICTIONAL_HOSTS."""
-        router = _TestClientRouter()
+        router = InProcessRouter()
         with caplog.at_level(logging.DEBUG):
             anyio.run(
                 router.emit,
@@ -259,14 +261,14 @@ class TestTestClientRouterDropLogging:
                 ["http://stale-config.test/actors/a1"],
             )
         router_records = [
-            r for r in caplog.records if r.name == "test.demo.conftest"
+            r for r in caplog.records if r.name == "vultron.demo.in_process"
         ]
         assert any(r.levelname == "WARNING" for r in router_records)
 
     def test_debug_for_allowlisted_host_drop(self, caplog):
         """emit() logs DEBUG (not WARNING) when dropping to a known-fictional host."""
         assert "vultron.example" in _KNOWN_FICTIONAL_HOSTS
-        router = _TestClientRouter()
+        router = InProcessRouter()
         with caplog.at_level(logging.DEBUG):
             anyio.run(
                 router.emit,
@@ -275,7 +277,7 @@ class TestTestClientRouterDropLogging:
                 ["https://vultron.example/users/reporter"],
             )
         router_records = [
-            r for r in caplog.records if r.name == "test.demo.conftest"
+            r for r in caplog.records if r.name == "vultron.demo.in_process"
         ]
         assert not any(r.levelname == "WARNING" for r in router_records)
         assert any(r.levelname == "DEBUG" for r in router_records)
@@ -293,7 +295,7 @@ class TestTestClientRouterRefusesExitedClients:
         to the old loop — raised ``is bound to a different event loop``, which
         read as the cause of a hang it was only a symptom of (#4882).
         """
-        router = _TestClientRouter()
+        router = InProcessRouter()
         client = MagicMock(spec=TestClient)
         client.portal = None
         router.register("http://exited.test", client)
@@ -307,6 +309,6 @@ class TestTestClientRouterRefusesExitedClients:
 
         client.post.assert_not_called()
         router_records = [
-            r for r in caplog.records if r.name == "test.demo.conftest"
+            r for r in caplog.records if r.name == "vultron.demo.in_process"
         ]
         assert any(r.levelname == "WARNING" for r in router_records)

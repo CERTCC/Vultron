@@ -8,8 +8,9 @@ description: >
   `theme-labels` script syncs GitHub from it. The rules for applying a theme:
   classify by outcome, one theme per leaf, an Epic's second theme only when its
   body names the split, the theme contains the grain, the `Theme:` reason line;
-  borderline examples; how to act on a theme-fit finding; and triage-label rules
-  (`needs-info`, `ready-for-human`, and retired labels).
+  borderline examples; the `theme-fit` structural check, the split line and
+  the auto-calved marker it reads; how to act on a theme-fit finding; and
+  triage-label rules (`needs-info`, `ready-for-human`, and retired labels).
 related_specs:
   - specs/parallel-development.yaml
 related_notes:
@@ -166,6 +167,18 @@ themes:
       - conformance tests, profiles, and reports an outside implementer runs
     out_of_bounds:
       - spec-corpus tooling, loaders, and lint used only here (dev-workflow)
+      - requirement rationales, stories, and links (requirements-traceability)
+    color: 1D76DB
+  - label: theme:requirements-traceability
+    outcome: >-
+      Every requirement says why it exists and who it serves, and agrees with
+      the code and other specs
+    in_bounds:
+      - rationales, user stories, ADR and spec links, verification criteria
+      - splitting, rewording, retiring, and reconciling requirements
+    out_of_bounds:
+      - code that lints, loads, or renders the specs (dev-workflow)
+      - checks an outside implementer runs (verifiable-conformance)
     color: 1D76DB
   - label: theme:standards-engagement
     outcome: >-
@@ -214,6 +227,7 @@ themes:
     out_of_bounds:
       - CI gate reliability and test correctness (test-and-ci)
       - conformance checks for outside implementers (verifiable-conformance)
+      - the content of the requirements themselves (requirements-traceability)
     color: 5319E7
   - label: theme:test-and-ci
     outcome: >-
@@ -257,6 +271,10 @@ themes:
 - **An Epic has one theme**, plus a second only when its body names the split
   between them (PAD-02-015). An unexplained second theme is a sign the Epic
   holds two design ideas.
+- **Name the split on one line that names both labels**, for example
+  `Theme split: theme:a covers the parser; theme:b covers the CLI.` The
+  structural check accepts any body line that names both, so keep both on one
+  line.
 
 ## The Theme Contains the Grain
 
@@ -288,10 +306,40 @@ Theme: theme:dev-workflow — gives every skill one shared definition of the the
 | Issue | Theme | Why |
 |---|---|---|
 | Spec-corpus tooling (spec-lint, loaders, spec-dump) | `theme:dev-workflow` | Only this project uses it; outside implementers do not run it |
+| A spec rationale backfill, or reconciling a spec statement with the code | `theme:requirements-traceability` | It changes what the requirements say, not the tools that read them |
 | A production bug found while working a test-suite Epic | `theme:protocol-correctness` | The outcome is correct protocol behavior; the test only found it |
 | Lint rules and exception-hygiene sweeps | `theme:dev-workflow` | They change how contributors work, not whether a green run is trustworthy |
 | A flaky test or a CI gate that passes when it should fail | `theme:test-and-ci` | The outcome is a green run that means the code works |
 | A conformance report an outside implementer runs | `theme:verifiable-conformance` | Its user is outside the project |
+
+## The Structural Check
+
+`uv run theme-fit` reads every open Issue with one GraphQL query and prints a
+Markdown report: coherence per `Schedule` tier, then each finding grouped by
+kind. It changes nothing on GitHub. It exits 0 with no findings, 1 with any,
+and 2 when the catalog or `gh` fails.
+
+- **Coherence** is the share of children that match their Epic: a child is an
+  open non-Epic Issue in its nearest Epic's tier (PAD-02-001), and it matches
+  when it carries exactly one theme and its Epic carries that theme. Use
+  `--coherence` for the table alone, `--json` for the whole report, and
+  `--max-chars 65536` to cut the finding lists so the report fits an Issue
+  body.
+- **Finding kinds**: a leaf without exactly one theme, an Epic without one
+  theme or a named split, a missing `Theme:` line, a child theme its Epic does
+  not carry, a non-Epic with no open Epic ancestor (a parent in another
+  repository ends the walk, since its number means nothing here), an Epic
+  nested under an Epic, an auto-calved Epic still single-child, and a label
+  the catalog does not list or lists as retiring.
+- **A `Theme:` line counts** only when a dash with a space on each side
+  follows the label and some outcome text follows the dash. The check does
+  not judge whether the outcome is right; a reviewer does (PAD-02-016).
+- **Auto-calved Epics carry `<!-- auto-calved -->`** as a line of their body.
+  `create-issue` writes it when it calves an Epic with no user present; the
+  check reports a marked Epic with fewer than two open sub-issues. Remove the
+  marker once a person has reviewed the Epic. Reason: an unattended calve
+  cannot judge whether the theme gathers more work, so a person must decide
+  whether a lone child stays or moves.
 
 ## Acting on a Theme-Fit Finding
 

@@ -21,10 +21,10 @@ Provides API v2 tests
 
 from datetime import timedelta
 
-from test.support.clock import SteppingClock
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.models import _helpers
 from vultron.core.models._helpers import now_utc
+from vultron.demo.determinism import SteppingClock
 from vultron.wire.as2.vocab.base.objects.actors import as_Person
 
 

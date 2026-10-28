@@ -241,9 +241,9 @@ instead of skipping, and a second run accumulates two chains whose `prevLogHash`
 values mismatch. `rm -rf devlogs/` after the integration suite and before the
 invariant harness (#2274).
 
-### `_TestClientRouter` WARNING for Unregistered Hosts Is a Bug Signal
+### `InProcessRouter` WARNING for Unregistered Hosts Is a Bug Signal
 
-`_TestClientRouter` in `test/demo/conftest.py` drops deliveries to a base URL with
+`InProcessRouter` in `vultron/demo/in_process.py` drops deliveries to a base URL with
 no registered client. Drops to `_KNOWN_FICTIONAL_HOSTS` (e.g. `vultron.example`)
 log at `DEBUG`; drops to any other host log at `WARNING`, which almost always
 means a misaddressed activity from a stale-config leak upstream. See

@@ -45,7 +45,6 @@ from typing import Any
 import pytest
 
 from test.demo._helpers import make_testclient_call
-from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from test.demo.test_remote_case_actor_invite import (
     _bootstrap,
     _invite,
@@ -53,13 +52,17 @@ from test.demo.test_remote_case_actor_invite import (
 )
 from vultron.adapters.outbox_sealed_body import read_sealed_body
 from vultron.demo.helpers.seeding import seed_case_actor_peers
+from vultron.demo.in_process import (
+    InProcessRouter,
+    create_isolated_actor_app,
+)
 from vultron.demo.utils import DataLayerClient, seed_peer
 from vultron.wire.as2.vocab.base.objects.actors import as_Organization
 
 _UNSAFE_IN_HOST = re.compile(r"[^a-z0-9-]+")
 
 
-class _RecordingRouter(_TestClientRouter):
+class _RecordingRouter(InProcessRouter):
     """The in-process router, keeping every body it delivers."""
 
     def __init__(self) -> None:

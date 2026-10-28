@@ -60,9 +60,9 @@ share an engine — each is a separate implementation.
   validating each derived transition against the protocol artifact and flagging
   any violations.
 - Load a bundled sample from the buttons in the UI, or upload your own
-  `*-case-ledger.jsonl` files. Bundled samples live in
-  [src/sample-logs/](src/sample-logs/) (in-tree, so a fresh clone runs without
-  the container demo).
+  `*-case-ledger.jsonl` files. The bundled recordings live in
+  [src/recordings/](src/recordings/) (in-tree, so a fresh clone runs without
+  the container demo); regenerate them with `uv run export-demo-recordings`.
 
 See [LOG_REPLAY_README.md](LOG_REPLAY_README.md) for the Log Replay pipeline in
 depth, and [MULTI_FOLDER_UPLOAD.md](MULTI_FOLDER_UPLOAD.md) for uploading

@@ -23,14 +23,14 @@ import asyncio
 
 import pytest
 
-from test.demo.conftest import (
-    _TestClientRouter,
-    create_isolated_actor_app,
-)
 from vultron.adapters.driving.fastapi.outbox_handler import (
     configure_default_emitter,
     get_default_emitter,
     outbox_handler,
+)
+from vultron.demo.in_process import (
+    InProcessRouter,
+    create_isolated_actor_app,
 )
 
 #: Vendor and reporter base URLs for this test module — must be unique across
@@ -56,7 +56,7 @@ def test_delivery_failure_triggers_requeue():
       5. Clear the injected failure and drain again — delivery succeeds and
          the outbox is empty.
     """
-    router = _TestClientRouter()
+    router = InProcessRouter()
     vendor_iso = create_isolated_actor_app(_VENDOR_BASE, router, "vendor")
     reporter_iso = create_isolated_actor_app(
         _REPORTER_BASE, router, "reporter"

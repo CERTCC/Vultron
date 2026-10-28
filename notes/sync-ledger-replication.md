@@ -538,7 +538,7 @@ the companion in the same change.
 ## SYNC Replication Test Patterns
 
 - **Happy path (SYNC-901).** Two `create_isolated_actor_app` instances plus a
-  shared `_TestClientRouter` emitter fallback, which POSTs to each app's
+  shared `InProcessRouter` emitter fallback, which POSTs to each app's
   `TestClient` inbox (the only sanctioned in-process transport, ADR-0042 /
   OX-12-003; no hand-rolled `httpx.ASGITransport`). Use `post_actor_inbox` for
   inbound activities.

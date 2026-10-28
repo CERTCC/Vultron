@@ -18,7 +18,7 @@ The default ``HttpDeliveryAdapter`` makes real HTTP POST requests with 3
 retries and exponential backoff (≈ 3.5 s per unreachable recipient), which
 once made the integration suite take 17+ minutes in CI.  The ``client``
 fixture in ``test/demo/conftest.py`` replaces the default emitter, the only
-emitter path the routes reach, with a ``_TestClientRouter``, the sanctioned
+emitter path the routes reach, with a ``InProcessRouter``, the sanctioned
 in-process transport (OX-12-003).
 
 This test checks that property directly: the router carries the demo's
@@ -35,9 +35,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from test.demo._helpers import route_exchange_demo_at_testclient
-from test.demo.conftest import _TestClientRouter
 from vultron.adapters.driven.http_delivery import HttpDeliveryAdapter
 from vultron.demo.exchange import receive_report_demo as demo
+from vultron.demo.in_process import (
+    InProcessRouter,
+)
 
 
 @pytest.fixture(scope="module")
@@ -68,10 +70,10 @@ def test_demo_routes_every_delivery_through_the_test_router(
 
     routed: list[list[str]] = []
     http_attempts: list[str] = []
-    route = _TestClientRouter.emit
+    route = InProcessRouter.emit
 
     async def record_route(
-        self: _TestClientRouter,
+        self: InProcessRouter,
         activity_id: str,
         json_body: str,
         recipients: list[str],
@@ -91,7 +93,7 @@ def test_demo_routes_every_delivery_through_the_test_router(
         http_attempts.append(recipient_id)
 
     with (
-        patch.object(_TestClientRouter, "emit", record_route),
+        patch.object(InProcessRouter, "emit", record_route),
         patch.object(
             HttpDeliveryAdapter, "_deliver_with_retry", record_http_attempt
         ),
@@ -101,12 +103,12 @@ def test_demo_routes_every_delivery_through_the_test_router(
 
     assert http_attempts == [], (
         f"HttpDeliveryAdapter attempted delivery to {http_attempts}; the"
-        " conftest _TestClientRouter is not installed as the default emitter."
+        " conftest InProcessRouter is not installed as the default emitter."
     )
     assert "ERROR SUMMARY" not in caplog.text, (
         f"Demo failed with errors:\n{caplog.text}"
     )
-    assert routed, "The demo delivered nothing through the _TestClientRouter."
+    assert routed, "The demo delivered nothing through the InProcessRouter."
     test_server = str(client.base_url).rstrip("/") + "/"
     unhosted = [
         recipient
@@ -115,6 +117,6 @@ def test_demo_routes_every_delivery_through_the_test_router(
         if not recipient.startswith(test_server)
     ]
     assert unhosted == [], (
-        f"The _TestClientRouter dropped deliveries to {unhosted}, which the"
+        f"The InProcessRouter dropped deliveries to {unhosted}, which the"
         f" test server at {test_server} does not host."
     )

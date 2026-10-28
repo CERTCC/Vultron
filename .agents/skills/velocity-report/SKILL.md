@@ -225,7 +225,9 @@ The data supports the decision when all of the following hold:
 
 If `failed_ci_runs_on_main` rises materially while `open_to_merge_hours`
 falls, report this explicitly: "The time saving appears real, but the
-semantic-conflict risk is materializing — consider the merge queue (Idea #1863)."
+semantic-conflict risk is materializing — check it against the reopen condition
+of the merge queue (Idea #1863, closed as set aside: more than one
+semantic-conflict episode per 100 merges over a month)."
 
 ## Synthesis
 

@@ -159,7 +159,7 @@ Some areas of the Vultron object model are not yet defined in detail, and an ite
 </tr>
 <tr markdown="1">
 <td markdown="span">Parent, child, and sibling cases: split and merge ([Case Splitting and Merging](../../topics/process_models/em/split_merge.md))</td>
-<td markdown="span">The protocol defines how a case divides into child cases or joins a different case ([ADR-0105](../../adr/0105-case-merge-freeze-and-redirect-by-owner-consent.md), and [ADR-0125](../../adr/0125-case-split-child-case-inherits-the-embargo-only.md), which is proposed). The implementation is planned ([#3702](https://github.com/CERTCC/Vultron/issues/3702){:target="_blank"}, [#4242](https://github.com/CERTCC/Vultron/issues/4242){:target="_blank"}).</td>
+<td markdown="span">The protocol defines how a case divides into child cases or joins a different case ([ADR-0105](../../adr/0105-case-merge-freeze-and-redirect-by-owner-consent.md), and [ADR-0125](../../adr/0125-case-split-child-case-inherits-the-embargo-only.md), which is provisionally accepted). The implementation is planned ([#3702](https://github.com/CERTCC/Vultron/issues/3702){:target="_blank"}, [#4242](https://github.com/CERTCC/Vultron/issues/4242){:target="_blank"}).</td>
 <td markdown="span">CSAF documents can refer to other documents, but CSAF has no concept of a split or a merge.</td>
 </tr>
 <tr markdown="1">

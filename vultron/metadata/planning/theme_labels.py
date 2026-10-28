@@ -28,7 +28,7 @@ and never deleted, because removing a label strips it from every Issue that
 carries it, and only a person can decide that.
 
 :func:`compute_drift` is pure, so the tests pin it without the network; the
-``gh`` calls go through an injectable runner.
+``gh`` calls go through an injectable runner (:mod:`.gh`).
 """
 
 from __future__ import annotations
@@ -37,11 +37,19 @@ import argparse
 import json
 import subprocess
 import sys
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 from vultron.metadata.file_loading import MetadataLoadError
+from vultron.metadata.planning.gh import (
+    DEFAULT_REPO,
+    GH_FAILURES,
+    GhError,
+    Runner,
+    gh_failure_detail,
+    run_gh,
+)
 from vultron.metadata.planning.themes import (
     THEME_PREFIX,
     Theme,
@@ -49,17 +57,8 @@ from vultron.metadata.planning.themes import (
     load_theme_catalog,
 )
 
-DEFAULT_REPO = "CERTCC/Vultron"
-
-Runner = Callable[[Sequence[str]], str]
-"""Runs a ``gh`` argument list and returns its standard output.
-
-Raises :class:`LabelSyncError` or ``subprocess.CalledProcessError`` on failure.
-"""
-
-
-class LabelSyncError(Exception):
-    """``gh`` could not be run, or its output could not be read."""
+LabelSyncError = GhError
+"""``gh`` could not be run, or its output could not be read."""
 
 
 @dataclass(frozen=True)
@@ -185,22 +184,7 @@ def format_drift(drift: LabelDrift) -> str:
     return "\n".join(out)
 
 
-def _gh(args: Sequence[str]) -> str:
-    """Run ``gh`` and return its standard output.
-
-    Raises:
-        LabelSyncError: If ``gh`` is not installed.
-        subprocess.CalledProcessError: If ``gh`` exits non-zero.
-    """
-    try:
-        return subprocess.run(
-            ["gh", *args], check=True, capture_output=True, text=True
-        ).stdout
-    except FileNotFoundError as exc:
-        raise LabelSyncError("gh is not installed or not on PATH") from exc
-
-
-def fetch_labels(repo: str, run: Runner = _gh) -> tuple[RemoteLabel, ...]:
+def fetch_labels(repo: str, run: Runner = run_gh) -> tuple[RemoteLabel, ...]:
     """Every label on *repo*, as GitHub reports it.
 
     Raises:
@@ -244,7 +228,7 @@ def fetch_labels(repo: str, run: Runner = _gh) -> tuple[RemoteLabel, ...]:
         ) from exc
 
 
-def apply_drift(drift: LabelDrift, repo: str, run: Runner = _gh) -> None:
+def apply_drift(drift: LabelDrift, repo: str, run: Runner = run_gh) -> None:
     """Create the missing labels and edit the changed ones.
 
     Unlisted labels are left untouched (PAD-02-020).
@@ -286,21 +270,17 @@ def apply_drift(drift: LabelDrift, repo: str, run: Runner = _gh) -> None:
         )
 
 
-_GH_FAILURES = (LabelSyncError, subprocess.CalledProcessError)
-
-
 def _report_gh_failure(
     exc: LabelSyncError | subprocess.CalledProcessError,
 ) -> int:
     """Print a ``gh`` failure and return the setup-error exit code."""
-    detail: object = exc
-    if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
-        detail = str(exc.stderr).strip()
-    print(f"theme-labels: gh failed: {detail}", file=sys.stderr)
+    print(
+        f"theme-labels: gh failed: {gh_failure_detail(exc)}", file=sys.stderr
+    )
     return 2
 
 
-def main(argv: list[str] | None = None, run: Runner = _gh) -> int:
+def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:
     """CLI entry point: report or apply ``theme:`` label drift.
 
     Returns 0 when GitHub matches the catalog (after ``--apply``'s changes,
@@ -342,7 +322,7 @@ def main(argv: list[str] | None = None, run: Runner = _gh) -> int:
         return 2
     try:
         drift = compute_drift(catalog, fetch_labels(args.repo, run))
-    except _GH_FAILURES as exc:
+    except GH_FAILURES as exc:
         return _report_gh_failure(exc)
 
     if args.json:
@@ -354,7 +334,7 @@ def main(argv: list[str] | None = None, run: Runner = _gh) -> int:
         return 0 if drift.in_sync else 1
     try:
         apply_drift(drift, args.repo, run)
-    except _GH_FAILURES as exc:
+    except GH_FAILURES as exc:
         return _report_gh_failure(exc)
     applied = len(drift.missing) + len(drift.changed)
     print(

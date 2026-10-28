@@ -108,19 +108,27 @@ Write the status file, then run up to the agent cap at once. Per task:
    | Check | Action |
    |---|---|
    | `CONFLICTING`, `DIRTY`, or `merge-tree` exit `1` | Re-run `pr-ship` (a fresh agent; its execute phase merges `main` and resolves). The only case that needs an agent |
-   | `BEHIND`, or overlap lists files | Update on GitHub and wait: `gh pr update-branch <pr>`, then `bash .agents/skills/shared/wait-for-ci.sh <pr>`. Exit `0`: merge. Exit `1`: re-run `pr-ship` with the failure as input. Exit `2` (timeout): wait again; never merge before green |
+   | `BEHIND`, or overlap lists files | Update on GitHub and wait on the new head (block below). Exit `0`: merge. Exit `1`: re-run `pr-ship` with the failure as input. Exit `2` (timeout): wait again; never merge before green |
    | Neither | Merge |
 
    Merge the head that CI passed on, and only that head:
 
    ```bash
+   gh pr update-branch <pr>                                    # BEHIND / overlap row only
    sha=$(gh pr view <pr> --json headRefOid --jq .headRefOid)   # after any update-branch
+   WAIT_CI_HEAD_SHA="$sha" bash .agents/skills/shared/wait-for-ci.sh <pr>   # BEHIND / overlap row only
    gh pr merge <pr> --merge --match-head-commit "$sha"
    ```
 
    Read `sha` after `gh pr update-branch` and before `wait-for-ci.sh`, so a
    push that lands during the wait makes the merge fail rather than ship an
    untested head; a refused merge goes back through `pr-ship`.
+
+   Always pass `WAIT_CI_HEAD_SHA`. Left unset, `wait-for-ci.sh` expects the
+   worktree's local `HEAD`, but `update-branch` makes its merge commit on
+   GitHub only, so the wait polls for a head that never comes and times out.
+   In a detached worktree it checks no head at all, and the previous head's
+   green run reads as a pass (#3902).
 
    Update at most once per merge: if `main` moves again during the CI wait,
    merge on green anyway unless GitHub now reports a conflict. Repeating the
