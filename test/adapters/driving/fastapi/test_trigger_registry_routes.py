@@ -25,7 +25,8 @@ The mounted routes are read from the OpenAPI document the app renders — the
 same document the golden snapshot freezes (TRIG-12-003) — built with the demo
 router mounted (``run_mode=PROTOTYPE``) so the demo-only rows are visible
 (TRIG-09-001).  Two ``GET`` routes also live under ``/demo/`` — the case-ledger
-read endpoints — and are not triggers; they are pinned by name so a third
+read endpoints — and are not triggers; they are pinned by name, in a pinned
+exemption set rather than a ratchet (ARCH-18-005), so a third
 non-trigger route under either prefix is noticed rather than silently excluded.
 """
 
@@ -48,6 +49,8 @@ from test.adapters.driving.fastapi.test_openapi_trigger_snapshot import (
 from vultron.trigger_registry import TriggerExposure, entries, lookup_entry
 
 #: Reads under ``/demo/`` that are not triggers (SYNC-01-002, TRIG-09-001).
+#: A pinned exemption set (ARCH-18-005): a read is never a trigger.
+# permanent: TRIG-09-001 (a trigger is a POST; these are GET reads)
 _KNOWN_NON_TRIGGER_ROUTES = frozenset(
     {
         ("GET", "/api/v2/actors/{actor_id}/demo/cases/{case_id}/log"),

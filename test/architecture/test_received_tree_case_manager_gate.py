@@ -118,7 +118,6 @@ _S = "vultron/core/behaviors/status"
 #    Terminal value reached: #4300, #4301 and #4302 moved every received tree
 #    onto manager_effects.  The empty set stays so a new direct caller fails.
 # ---------------------------------------------------------------------------
-# owner: none (terminal value)
 KNOWN_DIRECT_GATE_CALLERS: frozenset[_Site] = frozenset()
 
 # ---------------------------------------------------------------------------

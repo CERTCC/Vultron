@@ -106,8 +106,33 @@ baseline carries a comment (ARCH-18-003):
 - `# permanent: <reference>` — the issue, ADR, or spec requirement that made it
   permanent by design. A permanent marker that cites nothing fails.
 
-The marker check runs offline in the unit suite, so it gives the same answer
-every run. Whether a cited owner is still open is checked by a scheduled CI job
+What the offline check
+(`test/architecture/test_ratchet_baselines_name_an_owner.py`) enforces, through
+the one marker parser `vultron/metadata/ratchet_markers.py`:
+
+- **Which constants.** Module-level constant-case names matching `KNOWN_*`,
+  `*_BASELINE`, `MAX_*` or `*_EXEMPTIONS` (leading underscores ignored)
+  anywhere under `test/`, including inside import-time `if`/`for`/`while`/
+  `try`/`with`/`match` blocks and (nested) tuple or list unpacking. A constant
+  with a ratchet name that is not a baseline (a search depth, a fixture host
+  list) is renamed out of the pattern rather than given an invented marker.
+  The check finds baselines only by name, so a real baseline named otherwise
+  (a `*_BACKLOG`) is renamed into the pattern, or the rule cannot see it.
+- **Terminal needs no marker.** An empty literal, a zero, or an empty
+  `frozenset()` / `MappingProxyType({})` call. A computed value, or one grown
+  in place at module level (`|=`, `.add()`, item assignment), counts as
+  non-empty.
+- **Where the marker sits.** A real comment (`#` or `#:`, never text in a
+  string) in the comment block touching the assignment's first line, or
+  trailing that line; a blank line in between detaches it.
+- **What fails.** No marker on a non-empty baseline; `# owner:` without `#N`
+  (even on a terminal baseline); `# permanent:` whose line cites no `#N`,
+  `ADR-NNNN` or spec ID; both markers on one constant (ARCH-18-005).
+
+Read the markers through `ratchet_markers` (`baselines_in` for a cached parse,
+`scan_paths` for a script); `Baseline.owners` is what the closed-owner report
+needs. The marker check runs offline in the unit suite, so it gives the same
+answer every run. Whether a cited owner is still open is checked by a scheduled CI job
 that files or updates a tracking issue and never fails the build (ARCH-18-004): a
 hard failure would turn `main` red whenever an unrelated issue closes.
 
