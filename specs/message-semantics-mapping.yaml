@@ -435,7 +435,8 @@ groups:
       `Reject(Invite(Event)[context=VulnerabilityCase])`, because that activity is the
       sender's consent to one embargo (MSM-07-003, MSM-07-004), and the transition is
       made only by the activity MSM-02-002, MSM-02-004, MSM-02-005 or MSM-02-006 maps the
-      shorthand to.
+      shorthand to. The CASE_MANAGER's own `Reject(Invite(Event))` is not its consent
+      but its abandonment of the proposal, which MSM-02-006 maps to ER (EMB-16-001).
     rationale: >-
       The formal message set models the case's view of the embargo, not each
       Participant's answer to each proposal: Participant Embargo Consent (PEC) is a
@@ -446,7 +447,8 @@ groups:
     verification: >-
       Unit tests in `test/core/services/embargo_lifecycle/test_answers.py` assert that a
       Participant's Accept or Reject of an embargo Invite, the Case Owner's included,
-      changes only the sender's consent row and moves no register entry.
+      changes only the sender's consent row and moves no register entry, both for a
+      first proposal (EM PROPOSED) and for a proposed revision (EM REVISE).
     relationships:
     - rel_type: refines
       spec_id: MSM-07-001
@@ -1054,7 +1056,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (EA wire form:
+      The wire activity ACCEPT_INVITE_TO_EMBARGO_ON_CASE (wire form:
       Accept(Invite(Event)[context=VulnerabilityCase])) is always the sending actor's own
       consent, whoever sends it, the case owner included: it MUST apply the PEC AGREE
       trigger to the sender's row for the accepted embargo, advancing it from UNINVITED,
@@ -1101,7 +1103,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (ER wire form:
+      The wire activity REJECT_INVITE_TO_EMBARGO_ON_CASE (wire form:
       Reject(Invite(Event)[context=VulnerabilityCase])) is the sending actor's own
       consent whenever a participant sends it, the case owner included: it
       MUST apply the PEC DECLINE trigger to the sender's row for the rejected

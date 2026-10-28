@@ -78,9 +78,9 @@ groups:
     rationale: >-
       If each layer built IDs its own way, objects could get IDs in different forms
       (bare UUID, `urn:uuid:`, base-URL HTTPS), and lookups by full URI would miss some
-      of them (OID-02-004). One helper keeps every minted ID in one form. The wire layer
-      may import `vultron/core/models` (ARCH-22-001), so a helper there can serve both
-      layers.
+      of them (OID-02-004). One helper keeps every minted ID in one form, the configured
+      one (OID-01-003). The wire layer may import `vultron/core/models` (ARCH-22-001),
+      so a helper there can serve both layers.
     adr:
     - ADR-0010
   - id: OID-01-005

@@ -864,6 +864,7 @@ def test_revise_to_active_without_changing_the_active_embargo_cascades_nothing(
 
 
 @pytest.mark.spec("MSM-07-003")
+@pytest.mark.spec("MSM-02-010")
 def test_signatory_accepting_a_proposed_revision_marks_only_the_revision_row(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -971,6 +972,7 @@ def test_owner_rejecting_a_revision_changes_no_participant_record(
 
 
 @pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-02-010")
 def test_signatory_rejecting_a_proposed_revision_keeps_its_consent_to_the_active_embargo(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
