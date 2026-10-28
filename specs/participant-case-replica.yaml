@@ -138,8 +138,8 @@ groups:
       `test_the_creation_copy_is_not_delivered_in_the_create` in
       `test/core/behaviors/case/test_case_proposal_received_tree.py` records that at
       case creation the copy travels in the bootstrap `Create(VulnerabilityCase)`
-      instead (CBT-01-002). No test checks that an inert participant gets no
-      `Announce(VulnerabilityCase)`.
+      instead (CBT-01-002). No test yet checks that an inert participant gets no
+      `Announce(VulnerabilityCase)` (#5377).
     relationships:
     - rel_type: implements
       spec_id: CM-06-001
@@ -601,7 +601,10 @@ groups:
       `test_add_note_commits_log_entry_when_sync_port_provided` in
       `test/core/use_cases/received/test_note.py` asserts that the CASE_MANAGER's
       processing of an `Add(Note)` commits exactly one `CaseLedgerEntry` and queues
-      `Announce(CaseLedgerEntry)` to both participants.
+      its `Announce(CaseLedgerEntry)` to exactly the two participants.
+      `test_ledger_fanout_reaches_only_active_participants` in
+      `test/core/behaviors/sync/nodes/test_active_participant_fanout.py` asserts that
+      the announcement reaches only the active participants (CM-10-004).
     stories:
     - story_2022_045
     - story_2022_088
@@ -962,9 +965,8 @@ groups:
     verification: >-
       `test_rejects_announce_from_non_case_actor` in
       `test/core/use_cases/received/actor/test_announce.py` asserts that a copy from a
-      sender other than the expected CASE_MANAGER is not stored. No test asserts the
-      WARNING for that sender; `test_rejects_announce_when_no_trust_anchor_exists`
-      asserts it only for a sender with no trust anchor.
+      sender other than the expected CASE_MANAGER is not stored and that a WARNING
+      names the refused sender.
   - id: PCR-07-004
     priority: MUST
     kind: project
@@ -995,8 +997,8 @@ groups:
       `test_pending_case_queue_expiry_emits_question` and
       `test_pending_case_queue_expires_drops_and_warns` in
       `test/adapters/driving/fastapi/test_inbox_handler.py` assert that an expired
-      queue sends a replay request and is dropped with a WARNING. No test asserts
-      that a dropped activity changed no local state.
+      queue sends a replay request and is dropped with a WARNING. No test yet
+      asserts that a dropped activity changed no local state (#5377).
   - id: PCR-07-006
     priority: MUST
     kind: project

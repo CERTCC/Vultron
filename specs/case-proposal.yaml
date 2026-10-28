@@ -56,7 +56,7 @@ groups:
       which the case is to be created. URI references to the report are NOT permitted (see AKM-03-003).'
     rationale: The case-actor service needs the vulnerability report to initialize the case. URI references are prohibited
       because the receiver may not have the referenced object, and this codebase
-      dereferences only the few references AKM-05-007 lists (AKM-03-003).
+      fetches only the objects the note on AKM-05-007 lists (AKM-03-003).
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `object_` is typed as
       `ActivityStreamRequiredRef[as_VulnerabilityReport]`, enforcing an inline report and rejecting bare URI references.
     adr:
@@ -646,7 +646,7 @@ groups:
       CP-05-003 and CP-05-004 allow the proposal inline or by reference; this item
       states how this codebase meets them (MS-12-010). The report receiver reads the
       report from the proposal in the answer to find its pending request (CP-06-003),
-      and this codebase dereferences only the few references AKM-05-007 lists. So the
+      and this codebase fetches only the objects the note on AKM-05-007 lists. So the
       proposal travels inline and stays inline through the outbox store. This is a
       prototype choice, not a protocol rule.
     verification: '`test/core/use_cases/received/test_case_proposal.py::TestCreateCaseProposalReceivedUseCase::test_execute_creates_case_and_queues_activities`
@@ -1271,11 +1271,11 @@ groups:
       participant records without a DataLayer round-trip to the CASE_MANAGER.
     rationale: >-
       CP-09-004 allows participant records inline or by reference; this item states how
-      this codebase meets it (MS-12-010). This codebase dereferences only the few
-      references AKM-05-007 lists, so it embeds the participants inline.
-      `store_embedded_participants` seeds the receiver's replica from them and skips a
-      bare id, so bare ids would leave the replica with no participant records, and role
-      checks would fail. This is a prototype choice, not a protocol rule.
+      this codebase meets it (MS-12-010). This codebase fetches only the objects the
+      note on AKM-05-007 lists, and a bootstrap participant is not one of them. The
+      report receiver refuses a bootstrap that names a participant by bare id
+      (CBT-05-009), so this codebase embeds the participants inline. This is a
+      prototype choice, not a protocol rule.
     verification: Unit tests in `test/core/behaviors/case/test_case_proposal_received_tree.py` confirm `Create(VulnerabilityCase)`
       embeds participant objects inline.
     relationships:

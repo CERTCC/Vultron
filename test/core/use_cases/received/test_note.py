@@ -889,13 +889,22 @@ class TestNoteUseCases:
         assert entry.semantic_type == "add_note_to_case"
         assert entry.log_object_id == activity.id_
 
-        # The same processing announces the entry to the participants.
+        # The same processing announces that entry to both participants.
+        announces = [
+            queued
+            for queued in (
+                dl.read(activity_id) for activity_id in dl.outbox_list()
+            )
+            if getattr(queued, "type_", None) == "Announce"
+            and _as_id(getattr(queued, "object_", None)) == entry.id_
+        ]
+        assert announces
         announced_to = {
             recipient
-            for activity_id in dl.outbox_list()
-            for recipient in recipient_ids(dl.read(activity_id))
+            for announce in announces
+            for recipient in recipient_ids(announce)
         }
-        assert {author_id, participant_id} <= announced_to
+        assert announced_to == {author_id, participant_id}
 
     @pytest.mark.spec("SYNC-02-002")
     @pytest.mark.spec("BT-14-001")

@@ -125,8 +125,9 @@ groups:
       A state value that is written with no check can skip or reverse a step that the
       protocol does not permit, and later readers take the stored value as fact. The
       check must suit the situation. At bootstrap the CASE_MANAGER sets the reporter to
-      `RM.ACCEPTED` (CBT-01-008) with no observed earlier RM states. That listed write
-      skips only the RM adjacency rule, and the other checks still apply.
+      `RM.ACCEPTED` (CBT-01-008) with no observed earlier RM states. That bootstrap
+      write sets `force_rm_state`, which skips only the RM adjacency rule, and the
+      other checks still apply.
   - id: SM-04-002
     priority: MUST
     kind: architecture

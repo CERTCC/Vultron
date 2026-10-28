@@ -296,9 +296,12 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         assert dl.read(ReceivedActivityRecord.build_id(event.activity_id))
 
     def test_rejects_announce_from_non_case_actor(
-        self, dl, case, make_payload
+        self, dl, case, make_payload, caplog
     ):
-        """PCR-07-003: a sender that is not the expected authority cannot seed."""
+        """PCR-07-003: a sender that is not the expected authority cannot
+        seed, and the refusal is logged at WARNING."""
+        import logging
+
         _anchor_expected_authority(dl)
         announce = announce_vulnerability_case_activity(
             case,
@@ -308,9 +311,14 @@ class TestAnnounceVulnerabilityCaseReceivedUseCase:
         )
         event = make_payload(announce)
 
-        AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
+        with caplog.at_level(logging.WARNING):
+            AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         assert dl.read(_CASE_ID) is None
+        assert any(
+            r.levelno == logging.WARNING and _IMPOSTER_ID in r.getMessage()
+            for r in caplog.records
+        ), "Expected a WARNING naming the refused sender (PCR-07-003)"
 
 
 # ---------------------------------------------------------------------------

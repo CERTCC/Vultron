@@ -484,7 +484,7 @@ groups:
       Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `CloseCasePattern` is registered as `Leave(VulnerabilityCase)`; integration tests
       in `test/demo/test_manage_case_demo.py` exercise the close-case flow.
-      `test_case_and_participant_wire_forms_map_to_their_semantics` in
+      `test_wire_form_examples_map_to_their_semantics` in
       `test/test_semantic_activity_patterns.py` confirms that the `close_case`
       vocabulary example maps to `CLOSE_CASE`.
     stories:
@@ -955,7 +955,7 @@ groups:
       `AnnounceEmbargoEventToCasePattern` uses `TAtype.ANNOUNCE`, `AOtype.EVENT`, and
       `context_=VULNERABILITY_CASE`; integration tests in
       `test/demo/test_manage_embargo_demo.py` exercise this flow.
-      `test_case_and_participant_wire_forms_map_to_their_semantics` in
+      `test_wire_form_examples_map_to_their_semantics` in
       `test/test_semantic_activity_patterns.py` confirms that the `announce_embargo`
       vocabulary example maps to `ANNOUNCE_EMBARGO_EVENT_TO_CASE`.
     stories:
@@ -1244,7 +1244,7 @@ groups:
       `AddCaseParticipantToCasePattern` uses `TAtype.ADD`, `AOtype.CASE_PARTICIPANT`,
       and `target_=VULNERABILITY_CASE`; integration tests in
       `test/demo/test_manage_participants_demo.py` exercise this flow.
-      `test_case_and_participant_wire_forms_map_to_their_semantics` in
+      `test_wire_form_examples_map_to_their_semantics` in
       `test/test_semantic_activity_patterns.py` confirms that the
       `add_vendor_participant_to_case` vocabulary example maps to
       `ADD_CASE_PARTICIPANT_TO_CASE`.
@@ -1266,7 +1266,7 @@ groups:
       `RemoveCaseParticipantFromCasePattern` uses `TAtype.REMOVE`,
       `AOtype.CASE_PARTICIPANT`, and `target_=VULNERABILITY_CASE`; integration tests in
       `test/demo/test_manage_participants_demo.py` exercise this flow.
-      `test_case_and_participant_wire_forms_map_to_their_semantics` in
+      `test_wire_form_examples_map_to_their_semantics` in
       `test/test_semantic_activity_patterns.py` confirms that the
       `remove_participant_from_case` vocabulary example maps to
       `REMOVE_CASE_PARTICIPANT_FROM_CASE`.
