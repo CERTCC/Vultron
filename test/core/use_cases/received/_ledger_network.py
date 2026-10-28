@@ -482,8 +482,10 @@ def rebuild_every_network(networks: list[LedgerNetwork]) -> None:
     for net in networks:
         held = ledger_entries(net.stores[MANAGER], net.case_id)
         # Every entry is the registry's label for its payload (ADR-0140,
-        # #4724 AC-3), whether or not the network can be rebuilt.
-        mismatches = label_mismatches(held)
+        # #4724 AC-3), whether or not the network can be rebuilt.  The
+        # CASE_MANAGER labelled each payload after rehydrating it against
+        # its own store (SE-01-006), so the check does too.
+        mismatches = label_mismatches(held, net.stores[MANAGER])
         assert not mismatches, "\n".join(mismatches)
         seed = net.rebuild_seed
         if net.ledger_bypassed:

@@ -113,6 +113,10 @@ groups:
       `test/test_semantic_activity_patterns.py` checks every registered pattern whose
       `object_` is a type, except `Read(CaseLedgerEntry)`, and fails if any of them
       accepts a bare URI as its object.
+      `test_only_read_case_ledger_entry_accepts_a_bare_object` in the same file pins
+      the set of patterns that set `accepts_bare_object` to `Read(CaseLedgerEntry)`,
+      and fails if a member matches an activity of its verb that carries nothing but
+      a bare `object`.
     relationships:
     - rel_type: refines
       spec_id: SE-01-005
@@ -593,11 +597,12 @@ groups:
       a less-specific competing pattern, `strict=True` MUST be set on that pattern so that
       a bare URI string in the `target` field does NOT match the typed target constraint.
     rationale: >-
-      In permissive mode (`strict=False`), the module-level `_match_activity_field`
-      function lets a bare string match. Without `strict=True`, an unresolved `target`
-      URI lets the more specific pattern match each competing shape, whatever the type
-      of the target. Registry order is then the only protection against routing errors,
-      and the discriminator has no effect (ADR-0039).
+      A `target_` constraint accepts a bare URI by default (SE-01-007), and
+      `ActivityPattern.strict` governs `target_` alone. Without `strict=True`, an
+      unresolved `target` URI lets the more specific pattern match each competing
+      shape, whatever the type of the target. Registry order is then the only
+      protection against routing errors, and the discriminator has no effect
+      (ADR-0039).
     verification: >-
       Inspection of `vultron/wire/` confirms that each `ActivityPattern` using
       `target_` as its sole discriminator against a competing pattern has

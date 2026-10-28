@@ -384,10 +384,9 @@ def _rehydrate_nested_object_field(
     except ValueError:
         # Nested object not found in the local DataLayer — common in
         # federated scenarios where objects live on remote containers.
-        # Keep the original ID string reference; pattern matching
-        # treats string values as "conservatively allowed" (see
-        # ActivityPattern._match_field), and use cases handle the
-        # missing object gracefully.
+        # Keep the original ID string reference: no pattern's object_
+        # accepts it (SE-01-006), so the activity is
+        # UNKNOWN_UNRESOLVABLE_OBJECT and the inbox fetches the object.
         logger.debug(
             "Could not rehydrate nested 'object_' of %s; "
             "keeping original reference.",

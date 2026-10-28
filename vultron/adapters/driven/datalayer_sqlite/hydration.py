@@ -505,7 +505,8 @@ def coerce_to_semantic_class(obj: PersistableModel) -> PersistableModel:
     typed as a base vocabulary class (e.g. ``as_Offer``).  This function
     uses :func:`find_matching_semantics` to identify the semantic intent
     and, when a more specific class is registered in the semantic registry,
-    coerces via ``model_validate``.
+    coerces via ``model_validate``.  An activity whose ``object_`` stayed a
+    bare id matches no pattern (SE-01-006), so it keeps its base class.
     Coercion failures are logged as warnings and the original object is
     returned unchanged.
     """
