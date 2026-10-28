@@ -70,15 +70,18 @@ subject: implementation
 
 The RCV embargo scenario follows the embargo from end to end in a three-party case.
 A **Reporter** submits a report to a **Coordinator**, who opens the case and invites a **Vendor**.
-Creating the case activates the default embargo, so the Reporter's later proposal revises that embargo rather than starting a first one.
+Creating the case activates the default embargo.
+So the later proposal of the Reporter revises that embargo, and does not start a first one.
 The Coordinator then ends the embargo deliberately, before the vulnerability is published.
 
 **Participants:**
 
 - **Reporter** — discovers the vulnerability, submits the report and proposes new embargo terms.
-- **Coordinator** — receives the report; validates, engages and owns the case; activates the revised embargo and later ends it.
+- **Coordinator** — receives the report, then validates, engages and owns the case.
+  It activates the revised embargo and later ends it.
 - **Vendor** — joins by invitation, consents to the revision and develops the fix.
-- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case; it commits every embargo decision to the ledger and relays each proposal to the other participants.
+- **Case Actor** — the actor that holds the [CASE_MANAGER](../case_lifecycle/case_manager_and_ledger.md) role for this case.
+  It commits every embargo decision to the ledger and relays each proposal to the other participants.
 
 ## Protocol narrative
 
@@ -92,38 +95,46 @@ The default embargo is active from case creation, so the case is at Embargo Mana
 ### 2. Embargo proposal
 
 The Reporter proposes new embargo terms.
-The proposal goes to the CASE_MANAGER only, which moves the case to EM `REVISE`, records the proposal and relays it to the Coordinator and the Vendor.
+The proposal goes only to the CASE_MANAGER.
+The CASE_MANAGER moves the case to EM `REVISE`, records the proposal and relays it to the Coordinator and the Vendor.
+
 The Vendor accepts, which records its consent and changes no EM state.
-The Coordinator, as case owner, answers with its decision for the case: it activates the revision, which returns the case to EM `ACTIVE`.
-Each participant waits for the relayed invitation on its own replica; none waits for another participant's message.
+The Coordinator, as case owner, answers with its decision for the case.
+It activates the revision, and the case returns to EM `ACTIVE`.
+
+Each participant waits for the relayed invitation on its own replica.
+No participant waits for a message from another participant.
 
 *Antecedent:* the case is engaged and EM is `ACTIVE`.
 
 ### 3. Fix lifecycle
 
 The Vendor reports the fix ready.
-The embargo is untouched.
+The embargo does not change.
 
 *Antecedent:* the revised embargo is active.
 
 ### 4. Embargo termination
 
 The Coordinator terminates the embargo.
-The CASE_MANAGER records the termination and EM moves to `EXITED` on the canonical case, then on each replica as the ledger entry reaches it.
+The CASE_MANAGER records the termination, and EM moves to `EXITED` on the canonical case.
+EM then moves to `EXITED` on each replica when the ledger entry reaches it.
 
 *Antecedent:* the revised embargo is active.
 
 ### 5. Publication
 
 Every participant reports publication.
-The embargo has already ended, so publication tears nothing down and EM stays `EXITED`.
+The embargo has already ended.
+So publication has no embargo to end, and EM stays `EXITED`.
 
 *Antecedent:* the embargo has ended.
 
 ### 6. Case closure
 
 Every participant closes the case.
-The Vendor and the Reporter leave first; the Coordinator, the Case Owner, leaves last.
+The Vendor and the Reporter leave first.
+The Coordinator, the Case Owner, leaves last.
 {% include-markdown "./_owner_leaves_last.md" trailing-newlines=false %}
 
 *Antecedent:* the vulnerability has been published.

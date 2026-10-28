@@ -13,9 +13,11 @@ description: >
 
 This page proposes new desiderata for Coordinated Vulnerability Disclosure (CVD) cases.
 A desideratum is an order of two events that a case should achieve, for example a fix that is ready before the vul is public.
+
 The original research gives twelve desiderata over six events of the Case State (CS) model.
 Since then, the protocol has added detailed models of Report Management (RM), Embargo Management (EM), Participant Embargo Consent (PEC), and multi-party participation.
 These models give more preferences about which events should occur before which other events.
+
 The page is a draft research proposal for people who study the CVD process.
 No part of the page is normative, and no one has tested the new desiderata against case data.
 
@@ -103,6 +105,7 @@ Thus two events need to be split by cause: the embargo exit, and public awarenes
 The protocol records most of the split of the embargo exit.
 A terminated embargo records its end: `END_TIME_REACHED` or `EARLY`.
 When the cause is known, the terminated embargo also records a structured cause: `THREAT_SIGNAL`, `FIX_READY`, `FIX_DEPLOYED`, or `OTHER` (EMB-13-004).
+
 `END_TIME_REACHED`, `FIX_READY`, and `FIX_DEPLOYED` are $\evExOwn$.
 `THREAT_SIGNAL` is $\evExThreat$.
 An early end with the cause `OTHER`, or with no recorded cause, is neither kind of embargo exit.
@@ -142,6 +145,7 @@ Public awareness and a public exploit each end an active embargo (VP-09-001).
 Thus any $\evEx$ after $\evP$ or $\evX$ is $\evExThreat$.
 Observed attacks SHOULD also end an active embargo (VP-09-003).
 Thus $\evEx$ after $\evA$ is usually, but not always, $\evExThreat$.
+
 The desideratum $\evExOwn \prec \evP$ shows that the embargo ended as planned.
 Disclosure did not force the end of the embargo.
 
@@ -149,6 +153,7 @@ The desideratum $\evF_i \prec \evExOwn$ for every vendor is stronger than the pr
 A quorum is a sufficient number of vendors, as the case decides.
 VP-09-007 lets an embargo end when a quorum of vendors has a fix ready, even if some vendors do not.
 A vendor without a fix ready at that time is a trailing vendor.
+
 The desideratum gives the ideal, a fix ready from every vendor, and the quorum is the minimum that the protocol permits.
 A case that ends its embargo at a quorum fails the desideratum once for each trailing vendor.
 The measure should count each of these failures.
@@ -197,6 +202,7 @@ The desideratum of joining by each deployer before fix readiness of any vendor (
 This desideratum compares each deployer with every vendor, because the case does not link a deployer to a vendor.
 A deployer that is not also a vendor can deploy after any vendor in the case has a fix ready (CSB-15-004).
 The case does not record which fix a deployer deployed.
+
 The protocol does not require the case to invite a deployer.
 In the original single-vendor model, $\evD$ is the vendor's deployment or an aggregate over its users.
 In a multi-party case, a deployer that joins only after $\evP$ cannot achieve $\evD \prec \evP$, however quickly it acts.
@@ -204,6 +210,7 @@ In a multi-party case, a deployer that joins only after $\evP$ cannot achieve $\
 The desideratum of embargo agreement before the first case content ($\evS_k \prec$ first content) is partly enforced.
 While an embargo is active, the CASE_MANAGER sends no case content to a participant that has not agreed to the embargo (CM-10-004, CM-10-005).
 Case content includes case ledger entries, case announcements, status broadcasts, and embargo announcements.
+
 The SHOULDs in VP-08-006 and EMB-11-001 also cover information that participants share by other routes, which the protocol cannot see.
 Thus, for case content, this desideratum is a conformance ordering.
 For information shared by other routes, this desideratum is a real desideratum, but a measure can observe it only indirectly.
@@ -271,6 +278,7 @@ For example, public awareness ends an active embargo.
 Thus $\evP$ and $\evExThreat$ occur together.
 Also, fix readiness requires an RM state of Accepted, Deferred, or Closed.
 Thus $\evF$ can never occur before the vendor reaches one of these RM states.
+
 A random walk that ignores these rules gives baselines for histories that cannot occur.
 No one has calculated the baseline of each new desideratum under the connected random walk.
 
@@ -294,6 +302,7 @@ Most of the new events are protocol acts.
 The CASE_MANAGER writes each of these protocol acts to the case ledger when it admits the act.
 These acts include $\evAc_i$, $\evE$, $\evEx$, $\evJ_i$, and $\evS_i$.
 The exception is the statuses that the case gets when it is created, which show the creation time.
+
 Thus a measure can get a desideratum between two protocol acts from the ledger alone.
 A desideratum that uses $\evX$ or $\evA$ has the same observation problems as the original desiderata.
 

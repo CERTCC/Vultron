@@ -14,7 +14,7 @@ stakeholder_type: [project-contributor]
 
 {% include-markdown "./_legacy_diagram_note.md" %}
 
-The Process EM Messages Behavior Tree is shown below.
+The figure below shows the Process EM Messages Behavior Tree.
 
 ```mermaid
 ---
@@ -84,29 +84,28 @@ flowchart LR
     fb --> emit_ee
 ```
 
-It is a child of the fallback node started in [Receiving Messages Behavior](msg_intro_bt.md).
-A precondition check for EM message types is followed by a fallback node.
-EM acknowledgment messages (*EK*) receive no further attention and return *Success*.
+This tree is a child of the fallback node that starts in [Receiving Messages Behavior](msg_intro_bt.md).
+The tree starts with a precondition check for EM message types and then goes to a fallback node.
+EM acknowledgment messages (*EK*) get no more processing and return *Success*.
 
 ## Messages That Lead to a Simple Acknowledgment
 
-Next is a branch handling all the messages that will result in a simple acknowledgment (*EK*).
+Next comes a branch that handles all the messages that get a simple acknowledgment (*EK*).
 
-(A) First, we handle embargo error messages (*EE*), which additionally trigger a general inquiry (*GI*) message to attempt
-to resolve the problem.
+(A) The first case is embargo error messages (*EE*).
+An *EE* message also triggers a general inquiry (*GI*) message, to try to solve the problem.
 
-(B) Second are embargo termination messages (*ET*).
-If the Participant is already in the EM *eXited* state (*X*), no further action is taken (aside from the *EK*).
-Otherwise, if the Participant is in either *Active* or *Revise* EM states, the *ET* message triggers a state
-transition $q^{em} \xrightarrow{t} X$.
+(B) The second case is embargo termination messages (*ET*).
+If the Participant is already in the EM *eXited* state (*X*), the tree does nothing more (other than the *EK*).
+Otherwise, if the Participant is in the *Active* or *Revise* EM state, the *ET* message triggers a state transition $q^{em} \xrightarrow{t} X$.
 
-(C) Embargo rejections are handled next in a simple sequence that returns the state from *Proposed* to *None*.
+(C) The third case is embargo rejections.
+A simple sequence handles them and returns the state from *Proposed* to *None*.
 
 ### Handling Viable Embargo Messages
 
-(D) The final chunk of the simple acknowledge branch handles EM messages received when the case state permits embargo viability
-($q^{cs} \in \cdot\cdot\cdot pxa$).
-A variety of actions can be taken in this case state, as shown in the next diagram.
+(D) The last part of the simple acknowledgment branch handles EM messages that arrive when the case state lets an embargo be viable ($q^{cs} \in \cdot\cdot\cdot pxa$).
+The tree can do different actions in this case state, as the next diagram shows.
 
 ```mermaid
 ---
@@ -184,33 +183,24 @@ flowchart LR
     ec_seq --> ec_em_to_A
 ```
 
-(D2a) An embargo proposal (*EP*)
-results in either a move from *None* to *Proposed* or stays in
-*Proposed*, if that was already the case.
+(D2a) An embargo proposal (*EP*) moves the state from *None* to *Proposed*.
+If the state is already *Proposed*, it stays in *Proposed*.
 
-(D2b) An embargo acceptance (*EA*)
-transitions from *Proposed* to *Active*.
+(D2b) An embargo acceptance (*EA*) moves the state from *Proposed* to *Active*.
 
-(D2c) Similar to the *EP* behavior,
-an embargo revision proposal (*EV*) either moves from *Active* to
-*Revise* or stays in *Revise*, as appropriate.
+(D2c) An embargo revision proposal (*EV*) works like the *EP* behavior.
+It moves the state from *Active* to *Revise*, or the state stays in *Revise*, as applicable.
 
-(D2d) Finally, we deal with
-revision rejection (*EJ*) or acceptance (*EC*) when in the *Revise*
-state.
+(D2d) Last, the tree handles a revision rejection (*EJ*) or acceptance (*EC*) in the *Revise* state.
 
-Climbing back up the tree, we see that *Success* in any of the
-branches in this or the previous paragraph results in an acknowledgment
-message *EK*.
+Higher up the tree, *Success* in any of the branches in this paragraph or the previous paragraph causes an acknowledgment message *EK*.
 
 ## Messages That Require More than a Simple Acknowledgment
 
-(E) Returning to the the tree at the top of the page, we come to a branch focused on
-handling EM messages when an embargo is no longer viable---in other words, when the case has
-reached a point where attacks are occurring, or either the exploit or the vulnerability has been made public
-($q^{cs} \not \in \cdot\cdot\cdot pxa$).
-This branch takes us to the [Terminate Embargo tree](em_terminate_bt.md), which may lead to
-other messages being emitted.
+(E) Now go back to the tree at the top of the page.
+The next branch handles EM messages when an embargo is no longer viable.
+That is, attacks are occurring, or the exploit or the vulnerability is public ($q^{cs} \not \in \cdot\cdot\cdot pxa$).
+This branch goes to the [Terminate Embargo tree](em_terminate_bt.md), which can emit other messages.
 
-Finally, back at the end of the tree at the top of the page, when no other branch has succeeded,
-we emit an embargo error (*EE*) message to relay the failure.
+Last, go back to the end of the tree at the top of the page.
+If no other branch succeeds, the tree emits an embargo error (*EE*) message to report the failure.
