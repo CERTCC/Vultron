@@ -97,7 +97,7 @@ def _proposal_body(net: LedgerNetwork) -> tuple[dict[str, Any], str]:
         to=[MANAGER],
         id_=f"{net.case_id}/embargo_proposals/revision",
     )
-    return delivered_body(proposal), revision.id_
+    return delivered_body(proposal, at=net.stores[MANAGER]), revision.id_
 
 
 def _held_rows(net: LedgerNetwork, actor_id: str, embargo_id: str) -> list:

@@ -380,3 +380,38 @@ def test_a_lagging_stamp_is_answered_as_a_stated_position():
     )
     assert _replication_state(net, BYSTANDER) == []
     assert len(net.queued(MANAGER, to=BYSTANDER)) == bystander_queued
+
+
+@pytest.mark.spec("SYNC-18-007")
+@pytest.mark.spec("SYNC-18-002")
+def test_a_redelivered_stamp_is_not_answered_again():
+    """A resend keeps its first stamp; answering it again would move the
+    acknowledged position back and replay what was sent since."""
+    net = LedgerNetwork(CASE_ID)
+    _advance(net, "https://example.org/notes/tail-8")
+    before = _advance(net, "https://example.org/notes/tail-8a")
+    behind = _add_note_body(
+        "https://example.org/notes/tail-8b",
+        net=net,
+        ledgerPosition=_wire(before),
+    )
+    assert net.receive(MANAGER, behind).disposition is (
+        HandlerDisposition.APPLIED
+    )
+    tail = _manager_tail(net)
+    at_tail = _add_note_body(
+        "https://example.org/notes/tail-8c",
+        net=net,
+        ledgerPosition=_wire(tail),
+    )
+    assert net.receive(MANAGER, at_tail).disposition is (
+        HandlerDisposition.APPLIED
+    )
+    _drain_outbox(net)
+
+    verdict = net.receive(MANAGER, behind)
+
+    assert verdict.disposition is HandlerDisposition.SKIPPED, verdict.reason
+    [state] = _replication_state(net, OWNER)
+    assert state.last_acknowledged_hash == tail.entry_hash
+    assert _announced_indices(net, OWNER) == []

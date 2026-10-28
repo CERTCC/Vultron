@@ -28,6 +28,9 @@ from vultron.core.behaviors.case.case_clock_decisions import (
 from vultron.core.behaviors.case.nodes.clock_decision_stage import (
     create_clock_decision_gate,
 )
+from vultron.core.behaviors.case.nodes.intake import (
+    IntakeReceivedActivityNode,
+)
 from vultron.core.behaviors.case.nodes.lifecycle import (
     CommitCaseLedgerEntryNode,
 )
@@ -143,6 +146,7 @@ def case_and_tree_decisions(
 
 def ledger_position_stage(
     name: str,
+    intake: IntakeReceivedActivityNode,
     sender_context: SenderContext | None,
     exemption: LedgerPositionExemption | None,
 ) -> list[py_trees.behaviour.Behaviour]:
@@ -155,6 +159,8 @@ def ledger_position_stage(
     answer; a tree whose sender and case are read from a received ledger
     activity at run time is about an activity outside SYNC-18-001's scope.
     A tree that answers the position itself names a registered *exemption*.
+    A redelivery that *intake* found already archived is not answered again
+    (SYNC-18-002).
 
     Raises:
         VultronWiringError: *exemption* is not registered in
@@ -176,6 +182,8 @@ def ledger_position_stage(
         return []
     return [
         create_ledger_position_stage(
-            sender_context.case_id, sender_context.sender_id
+            sender_context.case_id,
+            sender_context.sender_id,
+            is_redelivery=lambda: bool(intake.found_ids),
         )
     ]

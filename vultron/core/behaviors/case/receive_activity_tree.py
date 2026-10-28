@@ -509,7 +509,7 @@ def create_receive_activity_tree(
     if guard is not None:
         children.extend(
             ledger_position_stage(
-                name, sender_context, ledger_position_exemption
+                name, intake, sender_context, ledger_position_exemption
             )
         )
     decisions = case_and_tree_decisions(

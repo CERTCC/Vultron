@@ -36,6 +36,7 @@ position itself names a :class:`LedgerPositionExemption` instead.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import StrEnum
 from typing import Final, cast
 
@@ -163,11 +164,17 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
         }
 
     def __init__(
-        self, case_id: str, sender_id: str, name: str | None = None
+        self,
+        case_id: str,
+        sender_id: str,
+        name: str | None = None,
+        *,
+        is_redelivery: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self.case_id = case_id
         self.sender_id = sender_id
+        self.redelivery_check = is_redelivery
         self.standing: PositionStanding = PositionStanding.NONE
         """The standing the last run found (for inspection)."""
 
@@ -176,9 +183,23 @@ class ClassifyLedgerPositionNode(DataLayerActionWithPorts):
         self.activity = self.get_input("activity")
 
     def _stated_position(self) -> LedgerPosition | None:
-        """The position the sender stamped, or ``None`` when none is owed."""
+        """The position the sender stamped, or ``None`` when none is owed.
+
+        A redelivery of an activity this store already archived owes none:
+        a resend keeps its first stamp (SYNC-18-002), which the first
+        delivery answered, and answering it again would move the sender's
+        acknowledged position back and replay what was sent since.
+        """
         activity = self.activity
         if not isinstance(activity, LedgerPositionedEvent):
+            return None
+        if self.redelivery_check is not None and self.redelivery_check():
+            self.logger.debug(
+                "%s: activity '%s' is a redelivery; its ledger position was"
+                " answered when it first arrived (SYNC-18-002)",
+                self.name,
+                activity.activity_id,
+            )
             return None
         if not same_actor_id(activity.actor_id, self.sender_id):
             return None

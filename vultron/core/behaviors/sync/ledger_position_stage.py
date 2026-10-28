@@ -46,6 +46,8 @@ with (SYNC-18-007), and the re-seed is the one rate-bounded re-seed send
 changes nothing in the case file (SYNC-17-006).
 """
 
+from collections.abc import Callable
+
 import py_trees
 
 from vultron.core.behaviors.case.nodes.role_gates import (
@@ -82,7 +84,10 @@ def _is(*expect: PositionStanding) -> LedgerPositionIsNode:
 
 
 def create_ledger_position_stage(
-    case_id: str, sender_id: str
+    case_id: str,
+    sender_id: str,
+    *,
+    is_redelivery: Callable[[], bool] | None = None,
 ) -> CaseManagerGate:
     """The CASE_MANAGER's answer to *sender_id*'s stamped position in *case_id*.
 
@@ -94,7 +99,9 @@ def create_ledger_position_stage(
     an active participant re-seeded under the SYNC-16-004 bound
     (SYNC-18-005).  An inert sender's position is neither recorded nor
     answered.  Whatever the answer does, the received activity is judged as
-    it would be without it.
+    it would be without it.  *is_redelivery* tells a redelivery of an
+    activity already archived, whose first delivery was answered; the
+    factory passes intake's answer.
     """
     replay_a_lag = py_trees.composites.Selector(
         name="ReplayIfLagging",
@@ -176,6 +183,7 @@ def create_ledger_position_stage(
                 case_id=case_id,
                 sender_id=sender_id,
                 name="ClassifyLedgerPosition",
+                is_redelivery=is_redelivery,
             ),
             by_standing,
         ],
