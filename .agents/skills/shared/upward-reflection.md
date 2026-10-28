@@ -15,7 +15,7 @@ Ask each question. For each "yes", take the action in the right-hand column
 
 | Was there… | Route it to |
 |---|---|
-| Something that exists but is wrong — fragility, risk, debt, a bug in code you didn't touch | GitHub `type:Concern` issue (`/new-item`) |
+| Something that exists but is wrong — fragility, risk, debt, a bug in code you didn't touch | GitHub issue via `/new-item`: `Bug`, `Task`, or `Concern` by the rule in `issue-creation-requirements.md` § "Determining the right values" |
 | Something that should exist but doesn't | GitHub `type:Idea` issue (`/new-item`) |
 | A broken tool, skill, or tracking artefact — bad script, stale issue body, wrong path in a skill | Fix it now, in this session |
 | A narrow but true fact about the code that a future agent would trip over | An assertion at the site — regression test, type annotation, or comment |
@@ -50,10 +50,11 @@ broken script.
 ## Code-review findings are issues, always (BW-07-009)
 
 Findings in files your change didn't touch — pre-existing bugs, DEFER items,
-anything ruled out of scope — **must** be filed as `type:Bug` or `type:Concern`
-issues before the session ends. Never a learning file, and never left as a
-PR-comment advisory. A learning file can't be assigned, scheduled, or closed, so
-a bug report inside one is inert.
+anything ruled out of scope — **must** be filed as issues before the session
+ends, typed by the rule in `issue-creation-requirements.md` § "Determining the
+right values". Never a learning file, and never left as a PR-comment advisory.
+A learning file can't be assigned, scheduled, or closed, so a bug report inside
+one is inert.
 
 The 2026-09-02 audit is the argument for this. Six entries held ~20 findings;
 all but four were eventually filed — by *later* sessions doing their own
@@ -70,10 +71,10 @@ finding.
 
 A `theme-candidate` is a claim awaiting a second witness. Two consequences:
 
-- **If your finding corroborates an entry already in the queue, file a
-  `type:Concern` issue now** (BW-07-006) — don't add a second learning file. The
-  second witness is the moment the claim becomes trustworthy, so it's the moment
-  to act. Check the queue before writing: `ls plan/incoming/learnings/`.
+- **If your finding corroborates an entry already in the queue, file an
+  issue now** (BW-07-006), typed by the same rule — don't add a second learning
+  file. The second witness is the moment the claim becomes trustworthy, so it's
+  the moment to act. Check the queue before writing: `ls plan/incoming/learnings/`.
 - Single-witness entries are promoted by `learn` only with corroboration
   (BW-07-005), and are archived as unreproduced after 30 days without it
   (BW-07-007).

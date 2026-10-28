@@ -4,7 +4,7 @@ description: >
   Three-question docs-sync check: identifies docs/ pages that need updating
   after an implementation or bug-fix change, applies small updates inline
   (PD-03-007) behind a blocking lint-docs gate, offers write-docs for large
-  multi-page rewrites, and files a type:Concern issue when those are deferred.
+  multi-page rewrites, and files a type:Task issue when those are deferred.
   Emits the exact `Docs:` line the caller MUST write into an implementation or
   bug-fix PR body in place of create-pr's placeholder (PD-03-008). Invoked after the PR is pushed (while
   CI runs), by build (Phase 8), bugfix (Phase 4 finalize), and learn (Phase 8).
@@ -94,9 +94,9 @@ Apply the heuristic:
 | Edit to one or more existing pages | **Small** — do now |
 | Add a single new page | **Small** — do now |
 | Rewrite a single existing page | **Small** — do now |
-| Simultaneously rewrite multiple pages completely | **Large** — file Concern |
+| Simultaneously rewrite multiple pages completely | **Large** — file Task |
 
-When in doubt, lean toward **Small** and do it now. The Concern path is for
+When in doubt, lean toward **Small** and do it now. The Task path is for
 genuine multi-page rewrites that would bloat the PR beyond its original scope.
 
 ### Step 3 — Apply small updates
@@ -133,38 +133,40 @@ For a new page, or a full rewrite of an existing one, invoke `write-docs` with
 classification, concept ordering, nav wiring, and term registration, and leaves
 the result in this branch for the caller to commit.
 
-### Step 4 — Offer write-docs, then file a Concern
+### Step 4 — Offer write-docs, then file a Task
 
 For each large update (multi-page rewrite needed), **offer `write-docs` before
-deferring**. PD-03-007 prefers an inline update, so the Concern is the fallback,
+deferring**. PD-03-007 prefers an inline update, so the Task is the fallback,
 not the default. Recommend one course and ask for confirmation:
 
 > "`docs/topics/process_models/em/` needs three pages rewritten after this
 > embargo-consent change. I recommend invoking `write-docs` now with
 > `mode: inline` — the pages are adjacent and the change is mechanical, so it
 > adds roughly 200 lines to this PR rather than a week of context reconstruction.
-> Alternatively I file a Concern and defer. Proceed with `write-docs`?"
+> Alternatively I file a Task and defer. Proceed with `write-docs`?"
 
 If the user accepts, invoke `write-docs` with `mode: inline` and skip the rest
 of this step. With no user to answer (unattended), deferral is unavailable
 (`completeness-doctrine.md` Gate 1): invoke `write-docs` inline, or hold the
-PR. Scope alone never licenses the Concern path unattended. If a user is
+PR. Scope alone never licenses the Task path unattended. If a user is
 present and declines, or says the scope exceeds this PR, invoke the `new-item`
-skill to file a `type:Concern` issue. Provide these details as context:
+skill to file a `type:Task` issue. A deferred docs rewrite is known work, so it
+is a Task, not a Concern (`shared/issue-creation-requirements.md`
+§ "Determining the right values"). Provide these details as context:
 
-- **Type**: Concern
+- **Type**: Task
 - **Title**: `docs: update <area> pages after <change>`
 - **Context**: what implementation change requires the docs update
 - **Required docs updates**: each page that needs updating with what to change
 - **Source**: PD-03-007 — implementation PR must include docs updates or a
-  linked Concern; deferred only when multiple pages require simultaneous rewrite
+  linked issue; deferred only when multiple pages require simultaneous rewrite
 - **Deferred from PR**: `<PR_URL>` (fill in after the PR opens)
 - **Opened as**: `debt`, with `--where` naming the affected pages (a PR-originated
   deferral is not planned work)
 
 `new-item` handles duplicate detection, parent epic selection, and creation.
 
-The Concern body MUST list every affected page: `pr-triage` accepts a
+The Task body MUST list every affected page: `pr-triage` accepts a
 deferral only when the named issue lists the pages (PD-03-009). Record the
 issue number for the `Docs:` line Step 5 emits.
 
@@ -173,8 +175,8 @@ issue number for the `Docs:` line Step 5 emits.
 Return a summary of what was done:
 
 - List each `docs/` page updated inline (file path + short description of what changed)
-- List each Concern issue filed for large updates: issue number, title, and 1–2
-  sentences describing what the concern entails and why the update was deferred
+- List each Task issue filed for large updates: issue number, title, and 1–2
+  sentences describing what the task entails and why the update was deferred
 - If no `docs/` updates were needed, state that explicitly
 
 End the report with the **exact `Docs:` line** for the PR body, in one of the
@@ -218,11 +220,11 @@ Add `--closes-work-item` for a docs PR that closes a `Task`, `Feature` or `Bug`.
   update; do not skip either. `lint-docs` is a blocking gate (DF-09-001), and a
   run that resolved zero targets does not satisfy it (DF-09-009).
 - Small updates MUST be applied in the same PR, not deferred (PD-03-007).
-- Offer `write-docs` before filing a Concern for a large update. Deferring
+- Offer `write-docs` before filing a Task for a large update. Deferring
   without offering the inline path first inverts PD-03-007's preference.
-- File a Concern issue for every large update that is not done inline; never
+- File a Task issue for every large update that is not done inline; never
   silently skip.
-- Cite PD-03-007 in every Concern issue body.
+- Cite PD-03-007 in every Task issue body.
 - Always end with the `Docs:` line (Step 5). On an implementation or bug-fix
   PR, a run that emits none leaves the caller nothing to record, and the
   placeholder stays (PD-03-008).

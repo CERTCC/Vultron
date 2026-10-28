@@ -139,8 +139,9 @@ finding is never deferred — fix it.
    stop. An inversion is a circuit breaker.
 
 **Pre-existing findings are not exempt (BW-07-009).** A finding in a file this
-PR did not touch still gets a `type:Bug` or `type:Concern` issue here, before
-the session ends. There is no advisory tier: posting it only as an
+PR did not touch still gets an issue here, before the session ends — `Bug`,
+`Task`, or `Concern` by the rule in `shared/issue-creation-requirements.md`
+§ "Determining the right values". There is no advisory tier: posting it only as an
 `[ADVISORY]` PR comment, or describing it in a `plan/incoming/learnings/`
 file, does not count as tracking it — neither can be assigned, scheduled, or
 closed. Nor does citing the PR that surfaced it: a merged PR number is not a

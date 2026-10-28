@@ -1,39 +1,46 @@
 ---
 name: new-item
 description: >
-  Create or update a single GitHub Idea or Concern issue from freeform input,
-  with type inference, duplicate checks, and mandatory Epic parent wiring. Use
-  when a developer wants to quickly capture a new planning item as type:Idea or
-  type:Concern.
+  Create or update a single GitHub Bug, Task, Idea, or Concern issue from
+  freeform input, with type inference, duplicate checks, and mandatory Epic
+  parent wiring. Use when a developer wants to quickly capture a new item, or a
+  skill files a finding it will not fix now.
 ---
 
 # Skill: New Item
 
-Capture one freeform item as a structured GitHub `type:Idea` or
-`type:Concern` issue. See `.agents/skills/shared/README.md` for IDs.
+Capture one freeform item as a structured GitHub `type:Bug`, `type:Task`,
+`type:Idea`, or `type:Concern` issue. See `.agents/skills/shared/README.md` for
+IDs.
 
 ## Workflow
 
 ### Phase 0 — Describe
 
-Ask in plain text (an open-ended question): "Describe the idea or concern you want
-to capture."
+Ask in plain text (an open-ended question): "Describe the item you want to
+capture."
 
 ### Phase 1 — Infer + Confirm Type
 
-Infer `Idea` vs `Concern` with a short rationale from the description.
-Confirm with `ask_user` choices:
+Infer the type from the shape of the work, by the rule in
+`shared/issue-creation-requirements.md` § "Determining the right values". A
+caller's **Opened as** reason (such as `debt`) does not decide the type.
+
+If the type is clear, use it and state the one-line rationale. Ask only when it
+is unclear, with `ask_user` choices:
 
 1. Use inferred type (Recommended)
-2. Switch to other type
+2. Switch to another type (Bug, Task, Idea, Concern)
 3. Cancel
 
-If switched, continue with the same description.
+If switched, continue with the same description. If the finding holds both a
+ready fix and an open question, split it into two issues and run Phases 2–8 for
+each.
 
-### Phase 2 — Duplicate Scan (both types)
+### Phase 2 — Duplicate Scan (all types)
 
-List open `Idea` and `Concern` issues and find near-duplicates by title/body
-similarity. Recommend update-existing when a strong match exists.
+List open `Bug`, `Task`, `Idea`, and `Concern` issues and find near-duplicates
+by title/body similarity. Recommend update-existing when a strong match exists.
 
 Ask with `ask_user`:
 
@@ -52,6 +59,9 @@ user to accept or refine each field.
   Severity, Evidence, Impact if Ignored, Suggested Action.
 - **Idea fields**: Summary, Motivation, Rough Approach (optional),
   References (optional; auto-seed related issue/spec/ADR links when possible).
+- **Bug and Task fields**: Summary, Evidence or Context, Fix or Approach,
+  Acceptance Criteria, and the required `Governing specs:` line
+  (`shared/issue-creation-requirements.md` § "Governing specs").
 
 For the **Surface Symptom vs. Underlying Problem** field, actively draw out
 both halves: the naive, symptom-level reading someone would stop at, and the
@@ -79,15 +89,15 @@ parent epic.
 
 ### Phase 5 — Build Title + Body
 
-Generate a clean title (no `[Idea]` / `[Concern]` prefix) and body matching
-the corresponding GitHub template sections.
+Generate a clean title (no `[Bug]` / `[Idea]` / `[Concern]` prefix) and body
+matching the corresponding GitHub template sections.
 
 ### Phase 6 — Create or Update
 
 Use `.agents/skills/manage-github-issue/manage_github_issue.sh`.
 
-- **Create**: set issue type ID (`Idea` or `Concern`), apply exactly one label (`idea`
-  or `concern`), wire parent epic, and pass
+- **Create**: set the issue type ID, apply its label (`bug`, `idea`, or
+  `concern`; a Task takes none), wire parent epic, and pass
   `--planned`. When the caller supplies **Opened as** (for example `debt` with a
   `--where`), pass `--opened-as <reason> [--where <text>]` instead of `--planned`.
 - **Update**: update title/body and optionally parent epic; do not change issue
@@ -110,7 +120,7 @@ gh api graphql -f query="mutation {
 ### Phase 8 — Confirm
 
 Print one line:
-`✅ <Idea|Concern> issue #<N> — "<title>" — <created|updated>. <URL>`
+`✅ <Bug|Task|Idea|Concern> issue #<N> — "<title>" — <created|updated>. <URL>`
 
 ## Constraints
 

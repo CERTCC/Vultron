@@ -115,8 +115,8 @@ groups:
     statement: >-
       When an implementation or bug-fix PR changes behavior, interfaces, or architecture described in
       `docs/`, the PR MUST include the corresponding `docs/` updates or a linked follow-up
-      `type:Concern` issue. Inline update is preferred for edits to existing pages, adding a single
-      new page, or rewriting a single existing page. A deferred Concern is acceptable only when the
+      `type:Task` issue. Inline update is preferred for edits to existing pages, adding a single
+      new page, or rewriting a single existing page. A deferred Task is acceptable only when the
       required update would simultaneously rewrite multiple `docs/` pages.
     rationale: >-
       A `docs/` page that does not agree with the code misleads its readers, and
@@ -153,14 +153,14 @@ groups:
       PR's diff affects, whether or not the diff touches `docs/`, and compare that determination
       with the PR body's `Docs:` field. A missing or still-placeholder `Docs:` field is a FAIL
       finding; an affected page the PR neither updated nor deferred is an IMPROVE finding; a
-      deferral MUST name an existing follow-up `type:Concern` issue that lists the affected pages,
-      and is valid only where PD-03-007 permits deferring (an update that would rewrite multiple
-      `docs/` pages at once).
+      deferral MUST name an existing follow-up `type:Task` (or `type:Concern`) issue that lists the
+      affected pages, and is valid only where PD-03-007 permits deferring (an update that would
+      rewrite multiple `docs/` pages at once).
     verification: >-
       `pr-triage`'s notes-and-docs currency review determines affected `docs/` pages from the diff
       without a `docs/`-modified precondition, and its criteria emit FAIL for a missing or
       placeholder `Docs:` field, IMPROVE for an affected page neither updated nor deferred, and a
-      finding for a deferral that names no existing multi-page `type:Concern` issue.
+      finding for a deferral that names no existing multi-page `type:Task` or `type:Concern` issue.
     rationale: >-
       A docs check that runs only when the PR already changed `docs/` can never find a
       page that the author forgot. Only the review check reaches PRs that a person

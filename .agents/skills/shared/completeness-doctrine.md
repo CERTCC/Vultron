@@ -243,7 +243,7 @@ carries none):
 |---|---|
 | `opened:excursion` | Filed so this PR could close it. Nets to zero. |
 | `opened:separate-defect` | A real defect in code the PR does not touch. |
-| `opened:debt` | A known weakness seen but not fixed now. Also issue type `Concern`, and it carries a `Where:` line naming a file, directory, or spec. |
+| `opened:debt` | A known weakness seen but not fixed now. It carries a `Where:` line naming a file, directory, or spec. The type follows the work, usually `Task` or `Bug` (`issue-creation-requirements.md` § "Determining the right values"). |
 | `opened:deferred` | This PR's own work, left undone. Forbidden for unsupervised runs; always flagged. |
 
 **The net** is the pre-existing, non-Epic issues closed by merged PRs, minus the
