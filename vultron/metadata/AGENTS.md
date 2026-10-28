@@ -36,8 +36,7 @@ are the product**.
 
 Shared helpers live in three places — `base.py`, `markdown_tables.py`, and
 `file_loading.py` (see [Loader Failure Attribution](#loader-failure-attribution-ms-17)).
-**Do not re-derive any of them** — see the `repo_root` history below for what
-that costs.
+**Do not re-derive any of them** — see the `repo_root` history below for the cost.
 
 `base.py` — cross-subpackage primitives:
 
