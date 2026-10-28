@@ -297,25 +297,9 @@ def _hosted_ledger_entries() -> Iterator[tuple[Any, list[CaseLedgerEntry]]]:
         )
 
 
-def check_entries_carry_registry_labels() -> None:
-    """Every hosted ledger entry is labelled by the registry (#4724 AC-3).
-
-    An entry's ``semantic_type`` must equal the semantic registry's match for
-    its ``payload_snapshot`` (ADR-0140).  A mismatch is recorded in
-    :data:`REBUILD_FAILURES`, alongside the rebuild differences, for the same
-    reason they are: a raise would be logged as a failed demo and hidden.
-    Each payload is rehydrated against the store that holds the entry, as its
-    holder read it (SE-01-006).
-    """
-    count = 0
-    for dl, entries in _hosted_ledger_entries():
-        count += len(entries)
-        REBUILD_FAILURES.extend(label_mismatches(entries, dl))
-    LABELLED_ENTRIES.append(count)
-
-
-def _managed_cases() -> Iterator[tuple[Any, str]]:
-    """``(store, case id)`` for every case a hosted actor manages."""
+def _case_manager_stores() -> dict[str, Any]:
+    """``{case id: store}`` for every case whose CASE_MANAGER is hosted."""
+    stores: dict[str, Any] = {}
     for actor_id, dl in get_all_actor_datalayers().items():
         for case in dl.list_objects("VulnerabilityCase"):
             if not isinstance(case, VulnerabilityCase):
@@ -324,12 +308,41 @@ def _managed_cases() -> Iterator[tuple[Any, str]]:
                 manager_id = resolve_case_manager_id(case, dl)
             except VultronError:
                 continue  # a case this store names no CASE_MANAGER for
-            if (
-                manager_id == actor_id
-                and ledger_entries(dl, case.id_)
-                and replica_actor(dl, case.id_) is not None
-            ):
-                yield dl, case.id_
+            if manager_id == actor_id:
+                stores[case.id_] = dl
+    return stores
+
+
+def check_entries_carry_registry_labels() -> None:
+    """Every hosted ledger entry is labelled by the registry (#4724 AC-3).
+
+    An entry's ``semantic_type`` must equal the semantic registry's match for
+    its ``payload_snapshot`` (ADR-0140).  A mismatch is recorded in
+    :data:`REBUILD_FAILURES`, alongside the rebuild differences, for the same
+    reason they are: a raise would be logged as a failed demo and hidden.
+    Each payload is rehydrated against its case's CASE_MANAGER store, which
+    assigned the label, replica copies included (SE-01-006); an entry whose
+    CASE_MANAGER is not hosted here is read against the store holding it.
+    """
+    managers = _case_manager_stores()
+    count = 0
+    for dl, entries in _hosted_ledger_entries():
+        count += len(entries)
+        for entry in entries:
+            REBUILD_FAILURES.extend(
+                label_mismatches([entry], managers.get(entry.case_id, dl))
+            )
+    LABELLED_ENTRIES.append(count)
+
+
+def _managed_cases() -> Iterator[tuple[Any, str]]:
+    """``(store, case id)`` for every case a hosted actor manages."""
+    for case_id, dl in _case_manager_stores().items():
+        if (
+            ledger_entries(dl, case_id)
+            and replica_actor(dl, case_id) is not None
+        ):
+            yield dl, case_id
 
 
 def _status_entry_faults(dl: Any, case_id: str) -> list[str]:

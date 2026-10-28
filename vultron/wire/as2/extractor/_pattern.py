@@ -206,3 +206,19 @@ def _match_activity_field(
     ):
         return True
     return bool(pattern_field == getattr(activity_field, "type_", None))
+
+
+def bare_object_id(activity: as_Activity) -> str | None:
+    """The bare id that ends *activity*'s ``object`` chain, or ``None``.
+
+    The chain follows ``object`` through each inline activity it holds, so
+    ``Undo(Accept(Invite(<id>)))`` ends in the Invite's bare object.  A
+    nested pattern's ``object_`` refuses a bare id as the outer one does
+    (SE-01-006), so the activity is unresolvable at any depth, and this id is
+    the one the receiver lacks (VAM-01-009, AKM-05-007).  ``None`` when the
+    chain ends in an inline object, or in no object at all.
+    """
+    obj: object = getattr(activity, "object_", None)
+    while isinstance(obj, as_Activity):
+        obj = getattr(obj, "object_", None)
+    return obj if isinstance(obj, str) and obj else None

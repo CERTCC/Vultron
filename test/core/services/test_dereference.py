@@ -188,6 +188,53 @@ class TestReferencesToFetch:
 
         assert [r.object_id for r in refs] == [missing]
 
+    @pytest.mark.spec("AKM-05-007")
+    @pytest.mark.spec("VAM-01-009")
+    def test_a_bare_object_two_activities_deep_is_the_one_fetched(self):
+        """``Undo(Accept(Invite(<id>)))``: the innermost bare id is fetched.
+
+        The replica holds the middle ``Accept``, so a fetch that looked only
+        one level down would find it held and fetch nothing.
+        """
+        dl = _replica()
+        case = make_case_with_case_manager(dl)
+        missing = "urn:uuid:innermost-not-held"
+        accept = {
+            "type": "Accept",
+            "id": "https://example.org/activities/accept-held",
+            "published": "2026-10-26T12:00:00Z",
+            "actor": _PARTICIPANT,
+            "object": {
+                "type": "Invite",
+                "id": "https://example.org/activities/invite-2",
+                "published": "2026-10-26T12:00:00Z",
+                "actor": CASE_MANAGER_ID,
+                "object": missing,
+                "context": case.id_,
+            },
+            "context": case.id_,
+        }
+        dl.create(parse_activity(accept))
+        activity = parse_activity(
+            {
+                "type": "Undo",
+                "id": "https://example.org/activities/undo-nested",
+                "published": "2026-10-26T12:00:00Z",
+                "actor": CASE_MANAGER_ID,
+                "object": accept,
+                "context": case.id_,
+                "to": [_PARTICIPANT],
+            }
+        )
+        event = extract_event(activity)
+        assert (
+            event.semantic_type is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+        )
+
+        refs = references_to_fetch(event, dl, _PARTICIPANT, case.id_)
+
+        assert [r.object_id for r in refs] == [missing]
+
     @pytest.mark.spec("AKM-05-011")
     @pytest.mark.spec("AKM-05-007")
     def test_the_case_manager_fetches_nothing_from_itself(self):

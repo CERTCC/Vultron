@@ -87,8 +87,11 @@ groups:
     verification: >-
       Tests marked `VAM-01-009` confirm that `find_matching_semantics()` returns
       `MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT` for an `Accept` whose
-      `object_` is a bare string URI that no pattern matches, and for an
-      `Accept(Invite)` whose Invite's `object_` is one.
+      `object_` is a bare string URI that no pattern matches, for an
+      `Accept(Invite)` whose Invite's `object_` is one, and for an
+      `Undo(Offer(Offer))` and an `Undo(Accept(Invite))` whose innermost
+      `object_` is one; `test_a_bare_object_two_activities_deep_is_the_one_fetched`
+      confirms the fetch names that innermost id.
   - id: VAM-01-012
     priority: MUST_NOT
     kind: project

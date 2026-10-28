@@ -107,8 +107,11 @@ anywhere else, call `rehydrate()` before `find_matching_semantics()`.
   `target_` is its sole discriminator (SE-08-004); a pattern with no `target_`
   refuses it.
 - **A nested bare object is unresolvable too**: `Accept(Invite(<id>))` matches
-  nothing, so `find_matching_semantics()` follows the `object` chain and returns
-  `UNKNOWN_UNRESOLVABLE_OBJECT`, and the fetch names the inner id (VAM-01-009).
+  nothing, so `find_matching_semantics()` follows the `object` chain to its end
+  and returns `UNKNOWN_UNRESOLVABLE_OBJECT` (VAM-01-009). One helper,
+  `bare_object_id()`, finds that end for both the classifier and the event's
+  `unresolved_object_id`, which the fetch names: read one level down instead,
+  `Undo(Accept(Invite(<id>)))` names the held middle `Accept`.
 
 ## Accepting an Embargo Accepts the Invite
 

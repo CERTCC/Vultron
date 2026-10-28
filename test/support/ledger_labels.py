@@ -26,8 +26,8 @@ scenarios leave behind.
 A snapshot carries a nested object bare where its sender named one the case
 already holds (CLP-07-006), and a bare object satisfies no ``object_`` type
 (SE-01-006), so the CASE_MANAGER labels such a payload after rehydrating it.
-A caller that holds the CASE_MANAGER's store passes it as *dl*, and the
-payload is rehydrated against it before it is labelled.
+A caller that holds the CASE_MANAGER's store passes it as *dl* for every copy
+of the entry, a replica's included, since the CASE_MANAGER assigned the label.
 """
 
 from collections.abc import Iterable, Mapping

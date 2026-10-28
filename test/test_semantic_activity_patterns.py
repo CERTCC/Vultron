@@ -20,6 +20,7 @@ from vultron.wire.as2.extractor._instances import RefusalNoticePattern
 from vultron.wire.as2.extractor._pattern import (
     InlineActivityObjectPattern,
     LedgerPositionReadPattern,
+    bare_object_id,
 )
 from vultron.wire.as2.factories import (
     accept_case_ownership_transfer_activity,
@@ -1516,6 +1517,56 @@ def test_a_bare_object_inside_a_nested_activity_is_unresolvable(
         find_matching_semantics(activity)
         is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
     )
+
+
+@pytest.mark.spec("SE-01-006")
+@pytest.mark.spec("VAM-01-009")
+@pytest.mark.parametrize(
+    ("outer", "middle", "inner"),
+    [("Undo", "Offer", "Offer"), ("Undo", "Accept", "Invite")],
+)
+def test_a_bare_object_two_activities_deep_is_unresolvable(
+    outer: str, middle: str, inner: str
+) -> None:
+    """The chain is followed to its end, not one level down.
+
+    ``Undo(Offer(Offer(<id>)))`` is the shape of the registered depth-2
+    ownership-transfer Undo; with a bare innermost object it matches nothing
+    and names that innermost id as the one to fetch.
+    """
+    innermost = _bare_object_body(inner, context=_CASE_URI)
+    activity = parse_activity(
+        {
+            **_bare_object_body(outer, context=_CASE_URI),
+            "object": {
+                **_bare_object_body(middle, context=_CASE_URI),
+                "object": innermost,
+            },
+        }
+    )
+    assert (
+        find_matching_semantics(activity)
+        is MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
+    )
+    assert bare_object_id(activity) == innermost["object"]
+
+
+@pytest.mark.spec("VAM-01-009")
+def test_an_object_chain_ending_inline_has_no_bare_id() -> None:
+    """An inline innermost object leaves nothing to fetch."""
+    activity = parse_activity(
+        {
+            **_bare_object_body("Accept", context=_CASE_URI),
+            "object": {
+                **_bare_object_body("Invite", target=_CASE_URI),
+                "object": {
+                    "type": "Person",
+                    "id": "https://example.org/actors/invitee",
+                },
+            },
+        }
+    )
+    assert bare_object_id(activity) is None
 
 
 @pytest.mark.spec("SE-01-007")
