@@ -868,9 +868,9 @@ def test_a_rebuilt_recommendation_is_the_same_on_every_build(
     """
     from datetime import timedelta
 
-    from test.support.clock import SteppingClock
     from vultron.core.models import _helpers
     from vultron.core.models._helpers import now_utc
+    from vultron.demo.determinism import SteppingClock
 
     emit = getattr(world.adapter, method)
 

@@ -128,8 +128,8 @@ env vars. Return `None` when the key is absent.
   module's autouse fixture. Fixing a leak removes config downstream tests were
   silently borrowing; a module that passes only in a full-suite run is
   order-dependent, not passing, so verify with a targeted run (#1897).
-- **Unexpected demo drops warn.** `_TestClientRouter.emit` in
-  `test/demo/conftest.py` drops a delivery to an unregistered host at DEBUG only
+- **Unexpected demo drops warn.** `InProcessRouter.emit` in
+  `vultron/demo/in_process.py` drops a delivery to an unregistered host at DEBUG only
   when the host is in `_KNOWN_FICTIONAL_HOSTS` (for example `vultron.example`);
   any other unregistered host logs WARNING, since it is almost always a config
   leak. Add a fictional host to the allowlist rather than silencing the warning.

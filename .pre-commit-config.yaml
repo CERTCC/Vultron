@@ -202,6 +202,16 @@ repos:
         files: ^(vultron/demo/scenario/.*\.py|vultron/metadata/demo_scenarios/.*\.py|\.github/demo-scenarios\.json|test/ci/README-case-log-ratchet\.md|vultron/demo/scenario/README\.md|docs/topics/scenarios/.*\.md)$
         pass_filenames: false
 
+      - id: demo-recordings-sync
+        name: Demo scenario recordings match the registry
+        # Checks only which scenarios are recorded (DEMOCI-11-005); a run of
+        # every scenario takes minutes, so the content drift test lives in the
+        # integration suite (test/demo/test_recordings_drift.py).
+        entry: uv run export-demo-recordings --check
+        language: system
+        files: ^(vultron/demo/scenario/.*\.py|vultron/demo/recordings\.py|ui/src/recordings/.*)$
+        pass_filenames: false
+
       - id: msm-occasions-sync
         name: Occasion table and message fragments in sync
         # Console script, for the same reason as demo-scenarios-sync.

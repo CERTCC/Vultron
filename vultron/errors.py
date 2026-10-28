@@ -556,6 +556,16 @@ class DemoActorRoleError(VultronError):
     """
 
 
+class DemoRecordingError(VultronError):
+    """Raised when a demo scenario cannot be recorded for the demo UI.
+
+    Raised by :mod:`vultron.demo.recordings` when the Docker
+    compose file lacks the container layout a scenario's roles name, or when a
+    run ends without capturing every ledger its dump names.  A scenario that
+    itself fails raises :class:`DemoFailureError` instead.
+    """
+
+
 class DemoFailureError(VultronError):
     """Raised when a demo scenario completes with one or more step failures.
 

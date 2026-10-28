@@ -607,9 +607,11 @@ class CaseParticipant(CoreObject):
             KeyError: when ``raise_when_present`` is ``True`` and the role is
                 already present.
         """
-        roles = set(self.case_roles)
+        # A list, not a set: the roles are serialized in this order, and set
+        # order follows PYTHONHASHSEED, so two runs would hash differently.
+        roles = list(self.case_roles)
         if role not in roles:
-            roles.add(role)
+            roles.append(role)
         else:
             logger.info(
                 "Attempted to add role %s to participant %s, but role was already present",
@@ -620,7 +622,7 @@ class CaseParticipant(CoreObject):
                 raise KeyError(
                     f"Role {role} was already present in participant.case_roles"
                 )
-        self.case_roles = list(roles)
+        self.case_roles = roles
         self._sync_latest_status_metadata()
 
     def remove_role(
@@ -640,9 +642,9 @@ class CaseParticipant(CoreObject):
             KeyError: when ``raise_when_missing`` is ``True`` and the role is
                 not present.
         """
-        roles = set(self.case_roles)
+        roles = list(self.case_roles)  # order kept, as in add_role
         if role in roles:
-            roles.remove(role)
+            roles = [held for held in roles if held != role]
         else:
             logger.info(
                 "Attempted to remove role %s from participant %s, but role was not present",
@@ -654,7 +656,7 @@ class CaseParticipant(CoreObject):
                 raise KeyError(
                     f"Role {role} was not present to delete from participant.case_roles"  # noqa: S608
                 )
-        self.case_roles = list(roles)
+        self.case_roles = roles
         self._sync_latest_status_metadata()
 
     def has_role(self, role: CVDRole) -> bool:

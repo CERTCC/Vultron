@@ -6,7 +6,6 @@ tracks:
   - "#676"
   - "#3642"
   - "#3643"
-  - "#3901"
   - "#4723"
   - "#4726"
   - "#4730"
@@ -37,6 +36,7 @@ related_specs:
 relevant_packages:
   - ui
   - vultron/demo/scenario
+  - vultron/demo/recordings.py
   - vultron/metadata/demo_scenarios
   - vultron/semantic_registry
   - vultron/adapters/driving/fastapi/routers
@@ -129,7 +129,7 @@ exporters to the files they write.
 |---|---|---|---|---|
 | State machines (`ui/src/data/protocol_states.json`) | `uv run export-demo-states` | `ui/src/protocol.ts` | drift test in `test/metadata/demo_scenarios/` | built (EM read from the EM transition table since #4427) |
 | Semantic registry table (`ui/src/data/semantic_registry.json`) | `uv run export-demo-semantics` | `ui/src/semanticRegistry.ts` (ledger parser and mapper) | drift test in `test/metadata/demo_scenarios/` | built (#4725) |
-| Recordings | deterministic in-process scenario runner (#3901) | Log Replay, offline mode | byte-identical drift test; `CaseLedgerEntry` validation | planned |
+| Recordings (`ui/src/recordings/<scenario>/<actor>.jsonl`) | `uv run export-demo-recordings` (`vultron/demo/recordings.py`), each scenario run in process with seeded ids and a stepping clock | Log Replay, offline mode | byte-identical drift test in `test/demo/test_recordings_drift.py`; `CaseLedgerEntry` validation in `test/demo_unit/test_recordings.py` | built (#3901) |
 | Scenario-tree index | branch-point table and `@scenario` path declarations (#4727; design in `demo-scenario-tree.md`) | offline mode, live branch points | drift test; isomorphic shared-prefix check | planned |
 | Live ledger stream | `GET /api/v2/actors/{id}/demo/cases/{case_id}/log/stream` | live mode (#3642) | stream integration tests | server built (#3641); client planned |
 | Branch-point choices | trigger endpoints (`/actors/{id}/trigger/{behavior}` and `/actors/{id}/demo/{behavior}`) | live mode (#3643) | — | planned |

@@ -28,9 +28,9 @@ from pathlib import Path
 import pytest
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.clock import SteppingClock
 from vultron.core.models import _helpers
 from vultron.core.models._helpers import now_utc_after, require_future_aware
+from vultron.demo.determinism import SteppingClock
 
 # --- Architecture ratchet ------------------------------------------------
 

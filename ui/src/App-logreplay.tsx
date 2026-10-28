@@ -11,43 +11,42 @@ import {
   type CaseLedgerEntry,
 } from './utils/caseLedgerParser'
 import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
-// Committed sample ledgers the "Load …" buttons import at build time via `?raw`.
-// These live under `ui/src/sample-logs/` — COMMITTED fixtures that ship with the
-// app — deliberately separate from the repo-root `devlogs/`, which is a gitignored
-// runtime-output dir the container demo writes to (see ui/AGENTS.md §7). Keeping
-// them in-tree means a fresh clone builds without needing devlogs/, and no reliance
-// on Vite's `server.fs.allow` reaching outside ui/.
+// Committed recordings the "Load …" buttons import at build time via `?raw`.
+// A recording is the case ledgers a registered scenario writes when it runs,
+// produced by `uv run export-demo-recordings` (vultron/demo/recordings.py), which
+// runs each scenario in process with seeded ids and a fixed clock. The drift test
+// `test/demo/test_recordings_drift.py` fails when a committed recording differs
+// from a fresh run, so never hand-edit one: regenerate it. Each scenario's
+// directory holds one `<actor>.jsonl` per actor; the buttons load
+// `case-actor.jsonl`, the canonical ledger. They live in-tree, apart from the
+// gitignored repo-root `devlogs/` (see ui/AGENTS.md §7), so a fresh clone builds.
 //
-// The scenario ledgers below were recorded 2026-10 by the container demos
-// (`.github/workflows/demo-integration.yml` on `main`, one run for all nine), after
-// the ledger reshaping of #5038, #5039 and #4724. Every entry's `semanticType` is
-// the semantic registry's label (see `semanticRegistry.ts`). Filenames are per-run
-// UUIDs; when regenerating, copy the case-actor copy from devlogs/<scenario>/ (or
-// that scenario's `<scenario>-case-logs` CI artifact) and update the path here.
-//
-// rv: the happy-path sample (Reporter + Vendor). Each actor holds its own replica;
-// the case-actor copy is the canonical ledger.
-import sampleLedgerRaw from './sample-logs/rv/urn_uuid_6576cedb-8f42-4ace-b298-2533245fbecc-case-ledger.jsonl?raw'
-// Hand-authored fixture with two deliberate protocol violations (RM re-validate,
-// EM re-terminate) to exercise the red ⚠️ violation flagging. See
-// sample-logs/synthetic/README.md for the entry-by-entry expected result.
-import violationLedgerRaw from './sample-logs/synthetic/violations-case-ledger.jsonl?raw'
-// Three-party container demo: reporter + two vendors (vendor invites vendor2).
-import rvvLedgerRaw from './sample-logs/rvv/urn_uuid_be55d860-868b-4c45-92ca-9de127a78d19-case-ledger.jsonl?raw'
-// Coordinator container scenarios (R/V/C notation: Reporter/Vendor/Coordinator,
-// with -extension vs -handoff variants). Each is the case-actor (canonical) copy.
+// rv: the happy-path recording (Reporter + Vendor).
+import sampleLedgerRaw from './recordings/rv/case-actor.jsonl?raw'
+// Hand-authored fixture with deliberate protocol violations (RM re-validate,
+// EM re-terminate, a case-level PXA jump) to exercise the red ⚠️ violation
+// flagging. See synthetic-ledgers/README.md for the entry-by-entry expected result.
+import violationLedgerRaw from './synthetic-ledgers/violations-case-ledger.jsonl?raw'
+// Three-party scenario: reporter + two vendors (vendor invites vendor2).
+import rvvLedgerRaw from './recordings/rvv/case-actor.jsonl?raw'
+// Coordinator scenarios (R/V/C notation: Reporter/Vendor/Coordinator, with
+// -extension vs -handoff variants).
 // The -handoff logs depict the ownership transfer as offer/accept nodes, but the
 // lanes keep their host labels, so the CASE_OWNER label does not move (deferred).
-import rcvLedgerRaw from './sample-logs/rcv/urn_uuid_200c3f97-317a-43bc-8bb5-91a86db99e56-case-ledger.jsonl?raw'
-import rvcvExtLedgerRaw from './sample-logs/rvcv-extension/urn_uuid_dc3815f3-ba95-4f04-a2e6-94b17408cb1a-case-ledger.jsonl?raw'
-import rccvExtLedgerRaw from './sample-logs/rccv-extension/urn_uuid_5f39a8e0-61ea-4982-b796-256541608f4d-case-ledger.jsonl?raw'
-import rvcvHandoffLedgerRaw from './sample-logs/rvcv-handoff/urn_uuid_027c4cf0-7bc7-49e0-a6bf-9c3a8634f7fb-case-ledger.jsonl?raw'
-import rccvHandoffLedgerRaw from './sample-logs/rccv-handoff/urn_uuid_1aa5fe3b-1e25-4f47-9c34-30093b72d9e8-case-ledger.jsonl?raw'
+import rcvLedgerRaw from './recordings/rcv/case-actor.jsonl?raw'
+import rvcvExtLedgerRaw from './recordings/rvcv-extension/case-actor.jsonl?raw'
+import rccvExtLedgerRaw from './recordings/rccv-extension/case-actor.jsonl?raw'
+import rvcvHandoffLedgerRaw from './recordings/rvcv-handoff/case-actor.jsonl?raw'
+import rccvHandoffLedgerRaw from './recordings/rccv-handoff/case-actor.jsonl?raw'
 // rcv-reject: the rcv path where the invited vendor DECLINES
 // (reject_invite_actor_to_case). rcvcv: a five-actor case (reporter, coordinator,
-// vendor, second coordinator, second vendor via actor6/vendor-3) — the richest set.
-import rcvRejectLedgerRaw from './sample-logs/rcv-reject/urn_uuid_6dd675df-0465-4a82-b293-98f913796bf9-case-ledger.jsonl?raw'
-import rcvcvLedgerRaw from './sample-logs/rcvcv/urn_uuid_4511a243-d064-41ad-9705-9b42935da174-case-ledger.jsonl?raw'
+// vendor, second coordinator, second vendor via actor6/vendor-deployer).
+import rcvRejectLedgerRaw from './recordings/rcv-reject/case-actor.jsonl?raw'
+import rcvcvLedgerRaw from './recordings/rcvcv/case-actor.jsonl?raw'
+// Embargo scenarios: rcv-embargo revises an embargo and terminates it on purpose;
+// rcvv-embargo revises one, adds a late vendor, and the embargo collapses.
+import rcvEmbargoLedgerRaw from './recordings/rcv-embargo/case-actor.jsonl?raw'
+import rcvvEmbargoLedgerRaw from './recordings/rcvv-embargo/case-actor.jsonl?raw'
 
 // ---------------------------------------------------------------------------
 // Sample scenario catalog — drives the data-driven picker on the landing view.
@@ -76,7 +75,7 @@ interface SampleScenario {
 const SAMPLE_SCENARIOS: SampleScenario[] = [
   {
     id: 'rv',
-    title: '▶ RV — Reporter + Vendor',
+    title: '▶ rv — Reporter + Vendor',
     blurb: 'Reporter + Vendor happy path. The simplest end-to-end case.',
     raw: sampleLedgerRaw,
     group: 'Core',
@@ -149,6 +148,24 @@ const SAMPLE_SCENARIOS: SampleScenario[] = [
     group: 'Coordinator',
     accent: '#00838f',
     note: 'Richest scenario; not yet visually verified',
+  },
+  {
+    id: 'rcv-embargo',
+    title: '▶ RCV — Embargo Terminated',
+    blurb: 'The embargo is revised after the report, then terminated on purpose.',
+    raw: rcvEmbargoLedgerRaw,
+    group: 'Coordinator',
+    accent: '#ef6c00',
+    note: 'Not yet visually verified',
+  },
+  {
+    id: 'rcvv-embargo',
+    title: '▶ RCVV — Embargo Revised',
+    blurb: 'Embargo revision cycle, a late second vendor, and an accidental collapse.',
+    raw: rcvvEmbargoLedgerRaw,
+    group: 'Coordinator',
+    accent: '#ef6c00',
+    note: 'Not yet visually verified',
   },
   {
     id: 'synthetic-violation',

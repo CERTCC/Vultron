@@ -39,13 +39,18 @@ the data.
      upload control and select one or more `*-case-ledger.jsonl` files.
    - The timeline renders in `logIndex` order.
 
-### Bundled samples
+### Bundled recordings
 
-The **Load …** buttons import committed ledgers from
-[src/sample-logs/](src/sample-logs/) (in-tree, so a fresh clone works without
-the container demo). Each scenario directory holds the case-actor copy of the
-ledger; `synthetic/` holds hand-authored fixtures that exercise violation and
-inferred-multistep flagging.
+The **Load …** buttons import committed **recordings** from
+[src/recordings/](src/recordings/) (in-tree, so a fresh clone works without
+the container demo). A recording is the case ledgers a registered scenario
+writes when it runs: `uv run export-demo-recordings` runs each scenario in
+process, with seeded ids and a fixed clock, and writes one `<actor>.jsonl` per
+actor. The buttons load each scenario's `case-actor.jsonl`, the canonical
+ledger. A drift test fails when a committed recording differs from a fresh run.
+
+[src/synthetic-ledgers/](src/synthetic-ledgers/) holds hand-authored fixtures
+that exercise violation and inferred-multistep flagging.
 
 ## Pipeline
 

@@ -19,7 +19,6 @@ import pytest
 from pydantic import ValidationError
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.clock import SteppingClock
 from test.support.embargo_register import activate, terminate
 from vultron.core.models import _helpers
 from vultron.core.models.base import CoreObject
@@ -32,6 +31,7 @@ from vultron.core.models.case_status import CaseStatus
 from vultron.core.models.registry import CORE_VOCABULARY
 from vultron.core.states.cs import CS_pxa
 from vultron.core.states.em import EM
+from vultron.demo.determinism import SteppingClock
 from vultron.errors import VultronValidationError
 
 _ACTOR = "https://example.org/actor"

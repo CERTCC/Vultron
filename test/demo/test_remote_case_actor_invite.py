@@ -52,11 +52,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-from test.demo.conftest import (
-    IsolatedActorApp,
-    _TestClientRouter,
-    create_isolated_actor_app,
-)
 from test.support.embargo_register import register
 from vultron.adapters.driven.trigger_activity_adapter import (
     TriggerActivityAdapter,
@@ -74,6 +69,11 @@ from vultron.core.models.protocols import PersistableModel
 from vultron.core.states.em import EM
 from vultron.core.states.participant_embargo_consent import EmbargoConsentState
 from vultron.core.use_cases._helpers import read_received_activity
+from vultron.demo.in_process import (
+    InProcessRouter,
+    IsolatedActorApp,
+    create_isolated_actor_app,
+)
 from vultron.enums.roles import CVDRole
 
 #: Characters that cannot appear in a hostname label.
@@ -147,7 +147,7 @@ def topology(request):
     )
 
     tag = _UNSAFE_IN_HOST.sub("-", request.node.name.lower()).strip("-")
-    router = _TestClientRouter()
+    router = InProcessRouter()
     topo = _Topology(
         ca_host=create_isolated_actor_app(
             base_url=f"http://ca-host-{tag}.test",
