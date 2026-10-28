@@ -23,19 +23,19 @@ groups:
       History entries for `learning` and `priority` types MUST reside under
       `plan/history/` as per-entry write-once files.
     rationale: >-
-      Learning and priority records are read by later sessions and by the `learn` skill,
-      so they need a fixed location tooling can find. One file per entry, never
-      rewritten, lets concurrent branches each add a record without merge conflicts on a
-      shared file.
+      Later sessions and the `learn` skill read learning and priority records, so these
+      records need a fixed location that tooling can find. Each entry is one file that
+      the tool never rewrites. Thus concurrent branches can each add a record without a
+      merge conflict on a shared file.
   - id: HM-01-006
     priority: MUST_NOT
     kind: process
     verification_debt: '#2571'
     statement: The top-level `plan/` directory MUST NOT contain any `*HISTORY.md` files.
     rationale: >-
-      A top-level history file sits where orientation reads `plan/*.md` (HM-04-001), so
-      it would pull the whole project history into every agent's starting context.
-      Keeping history only under `plan/history/` keeps it out of that read.
+      Orientation reads `plan/*.md` (HM-04-001). A history file at the top level of
+      `plan/` would thus put the full project history into the starting context of every
+      agent. History stays only under `plan/history/`, which orientation does not read.
   - id: HM-01-002
     priority: MUST
     kind: process
@@ -48,11 +48,11 @@ groups:
       An existing entry file MUST NOT be overwritten in either case. `implementation` and `idea` entries whose
       `--source` resolves to a GitHub issue number use the GitHub comment output mode (HM-08) instead.
     rationale: >-
-      `<entry-id>` derives from `source`, which is not unique: one work item can produce
-      several learnings, and BW-01-003 names incoming files `YYYYMMDD-SLUG` so they do
-      not collide. An archive path keyed on `source` alone would make every learning
-      after the first for a work item impossible to archive, so a taken path needs a
-      distinct fallback name, and write-once keeps the existing record intact.
+      `<entry-id>` comes from `source`, and `source` is not unique: one work item can
+      produce several learnings. BW-01-003 gives incoming files `YYYYMMDD-SLUG` names so
+      that they do not collide. If the archive path used only `source`, the tool could
+      not archive the second learning of a work item. A taken path thus needs a
+      different fallback name, and the write-once rule keeps the existing record.
     relationships:
     - rel_type: depends_on
       spec_id: BW-01-003
@@ -64,10 +64,10 @@ groups:
       from entry frontmatter (see HM-03-006). This file is a **gitignored local cache** — it MUST NOT be committed to the
       repository. To view the history index, use `uv run show-history [--month YYMM | --all]`.
     rationale: >-
-      Every branch that archives an entry would otherwise edit the same index file, so a
-      committed index would conflict on nearly every concurrent merge. The index is
-      fully derived from entry frontmatter, so it can be rebuilt locally whenever needed
-      and has nothing to lose by staying out of version control.
+      Each branch that archives an entry changes the index. A committed index would thus
+      cause a conflict on almost every concurrent merge. The tool derives the index
+      fully from entry frontmatter, so a local regeneration can rebuild it at any time.
+      Version control adds no value to it.
   - id: HM-01-005
     priority: MUST_NOT
     kind: process
@@ -76,11 +76,11 @@ groups:
       An entry MAY still be corrected while it remains unmerged on the branch that created it, because until then no record
       has been published. The `plan/history/YYMM/README.md` index may be regenerated locally but is gitignored.
     rationale: >-
-      History entries are evidence of what was done and decided, so a published record
-      must not be rewritten in hindsight. Before the merge to `main` nothing is
-      published, and a branch whose plan changes during review must be able to land an
-      accurate first version instead of choosing between a wrong record and a broken
-      rule. Anchoring immutability on the merge gives both properties.
+      History entries are evidence of what the project did and decided, so no one may
+      rewrite a published record later. Before the merge to `main`, the record is not
+      published. A branch whose plan changes during review can then correct its entry.
+      It does not have to choose between a wrong record and a broken rule. Immutability
+      starts at the merge, so the rule gives both results.
     note: 'One-time exception: the IDEA-26043001/2/3 migration (2026-05) rewrote all existing merged entries to replace the
       legacy `date:` field with a tz-aware `timestamp:` field. That migration is the only authorised exception for entries
       already on `main`.'
@@ -123,9 +123,10 @@ groups:
       or TASK-ID). The legacy `date` field (ISO 8601 date string) is accepted for reading pre-migration entries but MUST NOT
       be written by the tool for new entries.'
     rationale: >-
-      Indexes, `show-history` and the archiver read these four fields from every entry,
-      so an entry missing one breaks every reader. A tz-aware timestamp gives a total
-      order across contributors in different time zones, which a bare date cannot.
+      The indexes, `show-history` and the archiver read these four fields from each
+      entry. An entry without one of the fields thus breaks every reader. A tz-aware
+      timestamp puts entries from contributors in different time zones in one correct
+      order. A date without a time cannot do this.
     verification: >-
       A unit test in `test/metadata/test_history_models.py` confirms that
       `HistoryEntryFrontmatter` raises `ValidationError` when any of `title`, `type`,
@@ -137,18 +138,18 @@ groups:
     statement: Valid `type` values MUST be defined as a `StrEnum` named `HistoryEntryType` in `vultron/metadata/history/types.py`.
       Current values are `idea`, `implementation`, `learning`, and `priority`.
     rationale: >-
-      One enum in one module is the single place every reader and writer gets the valid
-      entry types from, so the CLI, the frontmatter model and the index cannot disagree
-      about which types exist.
+      Every reader and writer gets the valid entry types from one enum in one module.
+      Thus the CLI, the frontmatter model and the index always agree on which types
+      exist.
   - id: HM-02-005
     priority: MUST
     kind: project
     statement: Adding a new history entry type MUST only require adding a member to the `HistoryEntryType` enum; no other
       code changes are required for the tool to accept the new type.
     rationale: >-
-      If the type set were repeated in several places, adding a type would require
-      finding and editing each one, and a missed copy would reject valid entries.
-      Deriving everything from the enum makes the enum the only edit.
+      If the type set had copies in several places, a new type would need an edit to
+      each copy. A missed copy would reject valid entries. All code derives the types
+      from the enum, so the enum is the only edit.
     verification: >-
       Inspection of `vultron/metadata/history/` confirms that the tool and
       `HistoryEntryFrontmatter` derive the accepted type set exclusively from
@@ -162,9 +163,9 @@ groups:
     statement: The Markdown body following the frontmatter MUST contain the full human-readable text of the history entry
       (e.g., the archived idea text, the completed task summary, or the priority change record).
     rationale: >-
-      The frontmatter only indexes an entry; the body is the record a later reader
-      actually needs. An entry whose body is a pointer elsewhere would lose its content
-      when that elsewhere changes or disappears.
+      The frontmatter only indexes an entry. The body is the record that a later reader
+      needs. If the body only points to a different location, the entry loses its
+      content when that location changes or goes away.
     verification: >-
       A unit test in `test/metadata/test_history_models.py` confirms that parsing a
       well-formed entry file returns a non-empty `body` string from the Markdown content
@@ -176,9 +177,9 @@ groups:
       and MUST NOT be manually edited. Its content is derived exclusively from the frontmatter of entry files in the same
       monthly directory. The file is gitignored and serves only as a local convenience cache.
     rationale: >-
-      The index is derived data, so a manual edit is lost on the next regeneration and
-      can show content that no entry file supports. Deriving it only from frontmatter
-      keeps it a faithful view of the entries.
+      The index is derived data. The next regeneration removes a manual edit, and until
+      then the edit can show content that no entry file supports. The tool builds the
+      index only from frontmatter, so the index always agrees with the entries.
     verification: >-
       Inspection of `vultron/metadata/history/cli.py` confirms the README is written by
       the tool after each `append-history` run, and the `plan/history/` README pattern is
@@ -193,16 +194,17 @@ groups:
     statement: The tool MUST be invokable as `uv run append-history <type>` where `<type>` is one of the valid `HistoryEntryType`
       values (see HM-02-002).
     rationale: >-
-      A single typed entry point lets skills write history the same way every time and
-      lets the tool validate the type before writing anything.
+      With one typed entry point, skills write history the same way each time, and the
+      tool validates the type before it writes anything.
   - id: HM-03-009
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Passing an unrecognised `<type>` to `append-history` MUST produce a clear error message and exit non-zero.
     rationale: >-
-      A typo in the type would otherwise write a misfiled entry or fail without saying
-      why. A clear non-zero exit stops the calling skill before it reports success.
+      If the type has a typo, the tool can file the entry in the wrong place or fail
+      without a reason. A clear error and a non-zero exit stop the calling skill before
+      it reports success.
     relationships:
     - rel_type: refines
       spec_id: HM-03-001
@@ -222,8 +224,8 @@ groups:
     statement: The tool MUST accept a `--file <path>` argument as an alternative to stdin. When `--file` is given, content
       is read from the specified file rather than stdin.
     rationale: >-
-      Some bodies are long or already exist as a file, and passing them through shell
-      quoting into stdin is fragile. A file argument avoids that.
+      Some bodies are long or are already in a file. Shell quoting into stdin can break
+      such bodies. A file argument prevents this problem.
   - id: HM-03-004
     priority: MUST
     kind: project
@@ -232,9 +234,9 @@ groups:
       The tool MUST determine the target month directory using the current system
       clock (`datetime.date.today()`) during normal operation.
     rationale: >-
-      Deriving the month from the clock makes the directory follow from when the entry
-      is written, so agents cannot file an entry under the wrong month by choice or by
-      mistake.
+      The tool takes the month from the clock, so the directory always agrees with the
+      time the entry is written. Thus an agent cannot file an entry under the wrong
+      month, on purpose or by mistake.
   - id: HM-03-005
     priority: MUST
     kind: project
@@ -242,9 +244,9 @@ groups:
     statement: The tool MUST create `plan/history/YYMM/` and `plan/history/YYMM/<type>/` if they do not already exist before
       writing the entry file.
     rationale: >-
-      The first entry of each month and of each type lands in a directory that does not
-      exist yet. Creating it in the tool means callers never need a separate setup step,
-      and a missing directory never fails a write.
+      The first entry of each month and of each type goes into a directory that does not
+      exist yet. The tool creates the directory, so callers do not need a separate setup
+      step. A write never fails because a directory is missing.
   - id: HM-03-006
     priority: MUST
     kind: project
@@ -253,9 +255,10 @@ groups:
       subdirectories (`idea/`, `implementation/`, `learning/`, `priority/`), reading each entry file's frontmatter, and writing
       a summary table sorted by timestamp descending.
     rationale: >-
-      A newest-first table gives a quick local view of a month's records without opening
-      each file. Scanning only the known-type subdirectories keeps unrelated files with
-      other frontmatter from breaking the regeneration.
+      A table with the newest entries first gives a quick local view of the records for
+      a month. The reader does not have to open each file. The tool scans only the
+      known-type subdirectories, so unrelated files with different frontmatter cannot
+      break the regeneration.
     note: The scan is restricted to known HistoryEntryType subdirectories to avoid parsing non-standard frontmatter in other
       subdirs (e.g. report/). The gitignore constraint is specified in HM-01-003.
   - id: HM-03-007
@@ -264,17 +267,18 @@ groups:
     verification_debt: '#2575'
     statement: The `append-history` tool's Python module MUST reside under `vultron/metadata/history/` as a sibling of `vultron/metadata/specs/`.
     rationale: >-
-      The history tool, like the spec and notes tooling, is project metadata tooling
-      with no dependency on the protocol code. Keeping these tools together under
-      `vultron/metadata/` keeps that layer separate from the application packages.
+      The history tool is project metadata tooling, as are the spec and notes tools.
+      These tools do not depend on the protocol code. When they stay together under
+      `vultron/metadata/`, that layer stays separate from the application packages.
   - id: HM-03-010
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The `append-history` entry point function MUST be `vultron.metadata.history.cli:main`.
     rationale: >-
-      Skills, docs and the script registration all name this entry point. A fixed
-      function name lets them stay correct when the module internals change.
+      Skills, docs and the script registration all use this entry point by name. A fixed
+      function name keeps these references correct when the internal structure of the
+      module changes.
     relationships:
     - rel_type: refines
       spec_id: HM-03-007
@@ -286,8 +290,8 @@ groups:
       The tool MUST be registered in `pyproject.toml` under `[project.scripts]` as
       `append-history = "vultron.metadata.history.cli:main"`.
     rationale: >-
-      Registration in `[project.scripts]` is what makes `uv run append-history` work,
-      and that command is the one every skill uses.
+      The `[project.scripts]` registration makes `uv run append-history` work, and every
+      skill uses that command.
   - id: HM-03-011
     priority: MAY
     kind: project
@@ -295,9 +299,8 @@ groups:
       A backfill-only date override MAY exist for migration tooling so legacy entries
       can be written into historical `YYMM` directories.
     rationale: >-
-      Entries migrated from older history formats have to land in the month they record,
-      not the month the migration runs, so migration tooling needs a way to set the
-      date.
+      Entries from older history formats must go into the month that they record, not
+      the month of the migration. Migration tooling thus needs a way to set the date.
     relationships:
     - rel_type: refines
       spec_id: HM-03-004
@@ -307,9 +310,9 @@ groups:
     verification_debt: '#2571'
     statement: Normal skill and agent guidance MUST use the default current-date flow.
     rationale: >-
-      When every agent uses the default flow, the month directory follows from the clock
-      and entries from concurrent sessions land consistently. A per-agent choice of
-      month would let entries be misfiled.
+      When every agent uses the default flow, the clock sets the month directory.
+      Entries from concurrent sessions then go into the correct month. If each agent
+      chose the month, some entries would go into the wrong directory.
     relationships:
     - rel_type: refines
       spec_id: HM-03-004
@@ -319,9 +322,9 @@ groups:
     verification_debt: '#2571'
     statement: Normal skill and agent guidance MUST NOT require agents to choose a target month manually.
     rationale: >-
-      Choosing a month by hand is a step an agent can get wrong, and the tool already
-      derives the month from the clock. Requiring the choice would reintroduce an error
-      the tool exists to remove.
+      An agent can make a mistake when it chooses a month by hand, and the tool already
+      derives the month from the clock. A rule that requires the choice would bring back
+      the error that the tool prevents.
     relationships:
     - rel_type: refines
       spec_id: HM-03-004
@@ -335,18 +338,18 @@ groups:
     statement: '`plan/history/` MUST NOT be included in the default "read plan context" step that agents perform at the start
       of every workflow. Agents MUST read only `plan/*.md` (excluding `plan/history/`) during their standard orientation phase.'
     rationale: >-
-      `plan/history/` grows without bound, and reading it during orientation would spend
-      the context budget on finished work that the current task rarely needs.
-      Orientation reads current plans only.
+      `plan/history/` grows without limit. If orientation read it, the agent would use
+      its context budget on finished work that the current task seldom needs.
+      Orientation thus reads only current plans.
   - id: HM-04-002
     priority: SHOULD
     kind: process
     statement: Agents SHOULD read `plan/history/` only when specifically investigating historical changes, auditing completed
       work, or extracting lessons from prior implementation phases.
     rationale: >-
-      History is useful for audits and lessons, but its size makes reading it by default
-      expensive. Reading it only when the task asks a historical question keeps that
-      cost to the sessions that need it.
+      History helps with audits and lessons, but it is large, so a default read uses
+      much context. When agents read it only for a historical question, only the
+      sessions that need it pay that cost.
   - id: HM-04-003
     priority: MUST
     kind: process
@@ -354,9 +357,9 @@ groups:
     statement: The `orient-agent` skill documentation MUST explicitly state that its plan-context reading covers `plan/*.md`
       but NOT `plan/history/`. Agents following this skill MUST NOT recursively read `plan/history/` during orientation.
     rationale: >-
-      Agents follow `orient-agent` literally, so the history boundary has to be written
-      in the skill. If the skill is silent, an agent that reads `plan/` recursively
-      pulls the whole history into its context.
+      Agents do the steps of `orient-agent` exactly as written, so the skill must state
+      the history boundary. If the skill does not state it, an agent that reads all of
+      `plan/` puts the full history into its context.
 - id: HM-05
   title: Skill and AGENTS.md Integration
   specs:
@@ -366,17 +369,18 @@ groups:
     verification_debt: '#2571'
     statement: The `build` skill MUST use `uv run append-history implementation` to write completion summaries.
     rationale: >-
-      Completion summaries written through the tool get validated frontmatter and the
-      configured output mode (a file or an issue comment). Summaries written another way
-      would bypass both and could not be found the same way.
+      When the tool writes a completion summary, the summary gets validated frontmatter
+      and goes to the configured output mode (a file or an issue comment). A summary
+      written in a different way skips both, and readers cannot find it in the usual
+      way.
   - id: HM-05-002
     priority: MUST
     kind: process
     verification_debt: '#2571'
     statement: The `plan-issue` skill MUST use `uv run append-history idea` to archive processed ideas.
     rationale: >-
-      Archiving processed ideas through the tool gives them the same validated format
-      and discoverable location as every other history record.
+      When the tool archives a processed idea, the idea gets the same validated format
+      and the same known location as all other history records.
   - id: HM-05-003
     priority: MUST
     kind: process
@@ -384,9 +388,9 @@ groups:
     statement: The `learn` skill MUST NOT read `plan/*HISTORY.md` files directly. When historical context is needed, the `learn`
       skill MUST invoke `deepen-context` and let that skill mediate which plan files are relevant to load.
     rationale: >-
-      Legacy history files are large and mostly irrelevant to a given learning batch.
-      Having `deepen-context` choose what to load keeps `learn` from reading the whole
-      history by default.
+      Legacy history files are large, and most of their content is not related to a
+      given learning batch. `deepen-context` selects what to load, so `learn` does not
+      read the full history by default.
 - id: HM-06
   title: Timestamp Field and Future-Date Rejection
   specs:
@@ -396,8 +400,8 @@ groups:
     statement: Every new history entry MUST include a `timestamp` field containing a tz-aware ISO 8601 datetime string in
       UTC (e.g., `"2026-05-01T15:30:00+00:00"`).
     rationale: >-
-      A tz-aware UTC timestamp orders entries correctly across contributors in different
-      time zones, which a bare date or a local time cannot do.
+      A tz-aware UTC timestamp puts entries from contributors in different time zones in
+      the correct order. A date alone or a local time cannot do this.
     verification: >-
       A unit test in `test/metadata/test_history_models.py` confirms that
       `HistoryEntryFrontmatter` raises `ValidationError` when the `timestamp` field is
@@ -409,8 +413,8 @@ groups:
     statement: The `append-history` tool MUST populate the `timestamp` field automatically from the current system clock when
       creating new entries.
     rationale: >-
-      A timestamp the caller types can be wrong or invented. Taking it from the clock at
-      write time makes it record when the entry was actually written.
+      A timestamp that the caller types can be wrong. The tool takes the timestamp from
+      the clock at write time, so the timestamp shows when the entry was really written.
     relationships:
     - rel_type: implements
       spec_id: HM-06-001
@@ -420,9 +424,9 @@ groups:
     statement: '`HistoryEntryFrontmatter` MUST require a `timestamp` field (timezone-aware ISO 8601 datetime in UTC). Validation
       MUST fail with a clear error if `timestamp` is absent or malformed.'
     rationale: >-
-      Readers sort and file entries by `timestamp`, so an entry with a missing or
-      unparseable one cannot be placed. Failing at validation names the problem at the
-      moment it is introduced.
+      Readers sort and file entries by `timestamp`. They cannot place an entry with a
+      missing or unparseable timestamp. Validation finds the problem when the entry is
+      written.
     verification: >-
       A unit test in `test/metadata/test_history_models.py` confirms that absent,
       naive-datetime, and malformed `timestamp` values each raise `ValidationError` with
@@ -434,9 +438,9 @@ groups:
       to the current UTC system clock). This tolerance accounts for clock drift between the time the timestamp is computed
       and when the Pydantic model is validated.'
     rationale: >-
-      A timestamp in the future misorders the index and records an event that has not
-      happened yet. The 60-second tolerance allows for the short delay between computing
-      the timestamp and validating it.
+      A future timestamp puts the index in the wrong order and records an event that did
+      not occur yet. The 60-second tolerance covers the short delay between the time the
+      tool computes the timestamp and the time it validates it.
     verification: >-
       A unit test in `test/metadata/test_history_models.py` confirms that a `timestamp`
       set 61+ seconds ahead of `datetime.now(UTC)` raises `ValidationError`, while a
@@ -446,8 +450,8 @@ groups:
     kind: process
     statement: All `timestamp` values MUST be timezone-aware.
     rationale: >-
-      A timestamp without a time zone is ambiguous, so two entries written in different
-      zones cannot be ordered reliably.
+      A timestamp without a time zone is ambiguous, so readers cannot reliably put two
+      entries from different zones in order.
     verification: >-
       A unit test in `test/metadata/test_history_models.py` confirms that a `timestamp`
       without a UTC offset raises `ValidationError`.
@@ -456,8 +460,8 @@ groups:
     kind: project
     statement: Naive datetime values (those without a UTC offset) MUST be rejected with a clear error message.
     rationale: >-
-      A naive datetime cannot be converted to UTC without guessing the writer's zone.
-      Rejecting it with a clear message tells the writer how to fix the value.
+      The tool cannot convert a naive datetime to UTC unless it guesses the time zone of
+      the writer. A clear error tells the writer how to correct the value.
     verification: >-
       A unit test in `test/metadata/test_history_models.py` confirms that a naive ISO
       8601 string (e.g., `"2026-05-01T15:30:00"`) raises `ValidationError` containing a
@@ -470,9 +474,9 @@ groups:
     kind: project
     statement: All stored and compared timestamps MUST be normalised to UTC.
     rationale: >-
-      Comparing timestamps with different offsets is error-prone, and the month
-      directory and index columns both read the UTC value. Normalising to UTC gives one
-      representation for every comparison.
+      Comparisons of timestamps with different offsets can easily go wrong. The month
+      directory and the index columns both use the UTC value. When all values are in
+      UTC, every comparison uses one representation.
     verification: >-
       A unit test in `test/metadata/test_history_models.py` confirms that a `timestamp`
       with a non-UTC offset is normalised to UTC, and that sorting entries by `timestamp`
@@ -486,9 +490,9 @@ groups:
     statement: The `plan/history/YYMM/README.md` index MUST display both a `Date` column (YYYY-MM-DD extracted from `timestamp`)
       and a `Time (UTC)` column (HH:MM extracted from `timestamp`). Entries MUST be sorted by `timestamp` in descending order.
     rationale: >-
-      Several entries are often written on one day, so the date alone cannot show their
-      order. A UTC time column and newest-first sorting show the most recent work first,
-      in the order it happened.
+      Agents often write several entries on one day, so the date alone cannot show their
+      order. A UTC time column and a newest-first sort show the most recent work first,
+      in the sequence it occurred.
     verification: >-
       A unit test in `test/metadata/test_append_history.py` confirms that the generated
       `README.md` contains `Date` and `Time (UTC)` column headers and that entries are
@@ -502,8 +506,8 @@ groups:
     verification_debt: '#2575'
     statement: The `append-history <type>` command MUST accept `--title` and `--source` as required named arguments.
     rationale: >-
-      Title and source are the fields that make an entry findable. Making them required
-      named arguments means no entry can be written without them.
+      The title and the source make an entry easy to find. Because they are required
+      named arguments, the tool writes no entry without them.
   - id: HM-07-005
     priority: MUST
     kind: project
@@ -511,9 +515,9 @@ groups:
     statement: The tool MUST construct the YAML frontmatter block internally from the `--title`, `--source`, and auto-generated
       `timestamp` arguments; callers MUST NOT supply frontmatter content.
     rationale: >-
-      When callers write frontmatter by hand, its format drifts from the model and
-      entries fail validation later. Building it inside the tool from validated
-      arguments makes every entry's frontmatter correct by construction.
+      When callers write frontmatter by hand, its format becomes different from the
+      model, and the entries fail validation later. The tool builds the frontmatter from
+      validated arguments, so the frontmatter of each entry is correct by construction.
     relationships:
     - rel_type: refines
       spec_id: HM-07-001
@@ -524,9 +528,9 @@ groups:
     statement: Callers of `append-history` MUST NOT include a YAML frontmatter block in the content they supply via stdin
       or `--file`.
     rationale: >-
-      A caller-supplied frontmatter block would produce a second block in the body or
-      conflict with the one the tool builds. Keeping callers to body text leaves the
-      tool as the only author of frontmatter.
+      If a caller supplies a frontmatter block, the body gets a second block, or the
+      block conflicts with the block that the tool builds. When callers supply only body
+      text, the tool is the only author of frontmatter.
     relationships:
     - rel_type: refines
       spec_id: HM-07-005
@@ -536,17 +540,17 @@ groups:
     verification_debt: '#2575'
     statement: The tool MUST accept a hidden `--timestamp` argument for backfill use only (e.g., migrating pre-existing entries).
     rationale: >-
-      Migration of pre-existing entries must keep their original times, which the clock
-      cannot supply. Hiding the argument keeps it out of the normal interface that
-      skills use.
+      A migration of pre-existing entries must keep their original times, and the clock
+      cannot supply these times. The argument is hidden, so it is not part of the normal
+      interface that skills use.
   - id: HM-07-006
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The `--timestamp` override argument MUST accept an ISO 8601 datetime string with a UTC offset.
     rationale: >-
-      The override must produce the same tz-aware value the clock path produces, so it
-      accepts only an offset-bearing ISO 8601 string.
+      The override must give the same tz-aware value as the clock path. Thus it accepts
+      only an ISO 8601 string with a UTC offset.
     relationships:
     - rel_type: refines
       spec_id: HM-07-003
@@ -557,9 +561,8 @@ groups:
     statement: The standard future-date validation (HM-06-004) MUST apply to values supplied via the `--timestamp` override
       argument.
     rationale: >-
-      The override is a way to set the time, not a way around validation. Applying the
-      same future-date check keeps backfilled entries within the rules every other entry
-      obeys.
+      The override sets the time. It does not skip validation. The same future-date
+      check applies, so backfilled entries obey the same rules as all other entries.
     relationships:
     - rel_type: refines
       spec_id: HM-07-003
@@ -572,8 +575,8 @@ groups:
     statement: Skill documentation (`plan-issue`, `build`, `learn`) and `notes/history-management.md` MUST use the `--title`/`--source`
       interface for `append-history`. The frontmatter-in-stdin pattern MUST NOT be used.
     rationale: >-
-      Agents copy the invocation shown in skills and notes. Documentation that shows the
-      frontmatter-in-stdin pattern would teach agents a form the tool rejects.
+      Agents copy the command that skills and notes show. If the documentation shows the
+      frontmatter-in-stdin pattern, agents learn a form that the tool rejects.
 - id: HM-08
   title: GitHub Comment Output Mode
   specs:
@@ -586,9 +589,10 @@ groups:
       MUST post the entry body as a comment on issue N in the CERTCC/Vultron repository using `gh issue comment`, rather than
       writing a file under `plan/history/`.
     rationale: >-
-      An implementation or idea record tied to an issue is most useful on that issue,
-      where anyone reading the issue finds it. Posting it there keeps the record with
-      its work item and avoids committing a file for each completed task.
+      An implementation or idea record for an issue is most useful on that issue, where
+      all readers of the issue find it. The tool posts the record there, so the record
+      stays with its work item. The project then does not commit a file for each
+      completed task.
   - id: HM-08-002
     priority: MUST
     kind: project
@@ -596,8 +600,8 @@ groups:
     statement: When `append-history` falls through to GitHub comment mode (HM-08-001), it MUST print the URL of the newly
       created comment to stdout so callers can record it.
     rationale: >-
-      The comment URL is the only reference to the record, and callers such as
-      `archive-history` need it to link the record from the work they report.
+      The comment URL is the only reference to the record. Callers such as
+      `archive-history` need it to link the record from the work that they report.
   - id: HM-08-003
     priority: MUST
     kind: project
@@ -606,9 +610,9 @@ groups:
       GitHub issue number (e.g., source is `IDEA-26042702`, `TASK-BTND5`, or any other non-numeric format), the tool MUST
       fall back to writing a file under `plan/history/` as in the pre-HM-08 behaviour.
     rationale: >-
-      Not every source names an issue, and an entry without an issue to post to still
-      needs a record. A file under `plan/history/` gives it one, in the archive the
-      other entry types already use.
+      Not every source identifies an issue, and an entry with no issue for a comment
+      still needs a record. A file under `plan/history/` gives it a record, in the
+      archive that the other entry types already use.
   - id: HM-08-004
     priority: MUST_NOT
     kind: project
@@ -616,8 +620,8 @@ groups:
     statement: The `archive-history` skill MUST NOT call `git add plan/history/` or commit any file when the entry was posted
       as a GitHub comment (HM-08-001). The `git add` and commit steps are only needed for file-mode entries.
     rationale: >-
-      In comment mode the tool writes no file, so a `git add` and commit would either
-      fail or commit unrelated staged changes.
+      In comment mode the tool writes no file. A `git add` and a commit would thus fail,
+      or they would commit unrelated staged changes.
   - id: HM-08-005
     priority: MUST
     kind: project
@@ -625,9 +629,9 @@ groups:
     statement: The comment body posted to GitHub MUST contain the full entry body text (same content that would have been
       the Markdown body in the file-based format), prefixed with a one-line heading showing the entry type and title.
     rationale: >-
-      The comment is the whole record in comment mode, so it must carry the same content
-      a file entry would. The heading identifies the entry type and title when the
-      comment is read among others on the issue.
+      In comment mode the comment is the full record, so it must contain the same
+      content as a file entry. The heading shows the entry type and title, so a reader
+      can identify the entry among the other comments on the issue.
   - id: HM-08-006
     priority: SHOULD
     kind: project
@@ -635,5 +639,6 @@ groups:
       GitHub comment URL (rather than a file path), the commit/push steps are skipped for that entry.
 
     rationale: >-
-      Callers of `archive-history` follow its documented steps. Without this guidance
-      they would try to stage and push a file that comment mode never wrote.
+      Callers of `archive-history` do the steps that its documentation gives. Without
+      this guidance, they would try to stage and push a file that comment mode did not
+      write.

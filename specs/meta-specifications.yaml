@@ -242,10 +242,10 @@ groups:
     verification_debt: '#2571'
     statement: Superseded requirements MUST be removed entirely rather than left in place as deprecated.
     rationale: >-
-      A deprecated requirement left in place confuses agents and future implementers:
-      the file does not say whether the obligation it states still binds. The spec
-      schema's `deprecated` and `superseded_by` fields are not a sanctioned lifecycle
-      state, so they do not resolve that confusion.
+      A deprecated requirement that stays in the file confuses agents and implementers.
+      The file does not tell them if the obligation still applies. The `deprecated` and
+      `superseded_by` fields in the spec schema are not a sanctioned lifecycle state, so
+      they do not remove this confusion.
     tags:
     - documentation
     relationships:
@@ -308,15 +308,15 @@ groups:
       violates, in the vocabulary of its kind; it MUST NOT be phrased as a prohibition of the mistake, or as a correction
       of the mistake in another kind's vocabulary.
     rationale: >-
-      A bare prohibition reads as if the mistake were a plausible design, and it gives
-      an implementer nothing to build toward. The positive truth is design an
-      implementer can follow, and the regression test verifies it. RSH-08-001 is the
-      worked case: a participant's assertion about itself is about itself, not about
-      another actor, and that is the truth a recurring mistake violated (ADR-0089). The
-      mistake belongs in the rationale, as the problem the requirement prevents; the
-      requirement carries no marker, tag or field saying it is a guard. A guard with no
-      domain truth behind it is not `protocol` (MS-12-003), or is only a regression
-      test.
+      A bare prohibition makes the mistake look like a possible design, and it gives an
+      implementer no target. The positive truth is a design that an implementer can
+      follow, and the regression test verifies it. RSH-08-001 is the example: an
+      assertion that a participant makes about itself is about that participant, not
+      about another actor. A recurring mistake violated that truth (ADR-0089). The
+      rationale names the mistake as the problem that the requirement prevents. The
+      requirement has no marker, tag or field that identifies it as a guard. A guard
+      with no domain truth behind it is not `protocol` (MS-12-003), or it is only a
+      regression test.
     tags:
     - documentation
 - id: MS-07
@@ -364,11 +364,12 @@ groups:
     statement: Superseded requirements MUST be removed from spec files rather than marked deprecated or left in place with
       an annotation.
     rationale: >-
-      A deprecated requirement left in place is agent noise and may cause incorrect
-      behaviour, because an agent reading the corpus cannot tell a retired obligation
-      from a live one. A spec states current understanding; git and the implementation
-      history (MS-09-002) carry what it used to say. The spec schema's `deprecated` and
-      `superseded_by` fields are not a sanctioned lifecycle state.
+      A deprecated requirement that stays in place is noise for agents and can cause
+      incorrect behavior. An agent that reads the corpus cannot tell a retired
+      obligation from a live one. A spec states the current understanding. Git and the
+      implementation history (MS-09-002) keep the text that it replaced. The
+      `deprecated` and `superseded_by` fields in the spec schema are not a sanctioned
+      lifecycle state.
     tags:
     - documentation
   - id: MS-09-002
@@ -494,13 +495,13 @@ groups:
       requirement; every `priority: MUST` or `priority: MUST_NOT` requirement MUST
       include a `verification:` field.
     rationale: >-
-      Untestable specs cannot be reliably implemented; a MUST requirement with no
-      verification field provides no contract for reviewers or agents. The tier matches
-      MS-05-003, which makes every requirement testable, so the field a linter can check
-      is required wherever that rule binds most strongly. MUST_NOT is in scope per
-      MS-02-003: a prohibition with nothing checking it is the same gap. MS-10-005
-      through MS-10-008 enforce the rule one requirement at a time while the backlog is
-      worked down.
+      An implementer cannot reliably build to a requirement that no test can check. A
+      MUST requirement with no `verification:` field gives reviewers and agents no
+      contract. MS-05-003 makes every requirement testable, and this rule uses the same
+      tier. Thus the linter checks the field where that rule is strongest. MS-02-003
+      puts MUST_NOT in scope, because a prohibition that nothing checks is the same gap.
+      MS-10-005 through MS-10-008 apply the rule to one requirement at a time while the
+      backlog decreases.
     verification: >-
       `spec-lint` exits 1 on any MUST or MUST_NOT requirement that has neither a
       `verification:` field nor a `verification_debt:` marker; unit tests in
@@ -523,12 +524,12 @@ groups:
       when asked through an opt-in flag, and MUST NOT print one line per marked
       requirement by default.
     rationale: >-
-      MS-05-003 and MS-10-003 require MUST and MUST_NOT requirements to carry measurable
-      acceptance criteria. One warning per unverified requirement produces so many lines
-      on this corpus that a newly introduced instance is invisible among them. A
-      per-kind count keeps the backlog legible and makes each backfill's progress
-      visible. Computing it from the markers leaves no committed number for concurrent
-      pull requests to race on.
+      MS-05-003 and MS-10-003 require measurable acceptance criteria for MUST and
+      MUST_NOT requirements. One warning for each unverified requirement gives so many
+      lines that a new instance is not visible. A count for each kind keeps the backlog
+      easy to read and shows the progress of each backfill. spec-lint calculates the
+      count from the markers, so no committed number exists for concurrent pull requests
+      to change at the same time.
     verification: Unit tests in `test/metadata/specs/test_lint.py` assert that a fixture
       corpus with marked MUST and MUST_NOT items produces exactly one summary line per
       kind with the correct per-owner tally, no per-item lines by default, and the IDs
@@ -561,17 +562,18 @@ groups:
       running at least hourly MUST report any marker or owner entry naming a closed
       issue through one tracking issue, without failing the build.
     rationale: >-
-      A count pinned to the live value in both directions is correct on the pull request
-      that sets it and wrong on every other pull request in flight: a sibling that moves
-      the count by one is green alone and red once merged. A per-item rule has no shared
-      number to race, and two pull requests conflict only when they edit the same
-      requirement. The marker gives every unverified requirement a tracked path to
-      verification. An owner usually closes through the backfill pull request that says
-      `Closes #N`; failing that pull request alone races nothing, and catches a backfill
-      that claims to finish while leaving requirements unverified. An owner closed by
-      hand is caused by no pull request, so failing the build on it would turn every
-      pull request in flight red; it is reported instead (ARCH-18-004). The owner table
-      holds issue references, never counts, so verifying a requirement never edits it.
+      A count that must equal the live value is correct on the pull request that sets
+      it. It is incorrect on all other open pull requests. A sibling pull request that
+      changes the count by one passes alone and fails after the merge. A rule for each
+      item has no shared number, so two pull requests conflict only when they edit the
+      same requirement. The marker gives each unverified requirement a tracked path to
+      verification. Usually, the backfill pull request that says `Closes #N` closes the
+      owner issue. A failure on that pull request affects no other pull request. It also
+      finds a backfill that claims to be complete but leaves requirements unverified.
+      When a person closes an owner issue manually, no pull request causes the change. A
+      build failure would then make every open pull request fail, so the scheduled check
+      reports it instead (ARCH-18-004). The owner table holds issue references and no
+      counts, so the verification of a requirement does not change the table.
     verification: >-
       Fixture-corpus tests in `test/metadata/specs/test_verification.py` prove each
       per-item failure fires (neither field, both fields, a below-tier marker, a
@@ -603,13 +605,13 @@ groups:
       unverified MUST or MUST_NOT of that kind can only pass by gaining a `verification:`
       field.
     rationale: >-
-      Zero is the only state a backlog cannot drift from, and only if nothing can raise
-      it back. Removing a kind's entry makes the end state permanent: no marker of that
-      kind is accepted, and an unmarked unverified requirement already fails under
-      MS-10-006. An owner no marker names is reported rather than failed, because two
-      pull requests that each verify some of its last requirements are green alone and
-      would turn `main` red merged; the pull request that closes the owner issue fails
-      until the entry is removed, which forces the removal.
+      A backlog can stay at zero only if nothing can increase it again. When the entry
+      for a kind is removed, the end state is permanent. spec-lint accepts no marker of
+      that kind, and MS-10-006 already fails an unverified requirement with no marker.
+      spec-lint reports an owner that no marker names, but it does not fail. Two pull
+      requests that each verify some of the last requirements of that owner pass alone,
+      but together they would make `main` fail. The pull request that closes the owner
+      issue fails until the entry is removed, so the removal must occur.
     verification: >-
       Unit tests in `test/metadata/specs/test_lint.py` and
       `test/metadata/specs/test_verification.py` assert that, for a kind with no owner
@@ -661,12 +663,13 @@ groups:
       type-check that never examines the artifact the statement constrains, or a test
       that does not exist, is not verification.
     rationale: >-
-      A verification clause is a claim about the suite, and an unbacked one reads
-      exactly like a backed one. The failure takes several shapes: a build cited for a
-      property it never inspects, such as a strict docs build named for links it never
-      sees; a described test that does not exist; a clause that names the wrong
-      component; and a requirement that no check enforces, which then sits at partial
-      adoption. MS-15-001 makes a path resolve, not a check examine. See
+      A verification clause is a claim about the test suite, and a false claim looks the
+      same as a true one. This failure has several forms. A clause can cite a build for
+      a property that the build does not examine, such as a strict docs build named for
+      links that it does not see. A clause can describe a test that does not exist, or
+      name the wrong component. A requirement can also have no check that enforces it,
+      and then only some of the code obeys it. MS-15-001 makes sure that a path
+      resolves, not that a check examines the property. See
       `notes/spec-authoring-rules.md`.
     verification: >-
       Checked at spec review: for each new or changed `verification:` clause the
@@ -703,9 +706,9 @@ groups:
       no test file or test directory the clause names defines, or, when the clause
       names none, that no file under `test/` or `integration_tests/` defines.
     rationale: >-
-      A named test that does not exist reads exactly like one that does, and MS-15-001
-      resolves only the file. A name looked up only where the clause points also catches
-      a test that moved to another module.
+      A named test that does not exist looks the same as a test that exists, and
+      MS-15-001 resolves only the file. spec-lint looks for the name only where the
+      clause points, so it also finds a test that moved to a different module.
     verification: >-
       `test/metadata/specs/test_verification_refs.py::TestUnresolvedTestRefs`
       covers a resolved name, an unresolved name, a name defined only in a module
@@ -951,12 +954,12 @@ groups:
       body, and each listed skill kept in this repository MUST weigh what it reads by the shared guidance on when a
       record is challengeable.
     rationale: >-
-      A record body is history, and its description of the code ages with every refactor
-      while the decision stands; loading it as routine context spends working memory on
-      claims that no longer check out (ADR-0127). Writing the exception list down keeps
-      the routing rule from being over-read as "never read a record", and keeping the
-      trust weighting beside every listed reader keeps a provisional or hedging record
-      weighted as such.
+      A record body is history. Its description of the code becomes out of date with
+      each refactor, but the decision stays valid. When an agent loads the body as
+      routine context, it uses working memory on claims that are no longer true
+      (ADR-0127). A written list of exceptions prevents a reader from taking the routing
+      rule to mean "never read a record". Each listed skill also weighs what it reads,
+      so it treats a provisional or uncertain record as provisional or uncertain.
     verification: >-
       `test/metadata/test_routine_context_skips_adr_bodies.py` reads `.agents/skills/deepen-context/SKILL.md` and asserts
       its Step 2 names `docs/adr/index.md`, `spec-dump --adr` and the prose-only grep, that its exception table lists
@@ -985,12 +988,12 @@ groups:
     statement: When a spec is about how the project is run — CI configuration, GitHub workflow, agent conventions, documentation
       standards, or spec authoring rules — the spec MUST be classified as `process`.
     rationale: >-
-      Rules about how the project is run bind only this repository's maintainers and
-      agents; no implementation's behaviour depends on them. Asking this question first
-      keeps them out of `project`, so `project` holds only constraints on the codebase
-      itself, and keeps them off the protocol and conformance views that implementers
-      read. Each kind has its own verification owner (MS-10-006), so a misfiled process
-      rule would also land in the wrong backlog.
+      Rules about how the project is run apply only to the maintainers and agents of
+      this repository. The behavior of an implementation does not depend on them. When
+      this question comes first, these rules stay out of `project`, so `project` holds
+      only constraints on the codebase. The rules also stay out of the protocol and
+      conformance views that implementers read. Each kind has its own verification owner
+      (MS-10-006), so a process rule in the wrong kind also goes into the wrong backlog.
     tags:
     - documentation
   - id: MS-12-002
@@ -1055,12 +1058,12 @@ groups:
     statement: When none of the above apply — the spec is a structural or behavioral constraint that is implementation-independent
       but not required for Vultron compliance — the spec MUST be classified as `architecture`.
     rationale: >-
-      The decision tree needs a last answer so that every spec gets exactly one kind
-      (MS-12-005). What is left after the earlier questions is recommended structure: a
-      constraint any implementation could adopt but that compliance does not demand.
-      Naming it `architecture` keeps it out of `protocol`, where implementers would read
-      it as required to interoperate, and out of `project`, where it would read as
-      specific to this codebase.
+      The decision tree needs a last answer, so that each spec gets exactly one kind
+      (MS-12-005). After the earlier questions, the remaining specs are recommended
+      structure. Any implementation can adopt such a constraint, but compliance does not
+      require it. The name `architecture` keeps these specs out of `protocol`, where
+      implementers would read them as necessary to interoperate. It also keeps them out
+      of `project`, where they would seem specific to this codebase.
     tags:
     - documentation
   - id: MS-12-005
@@ -1097,19 +1100,20 @@ groups:
       code. Its message MUST advise rewording the statement so any implementation could obey
       it, or splitting the spec (MS-12-010), and MUST NOT advise relabeling it.
     rationale: >-
-      An unenforced MUST anti-advertises: partial adoption reads as "no rule here", and
-      protocol-kind specs accrete suppressions of the missing-story-reference check in
-      place of a corrected kind. Three choices keep the check off already-compliant
-      specs: story-less specs only, a token list narrow enough to exclude domain
-      English, and reword-or-split — not relabel — as the remedy, because naming code
-      never decides a kind (MS-12-002). Derived in `notes/spec-authoring-rules.md`. Only
-      the `statement` is scanned: a `verification` field names the test that checks a
-      rule, and naming a test file there says nothing about whether the rule itself is
-      protocol content. `foundation` is scanned too: a foundation rule whose statement
-      names this codebase's code also says how this codebase meets it, so it is a mixed
-      spec to split (MS-12-010, ADR-0134). The suppression code is named
-      `protocol_kind_with_code_reference` although it also covers `foundation`, because
-      specs carry that name and renaming it would break them.
+      A MUST that nothing enforces gives a false signal. When only some specs obey it,
+      readers think that no rule exists. Also, protocol-kind specs collect suppressions
+      of the missing-story-reference check, and nobody corrects their kind. Three
+      choices keep the check off specs that already comply. The check scans only specs
+      with no stories. Its token list is narrow, so it does not match domain English.
+      Its remedy is to reword or split the spec, not to relabel it, because a code
+      reference never decides a kind (MS-12-002). `notes/spec-authoring-rules.md` gives
+      the derivation. The check scans only the `statement`. A `verification` field names
+      the test that checks a rule, and a test file name there does not show if the rule
+      is protocol content. The check also scans `foundation`. A foundation rule whose
+      statement names code in this codebase also tells how this codebase obeys it, so it
+      is a mixed spec to split (MS-12-010, ADR-0134). The suppression code has the name
+      `protocol_kind_with_code_reference`, but it also applies to `foundation`. Specs
+      use that name, and a new name would break them.
     verification: Unit tests in `test/metadata/specs/test_lint.py` cover the hard error for a
       protocol and for a foundation spec, the reword-or-split message, the story-bearing exemption, and the suppression path, and
       `test/architecture/` holds a ratchet asserting the live corpus has no unsuppressed violation.
@@ -1331,11 +1335,11 @@ groups:
       BehavioralSpec item with a non-empty steps field describing the ordered
       protocol exchange.
     rationale: >-
-      Mixed groups are permitted — terminal-state assertions and infrastructure
-      constraints MAY remain StatementSpec — but the sequential workflow itself MUST be
-      expressed as BehavioralSpec so that conformance tooling and CI can verify ECA
-      structure without parsing prose. spec-lint enforces it (SR-04-003): a group with
-      only StatementSpec items is a hard error.
+      Mixed groups are permitted. Terminal-state assertions and infrastructure
+      constraints can stay StatementSpec items. But the sequential workflow must be a
+      BehavioralSpec, so that conformance tooling and CI can verify the ECA structure
+      without parsing prose. spec-lint enforces the rule (SR-04-003): a group with only
+      StatementSpec items is a hard error.
     tags:
     - documentation
 - id: MS-14
@@ -1496,14 +1500,15 @@ groups:
       whose status is behind today's epoch through one tracking issue that closes itself when none
       remain, and MUST NOT fail the build.
     rationale: >-
-      Elapsed time alone is the wrong signal that an ADR has had its chance to be
-      revised; the first test-verified dependent is, because the material test asks
-      whether something built on the old text would now be wrong. The timers are a
-      backstop so every ADR hardens. A merge-blocking check reading today's date would
-      turn `main` red with no commit to blame, so the clock's drift is reported instead
-      (ARCH-18-004). Boundaries are counted in whole days (14 and 28) because `updated`
-      is a date. The dependency is counted on the pull request's head because the pull
-      request that creates it must already show its effect (MS-14-010).
+      Elapsed time alone does not show that an ADR had its chance to be revised. The
+      first dependent that a test verifies shows it, because the material test asks if
+      something built on the old text would now be wrong. The timers are a backstop, so
+      every ADR gets to `accepted`. A merge-blocking check that reads the current date
+      would make `main` fail when no commit causes the failure. Thus the scheduled check
+      reports the drift of the clock instead (ARCH-18-004). Boundaries are counted in
+      whole days (14 and 28), because `updated` is a date. The dependency is counted on
+      the head of the pull request, because the pull request that creates the dependency
+      must already show its effect (MS-14-010).
     verification: >-
       `test/metadata/test_adr_lifecycle.py` checks the 14- and 28-day boundaries, that a
       test-verified dependent ends epoch 1 and is counted on the pull request's head, that a material edit and a new ADR must match their
@@ -1610,10 +1615,10 @@ groups:
       MUST accept a list of ADRs as well as a single one, and the loader MUST fail when any pair
       is one-sided, comparing entries by ADR number whatever form the pointer is written in.
     rationale: >-
-      A successor can retire several ADRs, which a single-valued field cannot record,
-      and with only the forward pointer checked the successor side drifts out of date.
-      An agent reading the successor needs to see what it replaced, and a loader check
-      fails a one-sided link in CI.
+      A successor can retire several ADRs, and a single-value field cannot record that.
+      When only the forward pointer is checked, the successor side becomes out of date.
+      An agent that reads the successor must see what it replaced, and a loader check in
+      CI finds a one-sided link.
     verification: >-
       `test/metadata/test_adr_frontmatter.py` checks that each of the four fields accepts a single
       ADR or a list (`TestSupersessionFieldsAreLists`), that the loader fails a one-sided
@@ -1736,16 +1741,16 @@ groups:
       symbol containing at least one underscore that appears nowhere in the
       `vultron/` or `test/` Python sources.
     rationale: >-
-      MS-15-001 only inspects backticked tokens containing a directory separator, so a
-      bare symbol name passes it silently, and a retired symbol can survive in
-      MUST-level protocol statements across many spec files. A MUST about a symbol
-      nobody can find is worse than an absent requirement: the agent either invents a
-      replacement or drops the obligation. The single-underscore floor excludes the
-      token shapes that are not symbols — RFC 2119 keywords, protocol shorthands,
-      one-word state names. Resolution is textual and tree-wide rather than a binding
-      lookup, preferring a false negative over blocking a legitimate reference.
-      `rationale` is excluded, as in MS-15-001: the problem it names (MS-10-012) may be
-      a removed symbol that must not return.
+      MS-15-001 examines only backticked tokens that contain a directory separator. Thus
+      a bare symbol name passes it, and a retired symbol can stay in MUST-level protocol
+      statements across many spec files. A MUST about a symbol that nobody can find is
+      worse than no requirement. The agent either invents a replacement or ignores the
+      obligation. The rule needs at least one underscore, so it excludes token shapes
+      that are not symbols: RFC 2119 keywords, protocol shorthands and one-word state
+      names. The check is textual and covers the whole tree, and it does not look up
+      bindings. It accepts a false negative, so that it does not block a valid
+      reference. The rule excludes `rationale`, as MS-15-001 does, because the problem
+      that a rationale names (MS-10-012) can be a removed symbol that must not return.
     verification: >-
       `test_lint_phantom_symbol_is_hard_error` in `test/metadata/specs/test_lint.py`
       confirms a spec naming an absent symbol exits non-zero; the sibling
@@ -1766,11 +1771,11 @@ groups:
       token that was never code, MUST opt out with
       `lint_suppress: [phantom_symbol_ref]`.
     rationale: >-
-      There are two legitimate reasons to name a symbol that does not resolve: recording
-      that it was removed, so that it does not return, and naming a proposed
-      spec-authoring tag rather than an identifier (PROTO-04-001's `PROD_ONLY`).
-      Requiring the explicit opt-out keeps both visible as deliberate choices instead of
-      leaving them indistinguishable from the stale MUSTs MS-15-004 exists to catch.
+      Two valid reasons exist to name a symbol that does not resolve. One reason is to
+      record its removal, so that it does not return. The other reason is to name a
+      proposed spec-authoring tag that is not an identifier (PROTO-04-001's
+      `PROD_ONLY`). The explicit opt-out shows both as deliberate choices. Without it,
+      they look the same as the stale MUSTs that MS-15-004 finds.
     verification: >-
       `test_lint_phantom_symbol_suppress` in `test/metadata/specs/test_lint.py`
       confirms the opt-out clears the hard error.
@@ -1839,10 +1844,10 @@ groups:
       whole record: every later edit to it adds references of that kind
       unchecked.
     rationale: >-
-      A decision record that notes a removal names the removed symbol or path precisely
-      because it is gone, so that reference can never resolve. The opt-out mirrors
-      MS-15-005 for requirements and keeps the choice visible rather than
-      indistinguishable from a mistyped name.
+      A decision record that notes a removal names the removed symbol or path because it
+      is gone. Thus that reference can never resolve. The opt-out is the same as
+      MS-15-005 for requirements. It shows the choice as deliberate, so that it does not
+      look like a mistyped name.
     verification: >-
       `test_inline_removal_annotation_passes_with_the_opt_out` and
       `test_each_opt_out_covers_only_its_own_kind` in
@@ -1873,19 +1878,19 @@ groups:
       authoritative source (e.g. DEMOMA-16-001 itself listing its own members)
       are not subject to this rule.
     rationale: >-
-      Counts restated in cross-references drift silently: when the authoritative
-      requirement is updated, its sibling references and cross-file citations are not.
-      The linter validates that a referenced spec ID resolves; it has no opinion about
-      the prose next to it. A reader who encounters the stale count first gets a false
-      picture of the system. The count adds no normative force — "the universal types
-      (DEMOMA-16-001)" is equally specific because the ID is the authoritative pointer.
-      One change to an enumerated set can otherwise demand a coordinated edit in every
-      file that restates its size. The same principle extends beyond spec
-      cross-references to any long-lived document: notes files, AGENTS.md pitfall
-      entries, and architecture docs MUST NOT state counts such as "there are 4
-      unimplemented nodes" or "15 xfails" — these are snapshots guaranteed to be wrong
-      when read in the future. Decision-record bodies are out of scope: a dated count in
-      a record stays true as of its date (ADR-0127).
+      A count that a cross-reference restates drifts, and nobody sees it. When the
+      authoritative requirement changes, its sibling references and the citations in
+      other files do not change. The linter makes sure that a referenced spec ID
+      resolves, but it does not examine the prose near the ID. A reader who sees the
+      stale count first gets a false picture of the system. The count adds no normative
+      force. "The universal types (DEMOMA-16-001)" is equally specific, because the ID
+      points to the authoritative source. Without this rule, one change to an enumerated
+      set can require an edit in each file that restates its size. The same principle
+      applies to all long-lived documents, not only to spec cross-references. Notes
+      files, AGENTS.md pitfall entries and architecture docs must not state counts such
+      as "there are 4 unimplemented nodes" or "15 xfails". These snapshots will be wrong
+      when a person reads them later. Decision-record bodies are out of scope, because a
+      dated count in a record stays true on its date (ADR-0127).
     relationships:
     - rel_type: derives_from
       spec_id: MS-04-001
@@ -1910,16 +1915,17 @@ groups:
       source — or removed in favour of a pointer to where the live answer
       lives.
     rationale: >-
-      A fact nothing can check is a fact nobody does check, so it rots first, and it
-      rots into a confident wrong answer rather than into silence — which costs more
-      than no doc at all. Counts (MS-16-001) are the most common instance; the question
-      "could a test fail on this sentence?" reaches the rest. In a table that mixes the
-      two, the columns derived from source stay right while the columns no test holds go
-      wrong. Before concluding a column is unverifiable, check whether it conflates more
-      than one fact — a column answering two questions at once is unverifiable as a unit
-      while each part may be individually derivable; the procedure for that triage lives
-      in `notes/documentation-sweeps.md`. Decision-record bodies are out of scope
-      because they are read as dated history (ADR-0127).
+      Nobody checks a fact that nothing can check, so it becomes wrong first. It also
+      becomes a confident wrong answer, not a gap, and that costs more than no document.
+      Counts (MS-16-001) are the most usual example. The question "could a test fail on
+      this sentence?" finds the other examples. In a table that mixes the two, the
+      columns derived from source stay correct, and the columns that no test holds
+      become wrong. Before you decide that a column is unverifiable, find out if it
+      combines two or more facts. A column that answers two questions cannot be verified
+      as a unit, but each part can possibly come from its source.
+      `notes/documentation-sweeps.md` gives the procedure for this check.
+      Decision-record bodies are out of scope, because readers read them as dated
+      history (ADR-0127).
     relationships:
     - rel_type: derives_from
       spec_id: MS-16-001
@@ -2045,10 +2051,11 @@ groups:
       Open Questions page (`docs/topics/future_work/open_questions.md`), and a form the
       protocol does not name is not a protocol message.
     rationale: >-
-      A receiver that must accept every allowed form pays for each form any sender
-      picks, and when several forms are allowed the reference implementation's choice is
-      all a reader sees, so its habit reads as a protocol rule. Deferring the other
-      forms keeps them open for later design without binding any receiver now.
+      A receiver that must accept all allowed forms pays for each form that any sender
+      selects. When several forms are allowed, a reader sees only the choice of the
+      reference implementation, so its habit looks like a protocol rule. When the other
+      forms are deferred, they stay open for later design, and no receiver must accept
+      them now.
     verification: >-
       Inspection: no two `protocol` requirements name different wire forms for the same
       act (for the case records, VAM-01-011 names the one attaching message), and
@@ -2063,10 +2070,10 @@ groups:
       several wire forms for one protocol act and then record which of them this codebase
       sends; the choice is made once, in the `protocol` requirement (MS-18-001).
     rationale: >-
-      A per-message "allowed versus sent" marker keeps every receiver accepting forms
-      that no implementation needs to send, and it is one more hand-kept fact that
-      drifts from the emitters (MS-16-002). Making the choice once, in the protocol
-      requirement, leaves a receiver one form to accept.
+      A per-message marker of "allowed versus sent" makes each receiver accept forms
+      that no implementation must send. It is also one more manual fact that drifts from
+      the emitters (MS-16-002). When the protocol requirement makes the choice once, a
+      receiver has one form to accept.
     verification: >-
       Inspection: `Occasion` in `vultron/semantic_registry/_occasion.py` has no field
       recording whether this codebase sends the occasion.

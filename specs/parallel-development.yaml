@@ -25,10 +25,10 @@ groups:
           Tasks MUST be represented as GitHub Issues in the CERTCC/Vultron
           repository. All work is tracked exclusively as GitHub Issues.
         rationale: >-
-          Every agent and human contributor already reads, claims and links work through
-          GitHub, so one tracker is the only place where a claim, a blocker or a
-          priority is visible to all of them. Work recorded in a second tracker would be
-          invisible to selection and to the stale-claim sweeper.
+          Every agent and human contributor reads, claims and links work through GitHub.
+          Thus one tracker is the only place where all of them see a claim, a blocker or
+          a priority. Selection and the stale-claim sweeper cannot see work in a second
+          tracker.
       - id: PAD-01-002
         priority: MUST
         kind: process
@@ -51,9 +51,9 @@ groups:
           field value (Focus/Now/Next/Later/Someday) that reflects the current
           priority tier of the thematic group they represent.
         rationale: >-
-          Agents choose work by Epic tier (PAD-03-003, PAD-08-001), so an Epic with no
-          `Schedule` value gives every leaf under it no priority and drops those leaves
-          from tier-ordered selection.
+          Agents choose work by Epic tier (PAD-03-003, PAD-08-001). An Epic with no
+          `Schedule` value gives no priority to the leaves under it, and tier-ordered
+          selection does not find those leaves.
       - id: PAD-01-005
         priority: MUST
         kind: process
@@ -73,9 +73,9 @@ groups:
         statement: >-
           Subtask Issues MUST be sub-issues of their parent Task.
         rationale: >-
-          Leaf selection and the `Ready` check (PAD-16-004) follow sub-issue links, so a
-          Subtask linked any other way is invisible to them and its Task wrongly looks
-          like a leaf.
+          Leaf selection and the `Ready` check (PAD-16-004) follow sub-issue links. They
+          cannot see a Subtask that has a different link, and its Task then looks like a
+          leaf.
         relationships:
         - rel_type: refines
           spec_id: PAD-01-002
@@ -152,9 +152,10 @@ groups:
           when a claimed Issue has no open PR and the claim branch has not
           received a commit within 3 days.
         rationale: >-
-          A claim branch is a lock with no expiry (PAD-04-001), so a crashed or
-          abandoned session holds its Issue until something marks it. The label makes
-          the orphan visible and lets agents skip it (PAD-02-011) until a human decides.
+          A claim branch is a lock that does not expire (PAD-04-001). If a session stops
+          or its owner abandons it, the session holds its Issue until something marks
+          the claim. The label makes the stale claim visible, and agents skip the Issue
+          (PAD-02-011) until a human decides.
       - id: PAD-02-011
         priority: MUST
         kind: process
@@ -162,9 +163,9 @@ groups:
         statement: >-
           Agents MUST skip Issues that carry the `stale-claim` label.
         rationale: >-
-          A stale claim can still have unpushed work behind it. An agent that takes the
-          Issue over races that work, so only a human, who can ask the claimant,
-          releases it.
+          A stale claim can still have work behind it that nobody pushed. An agent that
+          takes the Issue can conflict with that work. Thus only a human, who can ask
+          the claimant, releases the Issue.
         relationships:
         - rel_type: refines
           spec_id: PAD-04-003
@@ -177,10 +178,10 @@ groups:
           conflicts that cannot be automatically resolved (PAD-11). Human
           intervention is required before the label is removed.
         rationale: >-
-          An unresolvable conflict means an agent stopped (PAD-11-005). Without a
-          marker, other agents and the merge step would keep picking the PR up. The
-          label says that the PR waits for a person, and only the person who resolved
-          the conflict knows when it is safe to remove.
+          An unresolvable conflict means that an agent stopped (PAD-11-005). Without a
+          marker, other agents and the merge step continue to select the PR. The label
+          shows that the PR waits for a person. Only the person who resolved the
+          conflict knows when it is safe to remove the label.
       - id: PAD-02-006
         priority: MUST
         kind: process
@@ -191,7 +192,7 @@ groups:
           reviewers.
         rationale: >-
           The label tells a reviewer that the PR changes no code and needs no test
-          review, and it lets skills and humans find planning PRs by query.
+          review. It also lets skills and humans find planning PRs with a query.
       - id: PAD-02-008
         priority: MUST
         kind: process
@@ -201,10 +202,9 @@ groups:
           exactly one open Epic Issue on GitHub Project #24. A leaf Issue is
           any Issue with no open sub-issues.
         rationale: >-
-          A group with several open leaves needs one place that carries their shared
-          priority tier and shows their progress. Two Epics for one group would let the
-          same work sit at two tiers, and no Epic would leave the leaves with no tier at
-          all (PAD-02-001).
+          A group with several open leaves needs one place that holds their shared
+          priority tier and shows their progress. With two Epics for one group, the same
+          work can have two tiers. With no Epic, the leaves have no tier (PAD-02-001).
       - id: PAD-02-009
         priority: MUST
         kind: process
@@ -216,10 +216,10 @@ groups:
           with a `Schedule` value (Focus/Now/Next/Later/Someday) matching the
           work's priority.
         rationale: >-
-          Skills detect an Epic by its issue type, not by a label, and an Epic that is
-          not on the board or has no `Schedule` value gives its children no tier. The
-          issue type can be set only through GraphQL, where the type's ID must first be
-          looked up.
+          Skills identify an Epic by its issue type, not by a label. An Epic that is not
+          on the board, or that has no `Schedule` value, gives its children no tier.
+          Only GraphQL can set the issue type, and it needs the ID of the type, which a
+          query must find first.
       - id: PAD-02-013
         priority: MUST
         kind: process
@@ -229,10 +229,9 @@ groups:
           consistent sub-issue wiring, correct issue type assignment, and
           addition to Project #24.
         rationale: >-
-          Creating an Epic takes several API calls, and a missed call fails silently: a
-          missing type, a missing board item or an unwired child each leaves work
-          invisible to selection. One skill that makes every call gives the same result
-          each time.
+          To create an Epic takes several API calls, and a missed call gives no error. A
+          missing type, a missing board item or an unwired child each hides work from
+          selection. One skill that makes every call gives the same result each time.
         relationships:
         - rel_type: implements
           spec_id: PAD-02-009
@@ -262,9 +261,9 @@ groups:
           file. Only the `review-priorities` skill (and humans directly) may
           change `Schedule` field values on GitHub Project #24.
         rationale: >-
-          A second ordering source lets two places disagree with no rule for which one
-          wins. Limiting `Schedule` writes to one skill and to humans keeps a priority
-          change a deliberate decision rather than a side effect of other work.
+          With a second ordering source, two places can disagree, and no rule says which
+          one is correct. When only one skill and humans write `Schedule`, each priority
+          change is a deliberate decision, not a side effect of other work.
       - id: PAD-03-003
         priority: MUST
         kind: process
@@ -297,12 +296,12 @@ groups:
           so "the Issue's claim branch" means its own branch or, for such a
           member, its bundle's branch.
         rationale: >-
-          A branch created only in a local clone locks nothing across machines or cloud
-          agents, and it is invisible to the stale-claim sweeper until a PR is pushed. A
-          GitHub-created linked branch also appears in the Issue's Development sidebar.
-          `createLinkedBranch` answers an existing name with a null `linkedBranch`
-          rather than an error, and that null is the "already claimed" signal; `gh issue
-          develop` exits 0 in the same case, so it is not a lock.
+          A branch that exists only in a local clone locks nothing across machines or
+          cloud agents. The stale-claim sweeper also cannot see it until the agent
+          pushes a PR. A linked branch that GitHub creates also shows in the Development
+          sidebar of the Issue. When the name exists, `createLinkedBranch` returns a
+          null `linkedBranch`, not an error, and that null is the "already claimed"
+          signal. `gh issue develop` exits 0 in the same case, so it is not a lock.
         verification: >-
           `test/metadata/test_claim_scripts.py`: `claim-issue.sh` creates the
           branch through `createLinkedBranch`, checks it out, and refuses
@@ -319,9 +318,9 @@ groups:
           assignee is the epic-run claim (PAD-19-001, PAD-16-012).
         rationale: >-
           The branch is the lock, but humans and the board read the assignee and
-          `Status`, so a claim that skipped them would hold the Issue while showing it
-          as free. The comment ties the Issue to its session and branch, so a stale
-          claim can be traced. On an Epic the assignee means that an epic run holds it,
+          `Status`. A claim that does not set them holds the Issue but shows it as free.
+          The comment connects the Issue to its session and branch, so a person can
+          trace a stale claim. On an Epic, the assignee shows that an epic run holds it,
           so a planning claim must not set that signal.
         verification: >-
           `test/metadata/test_claim_scripts.py`: a successful claim assigns
@@ -336,9 +335,9 @@ groups:
           branch already exists, whose `stale-claim` label is set, or that
           is already assigned to another user.
         rationale: >-
-          Each of these facts means that another session may own the work. Starting
-          anyway produces two diverging branches for one Issue, and one of them is
-          wasted.
+          Each of these facts means that another session can own the work. If an agent
+          starts anyway, one Issue gets two branches that diverge, and the work on one
+          of them is wasted.
       - id: PAD-04-004
         priority: SHOULD
         kind: process
@@ -380,9 +379,9 @@ groups:
           there.
         rationale: >-
           The diff is the objective measure of the work delivered, and it exists only
-          once the PR does. The label goes on the PR because the PR is what the
-          measurement describes. Written onto the Issue at that point, it would land on
-          an Issue that is about to close and replace the estimate (PAD-05-010).
+          when the PR exists. The label goes on the PR because the measurement describes
+          the PR. On the Issue, the label would replace the estimate (PAD-05-010) on an
+          Issue that is about to close.
         verification: >-
           `.github/workflows/pr-size-label.yml` applies it on every push to a
           same-repo PR;
@@ -425,9 +424,9 @@ groups:
           `vultron/metadata/planning/size_bands.py`, via the `pr-size` console
           script.
         rationale: >-
-          A threshold restated in prose can be retyped wrong, and each copy drifts on
-          its own. One table with one applier means that every label, wherever it is
-          applied, uses the same bands.
+          A threshold that prose restates can contain a typing error, and each copy
+          changes independently. With one table and one tool that applies it, every
+          label uses the same bands.
         verification: >-
           `test/metadata/test_size_bands.py::TestDerivation` asserts every
           derived constant reads the table rather than restating it, and
@@ -467,11 +466,11 @@ groups:
           At PR open time, a diff of ≤100 lines MUST receive the `size:S`
           label.
         rationale: >-
-          Calibrates the size label to the implementation effort measured at PR open
-          time (see PAD-05-002). The ceiling sits well below the median merged-PR
-          diff measured by the survey in `vultron/metadata/planning/size_bands.py`, so
-          `size:S` holds the changes that are small, rather than a band that almost no
-          PR falls in.
+          The size label shows the implementation effort measured at PR open time
+          (PAD-05-002). The `size:S` ceiling is well below the median merged-PR diff
+          that the survey in `vultron/metadata/planning/size_bands.py` measured. Thus
+          `size:S` holds the small changes, and it is not a band that almost no PR falls
+          in.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -484,11 +483,10 @@ groups:
           At PR open time, a diff of 101–400 lines MUST receive the `size:M`
           label.
         rationale: >-
-          Calibrates the size label to the actual implementation effort
-          measured at PR open time (see PAD-05-002). The survey in
-          `vultron/metadata/planning/size_bands.py` found no natural clusters in
-          merged-PR diff size, and this band holds its median, so `size:M` covers
-          the normal unit of work.
+          The size label shows the implementation effort measured at PR open time
+          (PAD-05-002). The survey in `vultron/metadata/planning/size_bands.py` found no
+          natural clusters in merged-PR diff size. This band holds the median of that
+          survey, so `size:M` covers the normal unit of work.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -501,10 +499,10 @@ groups:
           At PR open time, a diff of 401–1200 lines MUST receive the `size:L`
           label.
         rationale: >-
-          Calibrates the size label to the implementation effort measured at PR open
-          time (see PAD-05-002). The upper bound separates a large change from one that
-          review cannot cover (PAD-05-009); a band with no upper bound would put both
-          under one label.
+          The size label shows the implementation effort measured at PR open time
+          (PAD-05-002). The upper bound separates a large change from a change that
+          review cannot cover (PAD-05-009). Without an upper bound, the band would put
+          both changes under one label.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
@@ -578,9 +576,10 @@ groups:
           draft PR body so it can check the author's `Self-check:` record
           (PAD-07-009).
         rationale: >-
-          The reviewer reads only what is committed, so uncommitted work escapes review.
-          Comparing against `origin/main` keeps the review on the branch's own change,
-          and the draft body lets it check the self-check record the author claims.
+          The reviewer reads only committed work, so it does not see uncommitted work.
+          The comparison with `origin/main` keeps the review on the change that the
+          branch makes. The draft body lets the reviewer check the self-check record of
+          the author.
         relationships:
         - rel_type: refines
           spec_id: PAD-07-001
@@ -742,9 +741,9 @@ groups:
           in the body after completing implementation and passing all
           validations.
         rationale: >-
-          `Closes #N` closes the Issue when the PR merges, which moves it to `Done` and
-          keeps the board true without a manual step. Opening the PR only after
-          validation keeps known-broken work out of review and CI.
+          `Closes #N` closes the Issue when the PR merges. This moves the Issue to
+          `Done` and keeps the board correct with no manual step. When the PR opens only
+          after validation, known-broken work stays out of review and CI.
       - id: PAD-08-004
         priority: MUST_NOT
         kind: process
@@ -752,8 +751,8 @@ groups:
         statement: >-
           The `build` skill MUST NOT commit directly to `main`.
         rationale: >-
-          A direct commit to `main` skips review and CI, and with several agents working
-          in parallel it can break every branch that is built on `main`.
+          A direct commit to `main` skips review and CI. When several agents work in
+          parallel, it can break every branch that starts from `main`.
       - id: PAD-08-003
         priority: MUST
         kind: process
@@ -781,8 +780,8 @@ groups:
           from Issues before any implementation work begins.
         rationale: >-
           An implementation Issue that links a spec not yet on `main` points at text
-          that can still change or never land, so a builder could implement a
-          requirement that does not exist. Landing the docs first gives the Issue a
+          that can still change or never merge. Thus an agent could implement a
+          requirement that does not exist. When the docs merge first, the Issue has a
           stable target.
       - id: PAD-09-002
         priority: MUST
@@ -810,9 +809,9 @@ groups:
           is Ready (PAD-16-004) and is selected under its Epic's `Schedule`
           tier on GitHub Project #24.
         rationale: >-
-          Planning and building are separate steps so that a human can review the plan
-          and its docs PR before code depends on them. Starting at once would also
-          bypass the Epic tier that decides when the work is worth doing.
+          Planning and building are separate steps, so a human can review the plan and
+          its docs PR before code depends on them. If planning starts the build at once,
+          it also skips the Epic tier that decides when the work is worth doing.
 
   - id: PAD-10
     title: Orphan Recovery — Stale Claim Sweeper
@@ -901,10 +900,10 @@ groups:
           If the agent cannot resolve the merge safely, it MUST apply the
           `needs-rebase` label to the PR.
         rationale: >-
-          The label signals to the sweeper and other agents that human intervention is
-          required before the PR can proceed. Its name says rebase while recovery merges
-          (PAD-11-001); the name is kept so that existing queries and skills still find
-          it.
+          The label tells the sweeper and other agents that the PR needs a human before
+          it can continue. The name says "rebase", but recovery uses a merge
+          (PAD-11-001). The name stays so that existing queries and skills still find
+          the label.
         verification: >-
           Inspection: `pr-execute` Phase 5 Step 2's unresolved-conflict path
           adds the `needs-rebase` label.
@@ -936,8 +935,8 @@ groups:
           (PAD-01-007).
         rationale: >-
           An Epic at `Someday` or with no tier, and an Issue with no Epic, are where
-          work gets lost, because selection never reaches them. Surfacing them at each
-          review gives a human the chance to schedule, route or close each one.
+          work gets lost, because selection never reaches them. The skill shows them at
+          each review, so a human can schedule, route or close each one.
       - id: PAD-12-002
         priority: MUST
         kind: process
@@ -961,9 +960,10 @@ groups:
           GitHub Project #24, or the Issue's sub-issue relationship to the
           chosen Epic.
         rationale: >-
-          A placement kept only in the session is lost when the session ends, and
-          selection reads only the board and the sub-issue links. Applying it as soon as
-          it is confirmed keeps the board the single source of priority (PAD-03-001).
+          A placement that only the session holds is lost when the session ends, and
+          selection reads only the board and the sub-issue links. When the skill applies
+          the placement immediately after confirmation, the board stays the single
+          source of priority (PAD-03-001).
 
   - id: PAD-13
     title: Update-Plan — Issue Creation
@@ -1055,9 +1055,10 @@ groups:
           MUST NOT be read. Sub-issue list order MUST be used only to break
           ties.
         rationale: >-
-          Sub-issue list order is manual drag-order and carries no priority meaning, so
-          treating it as the priority signal would override the authoritative field. A
-          leaf's own value is drift by definition once only Epics carry `Schedule`.
+          The order of the sub-issue list is a manual order and has no priority meaning.
+          If selection used it as the priority signal, it would override the
+          authoritative field. Only Epics carry `Schedule`, so a value on a leaf is
+          always drift.
         verification: >-
           `test/metadata/test_bundle_fit.py::TestScheduleTier` asserts tier
           ordering (including that `Focus` outranks `Now`), that the Epic's
@@ -1206,9 +1207,9 @@ groups:
           value that those facts do not produce is drift and MUST be corrected
           to the reproduced value.
         rationale: >-
-          A second, hand-maintained copy of claim or review state drifts from the branch
-          and PR it describes. A mirror can drift too, but recomputing it repairs it
-          without a human.
+          A second copy of claim or review state that a person maintains drifts from the
+          branch and PR it describes. A computed copy can drift too, but a new
+          computation repairs it with no human.
         verification: >-
           Recomputing `Status` from the listed facts for every item on
           Project #24 reproduces every recorded value.
@@ -1511,16 +1512,16 @@ groups:
           file MUST be added to the gate.
         rationale: >-
           The import index cannot see tests that reach a change through fixtures or
-          configuration, so only those paths need the whole suite. An
-          integration-bearing layer (`vultron/core/behaviors/`, `vultron/adapters/`, and
-          the like) is gated by its importers like any other code, integration-marked
-          ones included; escalating on it would send most code Pull Requests to a full
-          local run on every fix commit, repeating more slowly the full run CI makes on
-          the push (ADR-0143). A CI failure outside the set is answered by running that
-          test, not the whole suite: CI runs the rest again on the push. Keying on the
-          branch diff, not the fix commit, means a fix landing on top of a `conftest.py`
-          change still escalates. The list does not govern the gate after a conflict
-          merge, which PAD-18-004 sets.
+          configuration. Only those paths need the whole suite. The gate selects code in
+          an integration-bearing layer (`vultron/core/behaviors/`, `vultron/adapters/`,
+          and similar) by its importers, like all other code, and includes
+          integration-marked importers. Escalation on such a layer would send most code
+          Pull Requests to a full local run on each fix commit. That run repeats, more
+          slowly, the full run that CI makes on the push (ADR-0143). For a CI failure
+          outside the set, the gate runs that test, not the whole suite, because CI runs
+          the rest again on the push. The key is the branch diff, not the fix commit, so
+          a fix on top of a `conftest.py` change still escalates. This list does not
+          control the gate after a conflict merge. PAD-18-004 sets that gate.
         verification: >-
           Inspection: the targeted-test command reports `full` for a branch
           diff that touches any listed path, and a targeted set for a branch
@@ -1550,18 +1551,17 @@ groups:
           conflicted file is a `conftest.py`, `pyproject.toml`, `uv.lock`,
           or `vultron/__init__.py`.
         rationale: >-
-          CI already tests the merge of the PR into its base as of each push, and no
+          CI already tests the merge of the PR into its base at each push, and no
           repository rule requires branches to be up to date. A conflict is the only
-          sync that needs an agent, because someone has to resolve it; every clean merge
-          can be made by GitHub and tested by CI. Merging on file overlap alone, or
-          gating the merge from the whole branch diff, would send most merges to a full
-          local suite run for paths the merge never touched. A conflicted file is gated
-          as wholly changed because both sides edited it; the rest of the merge changed
-          no line the PR wrote, and CI runs the full suite on the push. `BEHIND` is
-          cleared on GitHub because it is the one state in which GitHub itself refuses
-          the merge until the branch contains the base, and `gh pr update-branch`
-          produces the same merge commit a local merge would; no ruleset produces it
-          today.
+          sync that needs an agent, because someone must resolve it. GitHub can make
+          every clean merge, and CI tests it. A merge on file overlap alone, or a gate
+          from the whole branch diff, would send most merges to a full local suite run
+          for paths that the merge did not change. The gate treats a conflicted file as
+          wholly changed, because both sides edited it. The rest of the merge changed no
+          line that the PR wrote, and CI runs the full suite on the push. The agent
+          clears `BEHIND` on GitHub because, in that state, GitHub itself refuses the
+          merge until the branch contains the base. `gh pr update-branch` makes the same
+          merge commit that a local merge makes. No ruleset causes `BEHIND` today.
         verification: >-
           Inspection: `pr-execute` Phase 5 Step 2 merges the base locally on
           `CONFLICTING`, `DIRTY`, or a `git merge-tree` conflict only, runs
@@ -1661,10 +1661,11 @@ groups:
           Pull Request's first push. A skill that hands off to `create-pr`
           MUST NOT run the unit or integration suites itself.
         rationale: >-
-          Running the same suites in two skills with no change to the tree between them
-          would make every implementation Pull Request pay the most expensive step in
-          the pipeline twice. Placing the gate in `create-pr` alone keeps it adjacent to
-          the push it guards, which is the only thing that makes it worth its cost.
+          If two skills run the same suites with no change to the tree between them,
+          every implementation Pull Request does the most expensive step in the pipeline
+          two times. With the gate in `create-pr` only, the gate runs immediately before
+          the push that it guards. That position is the only thing that makes the gate
+          worth its cost.
         verification: >-
           Inspection: `build` Phase 6 runs the linters but no `pytest`
           invocation, and `create-pr` Phase 3 is the sole pre-first-push
@@ -1688,14 +1689,14 @@ groups:
           re-check or re-sync other open Pull Requests because a merge moved
           the base.
         rationale: >-
-          Overlapping files are where a clean merge is most likely to hide a behavior
-          conflict, and the moment of merging is the only time the base the Pull Request
-          lands on is known. A GitHub-side update tests that exact combination in CI
-          with no agent, no local merge, and no local suite run. Sweeping every open
-          Pull Request after each merge, or updating again whenever the base moves
-          during the CI wait, makes every merge invalidate every other ready Pull
-          Request; a semantic conflict between files neither side shares is caught by CI
-          on `main` (ADR-0126).
+          Where files overlap, a clean merge is most likely to hide a behavior conflict.
+          The base that the Pull Request lands on is known only at the time of the
+          merge. An update on GitHub tests that exact combination in CI, with no agent,
+          no local merge and no local suite run. A sweep of every open Pull Request
+          after each merge makes every merge invalidate every other ready Pull Request.
+          An update each time the base moves during the CI wait has the same result. CI
+          on `main` catches a semantic conflict between files that neither side shares
+          (ADR-0126).
         verification: >-
           Inspection: `work-epic-tasks` step 4 runs the merge-state,
           `git merge-tree`, and `targeted-tests --overlap` checks on the Pull
@@ -1907,9 +1908,9 @@ groups:
           phase and report each finding it prints, and MUST judge by hand only
           the body rules the tool does not check.
         rationale: >-
-          Triage keeps every check, but a rule that a tool checks is not a judgment.
-          Reading such a rule out of the guide by hand lets mechanical findings recur
-          that the tool would catch every time.
+          Triage keeps every check, but a rule that a tool checks is not a judgment. A
+          manual reading of such a rule from the guide can miss findings that the tool
+          catches every time.
         verification: >-
           `test/metadata/test_pr_body_lint.py::TestSkillsRunTheGates` pins that
           `pr-triage` Phase 3 runs `pr-body-lint --stage final`.

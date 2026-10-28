@@ -23,8 +23,8 @@ groups:
       ID(s)
     rationale: >-
       Without one map from stories to requirement IDs, nobody can tell which user needs
-      the specs cover, or which stories a requirement change affects. Keeping the map in
-      the docs tree publishes it next to the stories it describes.
+      the specs cover. Nobody can tell which stories a requirement change affects. The
+      map is in the docs tree, so it is published next to the stories that it describes.
   - id: TRACE-01-002
     priority: MUST
     kind: project
@@ -33,9 +33,8 @@ groups:
       User stories without specification coverage MUST be flagged with an explicit note indicating
       they lack coverage
     rationale: >-
-      An unmapped story reads the same as one whose coverage was never checked. An
-      explicit note separates a known gap from an oversight and makes the gap
-      searchable.
+      An unmapped story looks the same as a story that nobody checked. An explicit note
+      shows a known gap, not an error by omission, and a search can find the note.
   - id: TRACE-01-003
     priority: MUST
     kind: project
@@ -44,9 +43,9 @@ groups:
       The traceability matrix MUST be updated when new specifications are added or existing
       requirements are significantly changed in a way that affects story coverage
     rationale: >-
-      A matrix that lags the specs claims coverage the specs have dropped, or misses
-      coverage they added. Updating it in the change that moves coverage keeps it
-      true while the author still knows what changed.
+      If the matrix is not current, it shows coverage that the specs removed, or it does
+      not show coverage that they added. Update the matrix in the change that changes
+      coverage, because the author knows then what changed.
 - id: TRACE-02
   title: Maintenance
   specs:
@@ -57,9 +56,9 @@ groups:
       The traceability matrix SHOULD be reviewed and updated as part of any spec-authoring
       or user-story-authoring activity
     rationale: >-
-      Spec and story authoring are when coverage changes, and the author holds the
-      context then. Reviewing the matrix in the same activity costs less than a later
-      audit that has to rebuild that context.
+      Coverage changes when authors write specs and stories, and the author has the
+      context at that time. A review of the matrix in the same activity costs less than
+      a later audit, which must find that context again.
   - id: TRACE-02-002
     priority: SHOULD
     kind: project
@@ -68,6 +67,6 @@ groups:
       learning files in `plan/incoming/learnings/` with specific technical
       details describing the gap and concrete steps toward remediation
     rationale: >-
-      A gap recorded only in the matrix says that coverage is missing, not what to do
-      about it. A learning file enters the queue that `learn` turns into specs and
-      Issues, so the gap reaches someone who can close it.
+      A gap in the matrix shows only that coverage is missing. It does not show what to
+      do. A learning file goes into the queue that `learn` turns into specs and Issues,
+      so the gap goes to a person who can close it.
