@@ -35,6 +35,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PR: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python and uv
@@ -50,9 +51,13 @@ jobs:
         # been diffed yet, and a stale 0 would classify an 800-line PR as
         # `size:S` with no error — the exact mislabelling this workflow exists
         # to stop.
+        #
+        # Every GitHub call in this job goes through `retry`: GitHub sometimes
+        # answers one with a server error that a second try clears (#4524).
         run: |
           set -euo pipefail
-          STATS=$(gh pr view "$PR" --repo "${{ github.repository }}" \
+          source .github/scripts/retry.sh
+          STATS=$(retry gh pr view "$PR" --repo "$REPO" \
             --json additions,deletions,changedFiles \
             --jq '[.additions, .deletions, .changedFiles] | @tsv')
           IFS=$'\t' read -r ADDED DELETED CHANGED <<< "$STATS"
@@ -68,9 +73,11 @@ jobs:
           echo "PR #$PR measures $LINES diff lines -> $LABEL" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Ensure the label exists and its description is current
+        env:
+          LABEL: ${{ steps.classify.outputs.label }}
         run: |
           set -euo pipefail
-          LABEL="${{ steps.classify.outputs.label }}"
+          source .github/scripts/retry.sh
           # -e so an unknown label fails the step instead of silently skipping
           # the upsert and leaving `gh pr edit` to fail later with a worse
           # message.
@@ -80,8 +87,8 @@ jobs:
           IFS=$'\t' read -r DESCRIPTION COLOR <<< "$ROW"
           # --force upserts, so the GitHub UI description stays derived from the
           # band table instead of becoming another hand-maintained copy of it.
-          gh label create "$LABEL" \
-            --repo "${{ github.repository }}" \
+          retry gh label create "$LABEL" \
+            --repo "$REPO" \
             --description "$DESCRIPTION" \
             --color "$COLOR" \
             --force
@@ -92,32 +99,34 @@ jobs:
         # exiting 0 with empty output. `STALE` would come back empty, the removal
         # loop would run zero times, and the PR would end up carrying two `size:`
         # labels while the step reported success.
+        #
+        # One label per call, the add first: a single `--add-label X
+        # --remove-label Y` call once removed Y and then failed on a GitHub
+        # server error before adding X, leaving the PR with no size label
+        # (#4524). Now an add that fails even after its retries stops the step
+        # before any removal, so the PR keeps its old label and the step is red;
+        # a removal that fails leaves one extra size label, which the next push
+        # corrects.
+        env:
+          KEEP: ${{ steps.classify.outputs.label }}
         run: |
           set -euo pipefail
-          KEEP="${{ steps.classify.outputs.label }}"
+          source .github/scripts/retry.sh
           STALE=$(uv run pr-size --labels-json \
             | jq -r --arg k "$KEEP" '.[] | select(.name != $k) | .name' \
             | paste -sd, -)
-          CURRENT=$(gh pr view "$PR" --repo "${{ github.repository }}" \
+          CURRENT=$(retry gh pr view "$PR" --repo "$REPO" \
             --json labels --jq '[.labels[].name] | join(",")')
 
-          ADD=()
           case ",$CURRENT," in
             *",$KEEP,"*) echo "$KEEP already applied" ;;
-            *) ADD=(--add-label "$KEEP") ;;
+            *) retry gh pr edit "$PR" --repo "$REPO" --add-label "$KEEP" ;;
           esac
 
-          REMOVE=()
           IFS=',' read -ra stale_names <<< "$STALE"
           for name in "${stale_names[@]}"; do
             case ",$CURRENT," in
-              *",$name,"*) REMOVE+=(--remove-label "$name") ;;
+              *",$name,"*)
+                retry gh pr edit "$PR" --repo "$REPO" --remove-label "$name" ;;
             esac
           done
-
-          if [ ${#ADD[@]} -eq 0 ] && [ ${#REMOVE[@]} -eq 0 ]; then
-            echo "Nothing to change."
-            exit 0
-          fi
-          gh pr edit "$PR" --repo "${{ github.repository }}" \
-            "${ADD[@]}" "${REMOVE[@]}"
