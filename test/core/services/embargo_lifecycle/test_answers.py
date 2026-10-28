@@ -266,6 +266,7 @@ def test_accept_embargo_invite_idempotent(
 
 
 @pytest.mark.spec("MSM-07-003")
+@pytest.mark.spec("MSM-02-010")
 def test_owners_accept_of_an_invite_is_its_consent_and_decides_nothing(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:
@@ -335,6 +336,7 @@ def test_reject_embargo_proposal_owner_proposed_to_none(
 
 
 @pytest.mark.spec("MSM-07-004")
+@pytest.mark.spec("MSM-02-010")
 def test_reject_embargo_invite_signatory_owner_rejecting_first_proposal_declines(
     owner_and_dl: tuple[as_Service, SqliteDataLayer],
 ) -> None:

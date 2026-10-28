@@ -268,7 +268,7 @@ def test_rm_validate_report_returns_accept(sample_offer, sample_actor):
 
 @pytest.mark.spec("AF-01-002")
 @pytest.mark.spec("VAM-02-004")
-@pytest.mark.spec("RF-02-003")
+@pytest.mark.spec("RF-02-004")
 def test_rm_validate_report_object_is_offer(sample_offer, sample_actor):
     result = rm_validate_report_activity(
         offer=sample_offer, actor=sample_actor
