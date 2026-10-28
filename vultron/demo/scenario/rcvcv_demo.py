@@ -66,9 +66,11 @@ from vultron.demo.helpers.milestones import (
     verify_publicly_disclosed,
 )
 from vultron.demo.helpers.notes import (
+    WORKAROUND_QUESTION,
     NotePost,
     add_note_thread,
     gated_note_thread,
+    reporter_asks,
 )
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
@@ -683,20 +685,12 @@ def _phase_notes_exchange(
     logger.info("─" * 80)
 
     reporter_in_reporter = get_actor_by_id(reporter_client, reporter.id_)
-    c1_reply = gated_note_thread(
-        gate="Reporter's replica holds the case before it asks",
-        replica_client=reporter_client,
-        watching_client=c1_client,
-        case=case,
-        posts=[
-            NotePost(
-                ActorSession(
-                    client=reporter_client, actor=reporter_in_reporter
-                ),
-                "Question from Reporter",
-                "Is there a workaround available while the patch is being "
-                "developed?",
-            ),
+    c1_reply = reporter_asks(
+        ActorSession(client=reporter_client, actor=reporter_in_reporter),
+        c1_client,
+        case,
+        WORKAROUND_QUESTION,
+        [
             NotePost(
                 ActorSession(client=c1_client, actor=c1_in_c1),
                 "C1 Response",

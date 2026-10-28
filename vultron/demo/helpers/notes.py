@@ -22,7 +22,8 @@ inline; the CASE_MANAGER attaches the note and commits an
 :func:`add_note_thread` posts a sequence of notes, each replying to the one
 before, and :func:`gated_note_thread` does so only once a named replica holds
 the case: a poster acts from its own replica, so that replica is the cause the
-first note waits on (DEMOMA-22-001).
+first note waits on (DEMOMA-22-001).  :func:`reporter_asks` is the thread a
+Reporter opens, gated on the Reporter's replica.
 """
 
 import logging
@@ -190,6 +191,47 @@ def gated_note_thread(
     return last
 
 
+#: The Reporter's opening question in the rvcv, rccv and rcvcv scenarios.
+WORKAROUND_QUESTION = (
+    "Is there a workaround available while the patch is being developed?"
+)
+
+
+def reporter_asks(
+    reporter: ActorSession,
+    watching_client: DataLayerClient,
+    case: as_VulnerabilityCase,
+    question: str,
+    replies: Sequence[NotePost],
+) -> as_Note | None:
+    """The Reporter asks *question* from its replica; *replies* answer it.
+
+    A :func:`gated_note_thread` on the Reporter's replica: the Reporter posts
+    from it, so the thread waits until that replica holds the case
+    (DEMOMA-22-001).
+
+    Args:
+        reporter: Session in the Reporter's container; posts the question.
+        watching_client: As :func:`add_note_thread`.
+        case: As :func:`add_note_thread`.
+        question: Text of the Reporter's question.
+        replies: The notes that answer it, in posting order.
+
+    Returns:
+        The last reply, or ``None`` when it failed or the gate did.
+    """
+    return gated_note_thread(
+        gate="Reporter's replica holds the case before it asks",
+        replica_client=reporter.client,
+        watching_client=watching_client,
+        case=case,
+        posts=[
+            NotePost(reporter, "Question from Reporter", question),
+            *replies,
+        ],
+    )
+
+
 def reporter_asks_vendor_answers(
     reporter: ActorSession,
     vendor: ActorSession,
@@ -200,8 +242,8 @@ def reporter_asks_vendor_answers(
 
     The shared note exchange of the embargo scenarios; it puts
     ``add_note_to_case`` in the case ledger (DEMOMA-16-001).  It runs after
-    the Reporter's proposal is in force, so the Vendor's next decision on the
-    scenario tree follows it (``notes/demo-scenario-registry.md``).  Failures
+    the Reporter's embargo proposal phase, so the Vendor's next decision on
+    the scenario tree follows it (``notes/demo-scenario-registry.md``).  Failures
     are recorded by :func:`participant_adds_note_to_case`.
 
     Args:

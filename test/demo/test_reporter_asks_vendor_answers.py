@@ -154,3 +154,61 @@ def test_a_failed_gate_posts_nothing_and_records_the_failure():
     add_note.assert_not_called()
     assert len(failures) == 1
     assert "replica holds the case" in failures[0]
+
+
+@pytest.mark.spec("DEMOMA-22-001")
+def test_reporter_asks_gates_on_the_reporter_replica_and_asks_first():
+    reporter = _session("reporter")
+    watching, case = MagicMock(), MagicMock()
+    replies = _posts("vendor")
+
+    with patch.object(notes, "gated_note_thread") as gated:
+        last = notes.reporter_asks(
+            reporter, watching, case, "Any workaround?", replies
+        )
+
+    assert last is gated.return_value
+    kwargs = gated.call_args.kwargs
+    assert kwargs["replica_client"] is reporter.client
+    assert kwargs["watching_client"] is watching
+    assert kwargs["case"] is case
+    question, *rest = kwargs["posts"]
+    assert question == notes.NotePost(
+        reporter, "Question from Reporter", "Any workaround?"
+    )
+    assert rest == replies
+
+
+@pytest.mark.parametrize(
+    ("module", "posters"),
+    [
+        ("rcv_demo", ["reporter", "vendor", "coordinator"]),
+        ("rcv_reject_demo", ["reporter", "coordinator"]),
+        ("rccv_extension_demo", ["reporter", "c1", "c2", "vendor"]),
+        ("rccv_handoff_demo", ["reporter", "c1", "c2", "vendor"]),
+    ],
+)
+@pytest.mark.spec("DEMOMA-17-001")
+def test_scenario_notes_exchange_is_one_thread(
+    module: str, posters: list[str]
+) -> None:
+    """Each scenario's exchange posts one thread, in order, from each poster."""
+    import importlib
+    import inspect
+
+    demo = importlib.import_module(f"vultron.demo.scenario.{module}")
+    params = inspect.signature(demo._phase_notes_exchange).parameters
+    kwargs = {name: MagicMock(name=name) for name in params}
+
+    with patch.object(demo, "add_note_thread") as thread:
+        demo._phase_notes_exchange(**kwargs)
+
+    (_watching, case, posts), _ = thread.call_args
+    assert case is kwargs["case"]
+    assert [p.poster.client for p in posts] == [
+        kwargs[f"{name}_client"] for name in posters
+    ]
+    assert [p.poster.actor for p in posts] == [
+        kwargs[f"{name}_in_{name}"] for name in posters
+    ]
+    assert posts[0].name == "Question from Reporter"

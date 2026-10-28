@@ -57,7 +57,11 @@ from vultron.demo.helpers.milestones import (
     verify_fix_ready,
     verify_publicly_disclosed,
 )
-from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.notes import (
+    WORKAROUND_QUESTION,
+    NotePost,
+    add_note_thread,
+)
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
     find_case_actor_participant_id,
@@ -638,65 +642,52 @@ def _phase_notes_exchange(
     c2_in_c2: as_Actor,
     vendor_in_vendor: as_Actor,
     case: as_VulnerabilityCase,
-) -> tuple[as_Note | None, as_Note | None, as_Note | None, as_Note | None]:
-    """Run a four-way note exchange among all participants."""
+) -> as_Note | None:
+    """Run a four-way note exchange among all participants.
+
+    Returns:
+        The Vendor's note, or ``None`` when it failed.
+    """
     logger.info("─" * 80)
     logger.info("Phase 4b: Notes exchange")
     logger.info("─" * 80)
 
-    question_note = participant_adds_note_to_case(
-        posting_client=reporter_client,
-        watching_client=c1_client,
-        poster=reporter_in_reporter,
-        case=case,
-        note_name="Question from Reporter",
-        note_content=(
-            "Is there a workaround available while the patch is being developed?"
-        ),
-    )
-
-    c1_reply = participant_adds_note_to_case(
-        posting_client=c1_client,
-        watching_client=c1_client,
-        poster=c1_in_c1,
-        case=case,
-        note_name="C1 Response",
-        note_content=(
-            "Yes, disabling the affected module is an effective interim workaround."
-        ),
-        in_reply_to=question_note.id_ if question_note is not None else None,
-    )
-
-    c2_note = participant_adds_note_to_case(
-        posting_client=c2_client,
-        watching_client=c1_client,
-        poster=c2_in_c2,
-        case=case,
-        note_name="C2 Update (new Case Owner)",
-        note_content=(
-            "As the new case owner, I confirm Vendor is engaged. "
-            "Target disclosure in 30 days."
-        ),
-        in_reply_to=c1_reply.id_ if c1_reply is not None else None,
-    )
-
-    vendor_note = participant_adds_note_to_case(
-        posting_client=vendor_client,
-        watching_client=c1_client,
-        poster=vendor_in_vendor,
-        case=case,
-        note_name="Vendor Status Update",
-        note_content=(
-            "Vendor confirms the issue and will align fix timeline with the "
-            "coordinated disclosure window."
-        ),
-        in_reply_to=c2_note.id_ if c2_note is not None else None,
+    vendor_note = add_note_thread(
+        c1_client,
+        case,
+        [
+            NotePost(
+                ActorSession(
+                    client=reporter_client, actor=reporter_in_reporter
+                ),
+                "Question from Reporter",
+                WORKAROUND_QUESTION,
+            ),
+            NotePost(
+                ActorSession(client=c1_client, actor=c1_in_c1),
+                "C1 Response",
+                "Yes, disabling the affected module is an effective interim "
+                "workaround.",
+            ),
+            NotePost(
+                ActorSession(client=c2_client, actor=c2_in_c2),
+                "C2 Update (new Case Owner)",
+                "As the new case owner, I confirm Vendor is engaged. "
+                "Target disclosure in 30 days.",
+            ),
+            NotePost(
+                ActorSession(client=vendor_client, actor=vendor_in_vendor),
+                "Vendor Status Update",
+                "Vendor confirms the issue and will align fix timeline with the "
+                "coordinated disclosure window.",
+            ),
+        ],
     )
 
     logger.info(
         "✓ Notes exchange complete (four notes committed to case ledger)"
     )
-    return question_note, c1_reply, c2_note, vendor_note
+    return vendor_note
 
 
 def _phase_fix_lifecycle(

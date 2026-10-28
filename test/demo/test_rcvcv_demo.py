@@ -1110,8 +1110,9 @@ class TestNotesExchangeGatesEachPosterOnItsReplica(_Helpers):
 
         with (
             patch.object(demo, "get_actor_by_id"),
+            patch.object(demo, "reporter_asks", return_value=c1_reply) as asks,
             patch.object(
-                demo, "gated_note_thread", side_effect=[c1_reply, v1_note]
+                demo, "gated_note_thread", return_value=v1_note
             ) as gated,
         ):
             result = demo._phase_notes_exchange(
@@ -1124,8 +1125,9 @@ class TestNotesExchangeGatesEachPosterOnItsReplica(_Helpers):
                 case=self._case(),
             )
 
-        first, second = gated.call_args_list
-        assert first.kwargs["replica_client"] is reporter_client
+        (reporter_session, *_), _ = asks.call_args
+        assert reporter_session.client is reporter_client
+        (second,) = gated.call_args_list
         assert second.kwargs["replica_client"] is v1_client
         assert [p.poster.client for p in second.kwargs["posts"]] == [v1_client]
         assert second.kwargs["in_reply_to"] is c1_reply

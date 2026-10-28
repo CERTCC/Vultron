@@ -33,6 +33,7 @@ Spec: DEMOMA-12 (GitHub issue #1593).
 
 import logging
 
+from vultron.demo.actor_session import ActorSession
 from vultron.demo.helpers.actor_roles import (
     ActorRole,
     case_actor_role,
@@ -48,7 +49,7 @@ from vultron.demo.helpers.coordinated_case import (
     vendor_reports_fix_ready,
 )
 from vultron.demo.helpers.harness import scenario_harness
-from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.notes import NotePost, add_note_thread
 from vultron.demo.helpers.runner import check_all_containers
 from vultron.demo.helpers.seeding import (
     get_actor_by_id,
@@ -331,41 +332,32 @@ def _phase_notes_exchange(
     logger.info("Phase 4: Notes exchange")
     logger.info("─" * 80)
 
-    question_note = participant_adds_note_to_case(
-        posting_client=reporter_client,
-        watching_client=coordinator_client,
-        poster=reporter_in_reporter,
-        case=case,
-        note_name="Question from Reporter",
-        note_content=(
-            "Could you share the timeline for patch availability with Vendor?"
-        ),
-    )
-
-    vendor_reply = participant_adds_note_to_case(
-        posting_client=vendor_client,
-        watching_client=coordinator_client,
-        poster=vendor_in_vendor,
-        case=case,
-        note_name="Vendor Status Update",
-        note_content=(
-            "We have confirmed the issue and are developing a fix. "
-            "Estimated patch availability: 14 days."
-        ),
-        in_reply_to=question_note.id_ if question_note is not None else None,
-    )
-
-    participant_adds_note_to_case(
-        posting_client=coordinator_client,
-        watching_client=coordinator_client,
-        poster=coordinator_in_coordinator,
-        case=case,
-        note_name="Coordinator Summary",
-        note_content=(
-            "All three parties engaged. Vendor fix expected in 14 days. "
-            "Embargo holds until patch is deployed."
-        ),
-        in_reply_to=vendor_reply.id_ if vendor_reply is not None else None,
+    add_note_thread(
+        coordinator_client,
+        case,
+        [
+            NotePost(
+                ActorSession(
+                    client=reporter_client, actor=reporter_in_reporter
+                ),
+                "Question from Reporter",
+                "Could you share the timeline for patch availability with Vendor?",
+            ),
+            NotePost(
+                ActorSession(client=vendor_client, actor=vendor_in_vendor),
+                "Vendor Status Update",
+                "We have confirmed the issue and are developing a fix. "
+                "Estimated patch availability: 14 days.",
+            ),
+            NotePost(
+                ActorSession(
+                    client=coordinator_client, actor=coordinator_in_coordinator
+                ),
+                "Coordinator Summary",
+                "All three parties engaged. Vendor fix expected in 14 days. "
+                "Embargo holds until patch is deployed.",
+            ),
+        ],
     )
 
     logger.info(

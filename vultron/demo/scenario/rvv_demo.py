@@ -55,7 +55,7 @@ from vultron.demo.helpers.milestones import (
 from vultron.demo.helpers.notes import (
     NotePost,
     add_note_thread,
-    gated_note_thread,
+    reporter_asks,
 )
 from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
@@ -447,20 +447,13 @@ def _phase_notes_exchange(
     logger.info("─" * 80)
 
     reporter_in_reporter = get_actor_by_id(reporter_client, reporter.id_)
-    return gated_note_thread(
-        gate="Reporter's replica holds the case before it asks",
-        replica_client=reporter_client,
-        watching_client=vendor_client,
-        case=case,
-        posts=[
-            NotePost(
-                ActorSession(
-                    client=reporter_client, actor=reporter_in_reporter
-                ),
-                "Question from Reporter",
-                "Is there a workaround available while waiting for the patch? "
-                "Our security team needs to provide interim guidance to users.",
-            ),
+    return reporter_asks(
+        ActorSession(client=reporter_client, actor=reporter_in_reporter),
+        vendor_client,
+        case,
+        "Is there a workaround available while waiting for the patch? "
+        "Our security team needs to provide interim guidance to users.",
+        [
             NotePost(
                 ActorSession(client=vendor_client, actor=vendor_in_vendor),
                 "Vendor1 Response",
