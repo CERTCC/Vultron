@@ -3216,7 +3216,9 @@ groups:
       expected: all five participants are present on every replica
     - order: 4
       actor: demo-script
-      action: notes_exchange phase — C2 and V2 add their notes with add-note-to-case
+      action: >-
+        notes_exchange phase (`_phase_joiner_notes`) — C2 and V2 add their notes
+        with add-note-to-case
       expected: add_note_to_case is recorded in the case-actor log
     - order: 5
       actor: demo-script

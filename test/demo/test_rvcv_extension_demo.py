@@ -1421,9 +1421,10 @@ class TestNotesExchangePrecedesCoordinatorInvite:
     """#4759: the Reporter asks and Vendor1 answers before Vendor1's invite.
 
     Vendor1's choice to invite a Coordinator is its branch point on the
-    scenario tree, so the shared rv steps run before the invite chain, gated
-    on the Reporter's replica holding the case, and the reply note is handed
-    back for the joiners' notes.
+    scenario tree, so the Reporter's question and Vendor1's answer run before
+    the invite chain, and the reply note is handed back for the joiners'
+    notes.  The notes gate themselves on the Reporter's replica
+    (``gated_note_thread``).
     """
 
     def test_order_within_report_submission(self) -> None:
@@ -1452,11 +1453,7 @@ class TestNotesExchangePrecedesCoordinatorInvite:
             ),
             patch.object(demo, "run_direct_path_rm_triage", return_value=case),
             patch.object(demo, "wait_for_case_participants"),
-            patch.object(
-                demo,
-                "wait_for_case_on_container",
-                order.wait_for_case_on_container,
-            ),
+            patch.object(demo, "wait_for_case_on_container"),
             patch.object(
                 demo, "_phase_notes_exchange", order._phase_notes_exchange
             ),
@@ -1482,12 +1479,11 @@ class TestNotesExchangePrecedesCoordinatorInvite:
 
         called = [name for name, _args, _kwargs in order.mock_calls]
         assert called == [
-            "wait_for_case_on_container",
             "_phase_notes_exchange",
             "run_case_invite_chain",
         ], called
         assert (
-            order.wait_for_case_on_container.call_args.kwargs["client"]
+            order._phase_notes_exchange.call_args.kwargs["reporter_client"]
             is reporter_client
         )
         assert result[-1] is reply

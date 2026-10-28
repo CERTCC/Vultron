@@ -586,6 +586,7 @@ class TestRcvcvCausalGates(_Helpers):
                 "find_case_invite_for_actor",
                 side_effect=AssertionError("timed out polling for Invite"),
             ),
+            patch.object(demo, "_phase_notes_exchange"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
         ):
             mock_vc.model_validate.return_value = case
@@ -851,6 +852,7 @@ class TestRcvcvInviteTriggerFailureSkipsDependents(_Helpers):
             patch.object(
                 invite_chain, "find_case_invite_for_actor"
             ) as find_invite,
+            patch.object(demo, "_phase_notes_exchange"),
             patch.object(demo, "as_VulnerabilityCase") as mock_vc,
         ):
             mock_vc.model_validate.return_value = case
@@ -1089,6 +1091,47 @@ class TestNotesExchangePrecedesC2Invite(_Helpers):
         assert result[-1] is v1_note
 
 
+class TestNotesExchangeGatesEachPosterOnItsReplica(_Helpers):
+    """#4759: V1's note waits on V1's replica, not only the Reporter's.
+
+    The exchange now runs inside phase 1, right after V1's invite chain, so a
+    failed chain must skip V1's note instead of posting from a replica that
+    does not hold the case (DEMOMA-22-001).
+    """
+
+    @pytest.mark.spec("DEMOMA-22-001")
+    def test_reporter_thread_then_v1_note_each_gated(self) -> None:
+        reporter_client, c1_client, v1_client = (
+            self._client(),
+            self._client(),
+            self._client(),
+        )
+        c1_reply, v1_note = MagicMock(), MagicMock()
+
+        with (
+            patch.object(demo, "get_actor_by_id"),
+            patch.object(
+                demo, "gated_note_thread", side_effect=[c1_reply, v1_note]
+            ) as gated,
+        ):
+            result = demo._phase_notes_exchange(
+                reporter_client=reporter_client,
+                c1_client=c1_client,
+                v1_client=v1_client,
+                reporter=self._actor("urn:test:reporter"),
+                c1_in_c1=self._actor("urn:test:c1"),
+                v1_in_v1=self._actor("urn:test:v1"),
+                case=self._case(),
+            )
+
+        first, second = gated.call_args_list
+        assert first.kwargs["replica_client"] is reporter_client
+        assert second.kwargs["replica_client"] is v1_client
+        assert [p.poster.client for p in second.kwargs["posts"]] == [v1_client]
+        assert second.kwargs["in_reply_to"] is c1_reply
+        assert result is v1_note
+
+
 # ---------------------------------------------------------------------------
 # The dedicated case-actor container (DEMOMA-06-004, #1876)
 # ---------------------------------------------------------------------------
@@ -1144,6 +1187,7 @@ class TestRcvcvDedicatedCaseActor(_Helpers):
                     "run_case_invite_chain",
                     "run_invite_path_rm_triage",
                     "verify_case_active",
+                    "_phase_notes_exchange",
                 )
             },
         ) as mocks:

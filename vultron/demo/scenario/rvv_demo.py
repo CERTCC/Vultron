@@ -52,7 +52,11 @@ from vultron.demo.helpers.milestones import (
     verify_fix_ready,
     verify_publicly_disclosed,
 )
-from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.notes import (
+    NotePost,
+    add_note_thread,
+    gated_note_thread,
+)
 from vultron.demo.helpers.polling import (
     wait_for_case_em_terminated,
     wait_for_case_on_container,
@@ -295,7 +299,7 @@ def _phase_report_submission(
             )
 
         # The Reporter asks and Vendor1 answers before Vendor1 decides to
-        # invite another Vendor (the scenario tree's shared rv prefix).
+        # invite another Vendor, its branch point on the scenario tree.
         reply_note = _phase_notes_exchange(
             reporter_client=reporter_client,
             vendor_client=vendor_client,
@@ -431,38 +435,39 @@ def _phase_notes_exchange(
 ) -> as_Note | None:
     """The Reporter asks a question and Vendor1 answers it.
 
+    Gated on the Reporter's replica holding the case, since the Reporter posts
+    from it (DEMOMA-22-001).
+
     Returns:
-        Vendor1's reply note, or ``None`` when the exchange failed (the
-        failure is recorded by the note helper).
+        Vendor1's reply note, or ``None`` when the exchange or its gate failed
+        (the failure is recorded).
     """
     logger.info("─" * 80)
     logger.info("Notes exchange: Reporter asks, Vendor1 answers")
     logger.info("─" * 80)
 
     reporter_in_reporter = get_actor_by_id(reporter_client, reporter.id_)
-    question_note = participant_adds_note_to_case(
-        posting_client=reporter_client,
+    return gated_note_thread(
+        gate="Reporter's replica holds the case before it asks",
+        replica_client=reporter_client,
         watching_client=vendor_client,
-        poster=reporter_in_reporter,
         case=case,
-        note_name="Question from Reporter",
-        note_content=(
-            "Is there a workaround available while waiting for the patch? "
-            "Our security team needs to provide interim guidance to users."
-        ),
-    )
-
-    return participant_adds_note_to_case(
-        posting_client=vendor_client,
-        watching_client=vendor_client,
-        poster=vendor_in_vendor,
-        case=case,
-        note_name="Vendor1 Response",
-        note_content=(
-            "Yes, disabling the affected component is an effective workaround. "
-            "A patched version is expected within 30 days."
-        ),
-        in_reply_to=question_note.id_ if question_note is not None else None,
+        posts=[
+            NotePost(
+                ActorSession(
+                    client=reporter_client, actor=reporter_in_reporter
+                ),
+                "Question from Reporter",
+                "Is there a workaround available while waiting for the patch? "
+                "Our security team needs to provide interim guidance to users.",
+            ),
+            NotePost(
+                ActorSession(client=vendor_client, actor=vendor_in_vendor),
+                "Vendor1 Response",
+                "Yes, disabling the affected component is an effective "
+                "workaround. A patched version is expected within 30 days.",
+            ),
+        ],
     )
 
 
@@ -478,17 +483,18 @@ def _phase_vendor2_note(
     logger.info("Phase 3: Vendor2 status note")
     logger.info("─" * 80)
 
-    vendor2_note = participant_adds_note_to_case(
-        posting_client=vendor2_client,
-        watching_client=vendor_client,
-        poster=vendor2_in_vendor2,
-        case=case,
-        note_name="Vendor2 Status Update",
-        note_content=(
-            "Vendor2 can confirm the issue affects our component. "
-            "We will coordinate our fix timeline with Vendor1."
-        ),
-        in_reply_to=reply_note.id_ if reply_note is not None else None,
+    vendor2_note = add_note_thread(
+        vendor_client,
+        case,
+        [
+            NotePost(
+                ActorSession(client=vendor2_client, actor=vendor2_in_vendor2),
+                "Vendor2 Status Update",
+                "Vendor2 can confirm the issue affects our component. "
+                "We will coordinate our fix timeline with Vendor1.",
+            )
+        ],
+        in_reply_to=reply_note,
     )
 
     logger.info(

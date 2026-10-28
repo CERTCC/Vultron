@@ -27,7 +27,8 @@ a set of paths that is not one well-formed tree:
 Unknown branch points and choices are refused earlier, when ``@scenario``
 builds the spec (:func:`vultron.demo.scenario.branch_points.validate_path`).
 
-Design: ``notes/demo-scenario-tree.md``.
+Rules: ``notes/demo-scenario-registry.md`` § "The path and the branch-point
+table".
 """
 
 from __future__ import annotations

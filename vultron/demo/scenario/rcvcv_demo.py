@@ -65,7 +65,11 @@ from vultron.demo.helpers.milestones import (
     verify_fix_ready,
     verify_publicly_disclosed,
 )
-from vultron.demo.helpers.notes import participant_adds_note_to_case
+from vultron.demo.helpers.notes import (
+    NotePost,
+    add_note_thread,
+    gated_note_thread,
+)
 from vultron.demo.helpers.polling import (
     LATE_JOINER_TIMEOUT,
     find_case_actor_participant_id,
@@ -201,10 +205,11 @@ Reporter + C1 (CASE_OWNER) + V1 (VENDOR) + C2 (COORDINATOR) + V2
 Workflow:
   1. Reset and seed all five containers.
   2. Reporter submits a report to C1; C1 validates and engages.
-  3. C1 invites V1 (VENDOR) and C2 (COORDINATOR).
+  3. C1 invites V1 (VENDOR); the Reporter asks, C1 answers and V1 adds
+     its status in case notes; then C1 invites C2 (COORDINATOR).
   4. C2 suggests V2 via ADR-0026; C1 approves; V2 joins via CaseActor.
   5. Verify LedgerFanout replication across all six participants.
-  6. All five actors exchange notes.
+  6. C2 and V2 add their notes to the thread.
   7. Fix lifecycle: V1 → VFd (no deploy); V2 → VFD (fix-deployed).
   8. Publication: V1 publishes first → embargo terminates; all publish.
   9. All actors close the case.
@@ -393,8 +398,7 @@ def _phase_report_submission(
 
         # The Reporter asks, C1 answers and V1 adds its status before C1
         # decides to invite a second Coordinator: on the scenario tree that
-        # invite is C1's choice after the notes exchange it shares with rcv
-        # (notes/demo-scenario-tree.md).
+        # invite is C1's choice after the notes exchange.
         v1_note = _phase_notes_exchange(
             reporter_client=reporter_client,
             c1_client=c1_client,
@@ -665,50 +669,56 @@ def _phase_notes_exchange(
     """The Reporter asks a question, C1 answers and V1 adds its status.
 
     Runs before C1 invites C2, so C1's branch point (invite a second
-    Coordinator) follows it on the scenario tree.
+    Coordinator) follows it on the scenario tree.  Each poster acts from its
+    own replica, so the Reporter's question waits on the Reporter's replica
+    and V1's note on V1's, which holds the case only once V1 has joined
+    (DEMOMA-22-001).
 
     Returns:
-        V1's note, or ``None`` when the exchange failed (the failure is
-        recorded by the note helper); the joiners' notes answer it.
+        V1's note, or ``None`` when it or its gate failed (the failure is
+        recorded); the joiners' notes answer it.
     """
     logger.info("─" * 80)
     logger.info("Notes exchange: Reporter asks, C1 and V1 answer")
     logger.info("─" * 80)
 
     reporter_in_reporter = get_actor_by_id(reporter_client, reporter.id_)
-    question_note = participant_adds_note_to_case(
-        posting_client=reporter_client,
+    c1_reply = gated_note_thread(
+        gate="Reporter's replica holds the case before it asks",
+        replica_client=reporter_client,
         watching_client=c1_client,
-        poster=reporter_in_reporter,
         case=case,
-        note_name="Question from Reporter",
-        note_content=(
-            "Is there a workaround available while the patch is being developed?"
-        ),
+        posts=[
+            NotePost(
+                ActorSession(
+                    client=reporter_client, actor=reporter_in_reporter
+                ),
+                "Question from Reporter",
+                "Is there a workaround available while the patch is being "
+                "developed?",
+            ),
+            NotePost(
+                ActorSession(client=c1_client, actor=c1_in_c1),
+                "C1 Response",
+                "Yes, disabling the affected module is an effective interim "
+                "workaround.",
+            ),
+        ],
     )
-
-    c1_reply = participant_adds_note_to_case(
-        posting_client=c1_client,
+    return gated_note_thread(
+        gate="V1's replica holds the case before it adds its status",
+        replica_client=v1_client,
         watching_client=c1_client,
-        poster=c1_in_c1,
         case=case,
-        note_name="C1 Response",
-        note_content=(
-            "Yes, disabling the affected module is an effective interim workaround."
-        ),
-        in_reply_to=question_note.id_ if question_note is not None else None,
-    )
-
-    return participant_adds_note_to_case(
-        posting_client=v1_client,
-        watching_client=c1_client,
-        poster=v1_in_v1,
-        case=case,
-        note_name="V1 Status Update",
-        note_content=(
-            "V1 has reproduced the issue. We will have a fix ready within 14 days."
-        ),
-        in_reply_to=c1_reply.id_ if c1_reply is not None else None,
+        posts=[
+            NotePost(
+                ActorSession(client=v1_client, actor=v1_in_v1),
+                "V1 Status Update",
+                "V1 has reproduced the issue. We will have a fix ready "
+                "within 14 days.",
+            )
+        ],
+        in_reply_to=c1_reply,
     )
 
 
@@ -720,41 +730,39 @@ def _phase_joiner_notes(
     v2_in_v2: as_Actor,
     case: as_VulnerabilityCase,
     v1_note: as_Note | None,
-) -> tuple[as_Note | None, as_Note | None]:
-    """C2 and V2, once joined, add to the notes thread."""
+) -> as_Note | None:
+    """C2 and V2, once joined, add to the notes thread.
+
+    Returns:
+        V2's note, or ``None`` when it failed.
+    """
     logger.info("─" * 80)
     logger.info("Phase 4: C2 and V2 notes")
     logger.info("─" * 80)
 
-    c2_note = participant_adds_note_to_case(
-        posting_client=c2_client,
-        watching_client=c1_client,
-        poster=c2_in_c2,
-        case=case,
-        note_name="C2 Update",
-        note_content=(
-            "C2 confirms V2 is engaged. Target disclosure in 30 days."
-        ),
-        in_reply_to=v1_note.id_ if v1_note is not None else None,
-    )
-
-    v2_note = participant_adds_note_to_case(
-        posting_client=v2_client,
-        watching_client=c1_client,
-        poster=v2_in_v2,
-        case=case,
-        note_name="V2 Status Update",
-        note_content=(
-            "V2 confirms the issue affects our component. "
-            "We will align our fix and deployment timeline with the 30-day target."
-        ),
-        in_reply_to=c2_note.id_ if c2_note is not None else None,
+    v2_note = add_note_thread(
+        c1_client,
+        case,
+        [
+            NotePost(
+                ActorSession(client=c2_client, actor=c2_in_c2),
+                "C2 Update",
+                "C2 confirms V2 is engaged. Target disclosure in 30 days.",
+            ),
+            NotePost(
+                ActorSession(client=v2_client, actor=v2_in_v2),
+                "V2 Status Update",
+                "V2 confirms the issue affects our component. We will align "
+                "our fix and deployment timeline with the 30-day target.",
+            ),
+        ],
+        in_reply_to=v1_note,
     )
 
     logger.info(
-        "✓ Notes exchange complete (five notes committed to case ledger)"
+        "✓ Notes exchange complete (C2 and V2 notes added to the thread)"
     )
-    return c2_note, v2_note
+    return v2_note
 
 
 def _phase_fix_lifecycle(

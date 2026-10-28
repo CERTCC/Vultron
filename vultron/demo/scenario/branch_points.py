@@ -33,8 +33,9 @@ Two rules shape every entry:
   node where that decision is made, so a decision that recurs on one path, or
   appears in two families (``owner-keep-case``), is still one entry.
 
-Design: ``notes/demo-scenario-tree.md``; decision records ADR-0098 and
-ADR-0104.
+Rules: ``notes/demo-scenario-registry.md`` § "The path and the branch-point
+table"; remaining design: ``notes/demo-scenario-tree.md``; decision records
+ADR-0098 and ADR-0104.
 """
 
 from __future__ import annotations
@@ -181,8 +182,9 @@ def build_branch_point_table(
     return MappingProxyType(table)
 
 
-#: The branch points of the scenario tree, in root-first order. See
-#: ``notes/demo-scenario-tree.md`` § "Today's scenarios on one tree".
+#: The branch points of the scenario tree, in root-first order. The tree they
+#: make is ``registry.scenario_tree()``; the declaration rules are in
+#: ``notes/demo-scenario-registry.md`` § "The path and the branch-point table".
 BRANCH_POINTS: Mapping[str, BranchPoint] = build_branch_point_table(
     (
         BranchPoint(
