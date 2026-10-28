@@ -170,12 +170,11 @@ groups:
       answered by no `Reject`.
     rationale: >-
       The refused participant must learn that it was refused and why, so it can stop
-      waiting for its entry. Other participants need only the case history, and a
-      refusal changes nothing in the case. A ledgered refusal would also put a non-event
-      into the hash chain that every replica must hold. A sender that is not entitled to
-      make the assertion is owed no answer (HP-01-006, ADR-0141). After the case has
-      fully closed, the CASE_MANAGER acts like a process that has exited, and a `Reject`
-      of a late activity could be read as a protocol decision (CM-23-013, ADR-0131).
+      waiting for its entry. A refusal changes nothing in the case, and a ledgered
+      refusal would put a non-event into every replica's hash chain. A sender that is
+      not entitled to make the assertion is owed no answer (HP-01-006, ADR-0141). A
+      closed case's CASE_MANAGER acts like an exited process, and a `Reject` of a late
+      activity could read as a protocol decision (CM-23-013, ADR-0131).
     adr:
     - ADR-0131
     - ADR-0141
@@ -379,14 +378,14 @@ groups:
   - id: CLP-03-001
     priority: MUST
     kind: protocol
-    statement: Only assertions that can be resolved to a specific report, proto-case,
-      or case MUST be appended to the case audit ledger
+    statement: Only assertions that can be resolved to a specific case MUST be appended
+      to the case audit ledger
     rationale: >-
-      Every entry belongs to the hash chain of one case. An assertion that no case or
-      proto-case can claim has no chain to join, and an entry for it would break the
-      rule that a ledger holds only the history of its own case.
+      Every entry belongs to the hash chain of one case. An assertion that no case can
+      claim has no chain to join, and an entry for it would break the rule that a
+      ledger holds only the history of its own case.
     verification: Integration tests in `test/demo/` confirm that activities lacking
-      a resolvable report, proto-case, or case ID are dropped before reaching `CommitCaseLedgerEntryNode`
+      a resolvable case ID are dropped before reaching `CommitCaseLedgerEntryNode`
       and produce no `CaseLedgerEntry` in the ledger.
     stories:
     - story_2022_045
@@ -408,25 +407,6 @@ groups:
     stories:
     - story_2022_045
     - story_2022_089
-  - id: CLP-03-003
-    priority: MUST
-    kind: protocol
-    statement: The assertion-recording model MUST support continuity from report receipt
-      through the case lifecycle so that all history — including the proto-case stage
-      (RM.RECEIVED / RM.INVALID) — is captured in the case audit ledger
-    rationale: >-
-      The report and its first validation decide what the case becomes. If the ledger
-      starts only when a case exists, the earliest decisions are not in the shared
-      history, and a replica cannot show why the case started.
-    verification: >-
-      `test_report_receipt_is_recorded_in_the_case_ledger` in
-      `test/core/use_cases/received/test_submit_report_received.py` checks for a
-      `CaseLedgerEntry` after report receipt at RM.RECEIVED. It is a strict `xfail`:
-      no ledger exists before the case (ADR-0041), and #5326 holds the conflict.
-    stories:
-    - story_2022_045
-    - story_2022_074
-    - story_2022_088
 - id: CLP-04
   title: Canonical Ledger and Replication
   specs:
@@ -820,9 +800,8 @@ groups:
     priority: MUST_NOT
     kind: protocol
     verification_debt: '#3612'
-    statement: The `payloadSnapshot` of a `CaseLedgerEntry` MUST NOT be empty for
-      non-rejection entries.
-    rationale: An empty payload snapshot for a recorded entry breaks deterministic
+    statement: The `payloadSnapshot` of a `CaseLedgerEntry` MUST NOT be empty.
+    rationale: An empty payload snapshot breaks deterministic
       replay and makes it impossible for replica nodes to reconstruct the case state
       from the canonical log.
     adr:
@@ -1861,14 +1840,12 @@ groups:
       replica) is written by an effect node from the copy the event carries, after the
       precondition guards.
     rationale: >-
-      An architecture test checks that every received tree begins with the shared intake
-      node, so intake is the one store step for a received activity. An object inside an
-      activity is only a message shaped like that object. If intake wrote it as a record
-      before the guards, any sender could seed a case replica or a ledger entry ahead of
-      the trust and chain checks (PCR-03-004). The archive is the sealed body
-      (ADR-0149), because a summary drops what core does not name. The receiver mints
-      the row id, so a sender cannot take an id that the receiver derives for its own
-      record.
+      An object inside an activity is only a message shaped like that object. If intake
+      wrote it as a record before the guards, any sender could seed a case replica or a
+      ledger entry ahead of the trust and chain checks (PCR-03-004). The archive is the
+      sealed body (ADR-0149), because a summary drops what core does not name. The
+      receiver mints the row id, so a sender cannot take an id that the receiver derives
+      for its own record.
     verification: '`test/architecture/test_receive_side_intake_first.py` asserts
       the intake node is the first child of every tree `create_receive_activity_tree`
       returns and that every receive-side factory returns that tree. A unit test for
@@ -2151,8 +2128,8 @@ groups:
       tree, which the one-tree rule forbids (ADR-0135). These answers are not refusal
       effects. The late-Accept answer commits and writes consent. The P/X/A ER is owed
       by a participant too, and its derived id lets a redelivery find it already sent
-      (HP-01-003). A diversion keeps each answer in the one tree, where the architecture
-      tests and a reader can see it.
+      (HP-01-003). A diversion keeps each answer in the one tree, where tests and
+      readers can see it.
     verification: >-
       `test/core/behaviors/case/nodes/test_diversion_stage.py` asserts a
       diversion that does not hold lets the tree continue, one that holds runs
@@ -2358,7 +2335,7 @@ groups:
   title: Idempotency Guard Silence
   description: Requirements ensuring that BT idempotency guards (duplicate-detection
     conditions that abort processing when an event has already been handled) do NOT
-    write ledger entries of any disposition.  The canonical case ledger records protocol
+    write ledger entries.  The canonical case ledger records protocol
     assertions; internal guard no-ops are process-log content only (ADR-0019).
   specs:
   - id: CLP-13-001
@@ -2366,8 +2343,7 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: A BT idempotency guard that detects a duplicate and returns ``Status.FAILURE``
-      to abort processing MUST NOT write a ``CaseLedgerEntry`` of any disposition
-      (``"recorded"`` or ``"rejected"``).
+      to abort processing MUST NOT write a ``CaseLedgerEntry``.
     rationale: >-
       A duplicate that a guard stops is not a protocol event. An entry for it appears
       in the shared history as an act that changed nothing, with no actor and no

@@ -107,6 +107,10 @@ groups:
     verification: >-
       Unit tests confirm that appended log entries are immutable and that any
       modification attempt is rejected.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-00-005
+      note: Restates the immutability of SYNC-00-005 for the canonical case ledger
     stories:
     - story_2022_074
   - id: SYNC-01-002
@@ -829,6 +833,10 @@ groups:
     verification: >-
       Unit tests confirm that log entries are immutable once committed and that each
       entry is uniquely identified by its content hash.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-00-005
+      note: Restates the immutability of SYNC-00-005 as a system invariant
     stories:
     - story_2022_045
     - story_2022_089
@@ -1174,6 +1182,10 @@ groups:
       Integration tests in `test/demo/` confirm that CaseLedgerEntry creation for the
       primary case is confined to the CASE_MANAGER's authoritative write path and no other
       component creates such records.
+    relationships:
+    - rel_type: refines
+      spec_id: SYNC-01-004
+      note: Restates the single-writer rule of SYNC-01-004 for `CaseLedgerEntry` records
     stories:
     - story_2022_045
     - story_2022_046
@@ -1568,7 +1580,35 @@ groups:
       Reject causes a replay, and each replayed entry causes another Reject. Without a
       bound, this loop grows without limit and can starve the CASE_MANAGER's other
       work. The bound is a rate limit and not a stop, because a later Reject must still
-      get a replay when a replayed entry is lost (SYNC-15-011 note).
+      get a replay when a replayed entry is lost.
+    note: >-
+      The bound must be a rate limit rather than permanent suppression: if a replayed
+      entry is lost in transit, a later Reject at the same position must still
+      eventually trigger a fresh replay, or the peer would never converge.  The
+      zero-entry carve-out (SYNC-15-011) follows from the same requirement — recording
+      a position at which nothing was delivered would start a cooldown that suppresses
+      the first replay genuinely owed to that peer once the ledger grows.
+      Genesis (`last_accepted_hash == ""`) SHOULD use a shorter cooldown than a
+      mid-chain stall: a peer at genesis holds no entries at all and its convergence is
+      owned by SYNC-15-001 and SYNC-15-015, which seed the VulnerabilityCase and then
+      rely on the following replay to deliver the history, so rate-limiting that replay
+      as aggressively as a mid-chain stall starves the bootstrap it exists to complete.
+      Genesis cannot be exempted outright, however, because a peer that cannot anchor
+      its chain reports genesis on every Reject.
+    relationships:
+    - rel_type: depends_on
+      spec_id: SYNC-08-005
+      note: >-
+        Bounds the replay that the SYNC-08-005 resynchronization triggers; the
+        reject-on-divergence contract itself is unchanged
+    - rel_type: depends_on
+      spec_id: SYNC-03-002
+      note: The replay-from-hash path whose rate this rule limits
+    - rel_type: refines
+      spec_id: SYNC-15-001
+      note: >-
+        The genesis Reject that SYNC-15-001 mandates is the highest-volume source of
+        no-progress replays
     verification: >-
       Integration tests in `test/demo/` confirm that the CASE_MANAGER applies a cooldown
       to replays for a peer whose acknowledged position has not advanced, preventing
@@ -1625,28 +1665,6 @@ groups:
       A replay that sent nothing gave the peer nothing to act on. Recording its
       position would start a cooldown, and that cooldown would suppress the first
       replay the peer actually needs when the ledger grows.
-    note: >-
-      The bound must be a rate limit rather than permanent suppression: if a replayed entry is
-      lost in transit, a later Reject at the same position must still eventually trigger a fresh
-      replay, or the peer would never converge.  The zero-entry carve-out follows from the same
-      requirement — recording a position at which nothing was delivered would start a cooldown
-      that suppresses the first replay genuinely owed to that peer once the ledger grows.
-      Genesis (`last_accepted_hash == ""`) SHOULD use a shorter cooldown than a mid-chain stall:
-      a peer at genesis holds no entries at all and its convergence is owned by
-      SYNC-15-001/SYNC-15-002, which seed the VulnerabilityCase and then rely on the following
-      replay to deliver the history, so rate-limiting that replay as aggressively as a mid-chain
-      stall starves the bootstrap it exists to complete.  Genesis cannot be exempted outright,
-      however, because a peer that cannot anchor its chain reports genesis on every Reject.
-    relationships:
-    - rel_type: depends_on
-      spec_id: SYNC-08-005
-      note: Bounds the replay this rule triggers; the reject-on-divergence contract itself is unchanged
-    - rel_type: depends_on
-      spec_id: SYNC-03-002
-      note: The replay-from-hash path whose rate this rule limits
-    - rel_type: refines
-      spec_id: SYNC-15-001
-      note: The genesis Reject that SYNC-15-001 mandates is the highest-volume source of no-progress replays
   - id: SYNC-15-004
     priority: MUST
     kind: protocol
@@ -1768,7 +1786,7 @@ groups:
       chain, the loop runs for as long as the peer rejects. A cooldown that doubles soon
       makes replays to a stuck peer rare, whatever the round-trip time. The ceiling
       makes sure that a stuck peer still gets a replay at a fixed interval, so the
-      cooldown is a rate limit and not a stop (SYNC-15-011 note).
+      cooldown is a rate limit and not a stop (SYNC-15-003 note).
     relationships:
     - rel_type: refines
       spec_id: SYNC-15-003
@@ -1789,7 +1807,7 @@ groups:
     kind: protocol
     statement: >-
       The CASE_MANAGER MUST NOT send the genesis `Announce(VulnerabilityCase)` pre-seed
-      (SYNC-15-002) in answer to a genesis Reject whose replay the cooldown suppresses.
+      (SYNC-15-015) in answer to a genesis Reject whose replay the cooldown suppresses.
     rationale: >-
       The pre-seed exists to anchor the replay that follows it. While the cooldown
       suppresses that replay, the peer already holds the case sent with the last one. A
@@ -1802,6 +1820,29 @@ groups:
       `test/core/behaviors/sync/test_reject_tree.py`
       (`test_genesis_announce_skipped_when_replay_rate_limited`) confirms five genesis
       Rejects in one cooldown send the case once.
+    stories:
+    - story_2022_045
+    - story_2022_088
+  - id: SYNC-15-015
+    priority: MUST
+    kind: protocol
+    statement: >-
+      When the CASE_MANAGER answers a `Reject(CaseLedgerEntry)` with
+      `last_accepted_hash=""` with a replay, it MUST first send
+      `Announce(VulnerabilityCase)` to the rejecting peer.
+    rationale: >-
+      A peer that rejects from genesis does not hold the case, so it cannot compute
+      the per-case genesis hash (CLP-08-005). Without the case, the peer fails the
+      chain check on each replayed entry and rejects it again. The case lets the peer
+      anchor its chain and drain the entries it holds (SYNC-15-005), so the replay
+      that follows can apply.
+    verification: >-
+      `test/core/behaviors/sync/test_reject_tree.py`
+      (`test_genesis_reject_queues_announce_vulnerability_case`) confirms a genesis
+      Reject sends `Announce(VulnerabilityCase)` to the rejecting peer;
+      `test_create_reject_log_entry_tree_returns_sequence` confirms the pre-seed runs
+      before the replay; `test_non_genesis_reject_skips_announce_vulnerability_case`
+      confirms a Reject from a later position sends no case.
     stories:
     - story_2022_045
     - story_2022_088
@@ -2015,7 +2056,7 @@ groups:
       asking for a replay from genesis; a receiver MUST refuse a `Reject` that names no
       entry and states no position, or a position other than the empty chain's, and the
       CASE_MANAGER MUST answer the empty-chain form as it answers any replay from
-      genesis (SYNC-15-002).
+      genesis (SYNC-15-015).
     rationale: >-
       Those entries are already reflected in the copy. The refused entry the replica
       held under SYNC-16-001 drains first, before any replay arrives, so a rule that
@@ -2342,7 +2383,7 @@ groups:
       its `ledgerPosition` is missing or does not parse, naming the activity and writing
       nothing. A `Reject(CaseLedgerEntry)` that names an entry and carries no position
       MUST NOT be refused for it: it comes from a peer that does not hold the case yet,
-      which the CASE_MANAGER seeds and replays from genesis (SYNC-15-002).
+      which the CASE_MANAGER seeds and replays from genesis (SYNC-15-015).
     rationale: >-
       Core code then receives a non-optional position (ADR-0032), and every ledgered
       act carries one. A receiver cannot tell from a `Reject(CaseLedgerEntry)` alone

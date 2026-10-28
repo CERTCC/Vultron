@@ -634,9 +634,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in EM Revise (q^em ∈ R) with CS in a public/exploit/attack
-      state (q^cs ∉ ···pxa) receiving EJ MUST emit ET to terminate the embargo
-      immediately rather than reverting to Active.
+      The CASE_MANAGER in EM Revise (q^em ∈ R) with CS in a public/exploit/attack
+      state (q^cs ∉ ···pxa) that commits the Case Owner's EJ of the last open
+      revision MUST emit ET in the same act to terminate the embargo, rather than
+      reverting to Active.
     rationale: >-
       Reverting to Active is not viable once public disclosure has occurred.
       VP-11-002 requires termination in these states. "Rather than reverting"
@@ -644,10 +645,24 @@ groups:
       the act, the CASE_MANAGER records the rejection as decided (the revision
       REJECTED) and then terminates the embargo, as two entries a replica copies
       in order (MSM-07-009, CM-23-016).
+    note: >-
+      EJ is the Case Owner's decision, and only the CASE_MANAGER writes shared
+      EM state, so the CASE_MANAGER emits the ET. The CASE_MANAGER can be the
+      Case Owner itself. A Participant that does not hold the CASE_MANAGER role
+      emits no ET (EP-09-008, EMB-03-003, ADR-0118). While another revision is
+      open, the rejection leaves EM in Revise and ends nothing (EP-08-001).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
-      with a public/exploit/attack CS causes ET to be emitted and EM to transition
-      to EXITED rather than reverting to ACTIVE.
+      `test/core/use_cases/received/test_embargo_ending_notices.py`
+      (`test_owner_ej_after_disclosure_sends_et_crediting_the_owner`) and
+      `test/core/use_cases/triggers/embargo/test_reject.py`
+      (`test_manager_reject_after_disclosure_rejects_then_terminates`) confirm
+      that the CASE_MANAGER commits the Case Owner's EJ of the last revision
+      after P/X/A and then emits ET, so EM ends EXITED, not ACTIVE.
+      `test/core/services/embargo_lifecycle/test_reject_with_other_proposals_open.py`
+      confirms that while another revision is open the rejection leaves EM in
+      REVISE, and
+      `test/core/use_cases/received/test_ledger_replay_convergence.py` confirms
+      that a replica copies both entries in order.
     testable: true
     preconditions:
     - em_state:
@@ -664,8 +679,10 @@ groups:
       description: EM state is Revise; CS matches pattern .....A
     steps:
     - order: 1
-      actor: receiver
-      action: Emit ET to terminate the embargo immediately
+      actor: CASE_MANAGER
+      action: >-
+        Commit the Case Owner's EJ, then emit ET to terminate the embargo in the
+        same act
       expected: ET queued for participants; EM transitions to EXITED
     postconditions:
     - description: ET emitted; EM state is EXITED
