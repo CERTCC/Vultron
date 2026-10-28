@@ -251,7 +251,7 @@ The two have the same shape: an actor, recipients, a time, a type, and an option
 <td markdown="span">One to many</td>
 <td markdown="span">Mechanical</td>
 <td markdown="span">Interpretive</td>
-<td markdown="span">No change proposed: a projection leaves out `dl_vuln_ids`, and the action then applies to all vulnerabilities in the document (test 6.2.56.4). An act on one vulnerability only is an argument to split the case ([ADR-0125](../../adr/0125-case-split-child-case-inherits-the-embargo-only.md), proposed).</td>
+<td markdown="span">No change proposed: a projection leaves out `dl_vuln_ids`, and the action then applies to all vulnerabilities in the document (test 6.2.56.4). An act on one vulnerability only is an argument to split the case ([ADR-0125](../../adr/0125-case-split-child-case-inherits-the-embargo-only.md), provisionally accepted).</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">State at a ledger position, for example an invitation with no answer</td>
