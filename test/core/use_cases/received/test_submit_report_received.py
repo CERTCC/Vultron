@@ -178,6 +178,23 @@ class TestSubmitReportCreatesCase:
         assert link.report_id == self.REPORT_ID
         assert link.case_id is None
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "CLP-03-003: no case ledger exists before the case (ADR-0041), so "
+            "report receipt writes no CaseLedgerEntry. Tracked by #5326."
+        ),
+    )
+    @pytest.mark.spec("CLP-03-003")
+    def test_report_receipt_is_recorded_in_the_case_ledger(self):
+        """CLP-03-003: report receipt at RM.RECEIVED leaves a ledger entry."""
+        event, dl = self._make_event_and_dl()
+        SubmitReportReceivedUseCase(
+            dl, event, trigger_activity=TriggerActivityAdapter(dl)
+        ).execute()
+
+        assert dl.list_objects("CaseLedgerEntry") != []
+
     def test_submit_report_creates_vendor_participant_at_received(self):
         """ADR-0041: no VulnerabilityCase → no CaseParticipant created by vendor."""
         event, dl = self._make_event_and_dl()
