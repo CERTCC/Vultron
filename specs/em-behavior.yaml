@@ -90,6 +90,9 @@ groups:
       VP-06-001 and VP-11-001 prohibit new embargo negotiations in these states.
       ER signals the rejection to the proposer so they can update their own EM
       state.
+    adr:
+    - ADR-0118
+    - ADR-0123
     testable: true
     preconditions:
     - cs_pattern: "...P.."
@@ -222,10 +225,10 @@ groups:
       again, under its own id, an ER its sealed record shows as sent but the outbox no
       longer holds, so that a failed queue write does not lose it (ID-04-005).
     rationale: >-
-      How this codebase keeps the ER of EMB-01-002 from being lost; split from it so
-      that item states only the answer other participants observe (MS-12-010). The
-      sealed record is what a redelivery reads as "already answered", so without the
-      requeue a failed queue write would leave the proposal unanswered for good.
+      EMB-01-002 states only the answer other participants observe (MS-12-010), so this
+      item holds how this codebase keeps that ER from being lost. A redelivery reads the
+      sealed record as "already answered". Without the requeue, a failed queue write
+      would therefore leave the proposal unanswered for good.
     verification: >-
       `test/core/use_cases/received/test_embargo_relay_replay.py`
       (`test_a_refusal_whose_queue_write_failed_is_queued_on_redelivery`) fails the
@@ -254,6 +257,8 @@ groups:
       EA is the message that moves a negotiated embargo from Proposed to Active.
       The receiver records that the embargo is now in effect. Any other open
       proposal stays open as a revision of it (ADR-0130).
+    adr:
+    - ADR-0130
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EA in EM PROPOSED
       with CS matching ...pxa and no other open proposal transitions EM to ACTIVE
@@ -402,6 +407,8 @@ groups:
       EV signals a proposal to revise an active embargo's terms. The receiver
       enters Revise state to indicate a pending revision. The original embargo
       remains in force during revision per VP-04-005.
+    adr:
+    - ADR-0113
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EV in EM ACTIVE
       with CS matching ...pxa transitions EM to REVISE, and that the CASE_MANAGER's ledger
@@ -500,6 +507,9 @@ groups:
       are met by the owner's or CASE_MANAGER's termination, which in the
       CASE_MANAGER topology is the CS public-event cascade, not by each
       participant emitting ET (ADR-0118).
+    adr:
+    - ADR-0113
+    - ADR-0118
     verification: >-
       A per-actor-store test in
       `test/core/use_cases/received/test_embargo_relay_replay.py` delivers a relayed
@@ -571,9 +581,15 @@ groups:
       received activity, fanned out as `Announce(CaseLedgerEntry)`; no EK message
       is emitted (EP-09-009, MSM-02-009).
     rationale: >-
-      EJ signals that a revision proposal has been rejected and the embargo
-      reverts to its previous Active terms. The receiver restores the
-      pre-revision state.
+      EJ says that a revision proposal is rejected. A rejected revision does not change
+      the embargo in force (VP-04-005), so when no other proposal is open, EM returns to
+      Active under the terms it had. While another proposal stays open, EM stays in
+      Revise, because the register still holds an open proposal (ADR-0130). The
+      CASE_MANAGER's commit and fan-out of the received activity tell every participant
+      of the change, so no separate EK message is necessary (ADR-0113).
+    adr:
+    - ADR-0113
+    - ADR-0130
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EJ in EM REVISE
       with CS matching ...pxa and no other open proposal transitions EM back to
@@ -679,8 +695,15 @@ groups:
       `Accept(EmbargoEvent, target=Case)`, fanned out as
       `Announce(CaseLedgerEntry)`; no EK message is emitted (EP-09-009, MSM-02-009).
     rationale: >-
-      EC signals that a revision proposal has been accepted. The embargo returns
-      to Active state under the new terms agreed by the revision.
+      EC says that the case owner accepts a revision. The revised terms replace the
+      terms in force, so when no other proposal is open, EM returns to Active under the
+      revised terms. While another proposal stays open, EM stays in Revise under the
+      revised terms, because the register still holds an open proposal (ADR-0130). The
+      CASE_MANAGER's commit and fan-out of the owner's Accept tell every participant of
+      the change, so no separate EK message is necessary (ADR-0113).
+    adr:
+    - ADR-0113
+    - ADR-0130
     verification: >-
       Integration tests in `test/demo/` confirm that receiving EC in EM REVISE
       with CS matching ...pxa and no other open proposal transitions EM back to
@@ -788,6 +811,8 @@ groups:
       open proposal, the case returns to None (no embargo in effect); another
       open proposal keeps it in Proposed (ADR-0130). The EK acknowledges the
       rejection.
+    adr:
+    - ADR-0130
     verification: >-
       Integration tests in `test/demo/` confirm that receiving ER in EM PROPOSED
       with no other open proposal transitions EM to NONE and queues EK to the
@@ -1000,9 +1025,9 @@ groups:
       A Participant receiving EK MAY process it as a passthrough acknowledgment
       with no state transition and no required response.
     rationale: >-
-      EK is a pure acknowledgment message. It confirms the sender received a
-      prior E* message. No state change or response is required from the
-      receiver.
+      EK only confirms that its sender received an earlier E* message. It carries no
+      decision about the embargo, so it gives the receiver nothing to change and nothing
+      to answer.
     testable: false
     lint_suppress:
     - testable_without_steps
@@ -1314,6 +1339,9 @@ groups:
       entry accepts no further change (ADR-0122), so no later
       invitation to the terminated embargo can rebind anyone. The position is
       derived from the case, so it is not copied onto each participant record.
+    adr:
+    - ADR-0118
+    - ADR-0122
     testable: true
     preconditions:
     - em_state:
@@ -1602,10 +1630,12 @@ groups:
       followed by EmbargoExitPolicyGuard or EmbargoExitOverride (EMB-14-002, EMB-14-003)
       and the OnEmbargoExit actuator.
     rationale: >-
-      How this codebase asks for the reason EMB-14-001 records; split from it so that
-      item states only the cause other participants observe (MS-12-010). A Selector of
-      Evaluator call-out points gives actors a clear interface (three buttons) and lets
-      policy-rule backends be injected per ADR-0025.
+      EMB-14-001 states only the cause other participants observe (MS-12-010), so this
+      item holds how this codebase asks for the reason. A Selector of Evaluator call-out
+      points gives actors a clear interface (three buttons), and it lets a deployment
+      inject a policy-rule backend (ADR-0025).
+    adr:
+    - ADR-0025
     verification: >-
       `test/core/behaviors/embargo/test_terminate_active_embargo_tree.py` confirms the
       tree's second child is a Selector of the three reason call-out points
@@ -1993,10 +2023,10 @@ groups:
       prototype the owner's auto-answer to a Flow B Invite is its decision for the case,
       not a Reject of the Invite.
     rationale: >-
-      How this codebase's decision layer reaches the rejection EMB-15-004 describes;
-      split from it so that item states only the answer other participants observe
-      (MS-12-010). The rejection paths already carry the EM and consent semantics, so
-      the decision layer selects among them and must not re-implement the transition.
+      EMB-15-004 states only the answer other participants observe (MS-12-010), so this
+      item holds how this codebase's decision layer reaches that rejection. The
+      rejection paths already carry the EM and consent semantics, so the decision layer
+      selects among them and must not re-implement the transition.
     verification: >-
       `test/core/behaviors/embargo/test_response_decision_tree.py`
       (`test_reject_arm_is_last_child_without_counter`,
@@ -2128,14 +2158,13 @@ groups:
       abandonment of the case's open proposals, and MUST NOT write the
       abandonment to its own EM state.
     rationale: >-
-      Abandoning the case's open proposals is a decision for the case, made
-      by the case owner or the CASE_MANAGER it delegates to (EMB-16-001,
-      EP-09-008). The P/X/A signal already reaches the CASE_MANAGER as a
-      status declaration, and the CASE_MANAGER abandons on its own
-      detection. An ER sent on the case's behalf by another Participant
-      arrives at the CASE_MANAGER as that Participant declining the proposal
-      (MSM-07-004), so it would record an abandonment the Participant had no
-      standing to make (#4148).
+      Abandoning the case's open proposals is a decision for the case. The case owner
+      makes it, or the CASE_MANAGER it delegates to (EMB-16-001, EP-09-008). The P/X/A
+      signal already reaches the CASE_MANAGER as a status declaration, and the
+      CASE_MANAGER abandons the proposals on its own detection. An ER that another
+      Participant sends on the case's behalf arrives at the CASE_MANAGER as that
+      Participant declining the proposal (MSM-07-004). It would therefore record an
+      abandonment that the Participant has no standing to make.
     note: >-
       Two rules sit side by side. This one covers the abandonment of
       proposals already open on the case: only the CASE_MANAGER makes it.
@@ -2244,6 +2273,7 @@ groups:
       spec_id: EMB-17-001
     adr:
     - ADR-0065
+    - ADR-0118
     - ADR-0152
     stories:
     - story_2022_014
@@ -2302,6 +2332,7 @@ groups:
       spec_id: CM-28-013
     adr:
     - ADR-0065
+    - ADR-0118
     - ADR-0152
     stories:
     - story_2022_013
@@ -2396,6 +2427,7 @@ groups:
         after EM EXITED when CS is not yet P/X/A
     adr:
     - ADR-0065
+    - ADR-0118
     - ADR-0152
     stories:
     - story_2022_013
@@ -2503,12 +2535,13 @@ groups:
       themselves, or assign case.current_status.em, and then call
       dl.save(case) as a substitute for routing through one of those two.
     rationale: >-
-      EmbargoLifecycle and the one apply function are the only embargo
-      writers; the copy model moves each act to the second as it comes to be
-      committed before it is applied (#4294). Bypassing both skips the
-      fail-closed reads of EMB-18-003, the PEC cascade and the shared
-      starting-state and EM checks, and a status EM assigned directly is
-      overwritten by the register's derived value. Source: CONCERN-2412.
+      EmbargoLifecycle and the one apply function are the only embargo writers. A path
+      that goes around both skips the fail-closed reads of EMB-18-003, the PEC cascade,
+      and the shared starting-state and EM checks. Also, the EM value the register
+      derives overwrites a status EM that a path assigns directly.
+    adr:
+    - ADR-0122
+    - ADR-0124
     relationships:
     - rel_type: refines
       spec_id: SM-04-001
@@ -2522,10 +2555,9 @@ groups:
       the result. A refused register step MUST either raise or cause the node
       to return Status.FAILURE without writing to the DataLayer.
     rationale: >-
-      Warning-only guards create the illusion of validation while allowing
-      invalid states to be persisted. The correct pattern is to route through
-      EmbargoLifecycle (EMB-18-001), which enforces fail-closed behavior in
-      STRICT mode. Source: CONCERN-2412.
+      A warning-only guard looks like validation but lets an invalid state persist. The
+      correct pattern is to go through EmbargoLifecycle (EMB-18-001), which fails closed
+      in STRICT mode.
     relationships:
     - rel_type: refines
       spec_id: EMB-18-001
@@ -2546,12 +2578,12 @@ groups:
       (EMB-18-007) only gives it the record before the writer reads it. The
       CASE_MANAGER holds the canonical case, so it has nobody to fetch a record from.
     rationale: >-
-      The EP-05-001 comparison reads the replaced embargo, so it holds only if
-      no case names an embargo its store cannot read. Any writer that accepts a
-      bare id (an activation writer, or seeding a case whose embargo arrived as
-      a bare reference) lets a case name an unreadable record. A replica can
-      fetch it from the CASE_MANAGER (AKM-05-003); at the CASE_MANAGER a
-      deferral waits for a record no path delivers. Source: CONCERN-4004.
+      The EP-05-001 comparison reads the replaced embargo, so it holds only if no case
+      names an embargo its store cannot read. Any writer that accepts a bare id lets a
+      case name an unreadable record: an activation writer can, and so can seeding a
+      case whose embargo arrived as a bare reference. A replica can fetch the record
+      from the CASE_MANAGER (AKM-05-003). At the CASE_MANAGER, a deferral waits for a
+      record that no path delivers.
     verification: >-
       Unit tests of `accept_embargo_invite()` and `activate_embargo()` in
       `test/core/services/embargo_lifecycle/` assert that an unreadable activated or replaced
@@ -2607,15 +2639,15 @@ groups:
       names it by bare id. For a ledger entry, the case's reports are those of the
       replica's stored case.
     rationale: >-
-      An embargo belongs to the case named by its `context`. The inbox stores a carried
-      embargo ahead of the handler's trust checks, and a first write wins, so an unchecked
-      event would let a sender plant another case's embargo under an id that case will later
-      name. The case would then name the held record, not the carried copy, so checking
-      only the copy, or a bare id only for resolving, leaves the case pointing at another
-      case's embargo (#4962). A Reporter's proposal names its report until the case exists
-      and keeps its id once it is about the case (EP-04-004), so the Reporter holds it about
-      the report; refusing that would refuse the Reporter its own case. Giving the refusal
-      a requirement lets ratchets and docs cite it instead of a code comment.
+      An embargo belongs to the case that its `context` names. The inbox stores a
+      carried embargo before the handler's trust checks, and the first write wins. An
+      unchecked event would therefore let a sender plant the embargo of another case
+      under an id that case will name later. The case would then name the held record,
+      not the carried copy. A check of only the copy, or of a bare id only when it is
+      resolved, leaves the case pointing at the embargo of another case. A Reporter's
+      proposal names its report until the case exists, and it keeps its id when it is
+      about the case (EP-04-004). The Reporter holds it about the report, so refusing
+      that would refuse the Reporter its own case.
     verification: >-
       A receiver is given a case that carries an inline `EmbargoEvent` whose `context`
       names a different case. The receiver refuses it, holds no record of the event
@@ -2712,12 +2744,11 @@ groups:
       every active participant (CM-10-004) except the announcing actor. It MUST NOT be
       addressed to the Case Manager.
     rationale: >-
-      The teardown is canonical case state, so the role holder announces it and the participants are the
-      audience. Addressing the Case Manager was correct while the tree ran as an ordinary participant
-      telling the manager; once the tree's ledger commit became gated on `CVDRole.CASE_MANAGER` the
-      executing actor *is* the manager, so the announce was addressed to itself and the teardown reached
-      nobody. Nothing in this corpus governed the recipients, which is why only one half of the pair was
-      updated when the gate was added — the gap is the reason this entry exists.
+      The teardown changes canonical case state, so the actor that holds the
+      CASE_MANAGER role announces it, and the participants are its audience. The tree
+      that commits the teardown runs as the CASE_MANAGER, because the ledger commit is
+      gated on that role. An announcement addressed to the Case Manager would therefore
+      go to the announcing actor itself, and the teardown would reach nobody.
     note: >-
       This is the general rule of CLP-10-001 as amended by ADR-0109, not an exception to it: the
       CASE_MANAGER commits its own emissions in the emitting tree and never addresses a copy to itself.

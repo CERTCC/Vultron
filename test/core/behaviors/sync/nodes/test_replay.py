@@ -498,3 +498,30 @@ def test_replay_that_is_wholly_pending_queues_nothing_and_records_no_position(
         )
         is None
     )
+
+
+@pytest.mark.spec("CLP-08-005")
+@pytest.mark.parametrize(
+    "from_hash",
+    [_ZERO_HASH, "f" * 64],
+    ids=["genesis-hash", "unrecognized-hash"],
+)
+def test_a_position_that_names_no_entry_replays_from_the_start(
+    bridge, from_hash
+):
+    """The genesis hash and an unknown hash both replay the whole ledger."""
+    first_entry = _make_entry(0)
+    second_entry = _make_entry(1, first_entry.entry_hash)
+    event = _make_reject_event(tail_hash=from_hash)
+
+    result = bridge.execute_with_setup(
+        tree=FindDivergenceIndexNode(name="FindDivergenceIndex"),
+        actor_id=OWNER_ACTOR_ID,
+        activity=event,
+        replay_case_ledger_entries=[first_entry, second_entry],
+    )
+
+    assert result.status == Status.SUCCESS
+    assert (
+        py_trees.blackboard.Blackboard.storage.get("/replay_from_index") == -1
+    )
