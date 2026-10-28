@@ -66,6 +66,9 @@ from vultron.core.behaviors.sender_guard import (
     SenderCheckContext,
 )
 from vultron.core.behaviors.state_write_capable import StateWriteCapable
+from vultron.core.behaviors.sync.ledger_position_stage import (
+    LEDGER_POSITION_GATE_NAME,
+)
 from vultron.enums.roles import CVDRole
 from vultron.errors import VultronWiringError
 
@@ -74,6 +77,7 @@ COMMIT = "GuardedCommitCaseLedgerEntryBT"
 POST_CLOSE = "CaseOpenToExternalWrites"
 ADDRESSEE = "ActivityAddressedToReceiverNode"
 CLOCK_GATE = "ClockDecisionsIfCaseManager"
+POSITION_GATE = LEDGER_POSITION_GATE_NAME
 #: The case-wide clock decision every case tree with a sender guard takes.
 END_TIME = "EmbargoEndTimeDecision"
 #: The stage a commit tree's guards sit in, with the refusal notice (CLP-02-005).
@@ -529,12 +533,13 @@ class TestRefusalEffects:
             POST_CLOSE,
             ADDRESSEE,
             "SenderIsCaseManagerNode",
+            POSITION_GATE,
             CLOCK_GATE,
             "PreconditionGuardStage",
             COMMIT,
             "Replica",
         ]
-        stage = tree.children[5]
+        stage = tree.children[6]
         assert isinstance(stage, PreconditionGuardStage)
         assert list(stage.guards.children) == [guard]
         gates = [
@@ -953,6 +958,7 @@ class TestClockDecisionStage:
             POST_CLOSE,
             ADDRESSEE,
             "SenderIsCaseManagerNode",
+            POSITION_GATE,
             "ClockDecisionsIfCaseManager",
             STAGE,
             COMMIT,
@@ -974,6 +980,7 @@ class TestClockDecisionStage:
             POST_CLOSE,
             ADDRESSEE,
             "SenderIsCaseManagerNode",
+            POSITION_GATE,
             "ClockDecisionsIfCaseManager",
             "PreconditionGuardStage",
             COMMIT,
@@ -999,7 +1006,7 @@ class TestClockDecisionStage:
             **_sender_args(),
         )
 
-        gate = tree.children[4]
+        gate = tree.children[5]
         assert isinstance(gate, CaseManagerGate)
         stage = gate.gated_branch
         assert isinstance(stage, ClockDecisionStage)
@@ -1082,6 +1089,7 @@ class TestClockDecisionStage:
             POST_CLOSE,
             ADDRESSEE,
             "SenderIsCaseManagerNode",
+            POSITION_GATE,
             CLOCK_GATE,
             STAGE,
             COMMIT,
@@ -1296,3 +1304,112 @@ class TestClosedSenderStage:
                     sender_id="https://example.org/a"
                 ),
             )
+
+
+class TestLedgerPositionStage:
+    """The factory answers the sender's stamped position (SYNC-18-007)."""
+
+    @pytest.mark.spec("SYNC-18-007")
+    @pytest.mark.spec("CLP-10-005")
+    def test_a_tree_naming_its_sender_and_case_answers_the_position(
+        self,
+    ) -> None:
+        from vultron.core.behaviors.sync.nodes.ledger_position import (
+            ClassifyLedgerPositionNode,
+        )
+
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=None,
+            precondition_guards=[],
+            **_sender_args(),
+        )
+
+        gate = next(c for c in tree.children if c.name == POSITION_GATE)
+        assert isinstance(gate, CaseManagerGate)
+        assert gate not in tree.door_guards
+        standings = [
+            n
+            for n in gate.iterate()
+            if isinstance(n, ClassifyLedgerPositionNode)
+        ]
+        assert {(n.case_id, n.sender_id) for n in standings} == {
+            (CASE_ID, "https://example.org/actors/sender")
+        }
+
+    @pytest.mark.spec("SYNC-18-007")
+    def test_a_tree_with_no_sender_guard_answers_nothing(self) -> None:
+        """A subtree whose enclosing tree runs the guard (the close arm)
+        would answer the position a second time."""
+        tree = create_receive_activity_tree(
+            name="SampleBT", case_id=CASE_ID, precondition_guards=[]
+        )
+
+        assert POSITION_GATE not in _names(tree)
+
+    @pytest.mark.spec("SYNC-18-007")
+    def test_a_tree_whose_sender_context_names_no_case_answers_nothing(
+        self,
+    ) -> None:
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=None,
+            precondition_guards=[],
+            **_sender_args(case_id=None),
+        )
+
+        assert POSITION_GATE not in _names(tree)
+
+    @pytest.mark.spec("SYNC-18-007")
+    @pytest.mark.spec("SYNC-17-005")
+    def test_a_registered_exemption_leaves_the_answer_out(self) -> None:
+        from vultron.core.behaviors.sync.nodes.ledger_position import (
+            STATED_POSITION_ANSWERED_BY_TREE,
+        )
+
+        tree = create_receive_activity_tree(
+            name="SampleBT",
+            case_id=None,
+            precondition_guards=[],
+            ledger_position_exemption=STATED_POSITION_ANSWERED_BY_TREE,
+            **_sender_args(),
+        )
+
+        assert POSITION_GATE not in _names(tree)
+
+    @pytest.mark.spec("SYNC-18-007")
+    def test_an_unregistered_exemption_is_a_wiring_fault(self) -> None:
+        from vultron.core.behaviors.sync.nodes.ledger_position import (
+            LedgerPositionExemption,
+        )
+
+        with pytest.raises(VultronWiringError, match="LEDGER_POSITION"):
+            create_receive_activity_tree(
+                name="SampleBT",
+                case_id=None,
+                precondition_guards=[],
+                ledger_position_exemption=LedgerPositionExemption(
+                    name="ad-hoc", reason="not a recorded decision"
+                ),
+                **_sender_args(),
+            )
+
+    @pytest.mark.spec("SYNC-18-007")
+    @pytest.mark.spec("SYNC-18-001")
+    def test_a_ledger_activity_tree_answers_no_position(self) -> None:
+        """A tree whose sender and case come from the received ledger
+        activity (``Reject(CaseLedgerEntry)``) states no position to answer:
+        its own tree answers the one it reports (SYNC-03-002)."""
+        from vultron.core.behaviors.sync.reject_tree import (
+            create_reject_log_entry_tree,
+        )
+        from vultron.core.use_cases.received.sync import (
+            RejectLedgerEntryReceivedUseCase,
+        )
+
+        tree = create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        )
+
+        assert POSITION_GATE not in _names(tree)

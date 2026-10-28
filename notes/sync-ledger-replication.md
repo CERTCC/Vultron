@@ -145,6 +145,16 @@ hashes must stay valid if the chain later becomes a Merkle tree (SYNC-01-005).
   that entry, the fact `Read(CaseLedgerEntry)` states in a quiet period. Answer it
   the same way: record the acknowledged position and replay a lag, for active
   participants only (SYNC-18-007, composing SYNC-17-003/004).
+- **The answer is a factory stage, never a tree's own.** `create_receive_activity_tree`
+  places `create_ledger_position_stage()` after the door guards of every tree whose
+  `SenderCheckContext` names a case; a tree that answers the position itself names
+  a `LedgerPositionExemption` (only `Read`). Reason: a per-tree copy is missed by the
+  next tree, and a subtree without a sender guard would answer twice (CLP-10-005).
+- **A test delivering to a CASE_MANAGER stamps in step with it.** Pass the receiver's
+  store as `at=` to `received_event()` / `delivered()`; the bare
+  `TEST_SENDER_POSITION` is not held by any real ledger, so the CASE_MANAGER reads it
+  as a split and re-seeds the sender (SYNC-18-005), which adds an
+  `Announce(VulnerabilityCase)` to the outbox or a wiring fault without a trigger port.
 
 ### Open Questions
 
@@ -509,8 +519,8 @@ before a quiet period leaves the replica behind with no signal on either side.
 - **`Read`, never `Reject`, for a check** (SYNC-17-001). `Read` states a fact; a
   `Reject` of an entry nothing refused would mislead other implementations.
 - **One answer**: record the position, replay if behind (SYNC-17-003/004). The
-  position stated on every case activity (#5109, #5110) composes this answer, never
-  a copy of it.
+  position stated on every case activity composes the same nodes
+  (`create_ledger_position_stage`, SYNC-18-007), never a copy of them.
 - **No CASE_MANAGER sweep.** `last_acknowledged_hash` is written only by a stated
   position or a `Reject`, so comparing it with the tail on a timer or on commit
   reads every quiet peer as behind; and a paused peer lags on purpose.

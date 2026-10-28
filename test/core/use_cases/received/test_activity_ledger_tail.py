@@ -16,11 +16,9 @@ Each test has a participant or the CASE_MANAGER send an ``Add(Note)``,
 built by the sender's own trigger adapter as its outbox would send it.  The
 position travels as the activity's ``ledgerPosition``; the CASE_MANAGER
 records a lag, answers it as it answers a ``Read(CaseLedgerEntry)``, never
-refuses on it, and repairs a position its ledger does not hold.  The tests
-for behavior not built yet are strict ``xfail``: the implementing change
-replaces each with a passing test.  A check that holds today for the wrong
-reason (nothing sent, nothing recorded) shares a test with one that fails,
-so the strict ``xfail`` cannot pass early.
+refuses on it, and repairs a position its ledger does not hold.  Each check
+that something is *not* sent or recorded shares a test with one that it is,
+so neither can hold for the wrong reason.
 """
 
 import json
@@ -51,10 +49,6 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from ._ledger_network import BYSTANDER, MANAGER, OWNER, LedgerNetwork
 
 CASE_ID = "https://example.org/cases/case-ledger-tail"
-_NOT_JUDGED = (
-    "SYNC-18: the CASE_MANAGER does not read ledgerPosition yet. "
-    "Tracked by #5110."
-)
 
 
 def _sent_note_body(
@@ -109,7 +103,12 @@ def _advance(net: LedgerNetwork, note_id: str) -> LedgerPosition:
 
 
 def _withdraw_consent(net: LedgerNetwork, actor: str) -> None:
-    """Decline *actor*'s consent, so it is no longer an active participant."""
+    """Decline *actor*'s consent, so it is no longer an active participant.
+
+    The row is written straight into the CASE_MANAGER's store, which no
+    ledger entry records, so the network skips its rebuild check.
+    """
+    net.bypass_ledger()
     dl = net.stores[MANAGER]
     participant_id = net.case(MANAGER).actor_participant_index[actor]
     participant = cast(CaseParticipant, dl.read(participant_id))
@@ -132,11 +131,28 @@ def _replication_state(
 ) -> list[VultronReplicationState]:
     return [
         cast(VultronReplicationState, state)
-        for state in net.stores[MANAGER].list_objects(
-            "VultronReplicationState"
-        )
+        for state in net.stores[MANAGER].list_objects("ReplicationState")
         if cast(VultronReplicationState, state).peer_id == peer
     ]
+
+
+def _drain_outbox(net: LedgerNetwork) -> None:
+    """Empty the CASE_MANAGER's outbox, as its delivery loop would.
+
+    An entry still pending to a peer is not queued again (SYNC-15-012), so
+    a replay is only visible once the fan-out it repeats has been sent.
+    """
+    while net.stores[MANAGER].outbox_pop() is not None:
+        pass
+
+
+def _announced_indices(net: LedgerNetwork, to: str) -> list[int]:
+    """Log indices of the entries the CASE_MANAGER has queued to *to*."""
+    return sorted(
+        activity.object_.log_index
+        for activity in net.queued(MANAGER, to=to, type_="Announce")
+        if isinstance(activity.object_, CaseLedgerEntry)
+    )
 
 
 def _case_copies(net: LedgerNetwork, to: str) -> list[Any]:
@@ -250,7 +266,6 @@ def test_a_malformed_ledger_position_is_refused_and_writes_nothing():
     assert _note_entries(net) == []
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_JUDGED)
 @pytest.mark.spec("SYNC-18-004")
 def test_a_lagging_stamp_is_applied_and_the_lag_logged(caplog):
     net = LedgerNetwork(CASE_ID)
@@ -274,7 +289,6 @@ def test_a_lagging_stamp_is_applied_and_the_lag_logged(caplog):
     )
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_JUDGED)
 @pytest.mark.spec("SYNC-18-005")
 @pytest.mark.parametrize("past_tail", [False, True], ids=["hash", "index"])
 def test_a_split_stamp_is_applied_logged_and_the_sender_reseeded(
@@ -328,12 +342,13 @@ def test_the_entry_records_the_received_ledger_position():
     assert entry.payload_snapshot["ledgerPosition"] == stamp
 
 
-@pytest.mark.xfail(strict=True, reason=_NOT_JUDGED)
 @pytest.mark.spec("SYNC-18-007")
 def test_a_lagging_stamp_is_answered_as_a_stated_position():
     net = LedgerNetwork(CASE_ID)
+    _advance(net, "https://example.org/notes/tail-7")
+    # A position at an entry, so its hash is the one recorded (SYNC-17-003).
     before = _advance(net, "https://example.org/notes/tail-7a")
-    queued_before = len(net.queued(MANAGER, to=OWNER, type_="Announce"))
+    _drain_outbox(net)
     behind = _add_note_body(
         "https://example.org/notes/tail-7b",
         net=net,
@@ -345,9 +360,12 @@ def test_a_lagging_stamp_is_answered_as_a_stated_position():
     assert verdict.disposition is HandlerDisposition.APPLIED, verdict.reason
     [state] = _replication_state(net, OWNER)
     assert state.last_acknowledged_hash == before.entry_hash
-    replayed = net.queued(MANAGER, to=OWNER, type_="Announce")
-    # Two new entries for the second note's fan-out and at least one replay.
-    assert len(replayed) > queued_before + 1
+    # The entry after the stated position is replayed, and the new note's
+    # own entry fans out as it would without the position.
+    assert _announced_indices(net, OWNER) == [
+        before.log_index + 1,
+        before.log_index + 2,
+    ]
     # From a sender that is not an active participant: no record, no replay.
     _withdraw_consent(net, BYSTANDER)
     bystander_queued = len(net.queued(MANAGER, to=BYSTANDER))
@@ -362,3 +380,38 @@ def test_a_lagging_stamp_is_answered_as_a_stated_position():
     )
     assert _replication_state(net, BYSTANDER) == []
     assert len(net.queued(MANAGER, to=BYSTANDER)) == bystander_queued
+
+
+@pytest.mark.spec("SYNC-18-007")
+@pytest.mark.spec("SYNC-18-002")
+def test_a_redelivered_stamp_is_not_answered_again():
+    """A resend keeps its first stamp; answering it again would move the
+    acknowledged position back and replay what was sent since."""
+    net = LedgerNetwork(CASE_ID)
+    _advance(net, "https://example.org/notes/tail-8")
+    before = _advance(net, "https://example.org/notes/tail-8a")
+    behind = _add_note_body(
+        "https://example.org/notes/tail-8b",
+        net=net,
+        ledgerPosition=_wire(before),
+    )
+    assert net.receive(MANAGER, behind).disposition is (
+        HandlerDisposition.APPLIED
+    )
+    tail = _manager_tail(net)
+    at_tail = _add_note_body(
+        "https://example.org/notes/tail-8c",
+        net=net,
+        ledgerPosition=_wire(tail),
+    )
+    assert net.receive(MANAGER, at_tail).disposition is (
+        HandlerDisposition.APPLIED
+    )
+    _drain_outbox(net)
+
+    verdict = net.receive(MANAGER, behind)
+
+    assert verdict.disposition is HandlerDisposition.SKIPPED, verdict.reason
+    [state] = _replication_state(net, OWNER)
+    assert state.last_acknowledged_hash == tail.entry_hash
+    assert _announced_indices(net, OWNER) == []

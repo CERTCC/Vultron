@@ -339,6 +339,54 @@ def test_not_case_manager_refusal_is_none_when_the_gate_passed():
 
 
 @pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("SYNC-18-007")
+def test_the_ledger_position_gate_does_not_turn_the_act_away():
+    """The answer to a stamped position skips at a replica ahead of every
+    guard; that skip says nothing about whom the act was addressed to, so a
+    run whose own gate never ran keeps its verdict."""
+    from vultron.core.behaviors.sync.ledger_position_stage import (
+        create_ledger_position_stage,
+    )
+
+    # Statuses are set directly, as in _gated_run: ticking needs the bridge.
+    tree = create_ledger_position_stage(_CASE_ID, _OTHER_MANAGER)
+    checks = [
+        n
+        for n in tree.iterate()
+        if type(n).__name__ == "CheckIsCaseManagerNode"
+    ]
+    assert checks
+    for check in checks:
+        check.status = Status.FAILURE
+    dl = _store()
+
+    assert not_case_manager_refusal(tree, dl, _CASE_ID) is None
+    skipped = HandlerResult.skipped("already recorded")
+    assert case_manager_verdict(tree, skipped, dl, _CASE_ID) is skipped
+
+
+@pytest.mark.spec("HP-01-005")
+@pytest.mark.spec("SYNC-18-007")
+def test_the_acts_own_gate_still_refuses_beside_the_ledger_position_gate():
+    """Only the answer's gate is ignored: when the act's own CASE_MANAGER
+    check fails in the same tree, the actor is still turned away."""
+    from vultron.core.behaviors.sync.ledger_position_stage import (
+        create_ledger_position_stage,
+    )
+
+    stage = create_ledger_position_stage(_CASE_ID, _OTHER_MANAGER)
+    for node in stage.iterate():
+        if type(node).__name__ == "CheckIsCaseManagerNode":
+            node.status = Status.FAILURE
+    root = py_trees.composites.Sequence(name="Root", memory=False)
+    root.add_children([stage, _gated_run(Status.FAILURE)])
+
+    verdict = not_case_manager_refusal(root, _store(), _CASE_ID)
+    assert verdict is not None
+    assert verdict.disposition == HandlerDisposition.REFUSED
+
+
+@pytest.mark.spec("HP-01-005")
 def test_not_case_manager_refusal_is_none_without_a_gate():
     tree = _ran(_Fixed("Ok", Status.SUCCESS))
     assert not_case_manager_refusal(tree, _store(), _CASE_ID) is None

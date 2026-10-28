@@ -31,7 +31,7 @@ from vultron.core.behaviors.helpers import (
     _EmitSingleActivityBase,
 )
 from vultron.core.behaviors.sync.nodes.embargo_pause import peer_is_withheld
-from vultron.core.behaviors.sync.nodes.replay import replay_case_id
+from vultron.core.behaviors.sync.nodes.replay_case import replay_case_id
 from vultron.core.behaviors.sync.nodes.replay_guard import should_replay
 from vultron.core.behaviors.sync.nodes.reseed import announce_case_to_peer
 from vultron.core.ports.case_persistence import CasePersistence

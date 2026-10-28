@@ -392,7 +392,7 @@ class TestCheckCaseStatusAcceptableNodeBug2704:
         dl = _replica_store(case)
         # STATUS_ID intentionally NOT written to DL — _resolve_asserted() returns None.
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
-        event = make_payload(_from_manager(status_obj))
+        event = make_payload(_from_manager(status_obj), at=dl)
 
         # Patch request.status to None so status_obj_fallback=None in the tree factory.
         with patch.object(
@@ -549,7 +549,7 @@ class TestPxaRegressionRefusedWhole:
             id_=STATUS_ID, context=CASE_ID, pxa=PxaDimension(state=CS_pxa.pxa)
         )
         dl.create(status_obj)
-        event = make_payload(_from_manager(status_obj))
+        event = make_payload(_from_manager(status_obj), at=dl)
 
         result, tree = _run_at_replica(dl, event)
 
@@ -618,7 +618,7 @@ class TestAddCaseStatusTreeSenderRule:
             to=[ACTOR_ID],
         )
 
-        result, tree = _run_at_replica(dl, make_payload(activity))
+        result, tree = _run_at_replica(dl, make_payload(activity, at=dl))
 
         assert result.status == Status.FAILURE
         assert not door_guards_admitted(tree)
@@ -647,7 +647,7 @@ class TestAddCaseStatusTreeSenderRule:
             activity = add_status_to_case_activity(
                 status_obj, target=CASE_ID, actor=sender, to=[CASE_MANAGER_ID]
             )
-            result, tree = _run_at_replica(dl, make_payload(activity))
+            result, tree = _run_at_replica(dl, make_payload(activity, at=dl))
 
             assert result.status == Status.FAILURE, sender
             assert not door_guards_admitted(tree), sender
@@ -732,7 +732,7 @@ class TestAddCaseStatusTree:
         dl.create(bad_status)
 
         result, tree = _run_at_replica(
-            dl, make_payload(_from_manager(bad_status, target=case))
+            dl, make_payload(_from_manager(bad_status, target=case), at=dl)
         )
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
@@ -771,7 +771,7 @@ class TestAddCaseStatusTree:
         dl.create(asserted)
 
         result, tree = _run_at_replica(
-            dl, make_payload(_from_manager(asserted))
+            dl, make_payload(_from_manager(asserted), at=dl)
         )
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
@@ -802,7 +802,7 @@ class TestAddCaseStatusTree:
             pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(asserted)
-        event = make_payload(_from_manager(asserted))
+        event = make_payload(_from_manager(asserted), at=dl)
 
         result, tree = _run_at_replica(dl, event)
 
@@ -841,7 +841,7 @@ class TestAddCaseStatusTree:
             pxa=PxaDimension(state=CS_pxa.Pxa),
         )
         dl.create(asserted)
-        event = make_payload(_from_manager(asserted))
+        event = make_payload(_from_manager(asserted), at=dl)
 
         with caplog.at_level(logging.WARNING):
             result, tree = _run_at_replica(dl, event)
@@ -884,7 +884,7 @@ class TestAddCaseStatusTree:
 
         with caplog.at_level(logging.WARNING):
             result, tree = _run_at_replica(
-                dl, make_payload(_from_manager(asserted))
+                dl, make_payload(_from_manager(asserted), at=dl)
             )
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
@@ -939,7 +939,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
 
         result = AddCaseStatusToCaseReceivedUseCase(
             dl,
-            make_payload(_from_manager(status_obj)),
+            make_payload(_from_manager(status_obj), at=dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
         ).execute()
@@ -958,7 +958,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         with caplog.at_level(logging.DEBUG):
             result = AddCaseStatusToCaseReceivedUseCase(
                 dl,
-                make_payload(_from_manager(status_obj)),
+                make_payload(_from_manager(status_obj), at=dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -994,7 +994,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
         with caplog.at_level(logging.DEBUG):
             result = AddCaseStatusToCaseReceivedUseCase(
                 dl,
-                make_payload(_from_manager(bad_status)),
+                make_payload(_from_manager(bad_status), at=dl),
                 wire_render_port=As2WireRenderAdapter(),
             ).execute()
 
@@ -1020,7 +1020,7 @@ class TestAddCaseStatusToCaseReceivedUseCase:
 
         status_obj = as_CaseStatus(id_=STATUS_ID, context=CASE_ID)
         dl = _replica_with_status(status_obj)
-        event = make_payload(_from_manager(status_obj))
+        event = make_payload(_from_manager(status_obj), at=dl)
 
         # Patch status_id to None to simulate the missing-ID edge case
         with patch.object(
@@ -1332,7 +1332,9 @@ class TestThreatTerminationBranchNode:
             actor=CASE_MANAGER_ID,
             to=[ACTOR_ID],
         )
-        event = cast(AnnounceLogEntryReceivedEvent, received_event(activity))
+        event = cast(
+            AnnounceLogEntryReceivedEvent, received_event(activity, at=dl)
+        )
         AnnounceLedgerEntryReceivedUseCase(
             dl,
             event.model_copy(update={"receiving_actor_id": ACTOR_ID}),
@@ -1605,7 +1607,7 @@ class TestCaseLedgerEntryCreation:
         dl.create(bad_status)
 
         result, tree = _run_at_replica(
-            dl, make_payload(_from_manager(bad_status))
+            dl, make_payload(_from_manager(bad_status), at=dl)
         )
         assert result.status == Status.FAILURE
         assert door_guards_admitted(tree)
@@ -1795,7 +1797,8 @@ class TestReplicaLeavesManagerDeclaredTeardownToItsEntry:
                     ),
                     actor=sender,
                     to=[REPLICA_ID],
-                )
+                ),
+                at=dl,
             ),
         )
         tree = add_case_status_tree(

@@ -465,7 +465,7 @@ class TestInviteReceiptStoresNoDeadline:
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite, receiving_actor_id=_INVITEE)
+        event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -609,7 +609,7 @@ class TestInviteeIsTheAddressee:
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite, receiving_actor_id=_COORD)
+        event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -649,7 +649,7 @@ class TestInviteeIsTheAddressee:
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite)
+        event = make_payload(invite, at=dl)
         assert event.receiving_actor_id is None
 
         InviteToEmbargoOnCaseReceivedUseCase(
@@ -691,7 +691,7 @@ class TestInviteeIsTheAddressee:
             actor=_COORD,
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite, receiving_actor_id=_INVITEE)
+        event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
 
         result = InviteToEmbargoOnCaseReceivedUseCase(
@@ -741,7 +741,7 @@ class TestInviteeIsTheAddressee:
         reject = em_reject_embargo_activity(
             proposal=proposal, context=case.id_, actor=_INVITEE, to=[_COORD]
         )
-        event = make_payload(reject, receiving_actor_id=_COORD)
+        event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
         RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -785,7 +785,7 @@ class TestInviteeIsTheAddressee:
             to=[_OTHER, _INVITEE],
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite, receiving_actor_id=_INVITEE)
+        event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
         assert event.invitee_id is None
         assert event.to_recipients == [_OTHER, _INVITEE]
 
@@ -832,7 +832,7 @@ class TestInviteeIsTheAddressee:
             to=[_INVITEE + "/"],
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite, receiving_actor_id=_INVITEE)
+        event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
         InviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -875,7 +875,7 @@ class TestInviteeIsTheAddressee:
             to=[_INVITEE, _OTHER],
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite, receiving_actor_id=_COORD)
+        event = make_payload(invite, receiving_actor_id=_COORD, at=dl)
 
         result = InviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -925,7 +925,7 @@ class TestInviteeIsTheAddressee:
             to=[_COORD],
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(proposal, receiving_actor_id=_COORD)
+        event = make_payload(proposal, receiving_actor_id=_COORD, at=dl)
 
         result = InviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -967,7 +967,7 @@ class TestInviteeIsTheAddressee:
             to=[_INVITEE + "/"],  # non-canonical: trailing slash
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite, receiving_actor_id=_OTHER)
+        event = make_payload(invite, receiving_actor_id=_OTHER, at=dl)
 
         caplog.set_level("WARNING")
         result = InviteToEmbargoOnCaseReceivedUseCase(
@@ -1066,7 +1066,7 @@ class TestInviteeIsTheAddressee:
         reject = em_reject_embargo_activity(
             proposal=proposal, context=case.id_, actor=_INVITEE, to=[_COORD]
         )
-        event = make_payload(reject, receiving_actor_id=_COORD)
+        event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -1138,7 +1138,7 @@ class TestInviteeIsTheAddressee:
         reject = em_reject_embargo_activity(
             proposal=proposal, context=case_id, actor=_INVITEE, to=[_COORD]
         )
-        event = make_payload(reject, receiving_actor_id=_COORD)
+        event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -1215,7 +1215,7 @@ class TestInviteeIsTheAddressee:
         reject = em_reject_embargo_activity(
             proposal=proposal, context=case_id, actor=_COORD, to=[_INVITEE]
         )
-        event = make_payload(reject, receiving_actor_id=_COORD)
+        event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -1285,7 +1285,7 @@ class TestInviteeIsTheAddressee:
         reject = em_reject_embargo_activity(
             proposal=proposal, context=case_id, actor=_INVITEE, to=[_COORD]
         )
-        event = make_payload(reject, receiving_actor_id=_COORD)
+        event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -1331,7 +1331,7 @@ class TestInviteeIsTheAddressee:
         reject = em_reject_embargo_activity(
             proposal=proposal, context=case_id, actor=_INVITEE, to=[_COORD]
         )
-        event = make_payload(reject, receiving_actor_id=_COORD)
+        event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -1374,7 +1374,7 @@ class TestInviteeIsTheAddressee:
         reject = em_reject_embargo_activity(
             proposal=proposal, context=case.id_, actor=_INVITEE, to=[_COORD]
         )
-        event = make_payload(reject, receiving_actor_id=_COORD)
+        event = make_payload(reject, receiving_actor_id=_COORD, at=dl)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -1420,7 +1420,7 @@ class TestInviteeIsTheAddressee:
             to=[_INVITEE],
             rsvp_deadline=_FUTURE,
         )
-        event = make_payload(invite, receiving_actor_id=_INVITEE)
+        event = make_payload(invite, receiving_actor_id=_INVITEE, at=dl)
 
         result = InviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -1437,7 +1437,7 @@ class TestInviteeIsTheAddressee:
 
         again = InviteToEmbargoOnCaseReceivedUseCase(
             dl,
-            make_payload(invite, receiving_actor_id=_INVITEE),
+            make_payload(invite, receiving_actor_id=_INVITEE, at=dl),
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
         ).execute()
@@ -1527,14 +1527,16 @@ class TestInviteeIdProperty:
 # ---------------------------------------------------------------------------
 
 
-def _make_accept_event(proposal, case, accepting_actor_id: str, make_payload):
+def _make_accept_event(
+    proposal, case, accepting_actor_id: str, make_payload, at=None
+):
     accept = em_accept_embargo_activity(
         proposal=proposal,
         context=case.id_,
         actor=accepting_actor_id,
         to=[_COORD],
     )
-    return make_payload(accept, receiving_actor_id=_COORD)
+    return make_payload(accept, receiving_actor_id=_COORD, at=at)
 
 
 class TestActivationWhenTheReplacedEmbargoIsUnreadable:
@@ -1584,7 +1586,7 @@ class TestActivationWhenTheReplacedEmbargoIsUnreadable:
         activation = activate_embargo_activity(
             revision, target=case_id, actor=_COORD, to=[_COORD]
         )
-        event = make_payload(activation, receiving_actor_id=_COORD)
+        event = make_payload(activation, receiving_actor_id=_COORD, at=dl)
 
         result = ActivateEmbargoOnCaseReceivedUseCase(
             dl,
@@ -1906,7 +1908,9 @@ class TestLateAcceptHandling:
         )
         dl.create(proposal)
 
-        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        event = _make_accept_event(
+            proposal, case, _INVITEE, make_payload, at=dl
+        )
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -1983,7 +1987,7 @@ class TestLateAcceptHandling:
         monkeypatch.setattr(LateAcceptRouteIsNode, "update", _spy)
         use_case = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
-            _make_accept_event(proposal, case, _INVITEE, make_payload),
+            _make_accept_event(proposal, case, _INVITEE, make_payload, at=dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
             trigger_activity=TriggerActivityAdapter(dl),
@@ -2132,7 +2136,9 @@ class TestLateAcceptHandling:
         )
         dl.create(proposal)
 
-        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        event = _make_accept_event(
+            proposal, case, _INVITEE, make_payload, at=dl
+        )
         applied.clear()
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -2308,7 +2314,9 @@ class TestLateAcceptHandling:
         )
         dl.create(proposal)
 
-        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        event = _make_accept_event(
+            proposal, case, _INVITEE, make_payload, at=dl
+        )
         entries_before = _case_entries(dl, case_id)
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -2392,7 +2400,9 @@ class TestLateAcceptHandling:
         )
         dl.create(proposal)
 
-        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        event = _make_accept_event(
+            proposal, case, _INVITEE, make_payload, at=dl
+        )
         entries_before = _case_entries(dl, case_id)
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -2458,7 +2468,9 @@ class TestLateAcceptHandling:
         )
         dl.create(proposal)
 
-        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        event = _make_accept_event(
+            proposal, case, _INVITEE, make_payload, at=dl
+        )
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -2520,7 +2532,7 @@ class TestLateAcceptHandling:
         case.pending_embargo_proposal_index[embargo_id] = proposal.id_
         dl.save(case)
 
-        event = _make_accept_event(proposal, case, _COORD, make_payload)
+        event = _make_accept_event(proposal, case, _COORD, make_payload, at=dl)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -2580,7 +2592,7 @@ class TestLateAcceptHandling:
         case.pending_embargo_proposal_index[embargo_id] = proposal.id_
         dl.save(case)
 
-        event = _make_accept_event(proposal, case, _COORD, make_payload)
+        event = _make_accept_event(proposal, case, _COORD, make_payload, at=dl)
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -2622,7 +2634,9 @@ class TestLateAcceptHandling:
         )
         dl.create(proposal)
 
-        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        event = _make_accept_event(
+            proposal, case, _INVITEE, make_payload, at=dl
+        )
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -2677,7 +2691,9 @@ class TestLateAcceptHandling:
         )
         dl.create(proposal)
 
-        event = _make_accept_event(proposal, case, _INVITEE, make_payload)
+        event = _make_accept_event(
+            proposal, case, _INVITEE, make_payload, at=dl
+        )
         # Must not raise VultronInvalidStateTransitionError (bug #3358).
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -2811,7 +2827,7 @@ class TestExpiryIsTheManagersAlone:
             to=[_COORD],
             cc=[_OTHER],
         )
-        event = make_payload(accept, receiving_actor_id=_OTHER)
+        event = make_payload(accept, receiving_actor_id=_OTHER, at=dl)
 
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,

@@ -182,7 +182,7 @@ def _withdraw(
         activity = _leave(
             dl, sender=sender, embargo_id=embargo_id, to=receiver
         )
-    event = make_payload(activity, receiving_actor_id=receiver)
+    event = make_payload(activity, receiving_actor_id=receiver, at=dl)
     assert (
         event.semantic_type is MessageSemantics.WITHDRAW_FROM_EMBARGO_ON_CASE
     )
@@ -383,7 +383,7 @@ def _reject(
     reject = em_reject_embargo_activity(
         invite, context=_CASE_ID, actor=_FINDER, to=[_MANAGER]
     )
-    event = make_payload(reject, receiving_actor_id=_MANAGER)
+    event = make_payload(reject, receiving_actor_id=_MANAGER, at=dl)
     result = RejectInviteToEmbargoOnCaseReceivedUseCase(
         dl,
         event,
@@ -507,7 +507,7 @@ def test_an_unaddressed_copy_of_a_leave_is_refused_uncommitted(make_payload):
     """A store the Leave neither came from nor was sent to runs no tree."""
     dl = _store()
     leave = _leave(dl, to=_OWNER)
-    event = make_payload(leave, receiving_actor_id=_MANAGER)
+    event = make_payload(leave, receiving_actor_id=_MANAGER, at=dl)
 
     result = _run(dl, event)
 
@@ -520,7 +520,7 @@ def test_an_unaddressed_copy_of_a_leave_is_refused_uncommitted(make_payload):
 @pytest.mark.spec("MSM-07-010")
 def test_a_leave_naming_no_case_is_refused_uncommitted(make_payload):
     dl = _store()
-    event = make_payload(_leave(dl), receiving_actor_id=_MANAGER)
+    event = make_payload(_leave(dl), receiving_actor_id=_MANAGER, at=dl)
 
     result = _run(dl, event.model_copy(update={"context": None}))
 

@@ -175,7 +175,9 @@ def _deliver(dl: SqliteDataLayer, activity, make_payload, receiving_actor_id):
     port, so both are wired exactly as ``inbox_handler`` wires them.
     """
     dl.create(activity)
-    event = make_payload(activity, receiving_actor_id=receiving_actor_id)
+    event = make_payload(
+        activity, receiving_actor_id=receiving_actor_id, at=dl
+    )
     return InviteToEmbargoOnCaseReceivedUseCase(
         dl,
         event,
@@ -1000,7 +1002,7 @@ def test_a_missing_trigger_port_is_a_wiring_fault_that_moves_no_state(
     )
     proposal = _proposal(revision, case_id)
     dl.create(proposal)
-    event = make_payload(proposal, receiving_actor_id=MANAGER)
+    event = make_payload(proposal, receiving_actor_id=MANAGER, at=dl)
 
     with pytest.raises(
         VultronBTInternalError, match="trigger_activity_factory"
@@ -1029,9 +1031,9 @@ def test_an_invite_naming_no_embargo_is_refused(make_payload):
     )
     proposal = _proposal(revision, case_id)
     dl.create(proposal)
-    event = make_payload(proposal, receiving_actor_id=MANAGER).model_copy(
-        update={"object_": None}
-    )
+    event = make_payload(
+        proposal, receiving_actor_id=MANAGER, at=dl
+    ).model_copy(update={"object_": None})
 
     verdict = InviteToEmbargoOnCaseReceivedUseCase(
         dl,
@@ -1100,7 +1102,7 @@ def test_a_redelivered_proposal_is_skipped_and_relays_nothing_twice(
     entries_after_first = len(_ledger_entries(dl, case_id))
     invites_after_first = len(_relayed_invites(dl))
 
-    event = make_payload(proposal, receiving_actor_id=MANAGER)
+    event = make_payload(proposal, receiving_actor_id=MANAGER, at=dl)
     second = InviteToEmbargoOnCaseReceivedUseCase(
         dl,
         event,
@@ -1179,7 +1181,7 @@ def test_a_received_proposal_whose_relay_faults_keeps_no_consequence(
     )
     proposal = _proposal(revision, case_id)
     dl.create(proposal)
-    event = make_payload(proposal, receiving_actor_id=MANAGER)
+    event = make_payload(proposal, receiving_actor_id=MANAGER, at=dl)
     entries_before = [e.id_ for e in _ledger_entries(dl, case_id)]
     outbox_before = list(dl.outbox_list())
     adapter = _AdapterFailingOnSecondInvite(dl)
@@ -1244,7 +1246,7 @@ def test_a_received_proposal_whose_relay_commit_fails_keeps_no_consequence(
     )
     proposal = _proposal(revision, case_id)
     dl.create(proposal)
-    event = make_payload(proposal, receiving_actor_id=MANAGER)
+    event = make_payload(proposal, receiving_actor_id=MANAGER, at=dl)
     entries_before = [e.id_ for e in _ledger_entries(dl, case_id)]
     outbox_before = list(dl.outbox_list())
 
@@ -1288,7 +1290,7 @@ def test_attribution_without_a_local_case_falls_back_to_the_sender(
     invite = _proposal(
         revision, case_id, actor=MANAGER, attributed_to=PROPOSER
     )
-    event = make_payload(invite, receiving_actor_id=OTHER_A)
+    event = make_payload(invite, receiving_actor_id=OTHER_A, at=dl)
 
     caplog.set_level("WARNING")
     assert resolve_proposer_id(event, dl) == MANAGER
@@ -1315,7 +1317,7 @@ def test_a_slash_spelled_relay_attribution_names_the_stored_proposer(
 
     assert (
         resolve_proposer_id(
-            make_payload(invite, receiving_actor_id=MANAGER), dl
+            make_payload(invite, receiving_actor_id=MANAGER, at=dl), dl
         )
         == PROPOSER
     )

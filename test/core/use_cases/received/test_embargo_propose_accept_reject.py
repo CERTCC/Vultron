@@ -112,7 +112,9 @@ class TestEmbargoProposalLifecycle:
         )
 
         event = make_payload(
-            proposal, receiving_actor_id="https://example.org/users/vendor"
+            proposal,
+            receiving_actor_id="https://example.org/users/vendor",
+            at=dl,
         )
 
         result = InviteToEmbargoOnCaseReceivedUseCase(
@@ -169,7 +171,7 @@ class TestEmbargoProposalLifecycle:
             context=case.id_,
             actor=coordinator_id,
         )
-        event = make_payload(accept, receiving_actor_id=coordinator_id)
+        event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
 
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -244,7 +246,7 @@ class TestEmbargoProposalLifecycle:
             context=case,
             actor=coordinator_id,
         )
-        event = make_payload(accept, receiving_actor_id=coordinator_id)
+        event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
 
         with caplog.at_level(logging.WARNING):
             AcceptInviteToEmbargoOnCaseReceivedUseCase(
@@ -321,7 +323,7 @@ class TestEmbargoProposalLifecycle:
             context=case.id_,
             actor=coordinator_id,
         )
-        event = make_payload(accept, receiving_actor_id=coordinator_id)
+        event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
 
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
@@ -373,7 +375,9 @@ class TestEmbargoProposalLifecycle:
         activation = activate_embargo_activity(
             embargo, target=case.id_, actor=owner_id, to=[coordinator_id]
         )
-        event = make_payload(activation, receiving_actor_id=coordinator_id)
+        event = make_payload(
+            activation, receiving_actor_id=coordinator_id, at=dl
+        )
 
         result = ActivateEmbargoOnCaseReceivedUseCase(
             dl,
@@ -624,7 +628,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
             em_state=EM.NONE,
         )
 
-        event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
+        event = make_payload(proposal, receiving_actor_id=self.COORD_ID, at=dl)
         result = InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
         assert result.disposition is HandlerDisposition.REFUSED
         assert "EMB-01-002" in (result.reason or "")
@@ -657,7 +661,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
         )
 
         trigger_activity = TriggerActivityAdapter(dl)
-        event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
+        event = make_payload(proposal, receiving_actor_id=self.COORD_ID, at=dl)
         result = InviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=trigger_activity
         ).execute()
@@ -703,7 +707,7 @@ class TestInviteToEmbargoReceivedPxaGuard:
             to=[recipients[name] for name in to],
         )
 
-        event = make_payload(proposal, receiving_actor_id=self.COORD_ID)
+        event = make_payload(proposal, receiving_actor_id=self.COORD_ID, at=dl)
         result = InviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
@@ -773,7 +777,9 @@ class TestInviteToEmbargoReceivedPxaGuard:
             id_=f"{case_id}/proposals/p1",
         )
 
-        event = make_payload(proposal, receiving_actor_id=coordinator_id)
+        event = make_payload(
+            proposal, receiving_actor_id=coordinator_id, at=dl
+        )
         result = InviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -817,7 +823,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         accept = em_accept_embargo_activity(
             proposal, context=case.id_, actor=self.COORD_ID
         )
-        event = make_payload(accept, receiving_actor_id=self.COORD_ID)
+        event = make_payload(accept, receiving_actor_id=self.COORD_ID, at=dl)
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl, event
         ).execute()
@@ -855,7 +861,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
             proposal, context=case.id_, actor=self.COORD_ID
         )
         trigger_activity = TriggerActivityAdapter(dl)
-        event = make_payload(accept, receiving_actor_id=self.COORD_ID)
+        event = make_payload(accept, receiving_actor_id=self.COORD_ID, at=dl)
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=trigger_activity
         ).execute()
@@ -907,7 +913,7 @@ class TestAcceptInviteToEmbargoReceivedPxaGuard:
         accept = em_accept_embargo_activity(
             proposal, context=case.id_, actor=coordinator_id
         )
-        event = make_payload(accept, receiving_actor_id=coordinator_id)
+        event = make_payload(accept, receiving_actor_id=coordinator_id, at=dl)
         result = AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl,
             event,
@@ -967,7 +973,9 @@ class TestPxaRejectionAttribution:
             to=[self.RECEIVER_ID],
         )
 
-        event = make_payload(proposal, receiving_actor_id=self.RECEIVER_ID)
+        event = make_payload(
+            proposal, receiving_actor_id=self.RECEIVER_ID, at=dl
+        )
         InviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
@@ -997,7 +1005,9 @@ class TestPxaRejectionAttribution:
             to=[self.INVITEE_ID],
         )
 
-        event = make_payload(proposal, receiving_actor_id=self.RECEIVER_ID)
+        event = make_payload(
+            proposal, receiving_actor_id=self.RECEIVER_ID, at=dl
+        )
         result = InviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
@@ -1030,7 +1040,9 @@ class TestPxaRejectionAttribution:
             to=[self.RECEIVER_ID],
         )
 
-        event = make_payload(accept, receiving_actor_id=self.RECEIVER_ID)
+        event = make_payload(
+            accept, receiving_actor_id=self.RECEIVER_ID, at=dl
+        )
         AcceptInviteToEmbargoOnCaseReceivedUseCase(
             dl, event, trigger_activity=TriggerActivityAdapter(dl)
         ).execute()
@@ -1280,6 +1292,7 @@ def test_a_closed_invitees_embargo_answer_is_refused(
             to=[_CLOSED_MANAGER],
         ),
         receiving_actor_id=_CLOSED_MANAGER,
+        at=dl,
     )
 
     result = use_case(
@@ -1326,6 +1339,7 @@ def test_an_open_invitees_embargo_answer_is_not_refused(
             to=[_CLOSED_MANAGER],
         ),
         receiving_actor_id=_CLOSED_MANAGER,
+        at=dl,
     )
 
     result = use_case(

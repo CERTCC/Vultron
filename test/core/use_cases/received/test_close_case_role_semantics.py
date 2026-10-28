@@ -1113,7 +1113,11 @@ def _closed_dl() -> SqliteDataLayer:
     return dl
 
 
-def _add_note_event(note_id: str, sender_id: str = VENDOR_ID):
+def _add_note_event(
+    note_id: str,
+    sender_id: str = VENDOR_ID,
+    at: SqliteDataLayer | None = None,
+):
     from vultron.core.models.events.note import AddNoteToCaseReceivedEvent
     from vultron.wire.as2.factories import add_note_to_case_activity
     from vultron.wire.as2.vocab.base.objects.object_types import as_Note
@@ -1125,7 +1129,7 @@ def _add_note_event(note_id: str, sender_id: str = VENDOR_ID):
         actor=sender_id,
         to=[CASE_ACTOR_ID],
     )
-    event = received_event(activity).model_copy(
+    event = received_event(activity, at=at).model_copy(
         update={"receiving_actor_id": CASE_ACTOR_ID}
     )
     assert isinstance(event, AddNoteToCaseReceivedEvent)
@@ -1137,7 +1141,7 @@ def _add_note(dl: SqliteDataLayer, note_id: str, sync_port=None):
         AddNoteToCaseReceivedUseCase,
     )
 
-    _, event = _add_note_event(note_id)
+    _, event = _add_note_event(note_id, at=dl)
     return AddNoteToCaseReceivedUseCase(
         dl,
         event,
@@ -1356,7 +1360,7 @@ class TestPostCloseWriteBoundary:
                 attributed_to=CASE_OWNER_ID, id_=CASE_ID
             ),
         )
-        event = received_event(activity).model_copy(
+        event = received_event(activity, at=dl).model_copy(
             update={"receiving_actor_id": CASE_ACTOR_ID}
         )
         assert isinstance(
@@ -1396,7 +1400,7 @@ class TestPostCloseWriteBoundary:
             dispatcher = make_dispatcher()
             outbox_before = set(dl.outbox_list())
             _, note_event = _add_note_event(
-                "https://example.org/notes/dispatched-late-note"
+                "https://example.org/notes/dispatched-late-note", at=dl
             )
             note_result = dispatcher.dispatch(note_event, dl)
             assert note_result.disposition is HandlerDisposition.REFUSED

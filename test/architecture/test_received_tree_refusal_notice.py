@@ -72,6 +72,9 @@ from vultron.core.behaviors.case.receive_activity_tree import (
     ReceivedActivityTree,
     received_stages,
 )
+from vultron.core.behaviors.sync.nodes.ledger_position import (
+    LedgerPositionAnswer,
+)
 
 _KEYWORD = "refusal_notice_exemption"
 _COMMIT = "GuardedCommitCaseLedgerEntryBT"
@@ -271,8 +274,8 @@ def _commits(tree: ReceivedActivityTree) -> bool:
 def _guards(tree: ReceivedActivityTree) -> list[py_trees.behaviour.Behaviour]:
     """The precondition guards of a committing tree, as it runs them.
 
-    The children between the door guards (and the clock decisions) and the
-    commit; a guard stage contributes the guards it wraps.
+    The children between the door guards (and the ledger-position answer and
+    the clock decisions) and the commit; a guard stage contributes the guards it wraps.
     """
     doors = {id(guard) for guard in tree.door_guards}
     guards: list[py_trees.behaviour.Behaviour] = []
@@ -280,7 +283,8 @@ def _guards(tree: ReceivedActivityTree) -> list[py_trees.behaviour.Behaviour]:
         if child.name == _COMMIT:
             break
         if id(child) in doors or any(
-            isinstance(n, ClockDecisionStage) for n in child.iterate()
+            isinstance(n, (ClockDecisionStage, LedgerPositionAnswer))
+            for n in child.iterate()
         ):
             continue
         if isinstance(child, PreconditionGuardStage):

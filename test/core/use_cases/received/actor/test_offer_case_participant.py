@@ -260,17 +260,19 @@ def _build_offer_activity(
 
 
 class TestOfferCaseParticipantReceivedUseCase:
-    def _event(self) -> OfferCaseParticipantReceivedEvent:
+    def _event(
+        self, at: SqliteDataLayer | None = None
+    ) -> OfferCaseParticipantReceivedEvent:
         activity = _build_offer_activity()
         return cast(
-            OfferCaseParticipantReceivedEvent, received_event(activity)
+            OfferCaseParticipantReceivedEvent, received_event(activity, at=at)
         )
 
     @pytest.mark.spec("HP-01-005")
     def test_case_owner_receipt_is_applied(self):
         """The addressee's receipt: the Offer is now the Case Owner's to decide."""
         dl, _ = _seed_dl_for_case_owner()
-        event = self._event()
+        event = self._event(at=dl)
         # The Case Owner is not the CASE_MANAGER, so the CM-gated ledger
         # commit is correctly not done here; the Offer is addressed to it.
         result = OfferCaseParticipantReceivedUseCase(
@@ -287,7 +289,7 @@ class TestOfferCaseParticipantReceivedUseCase:
     def test_case_owner_redelivery_is_skipped(self):
         """Only the addressee's first receipt is APPLIED; a repeat is a skip."""
         dl, _ = _seed_dl_for_case_owner()
-        event = self._event()
+        event = self._event(at=dl)
 
         def deliver() -> HandlerResult:
             return OfferCaseParticipantReceivedUseCase(
@@ -310,7 +312,7 @@ class TestOfferCaseParticipantReceivedUseCase:
         )
         seed_case_manager_participant(dl, case, CASE_ACTOR_ID)
         dl.create(case)
-        event = self._event()  # to=[CASE_OWNER_ID]
+        event = self._event(at=dl)  # to=[CASE_OWNER_ID]
 
         result = OfferCaseParticipantReceivedUseCase(
             dl,
@@ -337,7 +339,7 @@ class TestOfferCaseParticipantReceivedUseCase:
         dl, _ = _seed_dl_for_case_actor()
         activity = _build_offer_activity(to=[CASE_ACTOR_ID])
         event = cast(
-            OfferCaseParticipantReceivedEvent, received_event(activity)
+            OfferCaseParticipantReceivedEvent, received_event(activity, at=dl)
         )
 
         result = OfferCaseParticipantReceivedUseCase(
@@ -368,7 +370,7 @@ class TestOfferCaseParticipantReceivedUseCase:
             "sqlite:///:memory:",
             actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
         )
-        event = self._event()
+        event = self._event(at=dl)
         with caplog.at_level(logging.WARNING):
             result = OfferCaseParticipantReceivedUseCase(
                 dl,
@@ -406,7 +408,9 @@ class TestOfferCaseParticipantReceivedUseCase:
 
 class TestAcceptOfferCaseParticipantReceivedUseCase:
     def _event(
-        self, origin: str | None = RECOMMENDATION_ID
+        self,
+        origin: str | None = RECOMMENDATION_ID,
+        at: SqliteDataLayer | None = None,
     ) -> AcceptOfferCaseParticipantReceivedEvent:
         offer = _build_offer_activity(origin=origin)
         accept = accept_case_participant_offer_activity(
@@ -416,7 +420,8 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         return cast(
-            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent,
+            received_event(accept, at=at),
         )
 
     def _event_with_stored_offer(
@@ -457,7 +462,8 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         return cast(
-            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent,
+            received_event(accept, at=dl),
         )
 
     def test_executes_without_error(self):
@@ -486,7 +492,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         """
         dl, _ = _seed_dl_for_case_actor()
         _forget_recommendation(dl)
-        event = self._event()
+        event = self._event(at=dl)
         with caplog.at_level(logging.WARNING):
             result = AcceptOfferCaseParticipantReceivedUseCase(
                 dl,
@@ -518,7 +524,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         _record_recommendation(dl, case_id="https://example.org/cases/other")
         result = AcceptOfferCaseParticipantReceivedUseCase(
             dl,
-            self._event(),
+            self._event(at=dl),
             trigger_activity=TriggerActivityAdapter(dl),
             wire_render_port=As2WireRenderAdapter(),
             sync_port=SyncActivityAdapter(dl),
@@ -537,7 +543,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
         #3877 the absent id travelled into the BT as ``""``.
         """
         dl, _ = _seed_dl_for_case_actor()
-        event = self._event(origin=None)
+        event = self._event(origin=None, at=dl)
         result = AcceptOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -566,7 +572,8 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent,
+            received_event(accept, at=dl),
         )
 
         result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -613,7 +620,8 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent,
+            received_event(accept, at=dl),
         )
 
         result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -640,7 +648,7 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             "sqlite:///:memory:",
             actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
         )
-        event = self._event()
+        event = self._event(at=dl)
         with caplog.at_level(logging.WARNING):
             AcceptOfferCaseParticipantReceivedUseCase(
                 dl,
@@ -688,7 +696,8 @@ class TestAcceptOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent,
+            received_event(accept, at=dl),
         )
         with caplog.at_level(logging.WARNING):
             result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -891,7 +900,9 @@ class TestAcceptRefusesAnInviteeThatCannotBeInvited:
 
 class TestRejectOfferCaseParticipantReceivedUseCase:
     def _event(
-        self, origin: str | None = RECOMMENDATION_ID
+        self,
+        origin: str | None = RECOMMENDATION_ID,
+        at: SqliteDataLayer | None = None,
     ) -> RejectOfferCaseParticipantReceivedEvent:
         offer = _build_offer_activity(origin=origin)
         reject = reject_case_participant_offer_activity(
@@ -901,12 +912,13 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         return cast(
-            RejectOfferCaseParticipantReceivedEvent, received_event(reject)
+            RejectOfferCaseParticipantReceivedEvent,
+            received_event(reject, at=at),
         )
 
     def test_executes_without_error(self):
         dl, _ = _seed_dl_for_case_actor()
-        event = self._event()
+        event = self._event(at=dl)
         result = RejectOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -922,7 +934,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         """The Reject mirror of the Accept case: no recommender, no notification."""
         dl, _ = _seed_dl_for_case_actor()
         _forget_recommendation(dl)
-        event = self._event()
+        event = self._event(at=dl)
         with caplog.at_level(logging.WARNING):
             result = RejectOfferCaseParticipantReceivedUseCase(
                 dl,
@@ -950,7 +962,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         #3877 the absent id travelled into the BT as ``""``.
         """
         dl, _ = _seed_dl_for_case_actor()
-        event = self._event(origin=None)
+        event = self._event(origin=None, at=dl)
         result = RejectOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -982,7 +994,8 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            RejectOfferCaseParticipantReceivedEvent, received_event(reject)
+            RejectOfferCaseParticipantReceivedEvent,
+            received_event(reject, at=dl),
         )
         result = RejectOfferCaseParticipantReceivedUseCase(
             dl,
@@ -1005,7 +1018,8 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            RejectOfferCaseParticipantReceivedEvent, received_event(reject)
+            RejectOfferCaseParticipantReceivedEvent,
+            received_event(reject, at=dl),
         )
 
         result = RejectOfferCaseParticipantReceivedUseCase(
@@ -1038,7 +1052,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
             "sqlite:///:memory:",
             actor_id=CASE_ACTOR_ID,  # the receiving CaseActor's own store
         )
-        event = self._event()
+        event = self._event(at=dl)
         with caplog.at_level(logging.WARNING):
             RejectOfferCaseParticipantReceivedUseCase(
                 dl,
@@ -1077,7 +1091,7 @@ class TestRejectOfferCaseParticipantReceivedUseCase:
         dl, _actor_id = _seed_dl_for_case_actor()
         _record_recommendation(dl)
 
-        event = self._event()
+        event = self._event(at=dl)
         result = RejectOfferCaseParticipantReceivedUseCase(
             dl,
             event,
@@ -1152,7 +1166,7 @@ def test_with_both_unrecorded_each_answer_reports_its_first_lookup(
     activity = _answer_to_an_unrecorded_offer(verb)
     result = _ANSWER_USE_CASES[verb](
         dl,
-        received_event(activity),  # type: ignore[arg-type]
+        received_event(activity, at=dl),  # type: ignore[arg-type]
         trigger_activity=TriggerActivityAdapter(dl),
         wire_render_port=As2WireRenderAdapter(),
         sync_port=SyncActivityAdapter(dl),
@@ -1182,7 +1196,7 @@ def test_the_lookup_fails_for_a_case_this_store_does_not_hold(
                 verb=verb, answer_id=answer_id, case_id=CASE_ID
             ),
             actor_id=CASE_ACTOR_ID,
-            activity=received_event(activity),
+            activity=received_event(activity, at=dl),
         )
     finally:
         dl.close()
@@ -1282,7 +1296,8 @@ class TestRolesFromStoredOffer:
             to=[AC1_CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent,
+            received_event(accept, at=dl),
         )
         return dl, event
 
@@ -1371,7 +1386,8 @@ class TestRolesFromStoredOffer:
             cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID
         )
         accept_invite_event = cast(
-            AcceptInviteActorToCaseReceivedEvent, received_event(accept_invite)
+            AcceptInviteActorToCaseReceivedEvent,
+            received_event(accept_invite, at=dl),
         )
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1447,7 +1463,8 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             to=[AC1_CASE_ACTOR_ID],
         )
         return cast(
-            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent,
+            received_event(accept, at=dl),
         )
 
     @pytest.mark.spec("CM-16-019")
@@ -1518,7 +1535,8 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             to=[AC1_CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent,
+            received_event(accept, at=dl),
         )
 
         result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -1593,7 +1611,8 @@ class TestAcceptOfferCaseParticipantRolesThreading:
             cast(as_Invite, invite_obj), actor=AC1_INVITEE_ID
         )
         accept_invite_event = cast(
-            AcceptInviteActorToCaseReceivedEvent, received_event(accept_invite)
+            AcceptInviteActorToCaseReceivedEvent,
+            received_event(accept_invite, at=dl),
         )
         AcceptInviteActorToCaseReceivedUseCase(
             dl,
@@ -1649,7 +1668,8 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            AcceptOfferCaseParticipantReceivedEvent, received_event(accept)
+            AcceptOfferCaseParticipantReceivedEvent,
+            received_event(accept, at=dl),
         )
 
         result = AcceptOfferCaseParticipantReceivedUseCase(
@@ -1679,7 +1699,8 @@ class TestOfferCaseParticipantDecisionsAtNonCaseManager:
             to=[CASE_ACTOR_ID],
         )
         event = cast(
-            RejectOfferCaseParticipantReceivedEvent, received_event(reject)
+            RejectOfferCaseParticipantReceivedEvent,
+            received_event(reject, at=dl),
         )
 
         result = RejectOfferCaseParticipantReceivedUseCase(
@@ -1732,7 +1753,7 @@ def _seed_a_recommendation_at_the_case_manager() -> tuple[
         to=[CASE_ACTOR_ID],
         suggested_roles=["vendor"],
     )
-    return dl, received_event(recommendation)
+    return dl, received_event(recommendation, at=dl)
 
 
 def _assert_each_send_follows_its_queueing(
@@ -1809,7 +1830,7 @@ class TestActorSuggestionFlowRecordsEachMessageAfterItIsSent:
     @pytest.mark.spec("CM-16-010")
     def test_step_3_the_owners_reject_is_recorded_then_its_answer(self):
         dl, _ = _seed_dl_for_case_actor()
-        event = TestRejectOfferCaseParticipantReceivedUseCase()._event()
+        event = TestRejectOfferCaseParticipantReceivedUseCase()._event(at=dl)
 
         self._execute(RejectOfferCaseParticipantReceivedUseCase, dl, event)
 
@@ -1930,7 +1951,7 @@ class TestActorSuggestionAnswersAreSentOnceOnRetry:
     @pytest.mark.spec("CM-16-010")
     def test_reject_actor_recommendation_is_sent_once(self):
         dl, _ = _seed_dl_for_case_actor()
-        event = TestRejectOfferCaseParticipantReceivedUseCase()._event()
+        event = TestRejectOfferCaseParticipantReceivedUseCase()._event(at=dl)
 
         self._retry_after_a_failed_commit(
             RejectOfferCaseParticipantReceivedUseCase,

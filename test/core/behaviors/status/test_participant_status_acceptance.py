@@ -265,7 +265,7 @@ def _run_tree(
             attributed_to=CASE_OWNER_ID, id_=CASE_ID, name="Issue 2235 Case"
         ),
     )
-    event = make_payload(activity)
+    event = make_payload(activity, at=dl)
     bridge = BTBridge(
         datalayer=dl,
         trigger_activity=TriggerActivityAdapter(dl),

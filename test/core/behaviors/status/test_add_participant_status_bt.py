@@ -1542,7 +1542,7 @@ class TestRejectionValidatorBeforeCommit:
                 name="Fix1 Regression",
             ),
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         bridge = self._bridge_with_factory(dl)
         tree = add_participant_status_tree(
@@ -1632,7 +1632,7 @@ class TestRejectionValidatorBeforeCommit:
                 name="Fix1 Full Reject",
             ),
         )
-        event = make_payload(activity)
+        event = make_payload(activity, at=dl)
 
         bridge = self._bridge_with_factory(dl)
         tree = add_participant_status_tree(

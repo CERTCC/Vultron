@@ -332,7 +332,7 @@ class TestAnnounceValidatedByTrustedCaseActorId:
         link = _build_link(case_id=_CASE_ID, case_manager_id=_CASE_ACTOR_ID)
         dl.save(link)
 
-        event = make_payload(announce_from_trusted)
+        event = make_payload(announce_from_trusted, at=dl)
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(_CASE_ID)
@@ -347,7 +347,7 @@ class TestAnnounceValidatedByTrustedCaseActorId:
         link = _build_link(case_id=_CASE_ID, case_manager_id=_CASE_ACTOR_ID)
         dl.save(link)
 
-        event = make_payload(announce_from_imposter)
+        event = make_payload(announce_from_imposter, at=dl)
         AnnounceVulnerabilityCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(_CASE_ID)
@@ -496,7 +496,8 @@ class TestCreateRefusesAnUnheldEmbargo:
                 _case_naming_unheld_embargo(),
                 actor=_CREATOR_ID,
                 to=[_REPORTER_ID],
-            )
+            ),
+            at=dl,
         )
 
         result = CreateCaseReceivedUseCase(dl, event).execute()
