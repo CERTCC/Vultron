@@ -69,6 +69,7 @@ from vultron.semantic_registry._entry import SemanticEntry
 from vultron.wire.as2.extractor._pattern import (
     ActivityPattern,
     InlineActivityObjectPattern,
+    bare_object_id,
 )
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
@@ -423,8 +424,9 @@ def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
 
     Iterates ``SEMANTIC_REGISTRY`` in order and returns the first match.
     Returns ``MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT`` when no pattern
-    matches, the activity type is registered (has patterns), and ``object_``
-    is still a bare string URI (rehydration did not resolve it).
+    matches, the activity type is registered (has patterns), and the
+    ``object`` chain, followed through each inline activity, still ends in a
+    bare string URI (rehydration did not resolve it; ``bare_object_id``).
     Returns ``MessageSemantics.UNKNOWN`` when the activity type is not
     registered at all.
 
@@ -440,9 +442,11 @@ def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
     for entry in SEMANTIC_REGISTRY:
         if entry.pattern is not None and entry.pattern.match(activity):
             return entry.semantics
-    obj = getattr(activity, "object_", None)
     activity_type = str(activity.type_) if activity.type_ else ""
-    if isinstance(obj, str) and activity_type in _ACTIVITY_TYPES_WITH_PATTERNS:
+    if (
+        bare_object_id(activity) is not None
+        and activity_type in _ACTIVITY_TYPES_WITH_PATTERNS
+    ):
         return MessageSemantics.UNKNOWN_UNRESOLVABLE_OBJECT
     return MessageSemantics.UNKNOWN
 

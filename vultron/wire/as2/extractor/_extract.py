@@ -37,6 +37,7 @@ from vultron.wire.as2.extractor._builders import (
     proposed_embargo_from,
     termination_of,
 )
+from vultron.wire.as2.extractor._pattern import bare_object_id
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.case_proposal import as_CaseProposal
 from vultron.wire.as2.vocab.objects.processing_fault import as_ProcessingFault
@@ -158,6 +159,9 @@ def extract_intent(
 
     extra_kwargs.update(_fault_kwargs(activity, obj, event_class))
 
+    if "unresolved_object_id" in event_class.model_fields:
+        extra_kwargs["unresolved_object_id"] = _unresolved_object_id(activity)
+
     return cast(
         AnyReceivedEvent,
         event_class(
@@ -181,6 +185,25 @@ def extract_intent(
             **extra_kwargs,
         ),
     )
+
+
+def _unresolved_object_id(activity: as_Activity) -> str:
+    """The bare id ending the ``object`` chain of an unresolvable activity.
+
+    Classified ``UNKNOWN_UNRESOLVABLE_OBJECT`` only because the chain ends in
+    a bare id, so one is always there; the fetch names it at any depth
+    (VAM-01-009, AKM-05-007).
+
+    Raises:
+        VultronParseValidationError: When the chain ends in no bare id.
+    """
+    object_id = bare_object_id(activity)
+    if object_id is None:
+        raise VultronParseValidationError(
+            f"Activity {activity.id_!r} is unresolvable but its object chain"
+            " ends in no bare id (VAM-01-009)"
+        )
+    return object_id
 
 
 def _proposer_profile(activity: as_Activity) -> CoreActor | str:

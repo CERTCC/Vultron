@@ -113,12 +113,12 @@ ActivateEmbargoOnCasePattern = ActivityPattern(
     activity_=TAtype.ACCEPT,
     object_=AOtype.EVENT,
     target_=VOtype.VULNERABILITY_CASE,
-    # Not strict: ``ActivityPattern.strict`` governs object_ AND target_
-    # together, but the case target is a bare URI by design (the recipient
-    # holds the case, so ``case_target_ref`` reduces it, MV-10-001). The
-    # ACCEPT verb + EVENT object + case target discriminate this activity from
-    # ``Accept(Invite(...))`` (object is an Invite activity, not an EVENT);
-    # a malformed bare-URI object is caught by ``IsOpenEmbargoProposalNode``.
+    # target_ is lenient: the case target is a bare URI by design (the
+    # recipient holds the case, so ``case_target_ref`` reduces it,
+    # MV-10-001).  The ACCEPT verb + EVENT object + case target discriminate
+    # this activity from ``Accept(Invite(...))`` (object is an Invite
+    # activity, not an EVENT); an embargo the receiver cannot resolve is
+    # left a bare URI, which no object_ type accepts (SE-01-006).
 )
 RejectEmbargoProposalOnCasePattern = ActivityPattern(
     description=(
@@ -130,7 +130,7 @@ RejectEmbargoProposalOnCasePattern = ActivityPattern(
     activity_=TAtype.REJECT,
     object_=AOtype.EVENT,
     target_=VOtype.VULNERABILITY_CASE,
-    # Not strict, for the same reason as the activation pattern above.
+    # target_ lenient, for the same reason as the activation pattern above.
 )
 
 WithdrawFromEmbargoOnCasePattern = ActivityPattern(
@@ -231,7 +231,6 @@ CreateCaseProposalPattern = ActivityPattern(
     ),
     activity_=TAtype.CREATE,
     object_=VOtype.CASE_PROPOSAL,
-    strict=True,
 )
 AcceptCaseProposalPattern = ActivityPattern(
     description=(
@@ -240,7 +239,6 @@ AcceptCaseProposalPattern = ActivityPattern(
     ),
     activity_=TAtype.ACCEPT,
     object_=VOtype.CASE_PROPOSAL,
-    strict=True,
 )
 RejectCaseProposalPattern = ActivityPattern(
     description=(
@@ -249,7 +247,6 @@ RejectCaseProposalPattern = ActivityPattern(
     ),
     activity_=TAtype.REJECT,
     object_=VOtype.CASE_PROPOSAL,
-    strict=True,
 )
 
 # ---------------------------------------------------------------------------
@@ -390,8 +387,7 @@ InviteActorToCasePattern = ActivityPattern(
         " (VAM-04-004).  The target's type alone identifies it (CM-11-013);"
         " strict (SE-08-004), so an Invite whose target is a bare URI — the"
         " full-case Invite references its case by ID (CM-11-010) — does not"
-        " match.  Strictness also covers ``object``: an invitee still a bare"
-        " URI after rehydration cannot be confirmed as an actor."
+        " match."
     ),
     activity_=TAtype.INVITE,
     object_=AOtype.ACTOR,
@@ -549,7 +545,6 @@ CreateProcessingFaultPattern = ActivityPattern(
     ),
     activity_=TAtype.CREATE,
     object_=VOtype.PROCESSING_FAULT,
-    strict=True,
 )
 
 # ---------------------------------------------------------------------------

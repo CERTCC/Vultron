@@ -38,9 +38,12 @@ object or can dereference it.** The protocol allows an object inline or by a
 reference the recipient can fetch (AKM-02-002, AKM-03-001). This codebase
 dereferences narrowly: the inbox fetches an object only for an activity no
 pattern matches because of it (`UNKNOWN_UNRESOLVABLE_OBJECT`), a replica's
-replaced embargo, and a proposer's profile (AKM-05-007). Patterns accept a bare
-`object` by default, so most bare URIs for an object the recipient lacks still
-match and reach a handler without it; that handler decides. Keep inlining.
+replaced embargo, and a proposer's profile (AKM-05-007). A bare `object` matches
+no pattern that tests the object by its type (SE-01-006), so an activity whose
+`object` the recipient lacks is fetched for before it reaches a handler; only
+`Read(CaseLedgerEntry)`, told apart by its `ledgerPosition`, matches one. A bare
+`target` or `context` still matches (SE-01-007) and its handler decides. Keep
+inlining: every fetch is a round trip.
 
 ## This Codebase Carries Full Inline Objects
 

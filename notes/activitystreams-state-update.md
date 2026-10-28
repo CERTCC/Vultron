@@ -59,11 +59,13 @@ change the case with no ledger entry (CLP-07-013, SE-05-002).
 
 ## An Unresolvable `object_` Is a Dead Letter, Not a Missing Pattern
 
-A bare URI still in `object_` after rehydration resolves to
-`UNKNOWN_UNRESOLVABLE_OBJECT`, not `UNKNOWN`: no registered pattern is a code
-gap, whereas an unresolvable object is a data gap.
-`UnresolvableObjectUseCase` (`vultron/core/use_cases/received/unknown.py`) logs
-a WARNING and stores a dead-letter record (VAM-01-009).
+A bare URI still in `object_` after rehydration satisfies no object type
+(SE-01-006) and resolves to `UNKNOWN_UNRESOLVABLE_OBJECT`, not `UNKNOWN`: no
+registered pattern is a code gap, whereas an unresolvable object is a data gap.
+The inbox first fetches the object from the case host and replays the activity
+(AKM-05-007); one that still reaches `UnresolvableObjectUseCase`
+(`vultron/core/use_cases/received/unknown.py`) is logged at WARNING and
+dead-lettered (VAM-01-009).
 
 ## `Accept(Invite)` Carries the Invite
 

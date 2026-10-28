@@ -422,9 +422,12 @@ groups:
       matches because its `object` is a bare id it does not hold
       (`UNKNOWN_UNRESOLVABLE_OBJECT`), the embargo a replica's case names as active when
       an announced revision replaces it (EMB-18-007), and the proposer's profile a
-      `Create(CaseProposal)` names by id (CP-01-014). An activity that matches a pattern
-      with a bare reference is handled as it was before dereference existed: its
-      handler decides.
+      `Create(CaseProposal)` names by id (CP-01-014). A bare `object` matches no
+      pattern that tests the object by its type (SE-01-006), so every activity whose
+      `object` the receiver lacks is fetched for, except a `Read(CaseLedgerEntry)`
+      position statement, which its `ledgerPosition` identifies. A bare reference in
+      `target` or `context` is not fetched: it matches (SE-01-007), and its handler
+      decides.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_dereference.py` delivers each such
       activity through the inbox run with a fake fetcher and checks it is fetched from
