@@ -39,7 +39,6 @@ Read them before you choose a path.
 No actor creates a case without a report.
 Any actor that receives a report can create a case for it: a vendor, a coordinator, or you, if you report to yourself.
 The receiver becomes the Case Owner, and the Reporter becomes a participant ([CM-14-008](../reference/specs/protocol.md#cm-14-008), [CM-14-009](../reference/specs/protocol.md#cm-14-009), [CM-14-012](../reference/specs/protocol.md#cm-14-012)).
-So the actor that receives the report owns the case.
 
 **The Case Owner holds the Case Manager role, or delegates it.**
 Each case has a [Case Manager](../topics/case_lifecycle/case_manager_and_ledger.md), which keeps the history of the case and sends each change to the participants.
@@ -118,11 +117,11 @@ Another participant may be a better owner later.
 An example is a finder that records each vulnerability it finds as a case in its own system.
 That finder transfers each case when it chooses.
 
-1. Report to yourself and create the case, as in the previous path.
+1. Report to yourself and create the case, as in *Report to yourself and coordinate*.
 2. Invite the other parties that the case needs, including any possible future owner.
    A future owner can be a vendor, a coordinator, or any other participant.
 3. Coordinate the case while you are the right owner.
-4. When another participant should coordinate the case, take the next path.
+4. When another participant should coordinate the case, follow *Transfer ownership of an existing case*.
 
 ### Transfer ownership of an existing case
 
@@ -156,15 +155,15 @@ The protocol does not yet say how that role moves to another actor ([§12.1 Role
 
 If you want another organization, X, to coordinate the case, two paths can get it there.
 You can submit the report to X.
-Or you can create the case yourself and then transfer it to X.
+Or you can create the case yourself, invite X, and then transfer the case to X.
 The table below compares what each path leaves in your hands.
 
-| Question | Submit a report to X | Create the case, then transfer it to X |
+| Question | Submit a report to X | Create the case, invite X, then transfer it to X |
 |---|---|---|
 | Who decides whether a case exists | X | You |
 | Who makes the early decisions, such as the embargo terms and the invitations | X, as the Case Owner. Your proposed embargo terms apply as Step 1 describes. | You, until X accepts the transfer |
-| What happens if X declines | X creates no case, or creates one and then invalidates or closes the report. Any case that exists is owned by X, not by you. | X rejects the transfer. You keep the case, its history, and its participants ([CM-21-012](../reference/specs/protocol.md#cm-21-012)). |
-| What you can do next if X declines | Report to yourself and create a case of your own. It is separate from any case that X created. | Propose a transfer to another participant at once ([CM-21-014](../reference/specs/protocol.md#cm-21-014)). |
+| What happens if X declines | X creates no case, or creates one and then invalidates or closes the report. Any case that exists is owned by X, not by you. | X rejects the invitation or the transfer. You keep the case, its history, and its participants ([CM-11-007](../reference/specs/protocol.md#cm-11-007), [CM-21-012](../reference/specs/protocol.md#cm-21-012)). |
+| What you can do next if X declines | Report to yourself and create a case of your own. It is separate from any case that X created. If the case of X has an active embargo, you are still a signatory to it. A case of your own does not end that agreement ([CM-14-005](../reference/specs/protocol.md#cm-14-005)). | Invite another participant, or propose a transfer to an active participant at once ([CM-21-014](../reference/specs/protocol.md#cm-21-014)). |
 
 Use this test to choose.
 If both of these conditions are true, submit the report to X:
