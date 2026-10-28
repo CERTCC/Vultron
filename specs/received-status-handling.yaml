@@ -61,11 +61,11 @@ groups:
       the `CaseStatus` the sender's `ParticipantStatus` embeds sets, and MUST
       NOT clear one the case already sets.
     rationale: >-
-      Adoption is the only path by which a participant's P, X or A reaches the case
-      status (RSH-04-005), so a record that re-snapshots the case's PXA adopts nothing,
-      and one that clears a latch the case already set would undo another participant's
-      report. P, X and A only latch on, so the union of the two is the only result that
-      loses no report.
+      Adoption is the only path that moves the P, X or A state of a participant into the
+      case status (RSH-04-005). Thus a record that copies the PXA of the case again
+      adopts nothing. A record that clears a latch that the case set already undoes the
+      report of another participant. P, X and A latch on only, so the union of the two
+      is the only result that loses no report.
     verification: >-
       Unit tests in `test/core/behaviors/status/test_add_participant_status_bt.py`
       confirm that an adopted status records the post-adoption `CaseStatus`,
@@ -222,12 +222,13 @@ groups:
       (RSH-03-001) was declared by the CASE_MANAGER; it waits for the CASE_MANAGER's
       committed teardown entry (EP-09-007).
     rationale: >-
-      The CASE_MANAGER tears down on its own P/X/A detection, commits the teardown and
-      records the new status, each as a ledger entry announced to every participant. A
-      replica asking it to terminate an embargo it has already terminated earns only a
-      refusal and adds traffic. An open proposal raises no ask either way (EMB-16-002).
-      The CSB-18 diagnostic note raises no such false alarm, because
-      `PxaEmInvariantDiagnosticNode` runs only at the CASE_MANAGER.
+      The CASE_MANAGER does the teardown when it detects P, X or A itself. It commits
+      the teardown and records the new status, each as a ledger entry that it announces
+      to every participant. If a replica asks it to terminate an embargo that it
+      terminated already, the only result is a refusal and more messages. An open
+      proposal raises no ask in either case (EMB-16-002). The CSB-18 diagnostic note
+      raises no such false alarm, because `PxaEmInvariantDiagnosticNode` runs only at
+      the CASE_MANAGER.
     note: >
       Held by the tree shapes, not by a sender check: the CASE_MANAGER only
       ledgers its `Add(CaseStatus)`, never sends it bare (RSH-04-001), a
@@ -301,11 +302,12 @@ groups:
       has made that record: the committed entry carries the change to every replica, and
       a second `CaseStatus` entry for it would be a duplicate.
     rationale: >-
-      EM state changes are observable to remote actors only through `CaseStatus` entries
-      in `Announce(CaseLedgerEntry)` messages. A mutation without a following ledger
-      write leaves participant replicas with a stale EM state. Where the committed entry
-      already records the causing activity and replicas replay the same transition, that
-      entry carries the change, so a second `CaseStatus` entry would only duplicate it.
+      Remote actors see EM state changes only through `CaseStatus` entries in
+      `Announce(CaseLedgerEntry)` messages. If a change has no ledger write after it,
+      the replicas of the participants keep a stale EM state. If the committed entry
+      records the activity that caused the change, and replicas replay the same
+      transition, that entry carries the change. A second `CaseStatus` entry then only
+      duplicates it.
     verification: '`test/architecture/test_vfd_rm_pxa_write_sites.py` confirms every BT node that mutates EM state is
       immediately followed by a `CaseStatus` ledger write, with no uncovered write sites allowed.'
     stories:
@@ -459,10 +461,11 @@ groups:
       scale to a state that is not adjacent to the recorded one) MUST accept the
       reported `rm` state.
     rationale: >-
-      The sender is authoritative about its own RM progress. Refusing a non-adjacent
-      forward jump would leave the receiver's replica permanently wrong, because the
-      sender will not resend intermediate transitions it never reported. Accepting every
-      move that some forward path explains is the liberal-accept rule (ADR-0067).
+      The sender is the authority for its own RM progress. If the receiver refuses a
+      forward jump that is not adjacent, its replica stays incorrect, because the sender
+      does not send again the intermediate transitions that it did not report. The
+      receiver accepts every move that a forward path explains. This is the
+      liberal-accept rule (ADR-0067).
     adr:
     - ADR-0067
     verification: Unit tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
@@ -532,13 +535,13 @@ groups:
       (SYNC-02-002). It MUST NOT send the note to the sender as a direct `Add(Note)`,
       which a participant refuses (HP-01-005).
     rationale: >-
-      An RM anomaly needs an answer at the protocol level, not only in local logs,
-      because only the sender knows the path it took between the two observed states.
-      `Add(Note, VulnerabilityCase)` is the message for a condition that needs narrative
-      explanation (MSM-05-001), standing in for the report-management error message that
-      `MessageSemantics` does not define (ADR-0049). The note is the CASE_MANAGER's own
-      case act, so it reaches the sender through the ledger; a direct `Add(Note)` is
-      refused by the participant (HP-01-005).
+      An RM anomaly needs an answer in the protocol, not only in local logs, because
+      only the sender knows the path that it took between the two states seen.
+      `Add(Note, VulnerabilityCase)` is the message for a condition that needs a written
+      explanation (MSM-05-001). It replaces the report-management error message that
+      `MessageSemantics` does not define (ADR-0049). The note is a case act of the
+      CASE_MANAGER, so it goes to the sender through the ledger. The participant refuses
+      a direct `Add(Note)` (HP-01-005).
     adr:
     - ADR-0067
     verification: >
@@ -643,12 +646,13 @@ groups:
       authorization before a non-owner participant's PXA assertion is adopted as
       canonical case state.
     rationale: >-
-      A permissive default (for example `AlwaysSucceed`) lets any admitted participant,
-      including a hostile or malfunctioning Observer admitted as a sentinel, force PXA
-      adoption and so trigger embargo teardown without any Case Owner confirmation. The
-      default posture must be conservative, and permissive behavior requires an explicit
-      opt-in (ADR-0076). The gate waits for a recorded authorization by routing on
-      conversation state, not by asking an Evaluator (RSH-07-004, ADR-0080).
+      A permissive default (for example `AlwaysSucceed`) lets any admitted participant
+      force PXA adoption and start the embargo teardown with no confirmation from the
+      Case Owner. This includes a hostile or defective Observer that the case admits as
+      a sentinel. Thus the default must be conservative, and permissive behavior needs
+      an explicit opt-in (ADR-0076). The gate waits for a recorded authorization: it
+      routes on the state of the conversation and does not ask an Evaluator (RSH-07-004,
+      ADR-0080).
     verification: >
       With the default bundle and a non-owner sender, no `Add(CaseStatus)` is
       emitted until Case Owner authorization is recorded in the case ledger.
@@ -680,12 +684,12 @@ groups:
       routing subtree per ASK-02-001, and MUST NOT be composed as a single-tick
       Evaluator call-out that answers the authorization question inline.
     rationale: >-
-      At the moment authorization is first needed no answer exists, so an Evaluator
-      asked "is this approved?" can only ever answer no, which makes the authorization
-      model of ADR-0046 and ADR-0076 unreachable by any pathway. Routing on whether
-      authorization has been recorded, refused, requested and outstanding, or never
-      requested lets the gate emit the request, end the tick, and pass once the answer
-      is in the ledger.
+      When the gate first needs authorization, no answer exists. An Evaluator that asks
+      "is this approved?" can thus only answer no, and no path can then reach the
+      authorization model of ADR-0046 and ADR-0076. The gate routes on four conditions:
+      authorization is recorded, refused, requested and not answered, or not requested.
+      This lets the gate send the request, end the tick, and pass when the answer is in
+      the ledger.
     verification: >
       Inspection confirms each gate is a routing subtree whose branches cover
       authorized, refused, outstanding, and not-yet-asked, and that no
@@ -700,10 +704,10 @@ groups:
       A status authorization gate MUST NOT be satisfied by relaxing its default to a
       permissive backend in order to make a blocked path proceed.
     rationale: >-
-      `STATUS_AUTHORIZATION_PERMISSIVE` exists for trusted-participant and demo
-      deployments (RSH-07-003). Using it to work around an unreachable gate turns a
-      protocol guarantee into a configuration posture, so every deployment that copies
-      the workaround loses the Case Owner's check without choosing to.
+      `STATUS_AUTHORIZATION_PERMISSIVE` is for deployments with trusted participants and
+      for demos (RSH-07-003). If a deployment uses it to avoid a gate that cannot pass,
+      a protocol guarantee becomes a configuration setting. Every deployment that copies
+      this setting then loses the check by the Case Owner, but did not choose to.
     verification: >
       The production default bundle is the conservative one, and permissive
       injection sites are enumerated and documented.
@@ -753,12 +757,12 @@ groups:
       invitee's participant record when, in response to a received activity, it emits the
       stub Invite (CM-11-006, CM-17-007, CM-16-006): its subject is the invitee.
     rationale: >-
-      A received activity is an assertion about the sender's state (HP-00-001), and
-      participant status is self-declaratory (ADR-0121). BT-17-006 chooses the store a
-      received-side tree runs in; it says nothing about whose state the tree writes, and
-      its own sender-ID clause presumes the two differ. Conflating the store with the
-      subject advances the wrong participant: the receiver's RM moves on a declaration
-      that was about the sender (ADR-0089).
+      A received activity is a statement about the state of the sender (HP-00-001), and
+      each participant declares its own status (ADR-0121). BT-17-006 selects the store
+      in which a received-side tree runs. It does not say whose state the tree writes,
+      and its sender-ID clause assumes that the two are different. If the tree uses the
+      store as the subject, it moves the incorrect participant: the RM of the receiver
+      changes on a declaration about the sender (ADR-0089).
     verification: Regression tests for the report-invalid and report-closed received-side use cases assert the
       sender's participant reaches the target RM state and the receiving actor's participant is unchanged.
     adr:
@@ -823,12 +827,12 @@ groups:
       paused, which applies an embargo-ending notice sent to it by the
       CASE_MANAGER (CM-31-010).
     rationale: >-
-      A received-side tree that writes state at every inbox lets `Add(EmbargoEvent)`,
-      `Remove(EmbargoEvent)` or `Add(CaseStatus)` move a replica's state from any
-      sender, and applies an activity that reaches a replica by `cc` or misrouting
-      without the CASE_MANAGER's adjudication or sender check (PCR-03-001). A paused
-      ledger stream cannot carry an embargo end, so that one notice from the
-      CASE_MANAGER is applied directly (ADR-0116).
+      If a received-side tree writes state at every inbox, `Add(EmbargoEvent)`,
+      `Remove(EmbargoEvent)` or `Add(CaseStatus)` from any sender can change the state
+      of a replica. The tree also applies an activity that gets to a replica by `cc` or
+      by incorrect routing, without the decision or the sender check of the CASE_MANAGER
+      (PCR-03-001). A paused ledger stream cannot carry the end of an embargo, so the
+      replica applies that one notice from the CASE_MANAGER directly (ADR-0116).
     verification: >
       `test/architecture/test_received_tree_state_writes_are_gated.py` builds
       every received-side tree factory and walks it with the factory's own
@@ -852,10 +856,10 @@ groups:
       received-side effect under RSH-08-003 MUST NOT land before the replay
       node for the transition it wrote exists.
     rationale: >-
-      A replica learns case state only from replayed ledger entries (RSH-08-003,
-      ADR-0108), so a committed `semantic_type` with no apply node leaves every replica
-      blind to that change. Gating a direct-receipt effect before the replay node for
-      its transition exists would remove the replica's only path to the change.
+      A replica gets case state only from replayed ledger entries (RSH-08-003,
+      ADR-0108). Thus a committed `semantic_type` with no apply node keeps every replica
+      from seeing that change. If a direct-receipt effect is gated before the replay
+      node for its transition exists, the replica loses its only path to the change.
     verification: >
       `test/architecture/test_ledger_semantic_types_are_replayed.py` derives the
       committed `semantic_type` set from code (`_ledger_commit_inventory.py`: the
@@ -883,11 +887,12 @@ groups:
       the move before sending, and MAY store the status object the activity
       carries.
     rationale: >-
-      A status the sender writes for itself has its own id and times, or a value the
-      CASE_MANAGER then filters, so the sender's replica would hold a status no entry
-      records and differ from every replica at the same ledger position. PCR-03-002 and
-      PCR-03-005 keep the case owner from writing its own copy; this extends that to
-      every sender of a status declaration (CLP-07-013, CM-23-016).
+      A status that the sender writes for itself has its own id and times, or a value
+      that the CASE_MANAGER then filters. The replica of the sender then holds a status
+      that no entry records, and it is different from every replica at the same ledger
+      position. PCR-03-002 and PCR-03-005 stop the Case Owner from writing its own copy.
+      This rule applies the same limit to every sender of a status declaration
+      (CLP-07-013, CM-23-016).
     verification: >
       Each trigger path has a marked test that asserts it leaves the
       participant record unchanged and queues the declaration: engage
@@ -924,12 +929,12 @@ groups:
       participant, or both, when the status changes nothing else (RM as the
       target holds it, and no case status).
     rationale: >-
-      A received activity is an assertion about the sender's state (HP-00-001), and
-      RSH-08-001 makes the sender the subject of an RM declaration. Without a subject
-      check on `Add(ParticipantStatus)`, a participant could write any status onto
-      another participant's record and the CASE_MANAGER would commit it. The on-behalf
-      trigger sends exactly the PRM-06 moves, so the receive side admits those and
-      nothing wider (ADR-0121).
+      A received activity is a statement about the state of the sender (HP-00-001), and
+      RSH-08-001 makes the sender the subject of an RM declaration. With no subject
+      check on `Add(ParticipantStatus)`, a participant can write any status on the
+      record of a different participant, and the CASE_MANAGER commits it. The on-behalf
+      trigger sends only the PRM-06 moves, so the receive side admits those moves and no
+      others (ADR-0121).
     verification: >
       `test/core/use_cases/received/test_status.py::TestParticipantStatusSubjectIsTheSender`
       drives each case through the inbox ingress at the CASE_MANAGER: a
@@ -1060,11 +1065,11 @@ groups:
       any is violated. It MUST evaluate the same entailment set the emit path
       evaluates.
     rationale: >-
-      Each dimension can be acceptable alone while the combination is impossible: a fix
-      that is ready or deployed entails a report the participant has accepted, and a
-      deployed fix entails a ready one. A replica refuses to apply such a status
-      (RSH-09-006), so recording it would commit an entry no replica can apply. One
-      shared evaluator keeps the emit and receive paths from diverging.
+      Each dimension can be acceptable alone when the combination is not possible. A fix
+      that is ready or deployed requires a report that the participant accepted, and a
+      deployed fix requires a ready fix. A replica refuses to apply such a status
+      (RSH-09-006). Thus a recorded status of this type commits an entry that no replica
+      can apply. One shared evaluator keeps the emit path and the receive path the same.
     verification: >
       Tests in `test/core/behaviors/status/test_participant_status_acceptance.py`
       confirm a status stating a ready or deployed fix with a pre-acceptance RM,
@@ -1210,10 +1215,10 @@ groups:
       return `HandlerResult.refused`, which the inbox maps to a `rejected`
       `InboxOutcome` rather than `202 Accepted / processed`.
     rationale: >-
-      A sender can tell a refused update from an accepted one only from the inbox
-      outcome. If a refused status assertion returned `202 Accepted / processed`, the
-      sender would believe the CASE_MANAGER recorded a status it refused, and its view
-      of the case would diverge with no signal.
+      Only the inbox outcome tells a sender that the receiver refused or accepted an
+      update. If a refused status assertion returns `202 Accepted / processed`, the
+      sender believes that the CASE_MANAGER recorded the status. The view of the case of
+      the sender then becomes different, and no signal shows this.
     verification: >
       Unit tests in `test/core/use_cases/received/test_status.py` confirm that
       `AddParticipantStatusToParticipantReceivedUseCase.execute()` returns
