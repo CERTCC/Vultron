@@ -147,14 +147,17 @@ def test_a_proof_naming_a_key_outside_the_authors_profile_is_refused(
 ):
     client, net = served_manager
     body = _owner_note(net, "https://example.org/notes/other-key")
-    body["proof"] = {
-        **(body.get("proof") or _INVALID_PROOF),
-        "verificationMethod": f"{BYSTANDER}#main-key",
-    }
+    foreign_key = f"{BYSTANDER}#main-key"
+    # The implementing Task signs this body with the bystander's own key
+    # through the shared test helper (#5384), so the signature verifies and
+    # only the key's owner is wrong.  The refusal must name the foreign key and
+    # the author, so that a refusal for a bad signature cannot pass this test.
+    body["proof"] = {**_INVALID_PROOF, "verificationMethod": foreign_key}
 
     response = client.post(_INBOX, json=body)
 
     _assert_refused_for_its_proof(response)
+    assert foreign_key in response.text and OWNER in response.text
     _assert_nothing_stored(net, body["id"])
 
 

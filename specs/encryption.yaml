@@ -113,8 +113,8 @@ groups:
     priority: MAY
     kind: protocol
     statement: >-
-      Case participants MAY encrypt messages sent to the CASE_MANAGER using the CASE_MANAGER's
-      published public key
+      Case participants MAY encrypt messages sent to the CASE_MANAGER using an
+      encryption key the CASE_MANAGER publishes in its actor profile.
     rationale: >-
       Messages to the CASE_MANAGER can carry embargoed vul details that intermediaries
       must not read in transit. Encryption is optional because transport security can be
@@ -130,8 +130,9 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      When sending messages to case participants, the CASE_MANAGER SHOULD encrypt each outbound
-      message to the recipient's public key individually (one encrypted payload per recipient)
+      When sending messages to case participants, the CASE_MANAGER SHOULD encrypt each
+      outbound message individually to an encryption key the recipient publishes in its
+      actor profile.
     rationale: >-
       The specific encryption scheme (e.g., ECDH key agreement + AES-256-GCM, RSA-OAEP) is
       intentionally deferred pending a protocol-level agreement. Until a scheme is standardized,

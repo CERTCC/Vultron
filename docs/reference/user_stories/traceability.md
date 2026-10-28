@@ -1042,14 +1042,18 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">Implementations SHOULD use transport-layer encryption for data in transit (`PROD_ONLY`) — interoperable identity use.</td>
 </tr>
 <tr markdown="1">
-<td rowspan="3" markdown="span">[story_2022_035](story_2022_035.md)</td>
-<td rowspan="3" markdown="span">As a Participant, have confidence in identity/group membership</td>
+<td rowspan="4" markdown="span">[story_2022_035](story_2022_035.md)</td>
+<td rowspan="4" markdown="span">As a Participant, have confidence in identity/group membership</td>
 <td markdown="span">[ENC-01-001](../specs/protocol.md#enc-01-001)</td>
 <td markdown="span">Each CaseActor MUST generate an asymmetric key (`PROD_ONLY`) — identity key material.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[ENC-01-002](../specs/protocol.md#enc-01-002)</td>
 <td markdown="span">Each actor MUST publish its public key in its actor profile as a `Multikey` under `assertionMethod` — verifiable identity.</td>
+</tr>
+<tr markdown="1">
+<td markdown="span">[SIG-02-001](../specs/protocol.md#sig-02-001)</td>
+<td markdown="span">A receiver MUST take a proof's key only from the author's actor profile — identity anchored in the profile.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-15-002](../specs/architecture.md#vp-15-002)</td>
@@ -1070,14 +1074,26 @@ Source specifications: `specs/*.yaml`
 <td markdown="span">CASE_MANAGER MUST enforce case-level authorization for all activities (`PROD_ONLY`) — authz enforcement.</td>
 </tr>
 <tr markdown="1">
-<td rowspan="4" markdown="span">[story_2022_089](story_2022_089.md)</td>
-<td rowspan="4" markdown="span">As a Participant, mechanism for message authentication/integrity</td>
+<td rowspan="7" markdown="span">[story_2022_089](story_2022_089.md)</td>
+<td rowspan="7" markdown="span">As a Participant, mechanism for message authentication/integrity</td>
 <td markdown="span">[ENC-01-001](../specs/protocol.md#enc-01-001)</td>
 <td markdown="span">Each CaseActor MUST generate an asymmetric key (`PROD_ONLY`) — signing key for integrity.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[ENC-01-002](../specs/protocol.md#enc-01-002)</td>
-<td markdown="span">CaseActor MUST publish its public key (`PROD_ONLY`) — verifiable signatures.</td>
+<td markdown="span">Each actor MUST publish its public key as a `Multikey` under `assertionMethod` — verifiable signatures.</td>
+</tr>
+<tr markdown="1">
+<td markdown="span">[SIG-01-001](../specs/protocol.md#sig-01-001)</td>
+<td markdown="span">Every activity an actor sends MUST carry a `proof` made with its author's key — message authentication.</td>
+</tr>
+<tr markdown="1">
+<td markdown="span">[SIG-03-002](../specs/protocol.md#sig-03-002)</td>
+<td markdown="span">A receiver MUST refuse an activity whose `proof` is missing or does not verify — integrity enforcement.</td>
+</tr>
+<tr markdown="1">
+<td markdown="span">[SIG-04-002](../specs/protocol.md#sig-04-002)</td>
+<td markdown="span">A replica MUST refuse a ledger entry whose CASE_MANAGER or author `proof` is missing or fails — integrity across relays.</td>
 </tr>
 <tr markdown="1">
 <td markdown="span">[VP-15-004](../specs/protocol.md#vp-15-004)</td>

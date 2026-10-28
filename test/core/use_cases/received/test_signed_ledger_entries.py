@@ -39,8 +39,9 @@ from ._ledger_network import MANAGER, OWNER, LedgerNetwork
 
 CASE_ID = "https://example.org/cases/case-signed-entries"
 _NOT_SIGNED = "the outbox does not sign activities yet. Tracked by #5382."
-#: The shape a sender's proof takes until the outbox makes real ones.  The
-#: CASE_MANAGER does not verify it here, so its value need not verify.
+#: A proof of the right shape.  The network routes bodies past the ingress, so
+#: nothing verifies it here, and the snapshot test uses it in place of the
+#: real proof: whether the outbox signs at all is SIG-01-001's test.
 _PLACEHOLDER_PROOF = {
     "type": "DataIntegrityProof",
     "cryptosuite": "eddsa-jcs-2022",
@@ -145,12 +146,11 @@ def test_a_sent_proof_names_the_cryptosuite_and_the_authors_key():
 def test_a_ledger_snapshot_keeps_the_senders_proof():
     net = LedgerNetwork(CASE_ID)
     body = _owner_note(net, "https://example.org/notes/signed-4")
-    proof = body.get("proof") or _PLACEHOLDER_PROOF
-    _commit(net, {**body, "proof": proof})
+    _commit(net, {**body, "proof": _PLACEHOLDER_PROOF})
 
     snapshot = _announce_of(net, body["id"])["object"]["payloadSnapshot"]
 
-    assert snapshot.get("proof") == proof
+    assert snapshot.get("proof") == _PLACEHOLDER_PROOF
 
 
 @pytest.mark.xfail(
@@ -164,14 +164,21 @@ def test_a_replica_refuses_an_entry_whose_author_proof_is_missing():
     _commit(net, body)
     announce = _announce_of(net, body["id"])
     announce["object"]["payloadSnapshot"].pop("proof", None)
+    # Removing the author's proof also breaks the CASE_MANAGER's proof on the
+    # Announce.  The implementing Task re-signs the Announce through the shared
+    # test helper (#5384), so only the author's proof fails; until then the
+    # refusal must name the snapshot's author, so that a replica checking only
+    # the outer proof cannot pass this test.
 
     try:
         verdict = net.receive(OWNER, announce)
-    except VultronError:
-        verdict = None
+        refusal = str(verdict.reason or "")
+    except VultronError as error:
+        verdict, refusal = None, str(error)
 
     assert (
         verdict is None
         or verdict.disposition is not HandlerDisposition.APPLIED
     )
+    assert "payloadSnapshot" in refusal and OWNER in refusal, refusal
     assert _owner_note_entries(net) == []

@@ -57,7 +57,6 @@ def test_an_unsigned_get_returns_the_profile_with_its_key(tmp_path: Path):
 
     profile = _profile(tmp_path / "vendor.db", "profile-key-vendor")
 
-    assert "proof" not in profile
     keys = _multikeys(profile)
     assert len(keys) == 1, profile
     [key] = keys

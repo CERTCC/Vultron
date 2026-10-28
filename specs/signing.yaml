@@ -208,9 +208,10 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A replica MUST refuse the whole `Announce(CaseLedgerEntry)` when a `proof` it carries
-      fails to verify. These are the CASE_MANAGER's `proof` on the `Announce` and, when the
-      `payloadSnapshot`'s `actor` is not the CASE_MANAGER, the author's `proof` on it.
+      A replica MUST refuse the whole `Announce(CaseLedgerEntry)` when a `proof` it
+      needs is missing or fails to verify. These are the CASE_MANAGER's `proof` on the
+      `Announce` and, when the `payloadSnapshot`'s `actor` is not the CASE_MANAGER, the
+      author's `proof` on the snapshot.
     rationale: >-
       The CASE_MANAGER's proof shows the entry came from the case's authority; the
       author's proof shows the participant wrote the act the entry records. Applying the
