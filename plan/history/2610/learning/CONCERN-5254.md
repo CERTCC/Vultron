@@ -42,6 +42,7 @@ Where: specs/vultron-protocol-spec.yaml, specs/duration.yaml, specs/embargo-poli
 Governing specs: VP-06, VP-07, VP-11, VP-14, DUR-03, DUR-07, EP-04, MS-03
 
 **Resolved**: 2026-10-28 — implementation tracked in #5297, #5298, #5299.
+Docs PR: <https://github.com/CERTCC/Vultron/pull/5301>.
 
 Decisions: DUR-07-004 is scoped to embargo-eligible cases, and the `RM.VALID` guard
 admits an ineligible case at `EM.NONE`. A placeholder terminated embargo was rejected
