@@ -611,7 +611,7 @@ class TestLateJoinerSequence:
     ):
         """The joiner trusts the case through the stub Invite, not a Create.
 
-        The Invite names the case and the actor whose
+        The Invite names the case and the CASE_MANAGER, the actor whose
         ``Announce(VulnerabilityCase)`` later seeds the joiner's replica, and
         the joiner receives no ``Create(VulnerabilityCase)`` on the way.
         """
@@ -647,6 +647,8 @@ class TestLateJoinerSequence:
             if getattr(invite.target, "type_", None) == "VulnerabilityCaseStub"
         ]
         assert _as_id(invite.context) == case_id
+        # The Invite's actor is the replica's CASE_MANAGER role-holder.
+        assert _as_id(invite.actor) == _find_case_actor_id(lj_dl, case_id)
         case_announcers = {
             _as_id(announce.actor)
             for announce in received_of_type(lj_dl, "Announce")

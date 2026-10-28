@@ -54,8 +54,8 @@ groups:
       library `Machine` instance for the axis
     rationale: >-
       A factory builds the machine for an axis from its transition list in one place.
-      Tests, diagrams and the demo state export can then use the same machine, and they
-      cannot each build a different copy of it.
+      Tests, diagrams and exports that call the factory then get the same machine, and
+      they do not each build a different copy of it.
   - id: SM-02-002
     priority: MUST_NOT
     kind: project
@@ -162,8 +162,9 @@ groups:
       history list
     rationale: >-
       A history holds more than one entry, and each reader needs the same current value
-      from it. A fixed rule that picks the latest timestamp gives the same answer for
-      every copy of the history, whatever order the entries arrived in.
+      from it. One fixed rule picks the entry with the latest timestamp, and the last
+      entry appended when two timestamps are equal. Every reader of one history then
+      gets the same answer.
     verification: A unit test confirms `current_status` returns the entry with the latest timestamp when the history
       list contains multiple entries; a single-entry history returns that entry.
     relationships:
@@ -261,10 +262,10 @@ groups:
       qualified form such as `RM.RECEIVED`.
     rationale: >-
       Other implementations must read the state values in a message. A bare label, such
-      as `RECEIVED` or `pxa`, is the name that the protocol documentation uses. An
-      integer depends on the order of an enum in one implementation, and a qualified
-      form such as `RM.RECEIVED` depends on its code names. Neither form is part of the
-      protocol.
+      as `RECEIVED` or `pxa`, is the value of the state itself, and any implementation
+      can match it. An integer depends on the order of an enum in one implementation,
+      and a qualified form such as `RM.RECEIVED` depends on its code names. Neither form
+      is part of the protocol.
     verification: >-
       `test/core/models/test_dimension_bare_serialization.py::test_enclosing_field_alias_carries_the_bare_state_on_the_wire`
       confirms RM, EM and PXA values reach the wire as bare labels, and

@@ -52,16 +52,15 @@ from vultron.semantic_registry._occasion import (
     Occasion,
     ProtocolShorthand,
 )
-from vultron.wire.as2.enums import as_TransitiveActivityType as TAtype
 from vultron.wire.as2.extractor import (
     AcceptCaseProposalPattern,
-    ActivityPattern,
     AddReportToCaseActivityPattern,
     CreateCaseActivityPattern,
     CreateCaseProposalPattern,
     DeferCasePattern,
     EngageCasePattern,
     RejectCaseProposalPattern,
+    ReportSubmissionPattern,
     UpdateCaseOwnerPattern,
 )
 from vultron.wire.as2.vocab.activities.case import (
@@ -161,9 +160,7 @@ ENTRIES: list[SemanticEntry] = [
         # vendor's CaseProposal, or a reporter's report Offer (CBT-01-005).
         answers=(
             VOtype.CASE_PROPOSAL,
-            ActivityPattern(
-                activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_REPORT
-            ),
+            ReportSubmissionPattern,
         ),
         occasions=(
             Occasion(

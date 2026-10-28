@@ -60,8 +60,9 @@ A participant MUST NOT create a replica from an arbitrary
 the sender only against an anchor the receiver derived itself (HP-01-008):
 
 1. **Report path**: a completed `VultronReportCaseLink` recording
-   `case_manager_id` (written on the report receiver's bootstrap
-   `Create(VulnerabilityCase)`).
+   `case_manager_id`. At the reporter, the report receiver's bootstrap
+   `Create(VulnerabilityCase)` writes it. At the report receiver, the
+   CASE_MANAGER's `Accept(CaseProposal)` and `Create(VulnerabilityCase)` write it.
    It comes first because ordinary case traffic never replaces it (CBT-02-003).
    Else the CASE_MANAGER role-holder on an existing replica.
 2. **Invite path**: a `VultronPendingCaseInbox` anchor written when the receiver

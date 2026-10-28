@@ -33,9 +33,9 @@ groups:
     rationale: >-
       If two lookups can answer the same `type` value, the same body can deserialize to
       different classes on different code paths, and a defect in one path is not seen in
-      the other. One lookup gives every caller the same answer. The registry keys and
-      the lookup order are set by VM-01-004 and VM-01-008, and VM-06-008 sets which
-      callers may also reach the core map.
+      the other. One lookup gives every caller the same answer. The registry keys are
+      set by VM-01-004 and VM-01-008, and VM-06-008 sets which callers may also reach
+      the core map.
     verification: Unit tests in `test/wire/as2/vocab/base/test_registry.py` confirm that `find_in_vocabulary()` returns the
       correct registered class for a known type and raises `KeyError` for any unregistered type name.
   - id: VM-01-003
@@ -45,12 +45,16 @@ groups:
     rationale: >-
       Registration happens when a module is imported (VM-01-005). A vocabulary module
       that no code path imports registers nothing, and the parser then refuses its
-      types. Importing the vocabulary package imports every vocabulary module, so the
-      set of known types does not depend on which modules the application happened to
-      import first.
-    verification: Unit tests in `test/wire/as2/vocab/base/test_registry_completeness.py` confirm that importing
-      `vultron.wire.as2.vocab` populates all expected vocabulary types in `VOCABULARY` without any explicit registration
-      call in application code.
+      types. Importing `vultron.wire.as2.vocab.objects` or
+      `vultron.wire.as2.vocab.activities` imports every module in that package, so the
+      set of known types does not depend on which single modules the application
+      imported first.
+    verification: >-
+      Unit tests in `test/wire/as2/vocab/base/test_registry_completeness.py` confirm
+      that importing the `vultron.wire.as2.vocab.objects` and
+      `vultron.wire.as2.vocab.activities` packages imports every module in each package
+      and populates all expected vocabulary types in `VOCABULARY`, with no explicit
+      registration call in application code.
   - id: VM-01-004
     priority: MUST
     kind: project
@@ -101,11 +105,10 @@ groups:
       and used to annotate the provenance of each vocabulary class'
     rationale: >-
       The namespace tag tells which vocabulary a class belongs to: ActivityStreams or
-      Vultron. Other rules read it. A Vultron class defaults its `@context` to the
-      Vultron context URI (VM-10-002), and the generator of the JSON-LD context document
-      reads it to choose the classes it lists. One enum in one module gives those
-      readers one value to compare, instead of a string that each reader can spell
-      differently.
+      Vultron. VM-10-002 states the default `@context` of a class in terms of the tag,
+      and the generator of the JSON-LD context document reads the tag to choose the
+      classes it lists. One enum in one module gives those readers one value to compare,
+      instead of a string that each reader can spell differently.
   - id: VM-01-007
     priority: MUST
     kind: project
@@ -126,9 +129,8 @@ groups:
       distinct wire `type` but registered nothing. Each exemption names its reason, so a
       reviewer can see why a class is exempt. The check reads the field default and not
       an instance, because a class with required fields cannot be built without
-      arguments. Abstract roots such as `as_Object`, `as_VultronObject` and
-      `as_VultronActorMixin` present their own name and are unregistered by design, so
-      they are members of the exemption set.
+      arguments. Abstract roots such as `as_Object` and `as_VultronObject` present their
+      own name and are unregistered by design, so they are members of the exemption set.
     verification: >-
       A test enumerates every `as_Base` subclass, computes the `type` each presents, and
       asserts that a class presenting its own class-name-derived value resolves to itself
@@ -157,10 +159,10 @@ groups:
     rationale: >-
       A key that is no object's `type` value cannot be reached from the wire. It also
       lets a caller with a class name resolve a wire class by a coincidence of names,
-      which ARCH-23-002 forbids: the key `VultronPerson` for `as_VultronPerson` is also
-      the name of a core type. A key derived from the emitted value removes both
-      problems. One owner for each `type` value gives the inbound lookup one answer for
-      each value.
+      which ARCH-23-002 forbids: a class-name key such as `VultronPerson` is also the
+      name of a core type. A key derived from the emitted value removes both problems.
+      One owner for each `type` value gives the inbound lookup one answer for each
+      value.
     verification: >-
       `test/architecture/test_vocab_registry_keys.py` forces full registration, then asserts every
       `WIRE_TYPE_MAP` key equals `wire_type_value()` of its registered class, that every declared
@@ -202,8 +204,8 @@ groups:
     rationale: >-
       `@` cannot occur in a Python identifier, and the camelCase alias generator cannot
       produce `@context` from a field name. Without the explicit aliases, the field is
-      sent as `context`, and a receiver does not find the JSON-LD context that VM-10-001
-      requires a message to declare.
+      sent as `context_`, and a receiver does not find the JSON-LD context that
+      VM-10-001 requires a message to declare.
     verification: Unit test `test_as_base_context_alias_accepted` in `test/wire/as2/vocab/base/test_wire_base_hierarchy.py`
       confirms that `@context` is accepted via the explicit alias, and inspection of `vultron/wire/as2/vocab/base/base.py`
       confirms the `validation_alias` and `serialization_alias` declarations.
@@ -252,15 +254,14 @@ groups:
       because any such declaration registers the class under its class name.
     rationale: >-
       Auto-registration treats an own `type_` annotation as the sign that a class is
-      concrete, and it keys the entry on the class name (VM-01-001). VM-03-001 fills
+      concrete, and it keys the entry on the class name (VM-01-004). VM-03-001 fills
       `type_` from the class name when a class inherits no default. So a class with
       neither an annotation nor an inherited default presents a distinct wire `type` but
       registers nothing, and the parser cannot resolve that `type` to a wire class. As a
       MUST, the annotation is the single declaration of a distinct wire type, and
       VM-01-007 can check it. The prohibition covers only aliases that must not be
-      reachable by class name. Classes such as `as_VultronPerson` present an ancestor's
-      `type` but narrow `type_` on purpose, so that they register under their own class
-      name.
+      reachable by class name. A class that shares another class's `type` but must stay
+      reachable by class name declares `_wire_type_alias` instead (VM-01-008).
     verification: >-
       A test asserts that a wire class presenting its own class-name-derived `type` value
       declares that value as a `Literal`, and that an `_XxxActivity` alias declares no own
@@ -347,10 +348,11 @@ groups:
       (b) a handler use case in `vultron/core/use_cases/`, and (c) at least one
       round-trip serialization test.
     rationale: >-
-      A vocabulary type that the parser accepts but that no domain model represents and
-      no use case handles reaches dispatch with no behavior, so the activity is accepted
-      and then does nothing. A round-trip test detects a field whose wire name or type
-      does not survive serialization and parsing.
+      A vocabulary type with no use case gives the receiver nothing to act on. With no
+      pattern, the activity is classified `UNKNOWN` and refused. With a pattern but no
+      use case, the dispatcher reports "no use case found" and refuses it (SE-05-002). A
+      round-trip test detects a field whose wire name or type does not survive
+      serialization and parsing.
 - id: VM-06
   title: Rehydration
   specs:
@@ -376,10 +378,10 @@ groups:
     kind: project
     statement: '`rehydrate()` MUST receive the active `DataLayer` instance via the `dl` parameter'
     rationale: >-
-      Each actor has its own store (DL-07-004), so a reference resolves only in the
-      store of the actor that received the activity. A `dl` parameter makes the caller
-      name that store. A global or default store could resolve the reference against the
-      wrong actor's data, or against no data.
+      Each actor has its own store (DL-07-002, DL-07-003), so a reference resolves only
+      in the store of the actor that received the activity. A `dl` parameter makes the
+      caller name that store. A global or default store could resolve the reference
+      against the wrong actor's data, or against no data.
     verification: Inspection of `vultron/wire/as2/rehydration.py` confirms that `rehydrate()` accepts and uses the `dl`
       parameter to resolve URI strings; tests in `test/adapters/driven/test_sqlite_rehydration.py` verify that resolved
       objects are fetched from the supplied DataLayer.
@@ -407,8 +409,9 @@ groups:
       A reference that the local DataLayer cannot resolve is a normal case: the object
       can be on another server, or not yet received. Raising would refuse an activity
       that is valid. Keeping the URI lets a later step treat the object as unresolved
-      (SE-01-006) and fetch it. The log entry tells an operator which reference stayed
-      unresolved.
+      (SE-01-006). A bare `object` is then classified by VAM-01-009, and a receiver that
+      is not the CASE_MANAGER fetches it (AKM-05-007). The log entry tells an operator
+      which reference stayed unresolved.
     verification: Unit tests `test_hydrate_keeps_unresolvable_string_ids` and `test_hydrate_warns_for_unresolvable_string_ids`
       in `test/adapters/driven/test_sqlite_rehydration.py` confirm that an unresolvable URI is left as a string, a WARNING
       is emitted, and no exception is raised.

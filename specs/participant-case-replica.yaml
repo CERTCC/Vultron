@@ -229,10 +229,11 @@ groups:
     verification_debt: '#3612'
     statement: The case owner actor MUST NOT write directly to its own local case copy.
     rationale: >-
-      The Case Owner's copy of the case, like every replica, changes only after the
-      CASE_MANAGER has checked the change and recorded it in the ledger. A direct
-      write skips both steps, so the other replicas never learn of the change and the
-      owner's copy then disagrees with the canonical case.
+      When the Case Owner is not the CASE_MANAGER, its copy of the case is a replica
+      like every other, and it changes only after the CASE_MANAGER has checked the
+      change and recorded it in the ledger. A direct write skips both steps, so the
+      other replicas never learn of the change and the owner's copy then disagrees with
+      the canonical case.
     relationships:
     - rel_type: refines
       spec_id: CM-02-010
@@ -355,9 +356,8 @@ groups:
       belongs to.
     rationale: >-
       An Actor holds replicas of many cases behind one inbox (PCR-01-001), so each
-      case-scoped activity must say which case it is about. One standard field for
-      that lets every receiver find the replica the same way, with no guesswork from
-      the activity's object.
+      case-scoped activity must say which case it is about. One standard field for that
+      lets every receiver find the replica the same way.
     verification: >-
       Inspection of `vultron/core/models/activity.py` confirms the `context`
       field is present on case-scoped activities, and a unit test confirms the
@@ -376,8 +376,9 @@ groups:
       `context` set to the case ID.
     rationale: >-
       A participant finds the replica an activity belongs to from its `context`
-      (PCR-04-001). An activity from the CASE_MANAGER with no case `context` cannot be
-      matched to a replica, so the participant cannot apply it.
+      (PCR-04-001). An activity from the CASE_MANAGER with no case `context` also skips
+      the hold for unknown cases (PCR-06-002), so the participant can process it before
+      it holds the case.
     verification: >-
       A unit test confirms that `Announce(CaseLedgerEntry)` and
       `Announce(VulnerabilityCase)` emitted by the CASE_MANAGER each carry
@@ -694,11 +695,10 @@ groups:
       performing the send. Optionally, `attributedTo` on the activity MAY carry the case
       owner's ID to record who initiated the invitation.
     rationale: >-
-      A receiver checks a case Invite against the CASE_MANAGER it knows, and it
-      records the Invite's `actor` as its trust anchor (PCR-03-004). If the Case Owner
-      were the `actor`, the invitee would anchor its trust on the wrong actor and
-      answer the wrong actor. `attributedTo` keeps a record of who asked for the
-      Invite.
+      A receiver records the Invite's `actor` as its trust anchor (PCR-03-004), and it
+      later accepts the case copy only from that actor. If the Case Owner were the
+      `actor`, the invitee would anchor its trust on the wrong actor and answer the
+      wrong actor. `attributedTo` keeps a record of who asked for the Invite.
     verification: >-
       `test/demo/test_remote_case_actor_invite.py::TestOwnerInviteThroughARemoteCaseActor`
       confirms the case owner's trigger sends its own request and the CASE_MANAGER, on
@@ -718,8 +718,8 @@ groups:
       and processor of all case-management handshake messages after case creation.
     rationale: >-
       Only the CASE_MANAGER records the invitee's join in the case and in the ledger.
-      An Accept addressed to the Case Owner reaches an actor that cannot record it, so
-      the join is never recorded.
+      When the Case Owner is not the CASE_MANAGER, an Accept addressed to the Case Owner
+      reaches an actor that cannot record the join, so the join is never recorded.
     verification: >-
       `test/core/use_cases/triggers/test_actor_triggers.py::TestSvcAcceptCaseInviteUseCase::test_accept_addresses_case_manager_not_case_owner`
       confirms that, for a case another actor owns, the invitee's `Accept` is
@@ -766,10 +766,11 @@ groups:
       The case owner MUST NOT author or emit any RM state-change activity on behalf of
       the invitee.
     rationale: >-
-      RM state belongs to each participant, and only that participant can declare it
-      (ADR-0121). An RM change that the Case Owner emits for the invitee records a
-      decision the invitee never made, and the case then shows the invitee engaged
-      when it is not.
+      RM state belongs to each participant, and it is the participant's own judgment
+      (ADR-0121). Outside the bootstrap record of CBT-01-008, only that participant
+      declares it. An RM change that the Case Owner emits for the invitee records a
+      decision the invitee never made, and the case then shows the invitee engaged when
+      it is not.
     relationships:
     - rel_type: refines
       spec_id: PCR-08-010
@@ -801,8 +802,8 @@ groups:
       any actor other than the one whose DataLayer is active for that use case invocation.
     rationale: >-
       A store belongs to one actor (ADR-0073). A tree that runs as a different actor
-      reads and writes the wrong actor's state, and it emits activities that claim to
-      come from an actor that did not send them (PCR-08-010).
+      writes records into this store under that actor's identity, and it emits
+      activities that claim to come from an actor that did not send them (PCR-08-010).
     relationships:
     - rel_type: refines
       spec_id: PCR-08-010

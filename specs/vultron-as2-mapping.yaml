@@ -29,7 +29,6 @@ groups:
   - id: VAM-01-002
     priority: MUST
     kind: project
-    verification_debt: '#2575'
     statement: >-
       The AS2 activity patterns defined in this document MUST be implemented as
       `ActivityPattern` objects in `vultron/wire/as2/extractor/_instances.py`.
@@ -37,10 +36,12 @@ groups:
       The registry modules import their patterns from one module. A reader can then see
       every wire form in one file, and no registry module builds its own copy of a form
       that can drift from the form this document defines.
+    verification: >-
+      `test/architecture/test_activity_patterns_defined_in_instances.py` confirms that no
+      module under `vultron/` other than `_instances.py` constructs an `ActivityPattern`.
   - id: VAM-01-002b
     priority: MUST_NOT
     kind: project
-    verification_debt: '#2575'
     statement: >-
       AS2 activity pattern objects MUST NOT be defined in any module other than
       `vultron/wire/as2/extractor/_instances.py`.
@@ -48,6 +49,9 @@ groups:
       A pattern built in another module is not in the file where a reader looks for the
       wire forms. It can also match a different shape from the pattern that
       `_instances.py` defines for the same form, and nothing compares the two.
+    verification: >-
+      `test/architecture/test_activity_patterns_defined_in_instances.py` confirms that no
+      module under `vultron/` other than `_instances.py` constructs an `ActivityPattern`.
     relationships:
     - rel_type: refines
       spec_id: VAM-01-002
@@ -177,11 +181,12 @@ groups:
     statement: Inbound activities represent state-change notifications, not commands; the AS2 activity type used for each
       semantic MUST reflect the completed state transition, not a requested action
     rationale: >-
-      A receiver applies each activity as a fact about the sender's state. If an
-      activity stated a requested action, the receiver could not know whether the
-      sender's state had changed, and two participants could record different states for
-      the same case. A completed-action type makes each message match the change that it
-      reports.
+      Each activity reports an act that the sender has already performed, such as an
+      Offer it made or an Invite it sent, and not an act it asks the receiver to
+      perform. If an activity stated a requested action, the receiver could not know
+      whether the sender's state had changed, and two participants could record
+      different states for the same case. A completed-action type makes each message
+      match the change that it reports.
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that every registered
       `ActivityPattern` uses a completed-action activity type (e.g., `Create`, `Accept`, `Reject`) and that
       no imperative or request-type activity variant appears in any pattern.
@@ -521,10 +526,10 @@ groups:
     statement: '`OFFER_ACTOR_TO_CASE` MUST be represented as `Offer(Actor)[target=VulnerabilityCase]`'
     rationale: >-
       This is the first message of the actor-suggestion exchange: a participant suggests
-      an Actor to the CASE_MANAGER. A suggestion names only an actor (CM-16-003), so the
-      object is the Actor itself. The pattern names cross: `SuggestActorToCasePattern`
-      is bound to `OFFER_ACTOR_TO_CASE`, and `OfferActorToCasePattern` is bound to
-      `OFFER_CASE_PARTICIPANT` (VAM-04-010).
+      an Actor to the CASE_MANAGER. A suggestion names only an actor (CM-16-001,
+      CM-16-003), so the object is the Actor itself. The pattern names cross:
+      `SuggestActorToCasePattern` is bound to `OFFER_ACTOR_TO_CASE`, and
+      `OfferActorToCasePattern` is bound to `OFFER_CASE_PARTICIPANT` (VAM-04-010).
     verification: >-
       Inspection of `vultron/semantic_registry/actor.py` confirms that
       `MessageSemantics.OFFER_ACTOR_TO_CASE` is keyed to `SuggestActorToCasePattern`,
@@ -677,7 +682,7 @@ groups:
     statement: '`ACCEPT_CASE_OWNERSHIP_TRANSFER` MUST be represented as `Accept(Offer(VulnerabilityCase))`'
     rationale: >-
       The transferee answers the Offer that it received, so its `Accept` wraps that
-      Offer. The CASE_MANAGER then moves the `CASE_OWNER` role (CM-21-002).
+      Offer. The CASE_MANAGER then moves the `CASE_OWNER` role (CM-21-002 to CM-21-004).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `AcceptCaseOwnershipTransferActivityPattern` wraps
       `OfferCaseOwnershipTransferActivityPattern` inside an `Accept` outer
@@ -795,10 +800,10 @@ groups:
       ledger position as its `ledgerPosition`, in the form VAM-04-011 defines
       (CM-11-011, SYNC-18-001).
     rationale: >-
-      `TentativeReject` records RM Invalid, from which the case can still become Valid,
-      so it is the same tentative answer as for a direct report (VAM-02-005). A stub
-      Invite has no tentative reply (CM-11-007), so this form exists only for the
-      full-case Invite.
+      `TentativeReject` records RM Invalid, from which the participant's RM state can
+      still become Valid, so it is the same tentative answer as for a direct report
+      (VAM-02-005). A stub Invite has no tentative reply (CM-11-007), so this form
+      exists only for the full-case Invite.
     verification: >-
       A unit test confirms that
       `TentativeReject(Invite(Actor)[target=VulnerabilityCase])` matches the full-case
@@ -967,9 +972,9 @@ groups:
     statement: '`INVITE_TO_EMBARGO_ON_CASE` MUST be represented as `Invite(Event)[context=VulnerabilityCase]`'
     rationale: >-
       A proposed embargo needs the answer of each invitee, so it is an `Invite` with the
-      `EmbargoEvent` as its object. The case goes in `context`, so this form stays
-      separate from the Invite of an actor to a case, whose case is in `target`
-      (VAM-04-004).
+      `EmbargoEvent` as its object. The `EmbargoEvent` object and the case in `context`
+      keep this form separate from the Invite of an actor to a case, whose case is in
+      `target` (VAM-04-004).
     verification: Inspection of `vultron/wire/as2/extractor/_instances.py` confirms that
       `InviteToEmbargoOnCasePattern` uses `TAtype.INVITE`, `AOtype.EVENT`, and `context_=VULNERABILITY_CASE`;
       integration tests in `test/demo/test_establish_embargo_demo.py` exercise this flow.
@@ -1057,10 +1062,12 @@ groups:
     rationale: >-
       This is how this codebase meets VAM-05-008 and VAM-05-009, kept apart from them so
       that they state only what other participants observe (MS-12-010). This codebase
-      matches the semantic type on the type of the inline object, and the vocabulary
-      class types the object as `as_EmbargoEvent`, so the event travels inline and the
-      receiver reads its type with no fetch. That is a choice of this prototype
-      reference implementation, not a protocol rule.
+      matches the semantic type on the type of the object. An inline event lets the
+      pattern read that type without depending on what the receiver's store holds. The
+      vocabulary class types the object as `as_EmbargoEvent` with no reference form, so
+      a reference that the receiver cannot resolve is refused (VM-06-007) and not
+      deferred. That is a choice of this prototype reference implementation, not a
+      protocol rule.
     verification: >-
       Inspection of `_ActivateEmbargoActivity` and `_RejectEmbargoProposalActivity` in
       `vultron/wire/as2/vocab/activities/embargo.py` confirms each types `object_` as
@@ -1105,10 +1112,11 @@ groups:
     rationale: >-
       This is how this codebase meets VAM-05-011, kept apart from it so that it states
       only what other participants observe (MS-12-010). This codebase matches the
-      semantic type on the type of the inline object, and the vocabulary class types the
-      object as `as_EmbargoEvent`, so the event travels inline and the receiver reads
-      its type with no fetch. That is a choice of this prototype reference
-      implementation, not a protocol rule.
+      semantic type on the type of the object. An inline event lets the pattern read
+      that type without depending on what the receiver's store holds. The vocabulary
+      class types the object as `as_EmbargoEvent` with no reference form, so a reference
+      that the receiver cannot resolve is refused (VM-06-007) and not deferred. That is
+      a choice of this prototype reference implementation, not a protocol rule.
     verification: >-
       Inspection of `_WithdrawFromEmbargoActivity` in
       `vultron/wire/as2/vocab/activities/embargo.py` confirms it types `object_` as

@@ -71,12 +71,12 @@ groups:
       participant with the `CASE_MANAGER` role, and SHOULD also carry the `COORDINATOR`
       role. The `CASE_OWNER` role MUST NOT be delegated to the CASE_MANAGER.
     rationale: >-
-      The CASE_MANAGER creates the case (ADR-0041) and the report receiver asks for
-      it, so the two roles can belong to two actors. CASE_OWNER is the standing of
-      the party whose disclosure decisions the case serves, and it is never
-      delegated. CASE_MANAGER is the right to write the canonical case ledger, held
-      by the actor whose store holds the case (ADR-0073). If the snapshot merged
-      the roles, the ledger writer could also make the Case Owner's decisions.
+      The CASE_MANAGER creates the case (ADR-0041) and the report receiver asks for it,
+      so the two roles can belong to two actors. CASE_OWNER is the standing of the party
+      whose disclosure decisions the case serves, and it is never delegated.
+      CASE_MANAGER is the right to write the canonical case ledger, held by the actor
+      whose store holds the canonical case (ADR-0073). If the snapshot merged the roles,
+      the ledger writer could also make the Case Owner's decisions.
     verification: >-
       `test/core/behaviors/case/test_case_proposal_received_tree.py` asserts both halves
       of the distinction on the bootstrap snapshot: `TestADR0041OwnerParticipant` that
@@ -122,9 +122,9 @@ groups:
       submitter MUST check this against a record it wrote itself before the case arrived; the roster in the snapshot,
       which the sender wrote, MUST NOT serve as that record.
     rationale: >-
-      The report receiver is the only actor the submitter chose. The record the
-      submitter wrote when it sent the report ties the report to that actor, so the
-      sender cannot forge it (PCR-05-001). The sender writes the roster in the
+      The report receiver is an actor the submitter chose when it sent the report. The
+      record the submitter wrote when it sent the report ties the report to that actor,
+      so the sender cannot forge it (PCR-05-001). The sender writes the roster in the
       snapshot, so any actor can name itself CASE_MANAGER there. The report reference
       also stops an actor from attaching an unrelated case to the submitter.
     verification: >-
@@ -535,9 +535,9 @@ groups:
       CASE_MANAGER, the joiner cannot tell which sender to trust for which case.
     verification: >-
       `test_the_stub_invite_is_the_late_joiners_trust_anchor` in
-      `test/demo/test_pcr_late_joiner.py` confirms that the stub Invite
-      names the case as its `context` and, as its `actor`, the one actor that later
-      sends the joiner `Announce(VulnerabilityCase)`.
+      `test/demo/test_pcr_late_joiner.py` confirms that the stub Invite names the case
+      as its `context` and, as its `actor`, the CASE_MANAGER of the joiner's replica,
+      which is the one actor that later sends the joiner `Announce(VulnerabilityCase)`.
     stories:
     - story_2022_090
     - story_2022_092
@@ -664,10 +664,9 @@ groups:
       reporter's participant status record to be stored as an embedded participant in the
       new case, making the reporter addressable without a separate `InviteActorToCase`.
     rationale: >-
-      If the bootstrap does not store the reporter's participant record, the
-      reporter is not a participant in its own replica, and it would need an Invite
-      to join the case it reported. A test confirms that the bootstrap alone makes
-      it a participant.
+      If the bootstrap does not store the reporter's participant record, the reporter is
+      not a participant in its own replica, and it would need an Invite to join the case
+      it reported.
   - id: CBT-05-006
     priority: MUST
     kind: project
@@ -685,8 +684,7 @@ groups:
     rationale: >-
       The reporter's later status updates find its participant record through the
       replica's participant index. If the bootstrap leaves the reporter out of that
-      index, its first status update fails. Running `AddParticipantStatusBT` after
-      the bootstrap shows that the index holds it.
+      index, its first status update fails.
   - id: CBT-05-007
     priority: MUST
     kind: project

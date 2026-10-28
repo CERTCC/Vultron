@@ -30,8 +30,9 @@ groups:
     rationale: >-
       Every later message about the proposal names it by this id: the `Accept` or
       `Reject` that answers it, the duplicate check (CP-05-006) and the sender check
-      (CP-05-010). A full URI is unique across actors, so two proposals never share a
-      key.
+      (CP-05-010). A full URI names one object across all actors, so proposals from
+      different proposers do not share a key by accident. CP-05-010 refuses a sender
+      that reuses another proposer's identifier.
     verification: Inspection of `vultron/wire/as2/vocab/objects/case_proposal.py` confirms `id_` is inherited from
       `as_VultronObject` as a required URI field on every `as_CaseProposal` instance.
     adr:
@@ -82,7 +83,7 @@ groups:
       A `CaseProposal` MAY include an optional `summary` field with a human-readable
       description of the proposal.
     rationale: >-
-      A person who reviews proposals at the case-actor service may need to know why the
+      A person who reviews proposals at the Case Actor Service may need to know why the
       report receiver asks for a case. A short description gives that context. The field
       is optional because the proposal is complete without it.
     adr:
@@ -565,7 +566,7 @@ groups:
     statement: A `CreateCaseProposalReceivedUseCase` MUST be implemented on the case-actor side to handle incoming `Create(as_CaseProposal)`
       activities.
     rationale: >-
-      The case-actor service must answer each proposal it receives (CP-05-002). The
+      The Case Actor Service must answer each proposal it admits (CP-05-002). The
       dispatcher sends each `Create(as_CaseProposal)` to this use case, so without it a
       proposal reaches no code that can answer it.
     verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms `CreateCaseProposalReceivedUseCase`
@@ -583,11 +584,12 @@ groups:
       either accept or reject the proposal, emitting an `Accept(CaseProposal)` or
       `Reject(CaseProposal)` activity accordingly.
     rationale: >-
-      A report receiver that sends a proposal treats the case as absent until the answer
-      comes (PCR-01-003, CP-06-003). If the case-actor service stays silent, the
-      receiver waits until its deadline (CP-05-007). Each proposal needs a decision
-      because the service can refuse one, for example a proposal for a fully closed case
-      (CP-05-008).
+      A report receiver that sends a proposal treats the case as absent until the
+      CASE_MANAGER's `Create(VulnerabilityCase)` arrives (PCR-01-003), and it holds the
+      proposal open until an answer comes (CP-06-003). If the CASE_MANAGER stays silent,
+      the receiver waits until its deadline (CP-05-007). Each proposal needs a decision
+      because the CASE_MANAGER can refuse one, for example a proposal for a fully closed
+      case (CP-05-008).
     verification: Integration tests in `test/demo/test_case_proposal_round_trip.py` confirm `CreateCaseProposalReceivedUseCase`
       evaluates a proposal and emits either `Accept(CaseProposal)` or `Reject(CaseProposal)` in response.
     stories:
@@ -853,7 +855,7 @@ groups:
     statement: An `AcceptCaseProposalReceivedUseCase` MUST be implemented on the report-receiver side to handle incoming `Accept(as_CaseProposal)`
       activities.
     rationale: >-
-      The report receiver must know that the case-actor service accepted its proposal,
+      The report receiver must know that the Case Actor Service accepted its proposal,
       so that it can match the `Create(VulnerabilityCase)` that follows to its own
       request and check its sender. The dispatcher sends each `Accept(as_CaseProposal)`
       to this use case.
@@ -870,7 +872,7 @@ groups:
     statement: A `RejectCaseProposalReceivedUseCase` MUST be implemented on the report-receiver side to handle incoming `Reject(as_CaseProposal)`
       activities.
     rationale: >-
-      The report receiver must know when the case-actor service declines its proposal,
+      The report receiver must know when the Case Actor Service declines its proposal,
       so that it stops waiting for a case. The dispatcher sends each
       `Reject(as_CaseProposal)` to this use case.
     verification: Inspection of `vultron/core/use_cases/received/case_proposal.py` confirms
@@ -950,9 +952,9 @@ groups:
       `ACCEPT_CASE_PROPOSAL`, `REJECT_CASE_PROPOSAL`).
     rationale: >-
       These three patterns decide whether a proposal and its answers reach their use
-      cases at all. A missing or wrong pattern sends the activity to the handling for
-      unknown activities, and the proposal flow stops, so each pattern needs its own
-      test.
+      cases at all. A missing or wrong pattern sends the activity to the wrong use case
+      or to the handling for unknown activities, and the proposal flow stops, so each
+      pattern needs its own test.
     verification: Unit tests `test_create_case_proposal_dispatches_correctly`, `test_accept_case_proposal_dispatches_correctly`,
       and `test_reject_case_proposal_dispatches_correctly` in `test/test_semantic_activity_patterns.py` cover all three patterns.
     adr:
@@ -997,12 +999,13 @@ groups:
       Every actor that may propose a case for a report it receives (CP-04-001) MUST
       supply a `case_actor_service_url` value in its `ActorConfig`.
     rationale: >-
-      The CaseActor service runs in its own container, with its own URL (DEMOMA-01-001).
-      A sender cannot derive that URL from its own base URL: in a deployment with more
-      than one container, that sends the proposal to the wrong endpoint. An actor URL is
-      an opaque identifier, so nothing in it says where the service runs. This codebase
-      has no way to resolve an actor id to its endpoint, so explicit configuration is
-      the only correct source.
+      The Case Actor Service can run in a different container from the sender, with its
+      own URL (DEMOMA-01-001). A sender cannot derive that URL from its own base URL: in
+      a deployment with more than one container, that sends the proposal to the wrong
+      endpoint. An actor URL is an opaque identifier, so nothing in it says where the
+      service runs. This codebase has no directory service from which a sender can learn
+      which Case Actor Service to use, so explicit configuration is the only correct
+      source.
     relationships:
     - rel_type: implements
       spec_id: CP-01-005
@@ -1040,9 +1043,9 @@ groups:
       `ActorConfig` (via `get_config().actor.case_actor_service_url`) to derive the
       CaseActor service URL.
     rationale: >-
-      One function computes the CaseActor service identity from the configured URL, so
-      every node that addresses the service uses the same value, and the value never
-      comes from the container's own address (CP-08-006).
+      One function computes the Case Actor identity from the configured Case Actor
+      Service URL. Every BT node that addresses the Case Actor then uses the same value,
+      and no BT node builds it from the container's own address (CP-08-006).
     relationships:
     - rel_type: refines
       spec_id: CP-08-001
@@ -1068,7 +1071,7 @@ groups:
       a report it receives (CP-04-001) MUST have `VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL`
       set in its Docker Compose environment block (or equivalent config mechanism).
     rationale: >-
-      The demo containers have no directory service to find the CaseActor service. A
+      The demo containers have no directory service to find the Case Actor Service. A
       variable in each container's environment gives every actor that proposes cases the
       service URL when the container starts. It uses the same mechanism as
       `VULTRON_SERVER__BASE_URL`, so no new discovery mechanism is needed.
