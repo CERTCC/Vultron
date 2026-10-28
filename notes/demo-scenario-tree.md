@@ -8,6 +8,12 @@ tracks:
   - "#4759"
   - "#4747"
   - "#5304"
+  - "#5344"
+  - "#5345"
+  - "#5346"
+  - "#5347"
+  - "#5348"
+  - "#5349"
 description: >
   Design for making the demo scenario tree explicit (#4726): branch points
   defined once in a table, each scenario declaring its full path on `@scenario`,
@@ -222,5 +228,5 @@ check already has each scenario report to the harness.
    recordings needed).
 2. #4727 — the tree-index exporter and the isomorphic prefix check, after #3901.
 3. #4733 — composition, family by family.
-4. Test starting points: the per-act read fix first, then the harness, a pilot, and
-   one migration per test area (see the issues `tracks:` lists).
+4. Test starting points: #5344 (one act cheap) and #5345 (the harness, after #4727),
+   then the pilot #5346, then the migrations #5347 and #5348, and last #5349.
