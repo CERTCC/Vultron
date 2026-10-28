@@ -20,6 +20,7 @@ import pytest
 
 from vultron.metadata.ratchet_markers import (
     Baseline,
+    baselines_in,
     baselines_in_source,
     is_ratchet_name,
     is_terminal_value,
@@ -225,3 +226,8 @@ def test_scan_paths_raises_on_a_file_that_does_not_parse(
     broken.write_text("KNOWN_X = (\n", encoding="utf-8")
     with pytest.raises(SyntaxError):
         scan_paths([broken])
+
+
+def test_a_tree_that_is_not_a_module_holds_no_baselines() -> None:
+    tree = ast.parse("frozenset({'a'})", mode="eval")
+    assert baselines_in(tree, "frozenset({'a'})", _PATH) == []
