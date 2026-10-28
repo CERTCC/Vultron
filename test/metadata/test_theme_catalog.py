@@ -14,9 +14,11 @@ from pathlib import Path
 import pytest
 
 from vultron.metadata.file_loading import MetadataLoadError
+from vultron.metadata.planning import theme_labels
 from vultron.metadata.planning.theme_labels import (
     RemoteLabel,
     compute_drift,
+    fetch_labels,
     format_drift,
     main,
 )
@@ -76,6 +78,7 @@ def _catalog(*entries: str) -> ThemeCatalog:
     return parse_theme_catalog(_note(*entries), "note.md")
 
 
+@pytest.mark.spec("PAD-02-019")
 class TestRepositoryCatalog:
     """The committed note parses and holds the theme set epic #5321 decided."""
 
@@ -248,6 +251,7 @@ def _remote(name: str, description: str, color: str) -> RemoteLabel:
     return RemoteLabel(name=name, description=description, color=color)
 
 
+@pytest.mark.spec("PAD-02-021")
 class TestDrift:
     catalog = _catalog(_ENTRY_A, _ENTRY_B, _ENTRY_OLD)
 
@@ -296,6 +300,47 @@ class TestDrift:
             "in_sync": False,
         }
 
+    def test_name_differing_only_in_case_is_a_change(self) -> None:
+        remote = [
+            _remote("Theme:Alpha", "Alpha works", "1D76DB"),
+            _remote("theme:beta", "Beta works", "5319E7"),
+            _remote(
+                "theme:old",
+                "Retiring: use theme:alpha or theme:beta",
+                "1D76DB",
+            ),
+        ]
+        drift = compute_drift(self.catalog, remote)
+        assert drift.missing == ()
+        assert drift.unlisted == ()
+        assert [c.fields() for c in drift.changed] == [("name",)]
+
+
+class TestFetch:
+    def test_null_description_and_color_read_as_empty(self) -> None:
+        labels = fetch_labels(
+            "o/r",
+            run=lambda _: json.dumps(
+                [{"name": "theme:a", "description": None, "color": None}]
+            ),
+        )
+        assert labels == (RemoteLabel("theme:a", "", ""),)
+
+    @pytest.mark.parametrize("raw", ["not json", "[{}]", "{}", "[1]"])
+    def test_unreadable_listing_raises(self, raw: str) -> None:
+        with pytest.raises(theme_labels.LabelSyncError):
+            fetch_labels("o/r", run=lambda _: raw)
+
+    def test_gh_not_installed_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def missing(*_: object, **__: object) -> None:
+            raise FileNotFoundError("gh")
+
+        monkeypatch.setattr(theme_labels.subprocess, "run", missing)
+        with pytest.raises(theme_labels.LabelSyncError, match="not installed"):
+            fetch_labels("o/r")
+
 
 class _FakeGh:
     """Records ``gh`` calls; answers ``label list`` with *labels*."""
@@ -332,6 +377,7 @@ _DRIFTED = [
 ]
 
 
+@pytest.mark.spec("PAD-02-019", "PAD-02-020")
 class TestMain:
     def test_dry_run_changes_nothing(self, note: Path) -> None:
         gh = _FakeGh(_DRIFTED)
@@ -406,6 +452,60 @@ class TestMain:
 
         assert main(["--catalog", str(note), "--apply"], run=gh) == 2
         assert "denied" in capsys.readouterr().err
+
+    def test_apply_renames_a_case_mismatched_label(self, note: Path) -> None:
+        gh = _FakeGh(
+            [
+                {
+                    "name": "Theme:Alpha",
+                    "description": "Alpha works",
+                    "color": "1d76db",
+                },
+                {
+                    "name": "theme:beta",
+                    "description": "Beta works",
+                    "color": "5319e7",
+                },
+            ]
+        )
+        assert main(["--catalog", str(note), "--apply"], run=gh) == 0
+        (edit,) = [c for c in gh.calls if c[1] == "edit"]
+        assert edit[2] == "Theme:Alpha"
+        assert edit[edit.index("--name") + 1] == "theme:alpha"
+
+    def test_json_apply_keeps_stdout_json(
+        self, note: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        main(
+            ["--catalog", str(note), "--json", "--apply"],
+            run=_FakeGh(_DRIFTED),
+        )
+        captured = capsys.readouterr()
+        assert json.loads(captured.out)["missing"] == ["theme:beta"]
+        assert "applied 2 label change(s)." in captured.err
+
+    def test_unreadable_listing_exits_two(
+        self, note: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        assert main(["--catalog", str(note)], run=lambda _: "not json") == 2
+        assert "could not read" in capsys.readouterr().err
+
+    def test_gh_not_installed_exits_two(
+        self, note: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def missing(*_: object, **__: object) -> None:
+            raise FileNotFoundError("gh")
+
+        monkeypatch.setattr(theme_labels.subprocess, "run", missing)
+        assert main(["--catalog", str(note)]) == 2
+
+    def test_missing_catalog_exits_two(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        gh = _FakeGh([])
+        assert main(["--catalog", str(tmp_path / "absent.md")], run=gh) == 2
+        assert "absent.md" in capsys.readouterr().err
+        assert gh.calls == []
 
     def test_bad_catalog_exits_two(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

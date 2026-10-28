@@ -21,11 +21,11 @@ Requirements: PAD-02-019 to PAD-02-021.
     theme-labels --json     # the drift as JSON
 
 Drift has three parts. A catalog theme with no GitHub label is **missing** and
-``--apply`` creates it. A label whose description or color differs from its
-entry is **changed** and ``--apply`` edits it. A ``theme:`` label on GitHub that
-the catalog does not list is **unlisted**: it is reported and never deleted,
-because removing a label strips it from every Issue that carries it, and only a
-person can decide that.
+``--apply`` creates it. A label whose description, color or name case
+differs from its entry is **changed** and ``--apply`` edits it. A ``theme:``
+label on GitHub that the catalog does not list is **unlisted**: it is reported
+and never deleted, because removing a label strips it from every Issue that
+carries it, and only a person can decide that.
 
 :func:`compute_drift` is pure, so the tests pin it without the network; the
 ``gh`` calls go through an injectable runner.
@@ -52,7 +52,14 @@ from vultron.metadata.planning.themes import (
 DEFAULT_REPO = "CERTCC/Vultron"
 
 Runner = Callable[[Sequence[str]], str]
-"""Runs a ``gh`` argument list and returns its standard output."""
+"""Runs a ``gh`` argument list and returns its standard output.
+
+Raises :class:`LabelSyncError` or ``subprocess.CalledProcessError`` on failure.
+"""
+
+
+class LabelSyncError(Exception):
+    """``gh`` could not be run, or its output could not be read."""
 
 
 @dataclass(frozen=True)
@@ -75,8 +82,12 @@ class LabelChange:
         """Each differing field as ``(name, GitHub value, catalog value)``.
 
         Colors compare case-insensitively: GitHub reports them in lower case.
+        Names match case-insensitively, as GitHub matches them, so a label
+        that differs from its entry only in case is a ``name`` change.
         """
         differ: list[tuple[str, str, str]] = []
+        if self.remote.name != self.theme.label:
+            differ.append(("name", self.remote.name, self.theme.label))
         if self.remote.description != self.theme.description:
             differ.append(
                 (
@@ -129,20 +140,24 @@ def compute_drift(
         catalog: The theme catalog.
         remote: Every label on the repository; non-theme labels are ignored.
     """
-    themed = {r.name: r for r in remote if r.name.startswith(THEME_PREFIX)}
+    themed = {
+        r.name.casefold(): r
+        for r in remote
+        if r.name.casefold().startswith(THEME_PREFIX)
+    }
     missing: list[Theme] = []
     changed: list[LabelChange] = []
     for theme in catalog.themes:
-        found = themed.get(theme.label)
+        found = themed.get(theme.label.casefold())
         if found is None:
             missing.append(theme)
             continue
         change = LabelChange(theme=theme, remote=found)
         if change.fields():
             changed.append(change)
-    labels = catalog.labels()
+    labels = {label.casefold() for label in catalog.labels()}
     unlisted = sorted(
-        (r for name, r in themed.items() if name not in labels),
+        (r for key, r in themed.items() if key not in labels),
         key=lambda r: r.name,
     )
     return LabelDrift(tuple(missing), tuple(changed), tuple(unlisted))
@@ -171,14 +186,26 @@ def format_drift(drift: LabelDrift) -> str:
 
 
 def _gh(args: Sequence[str]) -> str:
-    """Run ``gh`` and return its standard output; raise on failure."""
-    return subprocess.run(
-        ["gh", *args], check=True, capture_output=True, text=True
-    ).stdout
+    """Run ``gh`` and return its standard output.
+
+    Raises:
+        LabelSyncError: If ``gh`` is not installed.
+        subprocess.CalledProcessError: If ``gh`` exits non-zero.
+    """
+    try:
+        return subprocess.run(
+            ["gh", *args], check=True, capture_output=True, text=True
+        ).stdout
+    except FileNotFoundError as exc:
+        raise LabelSyncError("gh is not installed or not on PATH") from exc
 
 
 def fetch_labels(repo: str, run: Runner = _gh) -> tuple[RemoteLabel, ...]:
-    """Every label on *repo*, as GitHub reports it."""
+    """Every label on *repo*, as GitHub reports it.
+
+    Raises:
+        LabelSyncError: If the listing is not the JSON shape ``gh`` emits.
+    """
     raw = run(
         [
             "label",
@@ -191,14 +218,30 @@ def fetch_labels(repo: str, run: Runner = _gh) -> tuple[RemoteLabel, ...]:
             "name,description,color",
         ]
     )
-    return tuple(
-        RemoteLabel(
-            name=item["name"],
-            description=item.get("description") or "",
-            color=item.get("color") or "",
+    try:
+        items = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise LabelSyncError(
+            f"could not read the gh label listing: {exc}"
+        ) from exc
+    if not isinstance(items, list):
+        raise LabelSyncError(
+            "could not read the gh label listing: expected a JSON list, "
+            f"got {type(items).__name__}"
         )
-        for item in json.loads(raw)
-    )
+    try:
+        return tuple(
+            RemoteLabel(
+                name=item["name"],
+                description=item.get("description") or "",
+                color=item.get("color") or "",
+            )
+            for item in items
+        )
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise LabelSyncError(
+            f"could not read the gh label listing: {exc!r}"
+        ) from exc
 
 
 def apply_drift(drift: LabelDrift, repo: str, run: Runner = _gh) -> None:
@@ -222,13 +265,19 @@ def apply_drift(drift: LabelDrift, repo: str, run: Runner = _gh) -> None:
         )
     for change in drift.changed:
         theme = change.theme
+        rename = (
+            ["--name", theme.label]
+            if change.remote.name != theme.label
+            else []
+        )
         run(
             [
                 "label",
                 "edit",
-                theme.label,
+                change.remote.name,
                 "--repo",
                 repo,
+                *rename,
                 "--color",
                 theme.color,
                 "--description",
@@ -237,13 +286,28 @@ def apply_drift(drift: LabelDrift, repo: str, run: Runner = _gh) -> None:
         )
 
 
+_GH_FAILURES = (LabelSyncError, subprocess.CalledProcessError)
+
+
+def _report_gh_failure(
+    exc: LabelSyncError | subprocess.CalledProcessError,
+) -> int:
+    """Print a ``gh`` failure and return the setup-error exit code."""
+    detail = (
+        exc.stderr if isinstance(exc, subprocess.CalledProcessError) else exc
+    )
+    print(f"theme-labels: gh failed: {detail}", file=sys.stderr)
+    return 2
+
+
 def main(argv: list[str] | None = None, run: Runner = _gh) -> int:
     """CLI entry point: report or apply ``theme:`` label drift.
 
     Returns 0 when GitHub matches the catalog (after ``--apply``'s changes,
     when given), 1 while drift remains, and 2 when the catalog cannot be
     loaded or a ``gh`` call fails. Unlisted labels survive ``--apply``, so
-    they keep the exit at 1 until a person resolves them.
+    they keep the exit at 1 until a person resolves them. With ``--json``,
+    standard output carries only the JSON document.
     """
     parser = argparse.ArgumentParser(
         description=(
@@ -273,13 +337,13 @@ def main(argv: list[str] | None = None, run: Runner = _gh) -> int:
 
     try:
         catalog = load_theme_catalog(args.catalog)
-        drift = compute_drift(catalog, fetch_labels(args.repo, run))
-    except MetadataLoadError as exc:
+    except (MetadataLoadError, FileNotFoundError) as exc:
         print(f"theme-labels: {exc}", file=sys.stderr)
         return 2
-    except subprocess.CalledProcessError as exc:
-        print(f"theme-labels: gh failed: {exc.stderr}", file=sys.stderr)
-        return 2
+    try:
+        drift = compute_drift(catalog, fetch_labels(args.repo, run))
+    except _GH_FAILURES as exc:
+        return _report_gh_failure(exc)
 
     if args.json:
         print(json.dumps(drift.to_json(), indent=2))
@@ -290,11 +354,13 @@ def main(argv: list[str] | None = None, run: Runner = _gh) -> int:
         return 0 if drift.in_sync else 1
     try:
         apply_drift(drift, args.repo, run)
-    except subprocess.CalledProcessError as exc:
-        print(f"theme-labels: gh failed: {exc.stderr}", file=sys.stderr)
-        return 2
+    except _GH_FAILURES as exc:
+        return _report_gh_failure(exc)
     applied = len(drift.missing) + len(drift.changed)
-    print(f"applied {applied} label change(s).")
+    print(
+        f"applied {applied} label change(s).",
+        file=sys.stderr if args.json else sys.stdout,
+    )
     return 1 if drift.unlisted else 0
 
 
