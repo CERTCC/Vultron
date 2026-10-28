@@ -18,16 +18,28 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Each actor MUST have an outbox collection
+    rationale: >-
+      ActivityPub gives each actor an outbox, and Vultron delivers every outbound
+      activity from it. The outbox holds an activity until its delivery succeeds or
+      fails for good. Thus every actor that sends activities must have one.
   - id: OX-01-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Outbox MUST preserve insertion order (FIFO)
+    rationale: >-
+      Recipients apply some activities in order, for example ledger entries (OX-01-005).
+      If the outbox does not keep the order in which the actor queued its activities,
+      delivery cannot keep that order either.
   - id: OX-01-003
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: Activities added to outbox MUST be persisted to DataLayer immediately
+    rationale: >-
+      An activity that is queued only in memory is lost when the process stops, and its
+      recipients never receive it. When the outbox entry is in the DataLayer at once, a
+      restart can continue delivery from the stored queue.
     adr:
     - ADR-0012
   - id: OX-01-004
@@ -38,11 +50,11 @@ groups:
       another is draining the same outbox MUST wait for it (or be satisfied by it) rather
       than pop rows from the same queue concurrently.
     rationale: >-
-      Every inbound activity's background task and the OutboxMonitor call the drain, and
-      concurrent drains each pop the next row and await its POST, so rows complete delivery
-      in an order unrelated to their enqueue order (28 in flight at once, a 14-row backfill
-      arriving as 4, 7, 1, 8, 5, 2, … in CI run 35917721682, #3602). Serializing the drain is
-      what makes OX-01-002's FIFO mean anything at the recipient. See ADR-0112.
+      The background task of each inbound activity and the OutboxMonitor can each start
+      a drain of the same outbox. Each concurrent drain pops the next row and waits for
+      its POST. Thus rows complete delivery in an order that has no relation to their
+      enqueue order. One drain at a time keeps the FIFO order of OX-01-002 at the
+      recipient. See ADR-0112.
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` runs two drains of one
       outbox concurrently and asserts per-recipient enqueue order and that the second drain
@@ -105,10 +117,18 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Handlers that generate response activities MUST add them to the actor's outbox
+    rationale: >-
+      The outbox is the only path by which an activity leaves an actor (OX-12-001). A
+      response that a handler does not queue there never reaches its recipient. The
+      outbox also cannot retry it or record a failed delivery.
   - id: OX-02-002
     priority: MUST
     kind: foundation
     statement: Each outbox activity MUST conform to ActivityStreams 2.0 structure
+    rationale: >-
+      Recipients are ActivityStreams 2.0 (AS2) and ActivityPub peers. A peer routes a
+      body by its AS2 `type`, and it reads the terms of the body through `@context`. A
+      body without that structure does not mean anything to the recipient.
     verification: >-
       `test_handle_outbox_item_delivers_an_activitystreams_activity` in
       `test/adapters/driving/fastapi/test_outbox_handle_item_delivery.py` confirms
@@ -128,11 +148,10 @@ groups:
       A scope-dependent append is correct only when the DataLayer is guaranteed to be scoped
       to the emitting actor.
     rationale: >-
-      SyncActivityAdapter.send_reject_log_entry used the scope-dependent outbox_append while
-      its sibling send_announce_log_entry used the explicit-actor record_outbox_item; from a
-      shared or differently-scoped DataLayer the reject could be queued to the wrong (or
-      empty-scope) outbox, so the CaseActor never received the participant's
-      Reject(CaseLedgerEntry). See ADR-0037 (docs/adr/0037-buffer-out-of-order-ledger-entries.md).
+      An activity that is queued in the wrong actor's outbox goes out from the wrong
+      actor, or it does not go out. For example, the CASE_MANAGER then does not receive
+      a participant's Reject(CaseLedgerEntry), and the participant's replica stays out
+      of step. See ADR-0037.
     adr:
     - ADR-0037
 - id: OX-03
@@ -161,12 +180,21 @@ groups:
     priority: MUST
     kind: project
     statement: Delivery MUST occur after the generating handler completes
+    rationale: >-
+      A response activity reports the result of the handler that made it. If delivery
+      starts before that handler completes, a recipient can receive a response for work
+      that later fails or changes.
     verification: Integration tests confirm that outbox delivery does not begin until the inbox handler returns, and
       the HTTP response is sent before delivery is attempted.
   - id: OX-03-003
     priority: MUST_NOT
     kind: project
     statement: Delivery MUST NOT block inbox HTTP response
+    rationale: >-
+      The sender's POST waits for the inbox response. If that response waited for the
+      deliveries of the receiving actor, one slow or unreachable recipient would slow
+      every sender whose delivery waits behind it, and their POST requests could time
+      out. Thus the inbox answers 202 first (IE-07-002) and delivers later.
     verification: >-
       Inspection of `post_actor_inbox` in
       `vultron/adapters/driving/fastapi/routers/actors/_routes.py` confirms the endpoint
@@ -182,6 +210,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: 'For actors on the same server, delivery MUST use HTTP POST to the recipient actor''s inbox endpoint ({actor}/inbox/) in the same manner as remote delivery, per OX-12-001. Direct DataLayer writes that bypass the HTTP path are prohibited.'
+    rationale: >-
+      A co-located actor is a separate actor, and it knows only the activities that
+      arrive at its inbox (AKM-01). A direct DataLayer write skips the inbox checks. It
+      also makes local delivery behave differently from remote delivery, and that hides
+      delivery defects (OX-12-005).
     relationships:
     - rel_type: refines
       spec_id: OX-12-001
@@ -190,6 +223,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Local delivery MUST persist the inbox update immediately
+    rationale: >-
+      A recipient must not lose an activity that was delivered to it. The sender has the
+      202 answer and does not send the activity again. If the inbox update stays only in
+      memory, a restart loses the activity.
 - id: OX-05
   title: Federation Delivery
   specs:
@@ -199,12 +236,21 @@ groups:
     statement: >-
       For remote actors, the system MAY deliver via HTTP POST to the remote actor's inbox
       URL
+    rationale: >-
+      A remote actor can receive an activity only at its inbox URL, and HTTP POST is the
+      ActivityPub way to deliver there. The rule is MAY because federation with other
+      servers is a production capability that the prototype does not need.
     scope:
     - production
   - id: OX-05-002
     priority: SHOULD
     kind: project
     statement: Remote delivery failures SHOULD be logged at WARNING level and retried
+    rationale: >-
+      A remote server can be unreachable for a short time. A retry delivers the activity
+      when the server is available again. The WARNING tells the operator that delivery
+      to that server has a problem. A failed delivery with no log and no retry is lost
+      with no trace.
     scope:
     - production
 - id: OX-06
@@ -215,6 +261,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: Outbox delivery MUST be idempotent
+    rationale: >-
+      A delivery can occur more than once. The outbox retries after a failure, and a
+      retry can rebuild an activity that was already sent. Idempotent delivery keeps a
+      repeat from changing the state of the recipient a second time. The receiver drops
+      an activity whose id it already holds (ID-02-001).
     relationships:
     - rel_type: depends_on
       spec_id: ID-02-001
@@ -264,12 +315,13 @@ groups:
       (with an ERROR log) a queued id for which no sealed body exists rather than deliver a
       reconstruction.
     rationale: >-
-      The activity record cannot serve as the delivery payload: persistence dehydrates reference
-      fields to ids and read-back rehydrates them from whatever the store holds now, so a re-read
-      is a reconstruction and the ledger's `payloadSnapshot` (the factory blob, VM-08-003) and the
-      wire disagreed — an Invite's enriched case stub reached the invitee as a bare URI. Reference
-      fields (`actor`, `target`, `to`, ...) are URI strings or intentional stubs because the
-      factory built them so; shaping them is the factory's responsibility, never the handler's.
+      The activity record cannot serve as the delivery body. Persistence stores
+      reference fields as ids, and a read-back fills them from what the store holds at
+      that time. Thus a re-read is a reconstruction, and it can differ from the body
+      that the ledger records as `payloadSnapshot` (VM-08-003). For example, the case
+      stub in an Invite can reach the invitee as a bare URI. The factory sets the shape
+      of each reference field, so the handler sends the sealed body as it is. See
+      ADR-0074.
     relationships:
     - rel_type: implements
       spec_id: VM-08-003
@@ -278,6 +330,8 @@ groups:
       adapter and asserts the emitter receives the identical text;
       `test/adapters/driven/trigger_activity_adapter/test_sealed_body_audit.py` checks every
       `TriggerActivityPort` method seals what it returns.
+    adr:
+    - ADR-0074
   - id: OX-07-002
     priority: MUST_NOT
     kind: project
@@ -287,6 +341,11 @@ groups:
       stage — construction, persistence of the sealed body, or delivery. A sealed body whose
       `object` is a bare URI or `as_Link` on an initiating activity is a factory defect that the
       handler refuses (AKM-03-002), never repairs.
+    rationale: >-
+      A recipient needs the full `object` to act on an initiating activity. A bare URI
+      makes it fetch the object from the sender, and the fetched copy can differ from
+      the object at send time. The factory must put the object inline. If the handler
+      repaired the reference, it would hide the factory defect.
     relationships:
     - rel_type: refines
       spec_id: AKM-03-001
@@ -307,6 +366,10 @@ groups:
     verification_debt: '#2575'
     statement: >-
       The `to:` field on outbound activities MUST be a list containing at least one URI string
+    rationale: >-
+      The outbox handler reads `to:` to find the recipients. A list of URI strings is
+      the one shape that it reads. A list with no entry names no recipient, so the
+      activity cannot go anywhere.
   - id: OX-08-003
     priority: MUST
     kind: project
@@ -314,6 +377,11 @@ groups:
     statement: >-
       `handle_outbox_item` MUST raise `VultronOutboxToFieldMissingError` when it detects a
       missing or empty `to:` field
+    rationale: >-
+      An activity with no recipient cannot be delivered, and a silent skip hides the
+      factory defect that made it. A specific error lets the outbox handler move the
+      activity to the dead-letter store at once (OX-13-013). It also lets tests check
+      for the defect.
   - id: OX-08-004
     priority: SHOULD
     kind: project
@@ -321,12 +389,11 @@ groups:
       If an outbound activity carries non-empty `cc:`, `bto:`, or `bcc:` fields,
       the outbox handler SHOULD log a WARNING. There is no exemption.
     rationale: >-
-      Vultron direct messages use `to:` for every recipient (OX-08-001); `cc:`,
-      `bto:` and `bcc:` have no handler semantics (HP-10-001). The one former
-      exemption — a CaseActor-originated activity carrying the CaseActor's own id in
-      `cc:` so a copy looped back to its inbox for ledger authoring — was retired by
-      ADR-0109: the emitting tree commits the entry itself (CLP-10-027, CLP-10-013),
-      so no outbound activity has a reason to name its own sender.
+      Vultron direct messages name every recipient in `to:` (OX-08-001). The `cc:`,
+      `bto:` and `bcc:` fields have no handler semantics (HP-10-001), so a value there
+      is most likely a factory defect. An emitting tree commits its own ledger entry
+      (CLP-10-027, CLP-10-013), so no outbound activity has a reason to copy its own
+      sender. See ADR-0109.
     adr:
     - ADR-0109
 - id: OX-09
@@ -354,6 +421,10 @@ groups:
       Even when event-driven wakeup is enabled, the outbox monitor MUST retain a
       safety-net polling interval so that outbox items are eventually delivered even if
       an enqueue notification is missed
+    rationale: >-
+      An enqueue notification can be lost, for example when the callback fails. Without
+      a poll, a queued activity then waits until the next enqueue for the same actor,
+      which may not come. The poll limits that wait to one poll interval.
   - id: OX-09-003
     priority: SHOULD
     kind: project
@@ -367,12 +438,20 @@ groups:
     statement: >-
       The outbox monitor SHOULD log the total number of pending outbox items across all
       actors at DEBUG level on each drain pass
+    rationale: >-
+      The pending count shows an operator whether the outboxes drain or grow. At DEBUG
+      level it does not add noise to normal operation, and it is available when the
+      operator looks for a delivery problem.
   - id: OX-09-005
     priority: SHOULD
     kind: project
     statement: >-
       If any single actor's outbox depth exceeds a configurable threshold, the outbox
       monitor SHOULD emit a WARNING-level log entry identifying the actor and depth
+    rationale: >-
+      A deep outbox shows that delivery to some recipient fails or is slow. The WARNING
+      names the actor, so the operator can find the problem before the queue grows more.
+      A configurable threshold lets each deployment set its own normal load.
 - id: OX-10
   title: Signed Remote Delivery
   scope:
@@ -389,6 +468,11 @@ groups:
     statement: >-
       For remote actor delivery, the outgoing HTTP POST SHOULD be signed using HTTP
       Message Signatures (RFC 9421) with the sending actor's private key
+    rationale: >-
+      Production federation sends activities to peers that the sender does not control.
+      Without a signature, a recipient cannot verify the sender, and any party can post
+      a false activity in the name of that actor. RFC 9421 is the standard way to sign
+      an HTTP message.
     scope:
     - production
   - id: OX-10-002
@@ -397,6 +481,10 @@ groups:
     verification_debt: '#2575'
     statement: >-
       The signing key pair MUST be per-actor and MUST NOT be shared across actors
+    rationale: >-
+      If two actors share a key, a signature cannot tell them apart. One actor can then
+      sign activities as the other. Also, one leaked key exposes every actor that uses
+      it.
     scope:
     - production
     relationships:
@@ -420,6 +508,10 @@ groups:
     verification_debt: '#2575'
     statement: Until signed delivery is implemented, the production HTTP delivery adapter MUST raise NotImplementedError
       if instantiated, so that callers receive an explicit signal rather than a silent no-op.
+    rationale: >-
+      A delivery adapter that does nothing loses every activity with no error. A
+      NotImplementedError at once tells the caller that signed delivery does not exist
+      yet. Thus nobody can use the stub as a working transport by mistake.
     scope:
     - prototype
 - id: OX-11
@@ -438,6 +530,11 @@ groups:
     statement: >-
       The system MAY expose a shared inbox endpoint that accepts activities addressed
       to multiple local actors in a single HTTP request
+    rationale: >-
+      Shared-inbox delivery sends one POST for many local recipients, not one POST for
+      each. That decreases network load for cases with many participants on one server.
+      The rule is MAY because each per-actor inbox already delivers correctly, so the
+      shared inbox is only an optimization.
     scope:
     - production
   - id: OX-11-002
@@ -447,6 +544,10 @@ groups:
     statement: >-
       If a shared inbox is implemented, it MUST validate the HTTP Signature on the
       inbound request before any fan-out processing
+    rationale: >-
+      A shared inbox delivers one request to many actors. If it starts the fan-out
+      before it checks the signature, one false request reaches every addressed actor.
+      When the check comes first, a false request reaches none of them.
     scope:
     - production
     relationships:
@@ -459,6 +560,10 @@ groups:
     statement: >-
       If a shared inbox is implemented, it MUST enqueue one per-actor inbox delivery
       for each addressed local actor identified in the activity to/cc fields
+    rationale: >-
+      Each actor processes and stores its activities separately. Thus each addressed
+      local actor must receive its own inbox delivery, as if the sender had posted to it
+      directly. The shared inbox then changes only the transport and not the result.
     scope:
     - production
     relationships:
@@ -472,6 +577,10 @@ groups:
       Until shared-inbox is implemented, adapters/driving/shared_inbox.py MUST raise
       NotImplementedError if instantiated, so that callers receive an explicit signal
       rather than a silent no-op
+    rationale: >-
+      A shared inbox that does nothing loses every activity with no error. A
+      NotImplementedError at once tells the caller that the shared inbox does not exist
+      yet. Thus nobody can use the stub as a working endpoint by mistake.
     scope:
     - prototype
 - id: OX-12
@@ -480,13 +589,11 @@ groups:
   - prototype
   - production
   rationale: >-
-    Actors are independent, autonomous federated peers whose only knowledge of the
-    world comes from Activities received over their inbox (AKM-01). Delivering to a
-    co-located actor in-process (via the retired ASGIEmitter shortcut) made co-located
-    delivery behave differently from remote delivery, masking inter-actor delivery bugs
-    and giving false confidence in demos. All inter-actor delivery MUST behave as if
-    every recipient were remote. See ADR-0042; supersedes the ASGIEmitter design in
-    ARCH-17.
+    Actors are independent federated peers. Each actor knows only the activities that
+    arrive at its inbox (AKM-01). If delivery to a co-located actor used an in-process
+    path, that delivery would behave differently from remote delivery. It would hide
+    delivery defects, and demos would give false confidence. Thus all delivery between
+    actors behaves as if every recipient were remote. See ADR-0042.
   specs:
   - id: OX-12-001
     priority: MUST
@@ -495,6 +602,12 @@ groups:
     statement: >-
       All inter-actor activity delivery MUST occur over the REST inbox/outbox HTTP API
       (HTTP POST to {actor}/inbox/).
+    rationale: >-
+      Each actor knows only the activities that reach its inbox (AKM-01). With one
+      delivery path for every actor, the same checks apply to every activity. A delivery
+      defect then shows in local tests as it does between servers. See ADR-0042.
+    adr:
+    - ADR-0042
   - id: OX-12-005
     priority: MUST
     kind: project
@@ -508,6 +621,8 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: OX-12-001
+    adr:
+    - ADR-0042
   - id: OX-12-006
     priority: MUST_NOT
     kind: project
@@ -521,11 +636,19 @@ groups:
     relationships:
     - rel_type: refines
       spec_id: OX-12-001
+    adr:
+    - ADR-0042
   - id: OX-12-002
     priority: MUST
     kind: project
     verification_debt: '#2575'
     statement: The default production ActivityEmitter MUST be the HTTP delivery adapter.
+    rationale: >-
+      A deployment uses the default emitter when nobody configures a different one. If
+      the default is not the HTTP delivery adapter, a deployment can send activities on
+      a path that is not the one that the protocol uses (OX-12-001).
+    adr:
+    - ADR-0042
   - id: OX-12-007
     priority: MUST_NOT
     kind: project
@@ -539,6 +662,8 @@ groups:
     relationships:
     - rel_type: derives_from
       spec_id: OX-12-002
+    adr:
+    - ADR-0042
   - id: OX-12-008
     priority: MUST
     kind: project
@@ -554,6 +679,8 @@ groups:
       spec_id: ARCH-17-002
     - rel_type: implements
       spec_id: OX-12-006
+    adr:
+    - ADR-0042
   - id: OX-12-003
     priority: MUST
     kind: project
@@ -562,6 +689,13 @@ groups:
       Application code MUST NOT construct httpx.ASGITransport directly. The sole
       exception is FastAPI's TestClient, which uses ASGITransport internally to drive a
       single application's own endpoints and is not an inter-actor delivery mechanism.
+    rationale: >-
+      An `httpx.ASGITransport` calls an application in-process and does not use the
+      network. Application code that builds one makes an in-process delivery shortcut,
+      which OX-12-006 prohibits. FastAPI's TestClient is the exception because it tests
+      the endpoints of one application and does not deliver between actors.
+    adr:
+    - ADR-0042
   - id: OX-12-009
     priority: MUST
     kind: project
@@ -591,11 +725,11 @@ groups:
 - id: OX-13
   title: Delivery Terminal State
   rationale: >-
-    Without a total-attempt bound, an undeliverable activity is retried indefinitely —
-    consuming delivery capacity, masking the true first failure, and providing no
-    operator-visible signal. A per-activity attempt counter persisted across drain passes,
-    combined with a dead-letter destination on exhaustion, gives the system a finite
-    reliability envelope and an observable failure mode. See ADR-0066 and CONCERN-2302.
+    Without a limit on total attempts, the outbox retries an undeliverable activity
+    forever. The retries use delivery capacity, hide the first failure and give the
+    operator no signal. A per-activity attempt count that persists across drain passes,
+    and a dead-letter store for an activity that uses all its attempts, give a finite
+    retry budget and a visible failure. See ADR-0066.
   specs:
   - id: OX-13-001
     priority: MUST
@@ -605,6 +739,10 @@ groups:
       Each outbox queue entry MUST track a total attempt count that is persisted across
       drain passes and incremented on every delivery failure, so that the count survives
       outbox_handler invocations and reflects the activity's cumulative delivery history.
+    rationale: >-
+      A count that resets at each drain pass lets an undeliverable activity retry
+      forever. The count must persist and increase with each failure, so that the total
+      budget (OX-13-002) can stop the retries.
     adr:
     - ADR-0066
   - id: OX-13-002
@@ -612,6 +750,10 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The maximum total delivery attempts MUST be configurable.
+    rationale: >-
+      The correct number of attempts depends on the deployment: how long a recipient can
+      be unavailable, and how much retry traffic is acceptable. A configurable limit
+      lets each deployment set that balance without a code change.
     adr:
     - ADR-0066
   - id: OX-13-007
@@ -664,6 +806,10 @@ groups:
       On activity exhaustion, the system MUST log at ERROR level, including the
       activity ID, the recipient(s) that could not be reached, and the total number of
       attempts made, so that the operator has a visible signal of the terminal failure.
+    rationale: >-
+      A dead-lettered activity means that a recipient did not receive an event. The
+      ERROR log is the signal to the operator. The activity id, the unreached recipients
+      and the attempt count let the operator find the activity and decide what to do.
     adr:
     - ADR-0066
     relationships:
@@ -676,6 +822,10 @@ groups:
     statement: >-
       Dead-letter entries MUST be readable from the DataLayer so that operators can
       inspect exhausted activities without access to application logs.
+    rationale: >-
+      Logs can rotate, and an operator can have no access to them. Entries in the
+      dead-letter store stay in the DataLayer, so an operator or a tool can list and
+      inspect the exhausted activities.
     adr:
     - ADR-0066
   - id: OX-13-005
@@ -687,9 +837,10 @@ groups:
       failures: the activity MUST NOT consume inner retry slots for a 4xx response.
       Only HTTP 5xx responses, connection errors, and timeouts are retryable.
     rationale: >-
-      A deterministic 4xx (e.g. 422 Unprocessable Entity for a schema-invalid payload)
-      will never succeed with the same payload; retrying wastes inner retry budget and
-      contributes to connection storms. See CONCERN-2302 §3.
+      A 4xx response is a deterministic refusal, for example 422 for a body that fails
+      validation. The same body gets the same response each time. A retry uses the retry
+      budget and adds load on the recipient, but it does not deliver the activity. See
+      ADR-0066.
     adr:
     - ADR-0066
   - id: OX-13-006
@@ -700,9 +851,10 @@ groups:
       A single failing activity in an actor's outbox MUST NOT abort delivery of other
       activities in the same drain pass.
     rationale: >-
-      The previous err_count was a single function-local variable reset per-pass, so a
-      single bad activity could exhaust the cap before healthy activities were reached,
-      delaying ledger-entry delivery past scenario timeouts. See CONCERN-2302 §6/§7.
+      A drain pass delivers many activities, and some of them are ledger entries that
+      participants wait for. If one failing activity stops the pass, the healthy
+      activities behind it wait, and participants can reach a timeout. Thus the failure
+      of an activity must stay with that activity. See ADR-0066.
     adr:
     - ADR-0066
   - id: OX-13-010
@@ -742,12 +894,11 @@ groups:
       order and MUST NOT be attempted before it in that drain pass. Activities that share
       no recipient with the failed one are unaffected.
     rationale: >-
-      Re-queueing a failed activity at the tail of a single FIFO lets the rows behind it
-      overtake it, so one transient failure on ledger entry N delivers N+1… first and every
-      recipient takes the SYNC-14 forward-gap path for a reordering the sender produced
-      (#3878). Holding back only the rows that share a recipient keeps the per-recipient
-      order (OX-01-005) without head-of-line blocking across recipients (OX-01-006). See
-      ADR-0112 (docs/adr/0112-per-recipient-ordered-outbox-delivery.md).
+      If a failed activity goes to the tail of one FIFO, later rows go before it. One
+      transient failure on ledger entry N then delivers entry N+1 first, and each
+      recipient sees a forward gap (SYNC-14) that the sender caused. When only the rows
+      that share a recipient wait behind the failed row, each recipient keeps its order
+      (OX-01-005), and other recipients do not wait (OX-01-006). See ADR-0112.
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_handler_lanes.py` fails a row past the
       per-pass cap and asserts the row queued behind it for the same recipient is not
@@ -768,10 +919,10 @@ groups:
       OX-07-002), the activity MUST be moved to the dead-letter store on that first
       refusal, with reason `undeliverable_body`, and MUST NOT be retried.
     rationale: >-
-      The sealed body never changes (VM-08-003), so every retry is refused the same way.
-      Retrying it spent the whole attempt budget on exponential backoff — about 24 seconds
-      of sleep per such row — while hiding a deterministic defect behind the transient
-      retry path. This is the local counterpart of the 4xx rule (OX-13-005).
+      The sealed body does not change (VM-08-003), so every retry is refused for the
+      same reason. Retries spend the full attempt budget on backoff delay, and they show
+      a deterministic defect as a transient failure. This is the local counterpart of
+      the 4xx rule (OX-13-005).
     verification: >-
       `test/adapters/driving/fastapi/test_outbox_handler.py` queues a body with no
       recipient and a body whose `object` is a bare URI, and asserts each is
@@ -800,11 +951,10 @@ groups:
       A dead-lettered activity MUST be correlatable to the canonical `CaseLedgerEntry`
       whose event it carries, where such an entry exists.
     rationale: >-
-      CONCERN-2657 observed that a permanently undelivered activity leaves the canonical
-      log asserting an event a participant never received. The defect is not the write
-      ordering (see OX-14-002) but that nothing connects the dead-letter store
-      (OX-13-008) to the entry claiming the event happened, so replica divergence is
-      undetectable.
+      A permanently undelivered activity leaves the canonical ledger with an event that
+      a participant never received. The order of the writes is correct (OX-14-002). The
+      problem is that nothing links the dead-letter store (OX-13-008) to the entry that
+      records the event, so nobody can detect that the replica is behind.
     verification: >-
       Given a dead-lettered activity carrying a committed event, the corresponding
       ledger entry is resolvable from the dead-letter record.
@@ -853,5 +1003,6 @@ groups:
       associated canonical entry reference.
     adr:
     - ADR-0080
+    - ADR-0066
     tags:
     - observability

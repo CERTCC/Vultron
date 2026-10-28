@@ -108,6 +108,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The inbox orchestration module MUST NOT import from `vultron/adapters/` or any web framework package.
+    rationale: >-
+      Core holds the inbox policy so that every driving adapter and every test uses the
+      same policy. An import from `vultron/adapters/` or a web framework binds core to
+      one adapter. A test or a second adapter then cannot run the policy without that
+      adapter (ARCH-01-001).
     relationships:
     - rel_type: refines
       spec_id: IO-02-001
@@ -142,6 +147,10 @@ groups:
     statement: >-
       Intermediate behavior-tree nodes used internally by `process_payload` MUST NOT be exported as
       public API symbols.
+    rationale: >-
+      If the internal nodes are public, a caller can run some steps of the pipeline and
+      skip others, such as the defer check or the outcome step. Only `process_payload`
+      runs every step in its fixed order (IO-02-002), so only it is public.
     relationships:
     - rel_type: refines
       spec_id: IO-02-003
@@ -167,9 +176,12 @@ groups:
     statement: 'process_payload MUST accept exactly two injected adapters: an ingress payload adapter (raw input to as_Activity)
       and a dispatch adapter (VultronEvent to use-case execution). The dispatch adapter MUST return the handler''s HandlerResult
       (UCORG-05-010), which is the only channel by which the verdict reaches InboxOutcome.'
-    rationale: Two well-named adapters keep the seam explicit and prevent the adapter matrix from growing large enough to
-      make the module shallow again. Returning the HandlerResult through the adapter, rather than through a blackboard key
-      a handler would have to write, keeps InboxOutcome's vocabulary out of handlers (HP-01-004).
+    rationale: >-
+      Two adapters with clear names make the two required inputs of the pipeline
+      explicit. Each additional adapter is one more interface for every caller to supply
+      and for the module to hide. The dispatch adapter returns the HandlerResult, so a
+      handler does not have to write the verdict to a blackboard key, and InboxOutcome's
+      vocabulary stays out of handlers (HP-01-004).
     tags:
     - tooling
     relationships:
@@ -191,6 +203,11 @@ groups:
     kind: project
     verification_debt: '#2575'
     statement: The inbox orchestration module MUST NOT access pending-queue storage directly from `vultron/adapters/`.
+    rationale: >-
+      Pending-queue storage is an adapter detail. If the inbox orchestration module
+      reads that storage directly, it depends on an adapter, against ARCH-01-001, and a
+      test cannot give it a different queue. In this module, the injected port
+      (IO-03-002) is the only path to the queue.
     relationships:
     - rel_type: refines
       spec_id: IO-03-002
@@ -249,14 +266,15 @@ groups:
       (SYNC-14-006). A handler therefore sees the receiver's record of any id it holds, never
       the carried copy, so a guard keys on the stored record (HP-08-006).
     rationale: >-
-      A stored inline object is the receiver's own record of it: a stored case is the
-      receiver's replica, so storing one at receipt let a sender's snapshot name the
-      sender as CASE_MANAGER and pass the trust check that should refuse it (PCR-03-004,
-      CBT-01-011). Routing still needs the inline object, because the rebuilt activity
-      names it by id and a bare id matches no pattern (SE-01-006). The deferred record holds
-      the activity too: no copy under its sender's id remains to replay (DL-06-006).
-      The receiver's record wins on purpose; a carried case winning broke
-      rebuild-from-ledger (#4831).
+      A stored inline object is the receiver's own record of that object. A stored case
+      is the receiver's replica, so if the receiver stores a case at receipt, a sender's
+      snapshot can name the sender as CASE_MANAGER and pass the trust check that must
+      refuse it (PCR-03-004, CBT-01-011). Routing still needs the inline object, because
+      the rebuilt activity names it by id, and a bare id matches no pattern (SE-01-006).
+      The deferred record holds the activity too, because no copy under its sender's id
+      is there to replay (DL-06-006). The receiver's record wins over the carried copy,
+      so a carried case cannot replace the replica that the receiver rebuilds from the
+      ledger.
     verification: >-
       `test/adapters/driving/fastapi/test_inbox_staging.py` asserts that the routed
       activity carries its inline object while the receiver's store holds none, that the
@@ -294,6 +312,12 @@ groups:
     statement: >-
       `process_payload` MUST NOT raise an exception for protocol-invalid payloads; all error
       conditions MUST be encoded in the returned `InboxOutcome`.
+    rationale: >-
+      The FastAPI inbox background task, the inbox queue drain (which also replays
+      deferred activities) and the tests all call `process_payload`. If a
+      protocol-invalid payload raises, each caller needs its own handler for the raise,
+      and a caller that has none loses the outcome. An outcome value gives every caller
+      the same result for every payload.
     relationships:
     - rel_type: refines
       spec_id: IO-04-001
@@ -318,6 +342,10 @@ groups:
     statement: >-
       Tests for `process_payload` MUST NOT patch internal behavior-tree node helper methods to
       verify pipeline behavior.
+    rationale: >-
+      A test that patches a node helper checks the internal structure, not the behavior
+      of the pipeline. It passes when the pipeline is wrong and fails when a correct
+      change moves the helper. The outcome fields (IO-04-002) are what callers rely on.
     relationships:
     - rel_type: refines
       spec_id: IO-04-002
