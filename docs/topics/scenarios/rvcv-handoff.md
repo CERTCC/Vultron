@@ -123,7 +123,7 @@ entries appear in the ledger.
 
 The Reporter asks a question in a case note, and Vendor1 answers it.
 {% include-markdown "./_case_notes.md" trailing-newlines=false %}
-Vendor1's choice of whom to invite comes after them.
+Vendor1 decides whom to invite only after these notes.
 
 *Antecedent:* `engage_case` is in the ledger.
 

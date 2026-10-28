@@ -99,7 +99,7 @@ Each record seated at case creation is ledgered as a `create_case_participant` e
 
 The Reporter asks a question in a case note, and Vendor1 answers it.
 {% include-markdown "./_case_notes.md" trailing-newlines=false %}
-Vendor1's choice of whom to invite comes after them.
+Vendor1 decides whom to invite only after these notes.
 
 *Antecedent:* `engage_case` is in the ledger.
 

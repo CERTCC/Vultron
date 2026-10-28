@@ -113,7 +113,7 @@ Each participant waits for the relayed invitation on its own replica.
 No participant waits for a message from another participant.
 
 With the revised embargo in force, the Reporter asks about it in a case note, and Vendor1 answers.
-The Reporter's choice on the scenario tree is between proposing terms and asking a question, so the proposal comes first here; Vendor1's own next decision follows the answer.
+In this scenario the Reporter proposes terms before it asks anything, and Vendor1's next decision comes after its answer.
 
 *Antecedent:* the case is engaged and EM is `ACTIVE`.
 
