@@ -15,8 +15,9 @@
 A ratchet baseline is a module-level constant whose name says it is one:
 ``KNOWN_*``, ``*_BASELINE``, ``MAX_*`` or ``*_EXEMPTIONS`` (leading underscores
 ignored). Once it is not at its terminal value -- an empty collection or a zero
-ceiling -- it must carry one of two comments, either directly above the
-assignment (in the comment block that touches it) or trailing its first line:
+ceiling -- it must carry one of two comments (``#`` or ``#:``), either directly
+above the assignment (in the comment block that touches it) or trailing its
+first line:
 
 - ``# owner: #N`` -- the issue that drives the baseline to its terminal value
   (a ratchet, ARCH-18-005);
@@ -35,7 +36,9 @@ question.
 from __future__ import annotations
 
 import ast
+import io
 import re
+import tokenize
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,20 +46,32 @@ from pathlib import Path
 #: A constant-case identifier (upper case, digits and underscores).
 _CONSTANT_CASE = re.compile(r"[A-Z0-9_]+")
 
-#: ``# owner: #N`` -- group 1 is the issue number; anything else after
-#: ``owner:`` is a malformed marker.
-_OWNER_MARKER = re.compile(r"#\s*owner:\s*(.*)$")
+#: ``# owner: <text>`` (or the Sphinx ``#: owner:`` form) -- group 1 is the
+#: text, which must cite at least one ``#N`` issue.
+_OWNER_MARKER = re.compile(r"#:?\s*owner:\s*(.*)$")
 _OWNER_ISSUE = re.compile(r"#(\d+)\b")
 
-#: A marker trailing the assignment's own line.
-_TRAILING_MARKER = re.compile(r"#\s*(?:owner|permanent):.*$")
-
-#: ``# permanent: <reference>`` -- group 1 is the reference text.
-_PERMANENT_MARKER = re.compile(r"#\s*permanent:\s*(.*)$")
+#: ``# permanent: <reference>`` (or ``#: permanent:``) -- group 1 is the
+#: reference text.
+_PERMANENT_MARKER = re.compile(r"#:?\s*permanent:\s*(.*)$")
 
 #: What a permanent reference must cite: an issue, an ADR, or a spec ID.
 _CITATION = re.compile(
     r"#\d+\b|\bADR-\d{4}\b|\b[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-\d{2}-\d{3}\b"
+)
+
+#: Methods that grow a collection in place, so a module-level call on a
+#: baseline means its literal is not its value.
+_MUTATORS = frozenset(
+    {
+        "add",
+        "append",
+        "extend",
+        "insert",
+        "update",
+        "setdefault",
+        "__setitem__",
+    }
 )
 
 #: Callables whose zero-argument (or empty-argument) call is an empty value.
@@ -177,27 +192,120 @@ class Baseline:
         return problems
 
 
-def _marker_lines(lines: list[str], first_line: int) -> Iterator[str]:
+def _comments(source: str) -> tuple[dict[int, str], frozenset[int]]:
+    """Real comments by line (never ``#`` inside a string), and the lines
+    that hold nothing but a comment."""
+    by_line: dict[int, str] = {}
+    alone: set[int] = set()
+    lines = source.splitlines()
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type != tokenize.COMMENT:
+            continue
+        row, col = token.start
+        by_line[row] = token.string
+        if not lines[row - 1][:col].strip():
+            alone.add(row)
+    return by_line, frozenset(alone)
+
+
+def _marker_comments(
+    comments: dict[int, str], alone: frozenset[int], first_line: int
+) -> Iterator[str]:
     """The trailing comment of the assignment's first line, then the
-    contiguous comment block directly above it, nearest first."""
-    trailing = _TRAILING_MARKER.search(lines[first_line - 1])
-    if trailing:
-        yield trailing.group(0)
-    index = first_line - 2
-    while index >= 0 and lines[index].lstrip().startswith("#"):
-        yield lines[index].strip()
-        index -= 1
+    contiguous comment-only block directly above it, nearest first."""
+    if first_line in comments and first_line not in alone:
+        yield comments[first_line]
+    row = first_line - 1
+    while row in alone:
+        yield comments[row]
+        row -= 1
 
 
-def _assigned_names(node: ast.stmt) -> tuple[list[str], ast.expr | None]:
-    """The plain names a module-level assignment binds, with its value."""
-    if isinstance(node, ast.Assign):
-        return [
-            t.id for t in node.targets if isinstance(t, ast.Name)
-        ], node.value
-    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-        return [node.target.id], node.value
-    return [], None
+def _module_statements(body: list[ast.stmt]) -> Iterator[ast.stmt]:
+    """Module-level statements, including those nested in ``if``, ``for``,
+    ``while``, ``try`` and ``with`` blocks (which still run at import), but
+    not in a function or class body."""
+    for node in body:
+        yield node
+        if isinstance(node, (ast.If, ast.For, ast.While)):
+            yield from _module_statements(node.body + node.orelse)
+        elif isinstance(node, ast.With):
+            yield from _module_statements(node.body)
+        elif isinstance(node, ast.Try):
+            yield from _module_statements(node.body)
+            for handler in node.handlers:
+                yield from _module_statements(handler.body)
+            yield from _module_statements(node.orelse + node.finalbody)
+
+
+def _bindings(node: ast.stmt) -> Iterator[tuple[str, ast.expr]]:
+    """Each plain name a statement binds, with the value bound to it.
+
+    Unpacking pairs names with elements when the value is a literal tuple or
+    list of the same length; otherwise each name gets the whole value, which
+    is never terminal.
+    """
+    if isinstance(node, ast.AnnAssign):
+        if isinstance(node.target, ast.Name) and node.value is not None:
+            yield node.target.id, node.value
+        return
+    if not isinstance(node, ast.Assign):
+        return
+    for target in node.targets:
+        if isinstance(target, ast.Name):
+            yield target.id, node.value
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            value = node.value
+            elements: list[ast.expr] = (
+                value.elts
+                if isinstance(value, (ast.Tuple, ast.List))
+                and len(value.elts) == len(target.elts)
+                else [value] * len(target.elts)
+            )
+            for element, bound in zip(target.elts, elements, strict=True):
+                if isinstance(element, ast.Name):
+                    yield element.id, bound
+
+
+def _mutated_names(node: ast.stmt) -> Iterator[str]:
+    """Names a module-level statement grows in place: ``X |= ...``,
+    ``X[k] = ...``, ``X.add(...)`` and the other :data:`_MUTATORS`."""
+    if isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name):
+        yield node.target.id
+    elif isinstance(node, ast.Assign):
+        for target in node.targets:
+            if isinstance(target, ast.Subscript) and isinstance(
+                target.value, ast.Name
+            ):
+                yield target.value.id
+    elif (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Call)
+        and isinstance(func := node.value.func, ast.Attribute)
+        and func.attr in _MUTATORS
+        and isinstance(func.value, ast.Name)
+    ):
+        yield func.value.id
+
+
+def _read_markers(
+    texts: Iterable[str],
+) -> tuple[tuple[int, ...], tuple[str, ...], tuple[str, ...]]:
+    """(owners, permanent references, malformed owner texts) in *texts*."""
+    owners: list[int] = []
+    permanent: list[str] = []
+    malformed: list[str] = []
+    for comment in texts:
+        if owner := _OWNER_MARKER.match(comment):
+            text = owner.group(1).strip()
+            issues = [int(n) for n in _OWNER_ISSUE.findall(text) if int(n) > 0]
+            if issues:
+                owners += issues
+            else:
+                malformed.append(text)
+        elif perm := _PERMANENT_MARKER.match(comment):
+            permanent.append(perm.group(1).strip())
+    return tuple(owners), tuple(permanent), tuple(malformed)
 
 
 def baselines_in(tree: ast.AST, source: str, path: Path) -> list[Baseline]:
@@ -206,41 +314,32 @@ def baselines_in(tree: ast.AST, source: str, path: Path) -> list[Baseline]:
     *source* is the text *tree* was parsed from (markers are comments, which
     the tree drops); *path* is carried into each :class:`Baseline` for
     reporting. Callers that already hold a cached parse -- the architecture
-    corpus -- pass it here rather than parsing again.
+    corpus -- pass it here rather than parsing again. A baseline grown in
+    place at module level (``|=``, ``.add()``, item assignment) is never
+    terminal, whatever its literal.
     """
     if not isinstance(tree, ast.Module):
         return []
-    lines = source.splitlines()
+    comments, alone = _comments(source)
+    statements = list(_module_statements(tree.body))
+    mutated = {name for node in statements for name in _mutated_names(node)}
     found: list[Baseline] = []
-    for node in tree.body:
-        names, value = _assigned_names(node)
-        if value is None:
-            continue
-        for name in names:
+    for node in statements:
+        for name, value in _bindings(node):
             if not is_ratchet_name(name):
                 continue
-            owners: list[int] = []
-            malformed: list[str] = []
-            permanent: list[str] = []
-            for comment in _marker_lines(lines, node.lineno):
-                if owner := _OWNER_MARKER.match(comment):
-                    text = owner.group(1).strip()
-                    issue = _OWNER_ISSUE.match(text)
-                    if issue:
-                        owners.append(int(issue.group(1)))
-                    else:
-                        malformed.append(text)
-                elif perm := _PERMANENT_MARKER.match(comment):
-                    permanent.append(perm.group(1).strip())
+            owners, permanent, malformed = _read_markers(
+                _marker_comments(comments, alone, node.lineno)
+            )
             found.append(
                 Baseline(
                     path=path,
                     name=name,
                     line=node.lineno,
-                    terminal=is_terminal_value(value),
-                    owners=tuple(owners),
-                    permanent=tuple(permanent),
-                    malformed_owners=tuple(malformed),
+                    terminal=name not in mutated and is_terminal_value(value),
+                    owners=owners,
+                    permanent=permanent,
+                    malformed_owners=malformed,
                 )
             )
     return found

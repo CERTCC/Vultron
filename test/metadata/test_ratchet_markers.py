@@ -126,10 +126,37 @@ def test_a_trailing_marker_on_the_assignment_line_counts() -> None:
     assert baseline.violations() == []
 
 
-def test_a_hash_inside_a_string_is_not_a_trailing_comment() -> None:
-    baseline = _one('KNOWN_TAGS = frozenset({"#1"})\n')
+@pytest.mark.parametrize(
+    "source",
+    [
+        'KNOWN_TAGS = frozenset({"# owner: #1"})\n',
+        'KNOWN_TAGS = frozenset({"# permanent: ADR-0001"})\n',
+        '"""\n# owner: #1\n"""\nKNOWN_TAGS = frozenset({"a"})\n',
+    ],
+)
+def test_a_marker_inside_a_string_does_not_count(source: str) -> None:
+    baseline = _one(source)
     assert baseline.owners == ()
+    assert baseline.permanent == ()
     assert len(baseline.violations()) == 1
+
+
+@pytest.mark.parametrize(
+    "marker", ["#: owner: #12", "#: permanent: ARCH-18-005 (a pin)"]
+)
+def test_the_sphinx_comment_form_counts(marker: str) -> None:
+    assert _problems(f"{marker}\nKNOWN_X = frozenset({{'a'}})\n") == []
+
+
+def test_every_owner_issue_in_a_marker_is_kept() -> None:
+    baseline = _one("# owner: #12 and #13\nKNOWN_X = frozenset({'a'})\n")
+    assert baseline.owners == (12, 13)
+
+
+def test_owner_issue_zero_is_malformed() -> None:
+    problems = _problems("# owner: #0\nKNOWN_X = frozenset({'a'})\n")
+    assert len(problems) == 1
+    assert "names no issue" in problems[0]
 
 
 def test_a_marker_separated_by_a_blank_line_does_not_count() -> None:
@@ -172,6 +199,56 @@ def test_only_module_level_constants_are_baselines() -> None:
             KNOWN_Y = {"a"}
         """)
     assert baselines_in_source(source, _PATH) == []
+
+
+def test_a_bare_annotation_binds_no_baseline() -> None:
+    assert baselines_in_source("KNOWN_X: frozenset[str]\n", _PATH) == []
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        "if True:\n    KNOWN_X = {'a'}\n",
+        "try:\n    KNOWN_X = {'a'}\nexcept ImportError:\n    pass\n",
+        "try:\n    pass\nexcept ImportError:\n    KNOWN_X = {'a'}\n",
+        "try:\n    pass\nfinally:\n    KNOWN_X = {'a'}\n",
+        "with ctx():\n    KNOWN_X = {'a'}\n",
+    ],
+)
+def test_a_baseline_in_an_import_time_block_is_checked(block: str) -> None:
+    problems = _problems(block)
+    assert len(problems) == 1
+    assert "KNOWN_X" in problems[0]
+
+
+def test_unpacked_baselines_pair_with_their_elements() -> None:
+    found = baselines_in_source(
+        "KNOWN_A, KNOWN_B = frozenset(), {'x'}\n", _PATH
+    )
+    assert [(b.name, b.terminal) for b in found] == [
+        ("KNOWN_A", True),
+        ("KNOWN_B", False),
+    ]
+
+
+def test_unpacking_a_computed_value_is_non_terminal() -> None:
+    found = baselines_in_source("KNOWN_A, KNOWN_B = _pair()\n", _PATH)
+    assert [b.terminal for b in found] == [False, False]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "KNOWN_A |= {'x'}",
+        "KNOWN_A.add('x')",
+        "KNOWN_A.update({'x'})",
+        "KNOWN_A['k'] = 1",
+    ],
+)
+def test_a_baseline_grown_in_place_is_not_terminal(mutation: str) -> None:
+    found = baselines_in_source(f"KNOWN_A = set()\n{mutation}\n", _PATH)
+    assert [b.terminal for b in found] == [False]
+    assert len(violations(found)) == 1
 
 
 # --- names and values ----------------------------------------------------

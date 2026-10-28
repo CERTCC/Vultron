@@ -112,14 +112,17 @@ the one marker parser `vultron/metadata/ratchet_markers.py`:
 
 - **Which constants.** Module-level constant-case names matching `KNOWN_*`,
   `*_BASELINE`, `MAX_*` or `*_EXEMPTIONS` (leading underscores ignored)
-  anywhere under `test/`. A constant with a ratchet name that is not a baseline
+  anywhere under `test/`, including inside import-time `if`/`try`/`with`
+  blocks and tuple unpacking. A constant with a ratchet name that is not a baseline
   (a search depth, a fixture host list) is renamed out of the pattern rather
   than given an invented marker.
 - **Terminal needs no marker.** An empty literal, a zero, or an empty
-  `frozenset()` / `MappingProxyType({})` call. A computed value counts as
+  `frozenset()` / `MappingProxyType({})` call. A computed value, or one grown
+  in place at module level (`|=`, `.add()`, item assignment), counts as
   non-empty.
-- **Where the marker sits.** In the comment block touching the assignment's
-  first line, or trailing that line; a blank line in between detaches it.
+- **Where the marker sits.** A real comment (`#` or `#:`, never text in a
+  string) in the comment block touching the assignment's first line, or
+  trailing that line; a blank line in between detaches it.
 - **What fails.** No marker on a non-empty baseline; `# owner:` without `#N`
   (even on a terminal baseline); `# permanent:` whose line cites no `#N`,
   `ADR-NNNN` or spec ID; both markers on one constant (ARCH-18-005).
