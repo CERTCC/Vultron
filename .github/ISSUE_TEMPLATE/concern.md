@@ -1,6 +1,6 @@
 ---
 name: "Concern"
-about: "Flag a technical risk, debt item, security gap, or fragile area"
+about: "Flag a risk or gap that needs a decision before work can be written"
 title: "[Concern] "
 labels: concern
 ---

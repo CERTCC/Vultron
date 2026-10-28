@@ -63,10 +63,10 @@ nav:
       - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
       - CSAF 2.1 Crosswalk:
         - CSAF 2.1 and Vultron: 'reference/csaf_crosswalk/overview.md'
-        - Proposals: 'reference/csaf_crosswalk/proposals.md'
-        - Conclusions: 'reference/csaf_crosswalk/conclusion.md'
         - Concept Mapping: 'reference/csaf_crosswalk/concept_mapping.md'
         - Coverage Differences: 'reference/csaf_crosswalk/coverage.md'
+        - Proposals: 'reference/csaf_crosswalk/proposals.md'
+        - Conclusions: 'reference/csaf_crosswalk/conclusion.md'
   - Implement the Protocol:
     - Start Here: 'start/connect-your-tracker.md'
     - Protocol Specification:
@@ -565,6 +565,11 @@ plugins:
         topics/user_stories/story_2022_111.md: reference/user_stories/story_2022_111.md
         topics/user_stories/table.md: reference/user_stories/table.md
         tutorials/fv-demo.md: tutorials/rv-demo.md
+        # docs/agents/ consolidation (#5323): domain.md and triage-labels.md
+        # removed; content moved to notes/ and AGENTS.md (not published).
+        # Redirect to the remaining agent-docs pointer stub.
+        agents/domain.md: agents/issue-tracker.md
+        agents/triage-labels.md: agents/issue-tracker.md
   # NOTE print-site MUST be the last plugin in the list (see its docs for why)
   - print-site
 repo_url: 'https://github.com/CERTCC/Vultron'

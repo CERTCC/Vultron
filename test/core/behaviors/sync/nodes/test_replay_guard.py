@@ -160,7 +160,7 @@ class TestClaimReplayPosition:
 
     @pytest.mark.spec("SYNC-15-003")
     def test_genesis_uses_a_shorter_cooldown_than_mid_chain(self, datalayer):
-        """A genesis peer is mid-bootstrap (SYNC-15-002) and must not be starved.
+        """A genesis peer is mid-bootstrap (SYNC-15-015) and must not be starved.
 
         Regression guard: a full-length cooldown at genesis suppressed the
         replay that ``AnnounceCaseOnGenesisRejectNode`` depends on, leaving the

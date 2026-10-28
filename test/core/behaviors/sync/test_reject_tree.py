@@ -167,6 +167,7 @@ def _make_event(
     return event
 
 
+@pytest.mark.spec("SYNC-15-015")
 def test_create_reject_log_entry_tree_returns_sequence():
     tree = create_reject_log_entry_tree(
         CASE_ID,
@@ -184,7 +185,7 @@ def test_create_reject_log_entry_tree_returns_sequence():
         "AnswerRejectIfCaseManager",
     ]
     assert isinstance(tree.children[-1], CaseManagerGate)
-    # The genesis pre-seed precedes the replay inside the gate (SYNC-15-002).
+    # The genesis pre-seed precedes the replay inside the gate (SYNC-15-015).
     assert [
         child.name for child in tree.children[-1].gated_branch.children
     ] == [
@@ -271,13 +272,13 @@ def test_reject_tree_replays_all_entries_when_hash_not_found(
     assert sync_port.send_announce_log_entry.call_count == 2
 
 
-@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("SYNC-15-015")
 @pytest.mark.spec("SYNC-15-005")
 def test_genesis_reject_queues_announce_vulnerability_case(
     datalayer, case_manager_case
 ):
     """When last_accepted_hash='', AnnounceVulnerabilityCase is sent before
-    entry replay so the peer can anchor its hash chain (SYNC-15-002).
+    entry replay so the peer can anchor its hash chain (SYNC-15-015).
     """
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -312,7 +313,7 @@ def test_genesis_reject_queues_announce_vulnerability_case(
     assert call_kwargs["to"] == [PEER_ID]
 
 
-@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("SYNC-15-015")
 @pytest.mark.spec("EMB-18-003")
 def test_genesis_reject_logs_an_unbuildable_announce_at_error(
     datalayer, case_manager_case, caplog: pytest.LogCaptureFixture
@@ -359,12 +360,12 @@ def test_genesis_reject_logs_an_unbuildable_announce_at_error(
     assert "EMB-18-003" in str(refusals[0].exc_info[1])
 
 
-@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("SYNC-15-015")
 def test_genesis_reject_without_trigger_port_still_succeeds(
     bridge, datalayer, case_manager_case
 ):
     """Missing trigger port is a WARNING, not a FAILURE — replay continues
-    (SYNC-15-002 is best-effort; replay remains the backstop).
+    (SYNC-15-015 is best-effort; replay remains the backstop).
     """
     entry = _make_entry(0)
     datalayer.save(entry)
@@ -384,12 +385,12 @@ def test_genesis_reject_without_trigger_port_still_succeeds(
     assert result.status == Status.SUCCESS
 
 
-@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("SYNC-15-015")
 def test_non_genesis_reject_skips_announce_vulnerability_case(
     datalayer, case_manager_case
 ):
     """When last_accepted_hash is non-empty the node is a no-op — the peer
-    already has the case and does not need re-seeding (SYNC-15-002).
+    already has the case and does not need re-seeding (SYNC-15-015).
     """
     from vultron.core.ports.trigger_activity import TriggerActivityPort
 
@@ -746,7 +747,7 @@ def test_reject_without_sender_halts(datalayer, case_manager_case):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("SYNC-15-015")
 @pytest.mark.spec("BT-17-001")
 def test_undecidable_embargo_gate_fails_the_tree_at_the_case_manager(
     datalayer, case_manager_case, monkeypatch

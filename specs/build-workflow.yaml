@@ -525,7 +525,8 @@ groups:
         statement: >-
           Each triggered checklist item MUST be routed at discovery to
           exactly one destination. Something that exists but is wrong → a
-          GitHub `type:Concern` issue. Something that should exist but
+          GitHub `type:Bug`, `type:Task`, or `type:Concern` issue, chosen by
+          the shape of the work. Something that should exist but
           does not → a GitHub `type:Idea` issue. A broken tool, skill, or
           tracking artefact → a fix applied in the same session. A
           narrow, symptom-retrievable fact about the code → an assertion
@@ -564,8 +565,9 @@ groups:
         statement: >-
           When a session produces a finding that corroborates an existing
           queued `signal: theme-candidate` entry, the agent MUST file or
-          update a GitHub `type:Concern` issue for the now-corroborated
-          theme in that session rather than adding a second learning file
+          update a GitHub issue (`type:Bug`, `type:Task`, or `type:Concern`,
+          chosen by the shape of the work) for the now-corroborated theme in
+          that session rather than adding a second learning file
           and waiting for `learn`.
         rationale: >-
           A second finding that agrees with a theme candidate makes the claim
@@ -619,16 +621,20 @@ groups:
         statement: >-
           Code-review findings in files the current change did not touch
           (pre-existing findings, and findings deferred as out of scope)
-          MUST be filed as GitHub `type:Bug` or `type:Concern` issues in
-          the session that surfaced them. They MUST NOT be recorded as
+          MUST be filed as GitHub `type:Bug`, `type:Task`, or `type:Concern`
+          issues in the session that surfaced them. They MUST NOT be recorded as
           learning files, and MUST NOT be left only as PR-comment
           advisories.
         rationale: >-
           Nobody can assign, schedule or close a learning file. Thus a finding in a
           learning file is not tracked, but it can seem tracked. A PR comment records a
           finding but does not schedule it. A merged PR records what shipped, not what
-          was deferred. Only a Bug or Concern issue keeps the finding open until
+          was deferred. Only an issue keeps the finding open until
           somebody resolves it.
+        lint_suppress:
+          # compound_statement: the MUST / MUST NOT / MUST NOT triple pre-dates
+          # #5364, which only widened the issue types the first clause allows.
+          - compound_statement
         relationships:
           - rel_type: refines
             spec_id: BW-07-004

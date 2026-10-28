@@ -173,7 +173,7 @@ def test_fanout_send_fails_without_sending_when_the_case_is_missing(
 
 
 @pytest.mark.spec("CM-10-004")
-@pytest.mark.spec("SYNC-15-002")
+@pytest.mark.spec("SYNC-15-015")
 def test_genesis_reject_from_an_admitted_peer_seeds_the_case(
     datalayer,
 ) -> None:

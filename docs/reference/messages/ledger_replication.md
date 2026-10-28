@@ -94,7 +94,7 @@ It replays that `Announce` when the predecessor arrives (ADR-0037, SYNC-14-009).
 
 - **Context:** the case.
 - **`ledgerPosition`:** the participant's ledger tail, the `logIndex` and `entryHash` of the last entry it accepted, so the CASE_MANAGER can determine which entries to replay (SYNC-03-002, SYNC-18-001).
-  A participant that does not hold the case yet has no tail, sends no `ledgerPosition`, and is answered with the case and a replay from genesis (SYNC-15-002).
+  A participant that does not hold the case yet has no tail, sends no `ledgerPosition`, and is answered with the case and a replay from genesis (SYNC-15-015).
 - **Triggering transition:** triggered by hash-chain mismatch detection — not a protocol shorthand.
 - **Spec:** SYNC-03-001, SYNC-03-002, SYNC-03-005.
 - **Pattern:** `RejectLogEntryPattern` in `vultron/wire/as2/extractor/_instances.py`.

@@ -296,7 +296,7 @@ Once the plan is confirmed:
    - Invoke `check-docs-sync` while CI runs in the cloud to identify any
      `docs/` updates required by the fix (PD-03-007). Apply small updates
      inline and commit them. A large multi-page rewrite that is not done
-     inline is deferred to a `type:Concern` issue listing the pages, and
+     inline is deferred to a `type:Task` issue listing the pages, and
      recorded as `Docs: deferred to #N` — only with the user's approval
      (Gate 1); unattended, run `write-docs` inline or hold the PR.
    - **Record the outcome** (PD-03-008): edit the PR body to replace the

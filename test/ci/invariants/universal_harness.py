@@ -109,6 +109,7 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
     calling_module = sys._getframe(1).f_globals.get("__name__", __name__)
 
     @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("CLP-04-003")
     @pytest.mark.parametrize("actor_name", chain_actors)
     def test_invariant_1_local_hash_chain_consistent(
         actor_name: str,
@@ -123,6 +124,7 @@ def make_universal_invariant_tests(  # noqa: C901  # C901 counts every nested te
         assert not violations, "\n".join(violations)
 
     @pytest.mark.case_ledger_invariants
+    @pytest.mark.spec("CLP-04-003")
     def test_invariant_2_cross_actor_hash_agreement(
         request: pytest.FixtureRequest,
     ) -> None:

@@ -277,8 +277,8 @@ groups:
       record CS state change first, then initiate teardown.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CP with EM Active or
-      Revise transitions CS to ···P··, emits ET before CK, and that the CS
-      transition is recorded before embargo teardown (C-14).
+      Revise transitions CS to ···P··, that the CASE_MANAGER emits ET before CK,
+      and that the CS transition is recorded before embargo teardown (C-14).
     testable: true
     preconditions:
     - cs_pattern: "...p.."
@@ -292,8 +292,10 @@ groups:
       action: Transition local CS to Public Aware (···P··)
       expected: Receiver CS public bit set to P
     - order: 2
-      actor: receiver
-      action: Emit ET to initiate embargo termination
+      actor: CASE_MANAGER
+      action: >-
+        Emit ET to initiate embargo termination (CSB-04-007); a receiver
+        that does not hold the CASE_MANAGER role emits no ET
       expected: ET queued for participants; EM begins transitioning to EXITED
     - order: 3
       actor: receiver
@@ -301,7 +303,8 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: >-
-        Receiver CS is public-aware; ET emitted; EM is EXITED; CK emitted
+        Receiver CS is public-aware; the CASE_MANAGER has emitted ET; EM is
+        EXITED; CK emitted
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-001
@@ -359,15 +362,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      (q^cs ∈ ···p··) and EM Proposed (q^em ∈ P) receiving CP MUST transition
-      EM to None (q^em P → N).
+      The CASE_MANAGER in a non-Closed RM state (q^rm ∉ C) with CS not yet
+      public (q^cs ∈ ···p··) and EM Proposed (q^em ∈ P) receiving CP MUST
+      transition EM to None (q^em P → N) by abandoning each open proposal
+      (EMB-16-001).
     rationale: >-
       Public awareness makes further embargo negotiation moot; the pending
       proposal is abandoned per VP-09-001.
+      The abandonment is shared EM state, so the CASE_MANAGER, which can be the
+      Case Owner itself, makes it when it records the P/X/A status (RSH-03-001,
+      EMB-16-001). A Participant that does not hold the role writes no EM
+      state; its replica follows the replayed entries (EMB-16-002, EP-09-008).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CP with EM Proposed
-      and CS ···p·· transitions EM from PROPOSED to NONE.
+      Integration tests in `test/demo/` confirm that the CASE_MANAGER receiving
+      CP with EM Proposed and CS ···p·· transitions EM from PROPOSED to NONE.
     testable: true
 
     stories:
@@ -393,15 +401,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      (q^cs ∈ ···p··) and EM Active or Revise (q^em ∈ {A, R}) receiving CP MUST
-      initiate embargo termination by emitting ET.
+      The CASE_MANAGER in a non-Closed RM state (q^rm ∉ C) with CS not yet
+      public (q^cs ∈ ···p··) and EM Active or Revise (q^em ∈ {A, R}) receiving
+      CP MUST initiate embargo termination by emitting ET.
     rationale: >-
       VP-09-001 and VP-11-002 require immediate embargo termination when public
       awareness occurs.
+      Only the CASE_MANAGER writes shared EM state, so it emits the ET when it
+      records the P/X/A status (RSH-03-001, EP-09-008). The CASE_MANAGER can be
+      the Case Owner itself. A Participant that does not hold the role reports
+      the CS change and emits no ET (EMB-03-003, ADR-0118).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CP with EM Active or
-      Revise and CS ···p·· enqueues ET to initiate embargo termination.
+      Integration tests in `test/demo/` confirm that the CASE_MANAGER receiving
+      CP with EM Active or Revise and CS ···p·· enqueues ET to initiate embargo
+      termination.
     testable: true
 
     stories:
@@ -531,8 +544,9 @@ groups:
       CS transition first, then initiate teardown.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CX in CS ···px· with
-      EM Active or Revise transitions CS to ···PX·, emits ET, then emits CK,
-      with the CS transition recorded before teardown (C-14).
+      EM Active or Revise transitions CS to ···PX·, that the CASE_MANAGER emits
+      ET, then CK is emitted, with the CS transition recorded before teardown
+      (C-14).
     testable: true
     preconditions:
     - cs_pattern: "...px."
@@ -546,15 +560,19 @@ groups:
       action: Transition local CS to Public Aware and Exploit Public (···PX·)
       expected: Receiver CS public bit P and exploit bit X both set
     - order: 2
-      actor: receiver
-      action: Emit ET to initiate embargo termination
+      actor: CASE_MANAGER
+      action: >-
+        Emit ET to initiate embargo termination (CSB-05-008); a receiver
+        that does not hold the CASE_MANAGER role emits no ET
       expected: ET queued for participants; EM begins transitioning to EXITED
     - order: 3
       actor: receiver
       action: Emit CK to acknowledge receipt of CX
       expected: CK queued for sender
     postconditions:
-    - description: Receiver CS is ···PX·; ET emitted; EM is EXITED; CK emitted
+    - description: >-
+        Receiver CS is ···PX·; the CASE_MANAGER has emitted ET; EM is EXITED;
+        CK emitted
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-001
@@ -643,15 +661,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      and not yet exploit-public (q^cs ∈ ···px·) and EM Proposed
-      (q^em ∈ P) receiving CX MUST transition EM to None (q^em P → N).
+      The CASE_MANAGER in a non-Closed RM state (q^rm ∉ C) with CS not yet
+      public and not yet exploit-public (q^cs ∈ ···px·) and EM Proposed
+      (q^em ∈ P) receiving CX MUST transition EM to None (q^em P → N) by
+      abandoning each open proposal (EMB-16-001).
     rationale: >-
       Exploit publication makes further embargo negotiation moot; the pending
       proposal is abandoned per VP-09-001.
+      The abandonment is shared EM state, so the CASE_MANAGER, which can be the
+      Case Owner itself, makes it when it records the P/X/A status (RSH-03-001,
+      EMB-16-001). A Participant that does not hold the role writes no EM
+      state; its replica follows the replayed entries (EMB-16-002, EP-09-008).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CX with EM Proposed
-      and CS ···px· transitions EM from PROPOSED to NONE.
+      Integration tests in `test/demo/` confirm that the CASE_MANAGER receiving
+      CX with EM Proposed and CS ···px· transitions EM from PROPOSED to NONE.
     testable: true
 
     stories:
@@ -677,16 +700,21 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
+      The CASE_MANAGER in a non-Closed RM state (q^rm ∉ C) with CS not yet
+      public and not yet exploit-public (q^cs ∈ ···px·) and EM Active or Revise
       (q^em ∈ {A, R}) receiving CX MUST initiate embargo termination by emitting
       ET.
     rationale: >-
       VP-09-001 and VP-11-002 require immediate embargo termination when exploit
       publication occurs.
+      Only the CASE_MANAGER writes shared EM state, so it emits the ET when it
+      records the P/X/A status (RSH-03-001, EP-09-008). The CASE_MANAGER can be
+      the Case Owner itself. A Participant that does not hold the role reports
+      the CS change and emits no ET (EMB-03-003, ADR-0118).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CX with EM Active or
-      Revise and CS ···px· enqueues ET to initiate embargo termination.
+      Integration tests in `test/demo/` confirm that the CASE_MANAGER receiving
+      CX with EM Active or Revise and CS ···px· enqueues ET to initiate embargo
+      termination.
     testable: true
 
     stories:
@@ -836,8 +864,9 @@ groups:
       ordering: record CS transition first, then initiate teardown.
     verification: >-
       Integration tests in `test/demo/` confirm that receiving CA in CS ···p·a with
-      EM Active or Revise transitions CS to ···P·A, emits ET, then emits CK, with
-      the CS transition recorded before teardown (C-14).
+      EM Active or Revise transitions CS to ···P·A, that the CASE_MANAGER emits
+      ET, then CK is emitted, with the CS transition recorded before teardown
+      (C-14).
     testable: true
     preconditions:
     - cs_pattern: "...p.a"
@@ -852,8 +881,10 @@ groups:
         Transition local CS to Public Aware and Attacks Observed (···P·A)
       expected: Receiver CS public bit P and attacks bit A both set
     - order: 2
-      actor: receiver
-      action: Emit ET to initiate embargo termination
+      actor: CASE_MANAGER
+      action: >-
+        Emit ET to initiate embargo termination (CSB-06-008); a receiver
+        that does not hold the CASE_MANAGER role emits no ET
       expected: ET queued for participants; EM begins transitioning to EXITED
     - order: 3
       actor: receiver
@@ -861,7 +892,8 @@ groups:
       expected: CK queued for sender
     postconditions:
     - description: >-
-        Receiver CS is ···P·A; ET emitted; EM is EXITED; CK emitted
+        Receiver CS is ···P·A; the CASE_MANAGER has emitted ET; EM is EXITED;
+        CK emitted
     relationships:
     - rel_type: satisfies
       spec_id: VP-09-001
@@ -950,15 +982,20 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      and attacks not yet observed (q^cs ∈ ···p·a) and EM Proposed
-      (q^em ∈ P) receiving CA MUST transition EM to None (q^em P → N).
+      The CASE_MANAGER in a non-Closed RM state (q^rm ∉ C) with CS not yet
+      public and attacks not yet observed (q^cs ∈ ···p·a) and EM Proposed
+      (q^em ∈ P) receiving CA MUST transition EM to None (q^em P → N) by
+      abandoning each open proposal (EMB-16-001).
     rationale: >-
       The CS→P transition triggered by attacks observation makes further embargo
       negotiation moot; the pending proposal is abandoned per VP-09-001.
+      The abandonment is shared EM state, so the CASE_MANAGER, which can be the
+      Case Owner itself, makes it when it records the P/X/A status (RSH-03-001,
+      EMB-16-001). A Participant that does not hold the role writes no EM
+      state; its replica follows the replayed entries (EMB-16-002, EP-09-008).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CA with EM Proposed
-      and CS ···p·a transitions EM from PROPOSED to NONE.
+      Integration tests in `test/demo/` confirm that the CASE_MANAGER receiving
+      CA with EM Proposed and CS ···p·a transitions EM from PROPOSED to NONE.
     testable: true
 
     stories:
@@ -984,16 +1021,21 @@ groups:
     priority: MUST
     kind: protocol
     statement: >-
-      A Participant in a non-Closed RM state (q^rm ∉ C) with CS not yet public
-      and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or Revise
-      (q^em ∈ {A, R}) receiving CA MUST initiate embargo termination by emitting
-      ET.
+      The CASE_MANAGER in a non-Closed RM state (q^rm ∉ C) with CS not yet
+      public and attacks not yet observed (q^cs ∈ ···p·a) and EM Active or
+      Revise (q^em ∈ {A, R}) receiving CA MUST initiate embargo termination by
+      emitting ET.
     rationale: >-
       VP-09-001 requires immediate embargo termination when public awareness
       occurs; constraint C-16 triggers CS→P on attacks observation.
+      Only the CASE_MANAGER writes shared EM state, so it emits the ET when it
+      records the P/X/A status (RSH-03-001, EP-09-008). The CASE_MANAGER can be
+      the Case Owner itself. A Participant that does not hold the role reports
+      the CS change and emits no ET (EMB-03-003, ADR-0118).
     verification: >-
-      Integration tests in `test/demo/` confirm that receiving CA with EM Active or
-      Revise and CS ···p·a enqueues ET to initiate embargo termination.
+      Integration tests in `test/demo/` confirm that the CASE_MANAGER receiving
+      CA with EM Active or Revise and CS ···p·a enqueues ET to initiate embargo
+      termination.
     testable: true
 
     stories:
@@ -1254,15 +1296,20 @@ groups:
     priority: SHOULD
     kind: protocol
     statement: >-
-      A Participant entering CS Fix Deployed (q^cs ∈ VFD···) with an active
-      embargo (q^em ∈ {A, R}) SHOULD terminate the embargo by emitting ET.
+      When a Participant enters CS Fix Deployed (q^cs ∈ VFD···) with an active
+      embargo (q^em ∈ {A, R}), the Case Owner, or the CASE_MANAGER it delegates
+      to, SHOULD terminate the embargo by emitting ET.
     rationale: >-
       VP-14-010 recommends terminating any existing embargo once the fix has
       been deployed. Constraint C-35: embargo termination SHOULD follow fix
-      deployment.
+      deployment. Ending an embargo is the Case Owner's decision, or the
+      delegated CASE_MANAGER's, so the Participant that deploys the fix reports
+      its CS change and does not emit ET itself (EMB-03-003, ADR-0118,
+      EP-09-008). The Case Owner can hold the CASE_MANAGER role itself.
     verification: >-
-      Integration tests in `test/demo/` confirm that a participant entering CS Fix
-      Deployed with an active embargo emits ET and that EM reaches EXITED.
+      Integration tests in `test/demo/` confirm that after a Participant enters
+      CS Fix Deployed with an active embargo, the Case Owner or the CASE_MANAGER
+      emits ET and EM reaches EXITED.
     testable: true
     preconditions:
     - cs_pattern: "VFD..."
@@ -1272,7 +1319,7 @@ groups:
       description: EM state is Active or Revise; CS matches pattern VFD...
     steps:
     - order: 1
-      actor: participant
+      actor: Case Owner or CASE_MANAGER
       action: Emit ET to terminate the active embargo
       expected: ET queued for participants; EM begins transitioning to EXITED
     postconditions:
@@ -1706,6 +1753,8 @@ groups:
       actors who develop or maintain the affected product (Vendors) can produce a
       fix; Deployers operate existing deployments and do not produce fixes. Finders,
       Reporters, and Coordinators likewise MUST NOT self-report fix readiness.
+    adr:
+    - ADR-0075
     verification: >-
       `test/core/states/test_participant_transitions.py` confirms the participant
       transition rules refuse a vendor-path or deployer-path assertion from an actor
@@ -1739,9 +1788,10 @@ groups:
       of a whole status (RSH-09-003), which judge the actor by its recorded roles rather
       than the roles a status claims.
     rationale: >-
-      How this codebase enforces CSB-15-001; split from it so that item states only
-      what other participants observe (MS-12-010). A construction-time raise would judge
-      a sender by the roles its status claims, not the roles the case records (#2860).
+      The status a sender builds only claims roles; the case records which roles the
+      sender holds. A raise when the status is built would judge a sender by the roles
+      its status claims. The trigger guard and the receive path judge it by the roles
+      the case records, which is the authority for roles.
     verification: >-
       `test/core/behaviors/case/nodes/test_vfd_role_guards.py`
       (`test_vendor_guard_failure_for_deployer_only_actor`,
@@ -1764,6 +1814,8 @@ groups:
       Only actors who are responsible for operating deployed instances (Deployers) can
       perform this action. A shipping-product Vendor who does not control downstream
       deployment holds only the VENDOR role, not DEPLOYER, and has no deployer path.
+    adr:
+    - ADR-0075
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py` confirms that a
       deployer-path assertion from an actor without the DEPLOYER role is refused and
@@ -1796,10 +1848,10 @@ groups:
       roles lack DEPLOYER. The participant status model MUST NOT itself reject a stray
       `d` dimension, for the reason CSB-15-005 gives for `vf`.
     rationale: >-
-      How this codebase enforces CSB-15-002; split from it so that item states only
-      what other participants observe (MS-12-010). The gate covers `d` as well as `D`,
-      because a non-Deployer asserting the not-deployed state still claims a dimension
-      it does not have (#2963).
+      A non-Deployer that asserts the not-deployed state `d` still claims a dimension it
+      does not have. If the gate covered only `D`, such a participant could still write
+      the deployer dimension, and readers would treat it as a deployer. The gate
+      therefore covers `d` as well as `D`.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_deploy_requires_deployer_role_at_write_node`,
@@ -1860,14 +1912,14 @@ groups:
       state of its own and is at d before the transition; the transition moves it to D,
       recording deployment of a fix another participant produced.
     rationale: >-
-      Under the VFD split (Concern #2595), a DEPLOYER-only participant has a deployer
-      path and no vendor path. The causal gate — requiring at least one VENDOR
-      participant to be at F — captures the real-world dependency: a Deployer can only
-      apply a fix that exists. The deployer's d dimension starts at d and advances to D
-      when the causal gate passes. The constraint is generic — "some VENDOR must be at
-      F" — because the protocol does not yet track which specific vendor a given
-      deployer depends on; finer-grained vendor-deployer dependency tracking is a
-      separate Concern.
+      A participant with the DEPLOYER role and no VENDOR role has a deployer path and no
+      vendor path (ADR-0075). It can deploy only a fix that exists, so its d→D move
+      waits until at least one VENDOR participant in the case is at F. Its d dimension
+      starts at d and moves to D when that gate passes. The gate asks only that some
+      VENDOR is at F, because the protocol does not record which vendor a deployer
+      depends on, and a rule that named the vendor would need that record.
+    adr:
+    - ADR-0075
     verification: >-
       Integration tests confirm that the fix-deployed trigger refuses a DEPLOYER-only
       actor when no VENDOR participant in the case is at F (causal gate not satisfied),
@@ -1927,12 +1979,14 @@ groups:
       be recorded.
     rationale: >-
       A participant's status is its own claim about the case, and every other
-      participant reads it, so a jump the sub-machine does not permit misstates the
-      vulnerability's history (SDO-02-004). Under the VFD split (Concern #2595) the
-      vendor and deployer paths are separate sub-machines, and a participant holding
-      both roles is held to each independently. The rule covers a participant's own
-      writes: a receiver applies a weaker forward-only check to a peer's status, because
-      a peer may advance several steps between messages.
+      participant reads it. A jump the sub-machine does not permit therefore misstates
+      the history of the vulnerability (SDO-02-004). The vendor and deployer paths are
+      separate sub-machines (ADR-0075), so a participant that holds both roles is held
+      to each path independently. The rule covers a participant's own writes. A receiver
+      applies a weaker forward-only check to the status of a peer, because a peer can
+      advance several steps between two messages.
+    adr:
+    - ADR-0075
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_ac1_invalid_vf_jump_raises_and_persists_nothing`,
@@ -1979,10 +2033,9 @@ groups:
       `Status.FAILURE`, or the helper raise, without writing to the DataLayer. The
       received path's weaker forward-only check is out of scope.
     rationale: >-
-      How this codebase enforces CSB-16-001; split from it so that item states only
-      what other participants observe (MS-12-010). A guard that is too weak, missing or
-      bypassed lets an invalid jump reach the write node, so the write boundary fails
-      closed regardless of guard coverage (#1896, #1825).
+      A guard can be too weak, missing or bypassed, and then an invalid jump reaches the
+      write node. A check at the write boundary fails closed whatever the guards cover,
+      so no invalid vf or d state reaches the store.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_invalid_vf_jump_blocked_at_write_node`,
@@ -2001,10 +2054,11 @@ groups:
       or in the case status, only along a transition the PXA state machine permits.
       Restating the current state is permitted. A backward move MUST NOT be recorded.
     rationale: >-
-      PXA state transitions are forward-only (p→P, x→X, a→A). An invalid
-      backward PXA write would produce a misleading public-disclosure regression
-      in the case record. The same fail-closed boundary that protects VFD applies
-      equally to PXA. Source: concern #1896.
+      PXA events are forward-only (p→P, x→X, a→A). Public awareness, a public exploit or
+      observed attacks cannot become untrue later. A backward PXA write would show a
+      false regression in the case record, and every participant reads that record. The
+      rule that limits the vf and d paths to permitted transitions (CSB-16-001) applies
+      to PXA for the same reason.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_ac3_backward_pxa_raises_and_persists_nothing`) confirms a backward PXA move
@@ -2043,9 +2097,10 @@ groups:
       MUST make the node return `Status.FAILURE`, or the helper raise, without writing
       to the DataLayer.
     rationale: >-
-      How this codebase enforces CSB-16-002; split from it so that item states only
-      what other participants observe (MS-12-010). The same fail-closed boundary that
-      protects the vf and d writes (CSB-16-003) applies to PXA (#1896).
+      A backward PXA move would say that public awareness, a public exploit or observed
+      attacks are no longer true, which cannot happen. The guards can miss such a move,
+      as they can miss a vf or d jump (CSB-16-003). The write boundary refuses it and
+      persists nothing, so the store never holds a backward PXA state.
     verification: >-
       `test/core/use_cases/triggers/case/test_add_participant_status.py`
       (`test_ac3_backward_pxa_raises_and_persists_nothing`) confirms the helper raises
@@ -2456,31 +2511,16 @@ groups:
       {ACCEPTED, DEFERRED, CLOSED}. A fix cannot be ready before the
       vulnerability has been accepted for action.
     rationale: >-
-      The F-bit records that a vendor-fix is available. A vendor can only have
-      a fix ready if they have accepted the report for action (RM ∈ {ACCEPTED,
-      DEFERRED, CLOSED}). RM states RECEIVED/INVALID/VALID precede acceptance,
-      so F-bit + pre-acceptance RM is a causal impossibility.
-      The underlying constraint is a *history* property — rm_em_cs.md requires
-      that the actor "passed through q^rm = Accepted at some point" — while a
-      ParticipantStatus carries only the current RM value. The check therefore
-      approximates it with RM_STATES_CONSISTENT_WITH_FIX, which is exactly the
-      set of states reachable from RM.ACCEPTED. That is sound but not complete:
-      DEFERRED and CLOSED are each also reachable without visiting ACCEPTED
-      (VALID->DEFERRED, INVALID->CLOSED), so neither proves acceptance. They are
-      included deliberately, because excluding them would refuse the legitimate
-      batched update in which a peer advances through ACCEPTED and reports fix
-      readiness in one message (CSB-16-001). Narrowing to {ACCEPTED} is the only
-      complete alternative over a single snapshot and would refuse far more real
-      traffic than it caught; a complete check needs the participant's RM
-      history (ISSUE-3015).
-      Implemented in composite_state_violations() (composite_state_invariants.py),
-      which composes violation_rm_vf_entailment() and violation_rm_d_entailment()
-      — the per-dimension form the rule takes after ADR-0075 split the compound
-      CS_vfd into independent CS_vf and CS_d. Enforced on both protocol paths:
-      the emit path refuses the whole trigger
-      (ValidateTriggerTransitionsNode._validate_entailments) and the receive path
-      refuses the whole received status (RSH-09-004, ISSUE-2906).
-      Source: ISSUE-2372.
+      The F bit records that the vendor has a fix. A vendor makes a fix only after it
+      accepts the report for action. An F bit with an RM state before acceptance (START,
+      RECEIVED, INVALID or VALID) is therefore causally impossible. The true rule is
+      about history: the participant passed through ACCEPTED at some time. A participant
+      status holds only the current RM state, so the check uses the RM states that
+      ACCEPTED can reach. DEFERRED and CLOSED can also be reached without ACCEPTED, so
+      the check is sound but not complete. The set keeps them because a peer can move
+      through ACCEPTED to DEFERRED or CLOSED and report a ready fix in one message. A
+      check of ACCEPTED alone would refuse that valid update. Only the RM history of the
+      participant can give a complete check.
     testable: true
     preconditions:
     - description: Any participant state snapshot is available for inspection
@@ -2508,18 +2548,11 @@ groups:
       P event causes embargo termination, so EM cannot remain ACTIVE once P
       has occurred.
     rationale: >-
-      The P event (public disclosure) causes embargo termination per the
-      protocol state machine. An embargo that persists after P has been
-      recorded is a causal contradiction: the P event entails embargo
-      termination, not mere transition ambiguity. This is a causal
-      entailment, not a timing race — it is NOT enforced at emit time
-      because the sequence of events is what makes it contradictory.
-      Enforced on the receive path via ThreatTerminationBranchNode
-      (add_participant_status_tree.py, RSH-03-001) when the authorization gate
-      permits teardown. Diagnostic check: violation_pxa_em_entailment()
-      (composite_state_invariants.py); post-cascade caller:
-      PxaEmInvariantDiagnosticNode (CONCERN-3008, issue #3115).
-      Source: ISSUE-2372.
+      The P event (public awareness) makes the embargo end. An embargo that stays ACTIVE
+      or REVISE after P is recorded is therefore a causal contradiction, and it
+      misstates the case to every participant that reads it. The emit path does not
+      refuse a P report while an embargo is active, because that report is what causes
+      the embargo to end.
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
@@ -2535,13 +2568,10 @@ groups:
       REVISE}). Public exploit availability while an embargo is active is
       causally impossible — the X event entails embargo termination.
     rationale: >-
-      Same causal logic as CSB-18-002. The X event (exploit public) triggers
-      embargo termination; EM cannot remain ACTIVE after X has been recorded.
-      This is a causal entailment, not enforced at emit. Enforced on the
-      receive path via ThreatTerminationBranchNode (RSH-03-002). Diagnostic
-      check: violation_pxa_em_entailment() (composite_state_invariants.py);
-      post-cascade caller: PxaEmInvariantDiagnosticNode (CONCERN-3008,
-      issue #3115).
+      A public exploit lets attackers use the vulnerability, so secrecy no longer
+      protects users. An embargo that stays ACTIVE or REVISE after X tells participants
+      to keep a secret that attackers already have. It also holds back information that
+      defenders need now, and it misstates the case to every participant that reads it.
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
@@ -2560,13 +2590,10 @@ groups:
       REVISE}). Observed attacks while an embargo is active is causally
       impossible — the A event entails embargo termination.
     rationale: >-
-      Same causal logic as CSB-18-002 and CSB-18-003. The A event (attacks
-      observed) triggers embargo termination; EM cannot remain ACTIVE after A
-      has been recorded. This is a causal entailment, not enforced at emit.
-      Enforced on the receive path via ThreatTerminationBranchNode (RSH-03-003).
-      Diagnostic check: violation_pxa_em_entailment() (composite_state_invariants.py);
-      post-cascade caller: PxaEmInvariantDiagnosticNode (CONCERN-3008,
-      issue #3115).
+      Observed attacks show that the vulnerability is in use. An embargo that stays
+      ACTIVE or REVISE after A holds back the information that defenders need to protect
+      themselves while the attacks go on. It also misstates the case to every
+      participant that reads it.
     testable: true
     preconditions:
     - description: A PXA state and an EM state are both available for the same case
