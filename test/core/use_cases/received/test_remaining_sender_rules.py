@@ -377,6 +377,7 @@ def test_case_status_from_a_stranger_is_refused_and_changes_nothing() -> None:
 
 @pytest.mark.spec("RSH-04-005")
 @pytest.mark.spec("CLP-10-025")
+@pytest.mark.spec("RSH-04-001")
 def test_case_status_from_a_participant_to_the_manager_is_refused() -> None:
     """An active participant's public-awareness Add(CaseStatus) is refused at
     the CASE_MANAGER with nothing appended, committed, torn down or sent;

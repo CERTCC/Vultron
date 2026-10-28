@@ -183,11 +183,12 @@ groups:
       `CaseParticipant` MUST be used. The mutator methods themselves, in
       `vultron/core/models/case_participant.py`, are exempt.
     rationale: >-
-      `ParticipantStatus` exists in two incompatible shapes (SDO-03-002,
-      ADR-0036). A wire-shaped status appended to a core-typed list reads as
-      absent, so readers substitute an initial state — the #2232 / #2264 silent
-      reset. `validate_assignment` cannot close this door because `append` is not
-      an attribute assignment. Extends PRM-03-001 to `participant_statuses`.
+      `ParticipantStatus` exists in two incompatible shapes (SDO-03-002, ADR-0036). A
+      wire-shaped status appended to a core-typed list reads as absent, so readers
+      substitute an initial state and silently reset the participant's RM ladder.
+      `validate_assignment` cannot close this door, because `append` is not an attribute
+      assignment, so only the canonical mutators can check the shape. This extends
+      PRM-03-001 to `participant_statuses`.
     relationships:
     - rel_type: refines
       spec_id: ARCH-21-001
@@ -335,10 +336,11 @@ groups:
       typically an inert invitee that has not yet replied — and the write MUST
       NOT change its RM state (ADR-0121).
     rationale: >-
-      Closes the vendor-awareness gap (CONCERN-2087): the case can record that
-      an invited vendor is aware even if it never answers.  The stub Invite
-      creates the record (ADR-0114), so the assertion has a target without
-      minting a participant.
+      Without this path the case cannot record that an invited vendor is aware when the
+      vendor never answers, although its acknowledgement of the invite is evidence that
+      it is. The stub Invite creates the participant record (ADR-0114), so the assertion
+      has a target without minting a participant, and leaving RM unchanged keeps the
+      assertion from speaking for the vendor's own report decisions.
     verification: >-
       ``SvcAddOnBehalfStatusUseCase`` implements this path; the asserting
       actor's CASE_MANAGER or CASE_OWNER role is verified by
@@ -364,10 +366,11 @@ groups:
       only for a deployer whose RM state is consistent with deployment
       (ADR-0121).
     rationale: >-
-      Exceptional circumstances require a narrow exception path; the on-behalf
-      restriction keeps it from becoming a general proxy capability.  A deployer
-      that never joined is not in the case, so the case has nothing to record
-      about it (CONCERN-4006).
+      Deployment is normally self-reported, but a deployer that has gone quiet can leave
+      the case unable to record a deployment it has evidence of; a narrow exception path
+      covers that, and the on-behalf restriction keeps it from becoming a general proxy
+      capability. A deployer that never joined is not in the case, so the case has
+      nothing to record about it.
     adr:
     - ADR-0121
     tags:
@@ -383,10 +386,11 @@ groups:
       A status update is never a way into a case; joining is the Invite flow
       (CM-11, ADR-0114).
     rationale: >-
-      The on-behalf tree used to mint a participant for an absent target and
-      save it before the status write; for ``d→D`` the RM↔D entailment then
-      refused the write, leaving a stray participant in the case
-      (CONCERN-4006).
+      A status update that created the participant it names would be a second way into a
+      case that skips the Invite flow and its consent and entitlement checks. Creating
+      the record before the status write also leaves a stray participant whenever the
+      write is then refused, as the RM-to-D entailment refuses d to D for a target that
+      never accepted the report.
     verification: >-
       A test asserts an on-behalf assertion for an actor that is not a
       participant is refused and leaves the case's roster unchanged.
