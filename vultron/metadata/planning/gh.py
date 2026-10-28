@@ -22,6 +22,9 @@ from __future__ import annotations
 import subprocess
 from collections.abc import Callable, Sequence
 
+DEFAULT_REPO = "CERTCC/Vultron"
+"""The repository the planning scripts read when ``--repo`` is not given."""
+
 Runner = Callable[[Sequence[str]], str]
 """Runs a ``gh`` argument list and returns its standard output.
 

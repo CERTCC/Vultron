@@ -241,6 +241,9 @@ class TestReasonLine:
             "Theme: theme:beta — names the wrong label\n",
             "The theme:alpha label, outside a Theme: line\n",
             "Theme: theme:alphabet — a longer label is not this one\n",
+            "Theme: theme:alpha\n",
+            "Theme: theme:alpha — \n",
+            "Theme: theme:alpha—no space around the dash\n",
         ],
     )
     def test_missing(self, catalog: ThemeCatalog, body: str) -> None:
@@ -252,6 +255,24 @@ class TestReasonLine:
             catalog,
         )
         assert _kinds(report) == [(FindingKind.MISSING_REASON_LINE, 2)]
+
+    @pytest.mark.parametrize("dash", ["\u2014", "\u2013", "-"])
+    def test_any_spaced_dash_splits_the_outcome(
+        self, catalog: ThemeCatalog, dash: str
+    ) -> None:
+        report = analyze(
+            [
+                _epic_issue(1, "theme:alpha"),
+                _issue(
+                    2,
+                    "theme:alpha",
+                    parents=[_EPIC],
+                    body=f"Theme: theme:alpha {dash} does x - and y\n",
+                ),
+            ],
+            catalog,
+        )
+        assert report.clean
 
     def test_indented_backticked_line_counts(
         self, catalog: ThemeCatalog
@@ -317,6 +338,29 @@ class TestMismatch:
         )
         assert report.clean
 
+    def test_unthemed_non_leaf_child_is_a_mismatch(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        report = analyze(
+            [
+                _epic_issue(1, "theme:alpha"),
+                _issue(2, parents=[_EPIC]),
+                _issue(3, "theme:alpha", parents=[(2, "Task"), _EPIC]),
+            ],
+            catalog,
+        )
+        assert _kinds(report) == [(FindingKind.THEME_MISMATCH, 2)]
+        assert report.findings[0].detail.startswith("no theme label;")
+
+    def test_unthemed_leaf_is_only_a_count_finding(
+        self, catalog: ThemeCatalog
+    ) -> None:
+        report = analyze(
+            [_epic_issue(1, "theme:alpha"), _issue(2, parents=[_EPIC])],
+            catalog,
+        )
+        assert _kinds(report) == [(FindingKind.LEAF_THEME_COUNT, 2)]
+
     def test_unthemed_side_is_not_a_mismatch(
         self, catalog: ThemeCatalog
     ) -> None:
@@ -351,6 +395,14 @@ class TestHierarchy:
         assert (FindingKind.UNPARENTED, 3) in _kinds(report)
         assert "parent #2" in report.of_kind(FindingKind.UNPARENTED)[1].detail
 
+    def test_child_of_a_closed_epic(self, catalog: ThemeCatalog) -> None:
+        report = analyze(
+            [_issue(2, "theme:alpha", parents=[(9, "Epic")])], catalog
+        )
+        assert _kinds(report) == [(FindingKind.UNPARENTED, 2)]
+        assert report.findings[0].detail == "its nearest Epic, #9, is closed"
+        assert report.coherence == ()
+
     def test_unparented_epic_is_fine(self, catalog: ThemeCatalog) -> None:
         assert analyze([_epic_issue(1, "theme:alpha")], catalog).clean
 
@@ -363,6 +415,7 @@ class TestHierarchy:
             catalog,
         )
         assert _kinds(report) == [(FindingKind.NESTED_EPIC, 5)]
+        assert FindingKind.NESTED_EPIC.rule == "PAD-01-002"
 
 
 class TestNearestEpic:
@@ -537,6 +590,18 @@ class TestRender:
         assert "- #2 Issue 2 — carries `theme:beta`" in text
         assert "### Leaf without" not in text
 
+    def test_titles_cannot_mention_anyone(self, catalog: ThemeCatalog) -> None:
+        issue = OpenIssue(
+            number=2,
+            title="Carry @context and @octocat",
+            issue_type="Bug",
+            labels=frozenset(),
+            body="",
+        )
+        text = render_markdown(analyze([issue], catalog))
+        assert "@" not in text.split("## Findings")[1]
+        assert "Carry &#64;context and &#64;octocat" in text
+
     def test_empty_tier_reads_n_a(self, catalog: ThemeCatalog) -> None:
         report = analyze([_epic_issue(1, "theme:alpha")], catalog)
         assert f"| {UNSCHEDULED} | 1 | 0 | 0 | n/a |" in render_coherence(
@@ -696,7 +761,8 @@ class TestFetch:
         assert issue.number == 1
         (call,) = fake.calls
         assert call[:4] == ["api", "graphql", "--paginate", "--slurp"]
-        assert "owner=o" in call and "name=r" in call
+        assert call[call.index("owner=o") - 1] == "-f"
+        assert call[call.index("name=r") - 1] == "-f"
         query = next(a for a in call if a.startswith("query="))
         assert "mutation" not in query
         assert "states: OPEN" in query

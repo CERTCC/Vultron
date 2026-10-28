@@ -40,8 +40,14 @@ made, so it can report the auto-calved ones that never gained a second child.
 It is matched as a whole line, after stripping surrounding whitespace.
 """
 
-REASON_PREFIX = "Theme:"
-"""How the ``Theme: <label> — <outcome>`` reason line starts (PAD-02-018)."""
+REASON_LINE = re.compile(
+    r"^Theme:\s*(?P<labels>.*?)\s+[\u2014\u2013-]+\s+(?P<outcome>\S.*)$"
+)
+"""The ``Theme: <label> — <outcome>`` reason line (PAD-02-018).
+
+The labels and the outcome are split by the first dash with space on both
+sides (an em dash, an en dash or a hyphen), and the outcome must not be empty.
+"""
 
 THEME_LABEL_PATTERN = re.compile(
     r"(?<![\w:-])theme:[a-z0-9]+(?:-[a-z0-9]+)*", re.IGNORECASE
@@ -83,7 +89,7 @@ _HEADINGS: dict[FindingKind, str] = {
     FindingKind.EPIC_THEME_COUNT: "Epic without one theme or a named split",
     FindingKind.MISSING_REASON_LINE: "Missing `Theme:` reason line",
     FindingKind.THEME_MISMATCH: "Child theme differs from its Epic's",
-    FindingKind.UNPARENTED: "Non-Epic with no Epic ancestor",
+    FindingKind.UNPARENTED: "Non-Epic with no open Epic ancestor",
     FindingKind.NESTED_EPIC: "Epic nested under an Epic",
     FindingKind.SINGLE_CHILD_CALVED_EPIC: "Auto-calved Epic still single-child",
     FindingKind.UNKNOWN_THEME: "Theme label not in the catalog",
@@ -96,7 +102,7 @@ _RULES: dict[FindingKind, str] = {
     FindingKind.MISSING_REASON_LINE: "PAD-02-018",
     FindingKind.THEME_MISMATCH: "PAD-02-017",
     FindingKind.UNPARENTED: "PAD-01-007",
-    FindingKind.NESTED_EPIC: "PAD-01-007",
+    FindingKind.NESTED_EPIC: "PAD-01-002",
     FindingKind.SINGLE_CHILD_CALVED_EPIC: "PAD-02-008",
     FindingKind.UNKNOWN_THEME: "PAD-02-014",
     FindingKind.RETIRING_THEME: "PAD-02-014",
@@ -155,12 +161,15 @@ class OpenIssue:
         return self.ancestors[0].number if self.ancestors else None
 
     def reason_line_themes(self) -> frozenset[str]:
-        """Every theme a ``Theme:`` line in its body names."""
+        """Every theme a well-formed reason line in its body names.
+
+        A ``Theme:`` line with no outcome after the dash names nothing.
+        """
         named: set[str] = set()
         for line in self.body.splitlines():
-            stripped = line.strip()
-            if stripped.startswith(REASON_PREFIX):
-                named |= named_themes(stripped[len(REASON_PREFIX) :])
+            match = REASON_LINE.match(line.strip())
+            if match:
+                named |= named_themes(match["labels"])
         return frozenset(named)
 
     def names_split(self, first: str, second: str) -> bool:

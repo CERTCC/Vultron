@@ -43,6 +43,7 @@ from pathlib import Path
 
 from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.planning.gh import (
+    DEFAULT_REPO,
     GH_FAILURES,
     GhError,
     Runner,
@@ -55,8 +56,6 @@ from vultron.metadata.planning.themes import (
     ThemeCatalog,
     load_theme_catalog,
 )
-
-DEFAULT_REPO = "CERTCC/Vultron"
 
 LabelSyncError = GhError
 """``gh`` could not be run, or its output could not be read."""

@@ -148,9 +148,9 @@ def fetch_open_issues(
             "--slurp",
             "-f",
             f"query={QUERY}",
-            "-F",
+            "-f",
             f"owner={owner}",
-            "-F",
+            "-f",
             f"name={name}",
         ]
     )

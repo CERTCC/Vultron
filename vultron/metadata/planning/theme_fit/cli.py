@@ -33,6 +33,7 @@ from pathlib import Path
 
 from vultron.metadata.file_loading import MetadataLoadError
 from vultron.metadata.planning.gh import (
+    DEFAULT_REPO,
     GH_FAILURES,
     Runner,
     gh_failure_detail,
@@ -46,8 +47,6 @@ from vultron.metadata.planning.theme_fit.render import (
     render_markdown,
 )
 from vultron.metadata.planning.themes import load_theme_catalog
-
-DEFAULT_REPO = "CERTCC/Vultron"
 
 
 def main(argv: list[str] | None = None, run: Runner = run_gh) -> int:

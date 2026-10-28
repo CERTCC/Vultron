@@ -32,6 +32,15 @@ GITHUB_BODY_LIMIT = 65536
 """The most characters GitHub accepts in an Issue body."""
 
 
+def _no_mentions(text: str) -> str:
+    """*text* with each ``@`` as an HTML entity.
+
+    An Issue title can hold an ``@word``, such as ``@context``. Posted in an
+    Issue body, it would notify whoever owns that name.
+    """
+    return text.replace("@", "&#64;")
+
+
 def _share(row: TierCoherence) -> str:
     share = row.share
     return "n/a" if share is None else f"{share:.0%}"
@@ -90,7 +99,10 @@ def _render(report: ThemeFitReport, per_kind: int | None) -> str:
             continue
         shown = found if per_kind is None else found[:per_kind]
         lines += ["", f"### {kind.heading} ({len(found)})", ""]
-        lines += [f"- #{f.number} {f.title} — {f.detail}" for f in shown]
+        lines += [
+            f"- #{f.number} {_no_mentions(f.title)} — {f.detail}"
+            for f in shown
+        ]
         if len(shown) < len(found):
             lines.append(
                 f"- … and {len(found) - len(shown)} more; run "

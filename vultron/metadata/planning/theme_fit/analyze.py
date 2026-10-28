@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """The structural theme rules, as one pure function over open Issues.
 
-Requirements: PAD-01-007, PAD-02-001, PAD-02-008, PAD-02-014, PAD-02-015,
+Requirements: PAD-01-002, PAD-01-007, PAD-02-001, PAD-02-008, PAD-02-014, PAD-02-015,
 PAD-02-017, PAD-02-018.
 """
 
@@ -118,6 +118,41 @@ def _label_findings(
         )
 
 
+def _epic_findings(
+    epic: OpenIssue, ancestor_epic: int | None, open_children: int
+) -> Iterator[tuple[FindingKind, str]]:
+    """Nesting and calving findings for one Epic."""
+    if ancestor_epic is not None:
+        yield FindingKind.NESTED_EPIC, f"under Epic #{ancestor_epic}"
+    if epic.is_auto_calved() and open_children < 2:
+        yield (
+            FindingKind.SINGLE_CHILD_CALVED_EPIC,
+            f"{open_children} open sub-issue(s)",
+        )
+
+
+def _unparented_detail(issue: OpenIssue, epic_number: int | None) -> str:
+    if epic_number is not None:
+        return f"its nearest Epic, #{epic_number}, is closed"
+    if issue.parent is None:
+        return "no parent"
+    return f"parent #{issue.parent} has no Epic ancestor"
+
+
+def _parent_theme_detail(
+    issue: OpenIssue, epic: OpenIssue, open_children: int
+) -> str | None:
+    """Why *issue*'s themes break PAD-02-017 against *epic*, or ``None``."""
+    carries = f"Epic #{epic.number} carries {_fmt(epic.themes)}"
+    if not epic.themes:
+        return None
+    if not issue.themes:
+        # A leaf with no theme is already a leaf-theme-count finding.
+        return f"no theme label; {carries}" if open_children else None
+    stray = [t for t in issue.themes if t not in epic.themes]
+    return f"carries {_fmt(stray)}; {carries}" if stray else None
+
+
 def _hierarchy_findings(
     issue: OpenIssue,
     epic_number: int | None,
@@ -126,33 +161,15 @@ def _hierarchy_findings(
 ) -> Iterator[tuple[FindingKind, str]]:
     """Ancestry, calving and parent-theme findings for one Issue."""
     if issue.is_epic:
-        if epic_number is not None:
-            yield FindingKind.NESTED_EPIC, f"under Epic #{epic_number}"
-        if issue.is_auto_calved() and open_children < 2:
-            yield (
-                FindingKind.SINGLE_CHILD_CALVED_EPIC,
-                f"{open_children} open sub-issue(s)",
-            )
+        yield from _epic_findings(issue, epic_number, open_children)
         return
-    if epic_number is None:
-        if issue.parent is None:
-            yield FindingKind.UNPARENTED, "no parent"
-        else:
-            yield (
-                FindingKind.UNPARENTED,
-                f"parent #{issue.parent} has no Epic ancestor",
-            )
+    epic = None if epic_number is None else by_number.get(epic_number)
+    if epic is None:
+        yield FindingKind.UNPARENTED, _unparented_detail(issue, epic_number)
         return
-    epic = by_number.get(epic_number)
-    if epic is None or not issue.themes or not epic.themes:
-        return
-    stray = [t for t in issue.themes if t not in epic.themes]
-    if stray:
-        yield (
-            FindingKind.THEME_MISMATCH,
-            f"carries {_fmt(stray)}; Epic #{epic_number} carries "
-            f"{_fmt(epic.themes)}",
-        )
+    detail = _parent_theme_detail(issue, epic, open_children)
+    if detail is not None:
+        yield FindingKind.THEME_MISMATCH, detail
 
 
 def _matches(child: OpenIssue, epic: OpenIssue) -> bool:
