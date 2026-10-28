@@ -1098,6 +1098,9 @@ groups:
     - ADR-0093
     - ADR-0122
     lint_suppress:
+    # compound_statement: the compound pre-dates #5255, which only dropped the stale
+    # EA/ER label; the split into one obligation per ID is #5310 AC-6.
+    - compound_statement
     - missing_story_reference
   - id: MSM-07-004
     priority: MUST
@@ -1165,6 +1168,9 @@ groups:
     - ADR-0122
     - ADR-0152
     lint_suppress:
+    # compound_statement: the compound pre-dates #5255, which only dropped the stale
+    # EA/ER label; the split into one obligation per ID is #5310 AC-6.
+    - compound_statement
     - missing_story_reference
   - id: MSM-07-005
     priority: MUST
