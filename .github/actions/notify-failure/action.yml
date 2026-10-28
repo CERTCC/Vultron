@@ -59,10 +59,14 @@ runs:
         # Collect all open issue numbers matching both labels, oldest first.
         # `gh issue list --label` goes through the search index, which lags
         # and once missed an open tracker, filing a duplicate (#5105); the
-        # list-issues endpoint ANDs the labels against current data.
-        mapfile -t ISSUE_NUMS < <(gh api --paginate \
+        # list-issues endpoint ANDs the labels against current data. The
+        # call runs in a command substitution, not `mapfile < <(...)`, so
+        # an API error fails the step under `set -e` instead of reading as
+        # "no open tracker" and filing a duplicate.
+        ISSUE_LIST=$(gh api --paginate \
           "repos/$REPO/issues?labels=ci:main-failure,$WORKFLOW_LABEL&state=open&sort=created&direction=asc&per_page=100" \
           --jq '.[] | select(.pull_request == null) | .number')
+        mapfile -t ISSUE_NUMS < <(printf '%s' "$ISSUE_LIST")
 
         # `gh issue create` cannot set an issue type, and a label applied
         # with GITHUB_TOKEN never fires the label-to-issue-type workflow,
