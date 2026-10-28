@@ -38,7 +38,7 @@ groups:
     statement: The CLI MUST provide an `all` sub-command that runs every demo in sequence
     rationale: >-
       The `all` sub-command runs every demo with one command. This lets a user or a CI
-      job check all demos at once and find a demo that no longer works.
+      job check all demos at once and find a demo that is broken.
   - id: DC-01-004
     priority: MUST
     kind: project
