@@ -47,7 +47,7 @@ from fastapi.testclient import TestClient
 
 from test.demo.conftest import (
     _CASE_ACTOR_SERVICE_URL,
-    _KNOWN_FICTIONAL_HOSTS,
+    _FICTIONAL_HOSTS,
     _TestClientRouter,
     config_leak_ledger,
     config_snapshot,
@@ -249,7 +249,7 @@ class TestTestClientRouterDropLogging:
     """_TestClientRouter.emit logs WARNING for unexpected drops, DEBUG for allowlisted ones."""
 
     def test_warning_for_unregistered_non_allowlisted_host(self, caplog):
-        """emit() logs WARNING when dropping to a host not in _KNOWN_FICTIONAL_HOSTS."""
+        """emit() logs WARNING when dropping to a host not in _FICTIONAL_HOSTS."""
         router = _TestClientRouter()
         with caplog.at_level(logging.DEBUG):
             anyio.run(
@@ -265,7 +265,7 @@ class TestTestClientRouterDropLogging:
 
     def test_debug_for_allowlisted_host_drop(self, caplog):
         """emit() logs DEBUG (not WARNING) when dropping to a known-fictional host."""
-        assert "vultron.example" in _KNOWN_FICTIONAL_HOSTS
+        assert "vultron.example" in _FICTIONAL_HOSTS
         router = _TestClientRouter()
         with caplog.at_level(logging.DEBUG):
             anyio.run(

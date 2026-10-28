@@ -26,7 +26,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BEHAVIORS_ROOT = REPO_ROOT / "vultron" / "core" / "behaviors"
 
-_MAX_LEAF_LINES = 500
+_LEAF_LINE_LIMIT = 500
 
 # ---------------------------------------------------------------------------
 # BTND-07-004 oversize backlog — modules that temporarily exceed the limit
@@ -214,8 +214,8 @@ def test_leaf_module_line_count(area: Path, module: Path) -> None:
     rel_str = str(rel).replace("\\", "/")
     if rel_str in _OVERSIZE_BACKLOG:
         return  # grandfathered — tracked for decomposition
-    assert line_count <= _MAX_LEAF_LINES, (
-        f"{rel}: {line_count} lines exceeds the {_MAX_LEAF_LINES}-line "
+    assert line_count <= _LEAF_LINE_LIMIT, (
+        f"{rel}: {line_count} lines exceeds the {_LEAF_LINE_LIMIT}-line "
         "limit (BTND-07-004). Decompose into smaller submodules grouped "
         "by semantic concern."
     )

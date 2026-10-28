@@ -93,7 +93,7 @@ def node_db_url(base_url: str) -> str:
 #: Drops to these hosts are expected and logged at DEBUG.
 #: Drops to any other unregistered host are logged at WARNING — almost always
 #: a config-cache leak or missing :meth:`_TestClientRouter.register` call.
-_KNOWN_FICTIONAL_HOSTS: frozenset[str] = frozenset({"vultron.example"})
+_FICTIONAL_HOSTS: frozenset[str] = frozenset({"vultron.example"})
 
 
 class _TestClientRouter:
@@ -164,7 +164,7 @@ class _TestClientRouter:
                 host = parsed.hostname or ""
                 level = (
                     logging.DEBUG
-                    if host in _KNOWN_FICTIONAL_HOSTS
+                    if host in _FICTIONAL_HOSTS
                     else logging.WARNING
                 )
                 logger.log(

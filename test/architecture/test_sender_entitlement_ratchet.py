@@ -28,6 +28,10 @@ Enforces:
 5. A ``SenderRule`` is built only as a use case's ``sender_entitlement``
    declaration, so the guard is composed from the declaration alone
    (HP-01-008).
+
+``PERMANENT_EXEMPTIONS`` is a pinned exemption set (ARCH-18-005), not a
+ratchet: each use case in it is exempt by its declared reason, not awaiting a
+fix.  ``OPEN_EXEMPTION_ISSUES`` is the ratchet.
 """
 
 import ast
@@ -863,7 +867,9 @@ def test_the_rule_scan_admits_a_declaration() -> None:
 OPEN_EXEMPTION_ISSUES: dict[str, str] = {}
 
 #: The use cases no sender check applies to, each declared with
-#: ``no_sender_check``: nothing they do is gated on a sender's standing.
+#: ``no_sender_check``: nothing they do is gated on a sender's standing.  A
+#: pinned exemption set (ARCH-18-005), not a backlog.
+# permanent: HP-01-007 (each entry declares an exemption carrying its reason)
 PERMANENT_EXEMPTIONS: frozenset[str] = frozenset(
     {
         "UnknownUseCase",

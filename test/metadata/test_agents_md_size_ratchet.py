@@ -50,6 +50,7 @@ PER_DIRECTORY_TARGET = 200
 # Per-directory files that predate this ratchet and exceed the 200-line target.
 # Lower these as the files are condensed; never raise one.  Adding a new entry
 # means the ratchet failed to do its job.
+# owner: #3932
 KNOWN_OVERAGE: dict[str, int] = {
     "vultron/core/AGENTS.md": 247,
     "vultron/core/behaviors/AGENTS.md": 202,

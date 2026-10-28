@@ -26,9 +26,10 @@ The sole permitted exception is the unified demo CLI aggregator
 ``vultron/bt/``-based behaviour-tree demos (pacman, robot, cvd) as a
 ``vultrabot`` sub-group.
 
-Ratchet pattern
----------------
-``KNOWN_VIOLATIONS`` documents every permitted/pending violation.  The test
+Pinned exemption set
+--------------------
+``KNOWN_VIOLATIONS`` is a pinned exemption set (ARCH-18-005), not a ratchet:
+its one entry is the permanent exception above, and it has no terminal value.  The test
 asserts::
 
     actual_violations == KNOWN_VIOLATIONS
@@ -84,11 +85,12 @@ def _collect_violations() -> frozenset[str]:
 
 
 # ---------------------------------------------------------------------------
-# Known / permitted violations.
+# Pinned exemption set (ARCH-18-005), not a backlog.
 # Only the unified demo CLI aggregator may import the standalone bt-tree demos
 # (pacman, robot, cvd) to surface them as the ``vultrabot`` sub-group. This is
 # the single documented bridge to the legacy simulator (ARCH-01-006, DC-01-001).
 # ---------------------------------------------------------------------------
+# permanent: ARCH-01-006 (its one sanctioned exception, mandated by DC-01-001)
 KNOWN_VIOLATIONS: frozenset[str] = frozenset({"vultron/demo/cli.py"})
 
 
