@@ -33,18 +33,21 @@ _PROTOCOL_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "CVG-01-001 MUST be covered",
+                    "rationale": "Because testing.",
                 },
                 {
                     "id": "CVG-01-002",
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "CVG-01-002 MUST also be covered",
+                    "rationale": "Because testing.",
                 },
                 {
                     "id": "CVG-01-003",
                     "priority": "SHOULD",
                     "kind": "project",
                     "statement": "CVG-01-003 is project-kind (not counted)",
+                    "rationale": "Because testing.",
                 },
             ],
         }

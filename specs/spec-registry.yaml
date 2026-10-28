@@ -251,11 +251,6 @@ groups:
       `spec-dump`, so the schema is what guarantees each requirement has them. A
       required `rationale` keeps the reason for each rule next to the rule
       (MS-10-012).
-    note: >-
-      During the phased rationale backfill the schema still types `rationale` as
-      optional, and the requirement is held by the MS-10-014 growth guard instead:
-      no pull request may add a requirement without one. The last backfill task
-      makes the field required in `StatementSpec` and removes this note.
   - id: SR-02-010
     priority: MUST
     kind: project

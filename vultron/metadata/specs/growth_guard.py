@@ -43,12 +43,12 @@ An *extractor* error on the base tree is not a skip either: it is re-raised as
 is the one materialized from git, not the working tree.
 
 Consumers: the marker-coverage guard (SR-05-005), the
-``missing_story_reference`` guard (MS-12-007), the missing-rationale guard
-(MS-10-014), the compound-statement guard (MS-03-007) and the
-``verification_debt`` guard (MS-10-016) under ``test/architecture/``. A guard
-that must see both trees at once, rather than a set difference, uses
-:func:`compare_with_base` directly: the kind-change marker guard (MS-12-011)
-compares each ID's kind and marker at the base with the working tree.
+``missing_story_reference`` guard (MS-12-007), the compound-statement guard
+(MS-03-007) and the ``verification_debt`` guard (MS-10-016) under
+``test/architecture/``. A guard that must see both trees at once, rather than
+a set difference, uses :func:`compare_with_base` directly: the kind-change
+marker guard (MS-12-011) compares each ID's kind and marker at the base with
+the working tree.
 """
 
 from __future__ import annotations

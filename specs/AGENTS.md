@@ -132,12 +132,10 @@ that bite most often:
   outright: no spec may carry it (MS-12-008).
 - **`rationale:`** — required on every new requirement: why it is necessary now,
   the problem it prevents or the property it guarantees, never how it came
-  about (MS-10-012, MS-10-013). The schema still admits a missing one during
-  the backfill, so MS-10-014's PR-only growth guard
-  (`test/architecture/test_spec_rationale_guard.py`) fails a PR that adds a
-  requirement without one or drops one. `uv run spec-rationale missing`,
-  `history` and `adr-links` (`--file specs/<name>.yaml`) are the backfill
-  worklists.
+  about (MS-10-012, MS-10-013), in Simplified Technical English in spirit with
+  the glossary's terms (MS-10-017). The schema refuses a requirement without
+  one (SR-02-009). `uv run spec-rationale history` and `adr-links`
+  (`--file specs/<name>.yaml`) are advisory worklists (MS-10-015).
 - **`priority:`** — underscores, not spaces: `MUST_NOT`, `SHOULD_NOT`. A space
   is a FATAL registry load error. A `MUST_NOT` is the MUST tier (MS-02-003), so
   it needs a `verification:` clause exactly as a `MUST` does (MS-10-003).

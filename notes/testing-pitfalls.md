@@ -14,7 +14,8 @@ description: >
   assertion-quality traps (vacuous asserts, "falls back to" tests, bare
   MagicMock), test layout rules for module splits, why a two-sided count pin
   races concurrent PRs (keep a per-item record and a PR-only growth guard
-  instead), and when to delete a migration check.
+  instead), why a schema change that the merge base fails breaks every growth
+  guard, and when to delete a migration check.
   `test/AGENTS.md` keeps the short index and the rules you need on every run.
 related_specs:
   - specs/testability.yaml
@@ -531,9 +532,14 @@ extractor (repository root → set of item IDs in debt) on the merge base with
 `origin/main` and on the working tree, and returns only the items the branch
 added, so a sibling PR cannot turn this one red. `test_spec_coverage_ratchet.py`
 (SR-05-005), `test_spec_kind_ratchet.py` (MS-12-007),
-`test_spec_rationale_guard.py` (MS-10-014), `test_spec_statement_guard.py`
-(MS-03-007) and `test_verification_debt_guard.py` (MS-10-016) use it. A debt class
-already at zero needs no guard: assert the set is empty (MS-12-008).
+`test_spec_statement_guard.py` (MS-03-007) and `test_verification_debt_guard.py`
+(MS-10-016) use it. A debt class already at zero needs no guard: assert the set
+is empty (MS-12-008).
+
+Every guard reads the merge base with this branch's loaders, so a branch that
+tightens the spec schema fails all of them with `BaseExtractionError` unless the
+base already satisfies the new rule. Land the data fix on `main` first, then the
+schema change.
 
 When adding one, keep three properties:
 

@@ -831,6 +831,7 @@ groups:
     adr:
     - ADR-0109
     - ADR-0124
+    - ADR-0019
     stories:
     - story_2022_045
   - id: CLP-07-013
@@ -1010,6 +1011,7 @@ groups:
       itself names the leaving participant.
     adr:
     - ADR-0088
+    - ADR-0019
     stories:
     - story_2022_045
     - story_2022_089

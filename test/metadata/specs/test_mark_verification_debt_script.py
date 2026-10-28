@@ -50,6 +50,7 @@ groups:
     priority: MUST
     kind: protocol
     statement: TST-01-001 MUST do the thing
+    rationale: Because testing.
   - id: TST-01-002
     priority: MUST_NOT
     kind: protocol # trailing comment stays
@@ -57,21 +58,25 @@ groups:
     - phantom_path_ref
     - must_without_verification
     statement: TST-01-002 MUST NOT do the thing
+    rationale: Because testing.
   - id: TST-01-003
     priority: MUST
     kind: protocol
     verification_debt: '#3612'
     verification: Now checked by a test.
     statement: TST-01-003 MUST do the thing
+    rationale: Because testing.
   - id: TST-01-004
     priority: SHOULD
     kind: protocol
     statement: TST-01-004 SHOULD do the thing
+    rationale: Because testing.
   - id: TST-01-005
     priority: MUST
     kind: protocol
     verification: A test.
     statement: TST-01-005 MUST do the thing
+    rationale: Because testing.
 """
 
 _EXPECTED = """\
@@ -88,6 +93,7 @@ groups:
     kind: protocol
     verification_debt: '#3612'
     statement: TST-01-001 MUST do the thing
+    rationale: Because testing.
   - id: TST-01-002
     priority: MUST_NOT
     kind: protocol # trailing comment stays
@@ -95,20 +101,24 @@ groups:
     lint_suppress:
     - phantom_path_ref
     statement: TST-01-002 MUST NOT do the thing
+    rationale: Because testing.
   - id: TST-01-003
     priority: MUST
     kind: protocol
     verification: Now checked by a test.
     statement: TST-01-003 MUST do the thing
+    rationale: Because testing.
   - id: TST-01-004
     priority: SHOULD
     kind: protocol
     statement: TST-01-004 SHOULD do the thing
+    rationale: Because testing.
   - id: TST-01-005
     priority: MUST
     kind: protocol
     verification: A test.
     statement: TST-01-005 MUST do the thing
+    rationale: Because testing.
 """
 
 

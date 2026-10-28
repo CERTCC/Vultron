@@ -61,6 +61,7 @@ GENERAL_YAML = {
                     "priority": "SHOULD",
                     "kind": "protocol",
                     "statement": "GEN-01-002 SHOULD appear with a badge",
+                    "rationale": "Because testing.",
                     "relationships": [
                         {
                             "rel_type": "satisfies",
@@ -73,18 +74,21 @@ GENERAL_YAML = {
                     "priority": "MAY",
                     "kind": "protocol",
                     "statement": "GEN-01-003 MAY be optional",
+                    "rationale": "Because testing.",
                 },
                 {
                     "id": "GEN-01-004",
                     "priority": "MUST_NOT",
                     "kind": "protocol",
                     "statement": "GEN-01-004 MUST NOT do the bad thing",
+                    "rationale": "Because testing.",
                 },
                 {
                     "id": "GEN-01-005",
                     "priority": "SHOULD_NOT",
                     "kind": "protocol",
                     "statement": "GEN-01-005 SHOULD NOT be used",
+                    "rationale": "Because testing.",
                 },
             ],
         }
@@ -106,6 +110,7 @@ DOMAIN_YAML = {
                     "priority": "MUST",
                     "kind": "architecture",
                     "statement": "DOM-01-001 MUST cross-reference GEN-01-001",
+                    "rationale": "Because testing.",
                     "relationships": [
                         {
                             "rel_type": "satisfies",
@@ -136,6 +141,7 @@ BEHAVIORAL_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "BHV-01-001 MUST fire on EP",
+                    "rationale": "Because testing.",
                     "preconditions": [
                         {
                             "rm_state": ["ACCEPTED"],
@@ -466,6 +472,7 @@ def test_behavioral_spec_empty_scope_raises():
             priority=RFC2119Priority.MUST,
             kind=SpecKind.PROTOCOL,
             statement="test",
+            rationale="Because testing.",
             scope=[],
         )
 
@@ -484,6 +491,7 @@ def test_behavioral_spec_empty_preconditions_raises():
             priority=RFC2119Priority.MUST,
             kind=SpecKind.PROTOCOL,
             statement="test",
+            rationale="Because testing.",
             scope=[Scope.PRODUCTION],
             preconditions=[],
         )
@@ -523,6 +531,7 @@ PIPE_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "Do A | B",
+                    "rationale": "Because testing.",
                 }
             ],
         }
@@ -561,12 +570,14 @@ MULTI_REL_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "MRL base requirement",
+                    "rationale": "Because testing.",
                 },
                 {
                     "id": "MRL-01-002",
                     "priority": "SHOULD",
                     "kind": "protocol",
                     "statement": "MRL multi-rel spec",
+                    "rationale": "Because testing.",
                     "relationships": [
                         {"rel_type": "satisfies", "spec_id": "MRL-01-001"},
                         {"rel_type": "implements", "spec_id": "MRL-01-001"},
@@ -681,6 +692,7 @@ MIXED_KIND_FILE_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "MIX-01-001 is general",
+                    "rationale": "Because testing.",
                 },
             ],
         },
@@ -693,6 +705,7 @@ MIXED_KIND_FILE_YAML = {
                     "priority": "MUST",
                     "kind": "project",
                     "statement": "MIX-02-001 is implementation-specific",
+                    "rationale": "Because testing.",
                 },
             ],
         },
@@ -715,12 +728,14 @@ MIXED_KIND_GROUP_YAML = {
                     "priority": "MUST",
                     "kind": "protocol",
                     "statement": "MGR-01-001 is general",
+                    "rationale": "Because testing.",
                 },
                 {
                     "id": "MGR-01-002",
                     "priority": "SHOULD",
                     "kind": "project",
                     "statement": "MGR-01-002 is implementation",
+                    "rationale": "Because testing.",
                 },
             ],
         },
@@ -744,6 +759,7 @@ IMPL_ANCHOR_YAML = {
                     "priority": "MUST",
                     "kind": "project",
                     "statement": "IMP-01-001 is implementation",
+                    "rationale": "Because testing.",
                 },
             ],
         },
