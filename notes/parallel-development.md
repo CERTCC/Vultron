@@ -75,10 +75,10 @@ Subtasks.
 | `theme:*` | Whoever creates or relabels the Issue; labels synced by `theme-labels` | The outcome the Issue delivers; one per leaf. Catalog and rules: `notes/epic-themes.md` (PAD-02-014–021) |
 
 Do not create `group:` labels: priority grouping is the Epic's `Schedule` and
-its sub-issue tree. `docs/agents/triage-labels.md` also lists `needs-triage`,
-`ready-for-agent` and `wontfix`; none is used (untriaged means "no Epic
-ancestor", `Ready` is computed, "will not be actioned" is GitHub's "not planned"
-close reason; PAD-16-010). Their retirement is #3717.
+its sub-issue tree. The labels `needs-triage`, `ready-for-agent` and `wontfix`
+are not used here (untriaged means "no Epic ancestor", `Ready` is computed,
+"will not be actioned" is GitHub's "not planned" close reason; PAD-16-010).
+Their retirement is #3717. See `notes/epic-themes.md` § "Triage Labels".
 
 ## Bundle Selection
 
@@ -294,6 +294,39 @@ Views are board settings, not process: Schedule (Epics by tier, with progress),
 Issues (`Status` columns grouped by type), PRs (by `Ship stage`), and Needs you
 (PRs at `Needs you` or `Ready to merge`, `needs-info`, `ready-for-human` and
 `stale-claim` issues).
+
+## GitHub Issue Tracker
+
+All issue operations use `gh` or the GraphQL API, never `gh issue create` alone.
+
+- **Create an issue**: use
+  `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the
+  `createIssue` GraphQL mutation). `gh issue create` cannot set issue type,
+  parent/child sub-issue links, or blocker/blocked-by links. Use `create-epic`
+  for Epics.
+- **`--opened-as` flag**: every create must include
+  `--opened-as excursion|separate-defect|debt|deferred` (applies an `opened:`
+  label) or `--planned` for planned or user-requested work. `--opened-as debt`
+  also requires `--where`. The labels let a run's net issue count be read
+  afterwards; see the completeness doctrine § "Net Issues: Close More Than You
+  Open".
+- **Read an issue**: `gh issue view <number> --comments`, filtering comments by
+  `jq` and also fetching labels.
+- **List issues**: `gh issue list --state open --json number,title,body,labels`
+  with `--label` and `--state` filters; use `--jq` to trim the output.
+- **Comment / label / close**: `gh issue comment <N> --body "..."`,
+  `gh issue edit <N> --add-label "..." / --remove-label "..."`,
+  `gh issue close <N>`.
+- **Backtick-safe bodies**: never pass backtick-containing markdown in a
+  double-quoted `--body`; use a single-quoted heredoc instead. The same
+  rule applies to `gh issue edit --body`, `gh pr create --body`, etc.
+- **Detect Epics**: by `issueType.name == "Epic"`, not a label query.
+  Find members through sub-issue relationships, not a label filter.
+- **"Publish to the issue tracker"** means create a GitHub issue.
+- **"Fetch the relevant ticket"** means `gh issue view <number> --comments`.
+
+PRs share the same number space as issues; resolve a bare `#N` with `gh pr view
+N` first and fall back to `gh issue view N`.
 
 ## Load When
 

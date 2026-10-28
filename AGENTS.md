@@ -374,9 +374,9 @@ SHOULD be discussed via Issue or PR. Include rationale in the commit message.
 
 ### Issue tracker
 
-Issues live in GitHub Issues. See
-[docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) for the full rules.
-Non-negotiables:
+Issues live in GitHub Issues. Full rules and CLI patterns:
+[notes/parallel-development.md](notes/parallel-development.md)
+§ "GitHub Issue Tracker". Non-negotiables:
 
 - **Never use `gh issue create`** — it cannot set issue types or parent/child
   and blocker links. Use
@@ -391,8 +391,10 @@ Non-negotiables:
 ### Triage labels
 
 `needs-info` (the only hold), `ready-for-human` (agents skip it). The other
-labels in `docs/agents/triage-labels.md` are being retired (#3717).
+triage labels are being retired (#3717). See
+[notes/epic-themes.md](notes/epic-themes.md) § "Triage Labels".
 
 ### Domain docs
 
-Single-context repo: one `CONTEXT.md` + `docs/adr/` at root. See `docs/agents/domain.md`.
+Single-context repo: one `CONTEXT.md` + `docs/adr/` at root. Use glossary
+vocabulary; flag ADR contradictions rather than silently overriding them.

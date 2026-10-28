@@ -305,3 +305,16 @@ and moves nothing; a person or an agent decides each finding:
    that boundary rather than moving them one at a time.
 5. **If an Epic has a second theme with no split named**, either name the split
    in its body or split the Epic.
+
+## Triage Labels
+
+Two triage labels exist alongside `theme:` and the lifecycle labels above:
+
+- **`needs-info`** — the only hold; keeps an Issue out of `Ready` while waiting
+  on a person or a decision (PAD-16-004/005).
+- **`ready-for-human`** — marks an Issue `Ready` that an agent must skip;
+  a human implements it (PAD-16-007).
+
+The labels `needs-triage`, `ready-for-agent`, and `wontfix` are inherited from
+an earlier skill-pack layout and are not used here; their retirement is tracked
+in #3717.
