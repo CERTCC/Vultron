@@ -60,13 +60,15 @@ import asyncio
 import pytest
 
 from test.demo.conftest import (
-    _TestClientRouter,
-    create_isolated_actor_app,
     submit_report_through_reporter,
 )
 from test.support.received import received_of_type
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.use_cases._helpers import _find_case_actor_id
+from vultron.demo.in_process import (
+    InProcessRouter,
+    create_isolated_actor_app,
+)
 from vultron.demo.utils import case_actor_id_for_report
 
 # ---------------------------------------------------------------------------
@@ -88,7 +90,7 @@ def three_app_setup():
     """Owner app + reporter app + late-joiner app wired for end-to-end delivery.
 
     Uses three isolated FastAPI app instances each with their own in-memory
-    ``SqliteDataLayer``.  A shared ``_TestClientRouter`` routes outbound
+    ``SqliteDataLayer``.  A shared ``InProcessRouter`` routes outbound
     deliveries between the apps in-process so the full
     outbox → inbox → inbox-handler chain is exercised without real HTTP.
 
@@ -133,7 +135,7 @@ def three_app_setup():
         # case-actor service, so we point it at the same base URL.
         VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_OWNER_BASE}/api/v2",
     ) as cfg:
-        router = _TestClientRouter()
+        router = InProcessRouter()
         owner_iso = create_isolated_actor_app(
             base_url=_OWNER_BASE, router=router
         )
@@ -365,7 +367,7 @@ def _drain_case_actor_outbox(owner_iso, case_actor_id: str) -> None:
     Uses the real ``outbox_handler`` (the same code path as a trigger
     endpoint) so that recipient extraction, ``to:`` field validation
     (OX-08-001), and emitter routing are all exercised end-to-end.  The
-    configured default emitter (the shared ``_TestClientRouter``) routes the
+    configured default emitter (the shared ``InProcessRouter``) routes the
     ``Announce`` to the late-joiner's app via its TestClient inbox.
 
     Args:
@@ -510,7 +512,7 @@ def _run_late_joiner_sequence(
 
     # Step 6: drain CaseActor's outbox via real outbox_handler
     # Announce(VulnerabilityCase) is routed to late-joiner via the
-    # configured default emitter (_TestClientRouter).
+    # configured default emitter (InProcessRouter).
     _drain_case_actor_outbox(owner_iso, case_actor_id)
 
     return case_id, lj_actor_id

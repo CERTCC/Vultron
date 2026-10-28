@@ -20,12 +20,15 @@ tells the reader to expect, this test fails.
 Marked ``integration`` automatically by ``test/demo/conftest.py``.
 """
 
-from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
+from vultron.demo.in_process import (
+    InProcessRouter,
+    create_isolated_actor_app,
+)
 from vultron.wire.as2.vocab.examples import submit_report_tutorial as t
 
 
 def test_tutorial_flow_creates_submits_and_stores_report():
-    router = _TestClientRouter()
+    router = InProcessRouter()
     iso = create_isolated_actor_app(
         t.SERVER_ORIGIN, router, actor_slug=t.VENDOR_SLUG
     )

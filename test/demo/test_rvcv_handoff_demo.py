@@ -37,16 +37,16 @@ from test.demo._helpers import (
     patch_chain_shared,
     stub_closure_gate,
 )
-from test.demo.conftest import (
-    IsolatedActorApp,
-    _TestClientRouter,
-    create_isolated_actor_app,
-)
 from test.support.case_owner import CASE_OWNER_ID
 from test.support.received import received_of_type
 from vultron.demo.actor_session import ActorSession
 from vultron.demo.cli import main
 from vultron.demo.helpers import invite_chain
+from vultron.demo.in_process import (
+    InProcessRouter,
+    IsolatedActorApp,
+    create_isolated_actor_app,
+)
 
 
 @pytest.fixture(scope="module")
@@ -821,7 +821,7 @@ def _otc_make_offer(dl, proposal, case_manager_id: str) -> Any:
 
 @contextlib.contextmanager
 def _otc_ownership_transferred(
-    router: _TestClientRouter,
+    router: InProcessRouter,
 ) -> Iterator[IsolatedActorApp]:
     """Run the AC-5c ownership transfer and yield the Reporter's app.
 
@@ -1008,7 +1008,7 @@ class TestOwnershipTransferAnnounceReachesReporterAC5c:
     - Reporter  — the transferee; must receive the
                 Announce(CaseLedgerEntry) without any manual trigger
 
-    All three actors use isolated FastAPI apps wired via _TestClientRouter.
+    All three actors use isolated FastAPI apps wired via InProcessRouter.
     The test seeds the case and participants directly on the Coordinator's
     DataLayer, has the Coordinator make the Offer from the Vendor's
     proposal, then delivers the Reporter's Accept(Offer) to the
@@ -1020,9 +1020,9 @@ class TestOwnershipTransferAnnounceReachesReporterAC5c:
     """
 
     def test_reporter_receives_announce_ledger_entry(self):
-        with _otc_ownership_transferred(_TestClientRouter()) as reporter_iso:
+        with _otc_ownership_transferred(InProcessRouter()) as reporter_iso:
             # The TestClient processes BackgroundTasks synchronously;
-            # the outbox drains during the POST and _TestClientRouter
+            # the outbox drains during the POST and InProcessRouter
             # delivers Announce(CaseLedgerEntry) to Reporter's inbox.
             # A received Announce is held only as intake archived it
             # (DL-06-006).
@@ -1053,7 +1053,7 @@ class TestOwnershipTransferAnnounceReachesReporterAC5c:
             )
 
 
-class _CountingRouter(_TestClientRouter):
+class _CountingRouter(InProcessRouter):
     """A router that counts deliveries and drops every one past *cap*.
 
     The cap turns a Reject/replay storm into a fast, readable failure instead

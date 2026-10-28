@@ -20,10 +20,10 @@ reads the node's ``dl``.
 
 import pytest
 
-from test.demo.conftest import _TestClientRouter, create_isolated_actor_app
 from vultron.adapters.driven.datalayer_sqlite.engine import (
     open_memory_store_slugs,
 )
+from vultron.demo.in_process import InProcessRouter, create_isolated_actor_app
 
 _BASE = "http://harness-node.test"
 
@@ -31,7 +31,7 @@ _BASE = "http://harness-node.test"
 @pytest.mark.spec("DL-07-013")
 def test_building_a_node_opens_no_store():
     """No ``primary`` actor is hosted on a node that never created one."""
-    iso = create_isolated_actor_app(_BASE, _TestClientRouter())
+    iso = create_isolated_actor_app(_BASE, InProcessRouter())
 
     with iso.client as client:
         assert client.get("/api/v2/actors/").json() == []
@@ -47,7 +47,7 @@ def test_building_a_node_opens_no_store():
 def test_dl_opens_the_nodes_own_actor_store_on_first_use():
     """Reading ``dl`` opens that store, the same instance the routes get."""
     iso = create_isolated_actor_app(
-        _BASE, _TestClientRouter(), actor_slug="vendor"
+        _BASE, InProcessRouter(), actor_slug="vendor"
     )
 
     store = iso.dl
@@ -62,7 +62,7 @@ def test_dl_opens_the_nodes_own_actor_store_on_first_use():
 def test_close_disposes_every_store_the_node_opened():
     """``close`` stops the node's whole deployment, not one store."""
     iso = create_isolated_actor_app(
-        _BASE, _TestClientRouter(), actor_slug="vendor"
+        _BASE, InProcessRouter(), actor_slug="vendor"
     )
     with iso.client as client:
         resp = client.post(

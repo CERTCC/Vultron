@@ -20,7 +20,7 @@
 
     The Reporter cannot join two Cases into one Case, because the Reporter owns neither Case.
     A merge becomes possible when the owner of one Case learns that the other Case exists.
-    A proposed design is in [ADR-0105](../../adr/0105-case-merge-freeze-and-redirect-by-owner-consent.md).
+    The accepted design is in [ADR-0105](../../adr/0105-case-merge-freeze-and-redirect-by-owner-consent.md).
     In that design, the owner of one Case offers to merge it into the other Case, and the owner of the other Case accepts or rejects the offer.
     The offered Case then becomes read-only.
     A redirect sends each request for the frozen Case to the Case that remains.

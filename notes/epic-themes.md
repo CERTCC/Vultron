@@ -167,6 +167,18 @@ themes:
       - conformance tests, profiles, and reports an outside implementer runs
     out_of_bounds:
       - spec-corpus tooling, loaders, and lint used only here (dev-workflow)
+      - requirement rationales, stories, and links (requirements-traceability)
+    color: 1D76DB
+  - label: theme:requirements-traceability
+    outcome: >-
+      Every requirement says why it exists and who it serves, and agrees with
+      the code and other specs
+    in_bounds:
+      - rationales, user stories, ADR and spec links, verification criteria
+      - splitting, rewording, retiring, and reconciling requirements
+    out_of_bounds:
+      - code that lints, loads, or renders the specs (dev-workflow)
+      - checks an outside implementer runs (verifiable-conformance)
     color: 1D76DB
   - label: theme:standards-engagement
     outcome: >-
@@ -215,6 +227,7 @@ themes:
     out_of_bounds:
       - CI gate reliability and test correctness (test-and-ci)
       - conformance checks for outside implementers (verifiable-conformance)
+      - the content of the requirements themselves (requirements-traceability)
     color: 5319E7
   - label: theme:test-and-ci
     outcome: >-
@@ -293,6 +306,7 @@ Theme: theme:dev-workflow — gives every skill one shared definition of the the
 | Issue | Theme | Why |
 |---|---|---|
 | Spec-corpus tooling (spec-lint, loaders, spec-dump) | `theme:dev-workflow` | Only this project uses it; outside implementers do not run it |
+| A spec rationale backfill, or reconciling a spec statement with the code | `theme:requirements-traceability` | It changes what the requirements say, not the tools that read them |
 | A production bug found while working a test-suite Epic | `theme:protocol-correctness` | The outcome is correct protocol behavior; the test only found it |
 | Lint rules and exception-hygiene sweeps | `theme:dev-workflow` | They change how contributors work, not whether a green run is trustworthy |
 | A flaky test or a CI gate that passes when it should fail | `theme:test-and-ci` | The outcome is a green run that means the code works |

@@ -32,7 +32,6 @@ from typing import Any
 
 import pytest
 
-from test.support.clock import SteppingClock
 from vultron.core.models import _helpers
 from vultron.core.models._helpers import INBOUND_CONTEXT_KEY, now_utc
 from vultron.core.models.actor import (
@@ -43,6 +42,7 @@ from vultron.core.models.actor import (
     VultronService,
     hosted_endpoints,
 )
+from vultron.demo.determinism import SteppingClock
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,

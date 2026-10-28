@@ -181,7 +181,7 @@ Full write-ups in [`notes/testing-pitfalls.md`](../notes/testing-pitfalls.md):
   every probabilistic node *except* the one under test;
   `ResolveCaseManagerNode` needs a CASE_MANAGER participant in the fixture.
 - **Fixtures that silently miss deliveries** — the outbox `BackgroundTasks`
-  emitter has two resolution paths, patch both; a `_TestClientRouter` WARNING for
+  emitter has two resolution paths, patch both; a `InProcessRouter` WARNING for
   an unregistered host is a config-leak signal; `rm -rf devlogs/` before running
   the invariant harness locally.
 - **Coverage shape** — one test per distinct lookup path when consolidating

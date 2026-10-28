@@ -115,13 +115,17 @@ diff whose path was guessed). A clean single legal step gets none.
 
 - `node_modules/.bin` tools (eslint, tsc, vite) run via `npm run *`; `jq` reads `*.jsonl`.
 - **Two log locations — do not confuse them:**
-  - **`ui/src/sample-logs/`** — COMMITTED ledgers the "Load …" buttons import via
-    `?raw`. In-tree, so a fresh clone builds. One dir per scenario, named for
-    the scenario, holding its case-actor copy, plus `synthetic/` (hand-authored
-    violation fixtures). To refresh them, take the `<scenario>-case-logs`
-    artifacts of a green `demo-integration.yml` run on `main` (or run the
-    container demo), copy each `case-actor/` ledger in, and update the imports in
-    `App-logreplay.tsx`. Never hand-edit a recorded ledger.
+  - **`ui/src/recordings/`** — GENERATED, COMMITTED recordings the "Load …"
+    buttons import via `?raw`. In-tree, so a fresh clone builds. One dir per
+    registered scenario, holding its canonical `case-actor.jsonl`; replicas
+    are checked against it on every run and not stored. Regenerate with
+    `uv run export-demo-recordings`. PRs need not: the daily
+    `demo-recordings` workflow files a refresh Task when one is stale. A PR
+    that needs current recordings (a UI change) regenerates them itself.
+    Never hand-edit a recording.
+  - **`ui/src/synthetic-ledgers/`** — hand-authored ledgers with deliberate
+    violations and inferred steps, for the flagging the recordings never
+    trigger. Validated against `CaseLedgerEntry` like the recordings.
   - **`devlogs/`** (repo root) — GITIGNORED runtime output from the container
     demo. Not tracked; a fresh clone has none. Point manual uploads here.
 
