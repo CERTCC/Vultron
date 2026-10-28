@@ -8,7 +8,8 @@ description: >
   `theme-labels` script syncs GitHub from it. The rules for applying a theme:
   classify by outcome, one theme per leaf, an Epic's second theme only when its
   body names the split, the theme contains the grain, the `Theme:` reason line;
-  borderline examples; and how to act on a theme-fit finding.
+  borderline examples; how to act on a theme-fit finding; and triage-label rules
+  (`needs-info`, `ready-for-human`, and retired labels).
 related_specs:
   - specs/parallel-development.yaml
 related_notes:
@@ -308,13 +309,13 @@ and moves nothing; a person or an agent decides each finding:
 
 ## Triage Labels
 
-Two triage labels exist alongside `theme:` and the lifecycle labels above:
+Two triage labels exist alongside `theme:` and the workflow labels in
+`notes/parallel-development.md` § "Label Taxonomy":
 
 - **`needs-info`** — the only hold; keeps an Issue out of `Ready` while waiting
   on a person or a decision (PAD-16-004/005).
 - **`ready-for-human`** — marks an Issue `Ready` that an agent must skip;
   a human implements it (PAD-16-007).
 
-The labels `needs-triage`, `ready-for-agent`, and `wontfix` are inherited from
-an earlier skill-pack layout and are not used here; their retirement is tracked
-in #3717.
+The labels `needs-triage`, `ready-for-agent`, and `wontfix` are not used;
+their retirement is tracked in #3717.

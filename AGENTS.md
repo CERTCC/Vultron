@@ -390,11 +390,11 @@ Issues live in GitHub Issues. Full rules and CLI patterns:
 
 ### Triage labels
 
-`needs-info` (the only hold), `ready-for-human` (agents skip it). The other
-triage labels are being retired (#3717). See
-[notes/epic-themes.md](notes/epic-themes.md) § "Triage Labels".
+`needs-info` (the only hold), `ready-for-human` (agents skip it); see
+[notes/epic-themes.md](notes/epic-themes.md) § "Triage Labels" (#3717).
 
 ### Domain docs
 
-Single-context repo: one `CONTEXT.md` + `docs/adr/` at root. Use glossary
-vocabulary; flag ADR contradictions rather than silently overriding them.
+Single-context repo: one `CONTEXT.md` + `docs/adr/` at root; absent files are
+expected — proceed silently. Use glossary vocabulary (a missing term is a gap,
+not a licence to invent); flag ADR contradictions explicitly.

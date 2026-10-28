@@ -6,8 +6,9 @@ description: >
   How multiple AI agents and human developers coordinate through GitHub Issues:
   the issue hierarchy, label taxonomy, bundle selection, task claiming, the
   Epic claim an epic run holds, stale-claim and merge-conflict recovery, the
-  shared-`.git` pruning danger, and the two paths through GitHub Project #24
-  (Schedule on Epics; Status and PR ship stage mirrored from facts).
+  shared-`.git` pruning danger, the two paths through GitHub Project #24
+  (Schedule on Epics; Status and PR ship stage mirrored from facts), and the
+  GitHub issue tracker CLI conventions.
 related_specs:
   - specs/parallel-development.yaml
 related_notes:
@@ -75,10 +76,8 @@ Subtasks.
 | `theme:*` | Whoever creates or relabels the Issue; labels synced by `theme-labels` | The outcome the Issue delivers; one per leaf. Catalog and rules: `notes/epic-themes.md` (PAD-02-014–021) |
 
 Do not create `group:` labels: priority grouping is the Epic's `Schedule` and
-its sub-issue tree. The labels `needs-triage`, `ready-for-agent` and `wontfix`
-are not used here (untriaged means "no Epic ancestor", `Ready` is computed,
-"will not be actioned" is GitHub's "not planned" close reason; PAD-16-010).
-Their retirement is #3717. See `notes/epic-themes.md` § "Triage Labels".
+its sub-issue tree. Triage-label rules are in `notes/epic-themes.md`
+§ "Triage Labels" (PAD-16-010).
 
 ## Bundle Selection
 
@@ -297,7 +296,7 @@ Issues (`Status` columns grouped by type), PRs (by `Ship stage`), and Needs you
 
 ## GitHub Issue Tracker
 
-All issue operations use `gh` or the GraphQL API, never `gh issue create` alone.
+All issue operations use `gh` or the GraphQL API; never use `gh issue create`.
 
 - **Create an issue**: use
   `.agents/skills/manage-github-issue/manage_github_issue.sh` (or the
@@ -320,13 +319,22 @@ All issue operations use `gh` or the GraphQL API, never `gh issue create` alone.
 - **Backtick-safe bodies**: never pass backtick-containing markdown in a
   double-quoted `--body`; use a single-quoted heredoc instead. The same
   rule applies to `gh issue edit --body`, `gh pr create --body`, etc.
-- **Detect Epics**: by `issueType.name == "Epic"`, not a label query.
-  Find members through sub-issue relationships, not a label filter.
+- **Detect Epics**: by `issueType.name == "Epic"`, not a label query. There is
+  no `epic` label — detect and find Epic members through the `issueType` field
+  and the sub-issue relationship. Type IDs and relationship mutations are in
+  `.agents/skills/manage-github-issue/REFERENCE.md`.
+- **List issues** (full form):
+  `gh issue list --state open --json number,title,body,labels,comments \
+  --jq '[.[] | {number, title, body, labels: [.labels[].name]}]'`
+  with `--label` and `--state` filters.
+- **Close with a comment**: `gh issue close <N> --comment "..."`.
+- **PRs as a triage surface**: no — PRs are tracked separately by `Ship stage`
+  on Project #24; do not apply the triage label flow to PRs.
 - **"Publish to the issue tracker"** means create a GitHub issue.
 - **"Fetch the relevant ticket"** means `gh issue view <number> --comments`.
 
-PRs share the same number space as issues; resolve a bare `#N` with `gh pr view
-N` first and fall back to `gh issue view N`.
+PRs share the same number space as issues; resolve a bare `#N` with
+`gh pr view N` first and fall back to `gh issue view N`.
 
 ## Load When
 
