@@ -70,7 +70,7 @@ and the common server, database and ledger variables.
   non-zero because participant and CASE_MANAGER clocks are not synchronised
   (ADR-0079).
 - **`actor.case_actor_service_url`** has no default and MUST be supplied for
-  any actor whose BT may run the `engage-case` path; without it
+  any actor that may propose a case for a report it receives; without it
   `EnsureCaseActorHostedNode`, `ProposeReportCaseToActorNode` and
   `WritePendingReportCaseLinkNode` fail (CP-08-001, `notes/case-proposal.md`).
 - **`actor.default_case_roles`** need not list `CASE_OWNER`; it is always

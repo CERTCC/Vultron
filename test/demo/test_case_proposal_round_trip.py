@@ -214,7 +214,7 @@ def two_app_setup():
     # by construction (CFG-06-006).
     with config_override(
         VULTRON_SERVER__BASE_URL=f"{_VENDOR_BASE}/api/v2",
-        # ResolveCaseActorUrlsNode reads case_actor_service_url from ActorConfig
+        # case_actor_identity() reads case_actor_service_url from ActorConfig
         # (CP-08-002); in this single-vendor test setup the vendor IS the
         # case-actor service, so we point it at the same base URL.
         VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL=f"{_VENDOR_BASE}/api/v2",
@@ -421,6 +421,7 @@ class TestCaseProposalRoundTrip:
         )
 
     @pytest.mark.spec("CBT-01-001")
+    @pytest.mark.spec("CBT-01-004")
     @pytest.mark.spec("CBT-01-006")
     @pytest.mark.spec("CBT-05-005")
     def test_report_receiver_sends_the_reporter_the_case(self, two_app_setup):
@@ -466,6 +467,7 @@ class TestCaseProposalRoundTrip:
             CaseParticipant,
         )
 
+    @pytest.mark.spec("CBT-02-001")
     @pytest.mark.spec("CBT-05-001")
     @pytest.mark.spec("CBT-05-005")
     def test_reporter_accepts_the_case_managers_announce_after_the_introduction(

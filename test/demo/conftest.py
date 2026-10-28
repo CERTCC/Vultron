@@ -109,7 +109,7 @@ def pytest_collection_modifyitems(
 #:
 #: This is ``TestClient``'s own base, not the configured ``localhost:7999``,
 #: because it must name the node that actually *serves* these tests.
-#: ``ResolveCaseActorUrlsNode`` derives a CaseActor's id from this value, and the
+#: ``case_actor_identity()`` derives a CaseActor's id from this value, and the
 #: inbox route resolves an incoming path segment against the serving app's base
 #: URL.  Point the two at different hosts and the case's CASE_MANAGER participant
 #: names one CaseActor while the route opens another's store — so
@@ -125,9 +125,10 @@ _CASE_ACTOR_SERVICE_URL = "http://testserver/api/v2"
 def configure_case_actor_url_for_demo():
     """Set VULTRON_ACTOR__CASE_ACTOR_SERVICE_URL for all demo tests.
 
-    ResolveCaseActorUrlsNode returns FAILURE when case_actor_service_url
-    is None (CP-08-002/003).  Demo tests run the engage-case BT path, so
-    they need the URL configured to reach the case-setup success branch.
+    The BT nodes that need the CaseActor identity return FAILURE when
+    case_actor_service_url is None (CP-08-005).  Demo tests propose cases
+    for the reports they receive, so they need the URL configured to reach
+    the case-setup success branch.
     """
     from vultron.config import config_override
 
