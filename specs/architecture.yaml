@@ -142,9 +142,9 @@ groups:
     rationale: >-
       Sync use cases must send ledger activities, but core must not import wire types
       (ARCH-01-001). This port lets core give domain objects to an adapter, which builds
-      and queues each wire activity. No wire data comes back into core. The one
-      exception is the `bool` from `send_announce_log_entry`: it lets a replay count
-      only the rows that it really queued (SYNC-15-011), with no core read of the outbox
+      and queues each wire activity. Core gets nothing back from the port except one
+      `bool` from `send_announce_log_entry`. That value lets a replay count only the
+      rows that it really queued (SYNC-15-011), with no core read of the outbox
       (DL-06-001). See ADR-0112.
     verification: >-
       `test/adapters/driven/test_sync_adapter_pending_dedup.py` exercises the boolean
@@ -1338,9 +1338,9 @@ groups:
     rationale: >-
       The registry key is an internal lookup value. The `type` value is a commitment to
       receivers, which match on it. If a change to a key changes the output, a change
-      inside Vultron breaks peers that did not change. The key and the wire value can
-      differ: the code derives the key from the class name, and for the five actor types
-      the two strings are not the same (VM-01-004).
+      inside Vultron breaks peers that did not change. The key and the wire value
+      differ: the code derives the key from the class name (`as_Create`), which is not
+      the `type` value (`Create`) (VM-01-004).
     verification: >-
       A round-trip test asserts the serialized form of every wire type is
       byte-identical to its pre-change output.
@@ -1384,15 +1384,16 @@ groups:
       (`id_`, `type_`, `context_`).  This applies to the persistence record
       round trip as well as to translation.
     rationale: >-
-      The project must read back what it writes. `extra="forbid"` (ARCH-12-003) refuses
-      an unrecognized key, so a dump that emits a computed field or a Python field name
-      such as `id_` fails its own read. A computed value is derived from the state of
-      the object, so an honest producer always emits a value that agrees with that
-      state, and validation can discard it safely. A value that contradicts the state
-      cannot come from an honest producer, and a derived value that gates disclosure
-      must fail closed. Validation thus refuses it and does not discard it. The
-      persistence path renames the identity keys (ARCH-25-001), so no stored row carries
-      a trailing-underscore key.
+      The project must read back what it writes. A computed field in a dump is a key
+      that the model does not store, and `extra="forbid"` (ARCH-12-003) refuses an
+      unknown key, so validation needs a rule for it. A computed value is derived from
+      the state of the object, so an honest producer always emits a value that agrees
+      with that state, and validation can discard it safely. A value that contradicts
+      the state cannot come from an honest producer, and a derived value that gates
+      disclosure must fail closed. Validation thus refuses it and does not discard it.
+      Receivers use the wire key names (`id`, `type`, `@context`), and stored rows use
+      `id` and `type` (ARCH-25-001). A dump that emits Python field names thus matches
+      neither.
     verification: >-
       A test asserts `type(obj).model_validate(dump(obj)) == obj` for every
       `CORE_VOCABULARY` entry, and that no persisted row carries a

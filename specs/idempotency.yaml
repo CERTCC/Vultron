@@ -32,10 +32,11 @@ groups:
     verification_debt: '#2569'
     statement: Activity IDs MUST remain stable (same activity = same ID)
     rationale: >-
-      Duplicate detection (ID-02-001) and handler idempotency key on the activity id. If
-      a sender sends the same activity again under a new id, the receiver sees a new
-      activity and can apply it twice. A retry that rebuilds its activity under the
-      first id lets the outbox and the receiver both recognize it (OX-06-002).
+      Duplicate detection (ID-02-001) and the outbox (OX-06-002) recognize a repeat by
+      its activity id. If a sender sends the same activity again under a new id, these
+      checks see a new activity, and only the domain-state check in the handler
+      (ID-05-003) can stop a second apply. A retry that rebuilds its activity under the
+      first id lets the outbox and the receiver both recognize it.
 - id: ID-02
   title: Duplicate Detection
   specs:

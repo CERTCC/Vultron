@@ -109,10 +109,10 @@ groups:
     verification_debt: '#2575'
     statement: The inbox orchestration module MUST NOT import from `vultron/adapters/` or any web framework package.
     rationale: >-
-      Core holds the inbox policy so that every driving adapter uses the same policy. An
-      import from `vultron/adapters/` or a web framework binds core to one adapter, and
-      the CLI and the tests then cannot run the policy without that adapter
-      (ARCH-01-001).
+      Core holds the inbox policy so that every driving adapter and every test uses the
+      same policy. An import from `vultron/adapters/` or a web framework binds core to
+      one adapter. A test or a second adapter then cannot run the policy without that
+      adapter (ARCH-01-001).
     relationships:
     - rel_type: refines
       spec_id: IO-02-001
@@ -205,8 +205,8 @@ groups:
     statement: The inbox orchestration module MUST NOT access pending-queue storage directly from `vultron/adapters/`.
     rationale: >-
       Pending-queue storage is an adapter detail. If core reads that storage directly,
-      it depends on an adapter, against ARCH-01-001, and a test or the CLI cannot give
-      it a different queue. The injected port (IO-03-002) is the only path.
+      it depends on an adapter, against ARCH-01-001, and a test cannot give it a
+      different queue. The injected port (IO-03-002) is the only path.
     relationships:
     - rel_type: refines
       spec_id: IO-03-002
@@ -312,10 +312,10 @@ groups:
       `process_payload` MUST NOT raise an exception for protocol-invalid payloads; all error
       conditions MUST be encoded in the returned `InboxOutcome`.
     rationale: >-
-      The FastAPI background task, the CLI and the tests all call `process_payload`. If
-      a protocol-invalid payload raises, each caller needs its own handler for the
-      raise, and a caller that has none loses the outcome. An outcome value gives every
-      caller the same result for every payload.
+      The FastAPI inbox background task, the inbox queue drain, the deferred replay and
+      the tests all call `process_payload`. If a protocol-invalid payload raises, each
+      caller needs its own handler for the raise, and a caller that has none loses the
+      outcome. An outcome value gives every caller the same result for every payload.
     relationships:
     - rel_type: refines
       spec_id: IO-04-001
