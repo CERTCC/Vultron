@@ -332,8 +332,10 @@ groups:
       scenario). Enumerating kinds allows conformance tooling to classify trigger groups
       without parsing prose.
     rationale: >-
-      A fixed set of trigger categories lets conformance tooling classify behavioral
-      groups by what starts them without reading their prose.
+      Behavioral groups say what starts them, and conformance tooling needs that answer
+      in a form it can read. A closed set of categories lets it classify groups without
+      parsing prose, and it makes a misspelled category a validation error rather than a
+      silent new category.
     verification: >-
       `TriggerType` StrEnum in `vultron/metadata/specs/schema.py` defines exactly three
       members: `message_received`, `state_entered`, and `scenario_start`.
@@ -400,9 +402,10 @@ groups:
     rationale: >-
       Without these fields in the schema, the loader would reject (SR-02-022) or ignore
       annotations that requirements need: how a requirement is checked, who owns its
-      missing check, its exceptions and its replacement. Typed fields let tooling
-      validate them, surface deprecations and follow `superseded_by`, which applies the
-      ADR supersession pattern (MS-14-001) to a single requirement.
+      missing check, its exceptions, its trigger and its supporting references. Typed
+      fields let tooling validate each one. Declaring `deprecated` and `superseded_by`
+      lets spec-lint recognize them and refuse them with a pointer to the retirement
+      archive (MS-09-001), rather than failing on an unknown key.
     relationships:
     - rel_type: refines
       spec_id: SR-02-009
@@ -680,8 +683,8 @@ groups:
     statement: 'The project MUST register a `spec` pytest marker in `conftest.py`: `@pytest.mark.spec("SR-01-001")`.'
     rationale: >-
       A registered marker lets each test name the requirement it verifies, which is what
-      the coverage report and coverage guard read. An unregistered marker would also
-      fail under pytest's strict-markers setting.
+      the coverage report and coverage guard read. The test configuration turns warnings
+      into errors, so an unregistered marker would fail every test that uses it.
   - id: SR-05-002
     priority: MUST
     kind: project

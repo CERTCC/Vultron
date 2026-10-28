@@ -607,7 +607,8 @@ groups:
       fall back to writing a file under `plan/history/` as in the pre-HM-08 behaviour.
     rationale: >-
       Not every source names an issue, and an entry without an issue to post to still
-      needs a record. The file path keeps those entries archived as before.
+      needs a record. Writing a file keeps those entries in the same archive as the rest
+      of the project history.
   - id: HM-08-004
     priority: MUST_NOT
     kind: project

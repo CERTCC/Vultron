@@ -280,8 +280,10 @@ groups:
       A pytest test MUST load all `notes/*.md` files via the loader and assert that every
       file parses without validation errors.
     rationale: >-
-      The pre-commit hook checks only changed files, so a corpus-wide test is what
-      guarantees that the whole notes directory parses at any commit.
+      The pre-commit hook runs only when a note file is staged, so a change to the
+      loader or schema can break existing notes without the hook running. A test in the
+      suite runs on every change, so the whole notes directory is known to parse at any
+      commit.
   - id: NF-04-002
     priority: MUST
     kind: project

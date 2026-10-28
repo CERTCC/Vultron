@@ -609,8 +609,7 @@ groups:
       MS-10-006. An owner no marker names is reported rather than failed, because two
       pull requests that each verify some of its last requirements are green alone and
       would turn `main` red merged; the pull request that closes the owner issue fails
-      until the entry is removed, which forces the removal. A pull-request growth guard
-      keeps markers from being added while an owner remains.
+      until the entry is removed, which forces the removal.
     verification: >-
       Unit tests in `test/metadata/specs/test_lint.py` and
       `test/metadata/specs/test_verification.py` assert that, for a kind with no owner

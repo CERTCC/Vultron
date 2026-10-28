@@ -468,9 +468,9 @@ groups:
           label.
         rationale: >-
           Calibrates the size label to the implementation effort measured at PR open
-          time (see PAD-05-002). Merged-PR diff size is lognormal with a median of 258
-          lines, so a ceiling of 100 lines gives `size:S` the changes well below the
-          typical PR, rather than a band that almost no PR falls in.
+          time (see PAD-05-002). A 100-line ceiling sits well below the diff of a
+          typical PR, so `size:S` holds the changes that are small, rather than a band
+          that almost no PR falls in.
         verification: >-
           `test/metadata/test_size_bands.py::TestCalibratedValues` pins the
           threshold value itself, and
