@@ -1,13 +1,14 @@
 ---
 status: proposed
 status_override: >-
-  Decided in planning (#5080); SYNC-18-006 holds by construction, but nothing of
-  the decision is built yet, so the record stays editable while its two
-  implementation tasks land.
+  Decided in planning (#5080); SYNC-18-006 holds by construction. The stamp and
+  its parse-edge refusal (SYNC-18-001..003) are built (#5109); the CASE_MANAGER's
+  judgment of a received position (SYNC-18-004/005/007) is not yet (#5110), so
+  the record stays editable until that task lands.
 date: 2026-10-22
 created: 2026-10-22
-updated: 2026-10-22
-revision: 1
+updated: 2026-10-28
+revision: 2
 deciders: Allen D. Householder
 consulted: >-
   Claude Opus 5.5; ADR-0107, ADR-0121, ADR-0142, ADR-0155;
@@ -57,7 +58,11 @@ Chosen option: "Every case activity, from any sender, carries `ledgerPosition`; 
 - **Slot.** The position travels as the activity's `ledgerPosition` property, an object with `logIndex` and `entryHash`, the same JSON-LD term (`vultron:ledgerPosition`) and shape SYNC-16-005 puts on a case copy.
   `content` cannot be the general slot, because `Create(Note)` and other activities carry their text there.
 - **Scope.** Every activity about a case whose ledger its sender holds carries the sender's tail as of building the activity, the CASE_MANAGER's activities included.
-  Activities sent before the sender holds the ledger carry none, and so do activities whose object already states its position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`).
+  Activities sent before the sender holds the ledger carry none, and so do activities whose object already states its position (`Announce(CaseLedgerEntry)`, `Announce(VulnerabilityCase)`, `Create(VulnerabilityCase)`, `Update(VulnerabilityCase)`).
+  `Read(CaseLedgerEntry)` is in scope: the entry it names is the sender's tail, so its `ledgerPosition` is the stamp.
+  `Create(ProcessingFault)` is out of scope: any receiver sends one about an activity it could not process, including one it could not parse and so cannot place in a case, and the fault names no case.
+  The maintainer decided this, the replica faults CaseDiverged, HashMismatch and ImpossibleState included ([#5109 comment](https://github.com/CERTCC/Vultron/issues/5109#issuecomment-6470569658)).
+  A `Reject(CaseLedgerEntry)` from a peer that does not hold the case yet carries none, and a receiver does not refuse it for that.
 - **One mechanism.** The full-case Invite, its replies and `Reject(CaseLedgerEntry)` move their positions to `ledgerPosition`.
   SYNC-03-004's `context` hash is retired, and `context` returns to its AS2 meaning.
 - **Required.** A receiver refuses, at the parse edge, a case activity in scope whose `ledgerPosition` is missing or malformed.
@@ -83,7 +88,8 @@ Chosen option: "Every case activity, from any sender, carries `ledgerPosition`; 
 ## Validation
 
 The SYNC-18 requirements carry marker tests in `test/core/use_cases/received/test_activity_ledger_tail.py`.
-SYNC-18-006 holds by construction and its test passes; the others are strict `xfail` until the behavior is built.
+SYNC-18-001 through SYNC-18-003 are built and their tests pass, and SYNC-18-006 holds by construction; the others are strict `xfail` until the CASE_MANAGER reads the position (#5110).
+`test/wire/as2/test_ledger_position_scope.py` lists every received semantic outside the scope, with its reason.
 
 ## Pros and Cons of the Options
 

@@ -26,7 +26,6 @@ import logging
 from typing import cast
 
 from py_trees.common import Status
-from pydantic import ValidationError
 
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
@@ -46,6 +45,7 @@ from vultron.core.sync_helpers import (
     ledger_tail_position,
     recorded_entries_for_case,
 )
+from vultron.enums.object_types import VultronObjectType as VOtype
 
 logger = logging.getLogger(__name__)
 
@@ -59,19 +59,27 @@ FULL_CASE_INVITE_SEMANTIC_TYPE = (
 
 
 def stored_invite_floor(invite: object) -> LedgerPosition | None:
-    """The ledger position a stored full-case Invite carries in its ``content``.
+    """The ledger position a stored full-case Invite states as its floor.
 
-    ``None`` when the stored Invite carries none, or one that does not parse
-    (the wire layer refused such an Invite at the edge, so a stored one only
-    lacks it if it is not a full-case Invite).
+    The Invite's ``ledgerPosition`` (SYNC-18-001, VAM-04-011), read from the
+    received activity as the loader rebuilt it.  ``None`` when the stored
+    Invite states none (the wire layer refused such an Invite at the edge,
+    so a stored one only lacks it if it is not a full-case Invite), or when
+    it is a stub Invite: that one states the CASE_MANAGER's tail too, as
+    every case activity does, but its target is the case stub and it sets no
+    floor (CM-11-003).
     """
-    content = getattr(invite, "content", None)
-    if not isinstance(content, str) or not content.strip():
+    target_type = getattr(getattr(invite, "target", None), "type_", None)
+    if target_type == VOtype.VULNERABILITY_CASE_STUB:
         return None
-    try:
-        return LedgerPosition.model_validate_json(content)
-    except ValidationError:
+    position = getattr(invite, "ledger_position", None)
+    if position is None:
         return None
+    # A received activity is read through a read-only view, so the position
+    # arrives as a view of the model; its two fields rebuild the value.
+    return LedgerPosition(
+        log_index=position.log_index, entry_hash=position.entry_hash
+    )
 
 
 class LogFullCaseInviteReceivedNode(DataLayerAction):

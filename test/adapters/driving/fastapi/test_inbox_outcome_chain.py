@@ -27,13 +27,14 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import BaseModel
 
 from test.support.case_owner import CASE_OWNER_ID
+from test.support.received import delivered_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
     FastAPIDispatchAdapter,
@@ -50,6 +51,7 @@ from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.events import MessageSemantics
 from vultron.core.models.use_case_result import HandlerResult
 from vultron.wire.as2.factories import rm_create_report_activity
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     as_VulnerabilityReport,
 )
@@ -86,7 +88,7 @@ def body() -> dict[str, Any]:
     activity = rm_create_report_activity(
         report, actor=_SENDER_ID, to=[_RECEIVER_ID]
     )
-    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return delivered_body(activity)
 
 
 def _use_case_returning(verdict: HandlerResult) -> type:
@@ -400,9 +402,7 @@ def test_real_handler_refusal_reaches_inbox_outcome(dl):
     announce = announce_vulnerability_case_activity(
         case, actor=_SENDER_ID, to=[_RECEIVER_ID], context=case.id_
     )
-    announce_body = announce.model_dump(
-        mode="json", by_alias=True, exclude_none=True
-    )
+    announce_body = delivered_body(announce)
     dispatcher = DirectActivityDispatcher(
         use_case_map={
             MessageSemantics.ANNOUNCE_VULNERABILITY_CASE: (
@@ -490,7 +490,7 @@ def test_a_received_case_manager_act_is_recognized_and_unhandled(
         update={"actor": _SENDER_ID, "to": [_RECEIVER_ID]}
     )
     assert find_matching_semantics(activity) is semantics
-    body = activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    body = delivered_body(activity)
 
     outcome = _process(
         dl, body, DirectActivityDispatcher(use_case_map=use_case_map())
@@ -623,9 +623,7 @@ def test_received_create_of_a_case_record_is_refused_case_unchanged(
     )
     case_before = dl.read(_RETIRED_CASE_ID)
     assert find_matching_semantics(activity) is MessageSemantics.UNKNOWN
-    activity_body = activity.model_dump(
-        mode="json", by_alias=True, exclude_none=True
-    )
+    activity_body = delivered_body(activity)
 
     outcome = _process(
         dl,
@@ -690,7 +688,7 @@ def _real_dispatcher() -> DirectActivityDispatcher:
 
 
 def _wire_body(activity: BaseModel) -> dict[str, Any]:
-    return activity.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return delivered_body(cast(as_Activity, activity))
 
 
 @pytest.mark.spec("PCR-03-004", "CBT-01-011", "CLP-10-017")

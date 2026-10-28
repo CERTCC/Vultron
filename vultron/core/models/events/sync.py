@@ -16,8 +16,15 @@
 from typing import Literal, cast
 
 from vultron.core.models.case_ledger_entry import CaseLedgerEntry
-from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.events.base import (
+    LedgerPositionedEvent,
+    MessageSemantics,
+    VultronEvent,
+)
+from vultron.core.models.ledger_position import (
+    EMPTY_LEDGER_LOG_INDEX,
+    LedgerPosition,
+)
 
 
 class AnnounceLogEntryReceivedEvent(VultronEvent):
@@ -46,16 +53,20 @@ class AnnounceLogEntryReceivedEvent(VultronEvent):
 class RejectLogEntryReceivedEvent(VultronEvent):
     """Participant rejected an ``Announce(CaseLedgerEntry)`` due to hash-chain mismatch.
 
-    The ``context`` field of the wire activity carries the last applied hash
-    as a plain string.  The extractor wraps it in a minimal ``CoreObject``
-    whose ``id_`` is the hash string, so ``event.context_id`` returns it.
+    ``ledger_position`` is the sender's ledger tail, which the activity
+    states as ``ledgerPosition`` (SYNC-18-001): the last entry it accepted,
+    or index -1 and the genesis hash when it holds the case but no entry.
+    A peer that does not hold the case yet holds no ledger to state, so its
+    ``Reject`` carries none (SYNC-18-001) and the position is ``None``; the
+    extractor still refuses a malformed one (SYNC-18-003).
 
-    Spec: SYNC-03-001, SYNC-03-002.
+    Spec: SYNC-03-001, SYNC-03-002, SYNC-16-007, SYNC-18-001.
     """
 
     semantic_type: Literal[MessageSemantics.REJECT_CASE_LEDGER_ENTRY] = (
         MessageSemantics.REJECT_CASE_LEDGER_ENTRY
     )
+    ledger_position: LedgerPosition | None = None
 
     @property
     def rejected_entry(self) -> CaseLedgerEntry | None:
@@ -89,26 +100,27 @@ class RejectLogEntryReceivedEvent(VultronEvent):
 
     @property
     def last_accepted_hash(self) -> str:
-        """Return the last applied hash reported by the peer.
+        """Return the hash of the last entry the peer reports it accepted.
 
-        Falls back to ``""`` (empty string) when no context is present,
-        signalling that the peer has not acknowledged any entry yet and
-        replay should start from the beginning of the recorded projection
-        (CLP-08-005).
+        ``""`` (empty string) when the peer states no position, or one at
+        index -1, because it holds no entry: replay then starts from the
+        beginning of the recorded projection (CLP-08-005, SYNC-16-007).
         """
-        ctx = self.context_id
-        if ctx:
-            return ctx
-        return ""
+        position = self.ledger_position
+        if position is None or position.log_index == EMPTY_LEDGER_LOG_INDEX:
+            return ""
+        return position.entry_hash
 
 
-class ReadLogEntryReceivedEvent(VultronEvent):
+class ReadLogEntryReceivedEvent(LedgerPositionedEvent):
     """A participant stated its ledger position: ``Read(CaseLedgerEntry)``.
 
     The ``object`` names, by reference, the last canonical entry the sender
     has applied for the case; the ``context`` names the case, and
     ``ledger_position`` carries that entry's ``log_index`` and
-    ``entry_hash``, parsed at the edge (SYNC-17-001, ADR-0032).  The
+    ``entry_hash``, parsed at the edge (SYNC-17-001, ADR-0032).  The entry
+    it names is the sender's tail, so the position it states is the one
+    every case activity states (SYNC-18-001).  The
     CASE_MANAGER judges the position against its own ledger: it never reads
     the entry from the activity.
 
@@ -118,8 +130,6 @@ class ReadLogEntryReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.READ_CASE_LEDGER_ENTRY] = (
         MessageSemantics.READ_CASE_LEDGER_ENTRY
     )
-
-    ledger_position: LedgerPosition
 
     @property
     def stated_entry_id(self) -> str | None:

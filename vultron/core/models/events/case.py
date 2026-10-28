@@ -3,7 +3,11 @@
 from typing import TYPE_CHECKING, Literal, cast
 
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.events.base import (
+    LedgerPositionedEvent,
+    MessageSemantics,
+    VultronEvent,
+)
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
@@ -30,7 +34,7 @@ class CreateCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.object_)
 
 
-class EngageCaseReceivedEvent(VultronEvent):
+class EngageCaseReceivedEvent(LedgerPositionedEvent):
     """Actor joined (engaged) a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ENGAGE_CASE] = (
@@ -46,7 +50,7 @@ class EngageCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.object_)
 
 
-class DeferCaseReceivedEvent(VultronEvent):
+class DeferCaseReceivedEvent(LedgerPositionedEvent):
     """Actor ignored (deferred) a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.DEFER_CASE] = (
@@ -62,7 +66,7 @@ class DeferCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.object_)
 
 
-class AddReportToCaseReceivedEvent(VultronEvent):
+class AddReportToCaseReceivedEvent(LedgerPositionedEvent):
     """Actor added a VulnerabilityReport to a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ADD_REPORT_TO_CASE] = (
@@ -86,7 +90,7 @@ class AddReportToCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.target)
 
 
-class CloseCaseReceivedEvent(VultronEvent):
+class CloseCaseReceivedEvent(LedgerPositionedEvent):
     """Actor left (closed) a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.CLOSE_CASE] = (

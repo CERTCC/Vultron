@@ -84,9 +84,9 @@ from vultron.wire.as2.factories import (
     rm_reject_invite_to_case_activity,
     rm_tentative_reject_full_case_invite_activity,
 )
+from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-    as_Accept,
     as_Invite,
 )
 from vultron.wire.as2.vocab.base.objects.actors import (
@@ -492,24 +492,39 @@ def test_full_case_invite_reply_without_position_is_refused_at_the_edge(
 ) -> None:
     """A reply that carries no ledger position never reaches the CASE_MANAGER.
 
-    The position is the JSON dump of a ``LedgerPosition`` in ``content``
-    (VAM-04-012); a missing, blank or non-parsing one is refused when the
-    event is extracted (ADR-0032), with the reason named, and nothing moves.
+    The position is the reply's ``ledgerPosition`` (VAM-04-012, SYNC-18-001);
+    a missing or non-parsing one is refused when the body is parsed or the
+    event is extracted (ADR-0032, SYNC-18-003), with the reason named, and
+    nothing moves.
     """
     tail = _ledger_tail(joining_case)[-1]
     full_invite = _full_case_invite_at(
         joining_case, log_index=tail.log_index, entry_hash=tail.entry_hash
     )
+    reply = rm_accept_full_case_invite_activity(
+        full_invite,
+        _position(tail.log_index, tail.entry_hash),
+        actor=joining_case.invitee_id,
+    )
+    body = {
+        key: value
+        for key, value in reply.model_dump(
+            mode="json",
+            by_alias=True,
+            exclude_none=True,
+            serialize_as_any=True,
+        ).items()
+        if key != "ledgerPosition"
+    }
 
-    for content in (None, "  ", "not json", '{"logIndex": "x"}'):
-        reply = as_Accept(
-            actor=joining_case.invitee_id,
-            object_=full_invite,
-            in_reply_to=full_invite.id_,
-            content=content,
+    for position in (None, {"logIndex": "x", "entryHash": "ab" * 32}):
+        sent = (
+            body if position is None else {**body, "ledgerPosition": position}
         )
-        with pytest.raises(VultronParseValidationError, match="ledger"):
-            received_event(reply)
+        with pytest.raises(
+            VultronParseValidationError, match="ledgerPosition"
+        ):
+            received_event(parse_activity(sent), as_sent=True)
 
     latest = joining_case.participant().participant_statuses[-1]
     assert participant_status_rm_state(latest) == RM.RECEIVED

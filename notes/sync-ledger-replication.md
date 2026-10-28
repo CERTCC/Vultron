@@ -117,13 +117,23 @@ hashes must stay valid if the chain later becomes a Merkle tree (SYNC-01-005).
 
 - **One slot, `ledgerPosition`.** Every case activity carries its sender's tail as
   the activity's `ledgerPosition`, the term and shape SYNC-16-005 puts on a case
-  copy, so one fact keeps one wire form (ADR-0156). Add no new position to `content`
-  or `context`. The full-case Invite, its replies (VAM-04-011..014) and
-  `Reject(CaseLedgerEntry)` (SYNC-03-004) still use those slots until #5109 moves
-  them, amending VAM-04-011..014 and retiring SYNC-03-004.
-- **Stamp in the factory, from the ledger.** Read the tail with
-  `ledger_tail_position()` when the activity is built. A resend relays the sealed
-  body, so it keeps the first position (SYNC-18-002, OX-07-001).
+  copy, so one fact keeps one wire form (ADR-0156). Add no position to `content` or
+  `context`: the full-case Invite, its replies and `Reject(CaseLedgerEntry)` use
+  `ledgerPosition` too (VAM-04-011..014, SYNC-16-007).
+- **Stamp in the factory, from the sender's store.** The adapter that builds the
+  activity reads the tail with `ledger_tail_position()` and has
+  `stamp_ledger_position()` put it on (`with_sender_ledger_position`), before the
+  activity is stored or sealed, so the stored activity, the sealed body and the
+  CASE_MANAGER's own entry agree. A resend relays the sealed body, so it keeps the
+  first position (SYNC-18-002, OX-07-001).
+- **Scope is decided by the receiver's event class.** A `LedgerPositionedEvent`
+  requires the position at the parse edge (SYNC-18-003); every other received
+  semantic is listed with its reason in `test/wire/as2/test_ledger_position_scope.py`.
+  The sender stamps whenever its store holds the case's ledger, so an activity sent
+  before that is never stamped. `Read(CaseLedgerEntry)` is in scope: the entry it
+  names is the sender's tail. `Create(ProcessingFault)` is out: any receiver sends
+  one, even for a body it could not parse, and it names no case (ASK-07-001).
+  `Reject(CaseLedgerEntry)` admits no position, from a peer that holds no case yet.
 - **A lag is a record, never a refusal.** Log it at DEBUG and judge the act as
   before (SYNC-18-004). An answer to a replaced embargo is already caught, because
   its consent row accepts no trigger (CM-18-003); CM-11-012's floor is the one
@@ -427,9 +437,10 @@ same entry forever (ADR-0142).
   That includes the held refused entry, which the seed drains before any replay
   arrives, and the backfill after a join seed (SYNC-16-007).
 - **An empty chain still asks.** A replica with no stored entry sends the `Reject`
-  that names none: empty last-accepted hash, case as `target`. The parser admits an
-  objectless `Reject` only in that form (`ledger_reject_envelope.py`), and the
-  CASE_MANAGER reads the case through the event's `replay_case_id`, never the entry.
+  that names none: the empty chain's `ledgerPosition` (index -1), case as `target`.
+  The parser admits an objectless `Reject` only in that form
+  (`ledger_reject_envelope.py`), and the CASE_MANAGER reads the case through the
+  event's `replay_case_id`, never the entry.
 - **A no-op still copies what the copy names by id.** A copy carries participants,
   reports and the active embargo inline but names notes, statuses and other
   embargoes by id; `StoreRecordsReflectedEntryCarriesNode` stores those records

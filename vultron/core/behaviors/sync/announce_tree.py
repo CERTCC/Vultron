@@ -373,7 +373,7 @@ def create_announce_log_entry_tree(
     # Wrap reconstruct in a Selector so that on failure we (1) hold the received
     # Announce so the case-seed path can replay it once the genesis anchor is
     # known (SYNC-15-004, SYNC-15-005, #2186), and (2) still send a Reject
-    # (with last_accepted_hash="" meaning "replay from genesis") as the loss
+    # (stating no ledger position, read as "replay from genesis") as the loss
     # backstop, exiting the Sequence without persisting the entry (SYNC-15-001,
     # CLP-08-005).  FailureIsSuccess lets the reject fire whether or not the
     # entry was buffered, mirroring CheckHashOrRejectOnMismatchNode's forward-gap
@@ -393,8 +393,9 @@ def create_announce_log_entry_tree(
                             name="BufferPreGenesisEntry"
                         ),
                     ),
-                    # Fallback: send Reject carrying the sentinel tail_hash=""
-                    # that ReconstructChainTailNode wrote before failing.
+                    # Fallback: send the Reject, with the sentinel tail_hash=""
+                    # ReconstructChainTailNode wrote before failing keying its
+                    # id; it states no ledger position (SYNC-18-001).
                     SendRejectLogEntryNode(name="RejectOnMissingCase"),
                 ],
             ),

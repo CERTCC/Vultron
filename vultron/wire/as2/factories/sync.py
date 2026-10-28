@@ -21,14 +21,16 @@ and MUST NOT be imported by callers.
 
 Spec: ``specs/activity-factories.yaml`` AF-01-001 through AF-04-003.
 Spec: ``specs/sync-ledger-replication.yaml`` SYNC-09-002,
-SYNC-03-001, SYNC-03-002, SYNC-17-001.
+SYNC-03-001, SYNC-03-002, SYNC-17-001, SYNC-18-001.
 """
 
 import logging
 
 from pydantic import ValidationError
 
-from vultron.core.models.ledger_position import LedgerPosition
+from vultron.core.models.ledger_position import (
+    LedgerPosition,
+)
 from vultron.wire.as2.factories.errors import VultronActivityConstructionError
 from vultron.wire.as2.vocab.activities.sync import (
     _AnnounceLogEntryActivity,
@@ -78,33 +80,32 @@ def announce_log_entry_activity(
 
 def reject_log_entry_activity(
     entry: as_CaseLedgerEntry,
-    context: str | None = None,
     **kwargs,
 ) -> as_Reject:
     """Build a Reject(CaseLedgerEntry) — hash-chain mismatch report.
 
     Sent by a participant to the CaseActor when an incoming
     ``Announce(CaseLedgerEntry)``'s ``prev_log_hash`` does not match the
-    participant's local tail hash (SYNC-03-001).
+    participant's local tail hash (SYNC-03-001).  ``context`` names the
+    entry's case.  The participant's tail, which the CaseActor replays
+    after, is the ``ledgerPosition`` every case activity states
+    (SYNC-18-001), stamped by :func:`stamp_ledger_position` when the sender
+    holds the case.
 
     Args:
         entry: The ``CaseLedgerEntry`` the receiver could not apply.
-        context: The last applied entry hash string, so the CaseActor
-            can determine which entries need to be replayed.
         **kwargs: Optional AS2 fields forwarded to the constructor
-            (e.g. ``actor``, ``to``).
+            (e.g. ``actor``, ``to``, ``id_``).
 
     Returns:
-        An ``as_Reject`` whose ``object_`` is the unapplied log entry and
-        ``context`` carries the last applied hash.
+        An ``as_Reject`` whose ``object_`` is the unapplied log entry.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
     """
+    kwargs.setdefault("context", getattr(entry, "case_id", None))
     try:
-        return _RejectLogEntryActivity(
-            object_=entry, context=context, **kwargs
-        )
+        return _RejectLogEntryActivity(object_=entry, **kwargs)
     except ValidationError as exc:
         logger.warning("reject_log_entry_activity: invalid arguments: %s", exc)
         raise VultronActivityConstructionError(
@@ -112,19 +113,30 @@ def reject_log_entry_activity(
         ) from exc
 
 
-def genesis_replay_reject_activity(case_id: str, **kwargs) -> as_Reject:
+def genesis_replay_reject_activity(
+    case_id: str, ledger_position: LedgerPosition, **kwargs
+) -> as_Reject:
     """Build the Reject(CaseLedgerEntry) that names no entry (SYNC-16-007).
 
     Sent by a replica whose case was replaced by a copy ahead of its chain
     and whose chain stores no entry: there is nothing to name, so it asks
-    for a replay from genesis.  The last-accepted hash is empty and the case
-    is the ``target``.
+    for a replay from genesis.  Its *ledger_position* is the sender's tail,
+    which for a chain that stores no entry is index -1 and the case's
+    genesis hash (SYNC-18-001, CLP-08-004); the case is both the ``target``
+    and the ``context``.
 
     Raises:
-        VultronActivityConstructionError: If Pydantic validation fails.
+        VultronActivityConstructionError: If Pydantic validation fails,
+            including a *ledger_position* that names an entry: a sender
+            that holds one names it instead (``as_Reject``).
     """
     try:
-        return _RejectLogEntryActivity(target=case_id, context="", **kwargs)
+        return _RejectLogEntryActivity(
+            target=case_id,
+            context=case_id,
+            ledger_position=ledger_position,
+            **kwargs,
+        )
     except ValidationError as exc:
         logger.warning(
             "genesis_replay_reject_activity: invalid arguments: %s", exc

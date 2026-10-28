@@ -17,7 +17,6 @@ position, and fails closed until its ledger copy reaches the Invite's floor
 (SYNC-10-004, CM-11-012).
 """
 
-import json
 from collections.abc import Iterator
 
 import pytest
@@ -146,13 +145,14 @@ def test_reply_carries_the_participants_own_position(
     activity = activity_of(result)
     assert activity["type"] == kind
     assert activity["to"] == [_MANAGER]
-    assert LedgerPosition.model_validate_json(
-        activity["content"]
+    assert LedgerPosition.model_validate(
+        activity["ledgerPosition"]
     ) == LedgerPosition(log_index=-1, entry_hash=genesis)
-    assert json.loads(activity["content"]) == {
+    assert activity["ledgerPosition"] == {
         "logIndex": -1,
         "entryHash": genesis,
     }
+    assert "content" not in activity
 
 
 @pytest.mark.spec("SYNC-10-004")
@@ -179,8 +179,9 @@ def test_reply_to_something_that_is_not_a_full_case_invite_is_refused(
     participant,
 ) -> None:
     actor, dl, case_id, _genesis = participant
-    # A stub Invite names the case through its stub and carries no ledger
-    # position, so it is no full-case Invite.
+    # A stub Invite names the case through its stub, so it is no full-case
+    # Invite and sets no floor, though it states its sender's ledger
+    # position like every case activity (SYNC-18-001).
     stub_like = rm_invite_to_case_activity(
         actor, target=case_stub(case_id), actor=_MANAGER, to=[actor.id_]
     )

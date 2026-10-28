@@ -2,7 +2,10 @@
 
 from typing import TYPE_CHECKING, Literal, cast
 
-from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.events.base import (
+    LedgerPositionedEvent,
+    MessageSemantics,
+)
 
 if TYPE_CHECKING:
     from vultron.core.models.case import VulnerabilityCase
@@ -12,7 +15,7 @@ else:
     VultronNote = object
 
 
-class AddNoteToCaseReceivedEvent(VultronEvent):
+class AddNoteToCaseReceivedEvent(LedgerPositionedEvent):
     """Actor added a Note to a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ADD_NOTE_TO_CASE] = (
@@ -36,7 +39,7 @@ class AddNoteToCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.target)
 
 
-class RemoveNoteFromCaseReceivedEvent(VultronEvent):
+class RemoveNoteFromCaseReceivedEvent(LedgerPositionedEvent):
     """Actor removed a Note from a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.REMOVE_NOTE_FROM_CASE] = (

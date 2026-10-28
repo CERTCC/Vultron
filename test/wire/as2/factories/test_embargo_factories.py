@@ -30,6 +30,7 @@ from typing import cast
 import pytest
 from pydantic import ValidationError
 
+from test.support.received import delivered_body
 from vultron.core.models._helpers import days_from_now_utc
 from vultron.core.models.received_activity_view import ReceivedActivityView
 from vultron.core.states.embargo_register import TerminationReason
@@ -612,9 +613,7 @@ def _received(activity: as_Invite, **extra: object) -> as_Invite:
     *extra* adds keys to that body, as a sender that names more than this
     receiver's vocabulary would.
     """
-    body = activity.model_dump(
-        mode="json", by_alias=True, exclude_none=True, serialize_as_any=True
-    )
+    body = delivered_body(activity)
     body.update(extra)
     return cast(as_Invite, parse_activity(body))
 

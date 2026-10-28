@@ -121,8 +121,9 @@ state is acknowledged **cumulatively and implicitly** via hash-chain continuity:
 - A participant receiving `Announce(CaseLedgerEntry)` whose `prev_log_hash`
   matches its local ledger tail says **nothing** — the match *is* the
   acknowledgment.
-- On a mismatch the participant emits `Reject(CaseLedgerEntry)`, whereupon the
-  CASE_MANAGER replays all entries after the last accepted hash.
+- On a mismatch the participant emits `Reject(CaseLedgerEntry)` stating its
+  ledger tail as its `ledgerPosition`, whereupon the CASE_MANAGER replays all
+  entries after that position.
 
 This is negative acknowledgment with gap-fill replay — structurally closer to
 TCP cumulative ACK/SACK than to per-message positive acknowledgment. A matching

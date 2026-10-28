@@ -49,7 +49,7 @@ def create_reject_log_entry_tree(
     reads the case from the rejected entry when the tree runs
     (:class:`~vultron.core.behaviors.sender_guard.LedgerActivityContext`),
     or, for the ``Reject`` that names no entry because the peer holds none,
-    from its ``target``; that form carries an empty hash, so it is answered
+    from its ``target``; that form states no entry (index -1), so it is answered
     as a replay from genesis (SYNC-16-007).
 
     Args:

@@ -21,6 +21,9 @@ from typing import Any, TypeVar
 from pydantic import BaseModel
 
 from vultron.adapters.driven.db_record import _AS_LIST_REF_FIELDS
+from vultron.adapters.driven.ledger_position_stamp import (
+    with_sender_ledger_position,
+)
 from vultron.adapters.outbox_sealed_body import (
     outbound_activity_id,
     read_sealed_body,
@@ -264,9 +267,23 @@ def _seal(dl: CaseOutboxPersistence, activity: BaseModel) -> tuple[str, str]:
 
     Every adapter method that persists an outbound activity ends here, so the
     text handed back to core is the text the outbox delivers (VM-08-003).
+    An activity not stamped yet is stamped with the sender's ledger tail
+    here (SYNC-18-001); one stored first is stamped before it is stored
+    (:func:`_create_and_seal`, :func:`_stamped`).
     """
+    activity = _stamped(dl, activity)
     body = seal_outbound_body(dl, activity)  # refuses an activity with no id_
     return outbound_activity_id(activity), body
+
+
+def _stamped(dl: CaseOutboxPersistence, activity: _BM) -> _BM:
+    """*activity* stating the sender's ledger tail, when it is a case activity.
+
+    See :func:`~vultron.adapters.driven.ledger_position_stamp.with_sender_ledger_position`.
+    A method that stores an activity itself calls this before the store, so
+    the stored activity and its sealed body agree.
+    """
+    return with_sender_ledger_position(dl, activity)
 
 
 def _create_and_seal(
@@ -277,8 +294,11 @@ def _create_and_seal(
     An activity already stored under its id is a repeat of an earlier
     build, so it is logged and sealed as it stands rather than refused:
     the sealed body is still the one the outbox delivers (VM-08-003).
-    *label* names the calling adapter method in the log line.
+    *label* names the calling adapter method in the log line.  The activity
+    is stamped with the sender's ledger tail before it is stored
+    (SYNC-18-001).
     """
+    activity = _stamped(dl, activity)
     try:
         dl.create(activity)
     except VultronAlreadyExistsError:

@@ -25,7 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.received import with_evidence
+from test.support.received import TEST_SENDER_POSITION, with_evidence
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driven.sync_activity_adapter import SyncActivityAdapter
 from vultron.adapters.driven.trigger_activity_adapter import (
@@ -103,6 +103,7 @@ def _make_engage_request(
 ) -> EngageCaseReceivedEvent:
     return with_evidence(
         EngageCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
             activity_id=f"{case.id_}/activities/engage",
             actor_id=actor_id,
             object_=CoreObject(id_=case.id_),
@@ -125,6 +126,7 @@ def _make_defer_request(
 ) -> DeferCaseReceivedEvent:
     return with_evidence(
         DeferCaseReceivedEvent(
+            ledger_position=TEST_SENDER_POSITION,
             activity_id=f"{case.id_}/activities/defer",
             actor_id=actor_id,
             object_=CoreObject(id_=case.id_),

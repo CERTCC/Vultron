@@ -1024,18 +1024,6 @@ def rm_reject_invite_to_case_activity(
         ) from exc
 
 
-def ledger_position_content(position: LedgerPosition) -> str:
-    """Return the ``content`` string that carries a ledger position.
-
-    ``content`` is the existing AS2 slot, used here for a machine-readable
-    record (VAM-04-011..014).  The string is the ``LedgerPosition`` model's own
-    JSON dump under its wire aliases, ``{"logIndex": 3, "entryHash": "..."}``;
-    the receiver parses it back with ``LedgerPosition.model_validate_json``.
-    This is the only place the string is produced (VAM-04-019).
-    """
-    return position.model_dump_json(by_alias=True)
-
-
 def rm_invite_to_full_case_activity(
     invitee: as_Actor | CoreActor | str,
     case: VulnerabilityCase | str,
@@ -1048,7 +1036,7 @@ def rm_invite_to_full_case_activity(
     VAM-04-011, ADR-0121).  The participant already holds the case from the
     Announce, so the target is the plain case URI (AKM-02-003).  The
     CASE_MANAGER's *ledger_tail*, the floor the participant's reply must
-    reach, travels in ``content`` (see :func:`ledger_position_content`).
+    reach, is the Invite's ``ledgerPosition`` (SYNC-18-001, VAM-04-011).
 
     Args:
         invitee: The actor being asked: its profile as the sender holds it,
@@ -1061,7 +1049,7 @@ def rm_invite_to_full_case_activity(
 
     Returns:
         An ``as_Invite`` whose ``object_`` is the invited actor, whose
-        ``target`` is the case URI and whose ``content`` carries the position.
+        ``target`` is the case URI and whose ``ledgerPosition`` is the position.
 
     Raises:
         VultronActivityConstructionError: If Pydantic validation fails.
@@ -1071,7 +1059,7 @@ def rm_invite_to_full_case_activity(
         return _RmInviteToFullCaseActivity(
             object_=carried_actor(invitee),
             target=case_id,
-            content=ledger_position_content(ledger_tail),
+            ledger_position=ledger_tail,
             **with_case_context(kwargs, case_id),
         )
     except ValidationError as exc:
@@ -1095,7 +1083,7 @@ def _as_full_case_invite(invite: as_Invite) -> _RmInviteToFullCaseActivity:
 
     Raises:
         VultronActivityConstructionError: when *invite* is not a full-case
-            Invite (no case URI target, or no ledger position in ``content``).
+            Invite (no case URI target, or no ``ledgerPosition``).
     """
     if isinstance(invite, _RmInviteToFullCaseActivity):
         return invite
@@ -1124,7 +1112,7 @@ def _full_case_reply(
     try:
         return reply_class(
             object_=_as_full_case_invite(invite),
-            content=ledger_position_content(ledger_tail),
+            ledger_position=ledger_tail,
             **kwargs,
         )
     except ValidationError as exc:

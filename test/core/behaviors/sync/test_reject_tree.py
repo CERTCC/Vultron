@@ -10,7 +10,7 @@ import pytest
 from py_trees.common import Status
 
 from test.support.case_owner import CASE_OWNER_ID
-from test.support.received import received_event
+from test.support.received import peer_position, received_event
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.nodes.role_gates import CaseManagerGate
@@ -151,7 +151,7 @@ def _make_event(
     )
     activity = reject_log_entry_activity(
         entry=wire_entry,
-        context=tail_hash,
+        ledger_position=peer_position(tail_hash),
         actor=PEER_ID,
         to=recipients,
     )
@@ -692,7 +692,6 @@ def test_reject_from_stranger_halts_before_any_write(
         received_event(
             reject_log_entry_activity(
                 entry=wire_entry,
-                context="",
                 actor=stranger,
                 to=[OWNER_ACTOR_ID],
             )

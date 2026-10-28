@@ -1,4 +1,4 @@
-"""Typed-dispatch tests: extract_event() returns the correct per-semantic subclass.
+"""Typed-dispatch tests: extract_stamped() returns the correct per-semantic subclass.
 
 Spec: SE-03-001 (semantic-extraction), CS-10-002 (FooReceivedEvent naming).
 Covers AC4 of ISSUE-2489: new typed-dispatch tests for ≥3 representative semantics.
@@ -6,7 +6,7 @@ Covers AC4 of ISSUE-2489: new typed-dispatch tests for ≥3 representative seman
 
 import pytest
 
-from vultron.semantic_registry import extract_event
+from test.support.received import extract_stamped
 from vultron.wire.as2.factories import (
     accept_case_proposal_activity,
     recommend_actor_activity,
@@ -22,7 +22,7 @@ _CASE_ACTOR_URI = "https://example.org/services/case-actor-1"
 
 
 class TestTypedEventDispatch:
-    """extract_event() returns the narrowed per-semantic subclass, not bare VultronEvent."""
+    """extract_stamped() returns the narrowed per-semantic subclass, not bare VultronEvent."""
 
     @pytest.mark.spec("SE-03-001")
     @pytest.mark.spec("CS-10-002")
@@ -30,7 +30,7 @@ class TestTypedEventDispatch:
         from vultron.core.models.events.report import CreateReportReceivedEvent
 
         activity = rm_create_report_activity(gen_report(), actor=_ACTOR_URI)
-        event = extract_event(activity)
+        event = extract_stamped(activity)
 
         assert isinstance(event, CreateReportReceivedEvent)
 
@@ -53,7 +53,7 @@ class TestTypedEventDispatch:
             proposal=proposal,
             to=[_ACTOR_URI],
         )
-        event = extract_event(activity)
+        event = extract_stamped(activity)
 
         assert isinstance(event, AcceptCaseProposalReceivedEvent)
 
@@ -73,7 +73,7 @@ class TestTypedEventDispatch:
             actor=_ACTOR_URI,
             to=[_CASE_ACTOR_URI],
         )
-        event = extract_event(activity)
+        event = extract_stamped(activity)
 
         assert isinstance(event, OfferActorToCaseReceivedEvent)
 
@@ -85,7 +85,7 @@ class TestTypedEventDispatch:
         from vultron.core.models.events.report import CreateReportReceivedEvent
 
         activity = rm_create_report_activity(gen_report(), actor=_ACTOR_URI)
-        event = extract_event(activity)
+        event = extract_stamped(activity)
 
         assert isinstance(event, CreateReportReceivedEvent)
         assert event.semantic_type == MessageSemantics.CREATE_REPORT

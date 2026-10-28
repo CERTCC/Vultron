@@ -38,6 +38,7 @@ from vultron.core.models.events.actor import (
     UndoCaseOwnershipTransferReceivedEvent,
 )
 from vultron.core.models.events.base import (
+    LedgerPositionedEvent,
     MessageSemantics,
     VultronEvent,
 )
@@ -200,6 +201,7 @@ AnyReceivedEvent = (
 )
 
 __all__ = [
+    "LedgerPositionedEvent",
     "MessageSemantics",
     "VultronEvent",
     "AnyReceivedEvent",

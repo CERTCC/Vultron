@@ -11,7 +11,10 @@ from vultron.core.models.embargo_termination import (
     EmbargoTermination,
     TerminationCause,
 )
-from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.events.base import (
+    LedgerPositionedEvent,
+    MessageSemantics,
+)
 from vultron.core.states.embargo_register import TerminationReason
 from vultron.primitives import normalise_actor_id
 
@@ -25,7 +28,7 @@ else:
     EmbargoEvent = object
 
 
-class _OwnerEmbargoDecisionEvent(VultronEvent):
+class _OwnerEmbargoDecisionEvent(LedgerPositionedEvent):
     """The case owner's decision on an embargo proposal (ADR-0122).
 
     ``Accept`` or ``Reject`` of the ``EmbargoEvent`` itself, with the case
@@ -72,7 +75,7 @@ class RejectEmbargoProposalOnCaseReceivedEvent(_OwnerEmbargoDecisionEvent):
     ] = MessageSemantics.REJECT_EMBARGO_PROPOSAL_ON_CASE
 
 
-class WithdrawFromEmbargoOnCaseReceivedEvent(VultronEvent):
+class WithdrawFromEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
     """A participant withdrew from the embargo in force on the case.
 
     ``Leave(EmbargoEvent)[context=VulnerabilityCase]`` (MSM-07-010,
@@ -101,7 +104,7 @@ class WithdrawFromEmbargoOnCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.context)
 
 
-class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
+class RemoveEmbargoEventFromCaseReceivedEvent(LedgerPositionedEvent):
     """Actor removed an EmbargoEvent from a VulnerabilityCase.
 
     ``termination_reason`` is the termination's what, parsed from the
@@ -142,7 +145,7 @@ class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.origin)
 
 
-class AnnounceEmbargoEventToCaseReceivedEvent(VultronEvent):
+class AnnounceEmbargoEventToCaseReceivedEvent(LedgerPositionedEvent):
     """Actor announced an EmbargoEvent to a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE] = (
@@ -166,7 +169,7 @@ class AnnounceEmbargoEventToCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.context)
 
 
-class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
+class InviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
     """Actor invited another actor to join an embargo on a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.INVITE_TO_EMBARGO_ON_CASE] = (
@@ -245,7 +248,7 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return None
 
 
-class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
+class AcceptInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
     """Actor accepted an invitation to join an embargo on a VulnerabilityCase."""
 
     semantic_type: Literal[
@@ -277,7 +280,7 @@ class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.inner_context)
 
 
-class RejectInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
+class RejectInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
     """Actor rejected an invitation to join an embargo on a VulnerabilityCase."""
 
     semantic_type: Literal[
@@ -309,7 +312,7 @@ class RejectInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return cast("VulnerabilityCase | None", self.inner_context)
 
 
-class UndoInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
+class UndoInviteToEmbargoOnCaseReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER withdrew an embargo invitation it had sent (EMB-16-001).
 
     ``Undo(Invite(EmbargoEvent))``: an actor undoes only an activity it
@@ -335,7 +338,7 @@ class UndoInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
         return self.inner_context_id
 
 
-class CreateEmbargoEventReceivedEvent(VultronEvent):
+class CreateEmbargoEventReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER recorded an embargo its case's creation wrote.
 
     ``Create(EmbargoEvent)``: committed as the ``create_embargo_event``
@@ -357,7 +360,7 @@ class CreateEmbargoEventReceivedEvent(VultronEvent):
         return self.context_id
 
 
-class CreateEmbargoConsentReceivedEvent(VultronEvent):
+class CreateEmbargoConsentReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER created a participant's consent row (ADR-0122).
 
     ``Create(EmbargoConsent)``: the CASE_MANAGER's own act, such as the
@@ -380,7 +383,7 @@ class CreateEmbargoConsentReceivedEvent(VultronEvent):
         return self.context_id
 
 
-class UpdateEmbargoConsentReceivedEvent(VultronEvent):
+class UpdateEmbargoConsentReceivedEvent(LedgerPositionedEvent):
     """The CASE_MANAGER changed a participant's consent row (ADR-0122).
 
     ``Update(EmbargoConsent)``: the CASE_MANAGER's own act, such as a

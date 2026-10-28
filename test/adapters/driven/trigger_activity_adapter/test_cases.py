@@ -292,10 +292,10 @@ class TestAddObjectToCaseConversionBranch:
         """Return side_effect that serves fake_obj for fake_id, real dl otherwise."""
         original = dl.read
 
-        def _side_effect(id_):
+        def _side_effect(id_, *args, **kwargs):
             if id_ == fake_id:
                 return fake_obj
-            return original(id_)
+            return original(id_, *args, **kwargs)
 
         return _side_effect
 

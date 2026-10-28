@@ -43,9 +43,9 @@ from typing import Any
 import pytest
 
 from test.support.case_owner import INBOUND_CASE_OWNERSHIP
+from test.support.received import extract_stamped
 from vultron.core.models._helpers import absent_times_as_none
 from vultron.core.models.base import CoreObject
-from vultron.semantic_registry import extract_event
 from vultron.wire.as2.errors import VultronParseValidationError
 from vultron.wire.as2.parser import parse_activity
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -165,7 +165,7 @@ KINDS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
 def _extracted(obj: dict[str, Any], extra: dict[str, Any]) -> Any:
     extra = dict(extra)
     activity_type = extra.pop("activity_type", "Create")
-    event = extract_event(parse_activity(_body(obj, activity_type, **extra)))
+    event = extract_stamped(parse_activity(_body(obj, activity_type, **extra)))
     domain = getattr(event, "object_", None)
     assert domain is not None, f"{obj['type']} did not extract a domain object"
     return domain
@@ -408,7 +408,7 @@ def test_top_level_updated_is_not_filled_with_the_receiver_clock():
     body = _body("https://example.org/notes/1")
 
     activity = parse_activity(body)
-    event = extract_event(activity)
+    event = extract_stamped(activity)
 
     assert activity.updated is None
     assert event.activity is None or event.activity.updated is None

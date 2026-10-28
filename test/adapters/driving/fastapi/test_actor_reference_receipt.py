@@ -31,6 +31,7 @@ from test.core.use_cases.received.conftest import (
     seed_case_manager_participant,
     seed_case_owner_participant,
 )
+from test.support.received import delivered_body
 from vultron.adapters.driven.datalayer_sqlite import SqliteDataLayer
 from vultron.adapters.driving.fastapi.inbox_handler import make_dispatcher
 from vultron.adapters.driving.fastapi.inbox_orchestration import (
@@ -81,13 +82,14 @@ def case_actor_dl() -> Iterator[SqliteDataLayer]:
 
 def _recommendation_with_reference() -> dict[str, Any]:
     """An ``Offer(Actor)`` whose actor is an id-and-type actor reference."""
-    body = recommend_actor_activity(
+    offer = recommend_actor_activity(
         recommended=_PEER_ID,
         target=_CASE_ID,
         actor=_VENDOR_ID,
         to=[_CASE_ACTOR_ID],
         suggested_roles=["vendor"],
-    ).model_dump(mode="json", by_alias=True, exclude_none=True)
+    )
+    body = delivered_body(offer)
     body["object"] = {"id": _PEER_ID, "type": "Actor"}
     return body
 
