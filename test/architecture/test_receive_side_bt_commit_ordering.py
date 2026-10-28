@@ -21,8 +21,9 @@ Structural ratchets for receive-side BT composition (CLP-10-006, CLP-10-010).
    receive-side BT composes through ``create_receive_activity_tree``, which
    fixes the stage order intake → door guards → clock decisions → guards →
    commit → effects.  Only
-   ``vultron/core/behaviors/case/receive_activity_tree.py`` — which *defines*
-   both factories — is exempt.
+   ``vultron/core/behaviors/case/receive_activity_tree.py`` — the factory
+   that composes the commit stage ``case/receive_stages/tree.py`` defines —
+   is exempt.
 2. No rejection validator sits in an effect stage (``replica_effects``,
    ``manager_effects`` or ``refusal_effects``; CLP-10-009).
 3. No node that any factory uses as a protocol effect appears as a

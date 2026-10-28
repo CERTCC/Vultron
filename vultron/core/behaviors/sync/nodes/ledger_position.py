@@ -27,7 +27,7 @@ Every case activity states its sender's ledger tail as ``ledgerPosition``
 
 :class:`ClassifyLedgerPositionNode` judges the position once and
 :class:`LedgerPositionIsNode` is the condition each arm of that answer starts
-with; :class:`PeerNotActiveParticipantNode` skips the record and the
+with; :class:`PeerActiveParticipantNode` skips the record and the
 replay for an inert sender; :class:`LedgerPositionAnswer` keeps whatever the
 answer does from deciding the received activity's outcome.  The received-tree
 factory composes them (``ledger_position_stage``).  A tree that answers the
@@ -36,7 +36,6 @@ position itself names a :class:`LedgerPositionExemption` instead.
 
 from __future__ import annotations
 
-import logging
 from enum import StrEnum
 from typing import Final, cast
 
@@ -62,8 +61,6 @@ from vultron.core.sync_helpers import (
 from vultron.errors import VultronError
 from vultron.primitives import NonEmptyString, same_actor_id
 
-logger = logging.getLogger(__name__)
-
 __all__ = [
     "HELD",
     "LEDGER_POSITION_EXEMPTIONS",
@@ -73,7 +70,7 @@ __all__ = [
     "LedgerPositionIsNode",
     "PositionStanding",
     "STATED_POSITION_ANSWERED_BY_TREE",
-    "PeerNotActiveParticipantNode",
+    "PeerActiveParticipantNode",
 ]
 
 
@@ -278,23 +275,33 @@ class LedgerPositionIsNode(DataLayerConditionWithPorts):
         return Status.FAILURE
 
 
-class PeerNotActiveParticipantNode(DataLayerConditionWithPorts):
-    """SUCCESS when *sender_id* is not an active participant of *case_id*.
+class PeerActiveParticipantNode(DataLayerConditionWithPorts):
+    """SUCCESS when *sender_id*'s standing in *case_id* is *active*.
 
     The active-participant check is the shared one
     (:func:`~vultron.core.participants.recipients.is_case_content_recipient`,
     CM-10-004, CM-10-007).  A removed, unconsented or not-yet-joined
     participant's position is not answered: nothing is recorded for it and
-    nothing sent (SYNC-18-007).  ``FAILURE`` for an active participant, and
-    when the case is not in this store, with the reason.
+    nothing sent (SYNC-18-007), so the answer asks ``active=False`` first to
+    skip it, and ``active=True`` again before it writes.  ``FAILURE`` when
+    the standing is the other one, and when it cannot be decided (the case
+    is not in this store), with the reason, so an undecided standing is
+    never read as active.
     """
 
     def __init__(
-        self, case_id: str, sender_id: str, name: str | None = None
+        self,
+        case_id: str,
+        sender_id: str,
+        *,
+        active: bool,
+        name: str | None = None,
     ) -> None:
-        super().__init__(name=name or self.__class__.__name__)
+        label = "Active" if active else "NotActive"
+        super().__init__(name=name or f"Peer{label}Participant")
         self.case_id = case_id
         self.sender_id = sender_id
+        self.active = active
 
     def update(self) -> Status:
         if (f := self._require_datalayer()) is not None:
@@ -308,16 +315,17 @@ class PeerNotActiveParticipantNode(DataLayerConditionWithPorts):
         except VultronError as exc:
             self.feedback_message = str(exc)
             return Status.FAILURE
-        if not withheld:
+        if withheld is self.active:
             return Status.FAILURE
-        self.logger.info(
-            "%s: sender '%s' is not an active participant of case '%s'; its"
-            " ledger position is not recorded or answered (SYNC-18-007,"
-            " CM-10-004)",
-            self.name,
-            self.sender_id,
-            self.case_id,
-        )
+        if withheld:
+            self.logger.info(
+                "%s: sender '%s' is not an active participant of case '%s';"
+                " its ledger position is not recorded or answered"
+                " (SYNC-18-007, CM-10-004)",
+                self.name,
+                self.sender_id,
+                self.case_id,
+            )
         return Status.SUCCESS
 
 

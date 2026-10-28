@@ -18,8 +18,8 @@ from vultron.core.models.base import (
     ValidatedAssignmentMixin,
 )
 from vultron.core.models.ledger_position import (
-    EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
+    accepted_entry_hash,
 )
 from vultron.core.models.received_body import require_json_object_text
 from vultron.errors import VultronWiringError
@@ -312,7 +312,4 @@ class LedgerPositionedEvent(VultronEvent):
         a position at index -1, an empty ledger, so a replay starts from the
         beginning (CLP-08-005, SYNC-18-007).
         """
-        position = self.ledger_position
-        if position.log_index == EMPTY_LEDGER_LOG_INDEX:
-            return ""
-        return position.entry_hash
+        return accepted_entry_hash(self.ledger_position)

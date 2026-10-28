@@ -48,6 +48,7 @@ from vultron.core.behaviors.sync.nodes.embargo_pause import (
 )
 from vultron.core.behaviors.sync.nodes.replay_case import (
     CaseNamedReplayNode,
+    scoped_keys,
 )
 from vultron.core.behaviors.sync.nodes.replay_guard import (
     record_replay,
@@ -105,6 +106,19 @@ class FindCaseActorNode(CaseNamedReplayNode):
             "case_actor_id": "/case_actor_id",
             "case_id": "/case_id",
         }
+
+    def __init__(
+        self,
+        name: str | None = None,
+        *,
+        case_id: str | None = None,
+        scope: str | None = None,
+    ) -> None:
+        super().__init__(name=name, case_id=case_id)
+        self.scope = scope
+
+    def _instance_port_remappings(self) -> dict[str, str]:
+        return scoped_keys(self.scope, "case_actor_id", "case_id")
 
     def initialise(self) -> None:
         super().initialise()
@@ -253,9 +267,15 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
     a recorded pause stays, since the suffix was not all sent.
     """
 
-    def __init__(self, name: str | None = None) -> None:
+    def __init__(
+        self, name: str | None = None, *, scope: str | None = None
+    ) -> None:
         super().__init__(name=name or self.__class__.__name__)
         self._sync_port: SyncActivityPort | None = None
+        self.scope = scope
+
+    def _instance_port_remappings(self) -> dict[str, str]:
+        return scoped_keys(self.scope, "case_actor_id")
 
     INPUT_PORTS: dict[str, PortInformation] = {
         **DataLayerActionWithPorts.INPUT_PORTS,
@@ -449,11 +469,16 @@ class SendMissingEntriesNode(DataLayerActionWithPorts):
 class ReplayMissingEntriesNode(py_trees.composites.Sequence):
     """Replay the entries after the sender's stated position (SYNC-03-002).
 
-    The case is *case_id* when given, else the activity's ``replay_case_id``.
+    The case is *case_id* when given, else the activity's ``replay_case_id``;
+    *scope* is the blackboard scope of ``case_actor_id`` (:func:`scoped_keys`).
     """
 
     def __init__(
-        self, name: str | None = None, *, case_id: str | None = None
+        self,
+        name: str | None = None,
+        *,
+        case_id: str | None = None,
+        scope: str | None = None,
     ) -> None:
         super().__init__(
             name=name or self.__class__.__name__,
@@ -463,6 +488,6 @@ class ReplayMissingEntriesNode(py_trees.composites.Sequence):
                     name="CollectAndSortCaseLedgerEntries", case_id=case_id
                 ),
                 FindDivergenceIndexNode(name="FindDivergenceIndex"),
-                SendMissingEntriesNode(name="SendMissingEntries"),
+                SendMissingEntriesNode(name="SendMissingEntries", scope=scope),
             ],
         )

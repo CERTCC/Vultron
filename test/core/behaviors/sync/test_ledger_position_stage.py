@@ -371,24 +371,30 @@ def test_the_case_managers_own_activity_is_not_answered(dl) -> None:
 
 @pytest.mark.spec("SYNC-18-005")
 @pytest.mark.spec("BT-17-001")
-def test_a_store_that_is_not_the_case_manager_answers_nothing() -> None:
-    """A replica holds no authority to replay or re-seed (BT-17-001)."""
-    replica = SqliteDataLayer("sqlite:///:memory:", actor_id=SIGNATORY_ID)
+def test_a_store_that_is_not_the_case_manager_answers_nothing(caplog) -> None:
+    """A replica holds no authority to replay or re-seed (BT-17-001).
+
+    The sender is an active participant, so only the gate keeps the replica
+    from answering: no split is logged and nothing is recorded or sent.
+    """
+    replica = SqliteDataLayer("sqlite:///:memory:", actor_id=NON_SIGNATORY_ID)
     seed_case(replica, embargo_active=True)
     seed_ledger(replica, 2)
     sync_port, trigger = _ports()
     split = LedgerPosition(log_index=1, entry_hash="0" * 64)
 
-    result = BTBridge(
-        datalayer=replica, sync_port=sync_port, trigger_activity=trigger
-    ).execute_with_setup(
-        tree=create_ledger_position_stage(CASE_ID, NON_SIGNATORY_ID),
-        actor_id=SIGNATORY_ID,
-        activity=_note(NON_SIGNATORY_ID, split),
-    )
+    with caplog.at_level(logging.DEBUG, logger=_STAGE_LOGGERS):
+        result = BTBridge(
+            datalayer=replica, sync_port=sync_port, trigger_activity=trigger
+        ).execute_with_setup(
+            tree=create_ledger_position_stage(CASE_ID, SIGNATORY_ID),
+            actor_id=NON_SIGNATORY_ID,
+            activity=_note(SIGNATORY_ID, split),
+        )
 
     assert result.status == Status.SUCCESS
     _untouched(replica, sync_port, trigger)
+    assert not any("split" in r.getMessage() for r in caplog.records)
 
 
 @pytest.mark.spec("SYNC-18-007")
@@ -407,3 +413,47 @@ def test_a_stamp_at_the_tail_needs_no_sync_port(dl) -> None:
     state = _state(dl, SIGNATORY_ID)
     assert state is not None
     assert state.last_acknowledged_hash == entries[-1].entry_hash
+
+
+@pytest.mark.spec("SYNC-18-007")
+@pytest.mark.spec("SYNC-16-007")
+def test_an_empty_replicas_stamp_is_recorded_and_replayed_from_genesis(
+    dl,
+) -> None:
+    """A sender holding no entry stamps index -1 and the case's genesis hash:
+    a lag the ledger holds, so nothing is acknowledged and every entry is
+    replayed (CLP-08-005)."""
+    seed_ledger(dl, 2)
+    case = dl.read_case(CASE_ID)
+    assert case is not None
+    genesis = LedgerPosition(log_index=-1, entry_hash=case.genesis_hash)
+    sync_port, trigger = _ports()
+
+    result = _answer(dl, _note(SIGNATORY_ID, genesis), sync_port, trigger)
+
+    assert result.status == Status.SUCCESS
+    state = _state(dl, SIGNATORY_ID)
+    assert state is not None
+    assert state.last_acknowledged_hash == ""
+    assert _sent_indices(sync_port) == [0, 1]
+    assert _reseeded(trigger) == []
+
+
+@pytest.mark.spec("SYNC-18-004")
+@pytest.mark.spec("CLP-10-005")
+def test_a_replay_leaves_the_acts_case_key_alone(dl) -> None:
+    """The answer runs ahead of the act's own nodes, several of which read
+    ``/case_id``; its replay context stays in its own scope.  (``/case_actor_id``
+    is the CASE_MANAGER gate's own output, written by every gate.)"""
+    import py_trees
+
+    entries = seed_ledger(dl, 3)
+    sync_port, trigger = _ports()
+    storage = py_trees.blackboard.Blackboard.storage
+    before = storage.get("/case_id")
+
+    _answer(dl, _note(SIGNATORY_ID, _position(entries[0])), sync_port, trigger)
+
+    assert _sent_indices(sync_port) == [1, 2]
+    assert storage.get("/case_id") == before
+    assert storage.get("/ledger_position/case_id") == CASE_ID

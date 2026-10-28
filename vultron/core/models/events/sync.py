@@ -22,8 +22,8 @@ from vultron.core.models.events.base import (
     VultronEvent,
 )
 from vultron.core.models.ledger_position import (
-    EMPTY_LEDGER_LOG_INDEX,
     LedgerPosition,
+    accepted_entry_hash,
 )
 
 
@@ -106,10 +106,7 @@ class RejectLogEntryReceivedEvent(VultronEvent):
         index -1, because it holds no entry: replay then starts from the
         beginning of the recorded projection (CLP-08-005, SYNC-16-007).
         """
-        position = self.ledger_position
-        if position is None or position.log_index == EMPTY_LEDGER_LOG_INDEX:
-            return ""
-        return position.entry_hash
+        return accepted_entry_hash(self.ledger_position)
 
 
 class ReadLogEntryReceivedEvent(LedgerPositionedEvent):

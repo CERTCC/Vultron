@@ -18,8 +18,7 @@ A replay node reads the case from the received activity
 (:func:`replay_case_id`), or from the tree when the tree names it
 (:class:`CaseNamedReplayNode`): the answer to a stamped ``ledgerPosition``
 is built for the tree's case, since a case activity names it in different
-slots (SYNC-18-007).  Split out of ``replay.py`` (BTND-07-004), which
-re-exports every name here.
+slots (SYNC-18-007).  Split out of ``replay.py`` (BTND-07-004).
 """
 
 from typing import Any
@@ -32,6 +31,7 @@ __all__ = [
     "CaseNamedReplayNode",
     "replay_case_id",
     "require_rejected_entry",
+    "scoped_keys",
 ]
 
 
@@ -65,6 +65,19 @@ def require_rejected_entry(activity: Any, node_name: str) -> CaseLedgerEntry:
     raise VultronError(
         f"{node_name}: activity did not carry a rejected CaseLedgerEntry"
     )
+
+
+def scoped_keys(scope: str | None, *keys: str) -> dict[str, str]:
+    """Port remappings putting *keys* under ``/<scope>/`` on the blackboard.
+
+    Nothing for ``scope=None``: the keys stay at the root.  A replay run
+    ahead of the act's own guards (the answer to a stamped ledger position,
+    SYNC-18-007) scopes ``case_id`` and ``case_actor_id``, which the act's
+    later nodes read from the root.
+    """
+    if scope is None:
+        return {}
+    return {key: f"/{scope}/{key}" for key in keys}
 
 
 class CaseNamedReplayNode(DataLayerActionWithPorts):

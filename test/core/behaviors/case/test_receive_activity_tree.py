@@ -1393,3 +1393,23 @@ class TestLedgerPositionStage:
                 ),
                 **_sender_args(),
             )
+
+    @pytest.mark.spec("SYNC-18-007")
+    @pytest.mark.spec("SYNC-18-001")
+    def test_a_ledger_activity_tree_answers_no_position(self) -> None:
+        """A tree whose sender and case come from the received ledger
+        activity (``Reject(CaseLedgerEntry)``) states no position to answer:
+        its own tree answers the one it reports (SYNC-03-002)."""
+        from vultron.core.behaviors.sync.reject_tree import (
+            create_reject_log_entry_tree,
+        )
+        from vultron.core.use_cases.received.sync import (
+            RejectLedgerEntryReceivedUseCase,
+        )
+
+        tree = create_reject_log_entry_tree(
+            CASE_ID,
+            sender_rule=RejectLedgerEntryReceivedUseCase.sender_entitlement,
+        )
+
+        assert POSITION_GATE not in _names(tree)

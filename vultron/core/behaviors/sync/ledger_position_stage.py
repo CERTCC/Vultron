@@ -58,7 +58,7 @@ from vultron.core.behaviors.sync.nodes.ledger_position import (
     ClassifyLedgerPositionNode,
     LedgerPositionAnswer,
     LedgerPositionIsNode,
-    PeerNotActiveParticipantNode,
+    PeerActiveParticipantNode,
     PositionStanding,
 )
 from vultron.core.behaviors.sync.nodes.replay import (
@@ -71,6 +71,10 @@ __all__ = ["LEDGER_POSITION_GATE_NAME", "create_ledger_position_stage"]
 
 #: Name of the CASE_MANAGER gate around the ledger-position answer.
 LEDGER_POSITION_GATE_NAME = "LedgerPositionIfCaseManager"
+
+#: Blackboard scope of the replay context the answer writes: it runs ahead of
+#: the act's own nodes, which read ``/case_id`` and ``/case_actor_id``.
+LEDGER_POSITION_SCOPE = "ledger_position"
 
 
 def _is(*expect: PositionStanding) -> LedgerPositionIsNode:
@@ -101,9 +105,15 @@ def create_ledger_position_stage(
                 name="Replay",
                 memory=False,
                 children=[
-                    FindCaseActorNode(name="FindCaseActor", case_id=case_id),
+                    FindCaseActorNode(
+                        name="FindCaseActor",
+                        case_id=case_id,
+                        scope=LEDGER_POSITION_SCOPE,
+                    ),
                     ReplayMissingEntriesNode(
-                        name="ReplayMissingEntries", case_id=case_id
+                        name="ReplayMissingEntries",
+                        case_id=case_id,
+                        scope=LEDGER_POSITION_SCOPE,
                     ),
                 ],
             ),
@@ -113,6 +123,9 @@ def create_ledger_position_stage(
         name="RecordAndReplay",
         memory=False,
         children=[
+            PeerActiveParticipantNode(
+                case_id=case_id, sender_id=sender_id, active=True
+            ),
             UpdateReplicationStateNode(
                 name="UpdateReplicationState", case_id=case_id
             ),
@@ -133,8 +146,10 @@ def create_ledger_position_stage(
                         name="RecordAndReplayIfActive",
                         memory=False,
                         children=[
-                            PeerNotActiveParticipantNode(
-                                case_id=case_id, sender_id=sender_id
+                            PeerActiveParticipantNode(
+                                case_id=case_id,
+                                sender_id=sender_id,
+                                active=False,
                             ),
                             record_and_replay,
                         ],

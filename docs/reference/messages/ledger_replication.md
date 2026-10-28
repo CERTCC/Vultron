@@ -40,9 +40,9 @@ The position is part of the received body, so the ledger entry for the message r
 `Announce(CaseLedgerEntry)` and `Announce(VulnerabilityCase)` carry none, because the entry and the case state their own positions.
 `Create(ProcessingFault)` carries none either: any receiver sends one, about an activity it could not process.
 
-The CASE_MANAGER reads the position on every case message it receives, and the position never changes how it judges the message.
+The CASE_MANAGER reads the position on every case message it receives.
+Apart from a reply to the full-case Invite, which must not be behind the Invite's own position (CM-11-012), the position never changes how it judges the message.
 A position behind its ledger tail is normal while entries are still on their way, so the CASE_MANAGER logs the lag at DEBUG and applies or refuses the message on its own merits (SYNC-18-004).
-The one message judged against a position is a reply to the full-case Invite, which must not be behind the Invite's own position (CM-11-012).
 A position at or behind the tail is also the sender's statement of how far it has got, so the CASE_MANAGER answers it as it answers a `Read(CaseLedgerEntry)`.
 It records the position as the sender's acknowledged position and, when the position lags, replays every entry after it under the same rate bound and outbox de-duplication (SYNC-18-007).
 A position that names an entry the CASE_MANAGER's ledger holds with a different hash, or an index past its tail, means the sender's chain has split from the canonical ledger.
