@@ -8,8 +8,9 @@ description: >
   `actionlint` and block-scalar indentation, single-quoted apostrophes, the
   mandatory `notify-failure` wiring and its one-job-per-label rule, why an
   automated find-or-file lookup must not go through the search index, why a
-  `GITHUB_TOKEN`-raised event never triggers another workflow, and how to read a
-  red CI job correctly.
+  `GITHUB_TOKEN`-raised event never triggers another workflow, why an artifact
+  name needs the run attempt, why a GitHub write is retried and a label swap is
+  split, and how to read a red CI job correctly.
 related_notes:
   - notes/demo-ci-invariants.md
   - notes/demo-ci-scenario-coverage.md
@@ -73,6 +74,23 @@ and update arms. The script resolves the type by name, applies it with
 `updateIssue`, leaves a typed issue alone, and fails the step when the type does
 not exist (CISEC-05-007). `notify-failure` and `demo-recordings.yml` use it;
 never copy its body into a workflow.
+
+## An Artifact a Later Job Downloads Needs the Run Attempt in Its Name
+
+A re-run attempt uploads its artifact beside the earlier attempt's, under the same
+name, and a download by that name can return the stale one: a re-run Invariant
+Harness judged the first attempt's case log and failed a demo that had passed
+(#4577). Put `${{ github.run_attempt }}` in the name, and have the consumer pick
+the highest attempt not later than its own, since a consumer re-run alone keeps
+its producer's earlier attempt (DEMOCI-04-008, DEMOCI-04-009).
+
+## Retry a GitHub Write, and Never Swap Labels in One Call
+
+GitHub sometimes answers a call with a server error that a retry clears. Wrap
+each repeatable call in `retry` from `.github/scripts/retry.sh`, which is bounded.
+Split a label swap into an add, then the removals: one `gh pr edit --add-label X
+--remove-label Y` once removed Y, failed before adding X, and left the PR with no
+size label (#4524).
 
 ## PyYAML Parses a Bare `on:` Key as `True`
 
