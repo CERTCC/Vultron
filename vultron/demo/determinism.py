@@ -13,9 +13,9 @@
 
 """Seeded ids and a stepping clock, so a scenario run repeats byte for byte.
 
-A scenario recording (#3901) is drift-tested by comparing a fresh run with the
-committed file, so every id, timestamp and hash in it must come out the same on
-every run.  Two sources vary between runs, and :func:`deterministic_run`
+A scenario recording (#3901) is checked for staleness by comparing a fresh run
+with the committed file, so every id, timestamp and hash in it must come out the
+same on every run.  Two sources vary between runs, and :func:`deterministic_run`
 replaces both:
 
 - **Ids.**  Every generated id is a ``uuid4``.  The run replaces

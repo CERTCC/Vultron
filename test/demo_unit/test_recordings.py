@@ -13,9 +13,10 @@
 
 """Tests for the committed scenario recordings and the recorder's parts (#3901).
 
-Running a scenario takes up to two minutes, so the drift test that does it
-lives in ``test/demo_recordings/test_recordings_drift.py``, in the integration suite.  The
-checks here read only committed files.
+Running a scenario takes up to two minutes.  The smoke test that runs one is in
+``test/demo_recordings/``, in the integration suite, and the check that the
+committed recordings are current is the scheduled ``demo-recordings`` workflow.
+The checks here read only committed files or stub the run.
 """
 
 import asyncio
@@ -455,6 +456,48 @@ class TestCli:
             "retired-scenario",
             "rv",
         ]
+
+    @pytest.fixture
+    def stubbed(self, tmp_path, monkeypatch):
+        """Two registered scenarios whose recordings are "<name>\\n"."""
+        specs = [
+            spec for spec in discover_scenarios() if spec.name in {"rv", "rvv"}
+        ]
+        monkeypatch.setattr(recordings, "RECORDINGS_DIR", tmp_path)
+        monkeypatch.setattr(recordings, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(recordings, "discover_scenarios", lambda: specs)
+        monkeypatch.setattr(recordings, "load_topology", lambda: None)
+        monkeypatch.setattr(
+            recordings,
+            "record_scenario",
+            lambda spec, _topology: f"{spec.name}\n",
+        )
+        for name in ("rv", "rvv"):
+            write_recording(name, f"{name}\n")
+        return tmp_path
+
+    def test_report_changes_passes_when_nothing_changed(self, stubbed):
+        result = CliRunner().invoke(recordings.main, ["--report-changes"])
+        assert result.exit_code == 0, result.output
+
+    def test_report_changes_names_a_changed_recording(self, stubbed):
+        write_recording("rvv", "an older run\n")
+        result = CliRunner().invoke(recordings.main, ["--report-changes"])
+        assert result.exit_code == recordings.CHANGED_EXIT_CODE
+        assert "Changed recordings: rvv" in result.output
+        # The fresh recording is written, ready to commit or upload.
+        assert recordings.recording_path("rvv").read_text() == "rvv\n"
+
+    def test_report_changes_counts_a_removed_scenario(self, stubbed):
+        write_recording("retired", "x\n")
+        result = CliRunner().invoke(recordings.main, ["--report-changes"])
+        assert result.exit_code == recordings.CHANGED_EXIT_CODE
+        assert "Changed recordings: retired" in result.output
+
+    def test_without_report_changes_a_change_still_exits_zero(self, stubbed):
+        write_recording("rv", "an older run\n")
+        result = CliRunner().invoke(recordings.main, [])
+        assert result.exit_code == 0, result.output
 
     def test_a_full_run_records_every_scenario_and_drops_stale_ones(
         self, tmp_path, monkeypatch

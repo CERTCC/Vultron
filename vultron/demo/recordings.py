@@ -37,15 +37,21 @@ Each scenario runs in this process, through its own ``main()``:
   name, and each outbox batch delivers its rows one at a time, so two runs
   give byte-identical recordings.
 
-Output goes to ``ui/src/recordings/<scenario>/case-actor.jsonl``.  The drift test
-``test/demo_recordings/test_recordings_drift.py`` fails when a
-committed recording differs from a fresh run.
+Output goes to ``ui/src/recordings/<scenario>/case-actor.jsonl``.
+
+Pull requests do not regenerate the recordings, so a recording may lag
+``main`` for a few days.  The scheduled ``demo-recordings`` workflow runs
+``--report-changes`` on ``main``, and while any recording is out of date it
+keeps one "Refresh the demo recordings" Task open (exit status 3).  A PR
+whose change needs current recordings, a UI change for example, regenerates
+them itself.
 
 Usage::
 
     uv run export-demo-recordings                 # every scenario
     uv run export-demo-recordings --scenario rv   # one scenario
     uv run export-demo-recordings --check         # the recorded set only
+    uv run export-demo-recordings --report-changes  # exit 3 if any changed
 """
 
 import asyncio
@@ -96,6 +102,11 @@ COMPOSE_PATH = REPO_ROOT / "docker" / "docker-compose-multi-actor.yml"
 
 #: The command that regenerates the recordings; named in every drift message.
 REGENERATE_COMMAND = "uv run export-demo-recordings"
+
+#: ``--report-changes`` exit status when a run changed a committed recording.
+#: Distinct from 1, a failed run, so the scheduled workflow can tell a stale
+#: recording (file a refresh Task) from a broken recorder (a CI failure).
+CHANGED_EXIT_CODE = 3
 
 #: The compose service whose environment maps container slots to URLs.
 _RUNNER_SERVICE = "demo-runner"
@@ -475,7 +486,7 @@ def layout_problems(scenario_names: Sequence[str]) -> list[str]:
     This checks the part of the recordings the registry decides, which set of
     scenarios is recorded (DEMOCI-11-005), and is cheap enough for pre-commit.
     Whether a recording's content is current takes a run of its scenario, which
-    the drift test does.
+    the scheduled ``demo-recordings`` workflow does (``--report-changes``).
     """
     registered = set(scenario_names)
     recorded = (
@@ -524,7 +535,18 @@ def layout_problems(scenario_names: Sequence[str]) -> list[str]:
     help="Log level of the scenario runs. Below ERROR, the in-process "
     "harness's known shared-store warnings are shown too.",
 )
-def main(scenarios: tuple[str, ...], check: bool, log_level: str) -> None:
+@click.option(
+    "--report-changes",
+    is_flag=True,
+    help=f"Exit {CHANGED_EXIT_CODE} when the run changed a committed "
+    "recording, after writing it; list the changed scenarios.",
+)
+def main(
+    scenarios: tuple[str, ...],
+    check: bool,
+    log_level: str,
+    report_changes: bool,
+) -> None:
     """Record every registered demo scenario into ui/src/recordings/."""
     logging.basicConfig(level=log_level)
     specs = {spec.name: spec for spec in discover_scenarios()}
@@ -541,12 +563,18 @@ def main(scenarios: tuple[str, ...], check: bool, log_level: str) -> None:
         raise click.BadParameter(
             f"not registered: {', '.join(unknown)}", param_hint="--scenario"
         )
-    if not scenarios:
-        _remove_unregistered(set(specs))
+    changed = [] if scenarios else _remove_unregistered(set(specs))
     topology = load_topology()
     for name in scenarios or tuple(specs):
-        path = write_recording(name, record_scenario(specs[name], topology))
+        recording = record_scenario(specs[name], topology)
+        path = recording_path(name)
+        if not path.is_file() or path.read_text(encoding="utf-8") != recording:
+            changed.append(name)
+        write_recording(name, recording)
         click.echo(f"Wrote {path.relative_to(REPO_ROOT)}")
+    if report_changes and changed:
+        click.echo(f"Changed recordings: {', '.join(changed)}")
+        raise SystemExit(CHANGED_EXIT_CODE)
 
 
 def _check_layout(scenario_names: Sequence[str]) -> None:
@@ -559,12 +587,18 @@ def _check_layout(scenario_names: Sequence[str]) -> None:
         raise SystemExit(1)
 
 
-def _remove_unregistered(registered: set[str]) -> None:
-    """Drop the recordings of scenarios no longer registered (a full run)."""
+def _remove_unregistered(registered: set[str]) -> list[str]:
+    """Drop the recordings of scenarios no longer registered (a full run).
+
+    Returns the names removed.
+    """
+    removed = []
     for stale in sorted(RECORDINGS_DIR.glob("*/")):
         if stale.name not in registered:
             shutil.rmtree(stale)
+            removed.append(stale.name)
             click.echo(f"Removed {stale.relative_to(REPO_ROOT)}")
+    return removed
 
 
 if __name__ == "__main__":

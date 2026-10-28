@@ -205,8 +205,8 @@ repos:
       - id: demo-recordings-sync
         name: Demo scenario recordings match the registry
         # Checks only which scenarios are recorded (DEMOCI-11-005); a run of
-        # every scenario takes minutes, so the content drift test lives in the
-        # integration suite (test/demo_recordings/test_recordings_drift.py).
+        # every scenario takes minutes, so whether the content is current is
+        # checked daily on main (.github/workflows/demo-recordings.yml).
         entry: uv run export-demo-recordings --check
         language: system
         files: ^(vultron/demo/scenario/.*\.py|vultron/demo/recordings\.py|ui/src/recordings/.*)$

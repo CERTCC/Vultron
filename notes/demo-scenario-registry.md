@@ -130,7 +130,7 @@ Route each consumer by what it is:
 | `test/ci/README-case-log-ratchet.md`, `vultron/demo/scenario/README.md` | generate + `--check` | Outside the mkdocs tree, read raw, so an include directive would render literally |
 | `notes/` scenario tables | check in place (DEMOCI-11-006/007) | Rows interleave hand-written columns; a generator would have to write cells nobody wrote |
 | `vultron/demo/cli.py` sub-commands | built at import time (DEMOCI-11-011) | No committed copy at all |
-| `ui/src/recordings/` | generate (`uv run export-demo-recordings`); `--check` hook on the recorded set, drift test on content | A run of every scenario takes minutes, too slow for a hook, so content drift is an integration test |
+| `ui/src/recordings/` | generate (`uv run export-demo-recordings`); `--check` hook on the recorded set; content checked daily on `main`, which files a refresh Task | A run of every scenario takes minutes, and a stale recording is work to schedule, not a reason to block a PR: a few days of lag is accepted, so no PR has to regenerate |
 | `specs/` DEMOCI-06-002/003 and per-scenario DEMOMA-16 | check only | A requirement keeps its prose so it stays citable |
 | `mkdocs.yml` nav | check completeness | Hand-written labels |
 | `docs/topics/scenarios/*.md` narrative pages | check page set and frontmatter (DEMOCI-11-012) | Hand-written prose |

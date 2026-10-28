@@ -16,9 +16,8 @@ import { buildTimelineFromCaseLedger } from './utils/caseLedgerMapper'
 // scenario writes when it runs, produced by `uv run export-demo-recordings`
 // (vultron/demo/recordings.py), which runs each scenario in process with seeded
 // ids and a fixed clock and checks every replica against the canonical ledger.
-// The drift test `test/demo_recordings/test_recordings_drift.py` fails when a
-// committed recording differs from a fresh run, so never hand-edit one:
-// regenerate it. They live in-tree, apart from the
+// A recording may lag main by a few days; the daily `demo-recordings` workflow
+// files a refresh Task when one is stale. Never hand-edit one: regenerate it. They live in-tree, apart from the
 // gitignored repo-root `devlogs/` (see ui/AGENTS.md §7), so a fresh clone builds.
 //
 // rv: the happy-path recording (Reporter + Vendor).
